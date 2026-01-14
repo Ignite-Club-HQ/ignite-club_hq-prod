@@ -1,0 +1,256 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import Stripe from "https://esm.sh/stripe@14.21.0";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// Price IDs would be configured in Stripe dashboard
+// These are placeholder product configurations
+const TEAM_PRICING = {
+  pro: {
+    monthly: 2500, // $25 AUD in cents
+    annual: 24000, // $240 AUD in cents
+  },
+  pro_football: {
+    monthly: 4000, // $40 AUD in cents
+    annual: 38400, // $384 AUD in cents
+  },
+};
+
+const CLUB_PRICING = {
+  pro: {
+    starter: { monthly: 9900, teamLimit: 10 },
+    standard: { monthly: 14900, teamLimit: 20 },
+    unlimited: { monthly: 19900, teamLimit: null },
+  },
+  pro_football: {
+    starter: { monthly: 14900, teamLimit: 10 },
+    standard: { monthly: 22900, teamLimit: 20 },
+    unlimited: { monthly: 29900, teamLimit: null },
+  },
+};
+
+serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { 
+      subscriptionType, // 'team' or 'club'
+      entityId, // teamId or clubId
+      tier, // 'pro' or 'pro_football'
+      plan, // 'starter', 'standard', 'unlimited' (for club only)
+      isAnnual,
+      withTrial, // boolean - whether to add 14-day trial
+      successUrl,
+      cancelUrl,
+    } = await req.json();
+
+    console.log('Creating subscription checkout:', { subscriptionType, entityId, tier, plan, isAnnual, withTrial });
+
+    // Create Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const authHeader = req.headers.get('Authorization');
+    
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader || '' } }
+    });
+
+    // Get the authenticated user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      console.error('Auth error:', userError);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get the entity details and Stripe config
+    let entityName: string;
+    let clubId: string;
+    let stripeSecretKey: string | null = null;
+
+    if (subscriptionType === 'team') {
+      const { data: team, error: teamError } = await supabase
+        .from('teams')
+        .select('id, name, club_id, clubs(name)')
+        .eq('id', entityId)
+        .single();
+
+      if (teamError || !team) {
+        console.error('Team not found:', teamError);
+        return new Response(
+          JSON.stringify({ error: 'Team not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      entityName = team.name;
+      clubId = team.club_id;
+    } else {
+      const { data: club, error: clubError } = await supabase
+        .from('clubs')
+        .select('id, name')
+        .eq('id', entityId)
+        .single();
+
+      if (clubError || !club) {
+        console.error('Club not found:', clubError);
+        return new Response(
+          JSON.stringify({ error: 'Club not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      entityName = club.name;
+      clubId = club.id;
+    }
+
+    // Get club's Stripe config using service role to read the secret key
+    const supabaseService = createClient(
+      supabaseUrl,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const { data: stripeConfig } = await supabaseService
+      .from('club_stripe_configs')
+      .select('stripe_secret_key, is_enabled')
+      .eq('club_id', clubId)
+      .eq('is_enabled', true)
+      .maybeSingle();
+
+    // If no club Stripe config, check app-level config
+    if (!stripeConfig?.stripe_secret_key) {
+      const { data: appStripeConfig } = await supabaseService
+        .from('app_stripe_config')
+        .select('stripe_secret_key, is_enabled')
+        .eq('is_enabled', true)
+        .maybeSingle();
+
+      if (!appStripeConfig?.stripe_secret_key) {
+        console.error('No Stripe configuration found');
+        return new Response(
+          JSON.stringify({ error: 'Stripe not configured' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      stripeSecretKey = appStripeConfig.stripe_secret_key;
+    } else {
+      stripeSecretKey = stripeConfig.stripe_secret_key;
+    }
+
+    // Initialize Stripe
+    const stripe = new Stripe(stripeSecretKey, {
+      apiVersion: '2023-10-16',
+    });
+
+    // Calculate pricing
+    let unitAmount: number;
+    let productName: string;
+    let interval: 'month' | 'year' = isAnnual ? 'year' : 'month';
+    let teamLimit: number | null = null;
+
+    if (subscriptionType === 'team') {
+      const tierPricing = tier === 'pro' ? TEAM_PRICING.pro : TEAM_PRICING.pro_football;
+      unitAmount = isAnnual ? tierPricing.annual : tierPricing.monthly;
+      productName = tier === 'pro' ? 'Team Pro Subscription' : 'Team Pro Football Subscription';
+    } else {
+      const tierPricing = tier === 'pro' ? CLUB_PRICING.pro : CLUB_PRICING.pro_football;
+      const planPricing = tierPricing[plan as keyof typeof tierPricing];
+      unitAmount = isAnnual 
+        ? Math.round(planPricing.monthly * 12 * 0.8) // 20% discount for annual
+        : planPricing.monthly;
+      teamLimit = planPricing.teamLimit;
+      const planName = plan.charAt(0).toUpperCase() + plan.slice(1);
+      productName = tier === 'pro' 
+        ? `Club Pro ${planName} Subscription` 
+        : `Club Pro Football ${planName} Subscription`;
+    }
+
+    // Check if customer already exists
+    const customers = await stripe.customers.list({
+      email: user.email,
+      limit: 1,
+    });
+
+    let customerId: string;
+    if (customers.data.length > 0) {
+      customerId = customers.data[0].id;
+    } else {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        metadata: {
+          user_id: user.id,
+        },
+      });
+      customerId = customer.id;
+    }
+
+    // Create the checkout session for subscription
+    const sessionConfig: any = {
+      customer: customerId,
+      payment_method_types: ['card'],
+      mode: 'subscription',
+      line_items: [
+        {
+          price_data: {
+            currency: 'aud',
+            unit_amount: unitAmount,
+            product_data: {
+              name: productName,
+              description: `${entityName} - ${isAnnual ? 'Annual' : 'Monthly'} billing`,
+            },
+            recurring: {
+              interval: interval,
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        subscription_type: subscriptionType,
+        entity_id: entityId,
+        club_id: clubId,
+        tier: tier,
+        plan: plan || 'none',
+        team_limit: teamLimit?.toString() || 'null',
+        user_id: user.id,
+        is_annual: isAnnual.toString(),
+        with_trial: (withTrial || false).toString(),
+      },
+      success_url: successUrl || `${req.headers.get('origin')}/subscription-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: cancelUrl || `${req.headers.get('origin')}/subscription-cancelled`,
+    };
+
+    // Add 14-day trial period if requested
+    if (withTrial) {
+      sessionConfig.subscription_data = {
+        trial_period_days: 14,
+      };
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionConfig);
+
+    console.log('Checkout session created:', session.id);
+
+    return new Response(
+      JSON.stringify({ url: session.url }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Error creating subscription checkout:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(
+      JSON.stringify({ error: errorMessage }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
