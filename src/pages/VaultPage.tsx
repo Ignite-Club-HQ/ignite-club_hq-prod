@@ -1,0 +1,4051 @@
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw } from "lucide-react";
+import { CreateFolderDialog } from "@/components/vault/CreateFolderDialog";
+import { UploadFilesDialog } from "@/components/vault/UploadFilesDialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
+import JSZip from "jszip";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { getFolderColorClass } from "@/components/TeamFoldersManager";
+import { VaultFolderCard } from "@/components/vault/VaultFolderCard";
+import { PhotoLightbox } from "@/components/PhotoLightbox";
+import { removePhotoFromCache } from "@/lib/mediaCache";
+import { StoragePurchaseDialog } from "@/components/StoragePurchaseDialog";
+import { useClubTheme } from "@/hooks/useClubTheme";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+type FolderView = 
+  | { type: "root" }
+  | { type: "club"; clubId: string; clubName: string; folderId?: string; folderName?: string }
+  | { type: "team"; clubId: string; clubName: string; teamId: string; teamName: string; folderId?: string; folderName?: string };
+
+export default function VaultPage() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { folderId: urlFolderId } = useParams<{ folderId?: string }>();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { activeClubFilter } = useClubTheme();
+  const [currentView, setCurrentView] = useState<FolderView>({ type: "root" });
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const [uploadType, setUploadType] = useState<"photo" | "file">("photo");
+  const [fileName, setFileName] = useState("");
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [deletePhotoId, setDeletePhotoId] = useState<string | null>(null);
+  const [deleteFileId, setDeleteFileId] = useState<string | null>(null);
+  const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null);
+  const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([]);
+  const [renameFolderId, setRenameFolderId] = useState<string | null>(null);
+  const [renameFolderName, setRenameFolderName] = useState("");
+  const [renameFileId, setRenameFileId] = useState<string | null>(null);
+  const [renameFileName, setRenameFileName] = useState("");
+  const [renamePhotoId, setRenamePhotoId] = useState<string | null>(null);
+  const [renamePhotoName, setRenamePhotoName] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
+  const exportAbortController = useRef<AbortController | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [exportPreviewOpen, setExportPreviewOpen] = useState(false);
+  const [exportPreviewData, setExportPreviewData] = useState<{
+    photos: any[];
+    files: any[];
+    folderBreakdown: { path: string; photoCount: number; fileCount: number }[];
+    loading: boolean;
+  }>({ photos: [], files: [], folderBreakdown: [], loading: false });
+  const [excludedFolders, setExcludedFolders] = useState<Set<string>>(new Set());
+  const [exportConfirmOpen, setExportConfirmOpen] = useState(false);
+  const [pendingExportAction, setPendingExportAction] = useState<{ type: 'zip' | 'download' | 'zipAll'; includeSubfolders?: boolean } | null>(null);
+  const [largeFilesDialogOpen, setLargeFilesDialogOpen] = useState(false);
+  const [largeFilesData, setLargeFilesData] = useState<{
+    loading: boolean;
+    items: Array<{ id: string; type: 'photo' | 'file'; name: string; size: number; url: string; teamName?: string; createdAt: string }>;
+  }>({ loading: false, items: [] });
+  const [selectedLargeFiles, setSelectedLargeFiles] = useState<Set<string>>(new Set());
+  const [deletingLargeFiles, setDeletingLargeFiles] = useState(false);
+  const [largeFilesSortBy, setLargeFilesSortBy] = useState<'size' | 'date' | 'type'>('size');
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [isDeletingSelected, setIsDeletingSelected] = useState(false);
+  const [storagePurchaseDialogOpen, setStoragePurchaseDialogOpen] = useState(false);
+
+  const togglePhotoSelection = (photoId: string) => {
+    setSelectedPhotos(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(photoId)) {
+        newSet.delete(photoId);
+      } else {
+        newSet.add(photoId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleFileSelection = (fileId: string) => {
+    setSelectedFiles(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(fileId)) {
+        newSet.delete(fileId);
+      } else {
+        newSet.add(fileId);
+      }
+      return newSet;
+    });
+  };
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedPhotos(new Set());
+    setSelectedFiles(new Set());
+  };
+
+  const selectAll = () => {
+    setSelectedPhotos(new Set((photos || []).map(p => p.id)));
+    setSelectedFiles(new Set((files || []).map(f => f.id)));
+  };
+
+  const getSelectedItems = () => {
+    const selectedPhotoItems = (photos || []).filter(p => selectedPhotos.has(p.id));
+    const selectedFileItems = (files || []).filter(f => selectedFiles.has(f.id));
+    return { photos: selectedPhotoItems, files: selectedFileItems };
+  };
+
+  const selectedCount = selectedPhotos.size + selectedFiles.size;
+
+  const { data: isAppAdmin, isLoading: isLoadingAppAdmin } = useQuery({
+    queryKey: ["is-app-admin", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user!.id)
+        .eq("role", "app_admin")
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!user,
+  });
+
+  const { data: userRoles } = useQuery({
+    queryKey: ["user-admin-roles", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role, club_id, team_id")
+        .eq("user_id", user!.id);
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const { data: userClubs, isLoading: isLoadingClubs } = useQuery({
+    queryKey: ["vault-clubs", user?.id, isAppAdmin],
+    queryFn: async () => {
+      if (isAppAdmin) {
+        const { data: clubs } = await supabase
+          .from("clubs")
+          .select("id, name, is_pro, storage_used_bytes")
+          .order("name");
+        return clubs || [];
+      }
+
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("club_id, team_id")
+        .eq("user_id", user!.id);
+
+      if (!roles || roles.length === 0) return [];
+
+      // Get clubs from direct club roles
+      const clubIds = [...new Set(roles.map((r) => r.club_id).filter(Boolean))] as string[];
+      
+      // Also get clubs from team memberships
+      const teamIds = roles.map((r) => r.team_id).filter(Boolean) as string[];
+      if (teamIds.length > 0) {
+        const { data: teams } = await supabase
+          .from("teams")
+          .select("club_id")
+          .in("id", teamIds);
+        
+        if (teams) {
+          teams.forEach(t => {
+            if (t.club_id && !clubIds.includes(t.club_id)) {
+              clubIds.push(t.club_id);
+            }
+          });
+        }
+      }
+      
+      if (clubIds.length === 0) return [];
+      
+      const { data: clubs } = await supabase
+        .from("clubs")
+        .select("id, name, is_pro, storage_used_bytes")
+        .in("id", clubIds);
+
+      return clubs || [];
+    },
+    enabled: !!user && isAppAdmin !== undefined,
+  });
+
+  // Auto-navigate to club view when theme filter is active - only on initial load
+  const hasAutoNavigatedRef = useRef(false);
+  useEffect(() => {
+    if (activeClubFilter && currentView.type === "root" && userClubs && userClubs.length > 0 && !hasAutoNavigatedRef.current) {
+      const club = userClubs.find(c => c.id === activeClubFilter);
+      if (club) {
+        hasAutoNavigatedRef.current = true;
+        setCurrentView({ type: "club", clubId: activeClubFilter, clubName: club.name });
+      }
+    }
+  }, [activeClubFilter, userClubs, currentView.type]);
+
+  // Check if user is a club admin for the current club
+  const isClubAdmin = useMemo(() => {
+    if (isAppAdmin) return true;
+    if (currentView.type !== "club" && currentView.type !== "team") return false;
+    const clubId = currentView.type === "club" ? currentView.clubId : currentView.clubId;
+    return userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId) || false;
+  }, [isAppAdmin, currentView, userRoles]);
+
+  // Get first admin club/team for upgrade link
+  const adminUpgradeInfo = useMemo(() => {
+    if (!userRoles) return { clubId: undefined, teamId: undefined };
+    const clubAdminRole = userRoles.find(r => r.role === "club_admin" && r.club_id);
+    if (clubAdminRole?.club_id) return { clubId: clubAdminRole.club_id as string, teamId: undefined };
+    const teamAdminRole = userRoles.find(r => r.role === "team_admin" && r.team_id);
+    if (teamAdminRole?.team_id) return { clubId: undefined, teamId: teamAdminRole.team_id as string };
+    return { clubId: undefined, teamId: undefined };
+  }, [userRoles]);
+
+  // Get teams user has access to
+  const userTeamIds = useMemo(() => {
+    if (!userRoles) return [];
+    return userRoles.filter(r => r.team_id).map(r => r.team_id as string);
+  }, [userRoles]);
+
+  // Check if the current club has Pro
+  const { data: currentClubHasPro } = useQuery({
+    queryKey: ["vault-club-has-pro", currentView.type === "club" || currentView.type === "team" ? (currentView.type === "club" ? currentView.clubId : currentView.clubId) : null],
+    queryFn: async () => {
+      if (currentView.type !== "club" && currentView.type !== "team") return false;
+      const clubId = currentView.type === "club" ? currentView.clubId : currentView.clubId;
+      const { data } = await supabase
+        .from("club_subscriptions")
+        .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+        .eq("club_id", clubId)
+        .maybeSingle();
+      return !!(data?.is_pro || data?.is_pro_football || data?.admin_pro_override || data?.admin_pro_football_override);
+    },
+    enabled: currentView.type === "club" || currentView.type === "team",
+  });
+
+  // Check if the current team has Pro (for teams in non-Pro clubs)
+  const { data: currentTeamHasPro } = useQuery({
+    queryKey: ["vault-team-has-pro", currentView.type === "team" ? currentView.teamId : null],
+    queryFn: async () => {
+      if (currentView.type !== "team") return false;
+      const { data } = await supabase
+        .from("team_subscriptions")
+        .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+        .eq("team_id", currentView.teamId)
+        .maybeSingle();
+      return !!(data?.is_pro || data?.is_pro_football || data?.admin_pro_override || data?.admin_pro_football_override);
+    },
+    enabled: currentView.type === "team",
+  });
+
+  // Determine if current context has Pro access for uploads
+  const currentContextHasPro = useMemo(() => {
+    if (currentView.type === "club") {
+      return currentClubHasPro || false;
+    }
+    if (currentView.type === "team") {
+      // Team inherits Pro if club has Pro, or team has individual Pro
+      return currentClubHasPro || currentTeamHasPro || false;
+    }
+    return false;
+  }, [currentView.type, currentClubHasPro, currentTeamHasPro]);
+
+  const { data: clubTeams } = useQuery({
+    queryKey: ["vault-club-teams", currentView.type === "club" ? currentView.clubId : null, isClubAdmin, userTeamIds, currentClubHasPro],
+    queryFn: async () => {
+      if (currentView.type !== "club") return [];
+      
+      // First get all teams user can potentially access
+      let teams: { id: string; name: string; folder_id: string | null }[] = [];
+      
+      if (isClubAdmin) {
+        // Club admins and app admins can see all teams
+        const { data } = await supabase
+          .from("teams")
+          .select("id, name, folder_id")
+          .eq("club_id", currentView.clubId)
+          .order("name");
+        teams = data || [];
+      } else {
+        // Non-club admins only see teams they are members of
+        if (userTeamIds.length === 0) return [];
+        
+        const { data } = await supabase
+          .from("teams")
+          .select("id, name, folder_id")
+          .eq("club_id", currentView.clubId)
+          .in("id", userTeamIds)
+          .order("name");
+        teams = data || [];
+      }
+      
+      // If club has Pro, all teams inherit it - show all
+      if (currentClubHasPro) return teams;
+      
+      // If club doesn't have Pro, only show teams with individual Pro subscriptions
+      if (teams.length === 0) return [];
+      
+      const teamIds = teams.map(t => t.id);
+      const { data: teamSubs } = await supabase
+        .from("team_subscriptions")
+        .select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+        .in("team_id", teamIds);
+      
+      const proTeamIds = new Set(
+        (teamSubs || [])
+          .filter(sub => sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override)
+          .map(sub => sub.team_id)
+      );
+      
+      return teams.filter(t => proTeamIds.has(t.id));
+    },
+    enabled: currentView.type === "club" && currentClubHasPro !== undefined,
+  });
+
+  // Fetch team folders for the current club
+  const { data: teamFolders } = useQuery({
+    queryKey: ["vault-team-folders", currentView.type === "club" ? currentView.clubId : null],
+    queryFn: async () => {
+      if (currentView.type !== "club") return [];
+      const { data } = await supabase
+        .from("team_folders")
+        .select("*")
+        .eq("club_id", currentView.clubId)
+        .order("sort_order", { ascending: true });
+      return data || [];
+    },
+    enabled: currentView.type === "club",
+  });
+
+  const getCurrentFolderId = () => {
+    if (currentView.type === "club" || currentView.type === "team") {
+      return currentView.folderId || null;
+    }
+    return null;
+  };
+
+  const getCurrentClubId = () => {
+    if (currentView.type === "club") return currentView.clubId;
+    if (currentView.type === "team") return currentView.clubId;
+    return null;
+  };
+
+  const getCurrentTeamId = () => {
+    if (currentView.type === "team") return currentView.teamId;
+    return null;
+  };
+
+  const { data: subfolders } = useQuery({
+    queryKey: ["vault-subfolders", currentView, isClubAdmin],
+    queryFn: async () => {
+      const clubId = getCurrentClubId();
+      const teamId = getCurrentTeamId();
+      const parentFolderId = getCurrentFolderId();
+      
+      let query = supabase.from("vault_folders").select("*");
+      
+      if (currentView.type === "club") {
+        // Club-level folders only accessible to club admins
+        if (!isClubAdmin) return [];
+        query = query.eq("club_id", clubId).is("team_id", null);
+      } else if (currentView.type === "team") {
+        query = query.eq("team_id", teamId);
+      }
+      
+      if (parentFolderId) {
+        query = query.eq("parent_id", parentFolderId);
+      } else {
+        query = query.is("parent_id", null);
+      }
+      
+      const { data } = await query.order("name");
+      return data || [];
+    },
+    enabled: currentView.type !== "root",
+  });
+
+  const [showTrash, setShowTrash] = useState(false);
+
+  const { data: photos } = useQuery({
+    queryKey: ["vault-photos", currentView, isClubAdmin],
+    queryFn: async () => {
+      const folderId = getCurrentFolderId();
+      let query = supabase.from("photos").select("*").is("deleted_at", null);
+      
+      if (currentView.type === "club") {
+        // Club-level content only accessible to club admins
+        if (!isClubAdmin) return [];
+        query = query.eq("club_id", currentView.clubId).is("team_id", null);
+      } else if (currentView.type === "team") {
+        query = query.eq("team_id", currentView.teamId);
+      }
+      
+      if (folderId) {
+        query = query.eq("folder_id", folderId);
+      } else {
+        query = query.is("folder_id", null);
+      }
+      
+      const { data } = await query.order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: currentView.type !== "root" && !showTrash,
+  });
+
+  const { data: files } = useQuery({
+    queryKey: ["vault-files", currentView, isClubAdmin],
+    queryFn: async () => {
+      const folderId = getCurrentFolderId();
+      let query = supabase.from("vault_files").select("*").is("deleted_at", null);
+      
+      if (currentView.type === "club") {
+        // Club-level content only accessible to club admins
+        if (!isClubAdmin) return [];
+        query = query.eq("club_id", currentView.clubId).is("team_id", null);
+      } else if (currentView.type === "team") {
+        query = query.eq("team_id", currentView.teamId);
+      }
+      
+      if (folderId) {
+        query = query.eq("folder_id", folderId);
+      } else {
+        query = query.is("folder_id", null);
+      }
+      
+      const { data } = await query.order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: currentView.type !== "root" && !showTrash,
+  });
+
+  // Trash query - fetches ALL deleted items for the current club (flat list)
+  const { data: trashItems, isLoading: isLoadingTrash } = useQuery({
+    queryKey: ["vault-trash", currentView.type !== "root" ? (currentView.type === "club" ? currentView.clubId : currentView.clubId) : null],
+    queryFn: async () => {
+      const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : null;
+      if (!clubId) return { photos: [], files: [] };
+      
+      // Fetch all deleted photos for this club with folder and team info
+      const { data: photosData } = await supabase
+        .from("photos")
+        .select(`
+          *,
+          folder:vault_folders(id, name),
+          team:teams(id, name)
+        `)
+        .eq("club_id", clubId)
+        .not("deleted_at", "is", null)
+        .order("deleted_at", { ascending: false });
+      
+      // Fetch all deleted files for this club with folder and team info
+      const { data: filesData } = await supabase
+        .from("vault_files")
+        .select(`
+          *,
+          folder:vault_folders(id, name),
+          team:teams(id, name)
+        `)
+        .eq("club_id", clubId)
+        .not("deleted_at", "is", null)
+        .order("deleted_at", { ascending: false });
+      
+      return {
+        photos: photosData || [],
+        files: filesData || [],
+      };
+    },
+    enabled: showTrash && currentView.type !== "root",
+  });
+
+  // Check for Pro subscription and get plan details
+  // Logic: Club Pro → all teams inherit Pro; Free club → check team subscription
+  const { data: proAccessInfo, isLoading: isLoadingProClub } = useQuery({
+    queryKey: ["pro-access-info", user?.id],
+    queryFn: async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("club_id, team_id")
+        .eq("user_id", user!.id);
+
+      if (!roles || roles.length === 0) return false;
+
+      const clubIds = roles.map((r) => r.club_id).filter(Boolean) as string[];
+      const teamIds = roles.map((r) => r.team_id).filter(Boolean) as string[];
+      
+      // Fetch team info to get parent club IDs
+      let allClubIds = [...clubIds];
+      if (teamIds.length > 0) {
+        const { data: teams } = await supabase
+          .from("teams")
+          .select("id, club_id")
+          .in("id", teamIds);
+        
+        if (teams) {
+          teams.forEach(t => {
+            if (t.club_id && !allClubIds.includes(t.club_id)) {
+              allClubIds.push(t.club_id);
+            }
+          });
+        }
+      }
+      
+      // Check club-level Pro subscriptions first
+      if (allClubIds.length > 0) {
+        const { data: clubSubs } = await supabase
+          .from("club_subscriptions")
+          .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+          .in("club_id", allClubIds);
+        
+        const hasClubPro = (clubSubs || []).some(sub => 
+          sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override
+        );
+        
+        if (hasClubPro) return true;
+      }
+      
+      // For teams in free clubs, check team-level subscriptions
+      if (teamIds.length > 0) {
+        const { data: teamSubs } = await supabase
+          .from("team_subscriptions")
+          .select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+          .in("team_id", teamIds);
+        
+        const teamHasPro = (teamSubs || []).some(sub => 
+          sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override
+        );
+        
+        if (teamHasPro) return true;
+      }
+
+      // Fallback: Check for club is_pro flag
+      if (allClubIds.length > 0) {
+        const { data: clubs } = await supabase
+          .from("clubs")
+          .select("is_pro")
+          .in("id", allClubIds)
+          .eq("is_pro", true);
+
+        return clubs && clubs.length > 0;
+      }
+      
+      return false;
+    },
+    enabled: !!user,
+  });
+
+  const hasProClub = proAccessInfo ?? false;
+  const isLoadingAccess = isLoadingAppAdmin || isLoadingProClub;
+  const canAccessVault = isAppAdmin || hasProClub;
+
+  // Handle storage purchase success redirect
+  useEffect(() => {
+    if (searchParams.get("success") === "storage") {
+      toast.success("Storage add-on purchased successfully! Your storage limit has been increased.");
+      searchParams.delete("success");
+      setSearchParams(searchParams, { replace: true });
+      queryClient.invalidateQueries({ queryKey: ["club-purchased-storage"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-clubs"] });
+    }
+  }, [searchParams, setSearchParams, queryClient]);
+
+  // Load folder from URL parameter
+  useEffect(() => {
+    const loadFolderFromUrl = async () => {
+      if (!urlFolderId || initialLoadComplete || !userClubs) return;
+      
+      try {
+        // Fetch the folder to get its details
+        const { data: folder, error } = await supabase
+          .from("vault_folders")
+          .select("*, teams!vault_folders_team_id_fkey(id, name, club_id), clubs!vault_folders_club_id_fkey(id, name)")
+          .eq("id", urlFolderId)
+          .maybeSingle();
+        
+        if (error || !folder) {
+          toast.error("Folder not found or access denied");
+          navigate("/vault", { replace: true });
+          setInitialLoadComplete(true);
+          return;
+        }
+
+        // Build folder path by traversing parent folders
+        const path: { id: string; name: string }[] = [];
+        let currentFolderId = folder.parent_id;
+        
+        while (currentFolderId) {
+          const { data: parentFolder } = await supabase
+            .from("vault_folders")
+            .select("id, name, parent_id")
+            .eq("id", currentFolderId)
+            .maybeSingle();
+          
+          if (parentFolder) {
+            path.unshift({ id: parentFolder.id, name: parentFolder.name });
+            currentFolderId = parentFolder.parent_id;
+          } else {
+            break;
+          }
+        }
+        
+        // Add the target folder to path
+        path.push({ id: folder.id, name: folder.name });
+        setFolderPath(path);
+
+        // Set the view based on folder type
+        if (folder.team_id && folder.teams) {
+          const clubId = folder.teams.club_id;
+          const { data: club } = await supabase
+            .from("clubs")
+            .select("name")
+            .eq("id", clubId)
+            .maybeSingle();
+          
+          setCurrentView({
+            type: "team",
+            clubId: clubId,
+            clubName: club?.name || "Unknown Club",
+            teamId: folder.team_id,
+            teamName: folder.teams.name,
+            folderId: folder.id,
+            folderName: folder.name,
+          });
+        } else if (folder.club_id && folder.clubs) {
+          setCurrentView({
+            type: "club",
+            clubId: folder.club_id,
+            clubName: folder.clubs.name,
+            folderId: folder.id,
+            folderName: folder.name,
+          });
+        }
+        
+        setInitialLoadComplete(true);
+      } catch (error) {
+        console.error("Error loading folder:", error);
+        toast.error("Failed to load folder");
+        navigate("/vault", { replace: true });
+        setInitialLoadComplete(true);
+      }
+    };
+
+    loadFolderFromUrl();
+  }, [urlFolderId, userClubs, initialLoadComplete, navigate]);
+
+  // Handle direct navigation via query parameters (?club=X or ?team=X)
+  useEffect(() => {
+    const loadFromQueryParams = async () => {
+      if (urlFolderId || initialLoadComplete || !userClubs || userClubs.length === 0) return;
+
+      const clubId = searchParams.get("club");
+      const teamId = searchParams.get("team");
+
+      if (!clubId && !teamId) {
+        setInitialLoadComplete(true);
+        return;
+      }
+
+      try {
+        if (teamId) {
+          // Navigate directly to team vault
+          const { data: team } = await supabase
+            .from("teams")
+            .select("id, name, club_id")
+            .eq("id", teamId)
+            .maybeSingle();
+
+          if (team) {
+            const club = userClubs.find(c => c.id === team.club_id);
+            if (club) {
+              setCurrentView({
+                type: "team",
+                clubId: team.club_id,
+                clubName: club.name,
+                teamId: team.id,
+                teamName: team.name,
+              });
+              // Clear query params without losing history
+              setSearchParams({}, { replace: true });
+            }
+          }
+        } else if (clubId) {
+          // Navigate directly to club vault
+          const club = userClubs.find(c => c.id === clubId);
+          if (club) {
+            setCurrentView({
+              type: "club",
+              clubId: club.id,
+              clubName: club.name,
+            });
+            // Clear query params without losing history
+            setSearchParams({}, { replace: true });
+          }
+        }
+      } catch (error) {
+        console.error("Error loading from query params:", error);
+      }
+
+      setInitialLoadComplete(true);
+    };
+
+    loadFromQueryParams();
+  }, [urlFolderId, userClubs, initialLoadComplete, searchParams, setSearchParams]);
+
+  const shareFolder = async (folderId: string) => {
+    const shareUrl = `${window.location.origin}/vault/folder/${folderId}`;
+    
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Vault Folder",
+          text: "Check out this folder in the vault",
+          url: shareUrl,
+        });
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success("Link copied to clipboard!");
+      }
+    } catch (error) {
+      // User cancelled share or error occurred
+      if ((error as Error).name !== "AbortError") {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success("Link copied to clipboard!");
+      }
+    }
+  };
+
+  const currentClub = useMemo(() => {
+    if (currentView.type === "club") return userClubs?.find(c => c.id === currentView.clubId);
+    if (currentView.type === "team") return userClubs?.find(c => c.id === currentView.clubId);
+    return null;
+  }, [currentView, userClubs]);
+
+  // 5GB base storage limit for Pro tier (in bytes)
+  const BASE_STORAGE_LIMIT = 5 * 1024 * 1024 * 1024;
+
+  // Query for purchased storage and scheduled downgrade info for current club
+  const { data: storageSubscriptionData } = useQuery({
+    queryKey: ["purchased-storage", currentClub?.id],
+    queryFn: async () => {
+      if (!currentClub?.id) return { storage_purchased_gb: 0, scheduled_storage_downgrade_gb: null, storage_downgrade_at: null };
+      const { data } = await supabase
+        .from("club_subscriptions")
+        .select("storage_purchased_gb, scheduled_storage_downgrade_gb, storage_downgrade_at")
+        .eq("club_id", currentClub.id)
+        .maybeSingle();
+      return data || { storage_purchased_gb: 0, scheduled_storage_downgrade_gb: null, storage_downgrade_at: null };
+    },
+    enabled: !!currentClub?.id,
+  });
+
+  const purchasedStorageGb = storageSubscriptionData?.storage_purchased_gb || 0;
+  const scheduledDowngradeGb = storageSubscriptionData?.scheduled_storage_downgrade_gb;
+  const storageDowngradeAt = storageSubscriptionData?.storage_downgrade_at;
+
+  // Total storage limit = base + purchased
+  const PRO_STORAGE_LIMIT = BASE_STORAGE_LIMIT + ((purchasedStorageGb || 0) * 1024 * 1024 * 1024);
+
+  // Query for storage breakdown by file type and team
+  const { data: storageBreakdown } = useQuery({
+    queryKey: ["storage-breakdown", currentClub?.id],
+    queryFn: async () => {
+      if (!currentClub?.id) return { photos: 0, documents: 0, total: 0, byTeam: [] as { teamId: string | null; teamName: string; size: number; photosSize: number; documentsSize: number }[] };
+      
+      // Helper to check if a filename is an image
+      const isImageFile = (filename: string) => {
+        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.heic', '.heif', '.tiff', '.tif'];
+        const lowerName = filename.toLowerCase();
+        return imageExtensions.some(ext => lowerName.endsWith(ext));
+      };
+      
+      // Default estimated size for photos without file_size (500KB per photo)
+      const DEFAULT_PHOTO_SIZE = 500 * 1024;
+      
+      // Get photos storage with team info
+      const { data: photosData } = await supabase
+        .from("photos")
+        .select("file_size, team_id")
+        .eq("club_id", currentClub.id);
+      
+      // Get documents storage with team info and name to check file type
+      const { data: filesData } = await supabase
+        .from("vault_files")
+        .select("file_size, team_id, name")
+        .eq("club_id", currentClub.id);
+      
+      // Get all teams for the club
+      const { data: teamsData } = await supabase
+        .from("teams")
+        .select("id, name")
+        .eq("club_id", currentClub.id);
+      
+      const teamsMap = new Map<string, string>();
+      (teamsData || []).forEach(t => teamsMap.set(t.id, t.name));
+      
+      // Separate vault_files into images and documents based on file extension
+      const imageFiles = (filesData || []).filter(f => isImageFile(f.name || ''));
+      const documentFiles = (filesData || []).filter(f => !isImageFile(f.name || ''));
+      
+      // Calculate photos size - use actual size if available, otherwise use default estimate
+      const photosSize = (photosData || []).reduce((sum, p) => sum + (p.file_size || DEFAULT_PHOTO_SIZE), 0) +
+                         imageFiles.reduce((sum, f) => sum + (f.file_size || 0), 0);
+      const documentsSize = documentFiles.reduce((sum, f) => sum + (f.file_size || 0), 0);
+      
+      // Calculate storage by team with breakdown
+      const teamStorageMap = new Map<string | null, { photos: number; documents: number }>();
+      (photosData || []).forEach(p => {
+        const current = teamStorageMap.get(p.team_id) || { photos: 0, documents: 0 };
+        current.photos += p.file_size || DEFAULT_PHOTO_SIZE;
+        teamStorageMap.set(p.team_id, current);
+      });
+      // Add image files from vault_files to photos count
+      imageFiles.forEach(f => {
+        const current = teamStorageMap.get(f.team_id) || { photos: 0, documents: 0 };
+        current.photos += f.file_size || 0;
+        teamStorageMap.set(f.team_id, current);
+      });
+      // Add non-image files to documents count
+      documentFiles.forEach(f => {
+        const current = teamStorageMap.get(f.team_id) || { photos: 0, documents: 0 };
+        current.documents += f.file_size || 0;
+        teamStorageMap.set(f.team_id, current);
+      });
+      
+      const byTeam = Array.from(teamStorageMap.entries())
+        .map(([teamId, sizes]) => ({
+          teamId,
+          teamName: teamId ? teamsMap.get(teamId) || "Unknown Team" : "Club-level",
+          size: sizes.photos + sizes.documents,
+          photosSize: sizes.photos,
+          documentsSize: sizes.documents
+        }))
+        .filter(t => t.size > 0)
+        .sort((a, b) => b.size - a.size);
+      
+      return { photos: photosSize, documents: documentsSize, total: photosSize + documentsSize, byTeam };
+    },
+    enabled: !!currentClub?.id,
+  });
+
+  // Get total club storage used (for Pro tier limit)
+  const totalClubStorageUsed = useMemo(() => {
+    return storageBreakdown?.total || 0;
+  }, [storageBreakdown]);
+
+  // Get current team's storage used (for display)
+  const currentTeamStorageUsed = useMemo(() => {
+    if (currentView.type === "team" && storageBreakdown?.byTeam) {
+      const teamData = storageBreakdown.byTeam.find(t => t.teamId === currentView.teamId);
+      return teamData?.size || 0;
+    }
+    if (currentView.type === "club" && storageBreakdown?.byTeam) {
+      const clubLevelData = storageBreakdown.byTeam.find(t => t.teamId === null);
+      return clubLevelData?.size || 0;
+    }
+    return 0;
+  }, [currentView, storageBreakdown]);
+
+  // Pro tier has 5GB limit + purchased storage
+  const isStorageLimitReached = useMemo(() => {
+    if (isAppAdmin) return false;
+    if (!hasProClub) return true; // Free tier can't access vault
+    // Pro tier has 5GB base limit + purchased storage (total club storage)
+    return totalClubStorageUsed >= PRO_STORAGE_LIMIT;
+  }, [isAppAdmin, hasProClub, totalClubStorageUsed]);
+
+  // Track which warnings have been shown this session
+  const shownWarningsRef = useRef<Set<string>>(new Set());
+
+  // Show warning when club storage reaches 80% of Pro limit
+  useEffect(() => {
+    if (!storageBreakdown || !currentClub || isAppAdmin || !hasProClub) return;
+
+    const WARNING_THRESHOLD = 0.8; // 80%
+    const percentage = totalClubStorageUsed / PRO_STORAGE_LIMIT;
+    const warningKey = `${currentClub.id}-pro-limit`;
+    
+    if (percentage >= WARNING_THRESHOLD && !shownWarningsRef.current.has(warningKey)) {
+      shownWarningsRef.current.add(warningKey);
+      
+      if (percentage >= 1) {
+        toast.error(`Storage limit reached`, {
+          description: "Delete files or purchase more storage"
+        });
+      } else {
+        toast.warning(`Club storage at ${Math.round(percentage * 100)}% capacity`, {
+          description: `${formatStorageSize(PRO_STORAGE_LIMIT - totalClubStorageUsed)} remaining`
+        });
+      }
+    }
+  }, [storageBreakdown, currentClub, isAppAdmin, hasProClub, totalClubStorageUsed]);
+
+  const formatStorageSize = (bytes: number) => {
+    if (bytes >= 1024 * 1024 * 1024) {
+      return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+    } else if (bytes >= 1024 * 1024) {
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    } else if (bytes >= 1024) {
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+    return `${bytes} B`;
+  };
+
+  const canUpload = useMemo(() => {
+    if (isStorageLimitReached) return false;
+    if (!currentClub) return false;
+    if (isAppAdmin) return true;
+    
+    // Require Pro access for the current club/team context
+    if (!currentContextHasPro) return false;
+    
+    const clubId = getCurrentClubId();
+    const teamId = getCurrentTeamId();
+    
+    // Club admins can upload to any club or team vault within their club
+    if (userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId)) return true;
+    
+    // Team admins can only upload to their own team vault
+    if (currentView.type === "team") {
+      return userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId);
+    }
+    
+    // For club-level view, only club admins can upload (handled above)
+    return false;
+  }, [isAppAdmin, currentClub, isStorageLimitReached, currentView, userRoles, currentContextHasPro]);
+
+  const canDeletePhoto = useCallback((photo: any) => {
+    if (isAppAdmin) return true;
+    if (photo.uploader_id === user?.id) return true;
+    const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : null;
+    const teamId = currentView.type === "team" ? currentView.teamId : null;
+    if (userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId)) return true;
+    if (teamId && userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId)) return true;
+    return false;
+  }, [isAppAdmin, user?.id, currentView, userRoles]);
+
+  const canDeleteFile = useCallback((file: any) => {
+    if (isAppAdmin) return true;
+    if (file.uploader_id === user?.id) return true;
+    const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : null;
+    const teamId = currentView.type === "team" ? currentView.teamId : null;
+    if (userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId)) return true;
+    if (teamId && userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId)) return true;
+    return false;
+  }, [isAppAdmin, user?.id, currentView, userRoles]);
+
+  const canRenameFile = useCallback((file: any) => {
+    if (isAppAdmin) return true;
+    if (file.uploader_id === user?.id) return true;
+    const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : null;
+    const teamId = currentView.type === "team" ? currentView.teamId : null;
+    if (userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId)) return true;
+    if (teamId && userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId)) return true;
+    return false;
+  }, [isAppAdmin, user?.id, currentView, userRoles]);
+
+  const canRenamePhoto = useCallback((photo: any) => {
+    if (isAppAdmin) return true;
+    if (photo.uploader_id === user?.id) return true;
+    const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : null;
+    const teamId = currentView.type === "team" ? currentView.teamId : null;
+    if (userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId)) return true;
+    if (teamId && userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId)) return true;
+    return false;
+  }, [isAppAdmin, user?.id, currentView, userRoles]);
+
+  const canDeleteFolder = useCallback((folder: any) => {
+    if (isAppAdmin) return true;
+    if (folder.created_by === user?.id) return true;
+    const clubId = getCurrentClubId();
+    const teamId = getCurrentTeamId();
+    if (userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId)) return true;
+    if (teamId && userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId)) return true;
+    return false;
+  }, [isAppAdmin, user?.id, getCurrentClubId, getCurrentTeamId, userRoles]);
+
+  const createFolderMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const insertData: any = {
+        name,
+        created_by: user!.id,
+        parent_folder_id: getCurrentFolderId(),
+      };
+
+      if (currentView.type === "club") {
+        insertData.club_id = currentView.clubId;
+      } else if (currentView.type === "team") {
+        insertData.club_id = currentView.clubId;
+        insertData.team_id = currentView.teamId;
+      }
+
+      const { error } = await supabase.from("vault_folders").insert(insertData);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vault-subfolders"] });
+      setNewFolderDialogOpen(false);
+      setNewFolderName("");
+      toast.success("Folder created!");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to create folder");
+    },
+  });
+
+  const deleteFolderMutation = useMutation({
+    mutationFn: async (folderId: string) => {
+      const { error } = await supabase.from("vault_folders").delete().eq("id", folderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vault-subfolders"] });
+      setDeleteFolderId(null);
+      toast.success("Folder deleted");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to delete folder");
+    },
+  });
+
+  const renameFolderMutation = useMutation({
+    mutationFn: async ({ folderId, newName }: { folderId: string; newName: string }) => {
+      const { error } = await supabase.from("vault_folders").update({ name: newName }).eq("id", folderId);
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["vault-subfolders"] });
+      // Update folder path if renamed folder is in the path
+      setFolderPath(prev => prev.map(f => f.id === variables.folderId ? { ...f, name: variables.newName } : f));
+      setRenameFolderId(null);
+      setRenameFolderName("");
+      toast.success("Folder renamed");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to rename folder");
+    },
+  });
+
+  const renameFileMutation = useMutation({
+    mutationFn: async ({ fileId, newName }: { fileId: string; newName: string }) => {
+      const { error } = await supabase.from("vault_files").update({ name: newName }).eq("id", fileId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      setRenameFileId(null);
+      setRenameFileName("");
+      toast.success("File renamed");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to rename file");
+    },
+  });
+
+  const renamePhotoMutation = useMutation({
+    mutationFn: async ({ photoId, newName }: { photoId: string; newName: string }) => {
+      const { error } = await supabase.from("photos").update({ title: newName }).eq("id", photoId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      setRenamePhotoId(null);
+      setRenamePhotoName("");
+      toast.success("Photo renamed");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to rename photo");
+    },
+  });
+
+  const uploadPhotoMutation = useMutation({
+    mutationFn: async (file: File) => {
+      // Check storage limit
+      if (!isAppAdmin && hasProClub) {
+        const newTotal = totalClubStorageUsed + file.size;
+        if (newTotal > PRO_STORAGE_LIMIT) {
+          throw new Error(`Storage limit reached. Delete files or purchase more storage.`);
+        }
+      }
+
+      const fileExt = file.name.split(".").pop();
+      const storagePath = `${user!.id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("photos")
+        .upload(storagePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Store the Supabase storage URL format (will be converted to signed URL when displayed)
+      const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
+      const storageUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
+
+      const insertData: any = {
+        file_url: storageUrl,
+        uploader_id: user!.id,
+        folder_id: getCurrentFolderId(),
+        file_size: file.size,
+      };
+
+      if (currentView.type === "club") {
+        insertData.club_id = currentView.clubId;
+      } else if (currentView.type === "team") {
+        insertData.club_id = currentView.clubId;
+        insertData.team_id = currentView.teamId;
+      }
+
+      const { error: insertError } = await supabase.from("photos").insert(insertData);
+      if (insertError) throw insertError;
+
+      // Note: Storage tracking is now per team, handled by the storage breakdown query
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-clubs"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      setUploadDialogOpen(false);
+      toast.success("Photo uploaded successfully!");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to upload photo");
+    },
+  });
+
+  const uploadFileMutation = useMutation({
+    mutationFn: async ({ file, customFileName }: { file: File; customFileName?: string }) => {
+      // Check storage limit
+      if (!isAppAdmin && hasProClub) {
+        const newTotal = totalClubStorageUsed + file.size;
+        if (newTotal > PRO_STORAGE_LIMIT) {
+          throw new Error(`Storage limit reached. Delete files or purchase more storage.`);
+        }
+      }
+
+      const fileExt = file.name.split(".").pop();
+      const storagePath = `${user!.id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("photos")
+        .upload(storagePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Store the Supabase storage URL format (will be converted to signed URL when displayed)
+      const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
+      const storageUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
+
+      const insertData: any = {
+        file_url: storageUrl,
+        uploader_id: user!.id,
+        name: customFileName || fileName || file.name,
+        folder_id: getCurrentFolderId(),
+        file_size: file.size,
+      };
+
+      if (currentView.type === "club") {
+        insertData.club_id = currentView.clubId;
+      } else if (currentView.type === "team") {
+        insertData.club_id = currentView.clubId;
+        insertData.team_id = currentView.teamId;
+      }
+
+      const { error: insertError } = await supabase.from("vault_files").insert(insertData);
+      if (insertError) throw insertError;
+
+      // Note: Storage tracking is now per team, handled by the storage breakdown query
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-clubs"] });
+      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      setUploadDialogOpen(false);
+      setFileName("");
+      toast.success("File uploaded successfully!");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to upload file");
+    },
+  });
+
+  const deletePhotoMutation = useMutation({
+    mutationFn: async (photoId: string) => {
+      // Soft delete - set deleted_at and deleted_by
+      const { error } = await supabase.from("photos")
+        .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id })
+        .eq("id", photoId);
+      if (error) throw error;
+      return photoId;
+    },
+    onMutate: async (photoId: string) => {
+      // Close dialogs immediately
+      setDeletePhotoId(null);
+      setLightboxOpen(false);
+      
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["vault-photos"] });
+      await queryClient.cancelQueries({ queryKey: ["photos"] });
+      
+      // Snapshot the previous value
+      const previousPhotos = queryClient.getQueryData(["vault-photos", currentView, isClubAdmin, showTrash]);
+      
+      // Optimistically remove the photo from the cache
+      queryClient.setQueryData(["vault-photos", currentView, isClubAdmin, showTrash], (old: any[] | undefined) => {
+        if (!old) return old;
+        return old.filter((photo: any) => photo.id !== photoId);
+      });
+      
+      return { previousPhotos, photoId };
+    },
+    onSuccess: (photoId) => {
+      // Remove from local storage cache
+      removePhotoFromCache(photoId);
+      toast.success("Photo moved to trash");
+    },
+    onError: (error: any, _, context) => {
+      // Rollback on error
+      if (context?.previousPhotos) {
+        queryClient.setQueryData(["vault-photos", currentView, isClubAdmin, showTrash], context.previousPhotos);
+      }
+      toast.error(error.message || "Failed to delete photo");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+    },
+  });
+
+  const deleteFileMutation = useMutation({
+    mutationFn: async (fileId: string) => {
+      // Soft delete - set deleted_at and deleted_by
+      const { error } = await supabase.from("vault_files")
+        .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id })
+        .eq("id", fileId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      setDeleteFileId(null);
+      toast.success("File moved to trash");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to delete file");
+    },
+  });
+
+  // Restore photo from trash
+  const restorePhotoMutation = useMutation({
+    mutationFn: async (photoId: string) => {
+      const { error } = await supabase.from("photos")
+        .update({ deleted_at: null, deleted_by: null })
+        .eq("id", photoId);
+      if (error) throw error;
+      return photoId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      toast.success("Photo restored to original location");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to restore photo");
+    },
+  });
+
+  // Restore file from trash
+  const restoreFileMutation = useMutation({
+    mutationFn: async (fileId: string) => {
+      const { error } = await supabase.from("vault_files")
+        .update({ deleted_at: null, deleted_by: null })
+        .eq("id", fileId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      toast.success("File restored to original location");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to restore file");
+    },
+  });
+
+  // Permanently delete photo
+  const permanentDeletePhotoMutation = useMutation({
+    mutationFn: async (photoId: string) => {
+      const { error } = await supabase.from("photos").delete().eq("id", photoId);
+      if (error) throw error;
+      return photoId;
+    },
+    onSuccess: (photoId) => {
+      removePhotoFromCache(photoId);
+      queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      toast.success("Photo permanently deleted");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to permanently delete photo");
+    },
+  });
+
+  // Permanently delete file
+  const permanentDeleteFileMutation = useMutation({
+    mutationFn: async (fileId: string) => {
+      const { error } = await supabase.from("vault_files").delete().eq("id", fileId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      toast.success("File permanently deleted");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to permanently delete file");
+    },
+  });
+
+  // Bulk delete selected photos and files (soft delete)
+  const deleteSelectedItems = async () => {
+    setIsDeletingSelected(true);
+    const { photos: selectedPhotoItems, files: selectedFileItems } = getSelectedItems();
+    let deletedCount = 0;
+    let errorCount = 0;
+
+    try {
+      // Soft delete photos
+      for (const photo of selectedPhotoItems) {
+        try {
+          const { error } = await supabase.from("photos")
+            .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id })
+            .eq("id", photo.id);
+          if (error) throw error;
+          removePhotoFromCache(photo.id);
+          deletedCount++;
+        } catch {
+          errorCount++;
+        }
+      }
+
+      // Soft delete files
+      for (const file of selectedFileItems) {
+        try {
+          const { error } = await supabase.from("vault_files")
+            .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id })
+            .eq("id", file.id);
+          if (error) throw error;
+          deletedCount++;
+        } catch {
+          errorCount++;
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+
+      if (errorCount === 0) {
+        toast.success(`Moved ${deletedCount} items to trash`);
+      } else {
+        toast.warning(`Moved ${deletedCount} items to trash, ${errorCount} failed`);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete items");
+    } finally {
+      setIsDeletingSelected(false);
+      setBulkDeleteDialogOpen(false);
+      exitSelectionMode();
+    }
+  };
+
+  // Fetch large files for the current club
+  const fetchLargeFiles = useCallback(async () => {
+    if (!currentClub?.id) return;
+    
+    setLargeFilesData({ loading: true, items: [] });
+    setSelectedLargeFiles(new Set());
+    
+    try {
+      // Get teams for the club
+      const { data: teamsData } = await supabase
+        .from("teams")
+        .select("id, name")
+        .eq("club_id", currentClub.id);
+      
+      const teamsMap = new Map<string | null, string>();
+      (teamsData || []).forEach(t => teamsMap.set(t.id, t.name));
+      teamsMap.set(null, "Club-level");
+      
+      // Get photos with size
+      const { data: photosData } = await supabase
+        .from("photos")
+        .select("id, file_url, file_size, team_id, title, created_at")
+        .eq("club_id", currentClub.id)
+        .not("file_size", "is", null)
+        .order("file_size", { ascending: false })
+        .limit(50);
+      
+      // Get files with size
+      const { data: filesData } = await supabase
+        .from("vault_files")
+        .select("id, file_url, file_size, team_id, name, created_at")
+        .eq("club_id", currentClub.id)
+        .not("file_size", "is", null)
+        .order("file_size", { ascending: false })
+        .limit(50);
+      
+      const items: Array<{ id: string; type: 'photo' | 'file'; name: string; size: number; url: string; teamName?: string; createdAt: string }> = [];
+      
+      (photosData || []).forEach(p => {
+        items.push({
+          id: p.id,
+          type: 'photo',
+          name: p.title || 'Photo',
+          size: p.file_size || 0,
+          url: p.file_url,
+          teamName: teamsMap.get(p.team_id),
+          createdAt: p.created_at
+        });
+      });
+      
+      (filesData || []).forEach(f => {
+        items.push({
+          id: f.id,
+          type: 'file',
+          name: f.name || 'File',
+          size: f.file_size || 0,
+          url: f.file_url,
+          teamName: teamsMap.get(f.team_id),
+          createdAt: f.created_at
+        });
+      });
+      
+      // Sort by size descending
+      items.sort((a, b) => b.size - a.size);
+      
+      setLargeFilesData({ loading: false, items: items.slice(0, 50) });
+    } catch (error) {
+      console.error("Failed to fetch large files:", error);
+      setLargeFilesData({ loading: false, items: [] });
+      toast.error("Failed to load large files");
+    }
+  }, [currentClub?.id]);
+  
+  const toggleLargeFileSelection = (id: string) => {
+    setSelectedLargeFiles(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+  
+  const deleteSelectedLargeFiles = async () => {
+    if (selectedLargeFiles.size === 0) return;
+    
+    setDeletingLargeFiles(true);
+    
+    try {
+      const itemsToDelete = largeFilesData.items.filter(item => selectedLargeFiles.has(item.id));
+      const photos = itemsToDelete.filter(i => i.type === 'photo');
+      const files = itemsToDelete.filter(i => i.type === 'file');
+      
+      // Delete photos
+      if (photos.length > 0) {
+        const { error: photoError } = await supabase
+          .from("photos")
+          .delete()
+          .in("id", photos.map(p => p.id));
+        if (photoError) throw photoError;
+      }
+      
+      // Delete files
+      if (files.length > 0) {
+        const { error: fileError } = await supabase
+          .from("vault_files")
+          .delete()
+          .in("id", files.map(f => f.id));
+        if (fileError) throw fileError;
+      }
+      
+      // Calculate total freed space
+      const freedSpace = itemsToDelete.reduce((sum, item) => sum + item.size, 0);
+      
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      
+      toast.success(`Deleted ${itemsToDelete.length} file(s), freed ${formatStorageSize(freedSpace)}`);
+      
+      // Refresh the list
+      fetchLargeFiles();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete files");
+    } finally {
+      setDeletingLargeFiles(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    if (uploadType === "photo") {
+      await uploadPhotoMutation.mutateAsync(file);
+    } else {
+      await uploadFileMutation.mutateAsync({ file });
+    }
+    setUploading(false);
+  };
+
+  const handleDialogUpload = async (file: File, type: "photo" | "file", customFileName?: string) => {
+    setUploading(true);
+    try {
+      if (type === "photo") {
+        await uploadPhotoMutation.mutateAsync(file);
+      } else {
+        await uploadFileMutation.mutateAsync({ file, customFileName });
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const navigateToFolder = (folder: { id: string; name: string }) => {
+    if (currentView.type === "club") {
+      setFolderPath([...folderPath, folder]);
+      setCurrentView({
+        ...currentView,
+        folderId: folder.id,
+        folderName: folder.name,
+      });
+    } else if (currentView.type === "team") {
+      setFolderPath([...folderPath, folder]);
+      setCurrentView({
+        ...currentView,
+        folderId: folder.id,
+        folderName: folder.name,
+      });
+    }
+  };
+
+  const goBack = () => {
+    if (folderPath.length > 0) {
+      const newPath = [...folderPath];
+      newPath.pop();
+      setFolderPath(newPath);
+      const parentFolder = newPath[newPath.length - 1];
+      
+      if (currentView.type === "club") {
+        setCurrentView({
+          ...currentView,
+          folderId: parentFolder?.id,
+          folderName: parentFolder?.name,
+        });
+      } else if (currentView.type === "team") {
+        setCurrentView({
+          ...currentView,
+          folderId: parentFolder?.id,
+          folderName: parentFolder?.name,
+        });
+      }
+    } else if (currentView.type === "team") {
+      setCurrentView({ type: "club", clubId: currentView.clubId, clubName: currentView.clubName });
+    } else {
+      setCurrentView({ type: "root" });
+    }
+  };
+
+  const navigateToRoot = () => {
+    setFolderPath([]);
+    setCurrentView({ type: "root" });
+  };
+
+  const navigateToClub = () => {
+    if (currentView.type === "club" || currentView.type === "team") {
+      setFolderPath([]);
+      setCurrentView({ 
+        type: "club", 
+        clubId: currentView.clubId, 
+        clubName: currentView.clubName 
+      });
+    }
+  };
+
+  const navigateToTeam = () => {
+    if (currentView.type === "team") {
+      setFolderPath([]);
+      setCurrentView({
+        type: "team",
+        clubId: currentView.clubId,
+        clubName: currentView.clubName,
+        teamId: currentView.teamId,
+        teamName: currentView.teamName,
+      });
+    }
+  };
+
+  const navigateToFolderAtIndex = (index: number) => {
+    const newPath = folderPath.slice(0, index + 1);
+    const targetFolder = newPath[index];
+    setFolderPath(newPath);
+    
+    if (currentView.type === "club") {
+      setCurrentView({
+        ...currentView,
+        folderId: targetFolder.id,
+        folderName: targetFolder.name,
+      });
+    } else if (currentView.type === "team") {
+      setCurrentView({
+        ...currentView,
+        folderId: targetFolder.id,
+        folderName: targetFolder.name,
+      });
+    }
+  };
+
+  const renderBreadcrumbs = () => {
+    const items: React.ReactNode[] = [];
+    
+    // Vault root
+    items.push(
+      <BreadcrumbItem key="vault">
+        {currentView.type === "root" ? (
+          <BreadcrumbPage className="flex items-center gap-1">
+            <Home className="h-3.5 w-3.5" />
+            Vault
+          </BreadcrumbPage>
+        ) : (
+          <BreadcrumbLink 
+            className="flex items-center gap-1 cursor-pointer hover:text-foreground"
+            onClick={navigateToRoot}
+          >
+            <Home className="h-3.5 w-3.5" />
+            Vault
+          </BreadcrumbLink>
+        )}
+      </BreadcrumbItem>
+    );
+    
+    if (currentView.type === "club" || currentView.type === "team") {
+      items.push(<BreadcrumbSeparator key="sep-club" />);
+      
+      const isClubCurrent = currentView.type === "club" && !currentView.folderId;
+      items.push(
+        <BreadcrumbItem key="club">
+          {isClubCurrent ? (
+            <BreadcrumbPage>{currentView.clubName}</BreadcrumbPage>
+          ) : (
+            <BreadcrumbLink 
+              className="cursor-pointer hover:text-foreground"
+              onClick={navigateToClub}
+            >
+              {currentView.clubName}
+            </BreadcrumbLink>
+          )}
+        </BreadcrumbItem>
+      );
+    }
+    
+    if (currentView.type === "team") {
+      items.push(<BreadcrumbSeparator key="sep-team" />);
+      
+      const isTeamCurrent = !currentView.folderId;
+      items.push(
+        <BreadcrumbItem key="team">
+          {isTeamCurrent ? (
+            <BreadcrumbPage>{currentView.teamName}</BreadcrumbPage>
+          ) : (
+            <BreadcrumbLink 
+              className="cursor-pointer hover:text-foreground"
+              onClick={navigateToTeam}
+            >
+              {currentView.teamName}
+            </BreadcrumbLink>
+          )}
+        </BreadcrumbItem>
+      );
+    }
+    
+    // Folder path
+    folderPath.forEach((folder, index) => {
+      items.push(<BreadcrumbSeparator key={`sep-folder-${index}`} />);
+      
+      const isLast = index === folderPath.length - 1;
+      items.push(
+        <BreadcrumbItem key={`folder-${folder.id}`}>
+          {isLast ? (
+            <BreadcrumbPage>{folder.name}</BreadcrumbPage>
+          ) : (
+            <BreadcrumbLink 
+              className="cursor-pointer hover:text-foreground"
+              onClick={() => navigateToFolderAtIndex(index)}
+            >
+              {folder.name}
+            </BreadcrumbLink>
+          )}
+        </BreadcrumbItem>
+      );
+    });
+    
+    return items;
+  };
+
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  };
+
+  const handleLightboxDelete = (photoId: string) => {
+    // Close lightbox first, then show confirmation dialog
+    setLightboxOpen(false);
+    setDeletePhotoId(photoId);
+  };
+
+  const downloadFile = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      toast.error("Failed to download file");
+    }
+  };
+
+  const exportCurrentFolder = async () => {
+    const { photos: photosToExport, files: filesToExport } = selectionMode 
+      ? getSelectedItems() 
+      : { photos: photos || [], files: files || [] };
+
+    if (!photosToExport.length && !filesToExport.length) {
+      toast.error(selectionMode ? "No files selected" : "No files to export");
+      return;
+    }
+
+    exportAbortController.current = new AbortController();
+    const signal = exportAbortController.current.signal;
+    
+    const totalFiles = photosToExport.length + filesToExport.length;
+    setExportProgress({ current: 0, total: totalFiles });
+    setIsExporting(true);
+
+    try {
+      let downloadCount = 0;
+      
+      // Download photos
+      for (const photo of photosToExport) {
+        if (signal.aborted) throw new Error("Export cancelled");
+        const filename = photo.title || `photo-${photo.id}.jpg`;
+        await downloadFile(photo.file_url, filename);
+        downloadCount++;
+        setExportProgress({ current: downloadCount, total: totalFiles });
+        // Small delay between downloads to avoid browser blocking
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      // Download files
+      for (const file of filesToExport) {
+        if (signal.aborted) throw new Error("Export cancelled");
+        await downloadFile(file.file_url, file.name);
+        downloadCount++;
+        setExportProgress({ current: downloadCount, total: totalFiles });
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      toast.success(`Exported ${downloadCount} files`);
+      if (selectionMode) exitSelectionMode();
+    } catch (error: any) {
+      if (error.message === "Export cancelled") {
+        toast.info("Export cancelled");
+      } else {
+        toast.error("Export failed");
+      }
+    } finally {
+      setIsExporting(false);
+      setExportProgress({ current: 0, total: 0 });
+      exportAbortController.current = null;
+    }
+  };
+
+  const cancelExport = () => {
+    if (exportAbortController.current) {
+      exportAbortController.current.abort();
+    }
+  };
+
+  // Recursive function to fetch all folder contents
+  const fetchFolderContents = async (
+    folderId: string | null,
+    clubId: string | null,
+    teamId: string | null,
+    path: string = ""
+  ): Promise<{ photos: any[]; files: any[]; subfolders: { folder: any; path: string }[] }> => {
+    // Fetch photos in this folder
+    let photosQuery = supabase.from("photos").select("*");
+    if (teamId) {
+      photosQuery = photosQuery.eq("team_id", teamId);
+    } else if (clubId) {
+      photosQuery = photosQuery.eq("club_id", clubId).is("team_id", null);
+    }
+    if (folderId) {
+      photosQuery = photosQuery.eq("folder_id", folderId);
+    } else {
+      photosQuery = photosQuery.is("folder_id", null);
+    }
+    const { data: folderPhotos } = await photosQuery;
+
+    // Fetch files in this folder
+    let filesQuery = supabase.from("vault_files").select("*");
+    if (teamId) {
+      filesQuery = filesQuery.eq("team_id", teamId);
+    } else if (clubId) {
+      filesQuery = filesQuery.eq("club_id", clubId).is("team_id", null);
+    }
+    if (folderId) {
+      filesQuery = filesQuery.eq("folder_id", folderId);
+    } else {
+      filesQuery = filesQuery.is("folder_id", null);
+    }
+    const { data: folderFiles } = await filesQuery;
+
+    // Fetch subfolders
+    let subfoldersQuery = supabase.from("vault_folders").select("*");
+    if (teamId) {
+      subfoldersQuery = subfoldersQuery.eq("team_id", teamId);
+    } else if (clubId) {
+      subfoldersQuery = subfoldersQuery.eq("club_id", clubId).is("team_id", null);
+    }
+    if (folderId) {
+      subfoldersQuery = subfoldersQuery.eq("parent_id", folderId);
+    } else {
+      subfoldersQuery = subfoldersQuery.is("parent_id", null);
+    }
+    const { data: childFolders } = await subfoldersQuery;
+
+    return {
+      photos: (folderPhotos || []).map(p => ({ ...p, path })),
+      files: (folderFiles || []).map(f => ({ ...f, path })),
+      subfolders: (childFolders || []).map(folder => ({ 
+        folder, 
+        path: path ? `${path}/${folder.name}` : folder.name 
+      })),
+    };
+  };
+
+  // Recursively collect all files from a folder and its subfolders with breakdown
+  const collectAllFolderContents = async (
+    folderId: string | null,
+    clubId: string | null,
+    teamId: string | null,
+    path: string = "",
+    folderBreakdown: { path: string; photoCount: number; fileCount: number }[] = []
+  ): Promise<{ photos: any[]; files: any[]; folderBreakdown: { path: string; photoCount: number; fileCount: number }[] }> => {
+    const contents = await fetchFolderContents(folderId, clubId, teamId, path);
+    
+    // Add current folder to breakdown
+    const currentFolderName = path || "(current folder)";
+    folderBreakdown.push({
+      path: currentFolderName,
+      photoCount: contents.photos.length,
+      fileCount: contents.files.length,
+    });
+    
+    let allPhotos = [...contents.photos];
+    let allFiles = [...contents.files];
+
+    // Recursively fetch subfolder contents
+    for (const { folder, path: subPath } of contents.subfolders) {
+      const subContents = await collectAllFolderContents(folder.id, clubId, teamId, subPath, folderBreakdown);
+      allPhotos = [...allPhotos, ...subContents.photos];
+      allFiles = [...allFiles, ...subContents.files];
+    }
+
+    return { photos: allPhotos, files: allFiles, folderBreakdown };
+  };
+
+  // Open preview dialog and fetch all subfolder contents
+  const openExportPreview = async () => {
+    const clubId = getCurrentClubId();
+    const teamId = getCurrentTeamId();
+    const folderId = getCurrentFolderId();
+
+    setExportPreviewData({ photos: [], files: [], folderBreakdown: [], loading: true });
+    setExcludedFolders(new Set());
+    setExportPreviewOpen(true);
+
+    try {
+      const allContents = await collectAllFolderContents(folderId, clubId, teamId, "", []);
+      setExportPreviewData({
+        photos: allContents.photos,
+        files: allContents.files,
+        folderBreakdown: allContents.folderBreakdown,
+        loading: false,
+      });
+    } catch (error) {
+      console.error("Failed to fetch folder contents:", error);
+      toast.error("Failed to scan folders");
+      setExportPreviewOpen(false);
+    }
+  };
+
+  const toggleFolderExclusion = (folderPath: string) => {
+    setExcludedFolders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(folderPath)) {
+        newSet.delete(folderPath);
+      } else {
+        newSet.add(folderPath);
+      }
+      return newSet;
+    });
+  };
+
+  const getFilteredExportData = () => {
+    const filteredPhotos = exportPreviewData.photos.filter(photo => {
+      const folderPath = photo.path || "(current folder)";
+      return !excludedFolders.has(folderPath);
+    });
+    const filteredFiles = exportPreviewData.files.filter(file => {
+      const folderPath = file.path || "(current folder)";
+      return !excludedFolders.has(folderPath);
+    });
+    return { photos: filteredPhotos, files: filteredFiles };
+  };
+
+  const getExportSummary = () => {
+    if (selectionMode) {
+      return { photoCount: selectedPhotos.size, fileCount: selectedFiles.size, isSelection: true };
+    }
+    return { photoCount: photos?.length || 0, fileCount: files?.length || 0, isSelection: false };
+  };
+
+  const handleExportConfirm = () => {
+    if (!pendingExportAction) return;
+    setExportConfirmOpen(false);
+    
+    if (pendingExportAction.type === 'zip') {
+      exportAsZip(false);
+    } else if (pendingExportAction.type === 'download') {
+      exportCurrentFolder();
+    } else if (pendingExportAction.type === 'zipAll') {
+      openExportPreview();
+    }
+    setPendingExportAction(null);
+  };
+
+  const initiateExport = (type: 'zip' | 'download' | 'zipAll') => {
+    setPendingExportAction({ type });
+    setExportConfirmOpen(true);
+  };
+
+  const confirmExportWithSubfolders = async () => {
+    setExportPreviewOpen(false);
+    
+    const { photos: photosToExport, files: filesToExport } = getFilteredExportData();
+    
+    if (!photosToExport.length && !filesToExport.length) {
+      toast.error("No files to export");
+      return;
+    }
+
+    exportAbortController.current = new AbortController();
+    const signal = exportAbortController.current.signal;
+
+    const totalFiles = photosToExport.length + filesToExport.length;
+    setExportProgress({ current: 0, total: totalFiles });
+    setIsExporting(true);
+
+    try {
+      const zip = new JSZip();
+      let fileCount = 0;
+
+      // Add photos to ZIP with path
+      for (const photo of photosToExport) {
+        if (signal.aborted) throw new Error("Export cancelled");
+        try {
+          const response = await fetch(photo.file_url, { signal });
+          const blob = await response.blob();
+          const filename = photo.title || `photo-${photo.id}.jpg`;
+          const fullPath = photo.path ? `${photo.path}/${filename}` : filename;
+          zip.file(fullPath, blob);
+          fileCount++;
+          setExportProgress({ current: fileCount, total: totalFiles });
+        } catch (error: any) {
+          if (error.name === 'AbortError' || signal.aborted) throw new Error("Export cancelled");
+          console.error(`Failed to fetch photo: ${photo.id}`, error);
+        }
+      }
+
+      // Add files to ZIP with path
+      for (const file of filesToExport) {
+        if (signal.aborted) throw new Error("Export cancelled");
+        try {
+          const response = await fetch(file.file_url, { signal });
+          const blob = await response.blob();
+          const fullPath = file.path ? `${file.path}/${file.name}` : file.name;
+          zip.file(fullPath, blob);
+          fileCount++;
+          setExportProgress({ current: fileCount, total: totalFiles });
+        } catch (error: any) {
+          if (error.name === 'AbortError' || signal.aborted) throw new Error("Export cancelled");
+          console.error(`Failed to fetch file: ${file.id}`, error);
+        }
+      }
+
+      if (fileCount === 0) {
+        toast.error("No files could be added to ZIP");
+        return;
+      }
+
+      // Generate ZIP and download
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const folderName = currentView.type === "root" 
+        ? "vault" 
+        : currentView.folderName || (currentView.type === "team" ? currentView.teamName : currentView.clubName) || "export";
+      
+      const blobUrl = window.URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `${folderName}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+
+      toast.success(`Exported ${fileCount} files as ZIP`);
+    } catch (error: any) {
+      if (error.message === "Export cancelled") {
+        toast.info("Export cancelled");
+      } else {
+        console.error("ZIP export failed:", error);
+        toast.error("Failed to create ZIP file");
+      }
+    } finally {
+      setIsExporting(false);
+      setExportProgress({ current: 0, total: 0 });
+      exportAbortController.current = null;
+    }
+  };
+
+  const exportAsZip = async (includeSubfolders: boolean = false) => {
+    const clubId = getCurrentClubId();
+    const teamId = getCurrentTeamId();
+    const folderId = getCurrentFolderId();
+
+    let photosToExport: any[] = [];
+    let filesToExport: any[] = [];
+
+    if (selectionMode) {
+      const selected = getSelectedItems();
+      photosToExport = selected.photos.map(p => ({ ...p, path: "" }));
+      filesToExport = selected.files.map(f => ({ ...f, path: "" }));
+    } else if (includeSubfolders && currentView.type !== "root") {
+      toast.info("Scanning folders...");
+      const allContents = await collectAllFolderContents(folderId, clubId, teamId, "");
+      photosToExport = allContents.photos;
+      filesToExport = allContents.files;
+    } else {
+      photosToExport = (photos || []).map(p => ({ ...p, path: "" }));
+      filesToExport = (files || []).map(f => ({ ...f, path: "" }));
+    }
+
+    if (!photosToExport.length && !filesToExport.length) {
+      toast.error(selectionMode ? "No files selected" : "No files to export");
+      return;
+    }
+
+    exportAbortController.current = new AbortController();
+    const signal = exportAbortController.current.signal;
+
+    const totalFiles = photosToExport.length + filesToExport.length;
+    setExportProgress({ current: 0, total: totalFiles });
+    setIsExporting(true);
+
+    try {
+      const zip = new JSZip();
+      let fileCount = 0;
+
+      // Add photos to ZIP with path
+      for (const photo of photosToExport) {
+        if (signal.aborted) throw new Error("Export cancelled");
+        try {
+          const response = await fetch(photo.file_url, { signal });
+          const blob = await response.blob();
+          const filename = photo.title || `photo-${photo.id}.jpg`;
+          const fullPath = photo.path ? `${photo.path}/${filename}` : filename;
+          zip.file(fullPath, blob);
+          fileCount++;
+          setExportProgress({ current: fileCount, total: totalFiles });
+        } catch (error: any) {
+          if (error.name === 'AbortError' || signal.aborted) throw new Error("Export cancelled");
+          console.error(`Failed to fetch photo: ${photo.id}`, error);
+        }
+      }
+
+      // Add files to ZIP with path
+      for (const file of filesToExport) {
+        if (signal.aborted) throw new Error("Export cancelled");
+        try {
+          const response = await fetch(file.file_url, { signal });
+          const blob = await response.blob();
+          const fullPath = file.path ? `${file.path}/${file.name}` : file.name;
+          zip.file(fullPath, blob);
+          fileCount++;
+          setExportProgress({ current: fileCount, total: totalFiles });
+        } catch (error: any) {
+          if (error.name === 'AbortError' || signal.aborted) throw new Error("Export cancelled");
+          console.error(`Failed to fetch file: ${file.id}`, error);
+        }
+      }
+
+      if (fileCount === 0) {
+        toast.error("No files could be added to ZIP");
+        return;
+      }
+
+      // Generate ZIP and download
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const folderName = selectionMode 
+        ? "selected-files"
+        : currentView.type === "root" 
+          ? "vault" 
+          : currentView.folderName || (currentView.type === "team" ? currentView.teamName : currentView.clubName) || "export";
+      
+      const blobUrl = window.URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `${folderName}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+
+      toast.success(`Exported ${fileCount} files as ZIP`);
+      if (selectionMode) exitSelectionMode();
+    } catch (error: any) {
+      if (error.message === "Export cancelled") {
+        toast.info("Export cancelled");
+      } else {
+        console.error("ZIP export failed:", error);
+        toast.error("Failed to create ZIP file");
+      }
+    } finally {
+      setIsExporting(false);
+      setExportProgress({ current: 0, total: 0 });
+      exportAbortController.current = null;
+    }
+  };
+
+  if (isLoadingAccess) {
+    return (
+      <div className="py-6 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!canAccessVault) {
+    return (
+      <div className="py-6 space-y-6">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Back
+          </Button>
+        </div>
+        <Card className="border-primary/20 bg-primary/5 max-w-lg mx-auto">
+          <CardContent className="p-8 text-center">
+            <div className="p-4 rounded-full bg-primary/10 w-fit mx-auto mb-4">
+              <Lock className="h-8 w-8 text-primary" />
+            </div>
+            <h3 className="font-semibold text-lg mb-2">Vault is a Pro Feature</h3>
+            <p className="text-muted-foreground text-sm mb-4">
+              Upgrade to Pro to unlock file storage.
+            </p>
+            <Badge variant="secondary" className="mb-4 bg-primary/20 text-primary">
+              <Crown className="h-3 w-3 mr-1" /> Pro Only
+            </Badge>
+            {(adminUpgradeInfo.clubId || adminUpgradeInfo.teamId) && (
+              <div className="mt-4">
+                <Link to={adminUpgradeInfo.teamId ? `/teams/${adminUpgradeInfo.teamId}/upgrade` : `/clubs/${adminUpgradeInfo.clubId}/upgrade`}>
+                  <Button size="sm">
+                    <Crown className="h-4 w-4 mr-2" />
+                    Upgrade to Pro
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-6 space-y-6">
+      {/* Header - different for root vs inner views */}
+      {currentView.type === "root" ? (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate(-1)}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <FolderOpen className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-lg font-semibold">Vault</h1>
+                <p className="text-xs text-muted-foreground">Club file storage</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <Button variant="ghost" size="icon" className="shrink-0" onClick={goBack}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <Breadcrumb>
+              <BreadcrumbList>
+                {renderBreadcrumbs()}
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
+        
+          {/* Storage usage display */}
+          {currentClub && (
+            <div className="w-full sm:w-auto bg-card border rounded-lg p-3">
+              {/* Club storage limit - always shown */}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                <span className="font-medium text-foreground">Club Storage</span>
+              </div>
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-lg font-semibold text-foreground">
+                  {formatStorageSize(totalClubStorageUsed)}
+                </span>
+                <span className="text-muted-foreground">/</span>
+                <span className="text-muted-foreground">{5 + (purchasedStorageGb || 0)} GB</span>
+                {(purchasedStorageGb || 0) > 0 && (
+                  <Badge variant="secondary" className="text-xs">+{purchasedStorageGb}GB</Badge>
+                )}
+                {isStorageLimitReached && (
+                  <Badge variant="destructive" className="text-xs">Full</Badge>
+                )}
+                {scheduledDowngradeGb !== null && scheduledDowngradeGb !== undefined && storageDowngradeAt && (
+                  <Badge variant="outline" className="text-xs text-amber-600 border-amber-500/50">
+                    ↓ {scheduledDowngradeGb === 0 ? "50GB" : `${scheduledDowngradeGb}GB`} on {new Date(storageDowngradeAt).toLocaleDateString()}
+                  </Badge>
+                )}
+              </div>
+              {(() => {
+                const percentage = Math.min(100, (totalClubStorageUsed / PRO_STORAGE_LIMIT) * 100);
+                const colorClass = percentage >= 90 ? '[&>div]:bg-destructive' 
+                  : percentage >= 70 ? '[&>div]:bg-yellow-500' 
+                  : '[&>div]:bg-green-500';
+                return (
+                  <div className="space-y-1">
+                    <Progress 
+                      value={percentage} 
+                      className={`h-3 w-full sm:w-64 ${colorClass}`}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {Math.round(percentage)}% used
+                      {percentage < 100 && ` • ${formatStorageSize(PRO_STORAGE_LIMIT - totalClubStorageUsed)} remaining`}
+                    </span>
+                  </div>
+                );
+              })()}
+              
+              {/* Team-specific storage - only shown in team view */}
+              {currentView.type === "team" && currentTeamStorageUsed > 0 && (
+                <div className="mt-3 pt-3 border-t">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                    <span className="font-medium text-foreground">This Team</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-base font-semibold text-foreground">
+                      {formatStorageSize(currentTeamStorageUsed)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      ({Math.round((currentTeamStorageUsed / totalClubStorageUsed) * 100)}% of club storage)
+                    </span>
+                  </div>
+                </div>
+              )}
+              {/* Storage breakdown pie chart - photos vs documents */}
+              {storageBreakdown && (storageBreakdown.photos > 0 || storageBreakdown.documents > 0) && (
+                <Collapsible className="mt-3 pt-3 border-t">
+                  <CollapsibleTrigger className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group">
+                    <span>Storage by Type</span>
+                    <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2">
+                    <div className="flex items-center gap-4">
+                      <div className="w-20 h-20">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={[
+                                { name: 'Photos', value: storageBreakdown.photos, color: 'hsl(var(--primary))' },
+                                { name: 'Documents', value: storageBreakdown.documents, color: 'hsl(var(--muted-foreground))' },
+                              ].filter(d => d.value > 0)}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={20}
+                              outerRadius={35}
+                              paddingAngle={2}
+                              dataKey="value"
+                            >
+                              {[
+                                { name: 'Photos', value: storageBreakdown.photos, color: 'hsl(var(--primary))' },
+                                { name: 'Documents', value: storageBreakdown.documents, color: 'hsl(var(--muted-foreground))' },
+                              ].filter(d => d.value > 0).map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <RechartsTooltip 
+                              formatter={(value: number) => formatStorageSize(value)}
+                              contentStyle={{ 
+                                backgroundColor: 'hsl(var(--popover))', 
+                                border: '1px solid hsl(var(--border))',
+                                borderRadius: '6px',
+                                fontSize: '12px'
+                              }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex-1 space-y-1.5">
+                        <div className="flex items-center gap-2 text-xs">
+                          <div className="w-3 h-3 rounded-sm bg-primary shrink-0" />
+                          <FileImage className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-muted-foreground">Photos</span>
+                          <span className="ml-auto font-medium">{formatStorageSize(storageBreakdown.photos)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <div className="w-3 h-3 rounded-sm bg-muted-foreground shrink-0" />
+                          <File className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-muted-foreground">Documents</span>
+                          <span className="ml-auto font-medium">{formatStorageSize(storageBreakdown.documents)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+              {/* Storage breakdown by team - shows team usage contribution */}
+              {currentView.type === "club" && storageBreakdown?.byTeam && storageBreakdown.byTeam.length > 0 && (
+                <Collapsible className="mt-3 pt-3 border-t">
+                  <CollapsibleTrigger className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group">
+                    <span>Storage by Team</span>
+                    <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2 space-y-2">
+                    {storageBreakdown.byTeam.slice(0, 5).map((team) => {
+                      // Show percentage of total club storage
+                      const teamPercentageOfTotal = totalClubStorageUsed > 0 
+                        ? Math.min(100, (team.size / totalClubStorageUsed) * 100)
+                        : 0;
+                      return (
+                        <div key={team.teamId || "club"} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <FolderOpen className="h-3 w-3 text-muted-foreground shrink-0" />
+                              <span className="truncate">{team.teamName}</span>
+                            </div>
+                            <span className="text-muted-foreground shrink-0">
+                              {formatStorageSize(team.size)} ({Math.round(teamPercentageOfTotal)}%)
+                            </span>
+                          </div>
+                          <Progress 
+                            value={teamPercentageOfTotal} 
+                            className="h-1.5 w-full [&>div]:bg-primary"
+                          />
+                        </div>
+                      );
+                    })}
+                    {storageBreakdown.byTeam.length > 5 && (
+                      <span className="text-xs text-muted-foreground">+{storageBreakdown.byTeam.length - 5} more teams</span>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+              {/* Manage Large Files Button - only show when near storage limit (>80%) */}
+              {currentClub && (totalClubStorageUsed / PRO_STORAGE_LIMIT) >= 0.8 && (
+                <div className="mt-3 pt-3 border-t">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={() => {
+                      setLargeFilesDialogOpen(true);
+                      fetchLargeFiles();
+                    }}
+                  >
+                    <HardDrive className="h-4 w-4 mr-2" />
+                    Manage Large Files
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={() => setStoragePurchaseDialogOpen(true)}
+                  >
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    {purchasedStorageGb > 0 ? "Manage Storage" : "Buy More Storage"}
+                  </Button>
+                </div>
+              )}
+              {/* Buy/Manage storage button - show when storage is less than 80% but user is club admin */}
+              {currentClub && isClubAdmin && (totalClubStorageUsed / PRO_STORAGE_LIMIT) < 0.8 && (
+                <div className="mt-3 pt-3 border-t flex gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="flex-1 text-muted-foreground"
+                    onClick={() => setStoragePurchaseDialogOpen(true)}
+                  >
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    {purchasedStorageGb > 0 ? "Manage Storage" : "Buy Storage"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <div className="flex items-center gap-4 flex-wrap sm:ml-auto">
+            <TooltipProvider>
+              {/* Trash Toggle - only for admins */}
+              {(isClubAdmin || isAppAdmin) && !selectionMode && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant={showTrash ? "default" : "outline"} 
+                      size="sm" 
+                      onClick={() => setShowTrash(!showTrash)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      {showTrash ? "View Files" : "View Trash"}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{showTrash ? "Switch to normal view" : "View deleted files for recovery"}</TooltipContent>
+                </Tooltip>
+              )}
+              {/* Selection Mode Controls - visible when there's content */}
+              {(photos?.length > 0 || files?.length > 0) && !showTrash && (
+                <>
+                  {selectionMode ? (
+                    <>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={selectAll}
+                          >
+                            <CheckSquare className="h-4 w-4 mr-1" />
+                            Select All
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Select all photos and files</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={exitSelectionMode}
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Cancel
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Exit selection mode</TooltipContent>
+                      </Tooltip>
+                      {selectedCount > 0 && (
+                        <>
+                          {isExporting ? (
+                            <>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                disabled
+                                className="min-w-[80px]"
+                              >
+                                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                                <span className="text-xs">{exportProgress.current}/{exportProgress.total}</span>
+                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="destructive" 
+                                    size="sm" 
+                                    onClick={cancelExport}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Cancel export</TooltipContent>
+                              </Tooltip>
+                            </>
+                          ) : (
+                            <>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="default" 
+                                    size="sm" 
+                                    onClick={() => initiateExport('zip')}
+                                  >
+                                    <FileArchive className="h-4 w-4 mr-1" />
+                                    Export ({selectedCount})
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Export {selectedCount} selected items as ZIP</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => initiateExport('download')}
+                                  >
+                                    <Download className="h-4 w-4 mr-1" />
+                                    Download ({selectedCount})
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Download {selectedCount} selected items individually</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="destructive" 
+                                    size="sm" 
+                                    onClick={() => setBulkDeleteDialogOpen(true)}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-1" />
+                                    Delete ({selectedCount})
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Delete {selectedCount} selected items</TooltipContent>
+                              </Tooltip>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </>
+                  ) : null}
+                </>
+              )}
+              {/* Export All Buttons - only show when there's content to export */}
+              {!selectionMode && (photos?.length > 0 || files?.length > 0 || subfolders?.length > 0) && (
+                <>
+                  {isExporting ? (
+                    <>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        disabled
+                        className="min-w-[80px]"
+                      >
+                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        <span className="text-xs">{exportProgress.current}/{exportProgress.total}</span>
+                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="destructive" 
+                            size="sm" 
+                            onClick={cancelExport}
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Cancel
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Cancel export</TooltipContent>
+                      </Tooltip>
+                    </>
+                  ) : (
+                    <>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => initiateExport('zip')}
+                          >
+                            <FileArchive className="h-4 w-4 mr-1" />
+                            Export
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Export current folder as ZIP</TooltipContent>
+                      </Tooltip>
+                      {(subfolders && subfolders.length > 0) && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => initiateExport('zipAll')}
+                            >
+                              <FolderDown className="h-4 w-4 mr-1" />
+                              ZIP All
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Export all including subfolders as ZIP</TooltipContent>
+                        </Tooltip>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+              {canUpload && !selectionMode && (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="sm" onClick={() => setNewFolderDialogOpen(true)}>
+                        <FolderPlus className="h-4 w-4 mr-1" /> New Folder
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Create new folder</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button size="sm" onClick={() => setUploadDialogOpen(true)}>
+                        <Upload className="h-4 w-4 mr-1" /> Upload
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Upload photos or files</TooltipContent>
+                  </Tooltip>
+                  
+                  <CreateFolderDialog
+                    open={newFolderDialogOpen}
+                    onOpenChange={setNewFolderDialogOpen}
+                    onCreateFolder={(name) => createFolderMutation.mutate(name)}
+                    isCreating={createFolderMutation.isPending}
+                  />
+                  
+                  <UploadFilesDialog
+                    open={uploadDialogOpen}
+                    onOpenChange={setUploadDialogOpen}
+                    onUpload={handleDialogUpload}
+                    isUploading={uploading}
+                    targetName={currentView.folderName || (currentView.type === "team" ? currentView.teamName : currentView.type === "club" ? currentView.clubName : "Vault")}
+                  />
+                </>
+              )}
+            </TooltipProvider>
+          </div>
+        </div>
+      )}
+      {currentView.type === "root" && (
+        <div className="space-y-3">
+          {isLoadingClubs ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-muted-foreground">Loading clubs...</p>
+            </div>
+          ) : !userClubs || userClubs.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="p-8 text-center">
+                <FolderOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No clubs found</p>
+              </CardContent>
+            </Card>
+          ) : (
+            (activeClubFilter ? userClubs.filter(c => c.id === activeClubFilter) : userClubs).map((club) => (
+              <Card
+                key={club.id}
+                className="cursor-pointer hover:bg-accent/50 transition-colors"
+                onClick={() => {
+                  setFolderPath([]);
+                  setCurrentView({ type: "club", clubId: club.id, clubName: club.name });
+                }}
+              >
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <FolderOpen className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium">{club.name}</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {currentView.type === "club" && (
+        <div className="space-y-6">
+          {/* Teams grouped by team folders - only show at root of club and not in trash view */}
+          {!showTrash && !currentView.folderId && clubTeams && clubTeams.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="text-sm font-medium text-muted-foreground">Teams</h2>
+              
+              {/* Render team folders with their teams */}
+              {teamFolders && teamFolders.length > 0 && teamFolders.map((folder) => {
+                const teamsInFolder = clubTeams.filter(team => team.folder_id === folder.id);
+                if (teamsInFolder.length === 0) return null;
+                
+                const colorInfo = getFolderColorClass(folder.color);
+                
+                return (
+                  <div key={folder.id} className="space-y-2">
+                    <div className={`flex items-center gap-2 px-2 py-1 rounded-lg ${colorInfo.bgClassName}`}>
+                      <FolderOpen className={`h-4 w-4 ${colorInfo.className}`} />
+                      <span className="text-sm font-medium">{folder.name}</span>
+                      <span className="text-xs text-muted-foreground">({teamsInFolder.length})</span>
+                    </div>
+                    <div className="pl-2 space-y-2">
+                      {teamsInFolder.map((team) => (
+                        <Card
+                          key={team.id}
+                          className="cursor-pointer hover:bg-accent/50 transition-colors"
+                          onClick={() => {
+                            setFolderPath([]);
+                            setCurrentView({ 
+                              type: "team", 
+                              clubId: currentView.clubId, 
+                              clubName: currentView.clubName,
+                              teamId: team.id, 
+                              teamName: team.name 
+                            });
+                          }}
+                        >
+                          <CardContent className="p-3 flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-secondary">
+                              <FolderOpen className="h-4 w-4 text-secondary-foreground" />
+                            </div>
+                            <p className="font-medium flex-1 text-sm">{team.name}</p>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {/* Uncategorized teams (no folder_id) */}
+              {(() => {
+                const uncategorizedTeams = clubTeams.filter(team => !team.folder_id);
+                if (uncategorizedTeams.length === 0) return null;
+                
+                // Show header only if there are team folders with teams
+                const hasTeamFolders = teamFolders && teamFolders.some(folder => 
+                  clubTeams.some(team => team.folder_id === folder.id)
+                );
+                
+                return (
+                  <div className="space-y-2">
+                    {hasTeamFolders && (
+                      <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-muted/50">
+                        <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium text-muted-foreground">Other Teams</span>
+                        <span className="text-xs text-muted-foreground">({uncategorizedTeams.length})</span>
+                      </div>
+                    )}
+                    <div className={hasTeamFolders ? "pl-2 space-y-2" : "space-y-2"}>
+                      {uncategorizedTeams.map((team) => (
+                        <Card
+                          key={team.id}
+                          className="cursor-pointer hover:bg-accent/50 transition-colors"
+                          onClick={() => {
+                            setFolderPath([]);
+                            setCurrentView({ 
+                              type: "team", 
+                              clubId: currentView.clubId, 
+                              clubName: currentView.clubName,
+                              teamId: team.id, 
+                              teamName: team.name 
+                            });
+                          }}
+                        >
+                          <CardContent className="p-3 flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-secondary">
+                              <FolderOpen className="h-4 w-4 text-secondary-foreground" />
+                            </div>
+                            <p className="font-medium flex-1 text-sm">{team.name}</p>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* Subfolders - hide when in trash view */}
+          {!showTrash && subfolders && subfolders.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-medium text-muted-foreground">Folders</h2>
+              {subfolders.map((folder) => (
+                <VaultFolderCard
+                  key={folder.id}
+                  folder={folder}
+                  onNavigate={() => navigateToFolder({ id: folder.id, name: folder.name })}
+                  onShare={() => shareFolder(folder.id)}
+                  onRename={() => {
+                    setRenameFolderId(folder.id);
+                    setRenameFolderName(folder.name);
+                  }}
+                  onDelete={() => setDeleteFolderId(folder.id)}
+                  canEdit={canDeleteFolder(folder)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Club-level content - hide when in trash view */}
+          {!showTrash && (
+            <ContentSection 
+              photos={photos || []} 
+              files={files || []} 
+              onPhotoClick={openLightbox}
+              canDeletePhoto={canDeletePhoto}
+              canDeleteFile={canDeleteFile}
+              canRenamePhoto={canRenamePhoto}
+              canRenameFile={canRenameFile}
+              onDeletePhoto={setDeletePhotoId}
+              onDeleteFile={setDeleteFileId}
+              onRenamePhoto={(photo) => {
+                setRenamePhotoId(photo.id);
+                setRenamePhotoName(photo.title || "");
+              }}
+              onRenameFile={(file) => {
+                setRenameFileId(file.id);
+                setRenameFileName(file.name);
+              }}
+              onDownloadPhoto={downloadFile}
+              selectionMode={selectionMode}
+              selectedPhotos={selectedPhotos}
+              selectedFiles={selectedFiles}
+              onTogglePhotoSelection={togglePhotoSelection}
+              onToggleFileSelection={toggleFileSelection}
+              onEnterSelectionMode={() => setSelectionMode(true)}
+            />
+          )}
+
+          {/* Trash view - flat list of all deleted items */}
+          {showTrash && (
+            <TrashSection
+              photos={trashItems?.photos || []}
+              files={trashItems?.files || []}
+              isLoading={isLoadingTrash}
+              onRestorePhoto={(id) => restorePhotoMutation.mutate(id)}
+              onRestoreFile={(id) => restoreFileMutation.mutate(id)}
+              onPermanentDeletePhoto={isClubAdmin ? setDeletePhotoId : undefined}
+              onPermanentDeleteFile={isClubAdmin ? setDeleteFileId : undefined}
+            />
+          )}
+        </div>
+      )}
+
+      {currentView.type === "team" && (
+        <div className="space-y-6">
+          {/* Subfolders - hide when in trash view */}
+          {!showTrash && subfolders && subfolders.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-medium text-muted-foreground">Folders</h2>
+              {subfolders.map((folder) => (
+                <VaultFolderCard
+                  key={folder.id}
+                  folder={folder}
+                  onNavigate={() => navigateToFolder({ id: folder.id, name: folder.name })}
+                  onShare={() => shareFolder(folder.id)}
+                  onRename={() => {
+                    setRenameFolderId(folder.id);
+                    setRenameFolderName(folder.name);
+                  }}
+                  onDelete={() => setDeleteFolderId(folder.id)}
+                  canEdit={canDeleteFolder(folder)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Team content - hide when in trash view */}
+          {!showTrash && (
+            <ContentSection 
+              photos={photos || []} 
+              files={files || []} 
+              onPhotoClick={openLightbox}
+              canDeletePhoto={canDeletePhoto}
+              canDeleteFile={canDeleteFile}
+              canRenamePhoto={canRenamePhoto}
+              canRenameFile={canRenameFile}
+              onDeletePhoto={setDeletePhotoId}
+              onDeleteFile={setDeleteFileId}
+              onRenamePhoto={(photo) => {
+                setRenamePhotoId(photo.id);
+                setRenamePhotoName(photo.title || "");
+              }}
+              onRenameFile={(file) => {
+                setRenameFileId(file.id);
+                setRenameFileName(file.name);
+              }}
+              onDownloadPhoto={downloadFile}
+              selectionMode={selectionMode}
+              selectedPhotos={selectedPhotos}
+              selectedFiles={selectedFiles}
+              onTogglePhotoSelection={togglePhotoSelection}
+              onToggleFileSelection={toggleFileSelection}
+              onEnterSelectionMode={() => setSelectionMode(true)}
+            />
+          )}
+
+          {/* Trash view - flat list of all deleted items */}
+          {showTrash && (
+            <TrashSection
+              photos={trashItems?.photos || []}
+              files={trashItems?.files || []}
+              isLoading={isLoadingTrash}
+              onRestorePhoto={(id) => restorePhotoMutation.mutate(id)}
+              onRestoreFile={(id) => restoreFileMutation.mutate(id)}
+              onPermanentDeletePhoto={isClubAdmin ? setDeletePhotoId : undefined}
+              onPermanentDeleteFile={isClubAdmin ? setDeleteFileId : undefined}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Photo Lightbox */}
+      <PhotoLightbox
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        photos={photos || []}
+        currentIndex={lightboxIndex}
+        onNavigate={setLightboxIndex}
+        onDelete={handleLightboxDelete}
+        canDelete={photos?.[lightboxIndex] ? canDeletePhoto(photos[lightboxIndex]) : false}
+      />
+
+      {/* Delete Photo Confirmation */}
+      <AlertDialog open={!!deletePhotoId} onOpenChange={() => setDeletePhotoId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{showTrash ? "Permanently Delete Photo" : "Delete Photo"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {showTrash 
+                ? "Are you sure you want to permanently delete this photo? This cannot be undone."
+                : "This photo will be moved to trash."
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletePhotoId && (showTrash ? permanentDeletePhotoMutation.mutate(deletePhotoId) : deletePhotoMutation.mutate(deletePhotoId))}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {showTrash ? "Delete Permanently" : "Move to Trash"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete File Confirmation */}
+      <AlertDialog open={!!deleteFileId} onOpenChange={() => setDeleteFileId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{showTrash ? "Permanently Delete File" : "Delete File"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {showTrash 
+                ? "Are you sure you want to permanently delete this file? This cannot be undone."
+                : "This file will be moved to trash."
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteFileId && (showTrash ? permanentDeleteFileMutation.mutate(deleteFileId) : deleteFileMutation.mutate(deleteFileId))}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {showTrash ? "Delete Permanently" : "Move to Trash"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation */}
+      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Selected Items</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedCount} selected item{selectedCount !== 1 ? 's' : ''}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingSelected}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteSelectedItems}
+              disabled={isDeletingSelected}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingSelected ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                `Delete ${selectedCount} Item${selectedCount !== 1 ? 's' : ''}`
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={!!deleteFolderId} onOpenChange={() => setDeleteFolderId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Folder</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this folder? Files inside will be moved to the parent folder.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteFolderId && deleteFolderMutation.mutate(deleteFolderId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Large Files Manager Dialog */}
+      <Dialog open={largeFilesDialogOpen} onOpenChange={(open) => {
+        setLargeFilesDialogOpen(open);
+        if (!open) {
+          setSelectedLargeFiles(new Set());
+        }
+      }}>
+        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HardDrive className="h-5 w-5" />
+              Manage Large Files
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {largeFilesData.loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : largeFilesData.items.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <HardDrive className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                <p>No files with size data found</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Sort:</span>
+                    <Select value={largeFilesSortBy} onValueChange={(v) => setLargeFilesSortBy(v as 'size' | 'date' | 'type')}>
+                      <SelectTrigger className="w-[110px] h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="size">Size</SelectItem>
+                        <SelectItem value="date">Date</SelectItem>
+                        <SelectItem value="type">Type</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {selectedLargeFiles.size > 0 
+                      ? `${selectedLargeFiles.size} selected (${formatStorageSize(
+                          largeFilesData.items
+                            .filter(i => selectedLargeFiles.has(i.id))
+                            .reduce((sum, i) => sum + i.size, 0)
+                        )})`
+                      : `${largeFilesData.items.length} files`
+                    }
+                  </span>
+                  {selectedLargeFiles.size > 0 && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={deleteSelectedLargeFiles}
+                      disabled={deletingLargeFiles}
+                    >
+                      {deletingLargeFiles ? (
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 mr-1" />
+                      )}
+                      Delete
+                    </Button>
+                  )}
+                </div>
+                <div className="overflow-y-auto flex-1 space-y-2 pr-1">
+                  {[...largeFilesData.items]
+                    .sort((a, b) => {
+                      if (largeFilesSortBy === 'size') return b.size - a.size;
+                      if (largeFilesSortBy === 'date') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                      if (largeFilesSortBy === 'type') return a.type.localeCompare(b.type);
+                      return 0;
+                    })
+                    .map((item) => (
+                    <div 
+                      key={item.id}
+                      className={`flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-colors ${
+                        selectedLargeFiles.has(item.id) 
+                          ? "border-primary bg-primary/5" 
+                          : "border-border hover:bg-muted/50"
+                      }`}
+                      onClick={() => toggleLargeFileSelection(item.id)}
+                    >
+                      <Checkbox 
+                        checked={selectedLargeFiles.has(item.id)}
+                        onCheckedChange={() => toggleLargeFileSelection(item.id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <div className={`p-1.5 rounded ${item.type === 'photo' ? 'bg-primary/10' : 'bg-muted'}`}>
+                        {item.type === 'photo' ? (
+                          <FileImage className="h-4 w-4 text-primary" />
+                        ) : (
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{item.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {item.teamName ? `${item.teamName} • ` : ''}{format(new Date(item.createdAt), 'MMM d, yyyy')}
+                        </p>
+                      </div>
+                      <span className="text-sm font-semibold text-foreground shrink-0">
+                        {formatStorageSize(item.size)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Folder Dialog */}
+      <Dialog open={!!renameFolderId} onOpenChange={(open) => {
+        if (!open) {
+          setRenameFolderId(null);
+          setRenameFolderName("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Folder</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Folder Name</Label>
+              <Input
+                value={renameFolderName}
+                onChange={(e) => setRenameFolderName(e.target.value)}
+                placeholder="Enter new folder name"
+              />
+            </div>
+            <Button 
+              onClick={() => renameFolderId && renameFolderMutation.mutate({ folderId: renameFolderId, newName: renameFolderName })}
+              disabled={!renameFolderName.trim()}
+              className="w-full"
+            >
+              Rename Folder
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename File Dialog */}
+      <Dialog open={!!renameFileId} onOpenChange={(open) => {
+        if (!open) {
+          setRenameFileId(null);
+          setRenameFileName("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename File</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>File Name</Label>
+              <Input
+                value={renameFileName}
+                onChange={(e) => setRenameFileName(e.target.value)}
+                placeholder="Enter new file name"
+              />
+            </div>
+            <Button 
+              onClick={() => renameFileId && renameFileMutation.mutate({ fileId: renameFileId, newName: renameFileName })}
+              disabled={!renameFileName.trim()}
+              className="w-full"
+            >
+              Rename File
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Photo Dialog */}
+      <Dialog open={!!renamePhotoId} onOpenChange={(open) => {
+        if (!open) {
+          setRenamePhotoId(null);
+          setRenamePhotoName("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Photo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Photo Title</Label>
+              <Input
+                value={renamePhotoName}
+                onChange={(e) => setRenamePhotoName(e.target.value)}
+                placeholder="Enter new photo title"
+              />
+            </div>
+            <Button 
+              onClick={() => renamePhotoId && renamePhotoMutation.mutate({ photoId: renamePhotoId, newName: renamePhotoName })}
+              disabled={!renamePhotoName.trim()}
+              className="w-full"
+            >
+              Rename Photo
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Preview Dialog */}
+      <Dialog open={exportPreviewOpen} onOpenChange={setExportPreviewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Export All Folders</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {exportPreviewData.loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-muted-foreground">Scanning folders...</span>
+              </div>
+            ) : (
+              <>
+                {(() => {
+                  const filtered = getFilteredExportData();
+                  return (
+                    <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Photos to export:</span>
+                        <span className="font-medium">{filtered.photos.length}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Files to export:</span>
+                        <span className="font-medium">{filtered.files.length}</span>
+                      </div>
+                      <div className="flex justify-between text-sm border-t pt-2 mt-2">
+                        <span className="font-medium">Total:</span>
+                        <span className="font-medium">{filtered.photos.length + filtered.files.length} items</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {exportPreviewData.folderBreakdown.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium text-muted-foreground">Select folders to include</h4>
+                    <div className="max-h-48 overflow-y-auto space-y-1">
+                      {exportPreviewData.folderBreakdown.map((folder, index) => {
+                        const isExcluded = excludedFolders.has(folder.path);
+                        return (
+                          <div 
+                            key={index} 
+                            className={`flex items-center justify-between text-sm py-1.5 px-2 rounded cursor-pointer transition-colors ${
+                              isExcluded ? 'bg-muted/20 opacity-60' : 'bg-muted/30 hover:bg-muted/50'
+                            }`}
+                            onClick={() => toggleFolderExclusion(folder.path)}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <Checkbox 
+                                checked={!isExcluded}
+                                onCheckedChange={() => toggleFolderExclusion(folder.path)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <FolderOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                              <span className={`truncate ${isExcluded ? 'line-through' : ''}`}>{folder.path}</span>
+                            </div>
+                            <span className="text-muted-foreground shrink-0 ml-2">
+                              {folder.photoCount + folder.fileCount} items
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => setExportPreviewOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    className="flex-1"
+                    onClick={confirmExportWithSubfolders}
+                    disabled={(() => {
+                      const filtered = getFilteredExportData();
+                      return filtered.photos.length + filtered.files.length === 0;
+                    })()}
+                  >
+                    <FileArchive className="h-4 w-4 mr-1" />
+                    Export ZIP
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Confirmation Dialog */}
+      <AlertDialog open={exportConfirmOpen} onOpenChange={setExportConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Export</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const summary = getExportSummary();
+                const exportType = pendingExportAction?.type;
+                
+                if (summary.isSelection) {
+                  return `You are about to export ${summary.photoCount + summary.fileCount} selected item${summary.photoCount + summary.fileCount !== 1 ? 's' : ''}.`;
+                }
+                
+                if (exportType === 'zipAll') {
+                  return `This will export all files in the current folder and its subfolders as a ZIP file.`;
+                }
+                
+                return `You are about to export ${summary.photoCount} photo${summary.photoCount !== 1 ? 's' : ''} and ${summary.fileCount} file${summary.fileCount !== 1 ? 's' : ''} from the current folder.`;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
+            {(() => {
+              const summary = getExportSummary();
+              return (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Photos:</span>
+                    <span className="font-medium">{summary.photoCount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Files:</span>
+                    <span className="font-medium">{summary.fileCount}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-1 mt-1">
+                    <span className="font-medium">Total:</span>
+                    <span className="font-medium">{summary.photoCount + summary.fileCount} items</span>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingExportAction(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleExportConfirm}>
+              <FileArchive className="h-4 w-4 mr-1" />
+              Export
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Storage Purchase Dialog */}
+      {currentClub && (
+        <StoragePurchaseDialog
+          open={storagePurchaseDialogOpen}
+          onOpenChange={setStoragePurchaseDialogOpen}
+          clubId={currentClub.id}
+          clubName={currentClub.name}
+          currentStorageLimit={PRO_STORAGE_LIMIT}
+          purchasedStorageGb={purchasedStorageGb}
+          scheduledDowngradeGb={scheduledDowngradeGb}
+          storageDowngradeAt={storageDowngradeAt}
+        />
+      )}
+    </div>
+  );
+}
+
+// Photo item that only appears once the image is loaded
+function VaultPhotoItem({
+  photo,
+  index,
+  selectionMode,
+  isSelected,
+  onPhotoClick,
+  onToggleSelection,
+  onCheckboxClick,
+  canDelete,
+  onDelete,
+  onDownload,
+  canRename,
+  onRename,
+}: {
+  photo: any;
+  index: number;
+  selectionMode: boolean;
+  isSelected: boolean;
+  onPhotoClick: (index: number) => void;
+  onToggleSelection?: (id: string) => void;
+  onCheckboxClick: (id: string, e: React.MouseEvent) => void;
+  canDelete: boolean;
+  onDelete: (id: string) => void;
+  onDownload?: (url: string, filename: string) => void;
+  canRename?: boolean;
+  onRename?: (photo: any) => void;
+}) {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const touchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Don't render anything until image is loaded
+  if (!isLoaded) {
+    return (
+      <>
+        {/* Hidden image to preload */}
+        <img
+          src={photo.file_url}
+          alt=""
+          className="sr-only"
+          onLoad={() => setIsLoaded(true)}
+        />
+        {/* Placeholder skeleton while loading */}
+        <div className="aspect-square rounded-lg bg-muted animate-pulse" />
+      </>
+    );
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    touchTimerRef.current = setTimeout(() => {
+      // Long press detected - enter selection mode and select this photo
+      if (!selectionMode && onToggleSelection) {
+        onCheckboxClick(photo.id, e as any);
+      }
+    }, 500);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchTimerRef.current && touchStartRef.current) {
+      const touch = e.touches[0];
+      const dx = Math.abs(touch.clientX - touchStartRef.current.x);
+      const dy = Math.abs(touch.clientY - touchStartRef.current.y);
+      // Cancel if moved more than 10px
+      if (dx > 10 || dy > 10) {
+        clearTimeout(touchTimerRef.current);
+        touchTimerRef.current = null;
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (touchTimerRef.current) {
+      clearTimeout(touchTimerRef.current);
+      touchTimerRef.current = null;
+    }
+  };
+
+  return (
+    <div className="relative group">
+      <img
+        src={photo.file_url}
+        alt={photo.title || "Photo"}
+        className={`aspect-square object-cover rounded-lg cursor-pointer transition-opacity select-none ${
+          selectionMode && isSelected 
+            ? "ring-2 ring-primary ring-offset-2 opacity-90" 
+            : "hover:opacity-90"
+        }`}
+        draggable={false}
+        onContextMenu={(e) => e.preventDefault()}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onClick={() => {
+          if (selectionMode && onToggleSelection) {
+            onToggleSelection(photo.id);
+          } else {
+            onPhotoClick(index);
+          }
+        }}
+      />
+      {/* Always show checkbox on hover, or always show when in selection mode */}
+      <div 
+        className={`absolute top-1 left-1 ${
+          selectionMode || isSelected
+            ? "opacity-100" 
+            : "opacity-0 group-hover:opacity-100"
+        } transition-opacity`}
+        onClick={(e) => onCheckboxClick(photo.id, e)}
+      >
+        <Checkbox 
+          checked={isSelected} 
+          className="h-5 w-5 bg-background/80 border-2"
+        />
+      </div>
+      {!selectionMode && (
+        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {onDownload && (
+            <Button
+              variant="secondary"
+              size="icon"
+              className="h-6 w-6"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownload(photo.file_url, photo.title || `photo-${photo.id}.jpg`);
+              }}
+            >
+              <Download className="h-3 w-3" />
+            </Button>
+          )}
+          {canRename && onRename && (
+            <Button
+              variant="secondary"
+              size="icon"
+              className="h-6 w-6"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRename(photo);
+              }}
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="destructive"
+              size="icon"
+              className="h-6 w-6"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(photo.id);
+              }}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Helper function to format file sizes
+function formatFileSize(bytes: number | null | undefined): string {
+  if (!bytes) return '';
+  if (bytes >= 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  } else if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  } else if (bytes >= 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${bytes} B`;
+}
+
+interface ContentSectionProps {
+  photos: any[];
+  files: any[];
+  onPhotoClick: (index: number) => void;
+  canDeletePhoto: (photo: any) => boolean;
+  canDeleteFile: (file: any) => boolean;
+  canRenamePhoto?: (photo: any) => boolean;
+  canRenameFile?: (file: any) => boolean;
+  onDeletePhoto: (id: string) => void;
+  onDeleteFile: (id: string) => void;
+  onRenamePhoto?: (photo: any) => void;
+  onRenameFile?: (file: any) => void;
+  onDownloadPhoto?: (url: string, filename: string) => void;
+  selectionMode?: boolean;
+  selectedPhotos?: Set<string>;
+  selectedFiles?: Set<string>;
+  onTogglePhotoSelection?: (id: string) => void;
+  onToggleFileSelection?: (id: string) => void;
+  onEnterSelectionMode?: () => void;
+  // Trash mode props
+  isTrashView?: boolean;
+  onRestorePhoto?: (id: string) => void;
+  onRestoreFile?: (id: string) => void;
+  onPermanentDeletePhoto?: (id: string) => void;
+  onPermanentDeleteFile?: (id: string) => void;
+}
+
+function ContentSection({ 
+  photos, 
+  files, 
+  onPhotoClick,
+  canDeletePhoto,
+  canDeleteFile,
+  canRenamePhoto,
+  canRenameFile,
+  onDeletePhoto,
+  onDeleteFile,
+  onRenamePhoto,
+  onRenameFile,
+  onDownloadPhoto,
+  selectionMode = false,
+  selectedPhotos = new Set(),
+  selectedFiles = new Set(),
+  onTogglePhotoSelection,
+  onToggleFileSelection,
+  onEnterSelectionMode,
+  isTrashView = false,
+  onRestorePhoto,
+  onRestoreFile,
+  onPermanentDeletePhoto,
+  onPermanentDeleteFile,
+}: ContentSectionProps) {
+  const hasContent = photos.length > 0 || files.length > 0;
+
+  const handlePhotoCheckboxClick = (photoId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!selectionMode && onEnterSelectionMode) {
+      onEnterSelectionMode();
+    }
+    onTogglePhotoSelection?.(photoId);
+  };
+
+  const handleFileCheckboxClick = (fileId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!selectionMode && onEnterSelectionMode) {
+      onEnterSelectionMode();
+    }
+    onToggleFileSelection?.(fileId);
+  };
+
+  if (!hasContent) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-8 text-center">
+          <FolderOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">{isTrashView ? "Trash is empty" : "This folder is empty"}</p>
+          <p className="text-sm text-muted-foreground mt-1">{isTrashView ? "Deleted files will appear here" : "Upload photos or files to get started"}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {photos.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-medium text-muted-foreground">Photos ({photos.length})</h2>
+          <div className="grid grid-cols-3 gap-2">
+            {photos.map((photo, index) => (
+              <VaultPhotoItem
+                key={photo.id}
+                photo={photo}
+                index={index}
+                selectionMode={selectionMode}
+                isSelected={selectedPhotos.has(photo.id)}
+                onPhotoClick={onPhotoClick}
+                onToggleSelection={onTogglePhotoSelection}
+                onCheckboxClick={handlePhotoCheckboxClick}
+                canDelete={canDeletePhoto(photo)}
+                onDelete={onDeletePhoto}
+                onDownload={onDownloadPhoto}
+                canRename={canRenamePhoto?.(photo)}
+                onRename={onRenamePhoto}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {files.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-medium text-muted-foreground">Files ({files.length})</h2>
+          <div className="space-y-2">
+            {files.map((file) => (
+              <Card 
+                key={file.id} 
+                className={`group cursor-pointer ${
+                  selectedFiles.has(file.id) 
+                    ? "ring-2 ring-primary" 
+                    : ""
+                }`}
+                onClick={() => {
+                  if (selectionMode && onToggleFileSelection) {
+                    onToggleFileSelection(file.id);
+                  }
+                }}
+              >
+                <CardContent className="p-3 flex items-center gap-3">
+                  {/* Always show checkbox on hover, or always show when in selection mode */}
+                  <div className={`${
+                    selectionMode || selectedFiles.has(file.id)
+                      ? "block" 
+                      : "hidden group-hover:block"
+                  }`}>
+                    <Checkbox 
+                      checked={selectedFiles.has(file.id)} 
+                      className="h-5 w-5"
+                      onClick={(e) => handleFileCheckboxClick(file.id, e as any)}
+                      onCheckedChange={() => {
+                        if (!selectionMode && onEnterSelectionMode) {
+                          onEnterSelectionMode();
+                        }
+                        onToggleFileSelection?.(file.id);
+                      }}
+                    />
+                  </div>
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <FileText className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(file.created_at), "MMM d, yyyy")}
+                      {file.file_size ? ` • ${formatFileSize(file.file_size)}` : ''}
+                    </p>
+                  </div>
+                  {!selectionMode && (
+                    <div className="flex items-center gap-1">
+                      {isTrashView ? (
+                        <>
+                          {onRestoreFile && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-green-600 hover:text-green-700"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRestoreFile(file.id);
+                              }}
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {onPermanentDeleteFile && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteFile(file.id);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(file.file_url, "_blank");
+                            }}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          {canRenameFile?.(file) && onRenameFile && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRenameFile(file);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canDeleteFile(file) && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteFile(file.id);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Trash section component - shows all deleted items in a flat list with original location
+interface TrashSectionProps {
+  photos: any[];
+  files: any[];
+  isLoading: boolean;
+  onRestorePhoto: (id: string) => void;
+  onRestoreFile: (id: string) => void;
+  onPermanentDeletePhoto?: (id: string) => void;
+  onPermanentDeleteFile?: (id: string) => void;
+}
+
+function TrashSection({
+  photos,
+  files,
+  isLoading,
+  onRestorePhoto,
+  onRestoreFile,
+  onPermanentDeletePhoto,
+  onPermanentDeleteFile,
+}: TrashSectionProps) {
+  const hasContent = photos.length > 0 || files.length > 0;
+
+  const getLocationPath = (item: any): string => {
+    const parts: string[] = [];
+    if (item.team?.name) {
+      parts.push(item.team.name);
+    }
+    if (item.folder?.name) {
+      parts.push(item.folder.name);
+    }
+    if (parts.length === 0) {
+      return item.team_id ? "Team root" : "Club root";
+    }
+    return parts.join(" / ");
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-8 text-center">
+          <Loader2 className="h-8 w-8 mx-auto text-muted-foreground mb-4 animate-spin" />
+          <p className="text-muted-foreground">Loading trash...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!hasContent) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-8 text-center">
+          <Trash2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">Trash is empty</p>
+          <p className="text-sm text-muted-foreground mt-1">Deleted files will appear here for recovery</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {photos.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-medium text-muted-foreground">Deleted Photos ({photos.length})</h2>
+          <div className="space-y-2">
+            {photos.map((photo) => (
+              <Card key={photo.id} className="group">
+                <CardContent className="p-3 flex items-center gap-3">
+                  <img
+                    src={photo.file_url}
+                    alt={photo.title || "Photo"}
+                    className="h-12 w-12 object-cover rounded-lg"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{photo.title || "Untitled photo"}</p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <FolderOpen className="h-3 w-3" />
+                      {getLocationPath(photo)}
+                    </p>
+                    {photo.deleted_at && (
+                      <p className="text-xs text-muted-foreground">
+                        Deleted {format(new Date(photo.deleted_at), "MMM d, yyyy")}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                      onClick={() => onRestorePhoto(photo.id)}
+                    >
+                      <RotateCcw className="h-4 w-4 mr-1" />
+                      Restore
+                    </Button>
+                    {onPermanentDeletePhoto && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => onPermanentDeletePhoto(photo.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {files.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-medium text-muted-foreground">Deleted Files ({files.length})</h2>
+          <div className="space-y-2">
+            {files.map((file) => (
+              <Card key={file.id} className="group">
+                <CardContent className="p-3 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <FileText className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{file.name}</p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <FolderOpen className="h-3 w-3" />
+                      {getLocationPath(file)}
+                    </p>
+                    {file.deleted_at && (
+                      <p className="text-xs text-muted-foreground">
+                        Deleted {format(new Date(file.deleted_at), "MMM d, yyyy")}
+                        {file.file_size ? ` • ${formatFileSize(file.file_size)}` : ''}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                      onClick={() => onRestoreFile(file.id)}
+                    >
+                      <RotateCcw className="h-4 w-4 mr-1" />
+                      Restore
+                    </Button>
+                    {onPermanentDeleteFile && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => onPermanentDeleteFile(file.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
