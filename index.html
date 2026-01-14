@@ -2,24 +2,88 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- TODO: Set the document title to the name of your application -->
+    <link rel="icon" type="image/png" href="/ignite-logo.png" />
+    
+    <!-- Preconnect to Google Fonts for faster loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Preload critical font file to eliminate network chain -->
+    <link rel="preload" href="https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- Non-render-blocking font loading with font-display swap -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" /></noscript>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Ignite Club HQ</title>
-    <meta name="description" content="Ignite Club HQ - Production" />
-    <meta name="author" content="Ignite Club" />
+    <meta name="description" content="Sports club management app" />
+    <meta name="author" content="Ignite Club HQ" />
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#10b981" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Ignite Club HQ" />
+    <link rel="apple-touch-icon" href="/ignite-logo.png" />
+    <link rel="manifest" href="/manifest.json" />
 
     <meta property="og:title" content="Ignite Club HQ" />
-    <meta property="og:description" content="Ignite Club HQ - Production" />
+    <meta property="og:description" content="Sports club management app" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@Lovable" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <!-- Theme initialization script - prevents flash of wrong theme -->
+    <script>
+      (function() {
+        try {
+          var theme = localStorage.getItem('app-theme');
+          if (theme === 'light') {
+            document.documentElement.classList.remove('dark');
+          } else {
+            // Default to dark theme if not set or if set to dark
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
 
   <body>
     <div id="root"></div>
+    
+    <!-- Browser compatibility check - runs before React loads -->
+    <script>
+      (function() {
+        try {
+          // Test for modern JavaScript features used in the app
+          // Optional chaining, nullish coalescing, async/await, Promises
+          eval('const test = {a:{b:1}}; test?.a?.b ?? 0; Promise.resolve();');
+        } catch (e) {
+          // Browser doesn't support modern JavaScript
+          document.getElementById('root').innerHTML = 
+            '<div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 400px; margin: 60px auto; padding: 24px; text-align: center;">' +
+              '<div style="font-size: 48px; margin-bottom: 16px;">📱</div>' +
+              '<h1 style="font-size: 20px; font-weight: 600; margin-bottom: 12px; color: #111;">Browser Update Required</h1>' +
+              '<p style="font-size: 14px; color: #666; line-height: 1.5; margin-bottom: 20px;">' +
+                'Ignite Club HQ requires a modern browser to work properly. ' +
+                'Please update your device or browser to continue.' +
+              '</p>' +
+              '<div style="background: #f3f4f6; border-radius: 8px; padding: 16px; text-align: left;">' +
+                '<p style="font-size: 13px; font-weight: 500; color: #111; margin-bottom: 8px;">Minimum Requirements:</p>' +
+                '<ul style="font-size: 13px; color: #666; margin: 0; padding-left: 20px; line-height: 1.6;">' +
+                  '<li>iOS 14+ / Safari 14+</li>' +
+                  '<li>Android 7+ / Chrome 80+</li>' +
+                  '<li>macOS Safari 14+</li>' +
+                  '<li>Windows Edge 80+ / Chrome 80+</li>' +
+                '</ul>' +
+              '</div>' +
+            '</div>';
+          throw new Error('Unsupported browser');
+        }
+      })();
+    </script>
+    
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
