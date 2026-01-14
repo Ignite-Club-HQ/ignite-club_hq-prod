@@ -1,27 +1,165 @@
+import { Suspense, lazy } from "react";
+// Force publish - Firebase upgraded to v12.7.0 for Capacitor 8 compatibility
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
+import { AuthProvider } from "@/hooks/useAuth";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { ThemeProvider } from "next-themes";
+import { ClubThemeProvider } from "@/hooks/useClubTheme";
+import GlobalSubMonitor from "@/components/pitch/GlobalSubMonitor";
+import { CookieConsentBanner } from "@/components/CookieConsentBanner";
+import { IOSInstallPrompt } from "@/components/IOSInstallPrompt";
+import { PushNotificationManager } from "@/components/PushNotificationManager";
+import { Loader2 } from "lucide-react";
+
+// Eagerly loaded pages (initial load)
+import AuthPage from "./pages/AuthPage";
+import CompleteProfilePage from "./pages/CompleteProfilePage";
+import HomePage from "./pages/HomePage";
+import SignupProPage from "./pages/SignupProPage";
+
+// Lazy loaded pages (code splitting)
+const EventsPage = lazy(() => import("./pages/EventsPage"));
+const EventDetailPage = lazy(() => import("./pages/EventDetailPage"));
+const CreateEventPage = lazy(() => import("./pages/CreateEventPage"));
+const EditEventPage = lazy(() => import("./pages/EditEventPage"));
+const ImportFixturesPage = lazy(() => import("./pages/ImportFixturesPage"));
+const ClubsPage = lazy(() => import("./pages/ClubsPage"));
+const ClubDetailPage = lazy(() => import("./pages/ClubDetailPage"));
+const CreateClubPage = lazy(() => import("./pages/CreateClubPage"));
+const EditClubPage = lazy(() => import("./pages/EditClubPage"));
+const CreateTeamPage = lazy(() => import("./pages/CreateTeamPage"));
+const EditTeamPage = lazy(() => import("./pages/EditTeamPage"));
+const TeamDetailPage = lazy(() => import("./pages/TeamDetailPage"));
+const MessagesPage = lazy(() => import("./pages/MessagesPage"));
+const TeamChatPage = lazy(() => import("./pages/TeamChatPage"));
+const BroadcastChatPage = lazy(() => import("./pages/BroadcastChatPage"));
+const ClubChatPage = lazy(() => import("./pages/ClubChatPage"));
+const GroupChatPage = lazy(() => import("./pages/GroupChatPage"));
+const MediaPage = lazy(() => import("./pages/MediaPage"));
+const VaultPage = lazy(() => import("./pages/VaultPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const EditProfilePage = lazy(() => import("./pages/EditProfilePage"));
+const MyRolesPage = lazy(() => import("./pages/MyRolesPage"));
+const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
+const ManageRolesPage = lazy(() => import("./pages/ManageRolesPage"));
+const ManageTeamRolesPage = lazy(() => import("./pages/ManageTeamRolesPage"));
+const ChildrenPage = lazy(() => import("./pages/ChildrenPage"));
+const UpgradeProPage = lazy(() => import("./pages/UpgradeProPage"));
+const ClubUpgradePage = lazy(() => import("./pages/ClubUpgradePage"));
+const ManagePromoCodesPage = lazy(() => import("./pages/ManagePromoCodesPage"));
+const StripeSettingsPage = lazy(() => import("./pages/StripeSettingsPage"));
+const AppStripeSettingsPage = lazy(() => import("./pages/AppStripeSettingsPage"));
+const ManageFeedbackPage = lazy(() => import("./pages/ManageFeedbackPage"));
+const ManageUsersPage = lazy(() => import("./pages/ManageUsersPage"));
+const ManageBackupsPage = lazy(() => import("./pages/ManageBackupsPage"));
+const JoinTeamPage = lazy(() => import("./pages/JoinTeamPage"));
+const JoinClubPage = lazy(() => import("./pages/JoinClubPage"));
+const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage"));
+const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
+const CancellationPolicyPage = lazy(() => import("./pages/CancellationPolicyPage"));
+const PlayerStatsReportPage = lazy(() => import("./pages/PlayerStatsReportPage"));
+const ClubRewardsPage = lazy(() => import("./pages/ClubRewardsPage"));
+const ClubRewardsReportPage = lazy(() => import("./pages/ClubRewardsReportPage"));
+const SponsorAnalyticsPage = lazy(() => import("./pages/SponsorAnalyticsPage"));
+const ManageAdsPage = lazy(() => import("./pages/ManageAdsPage"));
+const VideoGuideDownloadPage = lazy(() => import("./pages/VideoGuideDownloadPage"));
+const AttendanceStatsPage = lazy(() => import("./pages/AttendanceStatsPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
 
+// Loading fallback component
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+  </div>
+);
+
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="app-theme">
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <ClubThemeProvider>
+          <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <GlobalSubMonitor />
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                {/* Public routes */}
+                <Route path="/auth" element={<AuthPage />} />
+                <Route path="/complete-profile" element={<CompleteProfilePage />} />
+                <Route path="/join/:token" element={<JoinTeamPage />} />
+                <Route path="/join-club/:token" element={<JoinClubPage />} />
+                <Route path="/signup-pro" element={<SignupProPage />} />
+                <Route path="/terms" element={<TermsOfServicePage />} />
+                <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                <Route path="/cancellation" element={<CancellationPolicyPage />} />
+                <Route path="/video-guide" element={<VideoGuideDownloadPage />} />
+                
+                {/* Protected routes */}
+                <Route element={<AppLayout />}>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/events" element={<EventsPage />} />
+                  <Route path="/events/new" element={<CreateEventPage />} />
+                  <Route path="/events/import" element={<ImportFixturesPage />} />
+                  <Route path="/events/:id" element={<EventDetailPage />} />
+                  <Route path="/events/:id/edit" element={<EditEventPage />} />
+                  <Route path="/clubs" element={<ClubsPage />} />
+                  <Route path="/clubs/new" element={<CreateClubPage />} />
+                  <Route path="/clubs/:id" element={<ClubDetailPage />} />
+                  <Route path="/clubs/:id/edit" element={<EditClubPage />} />
+                  <Route path="/clubs/:clubId/teams/new" element={<CreateTeamPage />} />
+                  <Route path="/clubs/:clubId/roles" element={<ManageRolesPage />} />
+                  <Route path="/clubs/:clubId/rewards" element={<ClubRewardsPage />} />
+                  <Route path="/clubs/:clubId/rewards/report" element={<ClubRewardsReportPage />} />
+                  <Route path="/clubs/:clubId/upgrade" element={<ClubUpgradePage />} />
+                  <Route path="/clubs/:clubId/stripe" element={<StripeSettingsPage />} />
+                  <Route path="/teams/:id" element={<TeamDetailPage />} />
+                  <Route path="/teams/:id/edit" element={<EditTeamPage />} />
+                  <Route path="/teams/:teamId/roles" element={<ManageTeamRolesPage />} />
+                  <Route path="/teams/:teamId/upgrade" element={<UpgradeProPage />} />
+                  <Route path="/teams/:teamId/attendance" element={<AttendanceStatsPage />} />
+                  <Route path="/messages" element={<MessagesPage />} />
+                  <Route path="/messages/broadcast" element={<BroadcastChatPage />} />
+                  <Route path="/messages/club/:clubId" element={<ClubChatPage />} />
+                  <Route path="/messages/:teamId" element={<TeamChatPage />} />
+                  <Route path="/groups/:groupId" element={<GroupChatPage />} />
+                  <Route path="/media" element={<MediaPage />} />
+                  <Route path="/vault" element={<VaultPage />} />
+                  <Route path="/vault/folder/:folderId" element={<VaultPage />} />
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/edit-profile" element={<EditProfilePage />} />
+                  <Route path="/roles" element={<MyRolesPage />} />
+                  <Route path="/children" element={<ChildrenPage />} />
+                  <Route path="/notifications" element={<NotificationsPage />} />
+                  <Route path="/reports/player-stats" element={<PlayerStatsReportPage />} />
+                  <Route path="/admin/promo-codes" element={<ManagePromoCodesPage />} />
+                  <Route path="/admin/stripe" element={<AppStripeSettingsPage />} />
+                  <Route path="/admin/feedback" element={<ManageFeedbackPage />} />
+                  <Route path="/admin/users" element={<ManageUsersPage />} />
+                  <Route path="/admin/backups" element={<ManageBackupsPage />} />
+                  <Route path="/admin/sponsor-analytics" element={<SponsorAnalyticsPage />} />
+                  <Route path="/admin/ads" element={<ManageAdsPage />} />
+                </Route>
+                
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+            <CookieConsentBanner />
+            <IOSInstallPrompt />
+            <PushNotificationManager />
+          </BrowserRouter>
+          </TooltipProvider>
+        </ClubThemeProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;
