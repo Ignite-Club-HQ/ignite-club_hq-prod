@@ -1,8 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, LogIn, Users, ChevronDown, ChevronUp, Filter } from "lucide-react";
+import { Loader2, LogIn, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -17,8 +23,12 @@ interface DemoUser {
   ignite_points?: number;
 }
 
-export function DemoLoginSection() {
-  const [isOpen, setIsOpen] = useState(false);
+interface DemoLoginSectionProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function DemoLoginSection({ open, onOpenChange }: DemoLoginSectionProps) {
   const [demoUsers, setDemoUsers] = useState<DemoUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loggingInAs, setLoggingInAs] = useState<string | null>(null);
@@ -51,10 +61,10 @@ export function DemoLoginSection() {
   };
 
   useEffect(() => {
-    if (isOpen && demoUsers.length === 0) {
+    if (open && demoUsers.length === 0) {
       fetchDemoUsers();
     }
-  }, [isOpen]);
+  }, [open]);
 
   // Extract unique clubs from demo users (filter out empty strings)
   const uniqueClubs = useMemo(() => {
@@ -98,6 +108,7 @@ export function DemoLoginSection() {
       }
 
       toast.success(`Logged in as ${user.name}`);
+      onOpenChange(false);
     } catch (error) {
       console.error("Error logging in as demo user:", error);
       toast.error(error instanceof Error ? error.message : "Failed to login as demo user");
@@ -107,53 +118,52 @@ export function DemoLoginSection() {
   };
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <CollapsibleTrigger asChild>
-        <Button variant="ghost" className="w-full gap-2 text-muted-foreground hover:text-foreground">
-          <Users className="h-4 w-4" />
-          Demo Accounts
-          {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pt-2">
-        <div className="border rounded-lg p-3 bg-muted/30">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Demo Accounts</DialogTitle>
+          <DialogDescription>
+            Login as a demo user to test different roles and permissions
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="flex-1 overflow-hidden">
           {loadingUsers ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : demoUsers.length === 0 ? (
-            <div className="text-center py-4 text-muted-foreground">
-              <p className="text-xs">No demo accounts available.</p>
+            <div className="text-center py-8 text-muted-foreground">
+              <p className="text-sm">No demo accounts available.</p>
             </div>
           ) : (
-            <>
+            <div className="space-y-3">
               {uniqueClubs.length > 0 && (
-                <div className="mb-3">
-                  <Select value={selectedClub} onValueChange={setSelectedClub}>
-                    <SelectTrigger className="w-full h-8 text-xs">
-                      <Filter className="h-3 w-3 mr-1.5" />
-                      <SelectValue placeholder="Filter by club" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Accounts</SelectItem>
-                      {uniqueClubs.map(club => (
-                        <SelectItem key={club} value={club}>{club}</SelectItem>
-                      ))}
-                      {hasUnassociatedUsers && (
-                        <SelectItem value="unassociated">No Club (Unassociated)</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Select value={selectedClub} onValueChange={setSelectedClub}>
+                  <SelectTrigger className="w-full">
+                    <Filter className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Filter by club" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Accounts</SelectItem>
+                    {uniqueClubs.map(club => (
+                      <SelectItem key={club} value={club}>{club}</SelectItem>
+                    ))}
+                    {hasUnassociatedUsers && (
+                      <SelectItem value="unassociated">No Club (Unassociated)</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               )}
-              <div className="max-h-[350px] overflow-y-auto space-y-2 pr-1">
+              
+              <div className="max-h-[400px] overflow-y-auto space-y-2 pr-1">
                 {filteredUsers.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-2">No users in this club</p>
+                  <p className="text-sm text-muted-foreground text-center py-4">No users in this club</p>
                 ) : (
                   filteredUsers.map((user) => (
                     <div
                       key={user.id}
-                      className="flex items-center justify-between p-2 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                      className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
                     >
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">
@@ -162,7 +172,7 @@ export function DemoLoginSection() {
                             🔥 {user.ignite_points ?? 0}
                           </span>
                         </p>
-                        <div className="flex flex-wrap gap-1 mt-0.5">
+                        <div className="flex flex-wrap gap-1 mt-1">
                           {user.roles && user.roles.length > 0 ? (
                             <>
                               {user.roles.slice(0, 2).map((role, i) => {
@@ -194,24 +204,24 @@ export function DemoLoginSection() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="ml-2 shrink-0"
+                        className="ml-3 shrink-0"
                         onClick={() => handleLoginAs(user)}
                         disabled={loggingInAs === user.id}
                       >
                         {loggingInAs === user.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          <LogIn className="h-3.5 w-3.5" />
+                          <LogIn className="h-4 w-4" />
                         )}
                       </Button>
                     </div>
                   ))
                 )}
               </div>
-            </>
+            </div>
           )}
         </div>
-      </CollapsibleContent>
-    </Collapsible>
+      </DialogContent>
+    </Dialog>
   );
 }
