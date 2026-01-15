@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, HelpCircle, Building2, Lock } from "lucide-react";
+import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, HelpCircle, Building2, Lock, UserCog } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -22,6 +22,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { DemoLoginSection } from "@/components/DemoLoginSection";
 import igniteIcon from "@/assets/ignite-icon.png";
 import igniteIconLight from "@/assets/ignite-icon-light.png";
 
@@ -252,6 +253,22 @@ export function AppHeader() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [demoLoginOpen, setDemoLoginOpen] = useState(false);
+
+  // Check if user is app admin
+  const { data: isAppAdmin } = useQuery({
+    queryKey: ["is-app-admin", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("role", "app_admin")
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!user?.id,
+  });
 
   // Show club logo if theme is active and showLogoInHeader is enabled
   const showClubLogo = activeThemeData?.showLogoInHeader && activeThemeData?.logoUrl;
@@ -680,6 +697,22 @@ export function AppHeader() {
                 )}
                 <span className="text-sm">{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
               </DropdownMenuItem>
+              {isAppAdmin && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      setProfileOpen(false);
+                      setDemoLoginOpen(true);
+                    }}
+                    className="py-3 px-3"
+                  >
+                    <UserCog className="mr-3 h-5 w-5" />
+                    <span className="text-sm">Demo Accounts</span>
+                  </DropdownMenuItem>
+                </>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 onSelect={(e) => {
@@ -706,6 +739,9 @@ export function AppHeader() {
           </DropdownMenu>
           
           <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+          {isAppAdmin && (
+            <DemoLoginSection open={demoLoginOpen} onOpenChange={setDemoLoginOpen} />
+          )}
         </div>
       </div>
     </header>
