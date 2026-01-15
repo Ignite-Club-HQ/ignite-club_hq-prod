@@ -5,8 +5,8 @@
  * It preserves the bucket/folder structure and adds a date prefix.
  */
 
-const { createClient } = require('@supabase/supabase-js');
-const { Storage } = require('@google-cloud/storage');
+import { createClient } from '@supabase/supabase-js';
+import { Storage } from '@google-cloud/storage';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
