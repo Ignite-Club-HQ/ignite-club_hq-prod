@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { DemoLoginSection } from "@/components/DemoLoginSection";
+import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
 
 import { z } from "zod";
 
@@ -22,6 +23,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const { toast } = useToast();
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
 
@@ -152,7 +154,16 @@ export default function AuthPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signin-password">Password</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="signin-password">Password</Label>
+                      <button
+                        type="button"
+                        className="text-xs text-primary hover:underline"
+                        onClick={() => setForgotPasswordOpen(true)}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -307,6 +318,13 @@ export default function AuthPage() {
             </TabsContent>
           </Tabs>
         </Card>
+
+        {/* Forgot Password Dialog */}
+        <ForgotPasswordDialog 
+          open={forgotPasswordOpen} 
+          onOpenChange={setForgotPasswordOpen}
+          defaultEmail={email}
+        />
 
         {/* Demo Logins Section */}
         <DemoLoginSection />
