@@ -23,7 +23,7 @@ const BUCKETS_TO_BACKUP = [
   'backups'
 ];
 
-const MANIFEST_PATH = 'storage-backups/.backup-manifest.json';
+const MANIFEST_PATH = 'supabase-buckets/.backup-manifest.json';
 
 async function main() {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !GCS_BUCKET_NAME) {
@@ -230,7 +230,7 @@ async function backupBucket(supabase, gcsBucket, bucketName, datePrefix, path, p
           continue;
         }
 
-        const gcsPath = `storage-backups/${datePrefix}/${bucketName}/${filePath}`;
+        const gcsPath = `supabase-buckets/${datePrefix}/${bucketName}/${filePath}`;
         const buffer = Buffer.from(await data.arrayBuffer());
         
         await gcsBucket.file(gcsPath).save(buffer, {
