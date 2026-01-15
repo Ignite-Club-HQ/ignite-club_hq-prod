@@ -27,11 +27,13 @@ jobs:
       - name: Check for changes since last backup
         id: check_changes
         run: |
+          REPO_NAME=$(basename $GITHUB_REPOSITORY)
           CURRENT_SHA=$(git rev-parse HEAD)
           echo "Current commit SHA: $CURRENT_SHA"
+          echo "REPO_NAME=$REPO_NAME" >> $GITHUB_ENV
           
           # Try to get the last backed up SHA from GCS
-          LAST_SHA_FILE="gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/.last-backup-sha"
+          LAST_SHA_FILE="gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/${REPO_NAME}/.last-backup-sha"
           
           if gsutil -q stat "$LAST_SHA_FILE" 2>/dev/null; then
             LAST_SHA=$(gsutil cat "$LAST_SHA_FILE")
@@ -55,8 +57,7 @@ jobs:
         if: steps.check_changes.outputs.has_changes == 'true'
         run: |
           DATE=$(date +%Y-%m-%d)
-          REPO_NAME=$(basename $GITHUB_REPOSITORY)
-          ARCHIVE_NAME="${REPO_NAME}-${DATE}.tar.gz"
+          ARCHIVE_NAME="${{ env.REPO_NAME }}-${DATE}.tar.gz"
           
           # Create a compressed archive of the entire repo
           tar -czf "/tmp/${ARCHIVE_NAME}" \
@@ -74,13 +75,13 @@ jobs:
       - name: Upload to GCS
         if: steps.check_changes.outputs.has_changes == 'true'
         run: |
-          gsutil cp "${{ env.ARCHIVE_PATH }}" "gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/${{ env.DATE }}/${{ env.ARCHIVE_NAME }}"
-          echo "✓ Backup uploaded to gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/${{ env.DATE }}/${{ env.ARCHIVE_NAME }}"
+          gsutil cp "${{ env.ARCHIVE_PATH }}" "gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/${{ env.REPO_NAME }}/${{ env.DATE }}/${{ env.ARCHIVE_NAME }}"
+          echo "✓ Backup uploaded to gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/${{ env.REPO_NAME }}/${{ env.DATE }}/${{ env.ARCHIVE_NAME }}"
 
       - name: Update last backup SHA
         if: steps.check_changes.outputs.has_changes == 'true'
         run: |
-          echo "${{ env.CURRENT_SHA }}" | gsutil cp - "gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/.last-backup-sha"
+          echo "${{ env.CURRENT_SHA }}" | gsutil cp - "gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/${{ env.REPO_NAME }}/.last-backup-sha"
           echo "✓ Updated last backup SHA marker"
 
       - name: Cleanup
