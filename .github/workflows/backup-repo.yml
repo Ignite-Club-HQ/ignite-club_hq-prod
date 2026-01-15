@@ -1,0 +1,52 @@
+name: Backup Repository to GCS
+
+on:
+  schedule:
+    # Run daily at 3 AM UTC (1 hour after storage backup)
+    - cron: '0 3 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for complete backup
+
+      - name: Create archive
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          REPO_NAME=$(basename $GITHUB_REPOSITORY)
+          ARCHIVE_NAME="${REPO_NAME}-${DATE}.tar.gz"
+          
+          # Create a compressed archive of the entire repo
+          tar -czf "/tmp/${ARCHIVE_NAME}" \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            --exclude='dist' \
+            --exclude='build' \
+            .
+          
+          echo "ARCHIVE_PATH=/tmp/${ARCHIVE_NAME}" >> $GITHUB_ENV
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> $GITHUB_ENV
+          echo "DATE=${DATE}" >> $GITHUB_ENV
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCS_SERVICE_ACCOUNT_KEY }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Upload to GCS
+        run: |
+          gsutil cp "${{ env.ARCHIVE_PATH }}" "gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/${{ env.DATE }}/${{ env.ARCHIVE_NAME }}"
+          echo "✓ Backup uploaded to gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/${{ env.DATE }}/${{ env.ARCHIVE_NAME }}"
+
+      - name: Cleanup
+        run: rm -f "${{ env.ARCHIVE_PATH }}"
