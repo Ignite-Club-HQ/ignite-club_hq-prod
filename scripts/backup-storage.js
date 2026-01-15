@@ -27,9 +27,20 @@ async function main() {
     throw new Error('Missing required environment variables');
   }
 
+  console.log('Connecting to Supabase:', SUPABASE_URL);
+  
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const gcs = new Storage();
   const gcsBucket = gcs.bucket(GCS_BUCKET_NAME);
+
+  // First, list all available buckets
+  const { data: availableBuckets, error: bucketsError } = await supabase.storage.listBuckets();
+  
+  if (bucketsError) {
+    console.error('Error listing buckets:', bucketsError);
+  } else {
+    console.log('Available buckets:', availableBuckets.map(b => b.name).join(', '));
+  }
 
   const datePrefix = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
   let totalFiles = 0;
@@ -41,6 +52,13 @@ async function main() {
 
   for (const bucketName of BUCKETS_TO_BACKUP) {
     console.log(`\nProcessing bucket: ${bucketName}`);
+    
+    // Check if bucket exists
+    const bucketExists = availableBuckets?.some(b => b.name === bucketName);
+    if (!bucketExists) {
+      console.log(`  ⚠ Bucket "${bucketName}" does not exist, skipping`);
+      continue;
+    }
     
     try {
       const filesBackedUp = await backupBucket(supabase, gcsBucket, bucketName, datePrefix);
@@ -60,31 +78,42 @@ async function backupBucket(supabase, gcsBucket, bucketName, datePrefix, path = 
   let count = 0;
   let bytes = 0;
 
+  console.log(`    Listing path: "${path || '(root)'}"`);
+  
   const { data: files, error } = await supabase.storage
     .from(bucketName)
-    .list(path, { limit: 1000 });
+    .list(path, { 
+      limit: 1000,
+      sortBy: { column: 'name', order: 'asc' }
+    });
 
   if (error) {
+    console.error(`    Error listing ${bucketName}/${path}:`, error);
     throw error;
   }
+
+  console.log(`    Found ${files?.length || 0} items in ${bucketName}/${path || '(root)'}`);
 
   for (const file of files || []) {
     const filePath = path ? `${path}/${file.name}` : file.name;
 
-    if (file.id === null) {
+    // Check if it's a folder (no metadata means it's a folder)
+    if (!file.metadata) {
+      console.log(`    📁 Folder: ${filePath}`);
       // It's a folder, recurse
       const subResult = await backupBucket(supabase, gcsBucket, bucketName, datePrefix, filePath);
       count += subResult.count;
       bytes += subResult.bytes;
     } else {
       // It's a file, download and upload to GCS
+      console.log(`    📄 File: ${filePath}`);
       try {
         const { data, error: downloadError } = await supabase.storage
           .from(bucketName)
           .download(filePath);
 
         if (downloadError) {
-          console.error(`    Error downloading ${filePath}:`, downloadError.message);
+          console.error(`      Error downloading ${filePath}:`, downloadError.message);
           continue;
         }
 
@@ -104,8 +133,9 @@ async function backupBucket(supabase, gcsBucket, bucketName, datePrefix, path = 
 
         count++;
         bytes += buffer.length;
+        console.log(`      ✓ Uploaded to GCS: ${gcsPath} (${formatBytes(buffer.length)})`);
       } catch (err) {
-        console.error(`    Error processing ${filePath}:`, err.message);
+        console.error(`      Error processing ${filePath}:`, err.message);
       }
     }
   }
