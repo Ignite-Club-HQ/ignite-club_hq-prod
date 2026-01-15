@@ -19,6 +19,7 @@ import { Loader2 } from "lucide-react";
 import AuthPage from "./pages/AuthPage";
 import CompleteProfilePage from "./pages/CompleteProfilePage";
 import HomePage from "./pages/HomePage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import SignupProPage from "./pages/SignupProPage";
 
 // Lazy loaded pages (code splitting)
@@ -93,6 +94,7 @@ const App = () => (
               <Routes>
                 {/* Public routes */}
                 <Route path="/auth" element={<AuthPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/complete-profile" element={<CompleteProfilePage />} />
                 <Route path="/join/:token" element={<JoinTeamPage />} />
                 <Route path="/join-club/:token" element={<JoinClubPage />} />
