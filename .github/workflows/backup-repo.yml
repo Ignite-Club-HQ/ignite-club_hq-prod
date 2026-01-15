@@ -16,7 +16,43 @@ jobs:
         with:
           fetch-depth: 0 # Fetch all history for complete backup
 
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCS_SERVICE_ACCOUNT_KEY }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Check for changes since last backup
+        id: check_changes
+        run: |
+          CURRENT_SHA=$(git rev-parse HEAD)
+          echo "Current commit SHA: $CURRENT_SHA"
+          
+          # Try to get the last backed up SHA from GCS
+          LAST_SHA_FILE="gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/.last-backup-sha"
+          
+          if gsutil -q stat "$LAST_SHA_FILE" 2>/dev/null; then
+            LAST_SHA=$(gsutil cat "$LAST_SHA_FILE")
+            echo "Last backed up SHA: $LAST_SHA"
+            
+            if [ "$CURRENT_SHA" = "$LAST_SHA" ]; then
+              echo "No changes since last backup. Skipping."
+              echo "has_changes=false" >> $GITHUB_OUTPUT
+            else
+              echo "Changes detected since last backup."
+              echo "has_changes=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "No previous backup found. Will create first backup."
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "CURRENT_SHA=$CURRENT_SHA" >> $GITHUB_ENV
+
       - name: Create archive
+        if: steps.check_changes.outputs.has_changes == 'true'
         run: |
           DATE=$(date +%Y-%m-%d)
           REPO_NAME=$(basename $GITHUB_REPOSITORY)
@@ -35,18 +71,26 @@ jobs:
           echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> $GITHUB_ENV
           echo "DATE=${DATE}" >> $GITHUB_ENV
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCS_SERVICE_ACCOUNT_KEY }}
-
-      - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
       - name: Upload to GCS
+        if: steps.check_changes.outputs.has_changes == 'true'
         run: |
           gsutil cp "${{ env.ARCHIVE_PATH }}" "gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/${{ env.DATE }}/${{ env.ARCHIVE_NAME }}"
           echo "✓ Backup uploaded to gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/${{ env.DATE }}/${{ env.ARCHIVE_NAME }}"
 
+      - name: Update last backup SHA
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          echo "${{ env.CURRENT_SHA }}" | gsutil cp - "gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/.last-backup-sha"
+          echo "✓ Updated last backup SHA marker"
+
       - name: Cleanup
+        if: steps.check_changes.outputs.has_changes == 'true'
         run: rm -f "${{ env.ARCHIVE_PATH }}"
+
+      - name: Summary
+        run: |
+          if [ "${{ steps.check_changes.outputs.has_changes }}" = "true" ]; then
+            echo "✓ Backup completed successfully"
+          else
+            echo "ℹ Backup skipped - no changes detected"
+          fi

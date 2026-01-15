@@ -1,8 +1,8 @@
 /**
  * Supabase Storage Backup to Google Cloud Storage
  * 
- * This script backs up all files from Supabase storage buckets to GCS.
- * It preserves the bucket/folder structure and adds a date prefix.
+ * This script backs up files from Supabase storage buckets to GCS.
+ * It supports incremental backups - only backing up new or modified files.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -11,6 +11,7 @@ import { Storage } from '@google-cloud/storage';
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const GCS_BUCKET_NAME = process.env.GCS_BUCKET_NAME;
+const INCREMENTAL_BACKUP = process.env.INCREMENTAL_BACKUP === 'true';
 
 // Buckets to backup
 const BUCKETS_TO_BACKUP = [
@@ -22,16 +23,26 @@ const BUCKETS_TO_BACKUP = [
   'backups'
 ];
 
+const MANIFEST_PATH = 'storage-backups/.backup-manifest.json';
+
 async function main() {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !GCS_BUCKET_NAME) {
     throw new Error('Missing required environment variables');
   }
 
   console.log('Connecting to Supabase:', SUPABASE_URL);
+  console.log('Incremental backup:', INCREMENTAL_BACKUP ? 'enabled' : 'disabled');
   
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const gcs = new Storage();
   const gcsBucket = gcs.bucket(GCS_BUCKET_NAME);
+
+  // Load previous manifest if incremental backup is enabled
+  let previousManifest = {};
+  if (INCREMENTAL_BACKUP) {
+    previousManifest = await loadManifest(gcsBucket);
+    console.log(`Loaded manifest with ${Object.keys(previousManifest).length} entries`);
+  }
 
   // First, list all available buckets
   const { data: availableBuckets, error: bucketsError } = await supabase.storage.listBuckets();
@@ -45,6 +56,8 @@ async function main() {
   const datePrefix = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
   let totalFiles = 0;
   let totalBytes = 0;
+  let skippedFiles = 0;
+  const newManifest = {};
 
   console.log(`Starting backup to GCS bucket: ${GCS_BUCKET_NAME}`);
   console.log(`Date prefix: ${datePrefix}`);
@@ -61,22 +74,97 @@ async function main() {
     }
     
     try {
-      const filesBackedUp = await backupBucket(supabase, gcsBucket, bucketName, datePrefix);
-      totalFiles += filesBackedUp.count;
-      totalBytes += filesBackedUp.bytes;
-      console.log(`  ✓ Backed up ${filesBackedUp.count} files (${formatBytes(filesBackedUp.bytes)})`);
+      const result = await backupBucket(
+        supabase, 
+        gcsBucket, 
+        bucketName, 
+        datePrefix, 
+        '', 
+        previousManifest, 
+        newManifest
+      );
+      totalFiles += result.count;
+      totalBytes += result.bytes;
+      skippedFiles += result.skipped;
+      console.log(`  ✓ Backed up ${result.count} files (${formatBytes(result.bytes)}), skipped ${result.skipped} unchanged`);
     } catch (error) {
       console.error(`  ✗ Error backing up ${bucketName}:`, error.message);
     }
   }
 
+  // Save the new manifest
+  if (INCREMENTAL_BACKUP) {
+    await saveManifest(gcsBucket, newManifest);
+    console.log(`\nSaved manifest with ${Object.keys(newManifest).length} entries`);
+  }
+
   console.log('\n---');
-  console.log(`Backup complete: ${totalFiles} files, ${formatBytes(totalBytes)}`);
+  if (totalFiles === 0 && skippedFiles > 0) {
+    console.log(`Backup complete: No changes detected (${skippedFiles} files unchanged)`);
+  } else {
+    console.log(`Backup complete: ${totalFiles} files backed up (${formatBytes(totalBytes)}), ${skippedFiles} unchanged`);
+  }
 }
 
-async function backupBucket(supabase, gcsBucket, bucketName, datePrefix, path = '') {
+async function loadManifest(gcsBucket) {
+  try {
+    const file = gcsBucket.file(MANIFEST_PATH);
+    const [exists] = await file.exists();
+    
+    if (!exists) {
+      console.log('No previous manifest found, will backup all files');
+      return {};
+    }
+    
+    const [contents] = await file.download();
+    return JSON.parse(contents.toString());
+  } catch (error) {
+    console.error('Error loading manifest:', error.message);
+    return {};
+  }
+}
+
+async function saveManifest(gcsBucket, manifest) {
+  try {
+    const file = gcsBucket.file(MANIFEST_PATH);
+    await file.save(JSON.stringify(manifest, null, 2), {
+      contentType: 'application/json',
+      metadata: {
+        metadata: {
+          lastUpdated: new Date().toISOString()
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error saving manifest:', error.message);
+  }
+}
+
+function getFileKey(bucketName, filePath) {
+  return `${bucketName}/${filePath}`;
+}
+
+function hasFileChanged(fileKey, fileMetadata, previousManifest) {
+  const previous = previousManifest[fileKey];
+  if (!previous) {
+    return true; // New file
+  }
+  
+  // Compare by updated_at timestamp or size
+  if (fileMetadata.updated_at !== previous.updated_at) {
+    return true;
+  }
+  if (fileMetadata.size !== previous.size) {
+    return true;
+  }
+  
+  return false;
+}
+
+async function backupBucket(supabase, gcsBucket, bucketName, datePrefix, path, previousManifest, newManifest) {
   let count = 0;
   let bytes = 0;
+  let skipped = 0;
 
   console.log(`    Listing path: "${path || '(root)'}"`);
   
@@ -101,11 +189,36 @@ async function backupBucket(supabase, gcsBucket, bucketName, datePrefix, path = 
     if (!file.metadata) {
       console.log(`    📁 Folder: ${filePath}`);
       // It's a folder, recurse
-      const subResult = await backupBucket(supabase, gcsBucket, bucketName, datePrefix, filePath);
+      const subResult = await backupBucket(
+        supabase, 
+        gcsBucket, 
+        bucketName, 
+        datePrefix, 
+        filePath, 
+        previousManifest, 
+        newManifest
+      );
       count += subResult.count;
       bytes += subResult.bytes;
+      skipped += subResult.skipped;
     } else {
-      // It's a file, download and upload to GCS
+      const fileKey = getFileKey(bucketName, filePath);
+      const fileMetadata = {
+        updated_at: file.updated_at,
+        size: file.metadata?.size || 0,
+        lastBackup: new Date().toISOString()
+      };
+      
+      // Add to new manifest regardless of whether we backup
+      newManifest[fileKey] = fileMetadata;
+      
+      // Check if file has changed (only if incremental backup is enabled)
+      if (INCREMENTAL_BACKUP && !hasFileChanged(fileKey, file, previousManifest)) {
+        skipped++;
+        continue; // Skip unchanged files
+      }
+      
+      // It's a file that needs backup
       console.log(`    📄 File: ${filePath}`);
       try {
         const { data, error: downloadError } = await supabase.storage
@@ -117,7 +230,7 @@ async function backupBucket(supabase, gcsBucket, bucketName, datePrefix, path = 
           continue;
         }
 
-        const gcsPath = `${datePrefix}/${bucketName}/${filePath}`;
+        const gcsPath = `storage-backups/${datePrefix}/${bucketName}/${filePath}`;
         const buffer = Buffer.from(await data.arrayBuffer());
         
         await gcsBucket.file(gcsPath).save(buffer, {
@@ -140,7 +253,7 @@ async function backupBucket(supabase, gcsBucket, bucketName, datePrefix, path = 
     }
   }
 
-  return { count, bytes };
+  return { count, bytes, skipped };
 }
 
 function formatBytes(bytes) {
