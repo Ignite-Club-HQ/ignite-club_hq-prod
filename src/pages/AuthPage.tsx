@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { DemoLoginSection } from "@/components/DemoLoginSection";
 import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
 
 import { z } from "zod";
@@ -326,8 +325,6 @@ export default function AuthPage() {
           defaultEmail={email}
         />
 
-        {/* Demo Logins Section */}
-        <DemoLoginSection />
 
         {/* Footer Links */}
         <div className="text-center text-xs text-muted-foreground space-y-2">
