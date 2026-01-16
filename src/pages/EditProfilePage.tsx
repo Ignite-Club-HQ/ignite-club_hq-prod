@@ -244,7 +244,21 @@ export default function EditProfilePage() {
     setTestingPush(false);
   };
 
-  // Simple test to check if we can save subscription to database
+  // VAPID public key for subscription
+  const VAPID_PUBLIC_KEY = 'BIFKB_ZTDn9fhiF-crB2xQk1eNaKQQg0svSjsMV-KvM21y8L05Q6ZwZwDsqMR7-_1ZoV2J4RXRx56gjJFEhfWOw';
+  
+  const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  // Full test: Enable push + save to DB in one simple flow
   const handleTestDbSave = async () => {
     if (!user) {
       toast({ title: "Not logged in", variant: "destructive" });
@@ -254,34 +268,44 @@ export default function EditProfilePage() {
     setTestingDbSave(true);
     
     try {
-      // Step 1: Check if service worker is registered
-      toast({ title: "Step 1: Checking service worker..." });
+      // Step 1: Request notification permission
+      toast({ title: "Step 1: Requesting permission..." });
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        toast({ title: "Permission denied!", description: `Result: ${permission}`, variant: "destructive" });
+        setTestingDbSave(false);
+        return;
+      }
+      toast({ title: "✓ Permission granted" });
+      
+      // Step 2: Get service worker
+      toast({ title: "Step 2: Getting service worker..." });
       const registration = await navigator.serviceWorker.ready;
-      if (!registration) {
-        toast({ title: "No service worker!", variant: "destructive" });
+      if (!registration?.active) {
+        toast({ title: "No active service worker!", variant: "destructive" });
         setTestingDbSave(false);
         return;
       }
       toast({ title: "✓ Service worker ready" });
       
-      // Step 2: Get existing push subscription from browser
-      toast({ title: "Step 2: Getting browser subscription..." });
-      const existingSub = await registration.pushManager.getSubscription();
+      // Step 3: Create push subscription (or get existing)
+      toast({ title: "Step 3: Creating push subscription..." });
+      let subscription = await registration.pushManager.getSubscription();
       
-      if (!existingSub) {
-        toast({ 
-          title: "No browser subscription found", 
-          description: "You need to enable push first to create a browser subscription",
-          variant: "destructive" 
+      if (!subscription) {
+        const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: applicationServerKey.buffer.slice(0) as ArrayBuffer
         });
-        setTestingDbSave(false);
-        return;
+        toast({ title: "✓ New subscription created" });
+      } else {
+        toast({ title: "✓ Existing subscription found" });
       }
-      toast({ title: "✓ Browser subscription found", description: existingSub.endpoint.slice(0, 50) + "..." });
       
-      // Step 3: Extract subscription data
-      toast({ title: "Step 3: Extracting keys..." });
-      const subJson = existingSub.toJSON();
+      // Step 4: Extract subscription data
+      toast({ title: "Step 4: Extracting keys..." });
+      const subJson = subscription.toJSON();
       const p256dh = subJson.keys?.p256dh;
       const auth = subJson.keys?.auth;
       
@@ -292,17 +316,18 @@ export default function EditProfilePage() {
       }
       toast({ title: "✓ Keys extracted", description: `p256dh: ${p256dh.slice(0,20)}...` });
       
-      // Step 4: Try to save to database
-      toast({ title: "Step 4: Saving to database..." });
+      // Step 5: Save to database
+      toast({ title: "Step 5: Saving to database..." });
       
       const { data, error } = await supabase
         .from('push_subscriptions')
         .upsert({
           user_id: user.id,
-          endpoint: existingSub.endpoint,
+          endpoint: subscription.endpoint,
           p256dh: p256dh,
           auth: auth,
-          user_agent: navigator.userAgent,
+          platform: /android/i.test(navigator.userAgent) ? 'android' : 
+                    /iphone|ipad/i.test(navigator.userAgent) ? 'ios' : 'web'
         }, { 
           onConflict: 'user_id,endpoint',
           ignoreDuplicates: false 
@@ -317,32 +342,31 @@ export default function EditProfilePage() {
           variant: "destructive",
           duration: 30000
         });
-      } else {
-        console.log('[TestDbSave] Database save success:', data);
-        toast({ 
-          title: "✓ Database save SUCCESS!", 
-          description: "Subscription saved to push_subscriptions table",
-          duration: 10000
-        });
+        setTestingDbSave(false);
+        return;
       }
+      console.log('[TestDbSave] Database save success:', data);
+      toast({ title: "✓ Saved to database!" });
       
-      // Step 5: Verify it's in the database
-      toast({ title: "Step 5: Verifying..." });
+      // Step 6: Verify it's in the database
+      toast({ title: "Step 6: Verifying..." });
       const { data: verifyData, error: verifyError } = await supabase
         .from('push_subscriptions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('endpoint', existingSub.endpoint)
+        .eq('endpoint', subscription.endpoint)
         .maybeSingle();
       
       if (verifyError) {
         toast({ title: "Verify query failed", description: verifyError.message, variant: "destructive" });
       } else if (verifyData) {
         toast({ 
-          title: "✓ VERIFIED in database!", 
-          description: `Created: ${verifyData.created_at}`,
-          duration: 10000
+          title: "✅ ALL DONE! Verified in DB!", 
+          description: `ID: ${verifyData.id}`,
+          duration: 15000
         });
+        // Update local state
+        setPushEnabled(true);
       } else {
         toast({ title: "Not found in database after save!", variant: "destructive" });
       }
@@ -351,7 +375,7 @@ export default function EditProfilePage() {
       console.error('[TestDbSave] Error:', err);
       toast({ 
         title: "Test failed with exception", 
-        description: err instanceof Error ? err.message : String(err),
+        description: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
         variant: "destructive",
         duration: 30000
       });
