@@ -8,6 +8,54 @@ const corsHeaders = {
 // Supported private buckets
 const PRIVATE_BUCKETS = ["photos", "chat-attachments", "avatars"];
 
+// Rate limiting to prevent enumeration attacks
+const RATE_LIMIT_WINDOW_SECONDS = 60;
+const RATE_LIMIT_MAX_REQUESTS = 100; // Allow 100 requests per minute for normal usage
+
+async function checkRateLimit(
+  supabase: any,
+  identifier: string,
+  endpoint: string
+): Promise<{ allowed: boolean; remaining: number; resetAt: Date }> {
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - RATE_LIMIT_WINDOW_SECONDS * 1000);
+
+  const { data: existing } = await supabase
+    .from('rate_limits')
+    .select('*')
+    .eq('identifier', identifier)
+    .eq('endpoint', endpoint)
+    .single();
+
+  if (existing) {
+    const recordWindowStart = new Date(existing.window_start);
+    
+    if (recordWindowStart < windowStart) {
+      await supabase.from('rate_limits').update({
+        request_count: 1,
+        window_start: now.toISOString(),
+        updated_at: now.toISOString()
+      }).eq('id', existing.id);
+      
+      return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1, resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
+    }
+
+    if (existing.request_count >= RATE_LIMIT_MAX_REQUESTS) {
+      return { allowed: false, remaining: 0, resetAt: new Date(recordWindowStart.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
+    }
+
+    await supabase.from('rate_limits').update({
+      request_count: existing.request_count + 1,
+      updated_at: now.toISOString()
+    }).eq('id', existing.id);
+
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - existing.request_count - 1, resetAt: new Date(recordWindowStart.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
+  }
+
+  await supabase.from('rate_limits').insert({ identifier, endpoint, request_count: 1, window_start: now.toISOString() });
+  return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1, resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -38,6 +86,26 @@ Deno.serve(async (req) => {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Rate limiting check to prevent enumeration attacks
+    const rateLimitResult = await checkRateLimit(supabase, user.id, 'get-signed-photo-url');
+    if (!rateLimitResult.allowed) {
+      console.warn(`Rate limit exceeded for user ${user.id} on get-signed-photo-url`);
+      return new Response(
+        JSON.stringify({ 
+          error: "Too many requests. Please slow down.",
+          retryAfter: Math.ceil((rateLimitResult.resetAt.getTime() - Date.now()) / 1000)
+        }),
+        { 
+          status: 429, 
+          headers: { 
+            ...corsHeaders, 
+            "Content-Type": "application/json",
+            "Retry-After": String(Math.ceil((rateLimitResult.resetAt.getTime() - Date.now()) / 1000))
+          } 
+        }
+      );
     }
 
     const { paths, expiresIn = 3600 } = await req.json();

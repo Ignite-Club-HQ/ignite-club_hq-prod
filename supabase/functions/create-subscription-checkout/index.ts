@@ -7,6 +7,90 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Rate limiting configuration
+const RATE_LIMIT_WINDOW_SECONDS = 60; // 1 minute window
+const RATE_LIMIT_MAX_REQUESTS = 10; // Max 10 requests per window
+
+async function checkRateLimit(
+  supabase: any,
+  identifier: string,
+  endpoint: string
+): Promise<{ allowed: boolean; remaining: number; resetAt: Date }> {
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - RATE_LIMIT_WINDOW_SECONDS * 1000);
+
+  // Try to get or create rate limit record
+  const { data: existing } = await supabase
+    .from('rate_limits')
+    .select('*')
+    .eq('identifier', identifier)
+    .eq('endpoint', endpoint)
+    .single();
+
+  if (existing) {
+    const recordWindowStart = new Date(existing.window_start);
+    
+    // If window has expired, reset the counter
+    if (recordWindowStart < windowStart) {
+      await supabase
+        .from('rate_limits')
+        .update({
+          request_count: 1,
+          window_start: now.toISOString(),
+          updated_at: now.toISOString()
+        })
+        .eq('id', existing.id);
+      
+      return {
+        allowed: true,
+        remaining: RATE_LIMIT_MAX_REQUESTS - 1,
+        resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000)
+      };
+    }
+
+    // Check if rate limit exceeded
+    if (existing.request_count >= RATE_LIMIT_MAX_REQUESTS) {
+      const resetAt = new Date(recordWindowStart.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000);
+      return {
+        allowed: false,
+        remaining: 0,
+        resetAt
+      };
+    }
+
+    // Increment counter
+    await supabase
+      .from('rate_limits')
+      .update({
+        request_count: existing.request_count + 1,
+        updated_at: now.toISOString()
+      })
+      .eq('id', existing.id);
+
+    return {
+      allowed: true,
+      remaining: RATE_LIMIT_MAX_REQUESTS - existing.request_count - 1,
+      resetAt: new Date(recordWindowStart.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000)
+    };
+  }
+
+  // Create new rate limit record
+  await supabase
+    .from('rate_limits')
+    .insert({
+      identifier,
+      endpoint,
+      request_count: 1,
+      window_start: now.toISOString()
+    });
+
+  return {
+    allowed: true,
+    remaining: RATE_LIMIT_MAX_REQUESTS - 1,
+    resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000)
+  };
+}
+
 // Price IDs would be configured in Stripe dashboard
 // These are placeholder product configurations
 const TEAM_PRICING = {
@@ -72,16 +156,36 @@ serve(async (req) => {
       );
     }
 
-    // Get the entity details and Stripe config
-    let entityName: string;
-    let clubId: string;
-    let stripeSecretKey: string | null = null;
-
-    // Use service role client for authorization checks
+    // Use service role client for rate limiting and authorization checks
     const supabaseService = createClient(
       supabaseUrl,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    // Rate limiting check
+    const rateLimitResult = await checkRateLimit(supabaseService, user.id, 'create-subscription-checkout');
+    if (!rateLimitResult.allowed) {
+      console.warn(`Rate limit exceeded for user ${user.id} on create-subscription-checkout`);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Too many requests. Please try again later.',
+          retryAfter: Math.ceil((rateLimitResult.resetAt.getTime() - Date.now()) / 1000)
+        }),
+        { 
+          status: 429, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'Retry-After': String(Math.ceil((rateLimitResult.resetAt.getTime() - Date.now()) / 1000))
+          } 
+        }
+      );
+    }
+
+    // Get the entity details and Stripe config
+    let entityName: string;
+    let clubId: string;
+    let stripeSecretKey: string | null = null;
 
     if (subscriptionType === 'team') {
       const { data: team, error: teamError } = await supabase
