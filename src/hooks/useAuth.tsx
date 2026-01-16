@@ -76,13 +76,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 
-  const fetchProfile = useCallback(async (userId: string, retries = 3): Promise<Profile | null> => {
+  const fetchProfile = useCallback(async (userId: string, retries = 5): Promise<Profile | null> => {
     setProfileError(false);
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        // Create a timeout promise to prevent hanging
-        const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((_, reject) => 
-          setTimeout(() => reject({ data: null, error: { message: 'Request timeout' } }), 8000)
+        // Create a timeout promise to prevent hanging - increased to 15s for slow connections
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), 15000)
         );
         
         const fetchPromise = supabase
@@ -96,14 +96,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (error) {
           console.error(`Error fetching profile (attempt ${attempt}/${retries}):`, error);
-          // Retry on timeout, 503, or connection errors
-          const errorCode = 'code' in error ? error.code : null;
-          const isRetryable = errorCode === 'PGRST002' || 
-            error.message?.includes('503') || 
-            error.message?.includes('timeout') ||
-            error.message?.includes('Failed to fetch');
-          if (attempt < retries && isRetryable) {
-            await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+          // Retry on any error - be more aggressive
+          if (attempt < retries) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
             continue;
           }
           setProfileError(true);
@@ -116,11 +111,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfileError(false);
           return data as Profile;
         }
+        
+        // No profile found - this is okay for new users, not an error
+        console.log('No profile found for user:', userId);
         return null;
       } catch (err: any) {
         console.error(`Exception fetching profile (attempt ${attempt}/${retries}):`, err);
         if (attempt < retries) {
-          await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+          // Exponential backoff with jitter
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000) + Math.random() * 500;
+          await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
         setProfileError(true);
@@ -206,13 +206,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Check for existing session (initial load) with timeout
     // PWA launches can hang on getSession if network is slow/offline
+    // Increased timeout for slower networks (e.g., mobile on 3G)
     const sessionTimeout = setTimeout(() => {
       if (mounted && loading) {
         console.warn('Session check timed out, proceeding with cached state');
         setLoading(false);
         setProfileLoading(false);
       }
-    }, 5000); // 5 second timeout
+    }, 10000); // 10 second timeout for slow connections
 
     supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
       clearTimeout(sessionTimeout);
