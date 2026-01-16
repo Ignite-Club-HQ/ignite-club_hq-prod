@@ -258,7 +258,7 @@ export default function EditProfilePage() {
     return outputArray;
   };
 
-  // Full test: Enable push + save to DB in one simple flow with retry
+  // Full test: Enable push + save to DB - simpler approach
   const handleTestDbSave = async () => {
     if (!user) {
       toast({ title: "Not logged in", variant: "destructive" });
@@ -268,91 +268,89 @@ export default function EditProfilePage() {
     setTestingDbSave(true);
     
     try {
-      // Step 1: Request notification permission
-      toast({ title: "Step 1: Requesting permission..." });
+      // Step 1: Check push manager support
+      toast({ title: "Step 1: Checking browser support..." });
+      
+      if (!('serviceWorker' in navigator)) {
+        toast({ title: "No Service Worker support!", variant: "destructive" });
+        setTestingDbSave(false);
+        return;
+      }
+      
+      if (!('PushManager' in window)) {
+        toast({ title: "No Push Manager support!", variant: "destructive" });
+        setTestingDbSave(false);
+        return;
+      }
+      toast({ title: "✓ Browser supports push" });
+      
+      // Step 2: Request notification permission
+      toast({ title: "Step 2: Requesting permission..." });
       const permission = await Notification.requestPermission();
+      toast({ title: `Permission result: ${permission}` });
+      
       if (permission !== 'granted') {
-        toast({ title: "Permission denied!", description: `Result: ${permission}`, variant: "destructive" });
+        toast({ title: "Permission denied!", variant: "destructive" });
         setTestingDbSave(false);
         return;
       }
-      toast({ title: "✓ Permission granted" });
       
-      // Step 2: Get service worker
-      toast({ title: "Step 2: Getting service worker..." });
+      // Step 3: Get service worker
+      toast({ title: "Step 3: Getting service worker..." });
       const registration = await navigator.serviceWorker.ready;
-      if (!registration?.active) {
-        toast({ title: "No active service worker!", variant: "destructive" });
-        setTestingDbSave(false);
-        return;
-      }
-      toast({ title: "✓ Service worker ready" });
+      toast({ title: `SW scope: ${registration.scope}` });
       
-      // Step 3: Try to get existing subscription first
-      toast({ title: "Step 3: Checking for existing subscription..." });
+      // Step 4: Check for existing subscription
+      toast({ title: "Step 4: Checking existing subscription..." });
       let subscription = await registration.pushManager.getSubscription();
       
       if (subscription) {
-        // Already have a subscription - use it directly!
-        toast({ title: "✓ Found existing subscription - using it" });
+        toast({ title: "Found existing! Will use it." });
       } else {
-        // No subscription - need to create one
-        toast({ title: "Step 3b: Clearing stale data and creating subscription..." });
+        // Step 5: Create new subscription
+        toast({ title: "Step 5: Creating subscription..." });
         
-        // Clear any stale subscription first (helps with AbortError)
+        // Log the VAPID key info
+        toast({ title: `VAPID key length: ${VAPID_PUBLIC_KEY.length}` });
+        
         try {
-          const stale = await registration.pushManager.getSubscription();
-          if (stale) {
-            await stale.unsubscribe();
-            toast({ title: "Cleared stale subscription" });
-          }
-        } catch (e) {
-          console.log('[TestDbSave] Clear stale error (ok):', e);
-        }
-        
-        // Wait a moment for the push service to stabilize
-        await new Promise(r => setTimeout(r, 1000));
-        
-        // Try with retries
-        const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-        let lastError: Error | null = null;
-        
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          try {
-            toast({ title: `Creating subscription (attempt ${attempt}/3)...` });
-            
-            subscription = await registration.pushManager.subscribe({
-              userVisibleOnly: true,
-              applicationServerKey: applicationServerKey.buffer.slice(0) as ArrayBuffer
-            });
-            
-            toast({ title: "✓ New subscription created!" });
-            lastError = null;
-            break;
-          } catch (subErr: any) {
-            lastError = subErr;
-            console.error(`[TestDbSave] Subscribe attempt ${attempt} failed:`, subErr);
-            
-            if (attempt < 3) {
-              toast({ title: `Attempt ${attempt} failed, retrying...`, description: subErr.message });
-              await new Promise(r => setTimeout(r, 2000)); // Wait before retry
-            }
-          }
-        }
-        
-        if (lastError || !subscription) {
+          const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+          toast({ title: `Key converted: ${applicationServerKey.length} bytes` });
+          
+          // Cast to ArrayBuffer for TypeScript
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: applicationServerKey.buffer as ArrayBuffer
+          });
+          
+          toast({ title: "✓ Subscription created!" });
+        } catch (subErr: any) {
+          // Show detailed error
           toast({ 
-            title: "Failed to create subscription", 
-            description: lastError ? `${lastError.name}: ${lastError.message}` : "Unknown error",
+            title: `Subscribe failed: ${subErr.name}`, 
+            description: subErr.message,
             variant: "destructive",
             duration: 30000
           });
+          
+          // Try to get more info
+          try {
+            const keyForState = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+            const state = await registration.pushManager.permissionState({
+              userVisibleOnly: true,
+              applicationServerKey: keyForState.buffer as ArrayBuffer
+            });
+            toast({ title: `Permission state: ${state}` });
+          } catch (stateErr) {
+            console.log('Could not get permission state:', stateErr);
+          }
+          
           setTestingDbSave(false);
           return;
         }
       }
       
-      // Step 4: Extract subscription data
+      // Step 6: Extract subscription data
       toast({ title: "Step 4: Extracting keys..." });
       const subJson = subscription.toJSON();
       const p256dh = subJson.keys?.p256dh;
