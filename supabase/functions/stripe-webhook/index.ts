@@ -6,6 +6,57 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, stripe-signature',
 };
 
+// HMAC-SHA256 signature verification for Stripe webhooks
+async function verifyStripeSignature(
+  payload: string,
+  signature: string,
+  secret: string
+): Promise<boolean> {
+  const parts = signature.split(",");
+  let timestamp: string | null = null;
+  let v1Signature: string | null = null;
+
+  for (const part of parts) {
+    const [key, value] = part.split("=");
+    if (key === "t") timestamp = value;
+    if (key === "v1") v1Signature = value;
+  }
+
+  if (!timestamp || !v1Signature) {
+    console.error("Missing timestamp or signature in stripe-signature header");
+    return false;
+  }
+
+  // Verify timestamp is within tolerance (5 minutes)
+  const timestampAge = Math.floor(Date.now() / 1000) - parseInt(timestamp);
+  if (timestampAge > 300) {
+    console.error("Webhook timestamp too old:", timestampAge, "seconds");
+    return false;
+  }
+
+  const signedPayload = `${timestamp}.${payload}`;
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signatureBytes = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(signedPayload)
+  );
+
+  const expectedSignature = Array.from(new Uint8Array(signatureBytes))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  return expectedSignature === v1Signature;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -13,9 +64,35 @@ serve(async (req) => {
   }
 
   try {
+    const signature = req.headers.get("stripe-signature");
+    const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
     const body = await req.text();
-    const event = JSON.parse(body);
 
+    // SECURITY: Verify webhook signature if secret is configured
+    if (webhookSecret) {
+      if (!signature) {
+        console.error("Missing stripe-signature header - rejecting request");
+        return new Response(
+          JSON.stringify({ error: "Missing stripe-signature header" }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const isValid = await verifyStripeSignature(body, signature, webhookSecret);
+      if (!isValid) {
+        console.error("Invalid webhook signature - rejecting request");
+        return new Response(
+          JSON.stringify({ error: "Invalid webhook signature" }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      console.log("Stripe webhook signature verified successfully");
+    } else {
+      // Log warning but allow processing for backwards compatibility during setup
+      console.warn("WARNING: STRIPE_WEBHOOK_SECRET not configured - signature verification disabled. Configure this secret for production security.");
+    }
+
+    const event = JSON.parse(body);
     console.log('Received Stripe webhook event:', event.type);
 
     // Create Supabase client with service role
