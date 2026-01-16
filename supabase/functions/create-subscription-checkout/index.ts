@@ -77,6 +77,12 @@ serve(async (req) => {
     let clubId: string;
     let stripeSecretKey: string | null = null;
 
+    // Use service role client for authorization checks
+    const supabaseService = createClient(
+      supabaseUrl,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
     if (subscriptionType === 'team') {
       const { data: team, error: teamError } = await supabase
         .from('teams')
@@ -89,6 +95,40 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ error: 'Team not found' }),
           { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // SECURITY: Verify user has admin/coach role for this team
+      const { data: userRole, error: roleError } = await supabaseService
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('team_id', entityId)
+        .in('role', ['team_admin', 'coach', 'club_admin'])
+        .maybeSingle();
+
+      // Also check if user is club admin for the parent club
+      const { data: clubAdminRole } = await supabaseService
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('club_id', team.club_id)
+        .eq('role', 'club_admin')
+        .maybeSingle();
+
+      // Also check for app_admin
+      const { data: appAdminRole } = await supabaseService
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'app_admin')
+        .maybeSingle();
+
+      if (!userRole && !clubAdminRole && !appAdminRole) {
+        console.error('User not authorized for team subscription:', { userId: user.id, teamId: entityId });
+        return new Response(
+          JSON.stringify({ error: 'You are not authorized to manage subscriptions for this team' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
@@ -109,16 +149,36 @@ serve(async (req) => {
         );
       }
 
+      // SECURITY: Verify user is club admin for this club
+      const { data: clubAdminRole, error: roleError } = await supabaseService
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('club_id', entityId)
+        .eq('role', 'club_admin')
+        .maybeSingle();
+
+      // Also check for app_admin
+      const { data: appAdminRole } = await supabaseService
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'app_admin')
+        .maybeSingle();
+
+      if (!clubAdminRole && !appAdminRole) {
+        console.error('User not authorized for club subscription:', { userId: user.id, clubId: entityId });
+        return new Response(
+          JSON.stringify({ error: 'You are not authorized to manage subscriptions for this club' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       entityName = club.name;
       clubId = club.id;
     }
 
     // Get club's Stripe config using service role to read the secret key
-    const supabaseService = createClient(
-      supabaseUrl,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
     const { data: stripeConfig } = await supabaseService
       .from('club_stripe_configs')
       .select('stripe_secret_key, is_enabled')
