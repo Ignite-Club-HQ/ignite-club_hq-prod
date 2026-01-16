@@ -300,47 +300,65 @@ export default function EditProfilePage() {
       const registration = await navigator.serviceWorker.ready;
       toast({ title: `SW scope: ${registration.scope}` });
       
-      // Step 4: Check for existing subscription and unsubscribe
+      // Step 4: Check for existing subscription - USE IT if valid
       toast({ title: "Step 4: Checking existing subscription..." });
       let subscription = await registration.pushManager.getSubscription();
       
       if (subscription) {
-        toast({ title: "Found existing - unsubscribing first..." });
+        toast({ title: "✓ Found existing subscription - using it!" });
+        // Don't unsubscribe - just use the existing one
+      } else {
+        // Step 5: Create new subscription with timeout
+        toast({ title: "Step 5: Creating new subscription..." });
+        
+        const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+        
+        // Create subscription with a timeout wrapper
+        const subscribeWithTimeout = async (timeoutMs: number) => {
+          return new Promise<PushSubscription>((resolve, reject) => {
+            const timer = setTimeout(() => {
+              reject(new Error(`Subscribe timeout after ${timeoutMs}ms`));
+            }, timeoutMs);
+            
+            registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: applicationServerKey.buffer as ArrayBuffer
+            }).then(sub => {
+              clearTimeout(timer);
+              resolve(sub);
+            }).catch(err => {
+              clearTimeout(timer);
+              reject(err);
+            });
+          });
+        };
+        
         try {
-          await subscription.unsubscribe();
-          toast({ title: "✓ Old subscription removed" });
-          subscription = null;
-        } catch (unsubErr) {
-          toast({ title: "Unsubscribe failed, continuing..." });
+          toast({ title: "Calling subscribe (30s timeout)..." });
+          subscription = await subscribeWithTimeout(30000);
+          toast({ title: "✓ Subscription created!" });
+        } catch (subErr: any) {
+          console.error('Subscribe error:', subErr);
+          
+          // If AbortError, suggest workaround
+          if (subErr.name === 'AbortError') {
+            toast({ 
+              title: "FCM Service Error", 
+              description: "Your browser's push service is unavailable. Try: 1) Close all browser tabs 2) Clear site data 3) Restart browser",
+              variant: "destructive",
+              duration: 60000
+            });
+          } else {
+            toast({ 
+              title: `ERROR: ${subErr.name}`, 
+              description: `${subErr.message}`,
+              variant: "destructive",
+              duration: 60000
+            });
+          }
+          setTestingDbSave(false);
+          return;
         }
-      }
-      
-      // Step 5: Create new subscription
-      toast({ title: "Step 5: Creating subscription..." });
-      toast({ title: `VAPID: ${VAPID_PUBLIC_KEY.substring(0, 20)}...` });
-      
-      const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-      toast({ title: `Key bytes: ${applicationServerKey.length}` });
-      
-      try {
-        toast({ title: "Calling pushManager.subscribe()..." });
-        
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: applicationServerKey.buffer as ArrayBuffer
-        });
-        
-        toast({ title: "✓ Subscription created!" });
-      } catch (subErr: any) {
-        console.error('Subscribe error:', subErr);
-        toast({ 
-          title: `ERROR: ${subErr.name}`, 
-          description: `${subErr.message}`,
-          variant: "destructive",
-          duration: 60000
-        });
-        setTestingDbSave(false);
-        return;
       }
       
       if (!subscription) {
