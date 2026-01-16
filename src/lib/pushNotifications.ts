@@ -375,7 +375,24 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
             existingKeyArray.every((v, i) => v === applicationServerKey[i]);
           
           if (keysMatch) {
-            console.log('[Push] Reusing existing subscription (keys match)');
+            console.log('[Push] Existing subscription found with matching keys');
+            
+            // Check if this subscription is already in the database for this user
+            const { data: existingDbSub } = await supabase
+              .from('push_subscriptions')
+              .select('endpoint')
+              .eq('user_id', userId)
+              .eq('endpoint', existingSub.endpoint)
+              .maybeSingle();
+            
+            if (existingDbSub) {
+              // Already fully set up - no need to do anything!
+              console.log('[Push] Subscription already exists in database - returning success immediately');
+              clearSubscriptionLock(runId);
+              return { success: true };
+            }
+            
+            console.log('[Push] Reusing existing browser subscription (not in DB yet)');
             subscription = existingSub;
           } else {
             console.log('[Push] Keys mismatch - please use Reset Push Notifications to clear state');
@@ -388,8 +405,21 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
             }
           }
         } else {
-          // No key to compare, try reusing
-          console.log('[Push] Reusing existing subscription (no key to compare)');
+          // No key to compare - check DB by endpoint anyway
+          const { data: existingDbSub } = await supabase
+            .from('push_subscriptions')
+            .select('endpoint')
+            .eq('user_id', userId)
+            .eq('endpoint', existingSub.endpoint)
+            .maybeSingle();
+          
+          if (existingDbSub) {
+            console.log('[Push] Subscription already exists in database (no key compare) - returning success');
+            clearSubscriptionLock(runId);
+            return { success: true };
+          }
+          
+          console.log('[Push] Reusing existing subscription (no key to compare, not in DB)');
           subscription = existingSub;
         }
       }
