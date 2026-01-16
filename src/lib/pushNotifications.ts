@@ -378,54 +378,35 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
       console.log('[Push] Existing subscription:', existingSub ? 'found' : 'none');
       
       if (existingSub) {
-        // We have an existing browser subscription - check if it's valid
-        const existingKey = existingSub.options?.applicationServerKey;
-        let keysMatch = true;
+        // We have an existing browser subscription - ALWAYS try to reuse it
+        // Unsubscribing and resubscribing often causes AbortError on mobile
+        console.log('[Push] Existing subscription found - will reuse it');
         
-        if (existingKey) {
-          const existingKeyArray = new Uint8Array(existingKey as ArrayBuffer);
-          keysMatch = existingKeyArray.length === applicationServerKey.length &&
-            existingKeyArray.every((v, i) => v === applicationServerKey[i]);
-        }
-        
-        if (keysMatch) {
-          console.log('[Push] Existing subscription found with matching keys (or no key to compare)');
+        // Check if this subscription is already in the database for this user
+        try {
+          const { data: existingDbSub } = await supabase
+            .from('push_subscriptions')
+            .select('endpoint')
+            .eq('user_id', userId)
+            .eq('endpoint', existingSub.endpoint)
+            .maybeSingle();
           
-          // Check if this subscription is already in the database for this user
-          try {
-            const { data: existingDbSub } = await supabase
-              .from('push_subscriptions')
-              .select('endpoint')
-              .eq('user_id', userId)
-              .eq('endpoint', existingSub.endpoint)
-              .maybeSingle();
-            
-            if (existingDbSub) {
-              // Already fully set up - no need to do anything!
-              console.log('[Push] Subscription already exists in database - returning success immediately');
-              clearSubscriptionLock(runId);
-              return { success: true };
-            }
-            
-            // Browser subscription exists but NOT in database
-            // Instead of unsubscribing and re-subscribing (which causes AbortError),
-            // just ADD this existing subscription to the database!
-            console.log('[Push] Browser subscription exists but not in DB - adding to database');
-            subscription = existingSub;
-          } catch (dbError) {
-            console.warn('[Push] Error checking DB for existing subscription:', dbError);
-            // DB check failed - try to reuse the browser subscription anyway
-            console.log('[Push] Reusing existing browser subscription (DB check failed)');
-            subscription = existingSub;
+          if (existingDbSub) {
+            // Already fully set up - no need to do anything!
+            console.log('[Push] Subscription already exists in database - returning success immediately');
+            clearSubscriptionLock(runId);
+            return { success: true };
           }
-        } else {
-          console.log('[Push] Keys mismatch - unsubscribing old subscription');
-          try {
-            await existingSub.unsubscribe();
-            console.log('[Push] Old subscription unsubscribed due to key mismatch');
-          } catch (e) {
-            console.warn('[Push] Error unsubscribing old subscription:', e);
-          }
+          
+          // Browser subscription exists but NOT in database
+          // Reuse the existing subscription and save it to the database
+          console.log('[Push] Browser subscription exists but not in DB - adding to database');
+          subscription = existingSub;
+        } catch (dbError) {
+          console.warn('[Push] Error checking DB for existing subscription:', dbError);
+          // DB check failed - try to reuse the browser subscription anyway
+          console.log('[Push] Reusing existing browser subscription (DB check failed)');
+          subscription = existingSub;
         }
       }
     } catch (e) {
