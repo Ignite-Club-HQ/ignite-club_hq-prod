@@ -258,7 +258,7 @@ export default function EditProfilePage() {
     return outputArray;
   };
 
-  // Full test: Enable push + save to DB in one simple flow
+  // Full test: Enable push + save to DB in one simple flow with retry
   const handleTestDbSave = async () => {
     if (!user) {
       toast({ title: "Not logged in", variant: "destructive" });
@@ -288,19 +288,68 @@ export default function EditProfilePage() {
       }
       toast({ title: "✓ Service worker ready" });
       
-      // Step 3: Create push subscription (or get existing)
-      toast({ title: "Step 3: Creating push subscription..." });
+      // Step 3: Try to get existing subscription first
+      toast({ title: "Step 3: Checking for existing subscription..." });
       let subscription = await registration.pushManager.getSubscription();
       
-      if (!subscription) {
-        const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: applicationServerKey.buffer.slice(0) as ArrayBuffer
-        });
-        toast({ title: "✓ New subscription created" });
+      if (subscription) {
+        // Already have a subscription - use it directly!
+        toast({ title: "✓ Found existing subscription - using it" });
       } else {
-        toast({ title: "✓ Existing subscription found" });
+        // No subscription - need to create one
+        toast({ title: "Step 3b: Clearing stale data and creating subscription..." });
+        
+        // Clear any stale subscription first (helps with AbortError)
+        try {
+          const stale = await registration.pushManager.getSubscription();
+          if (stale) {
+            await stale.unsubscribe();
+            toast({ title: "Cleared stale subscription" });
+          }
+        } catch (e) {
+          console.log('[TestDbSave] Clear stale error (ok):', e);
+        }
+        
+        // Wait a moment for the push service to stabilize
+        await new Promise(r => setTimeout(r, 1000));
+        
+        // Try with retries
+        const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+        let lastError: Error | null = null;
+        
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            toast({ title: `Creating subscription (attempt ${attempt}/3)...` });
+            
+            subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: applicationServerKey.buffer.slice(0) as ArrayBuffer
+            });
+            
+            toast({ title: "✓ New subscription created!" });
+            lastError = null;
+            break;
+          } catch (subErr: any) {
+            lastError = subErr;
+            console.error(`[TestDbSave] Subscribe attempt ${attempt} failed:`, subErr);
+            
+            if (attempt < 3) {
+              toast({ title: `Attempt ${attempt} failed, retrying...`, description: subErr.message });
+              await new Promise(r => setTimeout(r, 2000)); // Wait before retry
+            }
+          }
+        }
+        
+        if (lastError || !subscription) {
+          toast({ 
+            title: "Failed to create subscription", 
+            description: lastError ? `${lastError.name}: ${lastError.message}` : "Unknown error",
+            variant: "destructive",
+            duration: 30000
+          });
+          setTestingDbSave(false);
+          return;
+        }
       }
       
       // Step 4: Extract subscription data
