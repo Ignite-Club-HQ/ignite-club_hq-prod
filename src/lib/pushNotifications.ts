@@ -276,12 +276,23 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
   console.log('[Push] URL:', window.location.href);
 
   // Check for concurrent subscription using sessionStorage-based lock (survives page refresh)
-  if (isSubscriptionLocked()) {
-    console.log('[Push] Subscription lock detected, not proceeding to prevent AbortError');
-    return { success: false, error: 'Push setup already in progress. If this persists, tap Reset Push Notifications.' };
+  const existingLock = getLock();
+  if (existingLock) {
+    const lockAge = Date.now() - existingLock.timestamp;
+    console.log('[Push] Lock exists, age:', lockAge, 'ms');
+    
+    // If lock is older than timeout, clear it
+    if (lockAge > SUBSCRIPTION_LOCK_TIMEOUT) {
+      console.log('[Push] Clearing stale lock');
+      sessionStorage.removeItem(SUBSCRIPTION_LOCK_KEY);
+    } else {
+      console.log('[Push] Subscription lock active, not proceeding to prevent AbortError');
+      return { success: false, error: 'Push setup already in progress. If this persists, tap Reset Push Notifications.' };
+    }
   }
 
   const runId = setSubscriptionLock();
+  console.log('[Push] Lock acquired:', runId);
 
   try {
     // Check if in Lovable preview
@@ -550,9 +561,10 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
 
     if (insertError) {
       console.error('[Push] Database insert error:', insertError);
-      return { success: false, error: 'Failed to save subscription' };
+      return { success: false, error: 'Failed to save subscription: ' + insertError.message };
     }
 
+    console.log('[Push] === Subscription saved to database ===');
     console.log('[Push] === Subscription complete ===');
     return { success: true };
 
