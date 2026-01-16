@@ -1,10 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import {
+  responseHeaders,
+  corsHeaders,
+  createErrorResponse,
+  createSuccessResponse,
+  checkRequestSize,
+  MAX_REQUEST_SIZES,
+  SAFE_ERROR_MESSAGES,
+} from "../_shared/security.ts";
 
 // Base64url utilities with robust handling
 function base64UrlToUint8Array(base64Url: string): Uint8Array {
@@ -21,8 +25,8 @@ function base64UrlToUint8Array(base64Url: string): Uint8Array {
     }
     return outputArray;
   } catch (e) {
-    console.error('Base64 decode error for input:', base64Url.substring(0, 20) + '...');
-    throw e;
+    console.error('Base64 decode error');
+    throw new Error('Invalid encoding');
   }
 }
 
@@ -81,51 +85,46 @@ async function generateVapidJwt(audience: string, subject: string, privateKeyBas
   const payloadB64 = uint8ArrayToBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
   const unsignedToken = `${headerB64}.${payloadB64}`;
 
-  try {
-    const privateKeyBytes = base64UrlToUint8Array(privateKeyBase64);
-    const publicKeyBytes = base64UrlToUint8Array(publicKeyBase64);
-    
-    if (publicKeyBytes.length !== 65) {
-      throw new Error(`Invalid public key length: ${publicKeyBytes.length}, expected 65`);
-    }
-    
-    if (privateKeyBytes.length !== 32) {
-      throw new Error(`Invalid private key length: ${privateKeyBytes.length}, expected 32`);
-    }
-    
-    const x = publicKeyBytes.slice(1, 33);
-    const y = publicKeyBytes.slice(33, 65);
-    
-    const jwk = {
-      kty: 'EC',
-      crv: 'P-256',
-      x: uint8ArrayToBase64Url(x),
-      y: uint8ArrayToBase64Url(y),
-      d: uint8ArrayToBase64Url(privateKeyBytes),
-    };
-
-    const cryptoKey = await crypto.subtle.importKey(
-      'jwk',
-      jwk,
-      { name: 'ECDSA', namedCurve: 'P-256' },
-      false,
-      ['sign']
-    );
-
-    const signatureBuffer = await crypto.subtle.sign(
-      { name: 'ECDSA', hash: 'SHA-256' },
-      cryptoKey,
-      new TextEncoder().encode(unsignedToken)
-    );
-
-    const signatureBytes = new Uint8Array(signatureBuffer);
-    const signatureB64 = uint8ArrayToBase64Url(signatureBytes);
-
-    return `${unsignedToken}.${signatureB64}`;
-  } catch (error) {
-    console.error('Error signing VAPID JWT:', error);
-    throw error;
+  const privateKeyBytes = base64UrlToUint8Array(privateKeyBase64);
+  const publicKeyBytes = base64UrlToUint8Array(publicKeyBase64);
+  
+  if (publicKeyBytes.length !== 65) {
+    throw new Error('Invalid key configuration');
   }
+  
+  if (privateKeyBytes.length !== 32) {
+    throw new Error('Invalid key configuration');
+  }
+  
+  const x = publicKeyBytes.slice(1, 33);
+  const y = publicKeyBytes.slice(33, 65);
+  
+  const jwk = {
+    kty: 'EC',
+    crv: 'P-256',
+    x: uint8ArrayToBase64Url(x),
+    y: uint8ArrayToBase64Url(y),
+    d: uint8ArrayToBase64Url(privateKeyBytes),
+  };
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'jwk',
+    jwk,
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign']
+  );
+
+  const signatureBuffer = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    cryptoKey,
+    new TextEncoder().encode(unsignedToken)
+  );
+
+  const signatureBytes = new Uint8Array(signatureBuffer);
+  const signatureB64 = uint8ArrayToBase64Url(signatureBytes);
+
+  return `${unsignedToken}.${signatureB64}`;
 }
 
 // Encrypt payload using Web Push encryption (RFC 8291)
@@ -242,10 +241,10 @@ async function logDeliveryStatus(
       });
     
     if (error) {
-      console.error('Failed to log push delivery status:', error);
+      console.error('Failed to log push delivery status');
     }
   } catch (err) {
-    console.error('Error logging push delivery:', err);
+    console.error('Error logging push delivery');
   }
 }
 
@@ -255,10 +254,14 @@ serve(async (req) => {
   }
   
   try {
+    // Check request size to prevent memory exhaustion
+    if (!checkRequestSize(req, MAX_REQUEST_SIZES.small)) {
+      return createErrorResponse(new Error("Request too large"), 413, "Request too large");
+    }
+
     const { userId, title, body, url, notificationId, tag } = await req.json();
     
-    console.log(`[PUSH] Starting push notification for user ${userId}, notification ${notificationId}`);
-    console.log(`[PUSH] Content: ${title} - ${body}`);
+    console.log(`[PUSH] Starting push notification for user ${userId}`);
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -266,20 +269,9 @@ serve(async (req) => {
     const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
     const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:support@igniteclubhq.com';
     
-    console.log('[PUSH] VAPID config check:', {
-      hasPublicKey: !!vapidPublicKey,
-      publicKeyLength: vapidPublicKey?.length,
-      hasPrivateKey: !!vapidPrivateKey,
-      privateKeyLength: vapidPrivateKey?.length,
-      subject: vapidSubject
-    });
-    
     if (!vapidPublicKey || !vapidPrivateKey) {
       console.error('[PUSH] VAPID keys not configured');
-      return new Response(
-        JSON.stringify({ error: 'VAPID keys not configured', details: { hasPublic: !!vapidPublicKey, hasPrivate: !!vapidPrivateKey } }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return createErrorResponse(new Error(SAFE_ERROR_MESSAGES.internal), 500);
     }
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -290,22 +282,16 @@ serve(async (req) => {
       .eq('user_id', userId);
     
     if (subError) {
-      console.error('[PUSH] Error fetching subscriptions:', subError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch subscriptions' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.error('[PUSH] Error fetching subscriptions');
+      return createErrorResponse(new Error(SAFE_ERROR_MESSAGES.internal), 500);
     }
     
     if (!subscriptions || subscriptions.length === 0) {
       console.log(`[PUSH] No push subscriptions found for user ${userId}`);
-      return new Response(
-        JSON.stringify({ message: 'No subscriptions found', sent: 0 }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return createSuccessResponse({ message: 'No subscriptions found', sent: 0 });
     }
     
-    console.log(`[PUSH] Found ${subscriptions.length} subscription(s) for user ${userId}`);
+    console.log(`[PUSH] Found ${subscriptions.length} subscription(s)`);
     
     const payload = JSON.stringify({
       title: title || 'Ignite Club HQ',
@@ -317,7 +303,7 @@ serve(async (req) => {
     
     let successCount = 0;
     const failedEndpoints: string[] = [];
-    const results: Array<{endpoint: string; status: string; statusCode?: number; error?: string}> = [];
+    const results: Array<{endpoint: string; status: string; statusCode?: number}> = [];
     
     for (const sub of subscriptions) {
       const endpointShort = sub.endpoint.substring(0, 60) + '...';
@@ -325,13 +311,11 @@ serve(async (req) => {
       try {
         // Skip invalid subscriptions (missing keys)
         if (!sub.p256dh || !sub.auth) {
-          console.log(`[PUSH] Skipping invalid subscription: ${endpointShort}`);
-          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'skipped', null, 'Invalid subscription (no p256dh/auth)');
-          results.push({ endpoint: endpointShort, status: 'skipped', error: 'Invalid subscription' });
+          console.log(`[PUSH] Skipping invalid subscription`);
+          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'skipped', null, 'Invalid subscription');
+          results.push({ endpoint: endpointShort, status: 'skipped' });
           continue;
         }
-
-        console.log(`[PUSH] Encrypting payload for web push: ${endpointShort}`);
 
         const { ciphertext, salt, localPublicKey } = await encryptPayload(
           payload,
@@ -351,8 +335,6 @@ serve(async (req) => {
           vapidPublicKey
         );
 
-        console.log(`[PUSH] Sending web push to ${audience}`);
-
         const response = await fetch(sub.endpoint, {
           method: 'POST',
           headers: {
@@ -366,30 +348,26 @@ serve(async (req) => {
           body: encryptedBody
         });
         
-        const responseText = await response.text();
-        console.log(`[PUSH] Response: ${response.status} - ${responseText.substring(0, 200)}`);
-        
         if (response.status === 201 || response.status === 200) {
           successCount++;
-          console.log(`[PUSH] SUCCESS for ${endpointShort}`);
+          console.log(`[PUSH] SUCCESS`);
           await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'sent', response.status, null);
           results.push({ endpoint: endpointShort, status: 'sent', statusCode: response.status });
         } else if (response.status === 410 || response.status === 404) {
-          console.log(`[PUSH] Subscription EXPIRED: ${endpointShort}`);
+          console.log(`[PUSH] Subscription EXPIRED`);
           failedEndpoints.push(sub.id);
-          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'expired', response.status, responseText);
-          results.push({ endpoint: endpointShort, status: 'expired', statusCode: response.status, error: responseText });
+          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'expired', response.status, 'Subscription expired');
+          results.push({ endpoint: endpointShort, status: 'expired', statusCode: response.status });
         } else {
-          console.error(`[PUSH] FAILED with status ${response.status}: ${responseText}`);
-          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'failed', response.status, responseText);
-          results.push({ endpoint: endpointShort, status: 'failed', statusCode: response.status, error: responseText });
+          console.error(`[PUSH] FAILED with status ${response.status}`);
+          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'failed', response.status, 'Push failed');
+          results.push({ endpoint: endpointShort, status: 'failed', statusCode: response.status });
         }
         
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        console.error(`[PUSH] ERROR for ${endpointShort}: ${errorMessage}`);
-        await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'failed', null, errorMessage);
-        results.push({ endpoint: endpointShort, status: 'failed', error: errorMessage });
+        console.error(`[PUSH] ERROR`);
+        await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'failed', null, 'Processing error');
+        results.push({ endpoint: endpointShort, status: 'failed' });
       }
     }
     
@@ -404,23 +382,16 @@ serve(async (req) => {
     
     console.log(`[PUSH] COMPLETE: ${successCount}/${subscriptions.length} sent successfully`);
     
-    return new Response(
-      JSON.stringify({ 
-        message: 'Push notifications processed',
-        sent: successCount,
-        total: subscriptions.length,
-        cleaned: failedEndpoints.length,
-        results
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return createSuccessResponse({ 
+      message: 'Push notifications processed',
+      sent: successCount,
+      total: subscriptions.length,
+      cleaned: failedEndpoints.length,
+      results
+    });
     
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('[PUSH] FATAL ERROR:', errorMessage);
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error('[PUSH] FATAL ERROR');
+    return createErrorResponse(err, 500);
   }
 });

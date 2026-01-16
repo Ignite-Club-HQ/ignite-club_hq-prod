@@ -411,10 +411,10 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error('Error creating subscription checkout:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // Sanitize error message - don't expose internal details
     return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: 'Payment processing failed. Please try again.' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-Content-Type-Options': 'nosniff' } }
     );
   }
 });
