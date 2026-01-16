@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Trash2,
   AtSign,
+  ArrowLeft,
   type LucideIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -553,7 +554,17 @@ export default function NotificationsPage() {
         />
       </div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold">Notifications</h1>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(-1)}
+            className="h-8 w-8"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-2xl font-bold">Notifications</h1>
+        </div>
         <div className="flex items-center gap-2 flex-wrap">
           {unreadCount > 0 && (
             <Button 

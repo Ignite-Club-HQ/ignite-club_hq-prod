@@ -1,0 +1,101 @@
+name: Restore Supabase Storage from GCS
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_date:
+        description: 'Backup date to restore (YYYY-MM-DD). Leave empty to list available backups.'
+        required: false
+        type: string
+      buckets_to_restore:
+        description: 'Buckets to restore (comma-separated, or "all")'
+        required: false
+        default: 'all'
+        type: string
+      dry_run:
+        description: 'Dry run - only show what would be restored'
+        required: false
+        default: true
+        type: boolean
+      overwrite_existing:
+        description: 'Overwrite existing files in Supabase'
+        required: false
+        default: false
+        type: boolean
+      confirm:
+        description: 'Type CONFIRM to proceed with restore (not needed for dry run or listing)'
+        required: false
+        type: string
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Validate confirmation
+        if: inputs.backup_date != '' && inputs.dry_run == false && inputs.confirm != 'CONFIRM'
+        run: |
+          echo "❌ RESTORE ABORTED"
+          echo ""
+          echo "To proceed with an actual restore, you must:"
+          echo "  1. Set 'dry_run' to false"
+          echo "  2. Type 'CONFIRM' in the confirm field"
+          echo ""
+          echo "This is a safety measure to prevent accidental restores."
+          exit 1
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          npm install @supabase/supabase-js @google-cloud/storage
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+      - name: List available backups (if no date specified)
+        if: inputs.backup_date == ''
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
+        run: |
+          echo "📋 LISTING AVAILABLE BACKUPS"
+          echo ""
+          node scripts/restore-storage.js
+
+      - name: Restore from backup
+        if: inputs.backup_date != ''
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
+          BACKUP_DATE: ${{ inputs.backup_date }}
+          BUCKETS_TO_RESTORE: ${{ inputs.buckets_to_restore }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          OVERWRITE_EXISTING: ${{ inputs.overwrite_existing }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "🔍 DRY RUN MODE - No files will be restored"
+          else
+            echo "🚀 RESTORE MODE - Files will be restored to Supabase"
+          fi
+          echo ""
+          node scripts/restore-storage.js
+
+      - name: Restore summary
+        if: inputs.backup_date != '' && inputs.dry_run == false
+        run: |
+          echo ""
+          echo "✅ Restore operation completed!"
+          echo ""
+          echo "Files have been restored to Supabase storage."
+          echo "The original folder structure (clubs/teams) has been preserved."

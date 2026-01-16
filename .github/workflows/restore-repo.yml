@@ -1,0 +1,149 @@
+name: Restore Repository from GCS
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_date:
+        description: 'Backup date to restore (YYYY-MM-DD format, leave empty to list available backups)'
+        required: false
+        type: string
+      confirm_restore:
+        description: 'Type CONFIRM to proceed with restore'
+        required: false
+        type: string
+
+jobs:
+  list-or-restore:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCS_SERVICE_ACCOUNT_KEY }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get repository name
+        id: repo_info
+        run: |
+          REPO_NAME=$(basename $GITHUB_REPOSITORY)
+          echo "REPO_NAME=$REPO_NAME" >> $GITHUB_ENV
+          echo "Repository: $REPO_NAME"
+
+      - name: List available backups
+        if: ${{ github.event.inputs.backup_date == '' }}
+        run: |
+          echo "📦 Available backups for ${{ env.REPO_NAME }}:"
+          echo ""
+          BACKUP_PATH="gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/${{ env.REPO_NAME }}/"
+          
+          # Check if any backups exist
+          if ! gsutil ls "$BACKUP_PATH" 2>/dev/null; then
+            echo "❌ No backups found for this repository"
+            exit 0
+          fi
+          
+          # List all date folders
+          gsutil ls "$BACKUP_PATH" | while read date_folder; do
+            DATE=$(basename "$date_folder")
+            if [[ "$DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+              echo "📅 $DATE"
+              gsutil ls "${date_folder}" 2>/dev/null | while read file; do
+                FILENAME=$(basename "$file")
+                SIZE=$(gsutil du -s "$file" | awk '{print $1}')
+                SIZE_MB=$(echo "scale=2; $SIZE / 1048576" | bc)
+                echo "   └── $FILENAME (${SIZE_MB} MB)"
+              done
+            fi
+          done
+          
+          echo ""
+          echo "ℹ️  To restore, re-run this workflow with:"
+          echo "    - backup_date: YYYY-MM-DD"
+          echo "    - confirm_restore: CONFIRM"
+
+      - name: Validate restore request
+        if: ${{ github.event.inputs.backup_date != '' }}
+        id: validate
+        run: |
+          if [ "${{ github.event.inputs.confirm_restore }}" != "CONFIRM" ]; then
+            echo "❌ Restore not confirmed. Please type 'CONFIRM' to proceed."
+            echo "⚠️  This will replace all current repository files with the backup."
+            exit 1
+          fi
+          
+          DATE="${{ github.event.inputs.backup_date }}"
+          BACKUP_PATH="gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/${{ env.REPO_NAME }}/${DATE}/"
+          
+          # Check if backup exists
+          if ! gsutil ls "$BACKUP_PATH" 2>/dev/null; then
+            echo "❌ No backup found for date: $DATE"
+            echo "Run this workflow without a date to see available backups."
+            exit 1
+          fi
+          
+          # Get the backup file
+          BACKUP_FILE=$(gsutil ls "${BACKUP_PATH}*.tar.gz" 2>/dev/null | head -1)
+          if [ -z "$BACKUP_FILE" ]; then
+            echo "❌ No tar.gz backup file found for date: $DATE"
+            exit 1
+          fi
+          
+          echo "BACKUP_FILE=$BACKUP_FILE" >> $GITHUB_ENV
+          echo "✓ Found backup: $BACKUP_FILE"
+
+      - name: Download backup
+        if: ${{ github.event.inputs.backup_date != '' && github.event.inputs.confirm_restore == 'CONFIRM' }}
+        run: |
+          echo "⬇️  Downloading backup..."
+          gsutil cp "${{ env.BACKUP_FILE }}" /tmp/backup.tar.gz
+          echo "✓ Download complete"
+
+      - name: Extract and restore
+        if: ${{ github.event.inputs.backup_date != '' && github.event.inputs.confirm_restore == 'CONFIRM' }}
+        run: |
+          echo "📂 Extracting backup..."
+          
+          # Create temp directory for extraction
+          mkdir -p /tmp/restore
+          tar -xzf /tmp/backup.tar.gz -C /tmp/restore
+          
+          echo "🔄 Restoring files..."
+          
+          # Remove all files except .git directory
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          
+          # Copy restored files
+          cp -r /tmp/restore/* . 2>/dev/null || true
+          cp -r /tmp/restore/.[!.]* . 2>/dev/null || true
+          
+          echo "✓ Files restored"
+
+      - name: Commit restored files
+        if: ${{ github.event.inputs.backup_date != '' && github.event.inputs.confirm_restore == 'CONFIRM' }}
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          git add -A
+          
+          if git diff --staged --quiet; then
+            echo "ℹ️  No changes to commit - backup matches current state"
+          else
+            git commit -m "Restore from backup: ${{ github.event.inputs.backup_date }}"
+            git push
+            echo "✓ Restored files committed and pushed"
+          fi
+
+      - name: Summary
+        if: ${{ github.event.inputs.backup_date != '' && github.event.inputs.confirm_restore == 'CONFIRM' }}
+        run: |
+          echo ""
+          echo "✅ Repository successfully restored from backup: ${{ github.event.inputs.backup_date }}"
+          echo ""
+          echo "Restored from: ${{ env.BACKUP_FILE }}"
