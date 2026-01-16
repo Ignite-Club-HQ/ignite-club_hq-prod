@@ -300,54 +300,53 @@ export default function EditProfilePage() {
       const registration = await navigator.serviceWorker.ready;
       toast({ title: `SW scope: ${registration.scope}` });
       
-      // Step 4: Check for existing subscription
+      // Step 4: Check for existing subscription and unsubscribe
       toast({ title: "Step 4: Checking existing subscription..." });
       let subscription = await registration.pushManager.getSubscription();
       
       if (subscription) {
-        toast({ title: "Found existing! Will use it." });
-      } else {
-        // Step 5: Create new subscription
-        toast({ title: "Step 5: Creating subscription..." });
-        
-        // Log the VAPID key info
-        toast({ title: `VAPID key length: ${VAPID_PUBLIC_KEY.length}` });
-        
+        toast({ title: "Found existing - unsubscribing first..." });
         try {
-          const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-          toast({ title: `Key converted: ${applicationServerKey.length} bytes` });
-          
-          // Cast to ArrayBuffer for TypeScript
-          subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: applicationServerKey.buffer as ArrayBuffer
-          });
-          
-          toast({ title: "✓ Subscription created!" });
-        } catch (subErr: any) {
-          // Show detailed error
-          toast({ 
-            title: `Subscribe failed: ${subErr.name}`, 
-            description: subErr.message,
-            variant: "destructive",
-            duration: 30000
-          });
-          
-          // Try to get more info
-          try {
-            const keyForState = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-            const state = await registration.pushManager.permissionState({
-              userVisibleOnly: true,
-              applicationServerKey: keyForState.buffer as ArrayBuffer
-            });
-            toast({ title: `Permission state: ${state}` });
-          } catch (stateErr) {
-            console.log('Could not get permission state:', stateErr);
-          }
-          
-          setTestingDbSave(false);
-          return;
+          await subscription.unsubscribe();
+          toast({ title: "✓ Old subscription removed" });
+          subscription = null;
+        } catch (unsubErr) {
+          toast({ title: "Unsubscribe failed, continuing..." });
         }
+      }
+      
+      // Step 5: Create new subscription
+      toast({ title: "Step 5: Creating subscription..." });
+      toast({ title: `VAPID: ${VAPID_PUBLIC_KEY.substring(0, 20)}...` });
+      
+      const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+      toast({ title: `Key bytes: ${applicationServerKey.length}` });
+      
+      try {
+        toast({ title: "Calling pushManager.subscribe()..." });
+        
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: applicationServerKey.buffer as ArrayBuffer
+        });
+        
+        toast({ title: "✓ Subscription created!" });
+      } catch (subErr: any) {
+        console.error('Subscribe error:', subErr);
+        toast({ 
+          title: `ERROR: ${subErr.name}`, 
+          description: `${subErr.message}`,
+          variant: "destructive",
+          duration: 60000
+        });
+        setTestingDbSave(false);
+        return;
+      }
+      
+      if (!subscription) {
+        toast({ title: "No subscription after subscribe!", variant: "destructive" });
+        setTestingDbSave(false);
+        return;
       }
       
       // Step 6: Extract subscription data
