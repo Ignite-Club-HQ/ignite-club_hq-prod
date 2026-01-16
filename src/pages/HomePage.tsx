@@ -5,6 +5,8 @@ import SoccerBall from "@/components/pitch/SoccerBall";
 import { Calendar, MapPin, Users, Clock, Plus, UserPlus, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown } from "lucide-react";
 import { RewardClaimQRDialog } from "@/components/RewardClaimQRDialog";
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
+import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
+import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
 import { AccountRecoveryBanner } from "@/components/AccountRecoveryBanner";
 import { QuickRSVPDialog } from "@/components/QuickRSVPDialog";
 import {
@@ -149,6 +151,8 @@ export default function HomePage() {
   const [pitchBoardsExpanded, setPitchBoardsExpanded] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [eventToCancel, setEventToCancel] = useState<Event | null>(null);
   const [quickRsvpEvent, setQuickRsvpEvent] = useState<Event | null>(null);
   const [rewardQROpen, setRewardQROpen] = useState(false);
   const [claimDialogOpen, setClaimDialogOpen] = useState(false);
@@ -403,15 +407,36 @@ export default function HomePage() {
   };
 
   const cancelEventMutation = useMutation({
-    mutationFn: async (eventId: string) => {
-      const { error } = await supabase
-        .from("events")
-        .update({ is_cancelled: true })
-        .eq("id", eventId);
-      if (error) throw error;
+    mutationFn: async ({ cancelType, customMessage, sendPushNotification }: { 
+      cancelType: 'single' | 'series'; 
+      customMessage?: string; 
+      sendPushNotification?: boolean 
+    }) => {
+      if (!eventToCancel) return;
+      
+      if (cancelType === 'series' && eventToCancel.parent_event_id) {
+        // Cancel all events in the series
+        await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", eventToCancel.parent_event_id);
+        await supabase.from("events").update({ is_cancelled: true }).eq("id", eventToCancel.parent_event_id);
+      } else if (cancelType === 'series' && eventToCancel.is_recurring) {
+        // This is the parent - cancel all children and this event
+        await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", eventToCancel.id);
+        await supabase.from("events").update({ is_cancelled: true }).eq("id", eventToCancel.id);
+      } else {
+        // Just cancel this single event
+        const { error } = await supabase
+          .from("events")
+          .update({ is_cancelled: true })
+          .eq("id", eventToCancel.id);
+        if (error) throw error;
+      }
+      
+      // TODO: Handle customMessage and sendPushNotification if needed
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
+      setCancelDialogOpen(false);
+      setEventToCancel(null);
     },
   });
 
@@ -1486,7 +1511,8 @@ export default function HomePage() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                cancelEventMutation.mutate(event.id);
+                                setEventToCancel(event);
+                                setCancelDialogOpen(true);
                               }}
                             >
                               <XCircle className="h-4 w-4" />
@@ -1617,7 +1643,43 @@ export default function HomePage() {
         </AlertDialog>
       )}
 
-      {/* Quick RSVP Dialog */}
+      {/* Cancel Event Dialog */}
+      {eventToCancel && (eventToCancel.is_recurring || eventToCancel.parent_event_id) ? (
+        <RecurringCancelEventDialog
+          open={cancelDialogOpen}
+          onOpenChange={(open) => {
+            setCancelDialogOpen(open);
+            if (!open) setEventToCancel(null);
+          }}
+          eventTitle={eventToCancel?.title || ""}
+          teamId={eventToCancel?.team_id}
+          clubId={eventToCancel?.club_id}
+          onSingleAction={(customMessage, sendPushNotification) => 
+            cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
+          }
+          onSeriesAction={(customMessage, sendPushNotification) => 
+            cancelEventMutation.mutate({ cancelType: 'series', customMessage, sendPushNotification })
+          }
+          isPending={cancelEventMutation.isPending}
+        />
+      ) : eventToCancel && (
+        <CancelEventConfirmDialog
+          open={cancelDialogOpen}
+          onOpenChange={(open) => {
+            setCancelDialogOpen(open);
+            if (!open) setEventToCancel(null);
+          }}
+          eventId={eventToCancel?.id || ""}
+          eventTitle={eventToCancel?.title || ""}
+          teamId={eventToCancel?.team_id}
+          clubId={eventToCancel?.club_id}
+          onConfirm={(customMessage, sendPushNotification) => 
+            cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
+          }
+          isPending={cancelEventMutation.isPending}
+        />
+      )}
+
       {quickRsvpEvent && (
         <QuickRSVPDialog
           open={!!quickRsvpEvent}
