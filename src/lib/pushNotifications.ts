@@ -395,13 +395,23 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
               clearSubscriptionLock(runId);
               return { success: true };
             }
+            
+            // Browser subscription exists but NOT in database - this is a stale subscription
+            // We need to unsubscribe it first to avoid AbortError when creating a new one
+            console.log('[Push] Browser subscription exists but not in DB - unsubscribing stale subscription');
+            try {
+              await existingSub.unsubscribe();
+              console.log('[Push] Stale browser subscription unsubscribed');
+            } catch (unsubErr) {
+              console.warn('[Push] Error unsubscribing stale subscription:', unsubErr);
+            }
+            // Don't set subscription - we'll create a fresh one below
           } catch (dbError) {
             console.warn('[Push] Error checking DB for existing subscription:', dbError);
-            // Even if DB check fails, we have a valid browser subscription - reuse it
+            // DB check failed - try to reuse the browser subscription anyway
+            console.log('[Push] Reusing existing browser subscription (DB check failed)');
+            subscription = existingSub;
           }
-          
-          console.log('[Push] Reusing existing browser subscription (adding to DB)');
-          subscription = existingSub;
         } else {
           console.log('[Push] Keys mismatch - unsubscribing old subscription');
           try {
