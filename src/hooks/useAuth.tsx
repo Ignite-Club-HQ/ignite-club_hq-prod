@@ -159,39 +159,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
     let profileFetched = false;
     
+    const handleSession = async (currentSession: Session | null, isInitial = false) => {
+      if (!mounted || !currentSession?.user) return;
+      if (profileFetched && !isInitial) return;
+      
+      profileFetched = true;
+      const userId = currentSession.user.id;
+      
+      // Small delay to ensure session is fully propagated to Supabase
+      // This helps with RLS policies that check auth.uid()
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // If we have a cached profile, use it immediately - don't show loading
+      const cached = getCachedProfile();
+      if (cached && cached.id === userId) {
+        setProfile(cached);
+        setProfileLoading(false);
+        setLoading(false);
+        // Refresh profile in background
+        fetchProfile(userId).catch(console.error);
+      } else {
+        // No cache - fetch profile
+        setProfileLoading(true);
+        fetchProfile(userId)
+          .finally(() => {
+            if (mounted) {
+              setProfileLoading(false);
+              setLoading(false);
+            }
+          });
+      }
+      // Background prefetch - fire and forget
+      setTimeout(() => {
+        prefetchUserData(queryClient, userId).catch(console.error);
+        fetchUnreadCount(userId).catch(console.error);
+      }, 100);
+    };
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
         if (!mounted) return;
         
+        console.log('Auth state change:', event, currentSession?.user?.id);
+        
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
-        if (event === 'SIGNED_IN' && currentSession?.user && !profileFetched) {
-          profileFetched = true;
-          // If we have a cached profile, use it immediately - don't show loading
-          const cached = getCachedProfile();
-          if (cached && cached.id === currentSession.user.id) {
-            setProfile(cached);
-            setProfileLoading(false);
-            setLoading(false);
-            // Refresh profile in background
-            fetchProfile(currentSession.user.id).catch(console.error);
-          } else {
-            // No cache - fetch profile but don't block too long
-            setProfileLoading(true);
-            fetchProfile(currentSession.user.id)
-              .finally(() => {
-                if (mounted) {
-                  setProfileLoading(false);
-                  setLoading(false);
-                }
-              });
-          }
-          // Background prefetch - fire and forget
-          setTimeout(() => {
-            prefetchUserData(queryClient, currentSession.user.id).catch(console.error);
-            fetchUnreadCount(currentSession.user.id).catch(console.error);
-          }, 100);
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && currentSession?.user) {
+          handleSession(currentSession, event === 'INITIAL_SESSION');
         } else if (event === 'SIGNED_OUT') {
           profileFetched = false;
           setProfile(null);
@@ -215,38 +230,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }, 10000); // 10 second timeout for slow connections
 
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+    supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
       clearTimeout(sessionTimeout);
       if (!mounted) return;
+      
+      console.log('Initial session check:', existingSession?.user?.id);
       
       setSession(existingSession);
       setUser(existingSession?.user ?? null);
       
       if (existingSession?.user && !profileFetched) {
-        profileFetched = true;
-        // If we have a cached profile for this user, use it immediately
-        const cached = getCachedProfile();
-        if (cached && cached.id === existingSession.user.id) {
-          setProfile(cached);
-          setProfileLoading(false);
-          setLoading(false);
-          // Refresh profile in background
-          fetchProfile(existingSession.user.id).catch(console.error);
-        } else {
-          // No cache - fetch profile
-          fetchProfile(existingSession.user.id)
-            .finally(() => {
-              if (mounted) {
-                setProfileLoading(false);
-                setLoading(false);
-              }
-            });
-        }
-        // Background prefetch - fire and forget
-        setTimeout(() => {
-          prefetchUserData(queryClient, existingSession.user.id).catch(console.error);
-          fetchUnreadCount(existingSession.user.id).catch(console.error);
-        }, 100);
+        await handleSession(existingSession, true);
       } else {
         // No session - done loading
         if (mounted) {
