@@ -114,13 +114,14 @@ export default function EditProfilePage() {
         });
       }
       
-      const isSubscribed = await checkPushSubscription();
+      // Pass user ID to also verify subscription exists in database
+      const isSubscribed = await checkPushSubscription(user?.id);
       setPushEnabled(isSubscribed);
       setPushLoading(false);
     };
     
     checkPushStatus();
-  }, [toast]);
+  }, [toast, user?.id]);
 
   const handlePushToggle = async (enabled: boolean) => {
     console.log('[EditProfile] Push toggle clicked, enabled:', enabled, 'user:', !!user, 'pushLoading:', pushLoading);
