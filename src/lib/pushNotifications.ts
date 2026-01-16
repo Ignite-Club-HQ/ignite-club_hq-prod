@@ -396,16 +396,11 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
               return { success: true };
             }
             
-            // Browser subscription exists but NOT in database - this is a stale subscription
-            // We need to unsubscribe it first to avoid AbortError when creating a new one
-            console.log('[Push] Browser subscription exists but not in DB - unsubscribing stale subscription');
-            try {
-              await existingSub.unsubscribe();
-              console.log('[Push] Stale browser subscription unsubscribed');
-            } catch (unsubErr) {
-              console.warn('[Push] Error unsubscribing stale subscription:', unsubErr);
-            }
-            // Don't set subscription - we'll create a fresh one below
+            // Browser subscription exists but NOT in database
+            // Instead of unsubscribing and re-subscribing (which causes AbortError),
+            // just ADD this existing subscription to the database!
+            console.log('[Push] Browser subscription exists but not in DB - adding to database');
+            subscription = existingSub;
           } catch (dbError) {
             console.warn('[Push] Error checking DB for existing subscription:', dbError);
             // DB check failed - try to reuse the browser subscription anyway
