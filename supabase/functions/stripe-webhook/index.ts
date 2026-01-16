@@ -162,10 +162,10 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('Error in stripe-webhook:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // Never expose internal error details in webhook responses
     return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: 'Webhook processing failed' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-Content-Type-Options': 'nosniff' } }
     );
   }
 });
