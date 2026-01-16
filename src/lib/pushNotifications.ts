@@ -367,17 +367,21 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
       console.log('[Push] Existing subscription:', existingSub ? 'found' : 'none');
       
       if (existingSub) {
-        // Check if VAPID keys match
+        // We have an existing browser subscription - check if it's valid
         const existingKey = existingSub.options?.applicationServerKey;
+        let keysMatch = true;
+        
         if (existingKey) {
           const existingKeyArray = new Uint8Array(existingKey as ArrayBuffer);
-          const keysMatch = existingKeyArray.length === applicationServerKey.length &&
+          keysMatch = existingKeyArray.length === applicationServerKey.length &&
             existingKeyArray.every((v, i) => v === applicationServerKey[i]);
+        }
+        
+        if (keysMatch) {
+          console.log('[Push] Existing subscription found with matching keys (or no key to compare)');
           
-          if (keysMatch) {
-            console.log('[Push] Existing subscription found with matching keys');
-            
-            // Check if this subscription is already in the database for this user
+          // Check if this subscription is already in the database for this user
+          try {
             const { data: existingDbSub } = await supabase
               .from('push_subscriptions')
               .select('endpoint')
@@ -391,36 +395,21 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
               clearSubscriptionLock(runId);
               return { success: true };
             }
-            
-            console.log('[Push] Reusing existing browser subscription (not in DB yet)');
-            subscription = existingSub;
-          } else {
-            console.log('[Push] Keys mismatch - please use Reset Push Notifications to clear state');
-            // Just unsubscribe, don't unregister/re-register SW here - that's for Reset only
-            try {
-              await existingSub.unsubscribe();
-              console.log('[Push] Old subscription unsubscribed due to key mismatch');
-            } catch (e) {
-              console.warn('[Push] Error unsubscribing old subscription:', e);
-            }
-          }
-        } else {
-          // No key to compare - check DB by endpoint anyway
-          const { data: existingDbSub } = await supabase
-            .from('push_subscriptions')
-            .select('endpoint')
-            .eq('user_id', userId)
-            .eq('endpoint', existingSub.endpoint)
-            .maybeSingle();
-          
-          if (existingDbSub) {
-            console.log('[Push] Subscription already exists in database (no key compare) - returning success');
-            clearSubscriptionLock(runId);
-            return { success: true };
+          } catch (dbError) {
+            console.warn('[Push] Error checking DB for existing subscription:', dbError);
+            // Even if DB check fails, we have a valid browser subscription - reuse it
           }
           
-          console.log('[Push] Reusing existing subscription (no key to compare, not in DB)');
+          console.log('[Push] Reusing existing browser subscription (adding to DB)');
           subscription = existingSub;
+        } else {
+          console.log('[Push] Keys mismatch - unsubscribing old subscription');
+          try {
+            await existingSub.unsubscribe();
+            console.log('[Push] Old subscription unsubscribed due to key mismatch');
+          } catch (e) {
+            console.warn('[Push] Error unsubscribing old subscription:', e);
+          }
         }
       }
     } catch (e) {
@@ -604,9 +593,10 @@ export async function unsubscribeFromPushNotifications(userId: string): Promise<
 }
 
 /**
- * Check if user has an active push subscription
+ * Check if user has an active push subscription (checks browser subscription)
+ * @param userId - Optional user ID to also verify subscription exists in database
  */
-export async function checkPushSubscription(): Promise<boolean> {
+export async function checkPushSubscription(userId?: string): Promise<boolean> {
   try {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       return false;
@@ -614,7 +604,30 @@ export async function checkPushSubscription(): Promise<boolean> {
     
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
-    return subscription !== null;
+    
+    if (!subscription) {
+      return false;
+    }
+    
+    // If userId provided, also verify it exists in database
+    if (userId) {
+      try {
+        const { data } = await supabase
+          .from('push_subscriptions')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('endpoint', subscription.endpoint)
+          .maybeSingle();
+        
+        return !!data;
+      } catch (e) {
+        // If DB check fails, fall back to browser-only check
+        console.warn('[Push] DB check failed, using browser subscription only:', e);
+        return true;
+      }
+    }
+    
+    return true;
   } catch (error) {
     console.error('[Push] Check subscription error:', error);
     return false;
