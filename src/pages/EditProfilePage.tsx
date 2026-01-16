@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, User, Camera, Bell, MessageSquare, Calendar, Image, Users, Download, Smartphone, LayoutGrid, Send, Settings, FileText, Shield, Trash2, DatabaseBackup, Moon, Sun } from "lucide-react";
+import { ArrowLeft, Loader2, User, Camera, Bell, MessageSquare, Calendar, Image, Users, Download, Smartphone, LayoutGrid, Send, Settings, FileText, Shield, Trash2, DatabaseBackup, Moon, Sun, Database } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +54,7 @@ export default function EditProfilePage() {
   });
   const [prefsLoading, setPrefsLoading] = useState(false);
   const [testingPush, setTestingPush] = useState(false);
+  const [testingDbSave, setTestingDbSave] = useState(false);
   const [resettingPush, setResettingPush] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [exportingData, setExportingData] = useState(false);
@@ -241,6 +242,122 @@ export default function EditProfilePage() {
       });
     }
     setTestingPush(false);
+  };
+
+  // Simple test to check if we can save subscription to database
+  const handleTestDbSave = async () => {
+    if (!user) {
+      toast({ title: "Not logged in", variant: "destructive" });
+      return;
+    }
+    
+    setTestingDbSave(true);
+    
+    try {
+      // Step 1: Check if service worker is registered
+      toast({ title: "Step 1: Checking service worker..." });
+      const registration = await navigator.serviceWorker.ready;
+      if (!registration) {
+        toast({ title: "No service worker!", variant: "destructive" });
+        setTestingDbSave(false);
+        return;
+      }
+      toast({ title: "✓ Service worker ready" });
+      
+      // Step 2: Get existing push subscription from browser
+      toast({ title: "Step 2: Getting browser subscription..." });
+      const existingSub = await registration.pushManager.getSubscription();
+      
+      if (!existingSub) {
+        toast({ 
+          title: "No browser subscription found", 
+          description: "You need to enable push first to create a browser subscription",
+          variant: "destructive" 
+        });
+        setTestingDbSave(false);
+        return;
+      }
+      toast({ title: "✓ Browser subscription found", description: existingSub.endpoint.slice(0, 50) + "..." });
+      
+      // Step 3: Extract subscription data
+      toast({ title: "Step 3: Extracting keys..." });
+      const subJson = existingSub.toJSON();
+      const p256dh = subJson.keys?.p256dh;
+      const auth = subJson.keys?.auth;
+      
+      if (!p256dh || !auth) {
+        toast({ title: "Missing encryption keys!", variant: "destructive" });
+        setTestingDbSave(false);
+        return;
+      }
+      toast({ title: "✓ Keys extracted", description: `p256dh: ${p256dh.slice(0,20)}...` });
+      
+      // Step 4: Try to save to database
+      toast({ title: "Step 4: Saving to database..." });
+      
+      const { data, error } = await supabase
+        .from('push_subscriptions')
+        .upsert({
+          user_id: user.id,
+          endpoint: existingSub.endpoint,
+          p256dh: p256dh,
+          auth: auth,
+          user_agent: navigator.userAgent,
+        }, { 
+          onConflict: 'user_id,endpoint',
+          ignoreDuplicates: false 
+        })
+        .select();
+      
+      if (error) {
+        console.error('[TestDbSave] Database error:', error);
+        toast({ 
+          title: "Database save FAILED!", 
+          description: `${error.code}: ${error.message}`,
+          variant: "destructive",
+          duration: 30000
+        });
+      } else {
+        console.log('[TestDbSave] Database save success:', data);
+        toast({ 
+          title: "✓ Database save SUCCESS!", 
+          description: "Subscription saved to push_subscriptions table",
+          duration: 10000
+        });
+      }
+      
+      // Step 5: Verify it's in the database
+      toast({ title: "Step 5: Verifying..." });
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('push_subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('endpoint', existingSub.endpoint)
+        .maybeSingle();
+      
+      if (verifyError) {
+        toast({ title: "Verify query failed", description: verifyError.message, variant: "destructive" });
+      } else if (verifyData) {
+        toast({ 
+          title: "✓ VERIFIED in database!", 
+          description: `Created: ${verifyData.created_at}`,
+          duration: 10000
+        });
+      } else {
+        toast({ title: "Not found in database after save!", variant: "destructive" });
+      }
+      
+    } catch (err) {
+      console.error('[TestDbSave] Error:', err);
+      toast({ 
+        title: "Test failed with exception", 
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+        duration: 30000
+      });
+    }
+    
+    setTestingDbSave(false);
   };
 
   const handleDeleteAccount = async () => {
@@ -604,6 +721,23 @@ export default function EditProfilePage() {
                 Send Test Notification
               </Button>
             )}
+
+            {/* Simple Database Save Test - for debugging */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleTestDbSave}
+              disabled={testingDbSave}
+              className="w-full border-dashed"
+            >
+              {testingDbSave ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Database className="h-4 w-4 mr-2" />
+              )}
+              Test DB Save (Debug)
+            </Button>
+
 
             {/* Reset Push Button - for troubleshooting */}
             <Button
