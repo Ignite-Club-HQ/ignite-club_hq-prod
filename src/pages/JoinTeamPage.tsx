@@ -157,17 +157,22 @@ export default function JoinTeamPage() {
     enabled: !!user,
   });
 
-  // Validate name for pending invites
+  // Validate name for pending invites - only allow new signups with matching name
   useEffect(() => {
-    if (isPendingInvite && pendingInviteData?.invited_label && userProfile) {
+    if (isPendingInvite && pendingInviteData?.invited_label && userProfile !== undefined) {
       const expectedName = pendingInviteData.invited_label.toLowerCase().trim();
-      const actualName = (userProfile.display_name || "").toLowerCase().trim();
+      const actualName = (userProfile?.display_name || "").toLowerCase().trim();
       
+      // If user already has a display_name set (existing account), block them
       if (actualName && actualName !== expectedName) {
         setNameValidationError(
-          `This invite was created for "${pendingInviteData.invited_label}". Your profile name "${userProfile.display_name}" doesn't match.`
+          `This invite link is only valid for new users signing up as "${pendingInviteData.invited_label}". You already have an account with a different name.`
         );
+      } else if (actualName && actualName === expectedName) {
+        // Existing user with matching name - this shouldn't happen normally but allow it
+        setNameValidationError(null);
       } else {
+        // No display_name yet - this is a new signup, will be set to invited_label
         setNameValidationError(null);
       }
     }
@@ -535,21 +540,26 @@ export default function JoinTeamPage() {
             <p className="text-muted-foreground text-sm">{invite.teams.clubs.name}</p>
           )}
           {isPendingInvite && pendingInviteData?.invited_label && (
-            <p className="text-sm text-muted-foreground mt-2">
-              Invite for: <span className="font-medium text-foreground">{pendingInviteData.invited_label}</span>
-            </p>
+            <div className="mt-2 space-y-1">
+              <p className="text-sm text-muted-foreground">
+                Invite for: <span className="font-medium text-foreground">{pendingInviteData.invited_label}</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                This link is only valid for new signups with this name
+              </p>
+            </div>
           )}
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Name validation warning */}
+          {/* Name validation warning - existing user trying to use new-signup-only link */}
           {nameValidationError && (
             <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
               <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
               <div className="text-sm">
-                <p className="font-medium text-destructive">Name Mismatch</p>
+                <p className="font-medium text-destructive">Link Not Valid For Existing Users</p>
                 <p className="text-muted-foreground mt-1">{nameValidationError}</p>
                 <p className="text-muted-foreground mt-2">
-                  To use this invite, please sign up with a new account using the name "{pendingInviteData?.invited_label}" or contact your team admin for a different invite link.
+                  Contact your team admin to be added directly or to receive a general invite link.
                 </p>
               </div>
             </div>
