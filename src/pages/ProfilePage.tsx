@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, Flame, Trophy, Users, Settings, ChevronRight, ChevronDown, Baby, Loader2, Ticket, Crown, CreditCard, MessageSquare, ClipboardList, Calendar, CheckCircle2, Building2, ShieldCheck, UserCog, FileText, Gift, MinusCircle, FileArchive, BarChart3, Lock, Video, Plus, Megaphone } from "lucide-react";
+import { LogOut, Flame, Trophy, Users, Settings, ChevronRight, ChevronDown, Baby, Loader2, Ticket, Crown, CreditCard, MessageSquare, ClipboardList, Calendar, CheckCircle2, Building2, ShieldCheck, UserCog, FileText, Gift, MinusCircle, FileArchive, BarChart3, Lock, Video, Plus, Megaphone, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -18,6 +18,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { useTheme } from "next-themes";
 import igniteIcon from "@/assets/ignite-icon.png";
 import igniteIconLight from "@/assets/ignite-icon-light.png";
+import { usePasskey } from "@/hooks/usePasskey";
 
 export default function ProfilePage() {
   const { user, profile, signOut } = useAuth();
@@ -29,6 +30,7 @@ export default function ProfilePage() {
   const [clubPlansOpen, setClubPlansOpen] = useState(true);
   const [teamPlansOpen, setTeamPlansOpen] = useState(true);
   const [myClubsTeamsOpen, setMyClubsTeamsOpen] = useState(true);
+  const { isAvailable: biometricsAvailable, isRegistered: hasPasskey, loading: passkeyLoading, registerPasskey } = usePasskey();
   
   // Get active club filter from theme context
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
@@ -491,6 +493,22 @@ export default function ProfilePage() {
     navigate("/auth");
   };
 
+  const handleSetupBiometrics = async () => {
+    const result = await registerPasskey();
+    if (result.success) {
+      toast({
+        title: "Biometric login enabled!",
+        description: "You can now sign in with Face ID or Touch ID.",
+      });
+    } else {
+      toast({
+        title: "Setup failed",
+        description: result.error || "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="py-6 space-y-6">
       {/* Profile Header */}
@@ -617,6 +635,22 @@ export default function ProfilePage() {
           label="Edit Profile" 
           onClick={() => navigate("/edit-profile")}
         />
+        {biometricsAvailable && !hasPasskey && (
+          <MenuCard 
+            icon={Fingerprint} 
+            label="Set up Face ID / Touch ID" 
+            onClick={handleSetupBiometrics}
+            loading={passkeyLoading}
+          />
+        )}
+        {biometricsAvailable && hasPasskey && (
+          <MenuCard 
+            icon={Fingerprint} 
+            label="Face ID / Touch ID Enabled" 
+            onClick={() => toast({ title: "Biometric login is already set up" })}
+            badge="Active"
+          />
+        )}
         {isTeamAdminOrCoach && (
           <MenuCard 
             icon={FileText} 
@@ -1005,23 +1039,34 @@ export default function ProfilePage() {
 function MenuCard({ 
   icon: Icon, 
   label, 
-  onClick 
+  onClick,
+  loading,
+  badge
 }: { 
   icon: React.ElementType; 
   label: string; 
   onClick: () => void;
+  loading?: boolean;
+  badge?: string;
 }) {
   return (
     <Card 
       className="cursor-pointer hover:border-primary/50 transition-colors"
-      onClick={onClick}
+      onClick={loading ? undefined : onClick}
     >
       <CardContent className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10">
-            <Icon className="h-5 w-5 text-primary" />
+            {loading ? (
+              <Loader2 className="h-5 w-5 text-primary animate-spin" />
+            ) : (
+              <Icon className="h-5 w-5 text-primary" />
+            )}
           </div>
           <span className="font-medium">{label}</span>
+          {badge && (
+            <Badge variant="secondary" className="text-xs">{badge}</Badge>
+          )}
         </div>
         <ChevronRight className="h-5 w-5 text-muted-foreground" />
       </CardContent>
