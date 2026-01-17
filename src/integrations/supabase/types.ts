@@ -3195,16 +3195,6 @@ export type Database = {
           uses_count: number
         }[]
       }
-      get_club_stripe_config: {
-        Args: { p_club_id: string }
-        Returns: {
-          club_id: string
-          id: string
-          is_enabled: boolean
-          stripe_publishable_key: string
-          stripe_secret_key: string
-        }[]
-      }
       get_club_team_count: { Args: { _club_id: string }; Returns: number }
       get_pending_invite_by_token: {
         Args: { _token: string }
