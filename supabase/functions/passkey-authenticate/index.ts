@@ -224,12 +224,16 @@ serve(async (req: Request) => {
         });
       }
 
+      console.log('Verifying passkey for email:', email);
+      console.log('Credential ID received:', credential.id);
+
       // Look up user by email
       const { data: userData } = await serviceClient.rpc('get_user_by_email_for_passkey', {
         lookup_email: email.toLowerCase().trim()
       });
 
       if (!userData || userData.length === 0) {
+        console.log('No user found for email:', email);
         return new Response(JSON.stringify({ error: "No account found" }), {
           status: 404,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -237,21 +241,59 @@ serve(async (req: Request) => {
       }
 
       const userId = userData[0].id;
+      console.log('Found user ID:', userId);
 
-      // Get the passkey from database
-      const { data: passkey, error: passkeyError } = await serviceClient
+      // Get all passkeys for this user to debug
+      const { data: allPasskeys } = await serviceClient
+        .from('user_passkeys')
+        .select('credential_id')
+        .eq('user_id', userId);
+      
+      console.log('User passkeys in DB:', allPasskeys?.map(p => p.credential_id));
+
+      // Try to find the passkey - the credential.id from browser might be base64url encoded
+      // while we stored it as standard base64, so we need to normalize both for comparison
+      const normalizeCredentialId = (id: string): string => {
+        // Convert base64url to standard base64
+        return id.replace(/-/g, '+').replace(/_/g, '/');
+      };
+
+      const normalizedReceivedId = normalizeCredentialId(credential.id);
+      
+      // Get the passkey from database - try exact match first
+      let { data: passkey, error: passkeyError } = await serviceClient
         .from('user_passkeys')
         .select('*')
         .eq('user_id', userId)
         .eq('credential_id', credential.id)
-        .single();
+        .maybeSingle();
+      
+      // If not found, try normalized ID
+      if (!passkey && allPasskeys) {
+        const matchingPasskey = allPasskeys.find(p => 
+          normalizeCredentialId(p.credential_id) === normalizedReceivedId
+        );
+        
+        if (matchingPasskey) {
+          const { data: foundPasskey } = await serviceClient
+            .from('user_passkeys')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('credential_id', matchingPasskey.credential_id)
+            .single();
+          passkey = foundPasskey;
+        }
+      }
 
-      if (passkeyError || !passkey) {
+      if (!passkey) {
+        console.log('Passkey not found. Received ID:', credential.id, 'Normalized:', normalizedReceivedId);
         return new Response(JSON.stringify({ error: "Passkey not found" }), {
           status: 404,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      
+      console.log('Found passkey:', passkey.id);
 
       // Decode the credential response
       const authenticatorData = Uint8Array.from(atob(credential.response.authenticatorData), c => c.charCodeAt(0));
