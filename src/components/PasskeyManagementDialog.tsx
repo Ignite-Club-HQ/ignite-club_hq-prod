@@ -72,10 +72,10 @@ function getDeviceName(deviceType: string | null) {
 }
 
 export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagementDialogProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { registerPasskey, loading: registerLoading } = usePasskey();
+  const { registerPasskey, removeAccount, refreshAccounts, loading: registerLoading } = usePasskey();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -104,6 +104,13 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
         .eq("user_id", user!.id);
 
       if (error) throw error;
+
+      // Check if this was the last passkey for this user
+      const remainingPasskeys = passkeys?.filter(p => p.id !== passkeyId) || [];
+      if (remainingPasskeys.length === 0 && user?.email) {
+        // Remove from local storage if no passkeys left
+        removeAccount(user.email);
+      }
 
       toast({
         title: "Passkey removed",

@@ -50,28 +50,100 @@ export async function isPlatformAuthenticatorAvailable(): Promise<boolean> {
   }
 }
 
-// Check if user has passkeys stored
-const PASSKEY_EMAIL_KEY = 'ignite_passkey_email';
+// Storage keys
+const PASSKEY_ACCOUNTS_KEY = 'ignite_passkey_accounts';
 const REMEMBER_ME_KEY = 'ignite_remember_me';
+const LAST_USED_ACCOUNT_KEY = 'ignite_last_used_account';
 
-export function getStoredPasskeyEmail(): string | null {
+// Account interface for stored passkey accounts
+export interface PasskeyAccount {
+  email: string;
+  displayName?: string;
+  addedAt: string;
+}
+
+// Get all stored passkey accounts
+export function getStoredPasskeyAccounts(): PasskeyAccount[] {
   try {
-    return localStorage.getItem(PASSKEY_EMAIL_KEY);
+    const stored = localStorage.getItem(PASSKEY_ACCOUNTS_KEY);
+    if (!stored) return [];
+    return JSON.parse(stored) as PasskeyAccount[];
+  } catch {
+    return [];
+  }
+}
+
+// Add a passkey account
+export function addStoredPasskeyAccount(email: string, displayName?: string): void {
+  try {
+    const accounts = getStoredPasskeyAccounts();
+    // Check if account already exists
+    const existingIndex = accounts.findIndex(a => a.email.toLowerCase() === email.toLowerCase());
+    if (existingIndex >= 0) {
+      // Update existing account
+      accounts[existingIndex] = {
+        email,
+        displayName: displayName || accounts[existingIndex].displayName,
+        addedAt: accounts[existingIndex].addedAt,
+      };
+    } else {
+      // Add new account
+      accounts.push({
+        email,
+        displayName,
+        addedAt: new Date().toISOString(),
+      });
+    }
+    localStorage.setItem(PASSKEY_ACCOUNTS_KEY, JSON.stringify(accounts));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+// Remove a passkey account
+export function removeStoredPasskeyAccount(email: string): void {
+  try {
+    const accounts = getStoredPasskeyAccounts();
+    const filtered = accounts.filter(a => a.email.toLowerCase() !== email.toLowerCase());
+    localStorage.setItem(PASSKEY_ACCOUNTS_KEY, JSON.stringify(filtered));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+// Get last used account email
+export function getLastUsedAccount(): string | null {
+  try {
+    return localStorage.getItem(LAST_USED_ACCOUNT_KEY);
   } catch {
     return null;
   }
 }
 
-function setStoredPasskeyEmail(email: string | null) {
+// Set last used account email
+export function setLastUsedAccount(email: string | null): void {
   try {
     if (email) {
-      localStorage.setItem(PASSKEY_EMAIL_KEY, email);
+      localStorage.setItem(LAST_USED_ACCOUNT_KEY, email);
     } else {
-      localStorage.removeItem(PASSKEY_EMAIL_KEY);
+      localStorage.removeItem(LAST_USED_ACCOUNT_KEY);
     }
   } catch {
     // Ignore storage errors
   }
+}
+
+// Legacy function for backward compatibility - returns first stored email
+export function getStoredPasskeyEmail(): string | null {
+  const accounts = getStoredPasskeyAccounts();
+  if (accounts.length === 0) return null;
+  // Return last used or first account
+  const lastUsed = getLastUsedAccount();
+  if (lastUsed) {
+    const found = accounts.find(a => a.email.toLowerCase() === lastUsed.toLowerCase());
+    if (found) return found.email;
+  }
+  return accounts[0].email;
 }
 
 export function getRememberMe(): boolean {
@@ -97,21 +169,26 @@ export function setRememberMe(value: boolean) {
 export function usePasskey() {
   const [isAvailable, setIsAvailable] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
+  const [accounts, setAccounts] = useState<PasskeyAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Refresh accounts list
+  const refreshAccounts = useCallback(() => {
+    const storedAccounts = getStoredPasskeyAccounts();
+    setAccounts(storedAccounts);
+    setIsRegistered(storedAccounts.length > 0);
+  }, []);
 
   // Check availability on mount
   useEffect(() => {
     const checkAvailability = async () => {
       const available = await isPlatformAuthenticatorAvailable();
       setIsAvailable(available);
-      
-      // Check if user has a stored passkey email
-      const storedEmail = getStoredPasskeyEmail();
-      setIsRegistered(!!storedEmail);
+      refreshAccounts();
     };
     checkAvailability();
-  }, []);
+  }, [refreshAccounts]);
 
   // Register a new passkey for the current user
   const registerPasskey = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
@@ -192,9 +269,13 @@ export function usePasskey() {
         throw new Error(verifyData?.error || 'Failed to verify passkey');
       }
 
-      // Store email for future login
-      setStoredPasskeyEmail(session.user.email || '');
-      setIsRegistered(true);
+      // Add account to stored list
+      const email = session.user.email || '';
+      const displayName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || email;
+      addStoredPasskeyAccount(email, displayName);
+      setLastUsedAccount(email);
+      refreshAccounts();
+      
       setLoading(false);
       return { success: true };
     } catch (err: any) {
@@ -205,7 +286,7 @@ export function usePasskey() {
       setLoading(false);
       return { success: false, error: message };
     }
-  }, []);
+  }, [refreshAccounts]);
 
   // Authenticate with passkey
   const authenticateWithPasskey = useCallback(async (email?: string): Promise<{ 
@@ -294,8 +375,8 @@ export function usePasskey() {
         }
       }
 
-      // Update stored email
-      setStoredPasskeyEmail(lookupEmail);
+      // Update last used account
+      setLastUsedAccount(lookupEmail);
       setLoading(false);
       return { success: true };
     } catch (err: any) {
@@ -308,20 +389,34 @@ export function usePasskey() {
     }
   }, []);
 
-  // Remove passkey registration (client-side only - clears stored email)
+  // Remove passkey account from local storage
+  const removeAccount = useCallback((email: string) => {
+    removeStoredPasskeyAccount(email);
+    refreshAccounts();
+  }, [refreshAccounts]);
+
+  // Clear all passkey registrations (client-side only)
   const clearPasskey = useCallback(() => {
-    setStoredPasskeyEmail(null);
-    setIsRegistered(false);
-  }, []);
+    try {
+      localStorage.removeItem(PASSKEY_ACCOUNTS_KEY);
+      localStorage.removeItem(LAST_USED_ACCOUNT_KEY);
+    } catch {
+      // Ignore
+    }
+    refreshAccounts();
+  }, [refreshAccounts]);
 
   return {
     isAvailable,
     isRegistered,
+    accounts,
     loading,
     error,
     registerPasskey,
     authenticateWithPasskey,
+    removeAccount,
     clearPasskey,
+    refreshAccounts,
     getStoredPasskeyEmail,
   };
 }

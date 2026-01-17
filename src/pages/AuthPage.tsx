@@ -10,7 +10,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
-import { usePasskey, getStoredPasskeyEmail, isPlatformAuthenticatorAvailable, getRememberMe, setRememberMe } from "@/hooks/usePasskey";
+import { usePasskey, getStoredPasskeyEmail, isPlatformAuthenticatorAvailable, getRememberMe, setRememberMe, getStoredPasskeyAccounts } from "@/hooks/usePasskey";
+import { PasskeyAccountSelector } from "@/components/PasskeyAccountSelector";
 
 import { z } from "zod";
 
@@ -30,20 +31,21 @@ export default function AuthPage() {
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const [rememberMe, setRememberMeState] = useState(getRememberMe());
+  const [accountSelectorOpen, setAccountSelectorOpen] = useState(false);
   const autoPromptTriggered = useRef(false);
   const { toast } = useToast();
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
-  const { isAvailable, isRegistered, loading: passkeyLoading, authenticateWithPasskey } = usePasskey();
+  const { isAvailable, accounts, loading: passkeyLoading, authenticateWithPasskey } = usePasskey();
   
   // Check if biometrics are available and user has a registered passkey
   useEffect(() => {
     const checkBiometrics = async () => {
       const available = await isPlatformAuthenticatorAvailable();
-      const storedEmail = getStoredPasskeyEmail();
-      setBiometricsAvailable(available && !!storedEmail);
+      const storedAccounts = getStoredPasskeyAccounts();
+      setBiometricsAvailable(available && storedAccounts.length > 0);
       
-      // Auto-trigger biometric prompt if Remember Me is enabled
-      if (available && storedEmail && getRememberMe() && !autoPromptTriggered.current && !authLoading) {
+      // Auto-trigger biometric prompt if Remember Me is enabled and only one account
+      if (available && storedAccounts.length === 1 && getRememberMe() && !autoPromptTriggered.current && !authLoading) {
         autoPromptTriggered.current = true;
         // Small delay to ensure UI is ready
         setTimeout(() => {
@@ -150,8 +152,9 @@ export default function AuthPage() {
   };
 
   const handleBiometricSignIn = async () => {
-    const storedEmail = getStoredPasskeyEmail();
-    if (!storedEmail) {
+    const storedAccounts = getStoredPasskeyAccounts();
+    
+    if (storedAccounts.length === 0) {
       toast({
         title: "No passkey found",
         description: "Please sign in with your email and password first, then set up biometric login in your profile.",
@@ -159,7 +162,18 @@ export default function AuthPage() {
       return;
     }
 
-    const result = await authenticateWithPasskey(storedEmail);
+    // If multiple accounts, show selector
+    if (storedAccounts.length > 1) {
+      setAccountSelectorOpen(true);
+      return;
+    }
+
+    // Single account - authenticate directly
+    await authenticateAccount(storedAccounts[0].email);
+  };
+
+  const authenticateAccount = async (email: string) => {
+    const result = await authenticateWithPasskey(email);
     
     if (!result.success) {
       toast({
@@ -167,6 +181,9 @@ export default function AuthPage() {
         description: result.error || "Please try again or use your password.",
       });
     }
+    
+    // Close selector if open
+    setAccountSelectorOpen(false);
   };
 
 
@@ -323,7 +340,10 @@ export default function AuthPage() {
                       ) : (
                         <>
                           <Fingerprint className="h-4 w-4" />
-                          Sign in with Face ID / Touch ID
+                          {accounts.length > 1 
+                            ? `Sign in with biometrics (${accounts.length} accounts)`
+                            : "Sign in with Face ID / Touch ID"
+                          }
                         </>
                       )}
                     </Button>
@@ -459,7 +479,14 @@ export default function AuthPage() {
           defaultEmail={email}
         />
 
-
+        {/* Passkey Account Selector */}
+        <PasskeyAccountSelector
+          open={accountSelectorOpen}
+          onOpenChange={setAccountSelectorOpen}
+          accounts={accounts}
+          onSelectAccount={authenticateAccount}
+          loading={passkeyLoading}
+        />
         {/* Footer Links */}
         <div className="text-center text-xs text-muted-foreground space-y-2">
           <div className="flex justify-center gap-4">
