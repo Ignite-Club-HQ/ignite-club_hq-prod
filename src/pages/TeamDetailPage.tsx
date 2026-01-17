@@ -60,7 +60,7 @@ import { findNearbyGameEvent } from "@/hooks/useNearbyGameEvent";
 import MemberSubscriptionPaymentsManager from "@/components/MemberSubscriptionPaymentsManager";
 import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import { TeamSponsorSelector } from "@/components/TeamSponsorSelector";
-import PendingInviteCard from "@/components/PendingInviteCard";
+import PendingInvitesList from "@/components/PendingInvitesList";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -739,15 +739,10 @@ export default function TeamDetailPage() {
                   <div className="space-y-2">
                     {/* Pending Invites Section */}
                     {pendingInvites.length > 0 && (
-                      <>
-                        {pendingInvites.map((invite) => (
-                          <PendingInviteCard
-                            key={invite.id}
-                            invite={invite}
-                            teamId={id}
-                          />
-                        ))}
-                      </>
+                      <PendingInvitesList
+                        invites={pendingInvites}
+                        teamId={id}
+                      />
                     )}
                     {Object.entries(members).map(([userId, member]) => (
                       <Card key={userId}>
