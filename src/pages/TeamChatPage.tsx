@@ -1049,6 +1049,8 @@ export default function TeamChatPage() {
             imageUrl={imageUrl}
             onImageUploaded={setImageUrl}
             disabled={sendMessageMutation.isPending}
+            clubId={team?.club_id}
+            teamId={teamId}
           />
           <MentionInput
             placeholder="Type a message... (@ to mention)"

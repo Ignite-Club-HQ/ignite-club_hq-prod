@@ -218,7 +218,21 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
 
   const uploadSinglePhoto = async (file: File, clubId: string, teamId: string): Promise<string> => {
     const fileExt = file.name.split(".").pop();
-    const storagePath = `${user!.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const timestamp = Date.now();
+    const randomSuffix = Math.random().toString(36).substring(7);
+    
+    // Structure path with club/team context for easier backup identification
+    // Format: clubs/{clubId}/teams/{teamId}/{userId}/{timestamp}-{random}.{ext}
+    // Or: clubs/{clubId}/{userId}/{timestamp}-{random}.{ext} if no team
+    let storagePath: string;
+    if (teamId) {
+      storagePath = `clubs/${clubId}/teams/${teamId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
+    } else if (clubId) {
+      storagePath = `clubs/${clubId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
+    } else {
+      // Fallback for legacy/unassociated uploads
+      storagePath = `unassigned/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
+    }
 
     const { error: uploadError } = await supabase.storage
       .from("photos")

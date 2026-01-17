@@ -1123,7 +1123,18 @@ export default function VaultPage() {
       }
 
       const fileExt = file.name.split(".").pop();
-      const storagePath = `${user!.id}/${Date.now()}.${fileExt}`;
+      const timestamp = Date.now();
+      const randomSuffix = Math.random().toString(36).substring(7);
+      
+      // Structure path with club/team context for easier backup identification
+      let storagePath: string;
+      if (currentView.type === "team" && currentView.teamId && currentView.clubId) {
+        storagePath = `clubs/${currentView.clubId}/teams/${currentView.teamId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
+      } else if (currentView.type === "club" && currentView.clubId) {
+        storagePath = `clubs/${currentView.clubId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
+      } else {
+        storagePath = `unassigned/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
+      }
 
       const { error: uploadError } = await supabase.storage
         .from("photos")
@@ -1178,7 +1189,18 @@ export default function VaultPage() {
       }
 
       const fileExt = file.name.split(".").pop();
-      const storagePath = `${user!.id}/${Date.now()}.${fileExt}`;
+      const timestamp = Date.now();
+      const randomSuffix = Math.random().toString(36).substring(7);
+      
+      // Structure path with club/team context for easier backup identification
+      let storagePath: string;
+      if (currentView.type === "team" && currentView.teamId && currentView.clubId) {
+        storagePath = `clubs/${currentView.clubId}/teams/${currentView.teamId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
+      } else if (currentView.type === "club" && currentView.clubId) {
+        storagePath = `clubs/${currentView.clubId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
+      } else {
+        storagePath = `unassigned/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
+      }
 
       const { error: uploadError } = await supabase.storage
         .from("photos")

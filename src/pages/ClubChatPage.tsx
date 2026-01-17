@@ -1099,6 +1099,7 @@ export default function ClubChatPage() {
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
               disabled={sendMutation.isPending}
+              clubId={clubId}
             />
             <MentionInput
               placeholder="Send announcement... (@ to mention)"
