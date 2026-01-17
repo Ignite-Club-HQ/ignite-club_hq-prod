@@ -323,6 +323,48 @@ export type Database = {
         }
         Relationships: []
       }
+      child_guardians: {
+        Row: {
+          child_id: string
+          created_at: string
+          guardian_id: string
+          id: string
+          is_primary: boolean | null
+          relationship_type: string | null
+        }
+        Insert: {
+          child_id: string
+          created_at?: string
+          guardian_id: string
+          id?: string
+          is_primary?: boolean | null
+          relationship_type?: string | null
+        }
+        Update: {
+          child_id?: string
+          created_at?: string
+          guardian_id?: string
+          id?: string
+          is_primary?: boolean | null
+          relationship_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "child_guardians_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "child_guardians_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       child_team_assignments: {
         Row: {
           child_id: string
@@ -1627,6 +1669,7 @@ export type Database = {
           invited_email: string | null
           invited_label: string | null
           invited_user_id: string
+          metadata: Json | null
           role: Database["public"]["Enums"]["app_role"]
           status: string
           team_id: string | null
@@ -1641,6 +1684,7 @@ export type Database = {
           invited_email?: string | null
           invited_label?: string | null
           invited_user_id: string
+          metadata?: Json | null
           role: Database["public"]["Enums"]["app_role"]
           status?: string
           team_id?: string | null
@@ -1655,6 +1699,7 @@ export type Database = {
           invited_email?: string | null
           invited_label?: string | null
           invited_user_id?: string
+          metadata?: Json | null
           role?: Database["public"]["Enums"]["app_role"]
           status?: string
           team_id?: string | null
@@ -3150,16 +3195,6 @@ export type Database = {
           uses_count: number
         }[]
       }
-      get_club_stripe_config: {
-        Args: { p_club_id: string }
-        Returns: {
-          club_id: string
-          id: string
-          is_enabled: boolean
-          stripe_publishable_key: string
-          stripe_secret_key: string
-        }[]
-      }
       get_club_team_count: { Args: { _club_id: string }; Returns: number }
       get_pending_invite_by_token: {
         Args: { _token: string }
@@ -3169,6 +3204,7 @@ export type Database = {
           id: string
           invited_email: string
           invited_label: string
+          metadata: Json
           role: string
           status: string
           team_id: string
@@ -3217,6 +3253,10 @@ export type Database = {
         Returns: boolean
       }
       hash_email: { Args: { email: string }; Returns: string }
+      is_child_guardian: {
+        Args: { _child_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_club_member: {
         Args: { _club_id: string; _user_id: string }
         Returns: boolean

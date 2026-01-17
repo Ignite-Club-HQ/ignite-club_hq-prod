@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Copy, Check, Send } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Copy, Check, Send, Users, Plus, Trash2, Upload, Baby } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,10 +14,25 @@ import {
   SheetDescription,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/useDebounce";
+
+interface BulkChild {
+  id: string;
+  name: string;
+  yearOfBirth: string;
+}
+
+interface BulkMember {
+  id: string;
+  name: string;
+  email: string;
+  role: TeamRole;
+  children: BulkChild[];
+}
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
 
@@ -51,6 +66,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
   const [copied, setCopied] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [isSendingNotification, setIsSendingNotification] = useState(false);
+  const [mode, setMode] = useState<"single" | "bulk">("single");
+  const [bulkMembers, setBulkMembers] = useState<BulkMember[]>([
+    { id: crypto.randomUUID(), name: "", email: "", role: "player", children: [] },
+  ]);
+  const [bulkResults, setBulkResults] = useState<{ name: string; email: string; link: string; sent: boolean; role?: string; childrenCount?: number }[]>([]);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -236,6 +256,110 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
     },
   });
 
+  // Bulk add pending members with invites
+  const addBulkMembersMutation = useMutation({
+    mutationFn: async () => {
+      const validMembers = bulkMembers.filter(m => m.name.trim());
+      if (validMembers.length === 0) throw new Error("Please enter at least one name");
+
+      const results: { name: string; email: string; link: string; sent: boolean; role: string; childrenCount: number }[] = [];
+
+      for (const member of validMembers) {
+        const inviteToken = crypto.randomUUID();
+        const memberRole = member.role;
+
+        // Build metadata for children (for parent role)
+        const validChildren = member.children.filter(c => c.name.trim());
+        const childrenMetadata = validChildren.length > 0 ? JSON.stringify(
+          validChildren.map(c => ({ name: c.name.trim(), yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null }))
+        ) : null;
+
+        // Create pending invite record with children metadata
+        const { error: inviteError } = await supabase.from("pending_invites").insert({
+          team_id: teamId,
+          club_id: clubId,
+          role: memberRole as any,
+          invited_user_id: user!.id,
+          invited_by_user_id: user!.id,
+          invited_label: member.name.trim(),
+          invited_email: member.email.trim() || null,
+          invite_token: inviteToken,
+          metadata: childrenMetadata ? { children: JSON.parse(childrenMetadata) } : null,
+        } as any);
+
+        if (inviteError) {
+          console.error("Failed to create invite for", member.name, inviteError);
+          continue;
+        }
+
+        const link = `${window.location.origin}/join/p/${inviteToken}`;
+        let sent = false;
+
+        // Build email content with children info
+        let childrenInfo = "";
+        if (validChildren.length > 0) {
+          childrenInfo = `<p>Your child${validChildren.length > 1 ? "ren" : ""} will also be registered: <strong>${validChildren.map(c => c.name).join(", ")}</strong></p>`;
+        }
+
+        // Send email if provided
+        if (member.email.trim()) {
+          try {
+            await supabase.functions.invoke("send-email", {
+              body: {
+                to: member.email.trim(),
+                subject: `You're invited to join ${teamName}`,
+                html: `
+                  <h2>You've been invited to join ${teamName}!</h2>
+                  <p>Hi ${member.name},</p>
+                  <p>You've been invited to join <strong>${teamName}</strong> as a <strong>${roleOptions.find(r => r.value === memberRole)?.label}</strong>.</p>
+                  ${childrenInfo}
+                  <p><a href="${link}" style="display: inline-block; padding: 12px 24px; background-color: #f97316; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Accept Invite</a></p>
+                  <p>Or copy this link: ${link}</p>
+                  <p>See you there!</p>
+                `,
+              },
+            });
+            sent = true;
+          } catch (error) {
+            console.error("Failed to send email to", member.email, error);
+          }
+        }
+
+        results.push({ 
+          name: member.name.trim(), 
+          email: member.email.trim(), 
+          link, 
+          sent, 
+          role: memberRole,
+          childrenCount: validChildren.length 
+        });
+      }
+
+      return results;
+    },
+    onSuccess: (results) => {
+      setBulkResults(results);
+      queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
+      
+      const sentCount = results.filter(r => r.sent).length;
+      const totalCount = results.length;
+      
+      toast({
+        title: `${totalCount} member${totalCount > 1 ? "s" : ""} added`,
+        description: sentCount > 0 
+          ? `${sentCount} invite email${sentCount > 1 ? "s" : ""} sent successfully`
+          : "Share the invite links with your members",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to add members",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleCopyLink = async () => {
     if (!inviteLink) return;
     try {
@@ -248,6 +372,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
     }
   };
 
+  const handleCopyAllLinks = async () => {
+    const linksText = bulkResults.map(r => `${r.name}: ${r.link}`).join("\n");
+    try {
+      await navigator.clipboard.writeText(linksText);
+      toast({ title: "All invite links copied!" });
+    } catch {
+      toast({ title: "Failed to copy links", variant: "destructive" });
+    }
+  };
+
   const handleClose = () => {
     setOpen(false);
     setSearchQuery("");
@@ -257,15 +391,137 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
     setSelectedRole("player");
     setInviteLink(null);
     setCopied(false);
+    setMode("single");
+    setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: "player", children: [] }]);
+    setBulkResults([]);
   };
 
   const handleDone = () => {
     handleClose();
   };
 
+  const addBulkMemberRow = () => {
+    setBulkMembers([...bulkMembers, { id: crypto.randomUUID(), name: "", email: "", role: selectedRole, children: [] }]);
+  };
+
+  const removeBulkMemberRow = (id: string) => {
+    if (bulkMembers.length > 1) {
+      setBulkMembers(bulkMembers.filter(m => m.id !== id));
+    }
+  };
+
+  const updateBulkMember = (id: string, field: keyof Omit<BulkMember, "id" | "children">, value: string) => {
+    setBulkMembers(bulkMembers.map(m => m.id === id ? { ...m, [field]: value } : m));
+  };
+
+  const updateBulkMemberRole = (id: string, role: TeamRole) => {
+    setBulkMembers(bulkMembers.map(m => m.id === id ? { ...m, role, children: role === "parent" ? m.children : [] } : m));
+  };
+
+  const addChildToMember = (memberId: string) => {
+    setBulkMembers(bulkMembers.map(m => 
+      m.id === memberId 
+        ? { ...m, children: [...m.children, { id: crypto.randomUUID(), name: "", yearOfBirth: "" }] }
+        : m
+    ));
+  };
+
+  const removeChildFromMember = (memberId: string, childId: string) => {
+    setBulkMembers(bulkMembers.map(m => 
+      m.id === memberId 
+        ? { ...m, children: m.children.filter(c => c.id !== childId) }
+        : m
+    ));
+  };
+
+  const updateChild = (memberId: string, childId: string, field: "name" | "yearOfBirth", value: string) => {
+    setBulkMembers(bulkMembers.map(m => 
+      m.id === memberId 
+        ? { ...m, children: m.children.map(c => c.id === childId ? { ...c, [field]: value } : c) }
+        : m
+    ));
+  };
+
+  const validBulkCount = bulkMembers.filter(m => m.name.trim()).length;
+
   const selectedRoleOption = roleOptions.find(r => r.value === selectedRole);
 
-  // If we have a pending invite link, show success state
+  // If we have bulk results, show bulk success state
+  if (bulkResults.length > 0) {
+    return (
+      <Sheet open={open} onOpenChange={handleClose}>
+        <SheetTrigger asChild>
+          <Button size="sm" onClick={() => setOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add Member
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="bottom" className="h-auto max-h-[85vh] rounded-t-2xl overflow-y-auto">
+          <SheetHeader className="mb-6">
+            <SheetTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle2 className="h-5 w-5" />
+              {bulkResults.length} Member{bulkResults.length > 1 ? "s" : ""} Added
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="space-y-4 pb-6">
+            {bulkResults.map((result, idx) => (
+              <div key={idx} className="p-3 rounded-lg border bg-muted/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">{result.name}</p>
+                    {result.email && (
+                      <p className="text-xs text-muted-foreground">{result.email}</p>
+                    )}
+                  </div>
+                  {result.sent ? (
+                    <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
+                      <Mail className="h-3 w-3 mr-1" />
+                      Sent
+                    </Badge>
+                  ) : result.email ? (
+                    <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+                      Failed
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="bg-muted text-muted-foreground">
+                      Link only
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input value={result.link} readOnly className="text-xs font-mono h-8" />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 px-2"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(result.link);
+                      toast({ title: `Link copied for ${result.name}` });
+                    }}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={handleCopyAllLinks}>
+                <Copy className="h-4 w-4 mr-2" />
+                Copy All Links
+              </Button>
+              <Button className="flex-1" onClick={handleDone}>
+                Done
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  // If we have a pending invite link (single mode), show success state
   if (inviteLink) {
     return (
       <Sheet open={open} onOpenChange={handleClose}>
@@ -332,9 +588,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
           </SheetDescription>
         </SheetHeader>
 
-        <div className="space-y-5 pb-6">
-          {/* Role Selection */}
-          <div className="space-y-2">
+        <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="single" className="flex items-center gap-2">
+              <UserPlus className="h-4 w-4" />
+              Single
+            </TabsTrigger>
+            <TabsTrigger value="bulk" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Multiple
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Role Selection - shared between modes */}
+          <div className="space-y-2 mb-5">
             <Label>Role</Label>
             <div className="grid grid-cols-2 gap-2">
               {roleOptions.map((opt) => (
@@ -357,159 +624,360 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
             </div>
           </div>
 
-          {/* Selected User Preview */}
-          {selectedUser && (
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-              <Avatar className="h-10 w-10">
-                <AvatarImage src={selectedUser.avatar_url || undefined} />
-                <AvatarFallback className="bg-primary/20 text-primary">
-                  {selectedUser.display_name?.[0]?.toUpperCase() || "?"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1">
-                <p className="font-medium">{selectedUser.display_name || "Unknown"}</p>
-                <p className="text-sm text-muted-foreground">Existing app user • Will be added directly</p>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => setSelectedUser(null)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-
-          {/* Search for existing user */}
-          {!selectedUser && (
-            <>
-              <div className="space-y-2">
-                <Label>Search for existing user</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by name..."
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      setCustomName(""); // Clear custom name when searching
-                    }}
-                    className="pl-10"
-                  />
+          <TabsContent value="single" className="space-y-5 mt-0">
+            {/* Selected User Preview */}
+            {selectedUser && (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={selectedUser.avatar_url || undefined} />
+                  <AvatarFallback className="bg-primary/20 text-primary">
+                    {selectedUser.display_name?.[0]?.toUpperCase() || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <p className="font-medium">{selectedUser.display_name || "Unknown"}</p>
+                  <p className="text-sm text-muted-foreground">Existing app user • Will be added directly</p>
                 </div>
-
-                {/* Search Results */}
-                {isSearching && (
-                  <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Searching...
-                  </div>
-                )}
-
-                {!isSearching && filteredResults.length > 0 && (
-                  <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border bg-muted/30 p-2">
-                    {filteredResults.map((result) => (
-                      <button
-                        key={result.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedUser(result);
-                          setSearchQuery("");
-                          setCustomName("");
-                        }}
-                        className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-background transition-colors text-left"
-                      >
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={result.avatar_url || undefined} />
-                          <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                            {result.display_name?.[0]?.toUpperCase() || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {!isSearching && debouncedSearch.length >= 2 && filteredResults.length === 0 && (
-                  <p className="text-sm text-muted-foreground py-2">
-                    No users found. Enter a name below to invite someone new.
-                  </p>
-                )}
+                <Button variant="ghost" size="icon" onClick={() => setSelectedUser(null)}>
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
+            )}
 
-              <div className="relative flex items-center">
-                <div className="flex-1 border-t border-border" />
-                <span className="px-3 text-xs text-muted-foreground uppercase">or add by name</span>
-                <div className="flex-1 border-t border-border" />
-              </div>
-
-              {/* Custom name input */}
-              <div className="space-y-2">
-                <Label>Enter name (for new members)</Label>
-                <div className="relative">
-                  <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="e.g., John Smith"
-                    value={customName}
-                    onChange={(e) => {
-                      setCustomName(e.target.value);
-                      setSearchQuery(""); // Clear search when entering name
-                    }}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-
-              {/* Email input (optional) */}
-              {customName.trim() && (
+            {!selectedUser && (
+              <>
                 <div className="space-y-2">
-                  <Label>Email (optional - for sending invite)</Label>
+                  <Label>Search for existing user</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      type="email"
-                      placeholder="e.g., john@example.com"
-                      value={customEmail}
-                      onChange={(e) => setCustomEmail(e.target.value)}
+                      placeholder="Search by name..."
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setCustomName("");
+                      }}
                       className="pl-10"
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {customEmail.trim() 
-                      ? "An invite email will be sent automatically" 
-                      : "Add email to auto-send invite, or share the link manually"}
-                  </p>
-                </div>
-              )}
-            </>
-          )}
 
-          {/* Action Buttons */}
-          {selectedUser ? (
+                  {isSearching && (
+                    <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Searching...
+                    </div>
+                  )}
+
+                  {!isSearching && filteredResults.length > 0 && (
+                    <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border bg-muted/30 p-2">
+                      {filteredResults.map((result) => (
+                        <button
+                          key={result.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedUser(result);
+                            setSearchQuery("");
+                            setCustomName("");
+                          }}
+                          className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-background transition-colors text-left"
+                        >
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={result.avatar_url || undefined} />
+                            <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                              {result.display_name?.[0]?.toUpperCase() || "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {!isSearching && debouncedSearch.length >= 2 && filteredResults.length === 0 && (
+                    <p className="text-sm text-muted-foreground py-2">
+                      No users found. Enter a name below to invite someone new.
+                    </p>
+                  )}
+                </div>
+
+                <div className="relative flex items-center">
+                  <div className="flex-1 border-t border-border" />
+                  <span className="px-3 text-xs text-muted-foreground uppercase">or add by name</span>
+                  <div className="flex-1 border-t border-border" />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Enter name (for new members)</Label>
+                  <div className="relative">
+                    <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="e.g., John Smith"
+                      value={customName}
+                      onChange={(e) => {
+                        setCustomName(e.target.value);
+                        setSearchQuery("");
+                      }}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+
+                {customName.trim() && (
+                  <div className="space-y-2">
+                    <Label>Email (optional - for sending invite)</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="email"
+                        placeholder="e.g., john@example.com"
+                        value={customEmail}
+                        onChange={(e) => setCustomEmail(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {customEmail.trim() 
+                        ? "An invite email will be sent automatically" 
+                        : "Add email to auto-send invite, or share the link manually"}
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {selectedUser ? (
+              <Button
+                className="w-full h-12 text-base font-semibold"
+                onClick={() => addExistingUserMutation.mutate()}
+                disabled={addExistingUserMutation.isPending}
+              >
+                {addExistingUserMutation.isPending ? (
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                ) : (
+                  <UserPlus className="h-5 w-5 mr-2" />
+                )}
+                Add {selectedUser.display_name} as {selectedRoleOption?.label}
+              </Button>
+            ) : (
+              <Button
+                className="w-full h-12 text-base font-semibold"
+                onClick={() => addPendingMemberMutation.mutate()}
+                disabled={!customName.trim() || addPendingMemberMutation.isPending}
+              >
+                {addPendingMemberMutation.isPending ? (
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                ) : (
+                  <Send className="h-5 w-5 mr-2" />
+                )}
+                {customName.trim() ? `Add ${customName} & Get Invite Link` : "Enter a name to continue"}
+              </Button>
+            )}
+          </TabsContent>
+
+          <TabsContent value="bulk" className="space-y-4 mt-0">
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Add multiple members at once. Include emails to auto-send unique invite links.
+              </p>
+              
+              {/* CSV Import */}
+              <div className="flex gap-2">
+                <input
+                  type="file"
+                  accept=".csv"
+                  id="csv-upload"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      const text = event.target?.result as string;
+                      if (!text) return;
+                      
+                      const lines = text.split("\n").filter(line => line.trim());
+                      const parsed: BulkMember[] = [];
+                      
+                      // Skip header row if it looks like a header
+                      const startIndex = lines[0]?.toLowerCase().includes("name") ? 1 : 0;
+                      
+                      for (let i = startIndex; i < lines.length; i++) {
+                        const line = lines[i];
+                        // Handle CSV with commas, accounting for quoted values
+                        const parts = line.match(/(?:^|,)("(?:[^"]*(?:""[^"]*)*)"|[^,]*)/g)
+                          ?.map(s => s.replace(/^,/, "").replace(/^"|"$/g, "").replace(/""/g, '"').trim()) || [];
+                        
+                        const name = parts[0]?.trim();
+                        const email = parts[1]?.trim() || "";
+                        const roleFromCsv = parts[2]?.trim().toLowerCase() || "";
+                        
+                        // Parse role from CSV or use selected role
+                        let role: TeamRole = selectedRole;
+                        if (roleFromCsv === "player" || roleFromCsv === "parent" || roleFromCsv === "coach" || roleFromCsv === "team_admin") {
+                          role = roleFromCsv as TeamRole;
+                        }
+                        
+                        if (name) {
+                          parsed.push({ id: crypto.randomUUID(), name, email, role, children: [] });
+                        }
+                      }
+                      
+                      if (parsed.length > 0) {
+                        setBulkMembers(parsed);
+                        toast({
+                          title: `${parsed.length} member${parsed.length > 1 ? "s" : ""} imported`,
+                          description: "Review and edit before sending invites",
+                        });
+                      } else {
+                        toast({
+                          title: "No members found",
+                          description: "Make sure CSV has Name in column 1, Email in column 2",
+                          variant: "destructive",
+                        });
+                      }
+                    };
+                    reader.readAsText(file);
+                    e.target.value = ""; // Reset input
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => document.getElementById("csv-upload")?.click()}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import CSV
+                </Button>
+                <Button variant="outline" className="flex-1" onClick={addBulkMemberRow}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Row
+                </Button>
+              </div>
+              
+              <p className="text-xs text-muted-foreground">
+                CSV format: Name, Email, Role (optional - player/parent/coach/team_admin)
+              </p>
+            </div>
+
+            <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-1">
+              {bulkMembers.map((member, idx) => (
+                <div key={member.id} className="p-3 rounded-lg border bg-muted/20 space-y-3">
+                  <div className="flex gap-2 items-start">
+                    <div className="flex-1 space-y-2">
+                      <Input
+                        placeholder="Name"
+                        value={member.name}
+                        onChange={(e) => updateBulkMember(member.id, "name", e.target.value)}
+                      />
+                      <Input
+                        type="email"
+                        placeholder="Email (optional)"
+                        value={member.email}
+                        onChange={(e) => updateBulkMember(member.id, "email", e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="mt-1"
+                      onClick={() => removeBulkMemberRow(member.id)}
+                      disabled={bulkMembers.length === 1}
+                    >
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                  
+                  {/* Per-member role selection */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {roleOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => updateBulkMemberRole(member.id, opt.value)}
+                        className={`px-2 py-1 text-xs rounded-md transition-all border ${
+                          member.role === opt.value
+                            ? opt.color + " border-current"
+                            : "bg-muted/50 text-muted-foreground border-transparent hover:border-muted-foreground/30"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* Children inputs for parent role */}
+                  {member.role === "parent" && (
+                    <div className="space-y-2 pl-3 border-l-2 border-pink-500/30">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-pink-600 flex items-center gap-1">
+                          <Baby className="h-3 w-3" />
+                          Children
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs"
+                          onClick={() => addChildToMember(member.id)}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Add Child
+                        </Button>
+                      </div>
+                      
+                      {member.children.length === 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Add children to register them with this parent
+                        </p>
+                      )}
+                      
+                      {member.children.map((child) => (
+                        <div key={child.id} className="flex gap-2 items-center">
+                          <Input
+                            placeholder="Child's name"
+                            value={child.name}
+                            onChange={(e) => updateChild(member.id, child.id, "name", e.target.value)}
+                            className="h-8 text-sm flex-1"
+                          />
+                          <Input
+                            placeholder="Year"
+                            value={child.yearOfBirth}
+                            onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
+                            className="h-8 text-sm w-16"
+                            maxLength={4}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => removeChildFromMember(member.id, child.id)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
             <Button
               className="w-full h-12 text-base font-semibold"
-              onClick={() => addExistingUserMutation.mutate()}
-              disabled={addExistingUserMutation.isPending}
+              onClick={() => addBulkMembersMutation.mutate()}
+              disabled={validBulkCount === 0 || addBulkMembersMutation.isPending}
             >
-              {addExistingUserMutation.isPending ? (
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              ) : (
-                <UserPlus className="h-5 w-5 mr-2" />
-              )}
-              Add {selectedUser.display_name} as {selectedRoleOption?.label}
-            </Button>
-          ) : (
-            <Button
-              className="w-full h-12 text-base font-semibold"
-              onClick={() => addPendingMemberMutation.mutate()}
-              disabled={!customName.trim() || addPendingMemberMutation.isPending}
-            >
-              {addPendingMemberMutation.isPending ? (
+              {addBulkMembersMutation.isPending ? (
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
               ) : (
                 <Send className="h-5 w-5 mr-2" />
               )}
-              {customName.trim() ? `Add ${customName} & Get Invite Link` : "Enter a name to continue"}
+              {validBulkCount > 0 
+                ? `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""} & Send Invites`
+                : "Enter names to continue"}
             </Button>
-          )}
-        </div>
+          </TabsContent>
+        </Tabs>
       </SheetContent>
     </Sheet>
   );

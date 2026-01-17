@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, UserPlus, Loader2, Check, CheckSquare, Square } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, UserPlus, Loader2, Check, CheckSquare, Square, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-
+import ManageGuardiansDialog from "@/components/ManageGuardiansDialog";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -42,6 +42,8 @@ interface Child {
   name: string;
   year_of_birth: number | null;
   created_at: string;
+  parent_id: string;
+  isGuardianOnly?: boolean; // True if user is guardian but not primary parent
 }
 
 interface Team {
@@ -64,6 +66,7 @@ export default function ChildrenPage() {
   const queryClient = useQueryClient();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [guardiansDialogOpen, setGuardiansDialogOpen] = useState(false);
   const [deleteChildId, setDeleteChildId] = useState<string | null>(null);
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [newChildName, setNewChildName] = useState("");
@@ -71,9 +74,9 @@ export default function ChildrenPage() {
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [filterClubId, setFilterClubId] = useState<string>("");
 
-  // Fetch children
-  const { data: children, isLoading: loadingChildren } = useQuery({
-    queryKey: ["children", user?.id],
+  // Fetch children (owned by user)
+  const { data: ownChildren } = useQuery({
+    queryKey: ["own_children", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("children")
@@ -85,6 +88,32 @@ export default function ChildrenPage() {
     },
     enabled: !!user,
   });
+
+  // Fetch children where user is a guardian (not primary parent)
+  const { data: guardianChildren } = useQuery({
+    queryKey: ["guardian_children", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("child_guardians")
+        .select("child_id, children:child_id(id, name, year_of_birth, created_at, parent_id)")
+        .eq("guardian_id", user!.id)
+        .eq("is_primary", false);
+      if (error) throw error;
+      return data
+        .filter(d => d.children)
+        .map(d => ({ ...(d.children as unknown as Child), isGuardianOnly: true }));
+    },
+    enabled: !!user,
+  });
+
+  // Combine and deduplicate children
+  const children = (() => {
+    const all = [...(ownChildren || []), ...(guardianChildren || [])];
+    const unique = Array.from(new Map(all.map(c => [c.id, c])).values());
+    return unique.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  })();
+
+  const loadingChildren = !ownChildren && !guardianChildren;
 
   // Fetch team assignments for all children
   const { data: assignments } = useQuery({
@@ -314,9 +343,32 @@ export default function ChildrenPage() {
               <Card key={child.id}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{child.name}</CardTitle>
                     <div className="flex items-center gap-2">
-                      {unassignedTeams.length > 0 && (
+                      <CardTitle className="text-lg">{child.name}</CardTitle>
+                      {child.isGuardianOnly && (
+                        <Badge variant="outline" className="text-xs">
+                          <Users className="h-3 w-3 mr-1" />
+                          Guardian
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {/* Manage Guardians Button - only for primary parents */}
+                      {!child.isGuardianOnly && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedChild(child);
+                            setGuardiansDialogOpen(true);
+                          }}
+                          title="Manage Guardians"
+                        >
+                          <Users className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {/* Assign to Team - only for primary parents */}
+                      {!child.isGuardianOnly && unassignedTeams.length > 0 && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -324,17 +376,21 @@ export default function ChildrenPage() {
                             setSelectedChild(child);
                             setAssignDialogOpen(true);
                           }}
+                          title="Assign to Team"
                         >
                           <UserPlus className="h-4 w-4" />
                         </Button>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDeleteChildId(child.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {/* Delete - only for primary parents */}
+                      {!child.isGuardianOnly && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeleteChildId(child.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                   {child.year_of_birth && (
@@ -343,7 +399,7 @@ export default function ChildrenPage() {
                     </p>
                   )}
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
                   {childAssignments.length > 0 ? (
                     <div className="space-y-2">
                       <p className="text-sm font-medium">Teams:</p>
@@ -355,12 +411,14 @@ export default function ChildrenPage() {
                             className="flex items-center gap-1"
                           >
                             {assignment.teams?.name}
-                            <button
-                              onClick={() => removeFromTeam.mutate(assignment.id)}
-                              className="ml-1 hover:text-destructive"
-                            >
-                              ×
-                            </button>
+                            {!child.isGuardianOnly && (
+                              <button
+                                onClick={() => removeFromTeam.mutate(assignment.id)}
+                                className="ml-1 hover:text-destructive"
+                              >
+                                ×
+                              </button>
+                            )}
                           </Badge>
                         ))}
                       </div>
@@ -506,6 +564,20 @@ export default function ChildrenPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Manage Guardians Dialog */}
+      {selectedChild && (
+        <ManageGuardiansDialog
+          open={guardiansDialogOpen}
+          onOpenChange={(open) => {
+            setGuardiansDialogOpen(open);
+            if (!open) setSelectedChild(null);
+          }}
+          childId={selectedChild.id}
+          childName={selectedChild.name}
+          teamIds={getChildAssignments(selectedChild.id).map(a => a.team_id)}
+        />
+      )}
     </div>
   );
 }

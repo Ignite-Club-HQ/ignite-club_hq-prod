@@ -50,6 +50,47 @@ const DEMO_USER_NAMES = [
 const DEMO_USER_EMAILS_PREFIX = "demo_user_";
 const DEMO_PASSWORD = "demo123456";
 
+// Simple in-memory rate limiting for public endpoints
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 10; // 10 requests per minute per IP
+
+function getRateLimitKey(req: Request): string {
+  // Get client IP from various headers (Supabase/Cloudflare)
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  const realIp = req.headers.get("x-real-ip");
+  const cfConnectingIp = req.headers.get("cf-connecting-ip");
+  return cfConnectingIp || realIp || forwardedFor?.split(",")[0]?.trim() || "unknown";
+}
+
+function checkRateLimit(clientId: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const clientData = rateLimitMap.get(clientId);
+  
+  // Clean up old entries periodically
+  if (rateLimitMap.size > 1000) {
+    for (const [key, value] of rateLimitMap.entries()) {
+      if (now > value.resetTime) {
+        rateLimitMap.delete(key);
+      }
+    }
+  }
+  
+  if (!clientData || now > clientData.resetTime) {
+    // New window
+    rateLimitMap.set(clientId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true };
+  }
+  
+  if (clientData.count >= RATE_LIMIT_MAX_REQUESTS) {
+    const retryAfter = Math.ceil((clientData.resetTime - now) / 1000);
+    return { allowed: false, retryAfter };
+  }
+  
+  clientData.count++;
+  return { allowed: true };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -66,6 +107,24 @@ serve(async (req) => {
 
     // PUBLIC ACTION - list-public doesn't require auth (for login page)
     if (action === "list-public") {
+      // Apply rate limiting to public endpoint
+      const clientId = getRateLimitKey(req);
+      const rateLimit = checkRateLimit(clientId);
+      
+      if (!rateLimit.allowed) {
+        console.log(`Rate limit exceeded for client: ${clientId}`);
+        return new Response(
+          JSON.stringify({ error: "Too many requests. Please try again later." }),
+          { 
+            status: 429, 
+            headers: { 
+              ...corsHeaders, 
+              "Content-Type": "application/json",
+              "Retry-After": String(rateLimit.retryAfter || 60)
+            } 
+          }
+        );
+      }
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
       
       // Unassociated user names (must match what's created in generate action)
