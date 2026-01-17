@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Loader2, CheckCircle, XCircle, Users } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Users, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -32,6 +32,7 @@ const selectableRoles: AppRole[] = ["coach", "player", "parent"];
 
 export default function JoinTeamPage() {
   const { token } = useParams<{ token: string }>();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -41,16 +42,34 @@ export default function JoinTeamPage() {
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [showPhotoConsent, setShowPhotoConsent] = useState(false);
   const [pendingJoinRoles, setPendingJoinRoles] = useState<AppRole[]>([]);
+  const [nameValidationError, setNameValidationError] = useState<string | null>(null);
   const shouldPromptInstall = searchParams.get("install") === "true";
 
-  // Fetch invite details using secure RPC function
-  const { data: invite, isLoading: inviteLoading, error: inviteError } = useQuery({
+  // Check if this is a pending invite token (name-restricted) or a regular team invite
+  const isPendingInvite = location.pathname.startsWith("/join/p/");
+
+  // Fetch pending invite details using RPC function (for name-restricted invites)
+  const { data: pendingInviteData, isLoading: pendingInviteLoading, error: pendingInviteError } = useQuery({
+    queryKey: ["pending-invite-token", token],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .rpc("get_pending_invite_by_token", { _token: token! });
+      if (error) throw error;
+      if (data && data.length > 0) {
+        return data[0];
+      }
+      return null;
+    },
+    enabled: !!token && isPendingInvite,
+  });
+
+  // Fetch team invite details using secure RPC function (for regular invites)
+  const { data: teamInvite, isLoading: teamInviteLoading, error: teamInviteError } = useQuery({
     queryKey: ["team-invite", token],
     queryFn: async () => {
       const { data, error } = await supabase
         .rpc("get_team_invite_by_token", { _token: token! });
       if (error) throw error;
-      // Transform RPC result to match expected shape
       if (data && data.length > 0) {
         const row = data[0];
         return {
@@ -76,8 +95,39 @@ export default function JoinTeamPage() {
       }
       return null;
     },
-    enabled: !!token,
+    enabled: !!token && !isPendingInvite,
   });
+
+  // Combine invite data based on type
+  const invite = isPendingInvite 
+    ? pendingInviteData 
+      ? {
+          id: pendingInviteData.id,
+          team_id: pendingInviteData.team_id,
+          role: pendingInviteData.role,
+          invited_label: pendingInviteData.invited_label,
+          status: pendingInviteData.status,
+          token: token,
+          uses_count: 0,
+          max_uses: 1, // Pending invites are single-use
+          expires_at: null,
+          created_at: null,
+          created_by: null,
+          teams: {
+            id: pendingInviteData.team_id,
+            name: pendingInviteData.team_name,
+            logo_url: pendingInviteData.team_logo_url,
+            club_id: pendingInviteData.club_id,
+            clubs: {
+              name: pendingInviteData.club_name
+            }
+          }
+        }
+      : null
+    : teamInvite;
+
+  const isLoading = isPendingInvite ? pendingInviteLoading : teamInviteLoading;
+  const inviteError = isPendingInvite ? pendingInviteError : teamInviteError;
 
   // Fetch user's existing roles in this team
   const { data: existingRoles } = useQuery({
@@ -92,6 +142,36 @@ export default function JoinTeamPage() {
     },
     enabled: !!invite?.team_id && !!user,
   });
+
+  // Fetch user's profile for name validation
+  const { data: userProfile } = useQuery({
+    queryKey: ["user-profile-for-join", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", user!.id)
+        .single();
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  // Validate name for pending invites
+  useEffect(() => {
+    if (isPendingInvite && pendingInviteData?.invited_label && userProfile) {
+      const expectedName = pendingInviteData.invited_label.toLowerCase().trim();
+      const actualName = (userProfile.display_name || "").toLowerCase().trim();
+      
+      if (actualName && actualName !== expectedName) {
+        setNameValidationError(
+          `This invite was created for "${pendingInviteData.invited_label}". Your profile name "${userProfile.display_name}" doesn't match.`
+        );
+      } else {
+        setNameValidationError(null);
+      }
+    }
+  }, [isPendingInvite, pendingInviteData, userProfile]);
 
   // Initialize selected roles with invite role if user doesn't have it yet
   useEffect(() => {
@@ -112,40 +192,32 @@ export default function JoinTeamPage() {
   const executeJoin = async (rolesToAdd: AppRole[]) => {
     if (!invite || !user) throw new Error("Missing data");
 
-    // Check if invite is expired
-    if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
-      throw new Error("This invite link has expired");
-    }
-
-    // Check if max uses reached
-    if (invite.max_uses && invite.uses_count >= invite.max_uses) {
-      throw new Error("This invite link has reached its usage limit");
-    }
-
-    // Check for a matching pending invite to get the invited_label
-    const { data: pendingInvite } = await supabase
-      .from("pending_invites")
-      .select("id, invited_label")
-      .eq("team_id", invite.team_id)
-      .eq("status", "pending")
-      .or(`invited_user_id.eq.${user.id},invited_label.ilike.%${user.email?.split('@')[0]}%`)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    // If there's a pending invite with a label and user has no display_name, prefill it
-    if (pendingInvite?.invited_label) {
+    // For pending invites, validate name match
+    if (isPendingInvite && pendingInviteData?.invited_label) {
       const { data: profile } = await supabase
         .from("profiles")
         .select("display_name")
         .eq("id", user.id)
         .single();
 
-      if (!profile?.display_name) {
+      const expectedName = pendingInviteData.invited_label.toLowerCase().trim();
+      const actualName = (profile?.display_name || "").toLowerCase().trim();
+
+      // If user has no display_name, set it to the expected name
+      if (!profile?.display_name || !actualName) {
         await supabase
           .from("profiles")
-          .update({ display_name: pendingInvite.invited_label })
+          .update({ display_name: pendingInviteData.invited_label })
           .eq("id", user.id);
+      } else if (actualName !== expectedName) {
+        throw new Error(
+          `This invite was created for "${pendingInviteData.invited_label}". Please create a new account with that name or contact your team admin for a different invite link.`
+        );
+      }
+
+      // Check if pending invite is already used
+      if (pendingInviteData.status !== "pending") {
+        throw new Error("This invite has already been used");
       }
 
       // Mark the pending invite as accepted
@@ -154,12 +226,64 @@ export default function JoinTeamPage() {
         .update({ 
           status: "accepted", 
           accepted_at: new Date().toISOString(),
-          invited_user_id: user.id // Update to actual user ID
+          invited_user_id: user.id
         })
-        .eq("id", pendingInvite.id);
+        .eq("id", pendingInviteData.id);
+    } else if (!isPendingInvite) {
+      // Regular team invite - check expiry and usage limits
+      if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+        throw new Error("This invite link has expired");
+      }
+
+      if (invite.max_uses && invite.uses_count >= invite.max_uses) {
+        throw new Error("This invite link has reached its usage limit");
+      }
+
+      // Check for a matching pending invite to get the invited_label (legacy flow)
+      const { data: pendingInvite } = await supabase
+        .from("pending_invites")
+        .select("id, invited_label")
+        .eq("team_id", invite.team_id)
+        .eq("status", "pending")
+        .or(`invited_user_id.eq.${user.id},invited_label.ilike.%${user.email?.split('@')[0]}%`)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // If there's a pending invite with a label and user has no display_name, prefill it
+      if (pendingInvite?.invited_label) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("id", user.id)
+          .single();
+
+        if (!profile?.display_name) {
+          await supabase
+            .from("profiles")
+            .update({ display_name: pendingInvite.invited_label })
+            .eq("id", user.id);
+        }
+
+        // Mark the pending invite as accepted
+        await supabase
+          .from("pending_invites")
+          .update({ 
+            status: "accepted", 
+            accepted_at: new Date().toISOString(),
+            invited_user_id: user.id
+          })
+          .eq("id", pendingInvite.id);
+      }
+
+      // Increment uses_count for team invite
+      await supabase
+        .from("team_invites")
+        .update({ uses_count: invite.uses_count + 1 })
+        .eq("id", invite.id);
     }
 
-    // Add user to team with all selected roles - insert one at a time to handle partial success
+    // Add user to team with all selected roles
     for (const role of rolesToAdd) {
       const { error: roleError } = await supabase.from("user_roles").insert({
         user_id: user.id,
@@ -168,7 +292,7 @@ export default function JoinTeamPage() {
         role: role,
       });
       
-      // Ignore duplicate key errors (23505 is unique_violation), throw on other errors
+      // Ignore duplicate key errors
       if (roleError) {
         const isDuplicate = roleError.code === '23505' || roleError.message.includes('duplicate key') || roleError.message.includes('unique constraint');
         if (!isDuplicate) {
@@ -177,12 +301,6 @@ export default function JoinTeamPage() {
         }
       }
     }
-
-    // Increment uses_count
-    await supabase
-      .from("team_invites")
-      .update({ uses_count: invite.uses_count + 1 })
-      .eq("id", invite.id);
 
     // Send notification to the new member
     const roleNames = rolesToAdd.map(r => roleLabels[r]).join(", ");
@@ -200,6 +318,11 @@ export default function JoinTeamPage() {
     mutationFn: async () => {
       if (!invite || !user) throw new Error("Missing data");
 
+      // Block join if there's a name validation error
+      if (nameValidationError) {
+        throw new Error(nameValidationError);
+      }
+
       // Filter out roles user already has
       const rolesToAdd = selectedRoles.filter(role => !existingRoles?.includes(role));
 
@@ -209,7 +332,6 @@ export default function JoinTeamPage() {
 
       // If parent role is selected, check if we need to show consent dialog
       if (rolesToAdd.includes("parent")) {
-        // Check if user has already given consent
         const { data: profile } = await supabase
           .from("profiles")
           .select("photo_consent_given_at")
@@ -217,10 +339,9 @@ export default function JoinTeamPage() {
           .single();
 
         if (!profile?.photo_consent_given_at) {
-          // Store pending roles and show consent dialog
           setPendingJoinRoles(rolesToAdd);
           setShowPhotoConsent(true);
-          return null; // Return null to indicate consent is pending
+          return null;
         }
       }
 
@@ -228,13 +349,11 @@ export default function JoinTeamPage() {
     },
     onSuccess: (rolesToAdd) => {
       if (rolesToAdd === null) {
-        // Consent dialog is being shown, don't proceed yet
         return;
       }
       setJoined(true);
       const roleNames = rolesToAdd.map(r => roleLabels[r]).join(", ");
       toast({ title: `Successfully joined as ${roleNames}!` });
-      // Show PWA install prompt after successful join if install param was set
       if (shouldPromptInstall) {
         setShowInstallPrompt(true);
       }
@@ -248,7 +367,6 @@ export default function JoinTeamPage() {
   const handlePhotoConsentGiven = async () => {
     if (!user) return;
     
-    // Save consent to profile
     await supabase
       .from("profiles")
       .update({ photo_consent_given_at: new Date().toISOString() })
@@ -256,7 +374,6 @@ export default function JoinTeamPage() {
 
     setShowPhotoConsent(false);
 
-    // Now complete the join with pending roles
     if (pendingJoinRoles.length > 0) {
       try {
         const result = await executeJoin(pendingJoinRoles);
@@ -287,12 +404,12 @@ export default function JoinTeamPage() {
   // Redirect to auth if not logged in
   useEffect(() => {
     if (!authLoading && !user) {
-      sessionStorage.setItem("redirectAfterAuth", `/join/${token}`);
+      sessionStorage.setItem("redirectAfterAuth", location.pathname);
       navigate("/auth");
     }
-  }, [authLoading, user, token, navigate]);
+  }, [authLoading, user, location.pathname, navigate]);
 
-  if (authLoading || inviteLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -318,9 +435,27 @@ export default function JoinTeamPage() {
     );
   }
 
-  // Check if invite is expired
-  const isExpired = invite.expires_at && new Date(invite.expires_at) < new Date();
-  const isMaxUsesReached = invite.max_uses && invite.uses_count >= invite.max_uses;
+  // Check if pending invite is already used
+  if (isPendingInvite && pendingInviteData?.status !== "pending") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Invite Already Used</h2>
+            <p className="text-muted-foreground mb-4">
+              This invite link has already been used. Contact your team admin for a new invite.
+            </p>
+            <Button onClick={() => navigate("/")}>Go to Home</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Check if regular invite is expired
+  const isExpired = !isPendingInvite && invite.expires_at && new Date(invite.expires_at) < new Date();
+  const isMaxUsesReached = !isPendingInvite && invite.max_uses && invite.uses_count >= invite.max_uses;
 
   if (isExpired || isMaxUsesReached) {
     return (
@@ -375,7 +510,6 @@ export default function JoinTeamPage() {
           </CardContent>
         </Card>
         
-        {/* PWA Install Dialog for invite links */}
         <PWAInstallDialog 
           forceShow={showInstallPrompt} 
           onClose={() => setShowInstallPrompt(false)} 
@@ -400,8 +534,27 @@ export default function JoinTeamPage() {
           {invite.teams?.clubs?.name && (
             <p className="text-muted-foreground text-sm">{invite.teams.clubs.name}</p>
           )}
+          {isPendingInvite && pendingInviteData?.invited_label && (
+            <p className="text-sm text-muted-foreground mt-2">
+              Invite for: <span className="font-medium text-foreground">{pendingInviteData.invited_label}</span>
+            </p>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Name validation warning */}
+          {nameValidationError && (
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+              <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-medium text-destructive">Name Mismatch</p>
+                <p className="text-muted-foreground mt-1">{nameValidationError}</p>
+                <p className="text-muted-foreground mt-2">
+                  To use this invite, please sign up with a new account using the name "{pendingInviteData?.invited_label}" or contact your team admin for a different invite link.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Users className="h-4 w-4" />
@@ -410,7 +563,7 @@ export default function JoinTeamPage() {
             
             <div className="space-y-2 pl-1">
               {selectableRoles.map((role) => {
-                const isDisabled = existingRoles?.includes(role);
+                const isDisabled = existingRoles?.includes(role) || !!nameValidationError;
                 const isChecked = selectedRoles.includes(role);
                 
                 return (
@@ -426,7 +579,7 @@ export default function JoinTeamPage() {
                       className={`flex items-center gap-2 cursor-pointer ${isDisabled ? 'opacity-50' : ''}`}
                     >
                       {roleLabels[role]}
-                      {isDisabled && (
+                      {existingRoles?.includes(role) && (
                         <Badge variant="outline" className="text-xs">Already assigned</Badge>
                       )}
                     </Label>
@@ -436,7 +589,7 @@ export default function JoinTeamPage() {
             </div>
           </div>
 
-          {selectedRoles.length > 0 && (
+          {selectedRoles.length > 0 && !nameValidationError && (
             <div className="flex flex-wrap gap-1 justify-center">
               {selectedRoles.map(role => (
                 <Badge key={role} variant="secondary">{roleLabels[role]}</Badge>
@@ -446,12 +599,17 @@ export default function JoinTeamPage() {
 
           <Button 
             onClick={() => joinMutation.mutate()} 
-            disabled={joinMutation.isPending || selectedRoles.length === 0}
+            disabled={joinMutation.isPending || selectedRoles.length === 0 || !!nameValidationError}
             className="w-full"
             size="lg"
           >
             {joinMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {selectedRoles.length === 0 ? "Select at least one role" : `Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`}
+            {nameValidationError 
+              ? "Cannot Join - Name Mismatch"
+              : selectedRoles.length === 0 
+                ? "Select at least one role" 
+                : `Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`
+            }
           </Button>
           <Button 
             variant="ghost" 

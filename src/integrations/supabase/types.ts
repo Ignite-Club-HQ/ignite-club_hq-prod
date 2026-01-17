@@ -1622,6 +1622,7 @@ export type Database = {
           club_id: string | null
           created_at: string
           id: string
+          invite_token: string | null
           invited_by_user_id: string
           invited_email: string | null
           invited_label: string | null
@@ -1635,6 +1636,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           id?: string
+          invite_token?: string | null
           invited_by_user_id: string
           invited_email?: string | null
           invited_label?: string | null
@@ -1648,6 +1650,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           id?: string
+          invite_token?: string | null
           invited_by_user_id?: string
           invited_email?: string | null
           invited_label?: string | null
@@ -3158,6 +3161,21 @@ export type Database = {
         }[]
       }
       get_club_team_count: { Args: { _club_id: string }; Returns: number }
+      get_pending_invite_by_token: {
+        Args: { _token: string }
+        Returns: {
+          club_id: string
+          club_name: string
+          id: string
+          invited_email: string
+          invited_label: string
+          role: string
+          status: string
+          team_id: string
+          team_logo_url: string
+          team_name: string
+        }[]
+      }
       get_team_invite_by_token: {
         Args: { _token: string }
         Returns: {
