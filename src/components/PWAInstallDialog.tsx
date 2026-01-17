@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Download, Share, PlusSquare, X, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +11,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
+
+const NEVER_SHOW_KEY = "pwa-install-never-show";
 
 interface PWAInstallDialogProps {
   forceShow?: boolean;
@@ -21,6 +25,7 @@ interface PWAInstallDialogProps {
 export function PWAInstallDialog({ forceShow = false, autoShow = true, onClose, promptKey = "default" }: PWAInstallDialogProps) {
   const [open, setOpen] = useState(false);
   const [hasTriggered, setHasTriggered] = useState(false);
+  const [neverShowAgain, setNeverShowAgain] = useState(false);
   const { canPrompt, isInstalled, isIOS, installApp } = usePWAInstall();
 
   const sessionKey = `pwa-install-prompt-shown-${promptKey}`;
@@ -28,6 +33,13 @@ export function PWAInstallDialog({ forceShow = false, autoShow = true, onClose, 
   useEffect(() => {
     // Only run once per mount - prevent multiple triggers
     if (hasTriggered || isInstalled) return;
+
+    // Check if user has permanently dismissed
+    try {
+      if (localStorage.getItem(NEVER_SHOW_KEY) === "true") return;
+    } catch {
+      // localStorage not available
+    }
 
     // Check for URL param or forceShow
     const params = new URLSearchParams(window.location.search);
@@ -71,6 +83,13 @@ export function PWAInstallDialog({ forceShow = false, autoShow = true, onClose, 
   };
 
   const handleClose = () => {
+    if (neverShowAgain) {
+      try {
+        localStorage.setItem(NEVER_SHOW_KEY, "true");
+      } catch {
+        // localStorage not available
+      }
+    }
     setOpen(false);
     onClose?.();
   };
@@ -161,6 +180,17 @@ export function PWAInstallDialog({ forceShow = false, autoShow = true, onClose, 
               </li>
             </ul>
           </div>
+        </div>
+
+        <div className="flex items-center space-x-2 pt-2">
+          <Checkbox 
+            id="never-show" 
+            checked={neverShowAgain}
+            onCheckedChange={(checked) => setNeverShowAgain(checked === true)}
+          />
+          <Label htmlFor="never-show" className="text-sm text-muted-foreground cursor-pointer">
+            Never show again
+          </Label>
         </div>
 
         <Button variant="ghost" onClick={handleClose} className="w-full">
