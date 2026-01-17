@@ -334,22 +334,32 @@ serve(async (req: Request) => {
         })
         .eq('id', passkey.id);
 
+      console.log('Signature verified, generating session...');
+
       // Generate a session for the user using admin API
-      // We need to use signInWithPassword with a special admin token
-      // Since we can't do that, we'll use a custom JWT approach
+      // Get the user directly by ID instead of listing all users
+      const { data: { user: authUser }, error: getUserError } = await serviceClient.auth.admin.getUserById(userId);
       
-      // Get the user's email from auth.users
-      const { data: { users }, error: getUserError } = await serviceClient.auth.admin.listUsers();
-      const authUser = users?.find(u => u.id === userId);
+      if (getUserError) {
+        console.error('Get user error:', getUserError);
+        return new Response(JSON.stringify({ error: "Failed to get user" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       
       if (!authUser) {
+        console.log('User not found in auth for ID:', userId);
         return new Response(JSON.stringify({ error: "User not found in auth" }), {
           status: 404,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      
+      console.log('Found auth user:', authUser.email);
 
       // Generate a magic link token that auto-signs in the user
+      console.log('Generating magic link for:', authUser.email);
       const { data: magicLink, error: magicLinkError } = await serviceClient.auth.admin.generateLink({
         type: 'magiclink',
         email: authUser.email!,
@@ -366,10 +376,13 @@ serve(async (req: Request) => {
         });
       }
 
+      console.log('Magic link generated, extracting token...');
+
       // Extract the token from the magic link and verify it to get a session
       const token = new URL(magicLink.properties?.action_link || '').searchParams.get('token');
       
       if (!token) {
+        console.error('No token in magic link:', magicLink.properties?.action_link);
         return new Response(JSON.stringify({ error: "Failed to generate authentication token" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -377,6 +390,7 @@ serve(async (req: Request) => {
       }
 
       // Verify the OTP to get a session
+      console.log('Verifying OTP token...');
       const { data: sessionData, error: verifyError } = await serviceClient.auth.verifyOtp({
         token_hash: token,
         type: 'magiclink',
@@ -390,6 +404,7 @@ serve(async (req: Request) => {
         });
       }
 
+      console.log('Session created successfully!');
       return new Response(JSON.stringify({ 
         success: true,
         session: {
