@@ -8,6 +8,8 @@ interface ChatImageInputProps {
   onImageUploaded: (imageUrl: string | null) => void;
   imageUrl: string | null;
   disabled?: boolean;
+  clubId?: string;
+  teamId?: string;
 }
 
 const MAX_WIDTH = 1200;
@@ -58,7 +60,7 @@ const compressImage = (file: File): Promise<Blob> => {
   });
 };
 
-export function ChatImageInput({ onImageUploaded, imageUrl, disabled }: ChatImageInputProps) {
+export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId }: ChatImageInputProps) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -91,7 +93,17 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled }: ChatImag
       // Compress image before uploading
       const compressedBlob = await compressImage(file);
       
-      const fileName = `${user.id}/${Date.now()}.jpg`;
+      // Structure path with club/team context for easier backup identification
+      const timestamp = Date.now();
+      let fileName: string;
+      if (teamId && clubId) {
+        fileName = `clubs/${clubId}/teams/${teamId}/${user.id}/${timestamp}.jpg`;
+      } else if (clubId) {
+        fileName = `clubs/${clubId}/${user.id}/${timestamp}.jpg`;
+      } else {
+        // Fallback for broadcast or unassociated chats
+        fileName = `general/${user.id}/${timestamp}.jpg`;
+      }
 
       const { error: uploadError } = await supabase.storage
         .from("chat-attachments")

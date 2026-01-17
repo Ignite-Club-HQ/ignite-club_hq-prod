@@ -1271,7 +1271,12 @@ export default function GroupChatPage() {
           </div>
         )}
         <div className="flex items-center gap-2">
-          <ChatImageInput onImageUploaded={setImageUrl} imageUrl={imageUrl} />
+          <ChatImageInput 
+            onImageUploaded={setImageUrl} 
+            imageUrl={imageUrl} 
+            clubId={group?.club_id || undefined}
+            teamId={group?.team_id || undefined}
+          />
           <Input
             ref={inputRef}
             value={message}
