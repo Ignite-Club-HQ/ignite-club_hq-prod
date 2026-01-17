@@ -19,6 +19,7 @@ import { useTheme } from "next-themes";
 import igniteIcon from "@/assets/ignite-icon.png";
 import igniteIconLight from "@/assets/ignite-icon-light.png";
 import { usePasskey } from "@/hooks/usePasskey";
+import { PasskeyManagementDialog } from "@/components/PasskeyManagementDialog";
 
 export default function ProfilePage() {
   const { user, profile, signOut } = useAuth();
@@ -30,6 +31,7 @@ export default function ProfilePage() {
   const [clubPlansOpen, setClubPlansOpen] = useState(true);
   const [teamPlansOpen, setTeamPlansOpen] = useState(true);
   const [myClubsTeamsOpen, setMyClubsTeamsOpen] = useState(true);
+  const [passkeyDialogOpen, setPasskeyDialogOpen] = useState(false);
   const { isAvailable: biometricsAvailable, isRegistered: hasPasskey, loading: passkeyLoading, registerPasskey } = usePasskey();
   
   // Get active club filter from theme context
@@ -646,8 +648,8 @@ export default function ProfilePage() {
         {biometricsAvailable && hasPasskey && (
           <MenuCard 
             icon={Fingerprint} 
-            label="Face ID / Touch ID Enabled" 
-            onClick={() => toast({ title: "Biometric login is already set up" })}
+            label="Manage Passkeys" 
+            onClick={() => setPasskeyDialogOpen(true)}
             badge="Active"
           />
         )}
@@ -1032,6 +1034,12 @@ export default function ProfilePage() {
         )}
         Sign Out
       </Button>
+
+      {/* Passkey Management Dialog */}
+      <PasskeyManagementDialog 
+        open={passkeyDialogOpen} 
+        onOpenChange={setPasskeyDialogOpen} 
+      />
     </div>
   );
 }
