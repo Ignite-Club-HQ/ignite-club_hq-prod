@@ -1,15 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import {
-  responseHeaders,
-  corsHeaders,
-  createErrorResponse,
-  createSuccessResponse,
-  sanitizeErrorMessage,
-  checkRequestSize,
-  MAX_REQUEST_SIZES,
-  SAFE_ERROR_MESSAGES,
-} from "../_shared/security.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -17,18 +12,16 @@ serve(async (req) => {
   }
 
   try {
-    // Check request size to prevent memory exhaustion
-    if (!checkRequestSize(req, MAX_REQUEST_SIZES.small)) {
-      return createErrorResponse(new Error("Request too large"), 413, "Request too large");
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return createErrorResponse(new Error(SAFE_ERROR_MESSAGES.unauthorized), 401);
+      return new Response(
+        JSON.stringify({ error: "Authentication required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -37,7 +30,10 @@ serve(async (req) => {
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
-      return createErrorResponse(new Error(SAFE_ERROR_MESSAGES.unauthorized), 401);
+      return new Response(
+        JSON.stringify({ error: "Authentication required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const { delay } = await req.json().catch(() => ({ delay: 0 }));
@@ -58,7 +54,10 @@ serve(async (req) => {
 
     if (notificationError) {
       console.error("Failed to create notification:", notificationError);
-      return createErrorResponse(new Error(SAFE_ERROR_MESSAGES.internal), 500);
+      return new Response(
+        JSON.stringify({ error: "An error occurred. Please try again." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Small delay if requested (for testing timing)
@@ -83,17 +82,26 @@ serve(async (req) => {
 
     if (invokeError) {
       console.error("Failed to send push notification:", invokeError);
-      return createErrorResponse(new Error(SAFE_ERROR_MESSAGES.internal), 500);
+      return new Response(
+        JSON.stringify({ error: "An error occurred. Please try again." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    return createSuccessResponse({
-      success: true,
-      message: "Test notification sent",
-      notificationId: notification.id,
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Test notification sent",
+        notificationId: notification.id,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
 
   } catch (error) {
     console.error("Error in test-push-notification:", error);
-    return createErrorResponse(error, 500);
+    return new Response(
+      JSON.stringify({ error: "An error occurred. Please try again." }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 });

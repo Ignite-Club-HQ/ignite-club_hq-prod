@@ -1,14 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import {
-  responseHeaders,
-  corsHeaders,
-  createErrorResponse,
-  createSuccessResponse,
-  checkRequestSize,
-  MAX_REQUEST_SIZES,
-  SAFE_ERROR_MESSAGES,
-} from "../_shared/security.ts";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 // Base64url utilities with robust handling
 function base64UrlToUint8Array(base64Url: string): Uint8Array {
@@ -26,7 +22,7 @@ function base64UrlToUint8Array(base64Url: string): Uint8Array {
     return outputArray;
   } catch (e) {
     console.error('Base64 decode error');
-    throw new Error('Invalid encoding');
+    throw e;
   }
 }
 
@@ -85,46 +81,51 @@ async function generateVapidJwt(audience: string, subject: string, privateKeyBas
   const payloadB64 = uint8ArrayToBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
   const unsignedToken = `${headerB64}.${payloadB64}`;
 
-  const privateKeyBytes = base64UrlToUint8Array(privateKeyBase64);
-  const publicKeyBytes = base64UrlToUint8Array(publicKeyBase64);
-  
-  if (publicKeyBytes.length !== 65) {
-    throw new Error('Invalid key configuration');
+  try {
+    const privateKeyBytes = base64UrlToUint8Array(privateKeyBase64);
+    const publicKeyBytes = base64UrlToUint8Array(publicKeyBase64);
+    
+    if (publicKeyBytes.length !== 65) {
+      throw new Error('Invalid key length');
+    }
+    
+    if (privateKeyBytes.length !== 32) {
+      throw new Error('Invalid key length');
+    }
+    
+    const x = publicKeyBytes.slice(1, 33);
+    const y = publicKeyBytes.slice(33, 65);
+    
+    const jwk = {
+      kty: 'EC',
+      crv: 'P-256',
+      x: uint8ArrayToBase64Url(x),
+      y: uint8ArrayToBase64Url(y),
+      d: uint8ArrayToBase64Url(privateKeyBytes),
+    };
+
+    const cryptoKey = await crypto.subtle.importKey(
+      'jwk',
+      jwk,
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      false,
+      ['sign']
+    );
+
+    const signatureBuffer = await crypto.subtle.sign(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      cryptoKey,
+      new TextEncoder().encode(unsignedToken)
+    );
+
+    const signatureBytes = new Uint8Array(signatureBuffer);
+    const signatureB64 = uint8ArrayToBase64Url(signatureBytes);
+
+    return `${unsignedToken}.${signatureB64}`;
+  } catch (error) {
+    console.error('Error signing VAPID JWT');
+    throw error;
   }
-  
-  if (privateKeyBytes.length !== 32) {
-    throw new Error('Invalid key configuration');
-  }
-  
-  const x = publicKeyBytes.slice(1, 33);
-  const y = publicKeyBytes.slice(33, 65);
-  
-  const jwk = {
-    kty: 'EC',
-    crv: 'P-256',
-    x: uint8ArrayToBase64Url(x),
-    y: uint8ArrayToBase64Url(y),
-    d: uint8ArrayToBase64Url(privateKeyBytes),
-  };
-
-  const cryptoKey = await crypto.subtle.importKey(
-    'jwk',
-    jwk,
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false,
-    ['sign']
-  );
-
-  const signatureBuffer = await crypto.subtle.sign(
-    { name: 'ECDSA', hash: 'SHA-256' },
-    cryptoKey,
-    new TextEncoder().encode(unsignedToken)
-  );
-
-  const signatureBytes = new Uint8Array(signatureBuffer);
-  const signatureB64 = uint8ArrayToBase64Url(signatureBytes);
-
-  return `${unsignedToken}.${signatureB64}`;
 }
 
 // Encrypt payload using Web Push encryption (RFC 8291)
@@ -254,11 +255,6 @@ serve(async (req) => {
   }
   
   try {
-    // Check request size to prevent memory exhaustion
-    if (!checkRequestSize(req, MAX_REQUEST_SIZES.small)) {
-      return createErrorResponse(new Error("Request too large"), 413, "Request too large");
-    }
-
     const { userId, title, body, url, notificationId, tag } = await req.json();
     
     console.log(`[PUSH] Starting push notification for user ${userId}`);
@@ -271,7 +267,10 @@ serve(async (req) => {
     
     if (!vapidPublicKey || !vapidPrivateKey) {
       console.error('[PUSH] VAPID keys not configured');
-      return createErrorResponse(new Error(SAFE_ERROR_MESSAGES.internal), 500);
+      return new Response(
+        JSON.stringify({ error: 'Push notification configuration error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -283,12 +282,18 @@ serve(async (req) => {
     
     if (subError) {
       console.error('[PUSH] Error fetching subscriptions');
-      return createErrorResponse(new Error(SAFE_ERROR_MESSAGES.internal), 500);
+      return new Response(
+        JSON.stringify({ error: 'An error occurred. Please try again.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
     
     if (!subscriptions || subscriptions.length === 0) {
       console.log(`[PUSH] No push subscriptions found for user ${userId}`);
-      return createSuccessResponse({ message: 'No subscriptions found', sent: 0 });
+      return new Response(
+        JSON.stringify({ message: 'No subscriptions found', sent: 0 }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
     
     console.log(`[PUSH] Found ${subscriptions.length} subscription(s)`);
@@ -382,16 +387,22 @@ serve(async (req) => {
     
     console.log(`[PUSH] COMPLETE: ${successCount}/${subscriptions.length} sent successfully`);
     
-    return createSuccessResponse({ 
-      message: 'Push notifications processed',
-      sent: successCount,
-      total: subscriptions.length,
-      cleaned: failedEndpoints.length,
-      results
-    });
+    return new Response(
+      JSON.stringify({ 
+        message: 'Push notifications processed',
+        sent: successCount,
+        total: subscriptions.length,
+        cleaned: failedEndpoints.length,
+        results
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
     
   } catch (err) {
     console.error('[PUSH] FATAL ERROR');
-    return createErrorResponse(err, 500);
+    return new Response(
+      JSON.stringify({ error: 'An error occurred. Please try again.' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });
