@@ -40,6 +40,7 @@ export async function isPlatformAuthenticatorAvailable(): Promise<boolean> {
 
 // Check if user has passkeys stored
 const PASSKEY_EMAIL_KEY = 'ignite_passkey_email';
+const REMEMBER_ME_KEY = 'ignite_remember_me';
 
 export function getStoredPasskeyEmail(): string | null {
   try {
@@ -55,6 +56,26 @@ function setStoredPasskeyEmail(email: string | null) {
       localStorage.setItem(PASSKEY_EMAIL_KEY, email);
     } else {
       localStorage.removeItem(PASSKEY_EMAIL_KEY);
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+export function getRememberMe(): boolean {
+  try {
+    return localStorage.getItem(REMEMBER_ME_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function setRememberMe(value: boolean) {
+  try {
+    if (value) {
+      localStorage.setItem(REMEMBER_ME_KEY, 'true');
+    } else {
+      localStorage.removeItem(REMEMBER_ME_KEY);
     }
   } catch {
     // Ignore storage errors

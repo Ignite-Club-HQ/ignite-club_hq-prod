@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import { Flame, Mail, Lock, Loader2, Eye, EyeOff, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
-import { usePasskey, getStoredPasskeyEmail, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
+import { usePasskey, getStoredPasskeyEmail, isPlatformAuthenticatorAvailable, getRememberMe, setRememberMe } from "@/hooks/usePasskey";
 
 import { z } from "zod";
 
@@ -28,6 +29,8 @@ export default function AuthPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
+  const [rememberMe, setRememberMeState] = useState(getRememberMe());
+  const autoPromptTriggered = useRef(false);
   const { toast } = useToast();
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
   const { isAvailable, isRegistered, loading: passkeyLoading, authenticateWithPasskey } = usePasskey();
@@ -38,9 +41,24 @@ export default function AuthPage() {
       const available = await isPlatformAuthenticatorAvailable();
       const storedEmail = getStoredPasskeyEmail();
       setBiometricsAvailable(available && !!storedEmail);
+      
+      // Auto-trigger biometric prompt if Remember Me is enabled
+      if (available && storedEmail && getRememberMe() && !autoPromptTriggered.current && !authLoading) {
+        autoPromptTriggered.current = true;
+        // Small delay to ensure UI is ready
+        setTimeout(() => {
+          handleBiometricSignIn();
+        }, 500);
+      }
     };
     checkBiometrics();
-  }, []);
+  }, [authLoading]);
+  
+  // Handle Remember Me checkbox change
+  const handleRememberMeChange = (checked: boolean) => {
+    setRememberMeState(checked);
+    setRememberMe(checked);
+  };
 
 
   if (authLoading) {
@@ -227,6 +245,22 @@ export default function AuthPage() {
                       </button>
                     </div>
                   </div>
+                  {biometricsAvailable && (
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="remember-me" 
+                        checked={rememberMe}
+                        onCheckedChange={handleRememberMeChange}
+                      />
+                      <label
+                        htmlFor="remember-me"
+                        className="text-sm text-muted-foreground cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Remember me (auto-prompt biometrics)
+                      </label>
+                    </div>
+                  )}
+                  
                   <Button 
                     className="w-full" 
                     onClick={() => handleAuth("signin")}
