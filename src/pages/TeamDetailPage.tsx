@@ -50,7 +50,7 @@ const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
-import AddMemberDialog from "@/components/AddMemberDialog";
+import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
 import TeamInviteLinkDialog from "@/components/TeamInviteLinkDialog";
 import TeamPlayerPositionEditor from "@/components/TeamPlayerPositionEditor";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
@@ -725,10 +725,9 @@ export default function TeamDetailPage() {
                     />
                     <div className="flex flex-wrap gap-2">
                       <TeamInviteLinkDialog teamId={id!} teamName={team.name} />
-                      <AddMemberDialog 
-                        type="team" 
-                        entityId={id!} 
-                        entityName={team.name} 
+                      <AddTeamMemberSheet 
+                        teamId={id!} 
+                        teamName={team.name} 
                         clubId={team.club_id}
                       />
                     </div>
