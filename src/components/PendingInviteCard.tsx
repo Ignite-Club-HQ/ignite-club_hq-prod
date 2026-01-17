@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, X, UserCheck, Copy, Send, MoreHorizontal, Trash2, Check } from "lucide-react";
+import { Clock, X, UserCheck, Copy, Send, MoreHorizontal, Trash2, Check, Pencil } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +24,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
@@ -44,6 +53,8 @@ interface PendingInviteCardProps {
   clubId?: string;
 }
 
+type AppRole = "player" | "parent" | "coach" | "team_admin" | "club_admin";
+
 const roleLabels: Record<string, string> = {
   player: "Player",
   parent: "Parent",
@@ -60,11 +71,16 @@ const roleColors: Record<string, string> = {
   club_admin: "bg-purple-500/20 text-purple-600 dark:text-purple-400 border-purple-500/30",
 };
 
+const editableRoles: AppRole[] = ["player", "parent", "coach", "team_admin"];
+
 export default function PendingInviteCard({ invite, teamId, clubId }: PendingInviteCardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [editName, setEditName] = useState(invite.invited_label || "");
+  const [editRole, setEditRole] = useState<AppRole>(invite.role as AppRole);
 
   // Fetch existing invite link for this role
   const { data: inviteLink } = useQuery({
@@ -107,6 +123,27 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("pending_invites")
+        .update({
+          invited_label: editName.trim() || null,
+          role: editRole as any,
+        })
+        .eq("id", invite.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, clubId] });
+      toast({ title: "Pending invite updated" });
+      setShowEditDialog(false);
+    },
+    onError: () => {
+      toast({ title: "Failed to update invite", variant: "destructive" });
+    },
+  });
+
   const handleCopyLink = async () => {
     if (!inviteLink) {
       toast({ 
@@ -125,6 +162,12 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
     } catch {
       toast({ title: "Failed to copy link", variant: "destructive" });
     }
+  };
+
+  const handleOpenEdit = () => {
+    setEditName(invite.invited_label || "");
+    setEditRole(invite.role as AppRole);
+    setShowEditDialog(true);
   };
 
   const displayName = invite.profiles?.display_name || invite.invited_label || "Unknown";
@@ -203,6 +246,10 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleOpenEdit}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit name/role
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleCopyLink} disabled={!inviteLink}>
                   <Copy className="h-4 w-4 mr-2" />
                   Copy invite link
@@ -220,6 +267,58 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Pending Invite</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Name</Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Enter name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {editableRoles.map((role) => (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => setEditRole(role)}
+                    className={`p-2 rounded-lg text-left transition-all border-2 ${
+                      editRole === role
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/50"
+                    }`}
+                  >
+                    <Badge variant="outline" className={`${roleColors[role]} text-xs`}>
+                      {roleLabels[role]}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => updateMutation.mutate()}
+              disabled={updateMutation.isPending}
+            >
+              {updateMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
