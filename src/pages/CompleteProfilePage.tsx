@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { Flame, User, Camera, Loader2, Bell, Download } from "lucide-react";
+import { Flame, User, Camera, Loader2, Bell, Download, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { subscribeToPushNotifications, checkPushSubscription } from "@/lib/pushNotifications";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
+import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
 
 export default function CompleteProfilePage() {
   const { user, profile, loading: authLoading, profileLoading, profileError, refreshProfile } = useAuth();
@@ -24,11 +25,15 @@ export default function CompleteProfilePage() {
   const [pushLoading, setPushLoading] = useState(false);
   const [pushSupported, setPushSupported] = useState(true);
   const [installAndContinue, setInstallAndContinue] = useState(false);
+  const [biometricsEnabled, setBiometricsEnabled] = useState(false);
+  const [biometricsAvailable, setBiometricsAvailable] = useState(false);
+  const [biometricsLoading, setBiometricsLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { canPrompt, isInstalled, installApp } = usePWAInstall();
+  const { registerPasskey } = usePasskey();
 
-  // Check if push notifications are supported
+  // Check if push notifications and biometrics are supported
   useEffect(() => {
     if (typeof window === 'undefined' || 
         !('PushManager' in window) || 
@@ -36,6 +41,11 @@ export default function CompleteProfilePage() {
         !('Notification' in window)) {
       setPushSupported(false);
     }
+    
+    // Check biometrics availability
+    isPlatformAuthenticatorAvailable().then(available => {
+      setBiometricsAvailable(available);
+    });
   }, []);
 
   // Initialize form values once profile is loaded, with pending invite prefill
@@ -172,6 +182,29 @@ export default function CompleteProfilePage() {
         setPushLoading(false);
       }
 
+      // If user opted in for biometrics, register passkey
+      if (biometricsEnabled && biometricsAvailable) {
+        setBiometricsLoading(true);
+        try {
+          const result = await registerPasskey();
+          if (result.success) {
+            toast({
+              title: "Biometrics enabled!",
+              description: "You can now sign in with Face ID / Touch ID.",
+            });
+          } else {
+            console.warn("Passkey registration failed:", result.error);
+            toast({
+              title: "Biometrics setup skipped",
+              description: "You can enable it later in your profile settings.",
+            });
+          }
+        } catch (err) {
+          console.warn("Passkey registration error:", err);
+        }
+        setBiometricsLoading(false);
+      }
+
       toast({
         title: "Profile completed!",
         description: "Welcome to Ignite Club HQ!",
@@ -281,6 +314,24 @@ export default function CompleteProfilePage() {
                 <Switch
                   checked={installAndContinue}
                   onCheckedChange={setInstallAndContinue}
+                />
+              </div>
+            )}
+
+            {/* Biometrics Toggle */}
+            {biometricsAvailable && (
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+                <div className="flex items-center gap-3">
+                  <Fingerprint className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="font-medium text-sm">Enable Biometric Login</p>
+                    <p className="text-xs text-muted-foreground">Sign in with Face ID or Touch ID</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={biometricsEnabled}
+                  onCheckedChange={setBiometricsEnabled}
+                  disabled={biometricsLoading}
                 />
               </div>
             )}
