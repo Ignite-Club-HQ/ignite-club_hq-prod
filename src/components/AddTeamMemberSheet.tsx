@@ -87,7 +87,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
     user => !existingMembers?.includes(user.id)
   );
 
-  // Get or create invite link for the selected role
+  // Create a unique invite token for a pending invite (name-restricted)
+  const createPendingInviteToken = (): string => {
+    return crypto.randomUUID();
+  };
+
+  // Get or create generic invite link for the selected role (used for existing users or when no name restriction)
   const getOrCreateInviteLink = async (role: TeamRole): Promise<string> => {
     // First check for existing invite
     const { data: existingInvite } = await supabase
@@ -159,7 +164,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
     mutationFn: async () => {
       if (!customName.trim()) throw new Error("Please enter a name");
 
-      // Create pending invite record with optional email
+      // Create a unique token for this specific pending invite (name-restricted)
+      const inviteToken = createPendingInviteToken();
+
+      // Create pending invite record with the unique token
       const { error: inviteError } = await supabase.from("pending_invites").insert({
         team_id: teamId,
         club_id: clubId,
@@ -168,11 +176,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
         invited_by_user_id: user!.id,
         invited_label: customName.trim(),
         invited_email: customEmail.trim() || null,
+        invite_token: inviteToken,
       } as any);
       if (inviteError) throw inviteError;
 
-      // Get or create invite link
-      const link = await getOrCreateInviteLink(selectedRole);
+      // Use the pending invite token for name-restricted link
+      const link = `${window.location.origin}/join/p/${inviteToken}`;
       return { link, email: customEmail.trim() };
     },
     onSuccess: async ({ link, email }) => {
