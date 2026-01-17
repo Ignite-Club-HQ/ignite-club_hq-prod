@@ -810,21 +810,6 @@ export default function EditProfilePage() {
               </Button>
             )}
 
-            {/* Simple Database Save Test - for debugging */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleTestDbSave}
-              disabled={testingDbSave}
-              className="w-full border-dashed"
-            >
-              {testingDbSave ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Database className="h-4 w-4 mr-2" />
-              )}
-              Test DB Save (Debug)
-            </Button>
 
 
             {/* Reset Push Button - for troubleshooting */}
