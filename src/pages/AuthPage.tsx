@@ -165,14 +165,8 @@ export default function AuthPage() {
       return;
     }
 
-    // If multiple accounts, show selector
-    if (storedAccounts.length > 1) {
-      setAccountSelectorOpen(true);
-      return;
-    }
-
-    // Single account - authenticate directly
-    await authenticateAccount(storedAccounts[0].email);
+    // Always show account selector so user knows which account they're authenticating
+    setAccountSelectorOpen(true);
   };
 
   const authenticateAccount = async (email: string) => {
