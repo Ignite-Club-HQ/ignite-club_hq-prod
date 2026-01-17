@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Copy, Check, Send, Users, Plus, Trash2 } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Copy, Check, Send, Users, Plus, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -717,11 +717,85 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
           </TabsContent>
 
           <TabsContent value="bulk" className="space-y-4 mt-0">
-            <p className="text-sm text-muted-foreground">
-              Add multiple members at once. Include emails to auto-send unique invite links.
-            </p>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Add multiple members at once. Include emails to auto-send unique invite links.
+              </p>
+              
+              {/* CSV Import */}
+              <div className="flex gap-2">
+                <input
+                  type="file"
+                  accept=".csv"
+                  id="csv-upload"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      const text = event.target?.result as string;
+                      if (!text) return;
+                      
+                      const lines = text.split("\n").filter(line => line.trim());
+                      const parsed: BulkMember[] = [];
+                      
+                      // Skip header row if it looks like a header
+                      const startIndex = lines[0]?.toLowerCase().includes("name") ? 1 : 0;
+                      
+                      for (let i = startIndex; i < lines.length; i++) {
+                        const line = lines[i];
+                        // Handle CSV with commas, accounting for quoted values
+                        const parts = line.match(/(?:^|,)("(?:[^"]*(?:""[^"]*)*)"|[^,]*)/g)
+                          ?.map(s => s.replace(/^,/, "").replace(/^"|"$/g, "").replace(/""/g, '"').trim()) || [];
+                        
+                        const name = parts[0]?.trim();
+                        const email = parts[1]?.trim() || "";
+                        
+                        if (name) {
+                          parsed.push({ id: crypto.randomUUID(), name, email });
+                        }
+                      }
+                      
+                      if (parsed.length > 0) {
+                        setBulkMembers(parsed);
+                        toast({
+                          title: `${parsed.length} member${parsed.length > 1 ? "s" : ""} imported`,
+                          description: "Review and edit before sending invites",
+                        });
+                      } else {
+                        toast({
+                          title: "No members found",
+                          description: "Make sure CSV has Name in column 1, Email in column 2",
+                          variant: "destructive",
+                        });
+                      }
+                    };
+                    reader.readAsText(file);
+                    e.target.value = ""; // Reset input
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => document.getElementById("csv-upload")?.click()}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import CSV
+                </Button>
+                <Button variant="outline" className="flex-1" onClick={addBulkMemberRow}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Row
+                </Button>
+              </div>
+              
+              <p className="text-xs text-muted-foreground">
+                CSV format: Name, Email (one per line)
+              </p>
+            </div>
 
-            <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-[35vh] overflow-y-auto pr-1">
               {bulkMembers.map((member, idx) => (
                 <div key={member.id} className="flex gap-2 items-start">
                   <div className="flex-1 space-y-2">
@@ -749,11 +823,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
                 </div>
               ))}
             </div>
-
-            <Button variant="outline" className="w-full" onClick={addBulkMemberRow}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Another
-            </Button>
 
             <Button
               className="w-full h-12 text-base font-semibold"
