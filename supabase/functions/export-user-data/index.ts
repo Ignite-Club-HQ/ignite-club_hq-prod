@@ -7,6 +7,54 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Rate limiting - stricter for data export (expensive operation)
+const RATE_LIMIT_WINDOW_SECONDS = 3600; // 1 hour window
+const RATE_LIMIT_MAX_REQUESTS = 3; // Only 3 exports per hour
+
+async function checkRateLimit(
+  supabase: any,
+  identifier: string,
+  endpoint: string
+): Promise<{ allowed: boolean; remaining: number; resetAt: Date }> {
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - RATE_LIMIT_WINDOW_SECONDS * 1000);
+
+  const { data: existing } = await supabase
+    .from('rate_limits')
+    .select('*')
+    .eq('identifier', identifier)
+    .eq('endpoint', endpoint)
+    .single();
+
+  if (existing) {
+    const recordWindowStart = new Date(existing.window_start);
+    
+    if (recordWindowStart < windowStart) {
+      await supabase.from('rate_limits').update({
+        request_count: 1,
+        window_start: now.toISOString(),
+        updated_at: now.toISOString()
+      }).eq('id', existing.id);
+      
+      return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1, resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
+    }
+
+    if (existing.request_count >= RATE_LIMIT_MAX_REQUESTS) {
+      return { allowed: false, remaining: 0, resetAt: new Date(recordWindowStart.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
+    }
+
+    await supabase.from('rate_limits').update({
+      request_count: existing.request_count + 1,
+      updated_at: now.toISOString()
+    }).eq('id', existing.id);
+
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - existing.request_count - 1, resetAt: new Date(recordWindowStart.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
+  }
+
+  await supabase.from('rate_limits').insert({ identifier, endpoint, request_count: 1, window_start: now.toISOString() });
+  return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1, resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
+}
+
 // Convert array of objects to CSV string
 function toCSV(data: any[], columns?: string[]): string {
   if (!data || data.length === 0) return "";
@@ -116,6 +164,26 @@ serve(async (req) => {
 
     // Use service role for downloading files from private buckets
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Rate limiting check - limit data exports (expensive operation)
+    const rateLimitResult = await checkRateLimit(supabase, user.id, 'export-user-data');
+    if (!rateLimitResult.allowed) {
+      console.warn(`Rate limit exceeded for user ${user.id} on export-user-data`);
+      return new Response(
+        JSON.stringify({ 
+          error: "Too many export requests. Please try again later.",
+          retryAfter: Math.ceil((rateLimitResult.resetAt.getTime() - Date.now()) / 1000)
+        }),
+        { 
+          status: 429, 
+          headers: { 
+            ...corsHeaders, 
+            "Content-Type": "application/json",
+            "Retry-After": String(Math.ceil((rateLimitResult.resetAt.getTime() - Date.now()) / 1000))
+          } 
+        }
+      );
+    }
 
     console.log(`Exporting data for user: ${user.id}`);
 

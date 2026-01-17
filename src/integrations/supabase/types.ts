@@ -1622,7 +1622,9 @@ export type Database = {
           club_id: string | null
           created_at: string
           id: string
+          invite_token: string | null
           invited_by_user_id: string
+          invited_email: string | null
           invited_label: string | null
           invited_user_id: string
           role: Database["public"]["Enums"]["app_role"]
@@ -1634,7 +1636,9 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           id?: string
+          invite_token?: string | null
           invited_by_user_id: string
+          invited_email?: string | null
           invited_label?: string | null
           invited_user_id: string
           role: Database["public"]["Enums"]["app_role"]
@@ -1646,7 +1650,9 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           id?: string
+          invite_token?: string | null
           invited_by_user_id?: string
+          invited_email?: string | null
           invited_label?: string | null
           invited_user_id?: string
           role?: Database["public"]["Enums"]["app_role"]
@@ -2123,6 +2129,36 @@ export type Database = {
           platform?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      rate_limits: {
+        Row: {
+          created_at: string
+          endpoint: string
+          id: string
+          identifier: string
+          request_count: number
+          updated_at: string
+          window_start: string
+        }
+        Insert: {
+          created_at?: string
+          endpoint: string
+          id?: string
+          identifier: string
+          request_count?: number
+          updated_at?: string
+          window_start?: string
+        }
+        Update: {
+          created_at?: string
+          endpoint?: string
+          id?: string
+          identifier?: string
+          request_count?: number
+          updated_at?: string
+          window_start?: string
         }
         Relationships: []
       }
@@ -3083,6 +3119,11 @@ export type Database = {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
       }
+      check_password_reset_rate_limit: {
+        Args: { p_email: string }
+        Returns: boolean
+      }
+      cleanup_rate_limits: { Args: never; Returns: undefined }
       decrypt_sensitive_data: {
         Args: { encrypted_data: string }
         Returns: string
@@ -3120,6 +3161,21 @@ export type Database = {
         }[]
       }
       get_club_team_count: { Args: { _club_id: string }; Returns: number }
+      get_pending_invite_by_token: {
+        Args: { _token: string }
+        Returns: {
+          club_id: string
+          club_name: string
+          id: string
+          invited_email: string
+          invited_label: string
+          role: string
+          status: string
+          team_id: string
+          team_logo_url: string
+          team_name: string
+        }[]
+      }
       get_team_invite_by_token: {
         Args: { _token: string }
         Returns: {
@@ -3198,6 +3254,8 @@ export type Database = {
         }
         Returns: undefined
       }
+      require_app_admin: { Args: never; Returns: boolean }
+      require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
       shares_team_or_club_with: {
         Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean

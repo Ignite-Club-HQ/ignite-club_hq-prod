@@ -50,7 +50,7 @@ const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
-import AddMemberDialog from "@/components/AddMemberDialog";
+import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
 import TeamInviteLinkDialog from "@/components/TeamInviteLinkDialog";
 import TeamPlayerPositionEditor from "@/components/TeamPlayerPositionEditor";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
@@ -60,7 +60,7 @@ import { findNearbyGameEvent } from "@/hooks/useNearbyGameEvent";
 import MemberSubscriptionPaymentsManager from "@/components/MemberSubscriptionPaymentsManager";
 import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import { TeamSponsorSelector } from "@/components/TeamSponsorSelector";
-import PendingInviteCard from "@/components/PendingInviteCard";
+import PendingInvitesList from "@/components/PendingInvitesList";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -725,10 +725,9 @@ export default function TeamDetailPage() {
                     />
                     <div className="flex flex-wrap gap-2">
                       <TeamInviteLinkDialog teamId={id!} teamName={team.name} />
-                      <AddMemberDialog 
-                        type="team" 
-                        entityId={id!} 
-                        entityName={team.name} 
+                      <AddTeamMemberSheet 
+                        teamId={id!} 
+                        teamName={team.name} 
                         clubId={team.club_id}
                       />
                     </div>
@@ -740,15 +739,10 @@ export default function TeamDetailPage() {
                   <div className="space-y-2">
                     {/* Pending Invites Section */}
                     {pendingInvites.length > 0 && (
-                      <>
-                        {pendingInvites.map((invite) => (
-                          <PendingInviteCard
-                            key={invite.id}
-                            invite={invite}
-                            teamId={id}
-                          />
-                        ))}
-                      </>
+                      <PendingInvitesList
+                        invites={pendingInvites}
+                        teamId={id}
+                      />
                     )}
                     {Object.entries(members).map(([userId, member]) => (
                       <Card key={userId}>

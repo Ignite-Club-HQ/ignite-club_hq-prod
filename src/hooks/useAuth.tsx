@@ -76,13 +76,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 
-  const fetchProfile = useCallback(async (userId: string, retries = 3): Promise<Profile | null> => {
+  const fetchProfile = useCallback(async (userId: string, retries = 5): Promise<Profile | null> => {
     setProfileError(false);
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        // Create a timeout promise to prevent hanging
-        const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((_, reject) => 
-          setTimeout(() => reject({ data: null, error: { message: 'Request timeout' } }), 8000)
+        // Create a timeout promise to prevent hanging - increased to 15s for slow connections
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), 15000)
         );
         
         const fetchPromise = supabase
@@ -96,14 +96,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (error) {
           console.error(`Error fetching profile (attempt ${attempt}/${retries}):`, error);
-          // Retry on timeout, 503, or connection errors
-          const errorCode = 'code' in error ? error.code : null;
-          const isRetryable = errorCode === 'PGRST002' || 
-            error.message?.includes('503') || 
-            error.message?.includes('timeout') ||
-            error.message?.includes('Failed to fetch');
-          if (attempt < retries && isRetryable) {
-            await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+          // Retry on any error - be more aggressive
+          if (attempt < retries) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
             continue;
           }
           setProfileError(true);
@@ -116,11 +111,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfileError(false);
           return data as Profile;
         }
+        
+        // No profile found - this is okay for new users, not an error
+        console.log('No profile found for user:', userId);
         return null;
       } catch (err: any) {
         console.error(`Exception fetching profile (attempt ${attempt}/${retries}):`, err);
         if (attempt < retries) {
-          await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+          // Exponential backoff with jitter
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000) + Math.random() * 500;
+          await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
         setProfileError(true);
@@ -159,39 +159,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
     let profileFetched = false;
     
+    const handleSession = async (currentSession: Session | null, isInitial = false) => {
+      if (!mounted || !currentSession?.user) return;
+      if (profileFetched && !isInitial) return;
+      
+      profileFetched = true;
+      const userId = currentSession.user.id;
+      
+      // Small delay to ensure session is fully propagated to Supabase
+      // This helps with RLS policies that check auth.uid()
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // If we have a cached profile, use it immediately - don't show loading
+      const cached = getCachedProfile();
+      if (cached && cached.id === userId) {
+        setProfile(cached);
+        setProfileLoading(false);
+        setLoading(false);
+        // Refresh profile in background
+        fetchProfile(userId).catch(console.error);
+      } else {
+        // No cache - fetch profile
+        setProfileLoading(true);
+        fetchProfile(userId)
+          .finally(() => {
+            if (mounted) {
+              setProfileLoading(false);
+              setLoading(false);
+            }
+          });
+      }
+      // Background prefetch - fire and forget
+      setTimeout(() => {
+        prefetchUserData(queryClient, userId).catch(console.error);
+        fetchUnreadCount(userId).catch(console.error);
+      }, 100);
+    };
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
         if (!mounted) return;
         
+        console.log('Auth state change:', event, currentSession?.user?.id);
+        
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
-        if (event === 'SIGNED_IN' && currentSession?.user && !profileFetched) {
-          profileFetched = true;
-          // If we have a cached profile, use it immediately - don't show loading
-          const cached = getCachedProfile();
-          if (cached && cached.id === currentSession.user.id) {
-            setProfile(cached);
-            setProfileLoading(false);
-            setLoading(false);
-            // Refresh profile in background
-            fetchProfile(currentSession.user.id).catch(console.error);
-          } else {
-            // No cache - fetch profile but don't block too long
-            setProfileLoading(true);
-            fetchProfile(currentSession.user.id)
-              .finally(() => {
-                if (mounted) {
-                  setProfileLoading(false);
-                  setLoading(false);
-                }
-              });
-          }
-          // Background prefetch - fire and forget
-          setTimeout(() => {
-            prefetchUserData(queryClient, currentSession.user.id).catch(console.error);
-            fetchUnreadCount(currentSession.user.id).catch(console.error);
-          }, 100);
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && currentSession?.user) {
+          handleSession(currentSession, event === 'INITIAL_SESSION');
         } else if (event === 'SIGNED_OUT') {
           profileFetched = false;
           setProfile(null);
@@ -206,46 +221,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Check for existing session (initial load) with timeout
     // PWA launches can hang on getSession if network is slow/offline
+    // Increased timeout for slower networks (e.g., mobile on 3G)
     const sessionTimeout = setTimeout(() => {
       if (mounted && loading) {
         console.warn('Session check timed out, proceeding with cached state');
         setLoading(false);
         setProfileLoading(false);
       }
-    }, 5000); // 5 second timeout
+    }, 10000); // 10 second timeout for slow connections
 
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+    supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
       clearTimeout(sessionTimeout);
       if (!mounted) return;
+      
+      console.log('Initial session check:', existingSession?.user?.id);
       
       setSession(existingSession);
       setUser(existingSession?.user ?? null);
       
       if (existingSession?.user && !profileFetched) {
-        profileFetched = true;
-        // If we have a cached profile for this user, use it immediately
-        const cached = getCachedProfile();
-        if (cached && cached.id === existingSession.user.id) {
-          setProfile(cached);
-          setProfileLoading(false);
-          setLoading(false);
-          // Refresh profile in background
-          fetchProfile(existingSession.user.id).catch(console.error);
-        } else {
-          // No cache - fetch profile
-          fetchProfile(existingSession.user.id)
-            .finally(() => {
-              if (mounted) {
-                setProfileLoading(false);
-                setLoading(false);
-              }
-            });
-        }
-        // Background prefetch - fire and forget
-        setTimeout(() => {
-          prefetchUserData(queryClient, existingSession.user.id).catch(console.error);
-          fetchUnreadCount(existingSession.user.id).catch(console.error);
-        }, 100);
+        await handleSession(existingSession, true);
       } else {
         // No session - done loading
         if (mounted) {

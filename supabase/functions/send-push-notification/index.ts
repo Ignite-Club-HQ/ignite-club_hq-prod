@@ -21,7 +21,7 @@ function base64UrlToUint8Array(base64Url: string): Uint8Array {
     }
     return outputArray;
   } catch (e) {
-    console.error('Base64 decode error for input:', base64Url.substring(0, 20) + '...');
+    console.error('Base64 decode error');
     throw e;
   }
 }
@@ -86,11 +86,11 @@ async function generateVapidJwt(audience: string, subject: string, privateKeyBas
     const publicKeyBytes = base64UrlToUint8Array(publicKeyBase64);
     
     if (publicKeyBytes.length !== 65) {
-      throw new Error(`Invalid public key length: ${publicKeyBytes.length}, expected 65`);
+      throw new Error('Invalid key length');
     }
     
     if (privateKeyBytes.length !== 32) {
-      throw new Error(`Invalid private key length: ${privateKeyBytes.length}, expected 32`);
+      throw new Error('Invalid key length');
     }
     
     const x = publicKeyBytes.slice(1, 33);
@@ -123,7 +123,7 @@ async function generateVapidJwt(audience: string, subject: string, privateKeyBas
 
     return `${unsignedToken}.${signatureB64}`;
   } catch (error) {
-    console.error('Error signing VAPID JWT:', error);
+    console.error('Error signing VAPID JWT');
     throw error;
   }
 }
@@ -242,10 +242,10 @@ async function logDeliveryStatus(
       });
     
     if (error) {
-      console.error('Failed to log push delivery status:', error);
+      console.error('Failed to log push delivery status');
     }
   } catch (err) {
-    console.error('Error logging push delivery:', err);
+    console.error('Error logging push delivery');
   }
 }
 
@@ -257,8 +257,7 @@ serve(async (req) => {
   try {
     const { userId, title, body, url, notificationId, tag } = await req.json();
     
-    console.log(`[PUSH] Starting push notification for user ${userId}, notification ${notificationId}`);
-    console.log(`[PUSH] Content: ${title} - ${body}`);
+    console.log(`[PUSH] Starting push notification for user ${userId}`);
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -266,18 +265,10 @@ serve(async (req) => {
     const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
     const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:support@igniteclubhq.com';
     
-    console.log('[PUSH] VAPID config check:', {
-      hasPublicKey: !!vapidPublicKey,
-      publicKeyLength: vapidPublicKey?.length,
-      hasPrivateKey: !!vapidPrivateKey,
-      privateKeyLength: vapidPrivateKey?.length,
-      subject: vapidSubject
-    });
-    
     if (!vapidPublicKey || !vapidPrivateKey) {
       console.error('[PUSH] VAPID keys not configured');
       return new Response(
-        JSON.stringify({ error: 'VAPID keys not configured', details: { hasPublic: !!vapidPublicKey, hasPrivate: !!vapidPrivateKey } }),
+        JSON.stringify({ error: 'Push notification configuration error' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -290,9 +281,9 @@ serve(async (req) => {
       .eq('user_id', userId);
     
     if (subError) {
-      console.error('[PUSH] Error fetching subscriptions:', subError);
+      console.error('[PUSH] Error fetching subscriptions');
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch subscriptions' }),
+        JSON.stringify({ error: 'An error occurred. Please try again.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -305,7 +296,7 @@ serve(async (req) => {
       );
     }
     
-    console.log(`[PUSH] Found ${subscriptions.length} subscription(s) for user ${userId}`);
+    console.log(`[PUSH] Found ${subscriptions.length} subscription(s)`);
     
     const payload = JSON.stringify({
       title: title || 'Ignite Club HQ',
@@ -317,7 +308,7 @@ serve(async (req) => {
     
     let successCount = 0;
     const failedEndpoints: string[] = [];
-    const results: Array<{endpoint: string; status: string; statusCode?: number; error?: string}> = [];
+    const results: Array<{endpoint: string; status: string; statusCode?: number}> = [];
     
     for (const sub of subscriptions) {
       const endpointShort = sub.endpoint.substring(0, 60) + '...';
@@ -325,13 +316,11 @@ serve(async (req) => {
       try {
         // Skip invalid subscriptions (missing keys)
         if (!sub.p256dh || !sub.auth) {
-          console.log(`[PUSH] Skipping invalid subscription: ${endpointShort}`);
-          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'skipped', null, 'Invalid subscription (no p256dh/auth)');
-          results.push({ endpoint: endpointShort, status: 'skipped', error: 'Invalid subscription' });
+          console.log(`[PUSH] Skipping invalid subscription`);
+          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'skipped', null, 'Invalid subscription');
+          results.push({ endpoint: endpointShort, status: 'skipped' });
           continue;
         }
-
-        console.log(`[PUSH] Encrypting payload for web push: ${endpointShort}`);
 
         const { ciphertext, salt, localPublicKey } = await encryptPayload(
           payload,
@@ -351,8 +340,6 @@ serve(async (req) => {
           vapidPublicKey
         );
 
-        console.log(`[PUSH] Sending web push to ${audience}`);
-
         const response = await fetch(sub.endpoint, {
           method: 'POST',
           headers: {
@@ -366,30 +353,26 @@ serve(async (req) => {
           body: encryptedBody
         });
         
-        const responseText = await response.text();
-        console.log(`[PUSH] Response: ${response.status} - ${responseText.substring(0, 200)}`);
-        
         if (response.status === 201 || response.status === 200) {
           successCount++;
-          console.log(`[PUSH] SUCCESS for ${endpointShort}`);
+          console.log(`[PUSH] SUCCESS`);
           await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'sent', response.status, null);
           results.push({ endpoint: endpointShort, status: 'sent', statusCode: response.status });
         } else if (response.status === 410 || response.status === 404) {
-          console.log(`[PUSH] Subscription EXPIRED: ${endpointShort}`);
+          console.log(`[PUSH] Subscription EXPIRED`);
           failedEndpoints.push(sub.id);
-          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'expired', response.status, responseText);
-          results.push({ endpoint: endpointShort, status: 'expired', statusCode: response.status, error: responseText });
+          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'expired', response.status, 'Subscription expired');
+          results.push({ endpoint: endpointShort, status: 'expired', statusCode: response.status });
         } else {
-          console.error(`[PUSH] FAILED with status ${response.status}: ${responseText}`);
-          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'failed', response.status, responseText);
-          results.push({ endpoint: endpointShort, status: 'failed', statusCode: response.status, error: responseText });
+          console.error(`[PUSH] FAILED with status ${response.status}`);
+          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'failed', response.status, 'Push failed');
+          results.push({ endpoint: endpointShort, status: 'failed', statusCode: response.status });
         }
         
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        console.error(`[PUSH] ERROR for ${endpointShort}: ${errorMessage}`);
-        await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'failed', null, errorMessage);
-        results.push({ endpoint: endpointShort, status: 'failed', error: errorMessage });
+        console.error(`[PUSH] ERROR`);
+        await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'failed', null, 'Processing error');
+        results.push({ endpoint: endpointShort, status: 'failed' });
       }
     }
     
@@ -416,10 +399,9 @@ serve(async (req) => {
     );
     
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('[PUSH] FATAL ERROR:', errorMessage);
+    console.error('[PUSH] FATAL ERROR');
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'An error occurred. Please try again.' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

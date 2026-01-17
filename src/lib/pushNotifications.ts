@@ -276,12 +276,23 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
   console.log('[Push] URL:', window.location.href);
 
   // Check for concurrent subscription using sessionStorage-based lock (survives page refresh)
-  if (isSubscriptionLocked()) {
-    console.log('[Push] Subscription lock detected, not proceeding to prevent AbortError');
-    return { success: false, error: 'Push setup already in progress. If this persists, tap Reset Push Notifications.' };
+  const existingLock = getLock();
+  if (existingLock) {
+    const lockAge = Date.now() - existingLock.timestamp;
+    console.log('[Push] Lock exists, age:', lockAge, 'ms');
+    
+    // If lock is older than timeout, clear it
+    if (lockAge > SUBSCRIPTION_LOCK_TIMEOUT) {
+      console.log('[Push] Clearing stale lock');
+      sessionStorage.removeItem(SUBSCRIPTION_LOCK_KEY);
+    } else {
+      console.log('[Push] Subscription lock active, not proceeding to prevent AbortError');
+      return { success: false, error: 'Push setup already in progress. If this persists, tap Reset Push Notifications.' };
+    }
   }
 
   const runId = setSubscriptionLock();
+  console.log('[Push] Lock acquired:', runId);
 
   try {
     // Check if in Lovable preview
@@ -367,29 +378,34 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
       console.log('[Push] Existing subscription:', existingSub ? 'found' : 'none');
       
       if (existingSub) {
-        // Check if VAPID keys match
-        const existingKey = existingSub.options?.applicationServerKey;
-        if (existingKey) {
-          const existingKeyArray = new Uint8Array(existingKey as ArrayBuffer);
-          const keysMatch = existingKeyArray.length === applicationServerKey.length &&
-            existingKeyArray.every((v, i) => v === applicationServerKey[i]);
+        // We have an existing browser subscription - ALWAYS try to reuse it
+        // Unsubscribing and resubscribing often causes AbortError on mobile
+        console.log('[Push] Existing subscription found - will reuse it');
+        
+        // Check if this subscription is already in the database for this user
+        try {
+          const { data: existingDbSub } = await supabase
+            .from('push_subscriptions')
+            .select('endpoint')
+            .eq('user_id', userId)
+            .eq('endpoint', existingSub.endpoint)
+            .maybeSingle();
           
-          if (keysMatch) {
-            console.log('[Push] Reusing existing subscription (keys match)');
-            subscription = existingSub;
-          } else {
-            console.log('[Push] Keys mismatch - please use Reset Push Notifications to clear state');
-            // Just unsubscribe, don't unregister/re-register SW here - that's for Reset only
-            try {
-              await existingSub.unsubscribe();
-              console.log('[Push] Old subscription unsubscribed due to key mismatch');
-            } catch (e) {
-              console.warn('[Push] Error unsubscribing old subscription:', e);
-            }
+          if (existingDbSub) {
+            // Already fully set up - no need to do anything!
+            console.log('[Push] Subscription already exists in database - returning success immediately');
+            clearSubscriptionLock(runId);
+            return { success: true };
           }
-        } else {
-          // No key to compare, try reusing
-          console.log('[Push] Reusing existing subscription (no key to compare)');
+          
+          // Browser subscription exists but NOT in database
+          // Reuse the existing subscription and save it to the database
+          console.log('[Push] Browser subscription exists but not in DB - adding to database');
+          subscription = existingSub;
+        } catch (dbError) {
+          console.warn('[Push] Error checking DB for existing subscription:', dbError);
+          // DB check failed - try to reuse the browser subscription anyway
+          console.log('[Push] Reusing existing browser subscription (DB check failed)');
           subscription = existingSub;
         }
       }
@@ -526,9 +542,10 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
 
     if (insertError) {
       console.error('[Push] Database insert error:', insertError);
-      return { success: false, error: 'Failed to save subscription' };
+      return { success: false, error: 'Failed to save subscription: ' + insertError.message };
     }
 
+    console.log('[Push] === Subscription saved to database ===');
     console.log('[Push] === Subscription complete ===');
     return { success: true };
 
@@ -574,9 +591,10 @@ export async function unsubscribeFromPushNotifications(userId: string): Promise<
 }
 
 /**
- * Check if user has an active push subscription
+ * Check if user has an active push subscription (checks browser subscription)
+ * @param userId - Optional user ID to also verify subscription exists in database
  */
-export async function checkPushSubscription(): Promise<boolean> {
+export async function checkPushSubscription(userId?: string): Promise<boolean> {
   try {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       return false;
@@ -584,7 +602,30 @@ export async function checkPushSubscription(): Promise<boolean> {
     
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
-    return subscription !== null;
+    
+    if (!subscription) {
+      return false;
+    }
+    
+    // If userId provided, also verify it exists in database
+    if (userId) {
+      try {
+        const { data } = await supabase
+          .from('push_subscriptions')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('endpoint', subscription.endpoint)
+          .maybeSingle();
+        
+        return !!data;
+      } catch (e) {
+        // If DB check fails, fall back to browser-only check
+        console.warn('[Push] DB check failed, using browser subscription only:', e);
+        return true;
+      }
+    }
+    
+    return true;
   } catch (error) {
     console.error('[Push] Check subscription error:', error);
     return false;

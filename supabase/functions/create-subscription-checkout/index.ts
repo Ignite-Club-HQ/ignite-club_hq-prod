@@ -7,6 +7,90 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Rate limiting configuration
+const RATE_LIMIT_WINDOW_SECONDS = 60; // 1 minute window
+const RATE_LIMIT_MAX_REQUESTS = 10; // Max 10 requests per window
+
+async function checkRateLimit(
+  supabase: any,
+  identifier: string,
+  endpoint: string
+): Promise<{ allowed: boolean; remaining: number; resetAt: Date }> {
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - RATE_LIMIT_WINDOW_SECONDS * 1000);
+
+  // Try to get or create rate limit record
+  const { data: existing } = await supabase
+    .from('rate_limits')
+    .select('*')
+    .eq('identifier', identifier)
+    .eq('endpoint', endpoint)
+    .single();
+
+  if (existing) {
+    const recordWindowStart = new Date(existing.window_start);
+    
+    // If window has expired, reset the counter
+    if (recordWindowStart < windowStart) {
+      await supabase
+        .from('rate_limits')
+        .update({
+          request_count: 1,
+          window_start: now.toISOString(),
+          updated_at: now.toISOString()
+        })
+        .eq('id', existing.id);
+      
+      return {
+        allowed: true,
+        remaining: RATE_LIMIT_MAX_REQUESTS - 1,
+        resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000)
+      };
+    }
+
+    // Check if rate limit exceeded
+    if (existing.request_count >= RATE_LIMIT_MAX_REQUESTS) {
+      const resetAt = new Date(recordWindowStart.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000);
+      return {
+        allowed: false,
+        remaining: 0,
+        resetAt
+      };
+    }
+
+    // Increment counter
+    await supabase
+      .from('rate_limits')
+      .update({
+        request_count: existing.request_count + 1,
+        updated_at: now.toISOString()
+      })
+      .eq('id', existing.id);
+
+    return {
+      allowed: true,
+      remaining: RATE_LIMIT_MAX_REQUESTS - existing.request_count - 1,
+      resetAt: new Date(recordWindowStart.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000)
+    };
+  }
+
+  // Create new rate limit record
+  await supabase
+    .from('rate_limits')
+    .insert({
+      identifier,
+      endpoint,
+      request_count: 1,
+      window_start: now.toISOString()
+    });
+
+  return {
+    allowed: true,
+    remaining: RATE_LIMIT_MAX_REQUESTS - 1,
+    resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000)
+  };
+}
+
 // Price IDs would be configured in Stripe dashboard
 // These are placeholder product configurations
 const TEAM_PRICING = {
@@ -72,6 +156,32 @@ serve(async (req) => {
       );
     }
 
+    // Use service role client for rate limiting and authorization checks
+    const supabaseService = createClient(
+      supabaseUrl,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Rate limiting check
+    const rateLimitResult = await checkRateLimit(supabaseService, user.id, 'create-subscription-checkout');
+    if (!rateLimitResult.allowed) {
+      console.warn(`Rate limit exceeded for user ${user.id} on create-subscription-checkout`);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Too many requests. Please try again later.',
+          retryAfter: Math.ceil((rateLimitResult.resetAt.getTime() - Date.now()) / 1000)
+        }),
+        { 
+          status: 429, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'Retry-After': String(Math.ceil((rateLimitResult.resetAt.getTime() - Date.now()) / 1000))
+          } 
+        }
+      );
+    }
+
     // Get the entity details and Stripe config
     let entityName: string;
     let clubId: string;
@@ -92,6 +202,40 @@ serve(async (req) => {
         );
       }
 
+      // SECURITY: Verify user has admin/coach role for this team
+      const { data: userRole, error: roleError } = await supabaseService
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('team_id', entityId)
+        .in('role', ['team_admin', 'coach', 'club_admin'])
+        .maybeSingle();
+
+      // Also check if user is club admin for the parent club
+      const { data: clubAdminRole } = await supabaseService
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('club_id', team.club_id)
+        .eq('role', 'club_admin')
+        .maybeSingle();
+
+      // Also check for app_admin
+      const { data: appAdminRole } = await supabaseService
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'app_admin')
+        .maybeSingle();
+
+      if (!userRole && !clubAdminRole && !appAdminRole) {
+        console.error('User not authorized for team subscription:', { userId: user.id, teamId: entityId });
+        return new Response(
+          JSON.stringify({ error: 'You are not authorized to manage subscriptions for this team' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       entityName = team.name;
       clubId = team.club_id;
     } else {
@@ -109,16 +253,36 @@ serve(async (req) => {
         );
       }
 
+      // SECURITY: Verify user is club admin for this club
+      const { data: clubAdminRole, error: roleError } = await supabaseService
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('club_id', entityId)
+        .eq('role', 'club_admin')
+        .maybeSingle();
+
+      // Also check for app_admin
+      const { data: appAdminRole } = await supabaseService
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'app_admin')
+        .maybeSingle();
+
+      if (!clubAdminRole && !appAdminRole) {
+        console.error('User not authorized for club subscription:', { userId: user.id, clubId: entityId });
+        return new Response(
+          JSON.stringify({ error: 'You are not authorized to manage subscriptions for this club' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       entityName = club.name;
       clubId = club.id;
     }
 
     // Get club's Stripe config using service role to read the secret key
-    const supabaseService = createClient(
-      supabaseUrl,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
     const { data: stripeConfig } = await supabaseService
       .from('club_stripe_configs')
       .select('stripe_secret_key, is_enabled')
@@ -247,10 +411,10 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error('Error creating subscription checkout:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // Sanitize error message - don't expose internal details
     return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: 'Payment processing failed. Please try again.' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-Content-Type-Options': 'nosniff' } }
     );
   }
 });

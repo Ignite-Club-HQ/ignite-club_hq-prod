@@ -2,9 +2,11 @@ import { useState, lazy, Suspense, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import SoccerBall from "@/components/pitch/SoccerBall";
-import { Calendar, MapPin, Users, Clock, Plus, UserPlus, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown } from "lucide-react";
+import { Calendar, MapPin, Users, Clock, Plus, UserPlus, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell } from "lucide-react";
 import { RewardClaimQRDialog } from "@/components/RewardClaimQRDialog";
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
+import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
+import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
 import { AccountRecoveryBanner } from "@/components/AccountRecoveryBanner";
 import { QuickRSVPDialog } from "@/components/QuickRSVPDialog";
 import {
@@ -149,11 +151,17 @@ export default function HomePage() {
   const [pitchBoardsExpanded, setPitchBoardsExpanded] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [eventToCancel, setEventToCancel] = useState<Event | null>(null);
   const [quickRsvpEvent, setQuickRsvpEvent] = useState<Event | null>(null);
   const [rewardQROpen, setRewardQROpen] = useState(false);
   const [claimDialogOpen, setClaimDialogOpen] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
   const [selectedUpgradeClub, setSelectedUpgradeClub] = useState<string>("");
+  const [remindDialogOpen, setRemindDialogOpen] = useState(false);
+  const [eventToRemind, setEventToRemind] = useState<Event | null>(null);
+  const [nonRsvpCount, setNonRsvpCount] = useState(0);
+  const [loadingRemindCount, setLoadingRemindCount] = useState(false);
 
   const { data: allEvents, isLoading } = useQuery({
     queryKey: ["upcoming-events", user?.id],
@@ -403,15 +411,107 @@ export default function HomePage() {
   };
 
   const cancelEventMutation = useMutation({
-    mutationFn: async (eventId: string) => {
-      const { error } = await supabase
-        .from("events")
-        .update({ is_cancelled: true })
-        .eq("id", eventId);
-      if (error) throw error;
+    mutationFn: async ({ cancelType, customMessage, sendPushNotification }: { 
+      cancelType: 'single' | 'series'; 
+      customMessage?: string; 
+      sendPushNotification?: boolean 
+    }) => {
+      if (!eventToCancel) return;
+      
+      if (cancelType === 'series' && eventToCancel.parent_event_id) {
+        // Cancel all events in the series
+        await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", eventToCancel.parent_event_id);
+        await supabase.from("events").update({ is_cancelled: true }).eq("id", eventToCancel.parent_event_id);
+      } else if (cancelType === 'series' && eventToCancel.is_recurring) {
+        // This is the parent - cancel all children and this event
+        await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", eventToCancel.id);
+        await supabase.from("events").update({ is_cancelled: true }).eq("id", eventToCancel.id);
+      } else {
+        // Just cancel this single event
+        const { error } = await supabase
+          .from("events")
+          .update({ is_cancelled: true })
+          .eq("id", eventToCancel.id);
+        if (error) throw error;
+      }
+      
+      // TODO: Handle customMessage and sendPushNotification if needed
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
+      setCancelDialogOpen(false);
+      setEventToCancel(null);
+    },
+  });
+
+  const remindMutation = useMutation({
+    mutationFn: async () => {
+      if (!eventToRemind) return;
+      
+      // Get all RSVPs for this event
+      const { data: existingRsvps } = await supabase
+        .from("rsvps")
+        .select("user_id")
+        .eq("event_id", eventToRemind.id);
+      
+      const rsvpUserIds = existingRsvps?.map(r => r.user_id) || [];
+      
+      // Get all members who should RSVP (team or club members)
+      let memberQuery = supabase.from("user_roles").select("user_id");
+      if (eventToRemind.team_id) {
+        memberQuery = memberQuery.eq("team_id", eventToRemind.team_id);
+      } else {
+        memberQuery = memberQuery.eq("club_id", eventToRemind.club_id);
+      }
+      
+      const { data: allMembers } = await memberQuery;
+      const allMemberIds = [...new Set(allMembers?.map(m => m.user_id) || [])];
+      
+      // Find members who haven't RSVPed
+      const nonRsvpMembers = allMemberIds.filter(memberId => !rsvpUserIds.includes(memberId));
+      
+      if (nonRsvpMembers.length === 0) {
+        throw new Error("Everyone has already RSVPed!");
+      }
+      
+      // Check for existing notifications to avoid duplicates
+      const { data: existingNotifications } = await supabase
+        .from("notifications")
+        .select("user_id")
+        .eq("type", "event_reminder")
+        .eq("related_id", eventToRemind.id)
+        .in("user_id", nonRsvpMembers);
+      
+      const existingNotificationUserIds = existingNotifications?.map(n => n.user_id) || [];
+      const membersToNotify = nonRsvpMembers.filter(memberId => !existingNotificationUserIds.includes(memberId));
+      
+      if (membersToNotify.length === 0) {
+        throw new Error("All members have already been reminded!");
+      }
+      
+      // Create notifications for members who haven't been reminded
+      const notifications = membersToNotify.map(userId => ({
+        user_id: userId,
+        type: "event_reminder",
+        message: `Reminder: Please RSVP for "${eventToRemind.title}"`,
+        related_id: eventToRemind.id,
+      }));
+      
+      const { error } = await supabase.from("notifications").insert(notifications);
+      if (error) throw error;
+      
+      return membersToNotify.length;
+    },
+    onSuccess: (count) => {
+      toast({
+        title: "Reminders sent!",
+        description: `Sent to ${count} member${count === 1 ? '' : 's'}`,
+      });
+      setRemindDialogOpen(false);
+      setEventToRemind(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to send reminders", variant: "destructive" });
     },
   });
 
@@ -1479,18 +1579,62 @@ export default function HomePage() {
                             </Button>
                           </Link>
                           {!event.is_cancelled && (
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 text-warning"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                cancelEventMutation.mutate(event.id);
-                              }}
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </Button>
+                            <>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-primary"
+                                disabled={loadingRemindCount}
+                                onClick={async (e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setLoadingRemindCount(true);
+                                  
+                                  // Fetch count of non-RSVP members first
+                                  const { data: rsvps } = await supabase
+                                    .from("rsvps")
+                                    .select("user_id")
+                                    .eq("event_id", event.id);
+                                  
+                                  const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
+                                  
+                                  let memberQuery = supabase.from("user_roles").select("user_id");
+                                  if (event.team_id) {
+                                    memberQuery = memberQuery.eq("team_id", event.team_id);
+                                  } else {
+                                    memberQuery = memberQuery.eq("club_id", event.club_id);
+                                  }
+                                  
+                                  const { data: members } = await memberQuery;
+                                  const allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
+                                  const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
+                                  
+                                  setNonRsvpCount(count);
+                                  setEventToRemind(event);
+                                  setRemindDialogOpen(true);
+                                  setLoadingRemindCount(false);
+                                }}
+                              >
+                                {loadingRemindCount ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Bell className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-warning"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setEventToCancel(event);
+                                  setCancelDialogOpen(true);
+                                }}
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            </>
                           )}
                           <Button 
                             variant="ghost" 
@@ -1617,7 +1761,82 @@ export default function HomePage() {
         </AlertDialog>
       )}
 
-      {/* Quick RSVP Dialog */}
+      {/* Cancel Event Dialog */}
+      {eventToCancel && (eventToCancel.is_recurring || eventToCancel.parent_event_id) ? (
+        <RecurringCancelEventDialog
+          open={cancelDialogOpen}
+          onOpenChange={(open) => {
+            setCancelDialogOpen(open);
+            if (!open) setEventToCancel(null);
+          }}
+          eventTitle={eventToCancel?.title || ""}
+          teamId={eventToCancel?.team_id}
+          clubId={eventToCancel?.club_id}
+          onSingleAction={(customMessage, sendPushNotification) => 
+            cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
+          }
+          onSeriesAction={(customMessage, sendPushNotification) => 
+            cancelEventMutation.mutate({ cancelType: 'series', customMessage, sendPushNotification })
+          }
+          isPending={cancelEventMutation.isPending}
+        />
+      ) : eventToCancel && (
+        <CancelEventConfirmDialog
+          open={cancelDialogOpen}
+          onOpenChange={(open) => {
+            setCancelDialogOpen(open);
+            if (!open) setEventToCancel(null);
+          }}
+          eventId={eventToCancel?.id || ""}
+          eventTitle={eventToCancel?.title || ""}
+          teamId={eventToCancel?.team_id}
+          clubId={eventToCancel?.club_id}
+          onConfirm={(customMessage, sendPushNotification) => 
+            cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
+          }
+          isPending={cancelEventMutation.isPending}
+        />
+      )}
+
+      {/* Remind Dialog */}
+      <AlertDialog 
+        open={remindDialogOpen} 
+        onOpenChange={(open) => {
+          setRemindDialogOpen(open);
+          if (!open) setEventToRemind(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send Reminders?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {nonRsvpCount === 0 
+                ? "Everyone has already RSVPed to this event!"
+                : `This will send a reminder notification to ${nonRsvpCount} member${nonRsvpCount === 1 ? '' : 's'} who haven't RSVPed yet.`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            {nonRsvpCount !== 0 && (
+              <AlertDialogAction 
+                onClick={() => remindMutation.mutate()}
+                disabled={remindMutation.isPending}
+              >
+                {remindMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Sending...
+                  </>
+                ) : (
+                  "Send Reminders"
+                )}
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {quickRsvpEvent && (
         <QuickRSVPDialog
           open={!!quickRsvpEvent}

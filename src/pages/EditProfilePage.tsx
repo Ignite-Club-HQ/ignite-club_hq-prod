@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, User, Camera, Bell, MessageSquare, Calendar, Image, Users, Download, Smartphone, LayoutGrid, Send, Settings, FileText, Shield, Trash2, DatabaseBackup, Moon, Sun } from "lucide-react";
+import { ArrowLeft, Loader2, User, Camera, Bell, MessageSquare, Calendar, Image, Users, Download, Smartphone, LayoutGrid, Send, Settings, FileText, Shield, Trash2, DatabaseBackup, Moon, Sun, Database } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +54,7 @@ export default function EditProfilePage() {
   });
   const [prefsLoading, setPrefsLoading] = useState(false);
   const [testingPush, setTestingPush] = useState(false);
+  const [testingDbSave, setTestingDbSave] = useState(false);
   const [resettingPush, setResettingPush] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [exportingData, setExportingData] = useState(false);
@@ -114,13 +115,14 @@ export default function EditProfilePage() {
         });
       }
       
-      const isSubscribed = await checkPushSubscription();
+      // Pass user ID to also verify subscription exists in database
+      const isSubscribed = await checkPushSubscription(user?.id);
       setPushEnabled(isSubscribed);
       setPushLoading(false);
     };
     
     checkPushStatus();
-  }, [toast]);
+  }, [toast, user?.id]);
 
   const handlePushToggle = async (enabled: boolean) => {
     console.log('[EditProfile] Push toggle clicked, enabled:', enabled, 'user:', !!user, 'pushLoading:', pushLoading);
@@ -240,6 +242,210 @@ export default function EditProfilePage() {
       });
     }
     setTestingPush(false);
+  };
+
+  // VAPID public key for subscription
+  const VAPID_PUBLIC_KEY = 'BIFKB_ZTDn9fhiF-crB2xQk1eNaKQQg0svSjsMV-KvM21y8L05Q6ZwZwDsqMR7-_1ZoV2J4RXRx56gjJFEhfWOw';
+  
+  const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  // Full test: Enable push + save to DB - simpler approach
+  const handleTestDbSave = async () => {
+    if (!user) {
+      toast({ title: "Not logged in", variant: "destructive" });
+      return;
+    }
+    
+    setTestingDbSave(true);
+    
+    try {
+      // Step 1: Check push manager support
+      toast({ title: "Step 1: Checking browser support..." });
+      
+      if (!('serviceWorker' in navigator)) {
+        toast({ title: "No Service Worker support!", variant: "destructive" });
+        setTestingDbSave(false);
+        return;
+      }
+      
+      if (!('PushManager' in window)) {
+        toast({ title: "No Push Manager support!", variant: "destructive" });
+        setTestingDbSave(false);
+        return;
+      }
+      toast({ title: "✓ Browser supports push" });
+      
+      // Step 2: Request notification permission
+      toast({ title: "Step 2: Requesting permission..." });
+      const permission = await Notification.requestPermission();
+      toast({ title: `Permission result: ${permission}` });
+      
+      if (permission !== 'granted') {
+        toast({ title: "Permission denied!", variant: "destructive" });
+        setTestingDbSave(false);
+        return;
+      }
+      
+      // Step 3: Get service worker
+      toast({ title: "Step 3: Getting service worker..." });
+      const registration = await navigator.serviceWorker.ready;
+      toast({ title: `SW scope: ${registration.scope}` });
+      
+      // Step 4: Check for existing subscription - USE IT if valid
+      toast({ title: "Step 4: Checking existing subscription..." });
+      let subscription = await registration.pushManager.getSubscription();
+      
+      if (subscription) {
+        toast({ title: "✓ Found existing subscription - using it!" });
+        // Don't unsubscribe - just use the existing one
+      } else {
+        // Step 5: Create new subscription with timeout
+        toast({ title: "Step 5: Creating new subscription..." });
+        
+        const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+        
+        // Create subscription with a timeout wrapper
+        const subscribeWithTimeout = async (timeoutMs: number) => {
+          return new Promise<PushSubscription>((resolve, reject) => {
+            const timer = setTimeout(() => {
+              reject(new Error(`Subscribe timeout after ${timeoutMs}ms`));
+            }, timeoutMs);
+            
+            registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: applicationServerKey.buffer as ArrayBuffer
+            }).then(sub => {
+              clearTimeout(timer);
+              resolve(sub);
+            }).catch(err => {
+              clearTimeout(timer);
+              reject(err);
+            });
+          });
+        };
+        
+        try {
+          toast({ title: "Calling subscribe (30s timeout)..." });
+          subscription = await subscribeWithTimeout(30000);
+          toast({ title: "✓ Subscription created!" });
+        } catch (subErr: any) {
+          console.error('Subscribe error:', subErr);
+          
+          // If AbortError, suggest workaround
+          if (subErr.name === 'AbortError') {
+            toast({ 
+              title: "FCM Service Error", 
+              description: "Your browser's push service is unavailable. Try: 1) Close all browser tabs 2) Clear site data 3) Restart browser",
+              variant: "destructive",
+              duration: 60000
+            });
+          } else {
+            toast({ 
+              title: `ERROR: ${subErr.name}`, 
+              description: `${subErr.message}`,
+              variant: "destructive",
+              duration: 60000
+            });
+          }
+          setTestingDbSave(false);
+          return;
+        }
+      }
+      
+      if (!subscription) {
+        toast({ title: "No subscription after subscribe!", variant: "destructive" });
+        setTestingDbSave(false);
+        return;
+      }
+      
+      // Step 6: Extract subscription data
+      toast({ title: "Step 4: Extracting keys..." });
+      const subJson = subscription.toJSON();
+      const p256dh = subJson.keys?.p256dh;
+      const auth = subJson.keys?.auth;
+      
+      if (!p256dh || !auth) {
+        toast({ title: "Missing encryption keys!", variant: "destructive" });
+        setTestingDbSave(false);
+        return;
+      }
+      toast({ title: "✓ Keys extracted", description: `p256dh: ${p256dh.slice(0,20)}...` });
+      
+      // Step 5: Save to database
+      toast({ title: "Step 5: Saving to database..." });
+      
+      const { data, error } = await supabase
+        .from('push_subscriptions')
+        .upsert({
+          user_id: user.id,
+          endpoint: subscription.endpoint,
+          p256dh: p256dh,
+          auth: auth,
+          platform: /android/i.test(navigator.userAgent) ? 'android' : 
+                    /iphone|ipad/i.test(navigator.userAgent) ? 'ios' : 'web'
+        }, { 
+          onConflict: 'user_id,endpoint',
+          ignoreDuplicates: false 
+        })
+        .select();
+      
+      if (error) {
+        console.error('[TestDbSave] Database error:', error);
+        toast({ 
+          title: "Database save FAILED!", 
+          description: `${error.code}: ${error.message}`,
+          variant: "destructive",
+          duration: 30000
+        });
+        setTestingDbSave(false);
+        return;
+      }
+      console.log('[TestDbSave] Database save success:', data);
+      toast({ title: "✓ Saved to database!" });
+      
+      // Step 6: Verify it's in the database
+      toast({ title: "Step 6: Verifying..." });
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('push_subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('endpoint', subscription.endpoint)
+        .maybeSingle();
+      
+      if (verifyError) {
+        toast({ title: "Verify query failed", description: verifyError.message, variant: "destructive" });
+      } else if (verifyData) {
+        toast({ 
+          title: "✅ ALL DONE! Verified in DB!", 
+          description: `ID: ${verifyData.id}`,
+          duration: 15000
+        });
+        // Update local state
+        setPushEnabled(true);
+      } else {
+        toast({ title: "Not found in database after save!", variant: "destructive" });
+      }
+      
+    } catch (err) {
+      console.error('[TestDbSave] Error:', err);
+      toast({ 
+        title: "Test failed with exception", 
+        description: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+        variant: "destructive",
+        duration: 30000
+      });
+    }
+    
+    setTestingDbSave(false);
   };
 
   const handleDeleteAccount = async () => {
@@ -603,6 +809,23 @@ export default function EditProfilePage() {
                 Send Test Notification
               </Button>
             )}
+
+            {/* Simple Database Save Test - for debugging */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleTestDbSave}
+              disabled={testingDbSave}
+              className="w-full border-dashed"
+            >
+              {testingDbSave ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Database className="h-4 w-4 mr-2" />
+              )}
+              Test DB Save (Debug)
+            </Button>
+
 
             {/* Reset Push Button - for troubleshooting */}
             <Button
