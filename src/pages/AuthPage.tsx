@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
-import { Flame, Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
+import { Flame, Mail, Lock, Loader2, Eye, EyeOff, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
+import { usePasskey, getStoredPasskeyEmail, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
 
 import { z } from "zod";
 
@@ -26,8 +27,20 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
+  const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const { toast } = useToast();
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
+  const { isAvailable, isRegistered, loading: passkeyLoading, authenticateWithPasskey } = usePasskey();
+  
+  // Check if biometrics are available and user has a registered passkey
+  useEffect(() => {
+    const checkBiometrics = async () => {
+      const available = await isPlatformAuthenticatorAvailable();
+      const storedEmail = getStoredPasskeyEmail();
+      setBiometricsAvailable(available && !!storedEmail);
+    };
+    checkBiometrics();
+  }, []);
 
 
   if (authLoading) {
@@ -114,6 +127,26 @@ export default function AuthPage() {
       toast({
         title: "Unable to sign in with Google",
         description: message,
+      });
+    }
+  };
+
+  const handleBiometricSignIn = async () => {
+    const storedEmail = getStoredPasskeyEmail();
+    if (!storedEmail) {
+      toast({
+        title: "No passkey found",
+        description: "Please sign in with your email and password first, then set up biometric login in your profile.",
+      });
+      return;
+    }
+
+    const result = await authenticateWithPasskey(storedEmail);
+    
+    if (!result.success) {
+      toast({
+        title: "Biometric sign in failed",
+        description: result.error || "Please try again or use your password.",
       });
     }
   };
@@ -215,7 +248,7 @@ export default function AuthPage() {
                     variant="outline" 
                     className="w-full gap-2" 
                     onClick={handleGoogleSignIn}
-                    disabled={loading || googleLoading}
+                    disabled={loading || googleLoading || passkeyLoading}
                   >
                     {googleLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -243,6 +276,24 @@ export default function AuthPage() {
                       </>
                     )}
                   </Button>
+                  
+                  {biometricsAvailable && (
+                    <Button 
+                      variant="outline" 
+                      className="w-full gap-2" 
+                      onClick={handleBiometricSignIn}
+                      disabled={loading || googleLoading || passkeyLoading}
+                    >
+                      {passkeyLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Fingerprint className="h-4 w-4" />
+                          Sign in with Face ID / Touch ID
+                        </>
+                      )}
+                    </Button>
+                  )}
                   
                 </div>
               </CardContent>
