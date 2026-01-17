@@ -812,28 +812,6 @@ export default function EditProfilePage() {
 
 
 
-            {/* Reset Push Button - for troubleshooting */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={async () => {
-                setResettingPush(true);
-                toast({ title: "Resetting notifications...", description: "Page will reload to fully clear browser state" });
-                // Use reloadAfter=true to fully clear browser push state
-                await resetPushNotifications(user?.id, true);
-                // The page will reload, so no need to handle the result
-              }}
-              disabled={resettingPush || pushLoading}
-              className="w-full text-muted-foreground"
-            >
-              {resettingPush ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Trash2 className="h-4 w-4 mr-2" />
-              )}
-              Reset Notifications (Troubleshoot)
-            </Button>
-
             <div className="text-xs text-muted-foreground flex items-center gap-2">
               <span>Browser permission:</span>
               <span className={
