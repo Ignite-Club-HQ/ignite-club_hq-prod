@@ -323,6 +323,48 @@ export type Database = {
         }
         Relationships: []
       }
+      child_guardians: {
+        Row: {
+          child_id: string
+          created_at: string
+          guardian_id: string
+          id: string
+          is_primary: boolean | null
+          relationship_type: string | null
+        }
+        Insert: {
+          child_id: string
+          created_at?: string
+          guardian_id: string
+          id?: string
+          is_primary?: boolean | null
+          relationship_type?: string | null
+        }
+        Update: {
+          child_id?: string
+          created_at?: string
+          guardian_id?: string
+          id?: string
+          is_primary?: boolean | null
+          relationship_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "child_guardians_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "child_guardians_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       child_team_assignments: {
         Row: {
           child_id: string
@@ -3221,6 +3263,10 @@ export type Database = {
         Returns: boolean
       }
       hash_email: { Args: { email: string }; Returns: string }
+      is_child_guardian: {
+        Args: { _child_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_club_member: {
         Args: { _club_id: string; _user_id: string }
         Returns: boolean
