@@ -1,22 +1,59 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Security headers to prevent common attacks
+const securityHeaders = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "X-XSS-Protection": "1; mode=block",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Content-Security-Policy": "default-src 'none'",
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  ...securityHeaders,
 };
 
-// Rate limiting - stricter for sensitive operations
+// Strict rate limiting for sensitive operations
 const RATE_LIMIT_WINDOW_SECONDS = 3600; // 1 hour window
 const RATE_LIMIT_MAX_REQUESTS = 3; // Only 3 deletion attempts per hour
+const MAX_REQUEST_SIZE = 1024; // 1KB max for this endpoint
+
+// Sanitize error messages to prevent information leakage
+function sanitizeError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  // Remove any sensitive patterns
+  const sensitivePatterns = [
+    /password/gi,
+    /secret/gi,
+    /key/gi,
+    /token/gi,
+    /credential/gi,
+    /api[_-]?key/gi,
+    /auth/gi,
+    /bearer/gi,
+    /connection.*string/gi,
+    /database.*url/gi,
+  ];
+  
+  let sanitized = message;
+  for (const pattern of sensitivePatterns) {
+    sanitized = sanitized.replace(pattern, '[REDACTED]');
+  }
+  return sanitized;
+}
 
 async function checkRateLimit(
   supabase: any,
   identifier: string,
-  endpoint: string
+  endpoint: string,
+  maxRequests: number = RATE_LIMIT_MAX_REQUESTS,
+  windowSeconds: number = RATE_LIMIT_WINDOW_SECONDS
 ): Promise<{ allowed: boolean; remaining: number; resetAt: Date }> {
   const now = new Date();
-  const windowStart = new Date(now.getTime() - RATE_LIMIT_WINDOW_SECONDS * 1000);
+  const windowStart = new Date(now.getTime() - windowSeconds * 1000);
 
   const { data: existing } = await supabase
     .from('rate_limits')
@@ -35,11 +72,11 @@ async function checkRateLimit(
         updated_at: now.toISOString()
       }).eq('id', existing.id);
       
-      return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1, resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
+      return { allowed: true, remaining: maxRequests - 1, resetAt: new Date(now.getTime() + windowSeconds * 1000) };
     }
 
-    if (existing.request_count >= RATE_LIMIT_MAX_REQUESTS) {
-      return { allowed: false, remaining: 0, resetAt: new Date(recordWindowStart.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
+    if (existing.request_count >= maxRequests) {
+      return { allowed: false, remaining: 0, resetAt: new Date(recordWindowStart.getTime() + windowSeconds * 1000) };
     }
 
     await supabase.from('rate_limits').update({
@@ -47,11 +84,11 @@ async function checkRateLimit(
       updated_at: now.toISOString()
     }).eq('id', existing.id);
 
-    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - existing.request_count - 1, resetAt: new Date(recordWindowStart.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
+    return { allowed: true, remaining: maxRequests - existing.request_count - 1, resetAt: new Date(recordWindowStart.getTime() + windowSeconds * 1000) };
   }
 
   await supabase.from('rate_limits').insert({ identifier, endpoint, request_count: 1, window_start: now.toISOString() });
-  return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1, resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
+  return { allowed: true, remaining: maxRequests - 1, resetAt: new Date(now.getTime() + windowSeconds * 1000) };
 }
 
 serve(async (req) => {
@@ -60,10 +97,19 @@ serve(async (req) => {
   }
 
   try {
+    // Check request size to prevent memory exhaustion
+    const contentLength = req.headers.get("content-length");
+    if (contentLength && parseInt(contentLength) > MAX_REQUEST_SIZE) {
+      return new Response(
+        JSON.stringify({ error: "Request too large" }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: "No authorization header" }),
+        JSON.stringify({ error: "Authentication required" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -80,7 +126,7 @@ serve(async (req) => {
     
     if (userError || !user) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
+        JSON.stringify({ error: "Authentication required" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -90,10 +136,10 @@ serve(async (req) => {
     // Rate limiting check - strict limits for account deletion
     const rateLimitResult = await checkRateLimit(adminClient, user.id, 'delete-account');
     if (!rateLimitResult.allowed) {
-      console.warn(`Rate limit exceeded for user ${user.id} on delete-account`);
+      console.warn(`Rate limit exceeded for delete-account`);
       return new Response(
         JSON.stringify({ 
-          error: "Too many deletion attempts. Please try again later.",
+          error: "Too many attempts. Please try again later.",
           retryAfter: Math.ceil((rateLimitResult.resetAt.getTime() - Date.now()) / 1000)
         }),
         { 
@@ -117,14 +163,14 @@ serve(async (req) => {
       .eq('id', user.id);
 
     if (updateError) {
-      console.error("Error scheduling deletion:", updateError);
+      console.error("Error scheduling deletion:", sanitizeError(updateError));
       return new Response(
-        JSON.stringify({ error: "Failed to schedule account deletion" }),
+        JSON.stringify({ error: "Failed to process request" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`Account ${user.id} scheduled for deletion on ${deletionDate.toISOString()}`);
+    console.log(`Account scheduled for deletion on ${deletionDate.toISOString()}`);
 
     return new Response(
       JSON.stringify({ 
@@ -135,9 +181,9 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error:", sanitizeError(error));
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: "An unexpected error occurred" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

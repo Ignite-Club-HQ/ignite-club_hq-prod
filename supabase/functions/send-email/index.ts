@@ -1,18 +1,104 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+
+// Security headers to prevent common attacks
+const securityHeaders = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "X-XSS-Protection": "1; mode=block",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Content-Security-Policy": "default-src 'none'",
+};
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  ...securityHeaders,
 };
+
+// Rate limiting configuration for email sending
+const RATE_LIMIT_WINDOW_SECONDS = 3600; // 1 hour
+const RATE_LIMIT_MAX_EMAILS = 50; // 50 emails per hour per user
+const MAX_REQUEST_SIZE = 102400; // 100KB max for email content
 
 interface EmailRequest {
   to: string | string[];
   subject: string;
   html: string;
   from?: string;
+}
+
+// Sanitize error messages
+function sanitizeError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const sensitivePatterns = [
+    /password/gi,
+    /secret/gi,
+    /key/gi,
+    /token/gi,
+    /credential/gi,
+    /api[_-]?key/gi,
+    /bearer/gi,
+  ];
+  
+  let sanitized = message;
+  for (const pattern of sensitivePatterns) {
+    sanitized = sanitized.replace(pattern, '[REDACTED]');
+  }
+  return sanitized;
+}
+
+// Validate email format
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) && email.length <= 254;
+}
+
+async function checkRateLimit(
+  supabase: any,
+  identifier: string,
+  endpoint: string
+): Promise<{ allowed: boolean; remaining: number; resetAt: Date }> {
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - RATE_LIMIT_WINDOW_SECONDS * 1000);
+
+  const { data: existing } = await supabase
+    .from('rate_limits')
+    .select('*')
+    .eq('identifier', identifier)
+    .eq('endpoint', endpoint)
+    .single();
+
+  if (existing) {
+    const recordWindowStart = new Date(existing.window_start);
+    
+    if (recordWindowStart < windowStart) {
+      await supabase.from('rate_limits').update({
+        request_count: 1,
+        window_start: now.toISOString(),
+        updated_at: now.toISOString()
+      }).eq('id', existing.id);
+      
+      return { allowed: true, remaining: RATE_LIMIT_MAX_EMAILS - 1, resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
+    }
+
+    if (existing.request_count >= RATE_LIMIT_MAX_EMAILS) {
+      return { allowed: false, remaining: 0, resetAt: new Date(recordWindowStart.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
+    }
+
+    await supabase.from('rate_limits').update({
+      request_count: existing.request_count + 1,
+      updated_at: now.toISOString()
+    }).eq('id', existing.id);
+
+    return { allowed: true, remaining: RATE_LIMIT_MAX_EMAILS - existing.request_count - 1, resetAt: new Date(recordWindowStart.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
+  }
+
+  await supabase.from('rate_limits').insert({ identifier, endpoint, request_count: 1, window_start: now.toISOString() });
+  return { allowed: true, remaining: RATE_LIMIT_MAX_EMAILS - 1, resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -22,22 +108,88 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Check request size to prevent memory exhaustion
+    const contentLength = req.headers.get("content-length");
+    if (contentLength && parseInt(contentLength) > MAX_REQUEST_SIZE) {
+      return new Response(
+        JSON.stringify({ error: "Request too large" }),
+        { status: 413, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Get auth header for rate limiting by user
+    const authHeader = req.headers.get("Authorization");
+    let userId = "anonymous";
+    
+    if (authHeader) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user } } = await userClient.auth.getUser();
+      if (user) {
+        userId = user.id;
+      }
+    }
+
+    // Rate limit check
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+    
+    const rateLimitResult = await checkRateLimit(adminClient, userId, 'send-email');
+    if (!rateLimitResult.allowed) {
+      console.warn(`Rate limit exceeded for send-email`);
+      return new Response(
+        JSON.stringify({ 
+          error: "Too many email requests. Please try again later.",
+          retryAfter: Math.ceil((rateLimitResult.resetAt.getTime() - Date.now()) / 1000)
+        }),
+        { 
+          status: 429, 
+          headers: { 
+            ...corsHeaders, 
+            "Content-Type": "application/json",
+            "Retry-After": String(Math.ceil((rateLimitResult.resetAt.getTime() - Date.now()) / 1000))
+          } 
+        }
+      );
+    }
+
     const { to, subject, html, from }: EmailRequest = await req.json();
 
-    // Use Resend's verified test sender by default (works without domain verification)
-    // Once igniteclubhq.app is verified on Resend, you can change this
-    const sender = from || "Ignite Club HQ <onboarding@resend.dev>";
-
+    // Validate required fields
     if (!to || !subject || !html) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: to, subject, html" }),
+        JSON.stringify({ error: "Missing required fields" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
+    // Validate email addresses
     const toArray = Array.isArray(to) ? to : [to];
+    for (const email of toArray) {
+      if (!isValidEmail(email)) {
+        return new Response(
+          JSON.stringify({ error: "Invalid email format" }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+    }
 
-    console.log(`Sending email to ${toArray.length} recipient(s): ${subject}`);
+    // Limit recipients to prevent abuse
+    if (toArray.length > 50) {
+      return new Response(
+        JSON.stringify({ error: "Too many recipients" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Use Resend's verified test sender by default
+    const sender = from || "Ignite Club HQ <onboarding@resend.dev>";
+
+    console.log(`Sending email to ${toArray.length} recipient(s)`);
 
     const emailResponse = await resend.emails.send({
       from: sender,
@@ -46,16 +198,16 @@ serve(async (req: Request): Promise<Response> => {
       html,
     });
 
-    console.log("Email sent successfully:", emailResponse);
+    console.log("Email sent successfully");
 
     return new Response(
       JSON.stringify({ success: true, data: emailResponse }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
-  } catch (error: any) {
-    console.error("Error in send-email function:", error);
+  } catch (error: unknown) {
+    console.error("Error in send-email function:", sanitizeError(error));
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "Failed to send email" }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
