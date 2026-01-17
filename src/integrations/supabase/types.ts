@@ -1627,6 +1627,7 @@ export type Database = {
           invited_email: string | null
           invited_label: string | null
           invited_user_id: string
+          metadata: Json | null
           role: Database["public"]["Enums"]["app_role"]
           status: string
           team_id: string | null
@@ -1641,6 +1642,7 @@ export type Database = {
           invited_email?: string | null
           invited_label?: string | null
           invited_user_id: string
+          metadata?: Json | null
           role: Database["public"]["Enums"]["app_role"]
           status?: string
           team_id?: string | null
@@ -1655,6 +1657,7 @@ export type Database = {
           invited_email?: string | null
           invited_label?: string | null
           invited_user_id?: string
+          metadata?: Json | null
           role?: Database["public"]["Enums"]["app_role"]
           status?: string
           team_id?: string | null
@@ -3169,6 +3172,7 @@ export type Database = {
           id: string
           invited_email: string
           invited_label: string
+          metadata: Json
           role: string
           status: string
           team_id: string

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Copy, Check, Send, Users, Plus, Trash2, Upload } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Copy, Check, Send, Users, Plus, Trash2, Upload, Baby } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,10 +20,18 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/useDebounce";
 
+interface BulkChild {
+  id: string;
+  name: string;
+  yearOfBirth: string;
+}
+
 interface BulkMember {
   id: string;
   name: string;
   email: string;
+  role: TeamRole;
+  children: BulkChild[];
 }
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -60,9 +68,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
   const [isSendingNotification, setIsSendingNotification] = useState(false);
   const [mode, setMode] = useState<"single" | "bulk">("single");
   const [bulkMembers, setBulkMembers] = useState<BulkMember[]>([
-    { id: crypto.randomUUID(), name: "", email: "" },
+    { id: crypto.randomUUID(), name: "", email: "", role: "player", children: [] },
   ]);
-  const [bulkResults, setBulkResults] = useState<{ name: string; email: string; link: string; sent: boolean }[]>([]);
+  const [bulkResults, setBulkResults] = useState<{ name: string; email: string; link: string; sent: boolean; role?: string; childrenCount?: number }[]>([]);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -254,21 +262,29 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
       const validMembers = bulkMembers.filter(m => m.name.trim());
       if (validMembers.length === 0) throw new Error("Please enter at least one name");
 
-      const results: { name: string; email: string; link: string; sent: boolean }[] = [];
+      const results: { name: string; email: string; link: string; sent: boolean; role: string; childrenCount: number }[] = [];
 
       for (const member of validMembers) {
         const inviteToken = crypto.randomUUID();
+        const memberRole = member.role;
 
-        // Create pending invite record
+        // Build metadata for children (for parent role)
+        const validChildren = member.children.filter(c => c.name.trim());
+        const childrenMetadata = validChildren.length > 0 ? JSON.stringify(
+          validChildren.map(c => ({ name: c.name.trim(), yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null }))
+        ) : null;
+
+        // Create pending invite record with children metadata
         const { error: inviteError } = await supabase.from("pending_invites").insert({
           team_id: teamId,
           club_id: clubId,
-          role: selectedRole as any,
+          role: memberRole as any,
           invited_user_id: user!.id,
           invited_by_user_id: user!.id,
           invited_label: member.name.trim(),
           invited_email: member.email.trim() || null,
           invite_token: inviteToken,
+          metadata: childrenMetadata ? { children: JSON.parse(childrenMetadata) } : null,
         } as any);
 
         if (inviteError) {
@@ -278,6 +294,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
 
         const link = `${window.location.origin}/join/p/${inviteToken}`;
         let sent = false;
+
+        // Build email content with children info
+        let childrenInfo = "";
+        if (validChildren.length > 0) {
+          childrenInfo = `<p>Your child${validChildren.length > 1 ? "ren" : ""} will also be registered: <strong>${validChildren.map(c => c.name).join(", ")}</strong></p>`;
+        }
 
         // Send email if provided
         if (member.email.trim()) {
@@ -289,7 +311,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
                 html: `
                   <h2>You've been invited to join ${teamName}!</h2>
                   <p>Hi ${member.name},</p>
-                  <p>You've been invited to join <strong>${teamName}</strong> as a <strong>${roleOptions.find(r => r.value === selectedRole)?.label}</strong>.</p>
+                  <p>You've been invited to join <strong>${teamName}</strong> as a <strong>${roleOptions.find(r => r.value === memberRole)?.label}</strong>.</p>
+                  ${childrenInfo}
                   <p><a href="${link}" style="display: inline-block; padding: 12px 24px; background-color: #f97316; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Accept Invite</a></p>
                   <p>Or copy this link: ${link}</p>
                   <p>See you there!</p>
@@ -302,7 +325,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
           }
         }
 
-        results.push({ name: member.name.trim(), email: member.email.trim(), link, sent });
+        results.push({ 
+          name: member.name.trim(), 
+          email: member.email.trim(), 
+          link, 
+          sent, 
+          role: memberRole,
+          childrenCount: validChildren.length 
+        });
       }
 
       return results;
@@ -362,7 +392,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
     setInviteLink(null);
     setCopied(false);
     setMode("single");
-    setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "" }]);
+    setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: "player", children: [] }]);
     setBulkResults([]);
   };
 
@@ -371,7 +401,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
   };
 
   const addBulkMemberRow = () => {
-    setBulkMembers([...bulkMembers, { id: crypto.randomUUID(), name: "", email: "" }]);
+    setBulkMembers([...bulkMembers, { id: crypto.randomUUID(), name: "", email: "", role: selectedRole, children: [] }]);
   };
 
   const removeBulkMemberRow = (id: string) => {
@@ -380,8 +410,36 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
     }
   };
 
-  const updateBulkMember = (id: string, field: "name" | "email", value: string) => {
+  const updateBulkMember = (id: string, field: keyof Omit<BulkMember, "id" | "children">, value: string) => {
     setBulkMembers(bulkMembers.map(m => m.id === id ? { ...m, [field]: value } : m));
+  };
+
+  const updateBulkMemberRole = (id: string, role: TeamRole) => {
+    setBulkMembers(bulkMembers.map(m => m.id === id ? { ...m, role, children: role === "parent" ? m.children : [] } : m));
+  };
+
+  const addChildToMember = (memberId: string) => {
+    setBulkMembers(bulkMembers.map(m => 
+      m.id === memberId 
+        ? { ...m, children: [...m.children, { id: crypto.randomUUID(), name: "", yearOfBirth: "" }] }
+        : m
+    ));
+  };
+
+  const removeChildFromMember = (memberId: string, childId: string) => {
+    setBulkMembers(bulkMembers.map(m => 
+      m.id === memberId 
+        ? { ...m, children: m.children.filter(c => c.id !== childId) }
+        : m
+    ));
+  };
+
+  const updateChild = (memberId: string, childId: string, field: "name" | "yearOfBirth", value: string) => {
+    setBulkMembers(bulkMembers.map(m => 
+      m.id === memberId 
+        ? { ...m, children: m.children.map(c => c.id === childId ? { ...c, [field]: value } : c) }
+        : m
+    ));
   };
 
   const validBulkCount = bulkMembers.filter(m => m.name.trim()).length;
@@ -752,9 +810,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
                         
                         const name = parts[0]?.trim();
                         const email = parts[1]?.trim() || "";
+                        const roleFromCsv = parts[2]?.trim().toLowerCase() || "";
+                        
+                        // Parse role from CSV or use selected role
+                        let role: TeamRole = selectedRole;
+                        if (roleFromCsv === "player" || roleFromCsv === "parent" || roleFromCsv === "coach" || roleFromCsv === "team_admin") {
+                          role = roleFromCsv as TeamRole;
+                        }
                         
                         if (name) {
-                          parsed.push({ id: crypto.randomUUID(), name, email });
+                          parsed.push({ id: crypto.randomUUID(), name, email, role, children: [] });
                         }
                       }
                       
@@ -791,35 +856,108 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
               </div>
               
               <p className="text-xs text-muted-foreground">
-                CSV format: Name, Email (one per line)
+                CSV format: Name, Email, Role (optional - player/parent/coach/team_admin)
               </p>
             </div>
 
-            <div className="space-y-3 max-h-[35vh] overflow-y-auto pr-1">
+            <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-1">
               {bulkMembers.map((member, idx) => (
-                <div key={member.id} className="flex gap-2 items-start">
-                  <div className="flex-1 space-y-2">
-                    <Input
-                      placeholder="Name"
-                      value={member.name}
-                      onChange={(e) => updateBulkMember(member.id, "name", e.target.value)}
-                    />
-                    <Input
-                      type="email"
-                      placeholder="Email (optional)"
-                      value={member.email}
-                      onChange={(e) => updateBulkMember(member.id, "email", e.target.value)}
-                    />
+                <div key={member.id} className="p-3 rounded-lg border bg-muted/20 space-y-3">
+                  <div className="flex gap-2 items-start">
+                    <div className="flex-1 space-y-2">
+                      <Input
+                        placeholder="Name"
+                        value={member.name}
+                        onChange={(e) => updateBulkMember(member.id, "name", e.target.value)}
+                      />
+                      <Input
+                        type="email"
+                        placeholder="Email (optional)"
+                        value={member.email}
+                        onChange={(e) => updateBulkMember(member.id, "email", e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="mt-1"
+                      onClick={() => removeBulkMemberRow(member.id)}
+                      disabled={bulkMembers.length === 1}
+                    >
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="mt-1"
-                    onClick={() => removeBulkMemberRow(member.id)}
-                    disabled={bulkMembers.length === 1}
-                  >
-                    <Trash2 className="h-4 w-4 text-muted-foreground" />
-                  </Button>
+                  
+                  {/* Per-member role selection */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {roleOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => updateBulkMemberRole(member.id, opt.value)}
+                        className={`px-2 py-1 text-xs rounded-md transition-all border ${
+                          member.role === opt.value
+                            ? opt.color + " border-current"
+                            : "bg-muted/50 text-muted-foreground border-transparent hover:border-muted-foreground/30"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* Children inputs for parent role */}
+                  {member.role === "parent" && (
+                    <div className="space-y-2 pl-3 border-l-2 border-pink-500/30">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-pink-600 flex items-center gap-1">
+                          <Baby className="h-3 w-3" />
+                          Children
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs"
+                          onClick={() => addChildToMember(member.id)}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Add Child
+                        </Button>
+                      </div>
+                      
+                      {member.children.length === 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Add children to register them with this parent
+                        </p>
+                      )}
+                      
+                      {member.children.map((child) => (
+                        <div key={child.id} className="flex gap-2 items-center">
+                          <Input
+                            placeholder="Child's name"
+                            value={child.name}
+                            onChange={(e) => updateChild(member.id, child.id, "name", e.target.value)}
+                            className="h-8 text-sm flex-1"
+                          />
+                          <Input
+                            placeholder="Year"
+                            value={child.yearOfBirth}
+                            onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
+                            className="h-8 text-sm w-16"
+                            maxLength={4}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => removeChildFromMember(member.id, child.id)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
