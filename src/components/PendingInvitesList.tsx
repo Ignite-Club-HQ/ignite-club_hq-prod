@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Send, Trash2, X } from "lucide-react";
+import { Send, Trash2, X, Loader2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +23,7 @@ interface PendingInvite {
   role: string;
   invited_user_id: string | null;
   invited_label: string | null;
+  invited_email?: string | null;
   created_at: string;
   status: string;
   profiles?: {
@@ -43,6 +44,7 @@ export default function PendingInvitesList({ invites, teamId, clubId }: PendingI
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [isSendingNotifications, setIsSendingNotifications] = useState(false);
 
   // Fetch invite links for all roles present in pending invites
   const uniqueRoles = [...new Set(invites.map(inv => inv.role))];
@@ -110,11 +112,22 @@ export default function PendingInvitesList({ invites, teamId, clubId }: PendingI
   const handleBulkResend = async () => {
     const selectedInvites = invites.filter(inv => selectedIds.has(inv.id));
     const linksToShare: string[] = [];
+    const emailsToSend: { email: string; name: string; link: string; role: string }[] = [];
     
     selectedInvites.forEach(inv => {
       const link = inviteLinks[inv.role];
-      if (link && !linksToShare.includes(link)) {
-        linksToShare.push(link);
+      if (link) {
+        if (!linksToShare.includes(link)) {
+          linksToShare.push(link);
+        }
+        if (inv.invited_email) {
+          emailsToSend.push({
+            email: inv.invited_email,
+            name: inv.invited_label || "Member",
+            link,
+            role: inv.role,
+          });
+        }
       }
     });
 
@@ -127,17 +140,58 @@ export default function PendingInvitesList({ invites, teamId, clubId }: PendingI
       return;
     }
 
+    // Send email notifications for invites with emails
+    if (emailsToSend.length > 0) {
+      setIsSendingNotifications(true);
+      let successCount = 0;
+      for (const { email, name, link, role } of emailsToSend) {
+        try {
+          await supabase.functions.invoke("send-email", {
+            body: {
+              to: email,
+              subject: "Reminder: You're invited to join the team!",
+              html: `
+                <h2>Reminder: You've been invited!</h2>
+                <p>Hi ${name},</p>
+                <p>This is a reminder that you've been invited to join the team as a <strong>${role}</strong>.</p>
+                <p><a href="${link}" style="display: inline-block; padding: 12px 24px; background-color: #f97316; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Accept Invite</a></p>
+                <p>Or copy this link: ${link}</p>
+              `,
+            },
+          });
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to send email to ${email}:`, error);
+        }
+      }
+      setIsSendingNotifications(false);
+      
+      if (successCount > 0) {
+        toast({ 
+          title: `${successCount} email(s) sent!`,
+          description: successCount < emailsToSend.length 
+            ? `Some emails failed. Links also copied to clipboard.` 
+            : undefined
+        });
+      }
+    }
+
+    // Also copy links to clipboard
     try {
       const text = linksToShare.length === 1 
         ? linksToShare[0] 
         : linksToShare.join("\n");
       await navigator.clipboard.writeText(text);
-      toast({ 
-        title: `${linksToShare.length} invite link(s) copied!`,
-        description: "Share these links with the pending members"
-      });
+      if (emailsToSend.length === 0) {
+        toast({ 
+          title: `${linksToShare.length} invite link(s) copied!`,
+          description: "Share these links with the pending members"
+        });
+      }
     } catch {
-      toast({ title: "Failed to copy links", variant: "destructive" });
+      if (emailsToSend.length === 0) {
+        toast({ title: "Failed to copy links", variant: "destructive" });
+      }
     }
   };
 
@@ -172,8 +226,13 @@ export default function PendingInvitesList({ invites, teamId, clubId }: PendingI
               size="sm"
               className="h-7 gap-1.5 text-xs"
               onClick={handleBulkResend}
+              disabled={isSendingNotifications}
             >
-              <Send className="h-3 w-3" />
+              {isSendingNotifications ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Send className="h-3 w-3" />
+              )}
               Resend ({selectedIds.size})
             </Button>
             <Button
