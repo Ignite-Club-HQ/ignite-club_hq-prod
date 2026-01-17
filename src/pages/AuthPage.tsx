@@ -42,7 +42,10 @@ export default function AuthPage() {
     const checkBiometrics = async () => {
       const available = await isPlatformAuthenticatorAvailable();
       const storedAccounts = getStoredPasskeyAccounts();
+      // Show biometrics button if platform supports it AND user has registered passkeys
       setBiometricsAvailable(available && storedAccounts.length > 0);
+      
+      console.log('[AuthPage] Biometrics check:', { available, storedAccountsCount: storedAccounts.length, accounts: storedAccounts });
       
       // Auto-trigger biometric prompt if Remember Me is enabled and only one account
       if (available && storedAccounts.length === 1 && getRememberMe() && !autoPromptTriggered.current && !authLoading) {
