@@ -176,7 +176,16 @@ serve(async (req: Request) => {
         .eq('id', user.id)
         .single();
 
-      const rpId = new URL(req.headers.get('origin') || 'https://ignite-club-launchpad.lovable.app').hostname;
+      // Get the origin and extract hostname for rpId
+      const origin = req.headers.get('origin') || 'https://ignite-club-launchpad.lovable.app';
+      let rpId: string;
+      try {
+        rpId = new URL(origin).hostname;
+      } catch {
+        rpId = 'ignite-club-launchpad.lovable.app';
+      }
+      
+      console.log('Registration origin:', origin, 'rpId:', rpId);
 
       const options = {
         challenge,

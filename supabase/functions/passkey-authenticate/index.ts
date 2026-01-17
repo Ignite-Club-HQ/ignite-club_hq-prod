@@ -187,7 +187,15 @@ serve(async (req: Request) => {
       }
 
       const challenge = generateChallenge();
-      const rpId = new URL(req.headers.get('origin') || 'https://ignite-club-launchpad.lovable.app').hostname;
+      const origin = req.headers.get('origin') || 'https://ignite-club-launchpad.lovable.app';
+      let rpId: string;
+      try {
+        rpId = new URL(origin).hostname;
+      } catch {
+        rpId = 'ignite-club-launchpad.lovable.app';
+      }
+      
+      console.log('Authentication origin:', origin, 'rpId:', rpId);
 
       const options = {
         challenge,
