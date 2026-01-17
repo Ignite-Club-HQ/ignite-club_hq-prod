@@ -1,9 +1,27 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Clock, X, UserCheck } from "lucide-react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Clock, X, UserCheck, Copy, Send, MoreHorizontal, Trash2, Check } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
@@ -26,17 +44,50 @@ interface PendingInviteCardProps {
   clubId?: string;
 }
 
+const roleLabels: Record<string, string> = {
+  player: "Player",
+  parent: "Parent",
+  coach: "Coach",
+  team_admin: "Team Admin",
+  club_admin: "Club Admin",
+};
+
 const roleColors: Record<string, string> = {
-  player: "bg-amber-500/20 text-amber-600 border-amber-500/30",
-  parent: "bg-pink-500/20 text-pink-600 border-pink-500/30",
-  coach: "bg-emerald-500/20 text-emerald-600 border-emerald-500/30",
-  team_admin: "bg-blue-500/20 text-blue-600 border-blue-500/30",
-  club_admin: "bg-purple-500/20 text-purple-600 border-purple-500/30",
+  player: "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30",
+  parent: "bg-pink-500/20 text-pink-600 dark:text-pink-400 border-pink-500/30",
+  coach: "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+  team_admin: "bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30",
+  club_admin: "bg-purple-500/20 text-purple-600 dark:text-purple-400 border-purple-500/30",
 };
 
 export default function PendingInviteCard({ invite, teamId, clubId }: PendingInviteCardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Fetch existing invite link for this role
+  const { data: inviteLink } = useQuery({
+    queryKey: ["team-invite-link", teamId, invite.role],
+    queryFn: async () => {
+      if (!teamId) return null;
+      const { data } = await supabase
+        .from("team_invites")
+        .select("token")
+        .eq("team_id", teamId)
+        .eq("role", invite.role as any)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (data?.token) {
+        return `${window.location.origin}/join/${data.token}`;
+      }
+      return null;
+    },
+    enabled: !!teamId,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -48,63 +99,149 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, clubId] });
-      toast({ title: "Pending invite removed" });
+      toast({ title: "Pending invite revoked" });
+      setShowDeleteDialog(false);
     },
     onError: () => {
-      toast({ title: "Failed to remove invite", variant: "destructive" });
+      toast({ title: "Failed to revoke invite", variant: "destructive" });
     },
   });
 
+  const handleCopyLink = async () => {
+    if (!inviteLink) {
+      toast({ 
+        title: "No invite link available", 
+        description: "Generate a new invite link from the team page",
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopied(true);
+      toast({ title: "Invite link copied!" });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({ title: "Failed to copy link", variant: "destructive" });
+    }
+  };
+
   const displayName = invite.profiles?.display_name || invite.invited_label || "Unknown";
   const avatarUrl = invite.profiles?.avatar_url;
-  const isExistingUser = !!invite.invited_user_id;
+  const isExistingUser = !!invite.profiles?.id;
   const roleColor = roleColors[invite.role] || "bg-muted text-muted-foreground";
+  const roleLabel = roleLabels[invite.role] || invite.role.replace("_", " ");
+  const timeAgo = formatDistanceToNow(new Date(invite.created_at), { addSuffix: true });
 
   return (
-    <Card className="border-dashed border-amber-500/50 bg-amber-500/5">
-      <CardContent className="p-3 flex items-center gap-3">
-        <div className="relative">
-          <Avatar className="h-10 w-10 opacity-75">
-            <AvatarImage src={avatarUrl || undefined} />
-            <AvatarFallback className="bg-muted">
-              {displayName[0]?.toUpperCase() || "?"}
-            </AvatarFallback>
-          </Avatar>
-          <div className="absolute -bottom-1 -right-1 p-0.5 rounded-full bg-amber-500">
-            <Clock className="h-3 w-3 text-white" />
+    <>
+      <Card className="border-2 border-dashed border-orange-500/40 bg-gradient-to-r from-orange-500/5 to-amber-500/5">
+        <CardContent className="p-3 flex items-center gap-3">
+          <div className="relative">
+            <Avatar className="h-10 w-10 ring-2 ring-orange-500/30 ring-offset-2 ring-offset-background">
+              <AvatarImage src={avatarUrl || undefined} />
+              <AvatarFallback className="bg-orange-500/20 text-orange-600 dark:text-orange-400">
+                {displayName[0]?.toUpperCase() || "?"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="absolute -bottom-1 -right-1 p-1 rounded-full bg-orange-500 shadow-lg">
+              <Clock className="h-2.5 w-2.5 text-white" />
+            </div>
           </div>
-        </div>
-        
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium truncate">{displayName}</span>
-            {isExistingUser && (
-              <UserCheck className="h-3 w-3 text-muted-foreground shrink-0" />
-            )}
+          
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium truncate">{displayName}</span>
+              {isExistingUser && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                  <UserCheck className="h-2.5 w-2.5 mr-0.5" />
+                  Existing
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap mt-1">
+              <Badge variant="outline" className={`${roleColor} text-xs`}>
+                {roleLabel}
+              </Badge>
+              <Badge className="bg-orange-500/90 hover:bg-orange-500 text-white text-xs font-medium px-2">
+                <Clock className="h-3 w-3 mr-1" />
+                Pending
+              </Badge>
+              <span className="text-xs text-muted-foreground hidden sm:inline">
+                • {timeAgo}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap mt-1">
-            <Badge variant="outline" className={`${roleColor} text-xs`}>
-              {invite.role.replace("_", " ")}
-            </Badge>
-            <Badge variant="outline" className="bg-amber-500/20 text-amber-600 border-amber-500/30 text-xs">
-              Pending
-            </Badge>
-            <span className="text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(invite.created_at), { addSuffix: true })}
-            </span>
-          </div>
-        </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="shrink-0 h-8 w-8"
-          onClick={() => deleteMutation.mutate()}
-          disabled={deleteMutation.isPending}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </CardContent>
-    </Card>
+          {/* Quick action buttons */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 gap-1 text-xs hidden sm:flex"
+              onClick={handleCopyLink}
+              disabled={!inviteLink}
+            >
+              {copied ? (
+                <>
+                  <Check className="h-3 w-3 text-green-500" />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Send className="h-3 w-3" />
+                  Resend
+                </>
+              )}
+            </Button>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleCopyLink} disabled={!inviteLink}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy invite link
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Revoke invite
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke Pending Invite?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the pending invite for <strong>{displayName}</strong> ({roleLabel}). 
+              They can still join using the invite link if it hasn't expired.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteMutation.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Revoking..." : "Revoke Invite"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
