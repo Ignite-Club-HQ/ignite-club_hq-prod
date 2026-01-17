@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { Flame, User, Camera, Loader2, Bell } from "lucide-react";
+import { Flame, User, Camera, Loader2, Bell, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { subscribeToPushNotifications, checkPushSubscription } from "@/lib/pushNotifications";
+import { usePWAInstall } from "@/hooks/usePWAInstall";
 
 export default function CompleteProfilePage() {
   const { user, profile, loading: authLoading, profileLoading, profileError, refreshProfile } = useAuth();
@@ -22,8 +23,10 @@ export default function CompleteProfilePage() {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
   const [pushSupported, setPushSupported] = useState(true);
+  const [installAndContinue, setInstallAndContinue] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { canPrompt, isInstalled, installApp } = usePWAInstall();
 
   // Check if push notifications are supported
   useEffect(() => {
@@ -265,12 +268,41 @@ export default function CompleteProfilePage() {
               </div>
             )}
 
+            {/* Install App Button - shown when browser supports PWA install */}
+            {canPrompt && !isInstalled && (
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+                <div className="flex items-center gap-3">
+                  <Download className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="font-medium text-sm">Install App</p>
+                    <p className="text-xs text-muted-foreground">Add to home screen for the best experience</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={installAndContinue}
+                  onCheckedChange={setInstallAndContinue}
+                />
+              </div>
+            )}
+
             <Button
               className="w-full" 
-              onClick={handleSubmit}
+              onClick={async () => {
+                // If user wants to install, trigger install first
+                if (installAndContinue && canPrompt) {
+                  const installed = await installApp();
+                  if (installed) {
+                    // After PWA is installed, it will open fresh - save profile and let PWA handle navigation
+                    await handleSubmit();
+                    return;
+                  }
+                }
+                // Normal flow - just save profile
+                handleSubmit();
+              }}
               disabled={saving || !displayName.trim()}
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue to Ignite Club HQ"}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (installAndContinue && canPrompt ? "Install & Continue" : "Continue to Ignite Club HQ")}
             </Button>
           </CardContent>
         </Card>
