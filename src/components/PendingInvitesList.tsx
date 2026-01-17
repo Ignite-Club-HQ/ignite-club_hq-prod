@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Checkbox } from "@/components/ui/checkbox";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Send, Trash2, X, Loader2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,8 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { Trash2, Send, Loader2 } from "lucide-react";
 import PendingInviteCard from "./PendingInviteCard";
 
 interface PendingInvite {
@@ -72,6 +72,22 @@ export default function PendingInvitesList({ invites, teamId, clubId }: PendingI
     staleTime: 1000 * 60 * 5,
   });
 
+  // Fetch team name for notifications
+  const { data: teamData } = useQuery({
+    queryKey: ["team-name", teamId],
+    queryFn: async () => {
+      if (!teamId) return null;
+      const { data } = await supabase
+        .from("teams")
+        .select("name")
+        .eq("id", teamId)
+        .single();
+      return data;
+    },
+    enabled: !!teamId,
+    staleTime: 1000 * 60 * 10,
+  });
+
   const bulkDeleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
       const { error } = await supabase
@@ -113,6 +129,7 @@ export default function PendingInvitesList({ invites, teamId, clubId }: PendingI
     const selectedInvites = invites.filter(inv => selectedIds.has(inv.id));
     const linksToShare: string[] = [];
     const emailsToSend: { email: string; name: string; link: string; role: string }[] = [];
+    const pushUsersToNotify: { userId: string; name: string; link: string; role: string }[] = [];
     
     selectedInvites.forEach(inv => {
       const link = inviteLinks[inv.role];
@@ -120,10 +137,20 @@ export default function PendingInvitesList({ invites, teamId, clubId }: PendingI
         if (!linksToShare.includes(link)) {
           linksToShare.push(link);
         }
+        // Collect email recipients
         if (inv.invited_email) {
           emailsToSend.push({
             email: inv.invited_email,
             name: inv.invited_label || "Member",
+            link,
+            role: inv.role,
+          });
+        }
+        // Collect push notification recipients (existing app users)
+        if (inv.invited_user_id) {
+          pushUsersToNotify.push({
+            userId: inv.invited_user_id,
+            name: inv.invited_label || inv.profiles?.display_name || "Member",
             link,
             role: inv.role,
           });
@@ -140,161 +167,182 @@ export default function PendingInvitesList({ invites, teamId, clubId }: PendingI
       return;
     }
 
+    setIsSendingNotifications(true);
+    let emailSuccessCount = 0;
+    let pushSuccessCount = 0;
+    const teamName = teamData?.name || "the team";
+
     // Send email notifications for invites with emails
-    if (emailsToSend.length > 0) {
-      setIsSendingNotifications(true);
-      let successCount = 0;
-      for (const { email, name, link, role } of emailsToSend) {
-        try {
-          await supabase.functions.invoke("send-email", {
-            body: {
-              to: email,
-              subject: "Reminder: You're invited to join the team!",
-              html: `
-                <h2>Reminder: You've been invited!</h2>
-                <p>Hi ${name},</p>
-                <p>This is a reminder that you've been invited to join the team as a <strong>${role}</strong>.</p>
-                <p><a href="${link}" style="display: inline-block; padding: 12px 24px; background-color: #f97316; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Accept Invite</a></p>
-                <p>Or copy this link: ${link}</p>
-              `,
-            },
-          });
-          successCount++;
-        } catch (error) {
-          console.error(`Failed to send email to ${email}:`, error);
+    for (const { email, name, link, role } of emailsToSend) {
+      try {
+        await supabase.functions.invoke("send-email", {
+          body: {
+            to: email,
+            subject: "Reminder: You're invited to join the team!",
+            html: `
+              <h2>Reminder: You've been invited!</h2>
+              <p>Hi ${name},</p>
+              <p>This is a reminder that you've been invited to join the team as a <strong>${role}</strong>.</p>
+              <p><a href="${link}" style="display: inline-block; padding: 12px 24px; background-color: #f97316; color: white; text-decoration: none; border-radius: 6px;">Accept Invitation</a></p>
+              <p>Or copy this link: ${link}</p>
+            `,
+          },
+        });
+        emailSuccessCount++;
+      } catch (error) {
+        console.error("Failed to send email to", email, error);
+      }
+    }
+
+    // Send push notifications and in-app notifications for existing app users
+    for (const { userId, name, link, role } of pushUsersToNotify) {
+      try {
+        // Create in-app notification
+        const { data: notification, error: notifError } = await supabase
+          .from("notifications")
+          .insert({
+            user_id: userId,
+            type: "invite_reminder",
+            message: `Reminder: You've been invited to join ${teamName} as ${role}. Accept your invitation!`,
+            related_id: teamId,
+          })
+          .select()
+          .single();
+
+        if (notifError) {
+          console.error("Failed to create notification for", userId, notifError);
+          continue;
         }
-      }
-      setIsSendingNotifications(false);
-      
-      if (successCount > 0) {
-        toast({ 
-          title: `${successCount} email(s) sent!`,
-          description: successCount < emailsToSend.length 
-            ? `Some emails failed. Links also copied to clipboard.` 
-            : undefined
+
+        // Send push notification
+        await supabase.functions.invoke("send-push-notification", {
+          body: {
+            userId,
+            title: "📬 Invitation Reminder",
+            body: `You've been invited to join ${teamName} as ${role}. Tap to view!`,
+            url: "/notifications",
+            notificationId: notification?.id,
+            tag: `invite-reminder-${notification?.id}`,
+          },
         });
+
+        pushSuccessCount++;
+      } catch (error) {
+        console.error("Failed to send push notification to", userId, error);
       }
     }
 
-    // Also copy links to clipboard
+    setIsSendingNotifications(false);
+
+    // Build success message
+    const messages: string[] = [];
+    if (emailSuccessCount > 0) {
+      messages.push(`${emailSuccessCount} email${emailSuccessCount > 1 ? "s" : ""} sent`);
+    }
+    if (pushSuccessCount > 0) {
+      messages.push(`${pushSuccessCount} push notification${pushSuccessCount > 1 ? "s" : ""} sent`);
+    }
+
+    // Copy links to clipboard
     try {
-      const text = linksToShare.length === 1 
-        ? linksToShare[0] 
-        : linksToShare.join("\n");
-      await navigator.clipboard.writeText(text);
-      if (emailsToSend.length === 0) {
-        toast({ 
-          title: `${linksToShare.length} invite link(s) copied!`,
-          description: "Share these links with the pending members"
-        });
-      }
-    } catch {
-      if (emailsToSend.length === 0) {
-        toast({ title: "Failed to copy links", variant: "destructive" });
-      }
+      await navigator.clipboard.writeText(linksToShare.join("\n"));
+      messages.push(`${linksToShare.length} link${linksToShare.length > 1 ? "s" : ""} copied`);
+    } catch (err) {
+      console.error("Failed to copy links:", err);
     }
-  };
 
-  const isAllSelected = selectedIds.size === invites.length && invites.length > 0;
-  const hasSelection = selectedIds.size > 0;
+    if (messages.length > 0) {
+      toast({ 
+        title: "Invites resent!", 
+        description: messages.join(", ")
+      });
+    }
+    
+    setSelectedIds(new Set());
+  };
 
   if (invites.length === 0) return null;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {/* Bulk Actions Bar */}
-      <div className="flex items-center gap-3 p-2 bg-muted/50 rounded-lg">
-        <Checkbox
-          checked={isAllSelected}
-          onCheckedChange={handleSelectAll}
-          aria-label="Select all pending invites"
-        />
-        <span className="text-sm text-muted-foreground">
-          {hasSelection ? (
-            <>
-              <span className="font-medium text-foreground">{selectedIds.size}</span> selected
-            </>
-          ) : (
-            "Select all"
-          )}
-        </span>
+      <Card className="p-3 flex items-center justify-between bg-muted/50">
+        <div className="flex items-center gap-3">
+          <Checkbox
+            checked={selectedIds.size === invites.length && invites.length > 0}
+            onCheckedChange={handleSelectAll}
+            aria-label="Select all pending invites"
+          />
+          <span className="text-sm text-muted-foreground">
+            {selectedIds.size > 0 
+              ? `${selectedIds.size} selected` 
+              : `${invites.length} pending invite${invites.length !== 1 ? "s" : ""}`}
+          </span>
+        </div>
         
-        {hasSelection && (
-          <div className="flex items-center gap-2 ml-auto">
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2">
             <Button
-              variant="outline"
               size="sm"
-              className="h-7 gap-1.5 text-xs"
+              variant="outline"
               onClick={handleBulkResend}
               disabled={isSendingNotifications}
             >
               {isSendingNotifications ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
               ) : (
-                <Send className="h-3 w-3" />
+                <Send className="h-4 w-4 mr-1.5" />
               )}
-              Resend ({selectedIds.size})
+              Resend
             </Button>
             <Button
-              variant="outline"
               size="sm"
-              className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive"
+              variant="destructive"
               onClick={() => setShowBulkDeleteDialog(true)}
             >
-              <Trash2 className="h-3 w-3" />
-              Revoke ({selectedIds.size})
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => setSelectedIds(new Set())}
-            >
-              <X className="h-3.5 w-3.5" />
+              <Trash2 className="h-4 w-4 mr-1.5" />
+              Revoke
             </Button>
           </div>
         )}
-      </div>
+      </Card>
 
-      {/* Invite Cards with Selection */}
-      <div className="space-y-2">
-        {invites.map((invite) => (
-          <div key={invite.id} className="flex items-start gap-2">
-            <div className="pt-4">
-              <Checkbox
-                checked={selectedIds.has(invite.id)}
-                onCheckedChange={() => handleToggleSelect(invite.id)}
-                aria-label={`Select invite for ${invite.invited_label || invite.profiles?.display_name || "Unknown"}`}
-              />
-            </div>
-            <div className="flex-1">
-              <PendingInviteCard
-                invite={invite}
-                teamId={teamId}
-                clubId={clubId}
-              />
-            </div>
+      {/* Individual Invite Cards */}
+      {invites.map((invite) => (
+        <div key={invite.id} className="flex items-start gap-2">
+          <div className="pt-4">
+            <Checkbox
+              checked={selectedIds.has(invite.id)}
+              onCheckedChange={() => handleToggleSelect(invite.id)}
+              aria-label={`Select invite for ${invite.invited_label || invite.profiles?.display_name || "pending member"}`}
+            />
           </div>
-        ))}
-      </div>
+          <div className="flex-1">
+            <PendingInviteCard
+              invite={invite}
+              teamId={teamId}
+              clubId={clubId}
+            />
+          </div>
+        </div>
+      ))}
 
       {/* Bulk Delete Confirmation Dialog */}
       <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Revoke {selectedIds.size} Pending Invite(s)?</AlertDialogTitle>
+            <AlertDialogTitle>Revoke {selectedIds.size} invite{selectedIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove the selected pending invites. They can still join using the invite link if it hasn't expired.
+              This will remove the selected pending invites. The invited members will no longer be able to join using their existing invite.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => bulkDeleteMutation.mutate([...selectedIds])}
+              onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={bulkDeleteMutation.isPending}
             >
-              {bulkDeleteMutation.isPending ? "Revoking..." : `Revoke ${selectedIds.size} Invite(s)`}
+              Revoke
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
