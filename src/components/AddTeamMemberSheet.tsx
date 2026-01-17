@@ -46,9 +46,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
     avatar_url: string | null;
   } | null>(null);
   const [customName, setCustomName] = useState("");
+  const [customEmail, setCustomEmail] = useState("");
   const [selectedRole, setSelectedRole] = useState<TeamRole>("player");
   const [copied, setCopied] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [isSendingNotification, setIsSendingNotification] = useState(false);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -157,7 +159,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
     mutationFn: async () => {
       if (!customName.trim()) throw new Error("Please enter a name");
 
-      // Create pending invite record
+      // Create pending invite record with optional email
       const { error: inviteError } = await supabase.from("pending_invites").insert({
         team_id: teamId,
         club_id: clubId,
@@ -165,20 +167,56 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
         invited_user_id: user!.id, // Set to current user as placeholder
         invited_by_user_id: user!.id,
         invited_label: customName.trim(),
+        invited_email: customEmail.trim() || null,
       } as any);
       if (inviteError) throw inviteError;
 
       // Get or create invite link
       const link = await getOrCreateInviteLink(selectedRole);
-      return link;
+      return { link, email: customEmail.trim() };
     },
-    onSuccess: (link) => {
+    onSuccess: async ({ link, email }) => {
       setInviteLink(link);
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
-      toast({
-        title: "Member added as pending",
-        description: `${customName} has been added. Share the invite link with them.`,
-      });
+
+      // Auto-send email notification if email was provided
+      if (email) {
+        setIsSendingNotification(true);
+        try {
+          await supabase.functions.invoke("send-email", {
+            body: {
+              to: email,
+              subject: `You're invited to join ${teamName}`,
+              html: `
+                <h2>You've been invited to join ${teamName}!</h2>
+                <p>Hi ${customName},</p>
+                <p>You've been invited to join <strong>${teamName}</strong> as a <strong>${roleOptions.find(r => r.value === selectedRole)?.label}</strong>.</p>
+                <p><a href="${link}" style="display: inline-block; padding: 12px 24px; background-color: #f97316; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Accept Invite</a></p>
+                <p>Or copy this link: ${link}</p>
+                <p>See you there!</p>
+              `,
+            },
+          });
+          toast({
+            title: "Invite sent!",
+            description: `Email notification sent to ${email}`,
+          });
+        } catch (error) {
+          console.error("Failed to send email:", error);
+          toast({
+            title: "Member added",
+            description: "Could not send email, but invite link is ready to share",
+            variant: "default",
+          });
+        } finally {
+          setIsSendingNotification(false);
+        }
+      } else {
+        toast({
+          title: "Member added as pending",
+          description: `${customName} has been added. Share the invite link with them.`,
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -206,6 +244,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
     setSearchQuery("");
     setSelectedUser(null);
     setCustomName("");
+    setCustomEmail("");
     setSelectedRole("player");
     setInviteLink(null);
     setCopied(false);
@@ -396,7 +435,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
               <div className="space-y-2">
                 <Label>Enter name (for new members)</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="e.g., John Smith"
                     value={customName}
@@ -407,12 +446,29 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
                     className="pl-10"
                   />
                 </div>
-                {customName.trim() && (
-                  <p className="text-xs text-muted-foreground">
-                    This person will appear as "Pending" until they accept the invite
-                  </p>
-                )}
               </div>
+
+              {/* Email input (optional) */}
+              {customName.trim() && (
+                <div className="space-y-2">
+                  <Label>Email (optional - for sending invite)</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="email"
+                      placeholder="e.g., john@example.com"
+                      value={customEmail}
+                      onChange={(e) => setCustomEmail(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {customEmail.trim() 
+                      ? "An invite email will be sent automatically" 
+                      : "Add email to auto-send invite, or share the link manually"}
+                  </p>
+                </div>
+              )}
             </>
           )}
 
