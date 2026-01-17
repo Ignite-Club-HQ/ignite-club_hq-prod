@@ -20,14 +20,38 @@ export default function CompleteProfilePage() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Initialize form values once profile is loaded
+  // Initialize form values once profile is loaded, with pending invite prefill
   useEffect(() => {
-    if (!authLoading && !profileLoading && profile && !initialized) {
-      setDisplayName(profile.display_name || "");
-      setAvatarUrl(profile.avatar_url || "");
-      setInitialized(true);
-    }
-  }, [authLoading, profileLoading, profile, initialized]);
+    const initializeProfile = async () => {
+      if (authLoading || profileLoading || initialized) return;
+      
+      if (profile) {
+        let prefillName = profile.display_name || "";
+        
+        // If no display name, check for pending invite with invited_label
+        if (!prefillName && user) {
+          const { data: pendingInvite } = await supabase
+            .from("pending_invites")
+            .select("invited_label")
+            .eq("status", "pending")
+            .not("invited_label", "is", null)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (pendingInvite?.invited_label) {
+            prefillName = pendingInvite.invited_label;
+          }
+        }
+        
+        setDisplayName(prefillName);
+        setAvatarUrl(profile.avatar_url || "");
+        setInitialized(true);
+      }
+    };
+    
+    initializeProfile();
+  }, [authLoading, profileLoading, profile, user, initialized]);
 
   // Show loading while auth or profile is loading
   if (authLoading || profileLoading) {

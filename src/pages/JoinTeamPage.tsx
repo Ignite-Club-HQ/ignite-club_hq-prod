@@ -122,6 +122,43 @@ export default function JoinTeamPage() {
       throw new Error("This invite link has reached its usage limit");
     }
 
+    // Check for a matching pending invite to get the invited_label
+    const { data: pendingInvite } = await supabase
+      .from("pending_invites")
+      .select("id, invited_label")
+      .eq("team_id", invite.team_id)
+      .eq("status", "pending")
+      .or(`invited_user_id.eq.${user.id},invited_label.ilike.%${user.email?.split('@')[0]}%`)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // If there's a pending invite with a label and user has no display_name, prefill it
+    if (pendingInvite?.invited_label) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile?.display_name) {
+        await supabase
+          .from("profiles")
+          .update({ display_name: pendingInvite.invited_label })
+          .eq("id", user.id);
+      }
+
+      // Mark the pending invite as accepted
+      await supabase
+        .from("pending_invites")
+        .update({ 
+          status: "accepted", 
+          accepted_at: new Date().toISOString(),
+          invited_user_id: user.id // Update to actual user ID
+        })
+        .eq("id", pendingInvite.id);
+    }
+
     // Add user to team with all selected roles - insert one at a time to handle partial success
     for (const role of rolesToAdd) {
       const { error: roleError } = await supabase.from("user_roles").insert({
