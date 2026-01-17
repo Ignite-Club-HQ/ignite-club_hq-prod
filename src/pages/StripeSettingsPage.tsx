@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, CreditCard, CheckCircle2, XCircle, Eye, EyeOff, Users, Loader2 } from "lucide-react";
+import { ArrowLeft, CreditCard, CheckCircle2, XCircle, Eye, EyeOff, Users, Loader2, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
+
+interface StripeConfigStatus {
+  configured: boolean;
+  isEnabled: boolean;
+  publishableKey: string | null;
+  hasSecretKey: boolean;
+}
 
 export default function StripeSettingsPage() {
   const { clubId } = useParams<{ clubId: string }>();
@@ -19,6 +25,7 @@ export default function StripeSettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
+  // Form state - secret key is write-only, never displayed
   const [secretKey, setSecretKey] = useState("");
   const [publishableKey, setPublishableKey] = useState("");
   const [isEnabled, setIsEnabled] = useState(true);
@@ -44,16 +51,16 @@ export default function StripeSettingsPage() {
     enabled: !!clubId
   });
 
-  // Fetch existing Stripe config using secure decryption function
-  const { data: stripeConfig, isLoading } = useQuery({
-    queryKey: ['club-stripe-config', clubId],
+  // Fetch Stripe config status via secure edge function
+  const { data: stripeConfig, isLoading } = useQuery<StripeConfigStatus | null>({
+    queryKey: ['club-stripe-config-status', clubId],
     queryFn: async () => {
       if (!clubId) return null;
-      const { data, error } = await supabase
-        .rpc('get_club_stripe_config', { p_club_id: clubId });
+      const { data, error } = await supabase.functions.invoke('manage-stripe-config', {
+        body: { action: 'get', configType: 'club', clubId }
+      });
       if (error) throw error;
-      // RPC returns an array, get first item or null
-      return data && data.length > 0 ? data[0] : null;
+      return data;
     },
     enabled: !!clubId
   });
@@ -74,12 +81,13 @@ export default function StripeSettingsPage() {
     enabled: !!clubId
   });
 
-  // Populate form with existing config
+  // Populate form with existing config (secret key is never returned)
   useEffect(() => {
     if (stripeConfig) {
-      setSecretKey(stripeConfig.stripe_secret_key);
-      setPublishableKey(stripeConfig.stripe_publishable_key);
-      setIsEnabled(stripeConfig.is_enabled);
+      setPublishableKey(stripeConfig.publishableKey || "");
+      setIsEnabled(stripeConfig.isEnabled);
+      // Secret key is NEVER returned from the server - always start empty
+      setSecretKey("");
     }
   }, [stripeConfig]);
 
@@ -91,36 +99,32 @@ export default function StripeSettingsPage() {
     }
   }, [clubSubscription]);
 
-  // Save mutation for Stripe config
+  // Save mutation via secure edge function
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!clubId) throw new Error("Club ID is required");
-      
-      const configData = {
-        club_id: clubId,
-        stripe_secret_key: secretKey.trim(),
-        stripe_publishable_key: publishableKey.trim(),
-        is_enabled: isEnabled,
-        updated_at: new Date().toISOString()
-      };
-
-      if (stripeConfig) {
-        // Update existing config
-        const { error } = await supabase
-          .from('club_stripe_configs')
-          .update(configData)
-          .eq('id', stripeConfig.id);
-        if (error) throw error;
-      } else {
-        // Insert new config
-        const { error } = await supabase
-          .from('club_stripe_configs')
-          .insert(configData);
-        if (error) throw error;
+      // If updating existing config and no new secret key provided, error
+      if (stripeConfig?.configured && !secretKey) {
+        throw new Error("Please enter a new secret key to update the configuration");
       }
+
+      const { data, error } = await supabase.functions.invoke('manage-stripe-config', {
+        body: {
+          action: 'save',
+          configType: 'club',
+          clubId,
+          secretKey: secretKey.trim(),
+          publishableKey: publishableKey.trim(),
+          isEnabled,
+        }
+      });
+      
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['club-stripe-config', clubId] });
+      queryClient.invalidateQueries({ queryKey: ['club-stripe-config-status', clubId] });
+      setSecretKey(""); // Clear secret key after save
       toast({ title: "Stripe configuration saved successfully" });
     },
     onError: (error: Error) => {
@@ -128,18 +132,19 @@ export default function StripeSettingsPage() {
     }
   });
 
-  // Delete mutation
+  // Delete mutation via secure edge function
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      if (!stripeConfig?.id) throw new Error("No configuration to delete");
-      const { error } = await supabase
-        .from('club_stripe_configs')
-        .delete()
-        .eq('id', stripeConfig.id);
+      const { data, error } = await supabase.functions.invoke('manage-stripe-config', {
+        body: { action: 'delete', configType: 'club', clubId }
+      });
+      
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['club-stripe-config', clubId] });
+      queryClient.invalidateQueries({ queryKey: ['club-stripe-config-status', clubId] });
       setSecretKey("");
       setPublishableKey("");
       setIsEnabled(true);
@@ -189,7 +194,7 @@ export default function StripeSettingsPage() {
   });
 
   const handleSave = () => {
-    if (!secretKey.trim()) {
+    if (!secretKey.trim() && !stripeConfig?.configured) {
       toast({ title: "Please enter a Stripe secret key", variant: "destructive" });
       return;
     }
@@ -197,7 +202,7 @@ export default function StripeSettingsPage() {
       toast({ title: "Please enter a Stripe publishable key", variant: "destructive" });
       return;
     }
-    if (!secretKey.startsWith('sk_')) {
+    if (secretKey && !secretKey.startsWith('sk_')) {
       toast({ title: "Invalid secret key format", description: "Secret key should start with 'sk_'", variant: "destructive" });
       return;
     }
@@ -228,7 +233,7 @@ export default function StripeSettingsPage() {
     );
   }
 
-  const hasStripeConfig = !!stripeConfig || (secretKey && publishableKey);
+  const hasStripeConfig = stripeConfig?.configured;
 
   return (
     <div className="py-6 space-y-6">
@@ -249,9 +254,9 @@ export default function StripeSettingsPage() {
               <CreditCard className="h-5 w-5 text-primary" />
               <CardTitle>Stripe Configuration</CardTitle>
             </div>
-            {stripeConfig && (
+            {stripeConfig?.configured && (
               <div className="flex items-center gap-2">
-                {stripeConfig.is_enabled ? (
+                {stripeConfig.isEnabled ? (
                   <span className="flex items-center gap-1 text-sm text-green-600">
                     <CheckCircle2 className="h-4 w-4" /> Active
                   </span>
@@ -275,6 +280,14 @@ export default function StripeSettingsPage() {
             </div>
           ) : (
             <>
+              <Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950">
+                <Shield className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-blue-800 dark:text-blue-200">
+                  <strong>Security:</strong> Your secret key is stored securely on the server and is never exposed to the browser.
+                  {stripeConfig?.configured && " Enter a new secret key only if you want to replace the existing one."}
+                </AlertDescription>
+              </Alert>
+
               <Alert>
                 <AlertDescription>
                   Get your API keys from the{" "}
@@ -301,12 +314,14 @@ export default function StripeSettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="secret-key">Secret Key</Label>
+                <Label htmlFor="secret-key">
+                  Secret Key {stripeConfig?.configured && <span className="text-muted-foreground font-normal">(leave empty to keep current)</span>}
+                </Label>
                 <div className="relative">
                   <Input
                     id="secret-key"
                     type={showSecretKey ? "text" : "password"}
-                    placeholder="sk_live_... or sk_test_..."
+                    placeholder={stripeConfig?.configured ? "Enter new secret key to replace..." : "sk_live_... or sk_test_..."}
                     value={secretKey}
                     onChange={(e) => setSecretKey(e.target.value)}
                     className="pr-10"
@@ -322,11 +337,11 @@ export default function StripeSettingsPage() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Your secret key is stored securely and only accessible to club admins.
+                  Your secret key is validated with Stripe before being securely stored.
                 </p>
               </div>
 
-              {stripeConfig && (
+              {stripeConfig?.configured && (
                 <div className="flex items-center justify-between">
                   <Label htmlFor="enabled">Enable payments</Label>
                   <Switch
@@ -343,9 +358,9 @@ export default function StripeSettingsPage() {
                   disabled={saveMutation.isPending} 
                   className="flex-1"
                 >
-                  {saveMutation.isPending ? "Saving..." : stripeConfig ? "Update Configuration" : "Save Configuration"}
+                  {saveMutation.isPending ? "Saving..." : stripeConfig?.configured ? "Update Configuration" : "Save Configuration"}
                 </Button>
-                {stripeConfig && (
+                {stripeConfig?.configured && (
                   <Button 
                     variant="outline" 
                     onClick={() => deleteMutation.mutate()}
