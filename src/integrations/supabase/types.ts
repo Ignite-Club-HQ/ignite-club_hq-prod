@@ -3113,6 +3113,10 @@ export type Database = {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
       }
+      check_password_reset_rate_limit: {
+        Args: { p_email: string }
+        Returns: boolean
+      }
       cleanup_rate_limits: { Args: never; Returns: undefined }
       decrypt_sensitive_data: {
         Args: { encrypted_data: string }
@@ -3229,6 +3233,8 @@ export type Database = {
         }
         Returns: undefined
       }
+      require_app_admin: { Args: never; Returns: boolean }
+      require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
       shares_team_or_club_with: {
         Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean
