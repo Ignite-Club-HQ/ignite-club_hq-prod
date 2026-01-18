@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Send, Reply, SmilePlus, Loader2, RefreshCw, Crown, Lock } from "lucide-react";
+import { ArrowLeft, Send, Loader2, RefreshCw, Crown, Lock } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
@@ -14,8 +14,8 @@ import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
-import { MessageContent } from "@/components/chat/MessageContent";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ChatMessage } from "@/components/chat/ChatMessage";
+import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
@@ -24,7 +24,6 @@ import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage } from "@/lib/messageCache";
 
 const MESSAGES_PER_PAGE = 15;
-const REACTION_EMOJIS = ["❤️", "🔥", "👏", "😂", "😮", "😢"];
 
 interface DirectMessage {
   id: string;
@@ -389,33 +388,6 @@ export default function DirectMessagePage() {
       toast.error("Failed to send message: " + error.message);
     },
   });
-
-  // React to message mutation
-  const reactMutation = useMutation({
-    mutationFn: async ({ messageId, reactionType }: { messageId: string; reactionType: string }) => {
-      const { data: existing } = await supabase
-        .from("message_reactions")
-        .select("id")
-        .eq("direct_message_id", messageId)
-        .eq("user_id", user!.id)
-        .eq("reaction_type", reactionType)
-        .maybeSingle();
-
-      if (existing) {
-        await supabase.from("message_reactions").delete().eq("id", existing.id);
-      } else {
-        await supabase.from("message_reactions").insert({
-          direct_message_id: messageId,
-          user_id: user!.id,
-          reaction_type: reactionType,
-        });
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
-    },
-  });
-
   const handleSend = () => {
     if (!message.trim() && !imageUrl) return;
     if (!canDM) {
@@ -549,104 +521,47 @@ export default function DirectMessagePage() {
             <ChatEmptyState title={`Start a conversation with ${otherUser?.display_name || "this user"}`} />
           ) : (
             localMessages?.map((msg, index) => {
-              const isOwn = msg.author_id === user?.id;
               const showDateSeparator = index === 0 || 
                 !isSameDay(new Date(msg.created_at), new Date(localMessages[index - 1]?.created_at));
               
               const messageReactions = reactions.filter((r: MessageReaction) => r.direct_message_id === msg.id);
-              const reactionCounts = messageReactions.reduce((acc: Record<string, { count: number; hasOwn: boolean }>, r: MessageReaction) => {
-                if (!acc[r.reaction_type]) {
-                  acc[r.reaction_type] = { count: 0, hasOwn: false };
-                }
-                acc[r.reaction_type].count++;
-                if (r.user_id === user?.id) acc[r.reaction_type].hasOwn = true;
-                return acc;
-              }, {} as Record<string, { count: number; hasOwn: boolean }>);
 
               return (
                 <div key={msg.id}>
                   {showDateSeparator && <ChatDateSeparator date={new Date(msg.created_at)} />}
-                  
-                  <div className={`flex gap-3 group ${isOwn ? "flex-row-reverse" : ""} ${highlightedMessageId === msg.id ? "animate-pulse bg-primary/10 rounded-lg p-2 -mx-2" : ""}`}>
-                    {!isOwn && (
-                      <Avatar className="h-8 w-8 shrink-0 mt-1">
-                        <AvatarImage src={msg.author?.avatar_url || undefined} />
-                        <AvatarFallback className="text-xs">
-                          {msg.author?.display_name?.charAt(0).toUpperCase() || "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-                    
-                    <div className={`flex flex-col ${isOwn ? "items-end" : "items-start"} max-w-[75%]`}>
-                      {msg.reply_to && (
-                        <div className="text-xs text-muted-foreground mb-1 bg-muted/50 rounded px-2 py-1">
-                          ↩ Replying to: {msg.reply_to.text.substring(0, 50)}...
-                        </div>
-                      )}
-                      
-                      <div className={`rounded-2xl px-4 py-2 ${
-                        isOwn 
-                          ? "bg-primary text-primary-foreground rounded-tr-sm" 
-                          : "bg-muted rounded-tl-sm"
-                      }`}>
-                        <MessageContent text={msg.text} imageUrl={msg.image_url} />
-                      </div>
-                      
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(msg.created_at), "h:mm a")}
-                        </span>
-                        
-                        {/* Reaction counts */}
-                        {Object.entries(reactionCounts).map(([emoji, data]) => {
-                          const reactionData = data as { count: number; hasOwn: boolean };
-                          return (
-                            <button
-                              key={emoji}
-                              onClick={() => reactMutation.mutate({ messageId: msg.id, reactionType: emoji })}
-                              className={`text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1 ${
-                                reactionData.hasOwn ? "bg-primary/20" : "bg-muted"
-                              }`}
-                            >
-                              {emoji} {reactionData.count}
-                            </button>
-                          );
-                        })}
-                        
-                        {/* Actions - shown on hover */}
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => setReplyTo(msg)}
-                          >
-                            <Reply className="h-3 w-3" />
-                          </Button>
-                          
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-6 w-6">
-                                <SmilePlus className="h-3 w-3" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-2">
-                              <div className="flex gap-1">
-                                {REACTION_EMOJIS.map((emoji) => (
-                                  <button
-                                    key={emoji}
-                                    onClick={() => reactMutation.mutate({ messageId: msg.id, reactionType: emoji })}
-                                    className="text-lg hover:bg-muted p-1 rounded"
-                                  >
-                                    {emoji}
-                                  </button>
-                                ))}
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                      </div>
-                    </div>
+                  <div
+                    id={`message-${msg.id}`}
+                    className={`transition-colors duration-500 ${
+                      highlightedMessageId === msg.id
+                        ? "bg-primary/20 ring-2 ring-primary ring-offset-2 ring-offset-background rounded-lg p-2"
+                        : ""
+                    }`}
+                  >
+                    <ChatMessage
+                      id={msg.id}
+                      text={msg.text}
+                      imageUrl={msg.image_url}
+                      authorId={msg.author_id}
+                      authorName={msg.author?.display_name || null}
+                      authorAvatar={msg.author?.avatar_url || null}
+                      timestamp={format(new Date(msg.created_at), "h:mm a")}
+                      isOwn={msg.author_id === user?.id}
+                      isAdmin={false}
+                      reactions={messageReactions.map((r: MessageReaction) => ({
+                        id: r.id,
+                        user_id: r.user_id,
+                        reaction_type: r.reaction_type,
+                      }))}
+                      currentUserId={user?.id}
+                      messageType="dm"
+                      queryKey={["dm-messages", conversationId]}
+                      replyToMessage={
+                        msg.reply_to
+                          ? { text: msg.reply_to.text, authorName: msg.reply_to.author?.display_name || null }
+                          : null
+                      }
+                      onReply={() => setReplyTo(msg)}
+                    />
                   </div>
                 </div>
               );
@@ -668,9 +583,14 @@ export default function DirectMessagePage() {
       <div className="pt-4 border-t shrink-0">
         <div className="flex gap-2 items-end">
           <ChatImageInput onImageUploaded={setImageUrl} imageUrl={imageUrl} />
+          <EmojiPicker 
+            onEmojiSelect={(emoji) => setMessage((prev) => prev + emoji)} 
+            disabled={sendMessageMutation.isPending}
+          />
           
           <div className="flex-1">
             <Input
+              ref={inputRef}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
@@ -691,6 +611,9 @@ export default function DirectMessagePage() {
             )}
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Long-press a message to react • Tap menu to reply
+        </p>
       </div>
     </div>
   );
