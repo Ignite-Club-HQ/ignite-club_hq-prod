@@ -1,4 +1,4 @@
-import { createRoot } from "react-dom/client"; // rebuild trigger
+import { createRoot } from "react-dom/client"; // rebuild v2
 import App from "./App.tsx";
 import "./index.css";
 
