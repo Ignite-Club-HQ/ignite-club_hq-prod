@@ -4,13 +4,12 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogDescription,
+} from "@/components/ui/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -162,94 +161,95 @@ export function StartDMDialog() {
   }, [dmableUsers, searchQuery]);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <MessageCircle className="h-4 w-4" />
-          <span className="hidden sm:inline">New DM</span>
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <ResponsiveDialog open={open} onOpenChange={setOpen}>
+      <Button variant="outline" size="sm" className="gap-2" onClick={() => setOpen(true)}>
+        <MessageCircle className="h-4 w-4" />
+        <span className="hidden sm:inline">New DM</span>
+      </Button>
+
+      <ResponsiveDialogContent className="sm:max-w-md h-[100dvh] sm:h-auto sm:max-h-[85vh] flex flex-col p-0">
+        <ResponsiveDialogHeader className="p-4 pb-2 border-b sm:border-b-0">
+          <ResponsiveDialogTitle className="flex items-center gap-2">
             Start a Direct Message
             <Badge variant="secondary" className="gap-1">
               <Crown className="h-3 w-3" />
               Pro
             </Badge>
-          </DialogTitle>
-          <DialogDescription>
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
             Message members from your Pro clubs
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
 
-        {checkingPro || loadingUsers ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : !hasProAccess ? (
-          <div className="flex flex-col items-center py-8 text-center gap-3">
-            <div className="p-3 rounded-full bg-muted">
-              <Lock className="h-6 w-6 text-muted-foreground" />
+        <div className="flex-1 flex flex-col min-h-0 px-4 pb-4">
+          {checkingPro || loadingUsers ? (
+            <div className="flex justify-center py-8 flex-1 items-center">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-            <div>
-              <p className="font-medium">Pro Feature</p>
-              <p className="text-sm text-muted-foreground">
-                Direct messages require you to be a member of a Pro club
-              </p>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search members..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-
-            <ScrollArea className="h-[300px] -mx-6 px-6">
-              <div className="space-y-1">
-                {filteredUsers.length === 0 ? (
-                  <div className="py-8 text-center text-muted-foreground">
-                    {searchQuery ? "No members found" : "No members available to message"}
-                  </div>
-                ) : (
-                  filteredUsers.map((user) => (
-                    <button
-                      key={user.id}
-                      onClick={() => startDMMutation.mutate(user.id)}
-                      disabled={startDMMutation.isPending}
-                      className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors text-left"
-                    >
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={user.avatar_url || undefined} />
-                        <AvatarFallback>
-                          {user.display_name?.charAt(0).toUpperCase() || "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">
-                          {user.display_name || "Unknown User"}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {user.shared_clubs.join(", ")}
-                        </p>
-                      </div>
-                      {startDMMutation.isPending && startDMMutation.variables === user.id && (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      )}
-                    </button>
-                  ))
-                )}
+          ) : !hasProAccess ? (
+            <div className="flex flex-col items-center py-8 text-center gap-3 flex-1 justify-center">
+              <div className="p-3 rounded-full bg-muted">
+                <Lock className="h-6 w-6 text-muted-foreground" />
               </div>
-            </ScrollArea>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
+              <div>
+                <p className="font-medium">Pro Feature</p>
+                <p className="text-sm text-muted-foreground">
+                  Direct messages require you to be a member of a Pro club
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search members..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+
+              <ScrollArea className="flex-1 -mx-4 px-4">
+                <div className="space-y-1">
+                  {filteredUsers.length === 0 ? (
+                    <div className="py-8 text-center text-muted-foreground">
+                      {searchQuery ? "No members found" : "No members available to message"}
+                    </div>
+                  ) : (
+                    filteredUsers.map((dmUser) => (
+                      <button
+                        key={dmUser.id}
+                        onClick={() => startDMMutation.mutate(dmUser.id)}
+                        disabled={startDMMutation.isPending}
+                        className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors text-left"
+                      >
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={dmUser.avatar_url || undefined} />
+                          <AvatarFallback>
+                            {dmUser.display_name?.charAt(0).toUpperCase() || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">
+                            {dmUser.display_name || "Unknown User"}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {dmUser.shared_clubs.join(", ")}
+                          </p>
+                        </div>
+                        {startDMMutation.isPending && startDMMutation.variables === dmUser.id && (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </>
+          )}
+        </div>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
