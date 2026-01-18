@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, Crown, MessageCircle, ImageIcon, Trash2 } from "lucide-react";
+import { ChevronRight, Crown, MessageCircle, ImageIcon, EyeOff } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useMemo } from "react";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
@@ -101,32 +101,39 @@ export function DMConversationsList({ searchQuery = "" }: DMConversationsListPro
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Delete conversation mutation
-  const deleteConversationMutation = useMutation({
+  // Fetch hidden conversations
+  const { data: hiddenConversationIds } = useQuery({
+    queryKey: ["hidden-dm-conversations", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("hidden_dm_conversations")
+        .select("conversation_id")
+        .eq("user_id", user!.id);
+      return new Set(data?.map(h => h.conversation_id) || []);
+    },
+    enabled: !!user,
+  });
+
+  // Hide conversation mutation
+  const hideConversationMutation = useMutation({
     mutationFn: async (conversationId: string) => {
-      // First delete all messages in the conversation
-      const { error: messagesError } = await supabase
-        .from("direct_messages")
-        .delete()
-        .eq("conversation_id", conversationId);
+      const { error } = await supabase
+        .from("hidden_dm_conversations")
+        .insert({
+          user_id: user!.id,
+          conversation_id: conversationId,
+        });
       
-      if (messagesError) throw messagesError;
-      
-      // Then delete the conversation itself
-      const { error: convError } = await supabase
-        .from("direct_conversations")
-        .delete()
-        .eq("id", conversationId);
-      
-      if (convError) throw convError;
+      if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Conversation deleted");
+      toast.success("Conversation hidden");
       queryClient.invalidateQueries({ queryKey: ["dm-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["hidden-dm-conversations"] });
     },
     onError: (error) => {
-      toast.error("Failed to delete conversation");
-      console.error("Delete conversation error:", error);
+      toast.error("Failed to hide conversation");
+      console.error("Hide conversation error:", error);
     },
   });
 
@@ -232,8 +239,10 @@ export function DMConversationsList({ searchQuery = "" }: DMConversationsListPro
     },
   });
 
-  // Filter by search query
+  // Filter by search query and exclude hidden conversations
   const filteredConversations = conversations?.filter(conv => {
+    // Exclude hidden conversations
+    if (hiddenConversationIds?.has(conv.id)) return false;
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
     return conv.other_user?.display_name?.toLowerCase().includes(query);
@@ -310,31 +319,31 @@ export function DMConversationsList({ searchQuery = "" }: DMConversationsListPro
                 </div>
               </Link>
               
-              {/* Delete button */}
+              {/* Hide button */}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-muted"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <EyeOff className="h-4 w-4" />
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete conversation?</AlertDialogTitle>
+                    <AlertDialogTitle>Hide conversation?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will permanently delete all messages with {conv.other_user?.display_name || "this user"}. This action cannot be undone.
+                      This will hide the conversation with {conv.other_user?.display_name || "this user"} from your list. 
+                      The messages will be preserved and the conversation will reappear if either of you sends a new message.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
-                      onClick={() => deleteConversationMutation.mutate(conv.id)}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => hideConversationMutation.mutate(conv.id)}
                     >
-                      Delete
+                      Hide
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
