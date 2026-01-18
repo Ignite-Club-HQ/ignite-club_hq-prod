@@ -9,8 +9,25 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 
+const passwordRequirements = [
+  { test: (p: string) => p.length >= 8, label: "At least 8 characters" },
+  { test: (p: string) => /[A-Z]/.test(p), label: "One uppercase letter" },
+  { test: (p: string) => /[a-z]/.test(p), label: "One lowercase letter" },
+  { test: (p: string) => /[0-9]/.test(p), label: "One number" },
+];
+
+const getPasswordStrengthMessage = (password: string): string | null => {
+  const failed = passwordRequirements.filter(req => !req.test(password));
+  if (failed.length === 0) return null;
+  return `Password needs: ${failed.map(r => r.label.toLowerCase()).join(", ")}`;
+};
+
 const passwordSchema = z.object({
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number"),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -40,9 +57,10 @@ export default function ResetPasswordPage() {
   const handleResetPassword = async () => {
     const validation = passwordSchema.safeParse({ password, confirmPassword });
     if (!validation.success) {
+      const strengthMessage = getPasswordStrengthMessage(password);
       toast({
         title: "Please check your password",
-        description: validation.error.errors[0].message,
+        description: strengthMessage || validation.error.errors[0].message,
       });
       return;
     }
@@ -150,6 +168,18 @@ export default function ResetPasswordPage() {
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
+              {password && (
+                <div className="space-y-1 mt-2">
+                  {passwordRequirements.map((req, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-xs">
+                      <div className={`w-1.5 h-1.5 rounded-full ${req.test(password) ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
+                      <span className={req.test(password) ? 'text-primary' : 'text-muted-foreground'}>
+                        {req.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">Confirm Password</Label>
