@@ -1663,6 +1663,9 @@ export type Database = {
           accepted_at: string | null
           club_id: string | null
           created_at: string
+          email_error: string | null
+          email_id: string | null
+          email_sent_at: string | null
           id: string
           invite_token: string | null
           invited_by_user_id: string
@@ -1678,6 +1681,9 @@ export type Database = {
           accepted_at?: string | null
           club_id?: string | null
           created_at?: string
+          email_error?: string | null
+          email_id?: string | null
+          email_sent_at?: string | null
           id?: string
           invite_token?: string | null
           invited_by_user_id: string
@@ -1693,6 +1699,9 @@ export type Database = {
           accepted_at?: string | null
           club_id?: string | null
           created_at?: string
+          email_error?: string | null
+          email_id?: string | null
+          email_sent_at?: string | null
           id?: string
           invite_token?: string | null
           invited_by_user_id?: string

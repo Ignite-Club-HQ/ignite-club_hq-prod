@@ -303,10 +303,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
           childrenInfo = `<p>Your child${validChildren.length > 1 ? "ren" : ""} will also be registered: <strong>${validChildren.map(c => c.name).join(", ")}</strong></p>`;
         }
 
-        // Send email if provided - with verification
+        // Send email if provided - with verification and tracking
+        let emailId: string | null = null;
+        let emailError: string | null = null;
+        
         if (member.email.trim()) {
           try {
-            const { data: emailResult, error: emailError } = await supabase.functions.invoke("send-email", {
+            const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
               body: {
                 to: member.email.trim(),
                 subject: `You're invited to join ${teamName}`,
@@ -323,17 +326,31 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
             });
             
             // Verify email was actually sent by checking the verified flag
-            if (emailError) {
-              console.error("Email function error for", member.email, emailError);
+            if (funcError) {
+              emailError = funcError.message || "Function error";
+              console.error("Email function error for", member.email, funcError);
             } else if (emailResult?.verified && emailResult?.success) {
               sent = true;
-              console.log("Email verified sent to", member.email, "ID:", emailResult.emailId);
+              emailId = emailResult.emailId;
+              console.log("Email verified sent to", member.email, "ID:", emailId);
             } else {
+              emailError = emailResult?.error || "Email not verified";
               console.warn("Email not verified for", member.email, "Response:", emailResult);
             }
           } catch (error) {
+            emailError = error instanceof Error ? error.message : "Unknown error";
             console.error("Failed to send email to", member.email, error);
           }
+          
+          // Update pending invite with email status
+          await supabase
+            .from("pending_invites")
+            .update({
+              email_sent_at: sent ? new Date().toISOString() : null,
+              email_id: emailId,
+              email_error: emailError,
+            } as any)
+            .eq("invite_token", inviteToken);
         }
 
         results.push({ 
