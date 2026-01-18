@@ -835,6 +835,97 @@ export type Database = {
           },
         ]
       }
+      direct_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          participant_1: string
+          participant_2: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          participant_1: string
+          participant_2: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          participant_1?: string
+          participant_2?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "direct_conversations_participant_1_fkey"
+            columns: ["participant_1"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "direct_conversations_participant_2_fkey"
+            columns: ["participant_2"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      direct_messages: {
+        Row: {
+          author_id: string
+          conversation_id: string
+          created_at: string
+          id: string
+          image_url: string | null
+          reply_to_id: string | null
+          text: string
+        }
+        Insert: {
+          author_id: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          reply_to_id?: string | null
+          text: string
+        }
+        Update: {
+          author_id?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          reply_to_id?: string | null
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "direct_messages_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "direct_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "direct_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "direct_messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "direct_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       duties: {
         Row: {
           assigned_to: string | null
@@ -1476,6 +1567,7 @@ export type Database = {
           broadcast_message_id: string | null
           club_message_id: string | null
           created_at: string
+          direct_message_id: string | null
           group_message_id: string | null
           id: string
           reaction_type: string
@@ -1486,6 +1578,7 @@ export type Database = {
           broadcast_message_id?: string | null
           club_message_id?: string | null
           created_at?: string
+          direct_message_id?: string | null
           group_message_id?: string | null
           id?: string
           reaction_type: string
@@ -1496,6 +1589,7 @@ export type Database = {
           broadcast_message_id?: string | null
           club_message_id?: string | null
           created_at?: string
+          direct_message_id?: string | null
           group_message_id?: string | null
           id?: string
           reaction_type?: string
@@ -1518,6 +1612,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "message_reactions_direct_message_id_fkey"
+            columns: ["direct_message_id"]
+            isOneToOne: false
+            referencedRelation: "direct_messages"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "message_reactions_group_message_id_fkey"
             columns: ["group_message_id"]
             isOneToOne: false
@@ -1537,6 +1638,7 @@ export type Database = {
         Row: {
           broadcast_message_id: string | null
           club_message_id: string | null
+          direct_message_id: string | null
           group_message_id: string | null
           id: string
           read_at: string
@@ -1546,6 +1648,7 @@ export type Database = {
         Insert: {
           broadcast_message_id?: string | null
           club_message_id?: string | null
+          direct_message_id?: string | null
           group_message_id?: string | null
           id?: string
           read_at?: string
@@ -1555,6 +1658,7 @@ export type Database = {
         Update: {
           broadcast_message_id?: string | null
           club_message_id?: string | null
+          direct_message_id?: string | null
           group_message_id?: string | null
           id?: string
           read_at?: string
@@ -1574,6 +1678,13 @@ export type Database = {
             columns: ["club_message_id"]
             isOneToOne: false
             referencedRelation: "club_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_reads_direct_message_id_fkey"
+            columns: ["direct_message_id"]
+            isOneToOne: false
+            referencedRelation: "direct_messages"
             referencedColumns: ["id"]
           },
           {
@@ -3172,6 +3283,7 @@ export type Database = {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
       }
+      can_dm_user: { Args: { other_user_id: string }; Returns: boolean }
       can_view_child_via_team: {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
@@ -3212,6 +3324,10 @@ export type Database = {
         }[]
       }
       get_club_team_count: { Args: { _club_id: string }; Returns: number }
+      get_or_create_dm_conversation: {
+        Args: { other_user_id: string }
+        Returns: string
+      }
       get_pending_invite_by_token: {
         Args: { _token: string }
         Returns: {
