@@ -43,6 +43,11 @@ interface DirectMessage {
       display_name: string | null;
     };
   } | null;
+  reactions?: {
+    id: string;
+    user_id: string;
+    reaction_type: string;
+  }[];
 }
 
 interface DirectConversation {
@@ -52,14 +57,6 @@ interface DirectConversation {
   created_at: string;
   updated_at: string;
 }
-
-interface MessageReaction {
-  id: string;
-  user_id: string;
-  reaction_type: string;
-  direct_message_id: string | null;
-}
-
 export default function DirectMessagePage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
@@ -157,7 +154,7 @@ export default function DirectMessagePage() {
       if (error) throw error;
       
       if (!rawMessages?.length) {
-        return { messages: [] as DirectMessage[], hasOlderMessages: false, reactions: [] as MessageReaction[] };
+        return { messages: [] as DirectMessage[], hasOlderMessages: false };
       }
       
       const hasMore = rawMessages.length > MESSAGES_PER_PAGE;
@@ -191,10 +188,14 @@ export default function DirectMessagePage() {
       const messages = dataToDisplay.map((msg: any) => {
         const replyTo = msg.reply_to_id ? replyToMap.get(msg.reply_to_id) || null : null;
         const profile = profilesMap.get(msg.author_id);
+        const msgReactions = (reactionsResult.data || [])
+          .filter((r: any) => r.direct_message_id === msg.id)
+          .map((r: any) => ({ id: r.id, user_id: r.user_id, reaction_type: r.reaction_type }));
         return {
           ...msg,
           author: profile ? { display_name: profile.display_name, avatar_url: profile.avatar_url } : null,
           reply_to: replyTo,
+          reactions: msgReactions,
         };
       }) as DirectMessage[];
       
@@ -207,11 +208,7 @@ export default function DirectMessagePage() {
         image_url: m.image_url,
         reply_to_id: m.reply_to_id,
         profiles: m.author ? { display_name: m.author.display_name, avatar_url: m.author.avatar_url } : null,
-        reactions: (reactionsResult.data || []).filter((r: any) => r.direct_message_id === m.id).map((r: any) => ({
-          reaction_type: r.reaction_type,
-          user_id: r.user_id,
-          id: r.id,
-        })),
+        reactions: m.reactions || [],
         reply_to: m.reply_to ? { text: m.reply_to.text, author: m.reply_to.author } : null,
       }));
       cacheMessages("dm", conversationId!, messagesToCache);
@@ -219,7 +216,6 @@ export default function DirectMessagePage() {
       return {
         messages,
         hasOlderMessages: hasMore,
-        reactions: (reactionsResult.data || []) as MessageReaction[],
       };
     },
     enabled: !!conversationId,
@@ -242,18 +238,14 @@ export default function DirectMessagePage() {
         reply_to_id: c.reply_to_id,
         author: c.profiles ? { display_name: c.profiles.display_name, avatar_url: c.profiles.avatar_url } : undefined,
         reply_to: c.reply_to ? { text: c.reply_to.text, author: c.reply_to.author || c.reply_to.profiles } : null,
-      }));
-      
-      const reactions: MessageReaction[] = cached.flatMap(c => 
-        (c.reactions || []).map((r: any) => ({
+        reactions: (c.reactions || []).map((r: any) => ({
           id: r.id || "",
           user_id: r.user_id,
           reaction_type: r.reaction_type,
-          direct_message_id: c.id,
-        }))
-      );
+        })),
+      }));
       
-      return { messages, hasOlderMessages: false, reactions };
+      return { messages, hasOlderMessages: false };
     },
   });
 
@@ -333,11 +325,6 @@ export default function DirectMessagePage() {
     };
     tryScroll();
   }, [localMessages]);
-
-  const reactions = useMemo(() => {
-    if (!messagesData || Array.isArray(messagesData)) return [];
-    return (messagesData as any).reactions || [];
-  }, [messagesData]);
 
   useEffect(() => {
     if (messagesData && !Array.isArray(messagesData)) {
@@ -523,8 +510,6 @@ export default function DirectMessagePage() {
             localMessages?.map((msg, index) => {
               const showDateSeparator = index === 0 || 
                 !isSameDay(new Date(msg.created_at), new Date(localMessages[index - 1]?.created_at));
-              
-              const messageReactions = reactions.filter((r: MessageReaction) => r.direct_message_id === msg.id);
 
               return (
                 <div key={msg.id}>
@@ -547,11 +532,7 @@ export default function DirectMessagePage() {
                       timestamp={format(new Date(msg.created_at), "h:mm a")}
                       isOwn={msg.author_id === user?.id}
                       isAdmin={false}
-                      reactions={messageReactions.map((r: MessageReaction) => ({
-                        id: r.id,
-                        user_id: r.user_id,
-                        reaction_type: r.reaction_type,
-                      }))}
+                      reactions={msg.reactions || []}
                       currentUserId={user?.id}
                       messageType="dm"
                       queryKey={["dm-messages", conversationId]}
