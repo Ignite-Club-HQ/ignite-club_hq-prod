@@ -156,6 +156,7 @@ export default function AuthPage() {
 
   const handleBiometricSignIn = async () => {
     const storedAccounts = getStoredPasskeyAccounts();
+    console.log('[AuthPage] handleBiometricSignIn - stored accounts:', storedAccounts);
     
     if (storedAccounts.length === 0) {
       toast({
@@ -480,7 +481,7 @@ export default function AuthPage() {
         <PasskeyAccountSelector
           open={accountSelectorOpen}
           onOpenChange={setAccountSelectorOpen}
-          accounts={accounts}
+          accounts={getStoredPasskeyAccounts()}
           onSelectAccount={authenticateAccount}
           loading={passkeyLoading}
         />
