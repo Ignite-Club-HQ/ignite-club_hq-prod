@@ -454,7 +454,6 @@ export default function DirectMessagePage() {
             </Avatar>
             <div>
               <h1 className="font-semibold">{otherUser?.display_name || "Unknown User"}</h1>
-              <p className="text-xs text-muted-foreground">Direct Message</p>
             </div>
           </div>
         </div>
@@ -495,7 +494,6 @@ export default function DirectMessagePage() {
           </Avatar>
           <div>
             <h1 className="font-semibold">{otherUser?.display_name || "Unknown User"}</h1>
-            <p className="text-xs text-muted-foreground">Direct Message</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
