@@ -36,17 +36,27 @@ export default function CompleteProfilePage() {
 
   // Check if push notifications and biometrics are supported
   useEffect(() => {
-    if (typeof window === 'undefined' || 
-        !('PushManager' in window) || 
-        !('serviceWorker' in navigator) ||
-        !('Notification' in window)) {
-      setPushSupported(false);
-    }
+    const checkFeatures = async () => {
+      // Check push support
+      const hasPush = typeof window !== 'undefined' && 
+                      'PushManager' in window && 
+                      'serviceWorker' in navigator &&
+                      'Notification' in window;
+      console.log('[CompleteProfile] Push support check:', { hasPush, PushManager: 'PushManager' in window, serviceWorker: 'serviceWorker' in navigator, Notification: 'Notification' in window });
+      setPushSupported(hasPush);
+      
+      // Check biometrics availability
+      try {
+        const available = await isPlatformAuthenticatorAvailable();
+        console.log('[CompleteProfile] Biometrics available:', available);
+        setBiometricsAvailable(available);
+      } catch (err) {
+        console.log('[CompleteProfile] Biometrics check error:', err);
+        setBiometricsAvailable(false);
+      }
+    };
     
-    // Check biometrics availability
-    isPlatformAuthenticatorAvailable().then(available => {
-      setBiometricsAvailable(available);
-    });
+    checkFeatures();
   }, []);
 
   // Initialize form values once profile is loaded, with pending invite prefill
