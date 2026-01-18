@@ -2,7 +2,7 @@ import { useState, useEffect, lazy, Suspense, useMemo } from "react";
 import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,7 @@ import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
 import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
 import TeamInviteLinkDialog from "@/components/TeamInviteLinkDialog";
+import { TeamAdminInviteDialog } from "@/components/TeamAdminInviteDialog";
 import TeamPlayerPositionEditor from "@/components/TeamPlayerPositionEditor";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import PromoteToTeamAdminDialog from "@/components/PromoteToTeamAdminDialog";
@@ -78,6 +79,7 @@ export default function TeamDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -85,6 +87,12 @@ export default function TeamDetailPage() {
   const [showPitchBoard, setShowPitchBoard] = useState(false);
   const [linkedEventId, setLinkedEventId] = useState<string | null>(null);
   const [isSavingPitchSettings, setIsSavingPitchSettings] = useState(false);
+  
+  // Handle admin invite dialog from team creation flow
+  const locationState = location.state as { showAdminInvite?: boolean; inviteLink?: string; teamName?: string } | null;
+  const [showAdminInviteDialog, setShowAdminInviteDialog] = useState(!!locationState?.showAdminInvite);
+  const adminInviteLink = locationState?.inviteLink || "";
+  const adminInviteTeamName = locationState?.teamName || "";
 
   const { data: team, isLoading } = useQuery({
     queryKey: ["team", id],
@@ -1359,6 +1367,24 @@ export default function TeamDetailPage() {
         </Suspense>,
         document.body
       )}
+      
+      {/* Admin invite dialog - shown after team creation with "assign someone else" option */}
+      <TeamAdminInviteDialog
+        open={showAdminInviteDialog}
+        onOpenChange={(open) => {
+          setShowAdminInviteDialog(open);
+          // Clear the location state when dialog is closed to prevent re-showing on refresh
+          if (!open && locationState?.showAdminInvite) {
+            navigate(location.pathname, { replace: true, state: {} });
+          }
+        }}
+        teamName={adminInviteTeamName || team?.name || ""}
+        inviteLink={adminInviteLink}
+        onDone={() => {
+          setShowAdminInviteDialog(false);
+          navigate(location.pathname, { replace: true, state: {} });
+        }}
+      />
     </div>
   );
 }

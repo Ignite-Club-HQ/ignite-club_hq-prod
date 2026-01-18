@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { AssignTeamAdminSection, TeamAdminAssignment } from "@/components/AssignTeamAdminSection";
-import { TeamAdminInviteDialog } from "@/components/TeamAdminInviteDialog";
+// TeamAdminInviteDialog now shown on TeamDetailPage via navigation state
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -38,10 +38,7 @@ export default function CreateTeamPage() {
   const [saving, setSaving] = useState(false);
   const [adminAssignment, setAdminAssignment] = useState<TeamAdminAssignment | null>(null);
   
-  // For showing invite dialog after team creation
-  const [showInviteDialog, setShowInviteDialog] = useState(false);
-  const [createdTeam, setCreatedTeam] = useState<{ id: string; name: string } | null>(null);
-  const [generatedInviteLink, setGeneratedInviteLink] = useState("");
+  // Invite dialog state no longer needed - we navigate immediately with state
 
   const { data: club } = useQuery({
     queryKey: ["club", clubId],
@@ -233,11 +230,19 @@ export default function CreateTeamPage() {
         });
         navigate(`/teams/${team.id}`);
       } else {
-        // Show the invite dialog with the generated link
+        // Navigate immediately to team page with invite link in state
         const inviteLink = `${window.location.origin}/join/${token}?install=true`;
-        setCreatedTeam({ id: team.id, name: team.name });
-        setGeneratedInviteLink(inviteLink);
-        setShowInviteDialog(true);
+        toast({
+          title: "Team created!",
+          description: `${team.name} has been created successfully.`,
+        });
+        navigate(`/teams/${team.id}`, { 
+          state: { 
+            showAdminInvite: true, 
+            inviteLink,
+            teamName: team.name 
+          } 
+        });
       }
     } else {
       // Default: Assign creator as team_admin
@@ -266,11 +271,7 @@ export default function CreateTeamPage() {
     }
   };
 
-  const handleInviteDialogDone = () => {
-    if (createdTeam) {
-      navigate(`/teams/${createdTeam.id}`);
-    }
-  };
+  // No longer needed - we navigate immediately now
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
@@ -465,14 +466,6 @@ export default function CreateTeamPage() {
         </div>
       </div>
 
-      {/* Invite Dialog - shown after team creation when invite link is selected */}
-      <TeamAdminInviteDialog
-        open={showInviteDialog}
-        onOpenChange={setShowInviteDialog}
-        teamName={createdTeam?.name || name}
-        inviteLink={generatedInviteLink}
-        onDone={handleInviteDialogDone}
-      />
     </div>
   );
 }
