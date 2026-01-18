@@ -1512,6 +1512,35 @@ export type Database = {
           },
         ]
       }
+      hidden_dm_conversations: {
+        Row: {
+          conversation_id: string
+          hidden_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          hidden_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          hidden_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hidden_dm_conversations_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "direct_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_subscription_payments: {
         Row: {
           amount: number

@@ -370,9 +370,16 @@ export default function DirectMessagePage() {
       setLocalMessages((prev) => [...(prev || []), optimisticMessage]);
       setTimeout(scrollToBottom, 50);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Unhide conversation if it was hidden (so it reappears for both users)
+      await supabase
+        .from("hidden_dm_conversations")
+        .delete()
+        .eq("conversation_id", conversationId!);
+      
       queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["dm-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["hidden-dm-conversations"] });
     },
     onError: (error) => {
       toast.error("Failed to send message: " + error.message);
