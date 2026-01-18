@@ -31,7 +31,7 @@ export default function CompleteProfilePage() {
   const [showOpenAppMessage, setShowOpenAppMessage] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { canPrompt, isInstalled, installApp } = usePWAInstall();
+  const { canPrompt, isInstalled, installApp, isReady: pwaReady, isIOS } = usePWAInstall();
   const { registerPasskey } = usePasskey();
 
   // Check if push notifications and biometrics are supported
@@ -82,8 +82,8 @@ export default function CompleteProfilePage() {
     initializeProfile();
   }, [authLoading, profileLoading, profile, user, initialized]);
 
-  // Show loading while auth or profile is loading
-  if (authLoading || profileLoading) {
+  // Show loading while auth, profile, or PWA detection is loading
+  if (authLoading || profileLoading || !pwaReady) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <div className="p-4 rounded-2xl bg-primary">
@@ -308,20 +308,24 @@ export default function CompleteProfilePage() {
               </div>
             )}
 
-            {/* Install App Button - shown when browser supports PWA install */}
-            {canPrompt && !isInstalled && (
+            {/* Install App Button - shown when browser supports PWA install or on iOS */}
+            {!isInstalled && (canPrompt || isIOS) && (
               <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
                 <div className="flex items-center gap-3">
                   <Download className="h-5 w-5 text-primary" />
                   <div>
                     <p className="font-medium text-sm">Install App</p>
-                    <p className="text-xs text-muted-foreground">Add to home screen for the best experience</p>
+                    <p className="text-xs text-muted-foreground">
+                      {isIOS ? "Tap Share → Add to Home Screen for best experience" : "Add to home screen for the best experience"}
+                    </p>
                   </div>
                 </div>
-                <Switch
-                  checked={installAndContinue}
-                  onCheckedChange={setInstallAndContinue}
-                />
+                {!isIOS && (
+                  <Switch
+                    checked={installAndContinue}
+                    onCheckedChange={setInstallAndContinue}
+                  />
+                )}
               </div>
             )}
 
