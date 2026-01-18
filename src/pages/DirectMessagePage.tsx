@@ -22,6 +22,8 @@ import { fetchProfilesWithCache } from "@/lib/profileCache";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage } from "@/lib/messageCache";
+import { ChatSearch, highlightText } from "@/components/chat/ChatSearch";
+import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -68,6 +70,7 @@ export default function DirectMessagePage() {
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
@@ -488,7 +491,9 @@ export default function DirectMessagePage() {
             <p className="text-xs text-muted-foreground">Direct Message</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <ChatSearch onSearch={setSearchQuery} />
+          <ChatMuteButton chatType="dm" chatId={conversationId!} />
           <Button variant="ghost" size="icon" onClick={handleManualRefresh} disabled={isAnyRefreshing}>
             <RefreshCw className={`h-4 w-4 ${isAnyRefreshing ? 'animate-spin' : ''}`} />
           </Button>
@@ -507,9 +512,11 @@ export default function DirectMessagePage() {
           ) : localMessages?.length === 0 ? (
             <ChatEmptyState title={`Start a conversation with ${otherUser?.display_name || "this user"}`} />
           ) : (
-            localMessages?.map((msg, index) => {
+            localMessages
+              ?.filter((msg) => !searchQuery || msg.text.toLowerCase().includes(searchQuery.toLowerCase()))
+              .map((msg, index, filteredMessages) => {
               const showDateSeparator = index === 0 || 
-                !isSameDay(new Date(msg.created_at), new Date(localMessages[index - 1]?.created_at));
+                !isSameDay(new Date(msg.created_at), new Date(filteredMessages[index - 1]?.created_at));
 
               return (
                 <div key={msg.id}>
@@ -524,7 +531,7 @@ export default function DirectMessagePage() {
                   >
                     <ChatMessage
                       id={msg.id}
-                      text={msg.text}
+                      text={searchQuery ? highlightText(msg.text, searchQuery) as string : msg.text}
                       imageUrl={msg.image_url}
                       authorId={msg.author_id}
                       authorName={msg.author?.display_name || null}
