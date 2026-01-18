@@ -177,7 +177,7 @@ export function StartDMDialog() {
       setOpen(false);
       setSelectedUsers([]);
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
-      navigate(`/messages/group/${groupId}`);
+      navigate(`/groups/${groupId}`);
       toast.success("Group chat created!");
     },
     onError: (error) => {
