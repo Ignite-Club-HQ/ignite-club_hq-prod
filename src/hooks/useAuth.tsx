@@ -8,6 +8,7 @@ import { prefetchUserData } from "@/lib/prefetchData";
 import { clearProfileCache } from "@/lib/profileCache";
 import { clearRolesCache } from "@/lib/rolesCache";
 import { clearClubTeamCache } from "@/lib/clubTeamCache";
+import { syncPasskeyAccountsFromDatabase } from "@/hooks/usePasskey";
 
 interface Profile {
   id: string;
@@ -193,6 +194,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTimeout(() => {
         prefetchUserData(queryClient, userId).catch(console.error);
         fetchUnreadCount(userId).catch(console.error);
+        // Sync passkey accounts from database to restore any lost localStorage data
+        const email = currentSession.user.email;
+        const displayName = currentSession.user.user_metadata?.full_name || 
+                           currentSession.user.user_metadata?.name;
+        if (email) {
+          syncPasskeyAccountsFromDatabase(userId, email, displayName).catch(console.error);
+        }
       }, 100);
     };
     
