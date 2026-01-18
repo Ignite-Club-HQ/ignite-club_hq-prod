@@ -215,6 +215,19 @@ export default function SignupProPage() {
 
     setSaving(true);
 
+    // Check for duplicate club name
+    const { data: existingClub } = await supabase
+      .from("clubs")
+      .select("id")
+      .ilike("name", clubName.trim())
+      .maybeSingle();
+
+    if (existingClub) {
+      setSaving(false);
+      toast({ title: "Club name already exists", description: "Please choose a different name for your club.", variant: "destructive" });
+      return;
+    }
+
     const { data: club, error: clubError } = await supabase
       .from("clubs")
       .insert({
@@ -229,7 +242,13 @@ export default function SignupProPage() {
 
     if (clubError) {
       setSaving(false);
-      toast({ title: "Error", description: "Failed to create club. Please try again.", variant: "destructive" });
+      toast({ 
+        title: "Error", 
+        description: clubError.message.includes("idx_unique_club_name") 
+          ? "A club with this name already exists." 
+          : "Failed to create club. Please try again.", 
+        variant: "destructive" 
+      });
       return;
     }
 
