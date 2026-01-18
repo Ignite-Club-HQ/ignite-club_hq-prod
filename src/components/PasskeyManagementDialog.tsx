@@ -72,10 +72,10 @@ function getDeviceName(deviceType: string | null) {
 }
 
 export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagementDialogProps) {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { registerPasskey, removeAccount, refreshAccounts, loading: registerLoading } = usePasskey();
+  const { registerPasskey, removeAccount, loading: registerLoading } = usePasskey();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -95,7 +95,10 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
   });
 
   const handleDelete = async (passkeyId: string) => {
+    // Close the confirmation dialog first to prevent UI freeze
+    setConfirmDeleteId(null);
     setDeletingId(passkeyId);
+    
     try {
       const { error } = await supabase
         .from("user_passkeys")
@@ -117,7 +120,7 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
         description: "The passkey has been deleted from your account.",
       });
 
-      queryClient.invalidateQueries({ queryKey: ["user-passkeys"] });
+      await queryClient.invalidateQueries({ queryKey: ["user-passkeys"] });
     } catch (error: any) {
       toast({
         title: "Failed to remove passkey",
@@ -126,7 +129,6 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
       });
     } finally {
       setDeletingId(null);
-      setConfirmDeleteId(null);
     }
   };
 
@@ -147,6 +149,12 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
     }
   };
 
+  const handleConfirmDelete = () => {
+    if (confirmDeleteId) {
+      handleDelete(confirmDeleteId);
+    }
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -161,7 +169,7 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 mt-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -170,47 +178,50 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
               <div className="space-y-3">
                 {passkeys.map((passkey) => {
                   const DeviceIcon = getDeviceIcon(passkey.device_type);
-                  const deviceName = getDeviceName(passkey.device_type);
                   const isDeleting = deletingId === passkey.id;
-
+                  
                   return (
-                    <Card key={passkey.id}>
+                    <Card key={passkey.id} className="relative">
                       <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-primary/10">
-                              <DeviceIcon className="h-5 w-5 text-primary" />
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                              <DeviceIcon className="h-5 w-5 text-muted-foreground" />
                             </div>
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">{deviceName}</span>
-                                {passkey.device_type && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    {passkey.device_type}
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="text-xs text-muted-foreground space-y-0.5">
-                                <p>Added {format(new Date(passkey.created_at), "MMM d, yyyy")}</p>
-                                {passkey.last_used_at && (
-                                  <p>Last used {format(new Date(passkey.last_used_at), "MMM d, yyyy 'at' h:mm a")}</p>
-                                )}
-                              </div>
+                            <div>
+                              <p className="font-medium">
+                                {getDeviceName(passkey.device_type)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Added {format(new Date(passkey.created_at), "MMM d, yyyy")}
+                              </p>
+                              {passkey.last_used_at && (
+                                <p className="text-xs text-muted-foreground">
+                                  Last used {format(new Date(passkey.last_used_at), "MMM d, yyyy")}
+                                </p>
+                              )}
                             </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => setConfirmDeleteId(passkey.id)}
-                            disabled={isDeleting}
-                          >
-                            {isDeleting ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
+                          <div className="flex items-center gap-2">
+                            {passkey.device_type && (
+                              <Badge variant="secondary" className="text-xs">
+                                {passkey.device_type}
+                              </Badge>
                             )}
-                          </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => setConfirmDeleteId(passkey.id)}
+                              disabled={isDeleting}
+                            >
+                              {isDeleting ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -218,30 +229,37 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
                 })}
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Fingerprint className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>No passkeys registered yet.</p>
-                <p className="text-sm">Add a passkey to enable biometric login.</p>
+              <div className="text-center py-8">
+                <Fingerprint className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">
+                  No passkeys registered yet.
+                </p>
               </div>
             )}
 
             <Button
-              className="w-full"
               onClick={handleAddPasskey}
               disabled={registerLoading}
+              className="w-full"
             >
               {registerLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Setting up...
+                </>
               ) : (
-                <Plus className="h-4 w-4 mr-2" />
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add New Passkey
+                </>
               )}
-              Add New Passkey
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!confirmDeleteId} onOpenChange={() => setConfirmDeleteId(null)}>
+      {/* Separate AlertDialog outside the main Dialog to prevent conflicts */}
+      <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Passkey?</AlertDialogTitle>
@@ -250,9 +268,9 @@ export function PasskeyManagementDialog({ open, onOpenChange }: PasskeyManagemen
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setConfirmDeleteId(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => confirmDeleteId && handleDelete(confirmDeleteId)}
+              onClick={handleConfirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Remove
