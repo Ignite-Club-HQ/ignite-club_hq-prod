@@ -21,6 +21,7 @@ import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { getCachedMessages, cacheMessages, CachedMessage } from "@/lib/messageCache";
 
 const MESSAGES_PER_PAGE = 15;
 const REACTION_EMOJIS = ["❤️", "🔥", "👏", "😂", "😮", "😢"];
@@ -144,7 +145,7 @@ export default function DirectMessagePage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch messages
+  // Fetch messages with cache support
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
     queryKey: ["dm-messages", conversationId],
     queryFn: async () => {
@@ -198,6 +199,24 @@ export default function DirectMessagePage() {
         };
       }) as DirectMessage[];
       
+      // Cache messages for offline/fast reload
+      const messagesToCache: CachedMessage[] = messages.map(m => ({
+        id: m.id,
+        text: m.text,
+        author_id: m.author_id,
+        created_at: m.created_at,
+        image_url: m.image_url,
+        reply_to_id: m.reply_to_id,
+        profiles: m.author ? { display_name: m.author.display_name, avatar_url: m.author.avatar_url } : null,
+        reactions: (reactionsResult.data || []).filter((r: any) => r.direct_message_id === m.id).map((r: any) => ({
+          reaction_type: r.reaction_type,
+          user_id: r.user_id,
+          id: r.id,
+        })),
+        reply_to: m.reply_to ? { text: m.reply_to.text, author: m.reply_to.author } : null,
+      }));
+      cacheMessages("dm", conversationId!, messagesToCache);
+      
       return {
         messages,
         hasOlderMessages: hasMore,
@@ -208,6 +227,35 @@ export default function DirectMessagePage() {
     staleTime: 1000 * 60 * 5,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
+    placeholderData: () => {
+      // Return cached messages as placeholder for instant load
+      if (!conversationId) return undefined;
+      const cached = getCachedMessages("dm", conversationId);
+      if (!cached.length) return undefined;
+      
+      const messages: DirectMessage[] = cached.map(c => ({
+        id: c.id,
+        text: c.text,
+        image_url: c.image_url,
+        created_at: c.created_at,
+        author_id: c.author_id,
+        conversation_id: conversationId,
+        reply_to_id: c.reply_to_id,
+        author: c.profiles ? { display_name: c.profiles.display_name, avatar_url: c.profiles.avatar_url } : undefined,
+        reply_to: c.reply_to ? { text: c.reply_to.text, author: c.reply_to.author || c.reply_to.profiles } : null,
+      }));
+      
+      const reactions: MessageReaction[] = cached.flatMap(c => 
+        (c.reactions || []).map((r: any) => ({
+          id: r.id || "",
+          user_id: r.user_id,
+          reaction_type: r.reaction_type,
+          direct_message_id: c.id,
+        }))
+      );
+      
+      return { messages, hasOlderMessages: false, reactions };
+    },
   });
 
   const showLoading = messagesLoading && !messagesData;
