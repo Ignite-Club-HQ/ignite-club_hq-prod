@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -6,10 +6,23 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronRight, Crown, MessageCircle, ImageIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ChevronRight, Crown, MessageCircle, ImageIcon, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface DMConversation {
   id: string;
@@ -87,6 +100,35 @@ interface DMConversationsListProps {
 export function DMConversationsList({ searchQuery = "" }: DMConversationsListProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  // Delete conversation mutation
+  const deleteConversationMutation = useMutation({
+    mutationFn: async (conversationId: string) => {
+      // First delete all messages in the conversation
+      const { error: messagesError } = await supabase
+        .from("direct_messages")
+        .delete()
+        .eq("conversation_id", conversationId);
+      
+      if (messagesError) throw messagesError;
+      
+      // Then delete the conversation itself
+      const { error: convError } = await supabase
+        .from("direct_conversations")
+        .delete()
+        .eq("id", conversationId);
+      
+      if (convError) throw convError;
+    },
+    onSuccess: () => {
+      toast.success("Conversation deleted");
+      queryClient.invalidateQueries({ queryKey: ["dm-conversations"] });
+    },
+    onError: (error) => {
+      toast.error("Failed to delete conversation");
+      console.error("Delete conversation error:", error);
+    },
+  });
 
   // Load cached data for instant display
   const cachedData = useMemo(() => {
@@ -223,9 +265,9 @@ export function DMConversationsList({ searchQuery = "" }: DMConversationsListPro
   }
 
   return (
-    <>
+    <div className="space-y-2 border-t pt-4 mt-4">
       {/* Section header */}
-      <div className="flex items-center gap-2 pt-2 pb-1">
+      <div className="flex items-center gap-2 pb-1">
         <span className="text-sm font-medium text-muted-foreground">Direct Messages</span>
         <Badge variant="secondary" className="gap-1 text-xs">
           <Crown className="h-3 w-3" />
@@ -237,40 +279,73 @@ export function DMConversationsList({ searchQuery = "" }: DMConversationsListPro
         const isOwn = conv.last_message?.author_id === user?.id;
         
         return (
-          <Link key={conv.id} to={`/messages/dm/${conv.id}`}>
-            <Card className="hover:border-primary/50 transition-colors">
-              <CardContent className="p-4 flex items-center gap-4">
-                <Avatar className="h-12 w-12">
-                  <AvatarImage src={conv.other_user?.avatar_url || undefined} />
-                  <AvatarFallback className="bg-secondary text-secondary-foreground">
-                    {conv.other_user?.display_name?.charAt(0).toUpperCase() || "?"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <h3 className="truncate font-semibold">
-                    {conv.other_user?.display_name || "Unknown User"}
-                  </h3>
-                  <p className="text-sm text-muted-foreground truncate">
-                    <MessagePreview 
-                      text={conv.last_message?.text} 
-                      imageUrl={conv.last_message?.image_url}
-                      isOwn={isOwn}
-                    />
-                  </p>
-                </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  {conv.last_message?.created_at && (
-                    <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(conv.last_message.created_at), { addSuffix: true })}
-                    </span>
-                  )}
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
+          <div key={conv.id} className="relative group">
+            <Link to={`/messages/dm/${conv.id}`}>
+              <Card className="hover:border-primary/50 transition-colors">
+                <CardContent className="p-4 flex items-center gap-4">
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={conv.other_user?.avatar_url || undefined} />
+                    <AvatarFallback className="bg-secondary text-secondary-foreground">
+                      {conv.other_user?.display_name?.charAt(0).toUpperCase() || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="truncate font-semibold">
+                      {conv.other_user?.display_name || "Unknown User"}
+                    </h3>
+                    <p className="text-sm text-muted-foreground truncate">
+                      <MessagePreview 
+                        text={conv.last_message?.text} 
+                        imageUrl={conv.last_message?.image_url}
+                        isOwn={isOwn}
+                      />
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {conv.last_message?.created_at && (
+                      <span className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(conv.last_message.created_at), { addSuffix: true })}
+                      </span>
+                    )}
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+            
+            {/* Delete button */}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 hover:bg-destructive hover:text-destructive-foreground"
+                  onClick={(e) => e.preventDefault()}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete conversation?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete all messages with {conv.other_user?.display_name || "this user"}. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => deleteConversationMutation.mutate(conv.id)}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         );
       })}
-    </>
+    </div>
   );
 }
