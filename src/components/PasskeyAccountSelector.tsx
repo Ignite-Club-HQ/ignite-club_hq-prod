@@ -65,10 +65,12 @@ export function PasskeyAccountSelector({
                   onClick={() => handleSelectAccount(account.email)}
                   disabled={isDisabled}
                   className={cn(
-                    "w-full flex items-center gap-3 p-4 rounded-lg border border-border bg-card transition-all",
+                    "w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all",
                     "hover:bg-accent hover:border-primary/50",
-                    "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background",
-                    isAuthenticating && "border-primary bg-primary/10",
+                    "focus:outline-none",
+                    isAuthenticating 
+                      ? "border-primary bg-primary/10" 
+                      : "border-border bg-card",
                     isDisabled && !isAuthenticating && "opacity-50 cursor-not-allowed"
                   )}
                 >
