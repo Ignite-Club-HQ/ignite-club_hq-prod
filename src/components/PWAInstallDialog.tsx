@@ -26,7 +26,7 @@ export function PWAInstallDialog({ forceShow = false, autoShow = true, onClose, 
   const [open, setOpen] = useState(false);
   const [hasTriggered, setHasTriggered] = useState(false);
   const [neverShowAgain, setNeverShowAgain] = useState(false);
-  const { canPrompt, isInstalled, isIOS, installApp } = usePWAInstall();
+  const { canPrompt, isInstalled, isIOS, isReady, installApp } = usePWAInstall();
 
   const sessionKey = `pwa-install-prompt-shown-${promptKey}`;
 
@@ -151,6 +151,16 @@ export function PWAInstallDialog({ forceShow = false, autoShow = true, onClose, 
                 <Download className="h-4 w-4 mr-2" />
                 Install App
               </Button>
+            </div>
+          ) : !isReady ? (
+            // Still detecting PWA capability - show loading
+            <div className="space-y-4">
+              <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Download className="h-5 w-5 text-primary animate-pulse" />
+                  <span>Checking install options...</span>
+                </div>
+              </div>
             </div>
           ) : (
             // Fallback instructions for other browsers
