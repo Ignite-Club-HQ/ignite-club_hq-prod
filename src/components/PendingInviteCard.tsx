@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, X, UserCheck, Copy, Send, MoreHorizontal, Trash2, Check, Pencil } from "lucide-react";
+import { Clock, X, UserCheck, Copy, Send, MoreHorizontal, Trash2, Check, Pencil, Mail, MailX, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
@@ -41,8 +47,12 @@ interface PendingInviteCardProps {
     role: string;
     invited_user_id: string | null;
     invited_label: string | null;
+    invited_email?: string | null;
     created_at: string;
     status: string;
+    email_sent_at?: string | null;
+    email_id?: string | null;
+    email_error?: string | null;
     profiles?: {
       id: string;
       display_name: string | null;
@@ -211,6 +221,41 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
                 <Clock className="h-3 w-3 mr-1" />
                 Pending
               </Badge>
+              {/* Email status indicator */}
+              {invite.invited_email && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {invite.email_sent_at ? (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/30">
+                          <Mail className="h-2.5 w-2.5 mr-0.5" />
+                          Sent
+                        </Badge>
+                      ) : invite.email_error ? (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">
+                          <MailX className="h-2.5 w-2.5 mr-0.5" />
+                          Failed
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-muted text-muted-foreground">
+                          <AlertCircle className="h-2.5 w-2.5 mr-0.5" />
+                          Not sent
+                        </Badge>
+                      )}
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">
+                        {invite.email_sent_at 
+                          ? `Email sent to ${invite.invited_email}` 
+                          : invite.email_error 
+                            ? `Failed: ${invite.email_error}`
+                            : `No email sent to ${invite.invited_email}`
+                        }
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               <span className="text-xs text-muted-foreground hidden sm:inline">
                 • {timeAgo}
               </span>
