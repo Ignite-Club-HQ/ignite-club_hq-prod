@@ -10,8 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
-import { usePasskey, getStoredPasskeyEmail, isPlatformAuthenticatorAvailable, getRememberMe, setRememberMe, getStoredPasskeyAccounts } from "@/hooks/usePasskey";
-import { PasskeyAccountSelector } from "@/components/PasskeyAccountSelector";
+import { usePasskey, isPlatformAuthenticatorAvailable, getRememberMe, setRememberMe } from "@/hooks/usePasskey";
 
 import { z } from "zod";
 
@@ -50,34 +49,41 @@ export default function AuthPage() {
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const [rememberMe, setRememberMeState] = useState(getRememberMe());
-  const [accountSelectorOpen, setAccountSelectorOpen] = useState(false);
   const autoPromptTriggered = useRef(false);
   const { toast } = useToast();
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
   const { isAvailable, accounts, loading: passkeyLoading, authenticateWithPasskey } = usePasskey();
   
-  // Check if biometrics are available - always show if platform supports it
+  // Check if biometrics are available and auto-prompt discoverable credentials
   useEffect(() => {
-    const checkBiometrics = async () => {
+    const checkBiometricsAndAutoPrompt = async () => {
       const available = await isPlatformAuthenticatorAvailable();
-      // Show biometrics button if platform supports it
-      // Even if localStorage is cleared, users may have passkeys we can discover
       setBiometricsAvailable(available);
       
-      const storedAccounts = getStoredPasskeyAccounts();
-      console.log('[AuthPage] Biometrics check:', { available, storedAccountsCount: storedAccounts.length, accounts: storedAccounts });
+      console.log('[AuthPage] Biometrics check:', { available, authLoading, autoPromptTriggered: autoPromptTriggered.current });
       
-      // Auto-trigger biometric prompt if Remember Me is enabled and only one known account
-      if (available && storedAccounts.length === 1 && getRememberMe() && !autoPromptTriggered.current && !authLoading) {
+      // Auto-trigger discoverable credentials prompt on page load
+      // This shows ALL available passkeys from the device (not just ones in localStorage)
+      if (available && !autoPromptTriggered.current && !authLoading) {
         autoPromptTriggered.current = true;
         // Small delay to ensure UI is ready
-        setTimeout(() => {
-          handleBiometricSignIn();
-        }, 500);
+        setTimeout(async () => {
+          console.log('[AuthPage] Auto-prompting discoverable credentials');
+          const result = await authenticateWithPasskey(); // No email = discoverable mode
+          if (!result.success && result.error) {
+            // Only show toast if user didn't just cancel
+            if (!result.error.includes('cancelled') && !result.error.includes('timed out')) {
+              toast({
+                title: "Sign in with passkey",
+                description: "Use the button below if you have a passkey set up.",
+              });
+            }
+          }
+        }, 300);
       }
     };
-    checkBiometrics();
-  }, [authLoading]);
+    checkBiometricsAndAutoPrompt();
+  }, [authLoading, authenticateWithPasskey, toast]);
   
   // Handle Remember Me checkbox change
   const handleRememberMeChange = (checked: boolean) => {
@@ -196,29 +202,9 @@ export default function AuthPage() {
   };
 
   const handleBiometricSignIn = async () => {
-    const storedAccounts = getStoredPasskeyAccounts();
-    console.log('[AuthPage] handleBiometricSignIn - stored accounts:', storedAccounts);
-    
-    // If we have stored accounts, use them; otherwise use discoverable credentials
-    if (storedAccounts.length === 0) {
-      // No stored accounts - try discoverable credentials (browser will show all available passkeys)
-      console.log('[AuthPage] No stored accounts, trying discoverable credentials');
-      await authenticateAccount(); // No email = discoverable mode
-      return;
-    }
-
-    // If only one account, authenticate directly without showing selector
-    if (storedAccounts.length === 1) {
-      await authenticateAccount(storedAccounts[0].email);
-      return;
-    }
-
-    // Multiple accounts - show account selector
-    setAccountSelectorOpen(true);
-  };
-
-  const authenticateAccount = async (email?: string) => {
-    const result = await authenticateWithPasskey(email);
+    // Always use discoverable credentials - let the browser show ALL available passkeys
+    console.log('[AuthPage] handleBiometricSignIn - using discoverable credentials');
+    const result = await authenticateWithPasskey(); // No email = discoverable mode
     
     if (!result.success) {
       toast({
@@ -226,9 +212,6 @@ export default function AuthPage() {
         description: result.error || "Please try again or use your password.",
       });
     }
-    
-    // Close selector if open
-    setAccountSelectorOpen(false);
   };
 
 
@@ -533,14 +516,6 @@ export default function AuthPage() {
           defaultEmail={email}
         />
 
-        {/* Passkey Account Selector */}
-        <PasskeyAccountSelector
-          open={accountSelectorOpen}
-          onOpenChange={setAccountSelectorOpen}
-          accounts={getStoredPasskeyAccounts()}
-          onSelectAccount={authenticateAccount}
-          loading={passkeyLoading}
-        />
         {/* Footer Links */}
         <div className="text-center text-xs text-muted-foreground space-y-2">
           <div className="flex justify-center gap-4">
