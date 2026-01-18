@@ -279,71 +279,68 @@ export function DMConversationsList({ searchQuery = "" }: DMConversationsListPro
         const isOwn = conv.last_message?.author_id === user?.id;
         
         return (
-          <div key={conv.id} className="relative group">
-            <Link to={`/messages/dm/${conv.id}`}>
-              <Card className="hover:border-primary/50 transition-colors">
-                <CardContent className="p-4 flex items-center gap-4">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={conv.other_user?.avatar_url || undefined} />
-                    <AvatarFallback className="bg-secondary text-secondary-foreground">
-                      {conv.other_user?.display_name?.charAt(0).toUpperCase() || "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="truncate font-semibold">
-                      {conv.other_user?.display_name || "Unknown User"}
-                    </h3>
-                    <p className="text-sm text-muted-foreground truncate">
-                      <MessagePreview 
-                        text={conv.last_message?.text} 
-                        imageUrl={conv.last_message?.image_url}
-                        isOwn={isOwn}
-                      />
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    {conv.last_message?.created_at && (
-                      <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(conv.last_message.created_at), { addSuffix: true })}
-                      </span>
-                    )}
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-            
-            {/* Delete button */}
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 hover:bg-destructive hover:text-destructive-foreground"
-                  onClick={(e) => e.preventDefault()}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete conversation?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete all messages with {conv.other_user?.display_name || "this user"}. This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => deleteConversationMutation.mutate(conv.id)}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          <Card key={conv.id} className="hover:border-primary/50 transition-colors">
+            <CardContent className="p-4 flex items-center gap-4">
+              <Link to={`/messages/dm/${conv.id}`} className="flex items-center gap-4 flex-1 min-w-0">
+                <Avatar className="h-12 w-12 shrink-0">
+                  <AvatarImage src={conv.other_user?.avatar_url || undefined} />
+                  <AvatarFallback className="bg-secondary text-secondary-foreground">
+                    {conv.other_user?.display_name?.charAt(0).toUpperCase() || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <h3 className="truncate font-semibold">
+                    {conv.other_user?.display_name || "Unknown User"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground truncate">
+                    <MessagePreview 
+                      text={conv.last_message?.text} 
+                      imageUrl={conv.last_message?.image_url}
+                      isOwn={isOwn}
+                    />
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  {conv.last_message?.created_at && (
+                    <span className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(conv.last_message.created_at), { addSuffix: true })}
+                    </span>
+                  )}
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </div>
+              </Link>
+              
+              {/* Delete button */}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
                   >
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete conversation?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete all messages with {conv.other_user?.display_name || "this user"}. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => deleteConversationMutation.mutate(conv.id)}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
+          </Card>
         );
       })}
     </div>
