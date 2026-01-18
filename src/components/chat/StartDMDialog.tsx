@@ -160,7 +160,7 @@ export function StartDMDialog() {
       const allowedRoles: ("basic_user" | "club_admin" | "team_admin" | "coach" | "player" | "parent" | "app_admin")[] = 
         ["basic_user", "parent", "player", "coach", "team_admin", "club_admin"];
       
-      const { data, error } = await supabase
+      const { data: groupData, error: groupError } = await supabase
         .from("chat_groups")
         .insert({
           name: groupName,
@@ -170,8 +170,24 @@ export function StartDMDialog() {
         .select()
         .single();
       
-      if (error) throw error;
-      return data.id as string;
+      if (groupError) throw groupError;
+      
+      // Add all selected users + current user to group_members
+      const memberInserts = [
+        { group_id: groupData.id, user_id: user!.id, added_by: user!.id },
+        ...users.map(u => ({ group_id: groupData.id, user_id: u.id, added_by: user!.id }))
+      ];
+      
+      const { error: membersError } = await supabase
+        .from("group_members")
+        .insert(memberInserts);
+      
+      if (membersError) {
+        console.error("Failed to add members:", membersError);
+        // Don't throw - group was created, members just didn't get added
+      }
+      
+      return groupData.id as string;
     },
     onSuccess: (groupId) => {
       setOpen(false);

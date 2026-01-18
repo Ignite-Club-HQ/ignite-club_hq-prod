@@ -1055,10 +1055,13 @@ export default function GroupChatPage() {
         </Button>
         <div className="flex-1">
           <h1 className="font-semibold">{group.name}</h1>
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
-            <Users className="h-3 w-3" />
-            {getRoleBadge(group.allowed_roles)}
-          </p>
+          {/* Only show roles for team/club groups, not personal groups */}
+          {(group.team_id || group.club_id) && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Users className="h-3 w-3" />
+              {getRoleBadge(group.allowed_roles)}
+            </p>
+          )}
         </div>
         <ChatMuteButton chatType="group" chatId={groupId!} />
         <ChatMembersSheet
