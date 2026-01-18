@@ -40,6 +40,7 @@ const TeamChatPage = lazy(() => import("./pages/TeamChatPage"));
 const BroadcastChatPage = lazy(() => import("./pages/BroadcastChatPage"));
 const ClubChatPage = lazy(() => import("./pages/ClubChatPage"));
 const GroupChatPage = lazy(() => import("./pages/GroupChatPage"));
+const DirectMessagePage = lazy(() => import("./pages/DirectMessagePage"));
 const MediaPage = lazy(() => import("./pages/MediaPage"));
 const VaultPage = lazy(() => import("./pages/VaultPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
@@ -131,6 +132,7 @@ const App = () => (
                   <Route path="/messages" element={<MessagesPage />} />
                   <Route path="/messages/broadcast" element={<BroadcastChatPage />} />
                   <Route path="/messages/club/:clubId" element={<ClubChatPage />} />
+                  <Route path="/messages/dm/:conversationId" element={<DirectMessagePage />} />
                   <Route path="/messages/:teamId" element={<TeamChatPage />} />
                   <Route path="/groups/:groupId" element={<GroupChatPage />} />
                   <Route path="/media" element={<MediaPage />} />

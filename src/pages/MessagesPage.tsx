@@ -25,6 +25,8 @@ const MESSAGES_PER_PAGE = 15;
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
 import ChatGroupCard from "@/components/chat/ChatGroupCard";
+import { StartDMDialog } from "@/components/chat/StartDMDialog";
+import { DMConversationsList } from "@/components/chat/DMConversationsList";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -944,6 +946,7 @@ export default function MessagesPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <StartDMDialog />
           {canCreateGroups && <CreateGroupDialog />}
           {hasAdminRoleButNoPro && (
             <TooltipProvider>
@@ -1051,6 +1054,11 @@ export default function MessagesPage() {
             </Link>
           );
         })()}
+
+        {/* Direct Messages - Pro feature */}
+        {!showSkeletonLoading && hasAnyProAccess && (
+          <DMConversationsList searchQuery={searchQuery} />
+        )}
 
         {/* Club Announcements */}
         {!showSkeletonLoading && filteredClubs.map((club: any) => {

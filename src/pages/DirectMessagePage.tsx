@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Send, MoreVertical, Reply, SmilePlus, Loader2, RefreshCw, Crown, Lock } from "lucide-react";
+import { ArrowLeft, Send, Reply, SmilePlus, Loader2, RefreshCw, Crown, Lock } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
@@ -15,14 +15,9 @@ import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { MessageContent } from "@/components/chat/MessageContent";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
-import { useMessageReads } from "@/hooks/useMessageReads";
-import { useTypingIndicator } from "@/hooks/useTypingIndicator";
-import { TypingIndicator } from "@/components/chat/TypingIndicator";
-import { MessageReadIndicator } from "@/components/chat/MessageReadIndicator";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -69,15 +64,13 @@ export default function DirectMessagePage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, profile, refreshUnreadCount } = useAuth();
+  const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
-  const [editingMessage, setEditingMessage] = useState<DirectMessage | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
-  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
@@ -557,17 +550,20 @@ export default function DirectMessagePage() {
                         </span>
                         
                         {/* Reaction counts */}
-                        {Object.entries(reactionCounts).map(([emoji, data]) => (
-                          <button
-                            key={emoji}
-                            onClick={() => reactMutation.mutate({ messageId: msg.id, reactionType: emoji })}
-                            className={`text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1 ${
-                              data.hasOwn ? "bg-primary/20" : "bg-muted"
-                            }`}
-                          >
-                            {emoji} {data.count}
-                          </button>
-                        ))}
+                        {Object.entries(reactionCounts).map(([emoji, data]) => {
+                          const reactionData = data as { count: number; hasOwn: boolean };
+                          return (
+                            <button
+                              key={emoji}
+                              onClick={() => reactMutation.mutate({ messageId: msg.id, reactionType: emoji })}
+                              className={`text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1 ${
+                                reactionData.hasOwn ? "bg-primary/20" : "bg-muted"
+                              }`}
+                            >
+                              {emoji} {reactionData.count}
+                            </button>
+                          );
+                        })}
                         
                         {/* Actions - shown on hover */}
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
