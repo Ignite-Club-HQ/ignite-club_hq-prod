@@ -26,6 +26,7 @@ interface ParsedMember {
   name: string;
   email: string;
   role: TeamRole;
+  children: string[];
 }
 
 interface ValidationError {
@@ -114,6 +115,7 @@ export function MemberCSVImportDialog({
       const name = values[0]?.trim();
       const email = values[1]?.trim() || "";
       const roleFromCsv = values[2]?.trim().toLowerCase() || "";
+      const childrenStr = values[3]?.trim() || "";
 
       if (!name) {
         errors.push({ row: rowNum, message: "Name is required" });
@@ -142,11 +144,23 @@ export function MemberCSVImportDialog({
         }
       }
 
+      // Parse children (semicolon-separated list)
+      const children: string[] = childrenStr
+        ? childrenStr.split(';').map(c => c.trim()).filter(c => c.length > 0)
+        : [];
+
+      // Warn if children specified for non-parent role
+      if (children.length > 0 && role !== 'parent') {
+        errors.push({ row: rowNum, message: `Children specified but role is "${role}" (not parent)` });
+        continue;
+      }
+
       members.push({
         id: crypto.randomUUID(),
         name,
         email,
         role,
+        children,
       });
     }
 
@@ -252,11 +266,12 @@ export function MemberCSVImportDialog({
   };
 
   const downloadTemplate = () => {
-    const csvContent = `name,email,role
-John Smith,john@example.com,player
-Jane Doe,jane@example.com,parent
-Mike Coach,mike@example.com,coach
-Sarah Admin,sarah@example.com,team_admin`;
+    const csvContent = `name,email,role,children
+John Smith,john@example.com,player,
+Jane Doe,jane@example.com,parent,Tommy Doe;Sally Doe
+Mike Coach,mike@example.com,coach,
+Sarah Admin,sarah@example.com,team_admin,
+Bob Parent,bob@example.com,parent,Jimmy Parent`;
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -313,6 +328,7 @@ Sarah Admin,sarah@example.com,team_admin`;
                         <Badge className="text-xs">name</Badge>
                         <Badge variant="secondary" className="text-xs">email</Badge>
                         <Badge variant="secondary" className="text-xs">role</Badge>
+                        <Badge variant="secondary" className="text-xs">children</Badge>
                       </div>
                     </div>
                     
@@ -320,6 +336,7 @@ Sarah Admin,sarah@example.com,team_admin`;
                       <p><strong>name:</strong> Required</p>
                       <p><strong>email:</strong> Optional (for sending invites)</p>
                       <p><strong>role:</strong> Optional - player, parent, coach, or team_admin</p>
+                      <p><strong>children:</strong> For parents only - semicolon-separated names</p>
                     </div>
                   </div>
 
@@ -413,15 +430,20 @@ Sarah Admin,sarah@example.com,team_admin`;
                   </div>
                   <ScrollArea className="h-[200px] rounded-lg border">
                     <div className="p-2 space-y-1">
-                      {parsedMembers.map((member, idx) => (
+                      {parsedMembers.map((member) => (
                         <div 
                           key={member.id} 
-                          className="flex items-center justify-between p-2 rounded-md bg-muted/50 text-sm"
+                          className="flex items-center justify-between p-2 rounded-md bg-muted/50 text-sm gap-2"
                         >
                           <div className="min-w-0 flex-1">
                             <p className="font-medium truncate">{member.name}</p>
                             {member.email && (
                               <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                            )}
+                            {member.children.length > 0 && (
+                              <p className="text-xs text-primary truncate">
+                                Children: {member.children.join(', ')}
+                              </p>
                             )}
                           </div>
                           <Badge variant="outline" className={`shrink-0 text-xs ${getRoleBadgeClass(member.role)}`}>
