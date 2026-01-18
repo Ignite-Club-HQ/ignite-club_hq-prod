@@ -303,10 +303,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
           childrenInfo = `<p>Your child${validChildren.length > 1 ? "ren" : ""} will also be registered: <strong>${validChildren.map(c => c.name).join(", ")}</strong></p>`;
         }
 
-        // Send email if provided
+        // Send email if provided - with verification
         if (member.email.trim()) {
           try {
-            await supabase.functions.invoke("send-email", {
+            const { data: emailResult, error: emailError } = await supabase.functions.invoke("send-email", {
               body: {
                 to: member.email.trim(),
                 subject: `You're invited to join ${teamName}`,
@@ -321,7 +321,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
                 `,
               },
             });
-            sent = true;
+            
+            // Verify email was actually sent by checking the verified flag
+            if (emailError) {
+              console.error("Email function error for", member.email, emailError);
+            } else if (emailResult?.verified && emailResult?.success) {
+              sent = true;
+              console.log("Email verified sent to", member.email, "ID:", emailResult.emailId);
+            } else {
+              console.warn("Email not verified for", member.email, "Response:", emailResult);
+            }
           } catch (error) {
             console.error("Failed to send email to", member.email, error);
           }
