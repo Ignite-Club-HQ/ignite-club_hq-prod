@@ -167,7 +167,7 @@ export function StartDMDialog() {
         <span className="hidden sm:inline">New DM</span>
       </Button>
 
-      <ResponsiveDialogContent className="sm:max-w-md h-[100dvh] sm:h-auto sm:max-h-[85vh] flex flex-col p-0">
+      <ResponsiveDialogContent fullScreen className="sm:max-w-md sm:max-h-[85vh] flex flex-col p-0">
         <ResponsiveDialogHeader className="p-4 pb-2 border-b sm:border-b-0">
           <ResponsiveDialogTitle className="flex items-center gap-2">
             Start a Direct Message
