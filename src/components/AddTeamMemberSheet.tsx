@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Copy, Check, Send, Users, Plus, Trash2, Upload, Baby } from "lucide-react";
+import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,6 +72,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
     { id: crypto.randomUUID(), name: "", email: "", role: "player", children: [] },
   ]);
   const [bulkResults, setBulkResults] = useState<{ name: string; email: string; link: string; sent: boolean; role?: string; childrenCount?: number }[]>([]);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -782,69 +784,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
               
               {/* CSV Import */}
               <div className="flex gap-2">
-                <input
-                  type="file"
-                  accept=".csv"
-                  id="csv-upload"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                      const text = event.target?.result as string;
-                      if (!text) return;
-                      
-                      const lines = text.split("\n").filter(line => line.trim());
-                      const parsed: BulkMember[] = [];
-                      
-                      // Skip header row if it looks like a header
-                      const startIndex = lines[0]?.toLowerCase().includes("name") ? 1 : 0;
-                      
-                      for (let i = startIndex; i < lines.length; i++) {
-                        const line = lines[i];
-                        // Handle CSV with commas, accounting for quoted values
-                        const parts = line.match(/(?:^|,)("(?:[^"]*(?:""[^"]*)*)"|[^,]*)/g)
-                          ?.map(s => s.replace(/^,/, "").replace(/^"|"$/g, "").replace(/""/g, '"').trim()) || [];
-                        
-                        const name = parts[0]?.trim();
-                        const email = parts[1]?.trim() || "";
-                        const roleFromCsv = parts[2]?.trim().toLowerCase() || "";
-                        
-                        // Parse role from CSV or use selected role
-                        let role: TeamRole = selectedRole;
-                        if (roleFromCsv === "player" || roleFromCsv === "parent" || roleFromCsv === "coach" || roleFromCsv === "team_admin") {
-                          role = roleFromCsv as TeamRole;
-                        }
-                        
-                        if (name) {
-                          parsed.push({ id: crypto.randomUUID(), name, email, role, children: [] });
-                        }
-                      }
-                      
-                      if (parsed.length > 0) {
-                        setBulkMembers(parsed);
-                        toast({
-                          title: `${parsed.length} member${parsed.length > 1 ? "s" : ""} imported`,
-                          description: "Review and edit before sending invites",
-                        });
-                      } else {
-                        toast({
-                          title: "No members found",
-                          description: "Make sure CSV has Name in column 1, Email in column 2",
-                          variant: "destructive",
-                        });
-                      }
-                    };
-                    reader.readAsText(file);
-                    e.target.value = ""; // Reset input
-                  }}
-                />
                 <Button
                   variant="outline"
                   className="flex-1"
-                  onClick={() => document.getElementById("csv-upload")?.click()}
+                  onClick={() => setCsvImportOpen(true)}
                 >
                   <Upload className="h-4 w-4 mr-2" />
                   Import CSV
@@ -855,9 +798,17 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
                 </Button>
               </div>
               
-              <p className="text-xs text-muted-foreground">
-                CSV format: Name, Email, Role (optional - player/parent/coach/team_admin)
-              </p>
+              <MemberCSVImportDialog
+                open={csvImportOpen}
+                onOpenChange={setCsvImportOpen}
+                defaultRole={selectedRole}
+                onImport={(members) => {
+                  setBulkMembers(members.map(m => ({
+                    ...m,
+                    children: [],
+                  })));
+                }}
+              />
             </div>
 
             <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-1">
