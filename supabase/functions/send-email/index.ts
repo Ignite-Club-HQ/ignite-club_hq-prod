@@ -189,7 +189,7 @@ serve(async (req: Request): Promise<Response> => {
     // Use Resend's verified test sender by default
     const sender = from || "Ignite Club HQ <onboarding@resend.dev>";
 
-    console.log(`Sending email to ${toArray.length} recipient(s)`);
+    console.log(`Sending email to ${toArray.length} recipient(s): ${toArray.join(", ")}`);
 
     const emailResponse = await resend.emails.send({
       from: sender,
@@ -198,16 +198,34 @@ serve(async (req: Request): Promise<Response> => {
       html,
     });
 
-    console.log("Email sent successfully");
+    // Verify the response has an ID (successful send)
+    if (!emailResponse.data?.id) {
+      console.error("Email send failed - no ID returned:", emailResponse.error);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: emailResponse.error?.message || "Email send failed - no confirmation received",
+          verified: false
+        }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    console.log("Email sent successfully, ID:", emailResponse.data.id);
 
     return new Response(
-      JSON.stringify({ success: true, data: emailResponse }),
+      JSON.stringify({ 
+        success: true, 
+        verified: true,
+        emailId: emailResponse.data.id,
+        recipientCount: toArray.length
+      }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: unknown) {
     console.error("Error in send-email function:", sanitizeError(error));
     return new Response(
-      JSON.stringify({ error: "Failed to send email" }),
+      JSON.stringify({ success: false, error: "Failed to send email", verified: false }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
