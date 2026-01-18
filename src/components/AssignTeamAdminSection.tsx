@@ -8,9 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Search, UserPlus, Link2, Copy, Check, Mail, User } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
-import { toast } from "sonner";
+import { Search, UserPlus, Link2, User } from "lucide-react";
 
 interface AssignTeamAdminSectionProps {
   clubId: string;
@@ -35,9 +33,7 @@ export function AssignTeamAdminSection({
   const [assignOther, setAssignOther] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<{ id: string; display_name: string; avatar_url: string | null } | null>(null);
-  const [showInviteOption, setShowInviteOption] = useState(false);
-  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [wantsInviteLink, setWantsInviteLink] = useState(false);
 
   // Fetch club members who could become team admins
   const { data: clubMembers = [] } = useQuery({
@@ -89,29 +85,18 @@ export function AssignTeamAdminSection({
     enabled: assignOther && searchQuery.length >= 2,
   });
 
-  const generateToken = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-    let token = '';
-    for (let i = 0; i < 8; i++) {
-      token += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return token;
-  };
-
   const handleToggleAssignOther = (checked: boolean) => {
     setAssignOther(checked);
     if (!checked) {
       setSelectedUser(null);
-      setShowInviteOption(false);
-      setGeneratedToken(null);
+      setWantsInviteLink(false);
       onAssignmentChange(null);
     }
   };
 
   const handleSelectUser = (user: { id: string; display_name: string; avatar_url: string | null }) => {
     setSelectedUser(user);
-    setShowInviteOption(false);
-    setGeneratedToken(null);
+    setWantsInviteLink(false);
     onAssignmentChange({
       type: 'existing_user',
       userId: user.id,
@@ -119,51 +104,14 @@ export function AssignTeamAdminSection({
     });
   };
 
-  const handleGenerateInvite = () => {
-    const token = generateToken();
-    setGeneratedToken(token);
+  const handleSelectInviteLink = () => {
+    // Just indicate that we want to create an invite link - don't generate token yet
+    setWantsInviteLink(true);
     setSelectedUser(null);
-    setShowInviteOption(true);
     onAssignmentChange({
-      type: 'invite_link',
-      inviteToken: token
+      type: 'invite_link'
+      // No token yet - will be generated after team creation
     });
-  };
-
-  const inviteLink = generatedToken 
-    ? `${window.location.origin}/join/${generatedToken}?install=true`
-    : '';
-
-  const handleCopyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setCopied(true);
-      toast.success("Link copied!");
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Failed to copy link");
-    }
-  };
-
-  const handleShareLink = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Join ${teamName} as Team Admin`,
-          text: `You've been invited to manage ${teamName}. Click the link to join:`,
-          url: inviteLink
-        });
-        toast.success("Link shared!");
-      } catch (err: any) {
-        // User cancelled - don't show error
-        if (err?.name !== 'AbortError') {
-          // Fallback to copy if share fails
-          handleCopyLink();
-        }
-      }
-    } else {
-      handleCopyLink();
-    }
   };
 
   if (!assignOther) {
@@ -227,53 +175,31 @@ export function AssignTeamAdminSection({
         </div>
       )}
 
-      {/* Invite link generated */}
-      {generatedToken && !selectedUser && (
-        <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-          <div className="flex items-center gap-2 text-sm font-medium">
+      {/* Invite link selected - show confirmation that link will be generated after team creation */}
+      {wantsInviteLink && !selectedUser && (
+        <div className="space-y-3 p-4 bg-primary/10 rounded-lg border border-primary/20">
+          <div className="flex items-center gap-2">
             <Link2 className="h-4 w-4 text-primary" />
-            Invite Link Generated
+            <span className="text-sm font-medium">Invite Link Selected</span>
           </div>
-          
-          <div className="flex gap-2">
-            <Input 
-              value={inviteLink} 
-              readOnly 
-              className="text-xs"
-            />
-            <Button 
-              variant="outline" 
-              size="icon"
-              onClick={handleCopyLink}
-            >
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            </Button>
-          </div>
-
-          <div className="flex justify-center py-4 bg-white rounded-lg">
-            <QRCodeSVG value={inviteLink} size={120} />
-          </div>
-
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              className="flex-1"
-              onClick={handleShareLink}
-            >
-              <Mail className="h-4 w-4 mr-2" />
-              Share Link
-            </Button>
-          </div>
-
-          <p className="text-xs text-muted-foreground text-center">
-            Share this link with the person you want to manage this team.
-            They'll be added as Team Admin when they join.
+          <p className="text-xs text-muted-foreground">
+            An invite link will be generated after the team is created. You'll be able to share it with the person who will manage this team.
           </p>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              setWantsInviteLink(false);
+              onAssignmentChange(null);
+            }}
+          >
+            Change
+          </Button>
         </div>
       )}
 
       {/* Search or invite options */}
-      {!selectedUser && !generatedToken && (
+      {!selectedUser && !wantsInviteLink && (
         <>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -322,10 +248,10 @@ export function AssignTeamAdminSection({
           <Button 
             variant="outline" 
             className="w-full"
-            onClick={handleGenerateInvite}
+            onClick={handleSelectInviteLink}
           >
             <User className="h-4 w-4 mr-2" />
-            Generate Invite Link for New User
+            Send Invite Link to New User
           </Button>
 
           <p className="text-xs text-muted-foreground text-center">
