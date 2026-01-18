@@ -56,17 +56,18 @@ export default function AuthPage() {
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
   const { isAvailable, accounts, loading: passkeyLoading, authenticateWithPasskey } = usePasskey();
   
-  // Check if biometrics are available and user has a registered passkey
+  // Check if biometrics are available - always show if platform supports it
   useEffect(() => {
     const checkBiometrics = async () => {
       const available = await isPlatformAuthenticatorAvailable();
-      const storedAccounts = getStoredPasskeyAccounts();
-      // Show biometrics button if platform supports it AND user has registered passkeys
-      setBiometricsAvailable(available && storedAccounts.length > 0);
+      // Show biometrics button if platform supports it
+      // Even if localStorage is cleared, users may have passkeys we can discover
+      setBiometricsAvailable(available);
       
+      const storedAccounts = getStoredPasskeyAccounts();
       console.log('[AuthPage] Biometrics check:', { available, storedAccountsCount: storedAccounts.length, accounts: storedAccounts });
       
-      // Auto-trigger biometric prompt if Remember Me is enabled and only one account
+      // Auto-trigger biometric prompt if Remember Me is enabled and only one known account
       if (available && storedAccounts.length === 1 && getRememberMe() && !autoPromptTriggered.current && !authLoading) {
         autoPromptTriggered.current = true;
         // Small delay to ensure UI is ready
@@ -198,11 +199,11 @@ export default function AuthPage() {
     const storedAccounts = getStoredPasskeyAccounts();
     console.log('[AuthPage] handleBiometricSignIn - stored accounts:', storedAccounts);
     
+    // If we have stored accounts, use them; otherwise use discoverable credentials
     if (storedAccounts.length === 0) {
-      toast({
-        title: "No passkey found",
-        description: "Please sign in with your email and password first, then set up biometric login in your profile.",
-      });
+      // No stored accounts - try discoverable credentials (browser will show all available passkeys)
+      console.log('[AuthPage] No stored accounts, trying discoverable credentials');
+      await authenticateAccount(); // No email = discoverable mode
       return;
     }
 
@@ -216,7 +217,7 @@ export default function AuthPage() {
     setAccountSelectorOpen(true);
   };
 
-  const authenticateAccount = async (email: string) => {
+  const authenticateAccount = async (email?: string) => {
     const result = await authenticateWithPasskey(email);
     
     if (!result.success) {
@@ -384,10 +385,7 @@ export default function AuthPage() {
                       ) : (
                         <>
                           <Fingerprint className="h-4 w-4" />
-                          {accounts.length > 1 
-                            ? `Sign in with biometrics (${accounts.length} accounts)`
-                            : "Sign in with Face ID / Touch ID"
-                          }
+                          Sign in with Face ID / Touch ID
                         </>
                       )}
                     </Button>
