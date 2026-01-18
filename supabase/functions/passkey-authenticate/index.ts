@@ -152,41 +152,6 @@ serve(async (req: Request) => {
     const { action, email } = body;
 
     if (action === "get-options") {
-      if (!email) {
-        return new Response(JSON.stringify({ error: "Email is required" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Look up user by email
-      const { data: userData } = await serviceClient.rpc('get_user_by_email_for_passkey', {
-        lookup_email: email.toLowerCase().trim()
-      });
-
-      if (!userData || userData.length === 0) {
-        return new Response(JSON.stringify({ error: "No account found with this email" }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const userId = userData[0].id;
-
-      // Get user's registered passkeys
-      const { data: passkeys, error: passkeyError } = await serviceClient
-        .from('user_passkeys')
-        .select('credential_id')
-        .eq('user_id', userId);
-
-      if (passkeyError || !passkeys || passkeys.length === 0) {
-        return new Response(JSON.stringify({ error: "No passkey registered for this account" }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const challenge = generateChallenge();
       const origin = req.headers.get('origin') || 'https://ignite-club-launchpad.lovable.app';
       let rpId: string;
       try {
@@ -195,64 +160,87 @@ serve(async (req: Request) => {
         rpId = 'ignite-club-launchpad.lovable.app';
       }
       
-      console.log('Authentication origin:', origin, 'rpId:', rpId);
+      const challenge = generateChallenge();
+      
+      // If email provided, get specific credentials; otherwise use discoverable credentials
+      if (email) {
+        // Look up user by email
+        const { data: userData } = await serviceClient.rpc('get_user_by_email_for_passkey', {
+          lookup_email: email.toLowerCase().trim()
+        });
 
-      const options = {
-        challenge,
-        rpId,
-        allowCredentials: passkeys.map(pk => ({
-          id: pk.credential_id,
-          type: 'public-key',
-          transports: ['internal'],
-        })),
-        timeout: 60000,
-        userVerification: 'required',
-      };
+        if (!userData || userData.length === 0) {
+          return new Response(JSON.stringify({ error: "No account found with this email" }), {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
 
-      return new Response(JSON.stringify({ options, userId }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+        const userId = userData[0].id;
+
+        // Get user's registered passkeys
+        const { data: passkeys, error: passkeyError } = await serviceClient
+          .from('user_passkeys')
+          .select('credential_id')
+          .eq('user_id', userId);
+
+        if (passkeyError || !passkeys || passkeys.length === 0) {
+          return new Response(JSON.stringify({ error: "No passkey registered for this account" }), {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        console.log('Authentication with email:', email, 'origin:', origin, 'rpId:', rpId);
+
+        const options = {
+          challenge,
+          rpId,
+          allowCredentials: passkeys.map(pk => ({
+            id: pk.credential_id,
+            type: 'public-key',
+            transports: ['internal'],
+          })),
+          timeout: 60000,
+          userVerification: 'required',
+        };
+
+        return new Response(JSON.stringify({ options, userId }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } else {
+        // Discoverable credentials mode - no email needed
+        // The browser will show all available passkeys for this RP
+        console.log('Authentication with discoverable credentials, origin:', origin, 'rpId:', rpId);
+
+        const options = {
+          challenge,
+          rpId,
+          // Empty allowCredentials enables discoverable credentials
+          allowCredentials: [],
+          timeout: 60000,
+          userVerification: 'required',
+        };
+
+        return new Response(JSON.stringify({ options, discoverable: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     if (action === "verify") {
       const { credential } = body;
 
-      if (!email || !credential) {
-        return new Response(JSON.stringify({ error: "Missing email or credential" }), {
+      if (!credential) {
+        return new Response(JSON.stringify({ error: "Missing credential" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      console.log('Verifying passkey for email:', email);
-      console.log('Credential ID received:', credential.id);
+      console.log('Verifying passkey, credential ID received:', credential.id);
 
-      // Look up user by email
-      const { data: userData } = await serviceClient.rpc('get_user_by_email_for_passkey', {
-        lookup_email: email.toLowerCase().trim()
-      });
-
-      if (!userData || userData.length === 0) {
-        console.log('No user found for email:', email);
-        return new Response(JSON.stringify({ error: "No account found" }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const userId = userData[0].id;
-      console.log('Found user ID:', userId);
-
-      // Get all passkeys for this user to debug
-      const { data: allPasskeys } = await serviceClient
-        .from('user_passkeys')
-        .select('credential_id')
-        .eq('user_id', userId);
-      
-      console.log('User passkeys in DB:', allPasskeys?.map(p => p.credential_id));
-
-      // Try to find the passkey - the credential.id from browser might be base64url encoded
-      // while we stored it as standard base64, so we need to normalize both for comparison
+      // Try to find the passkey by credential ID directly (for discoverable credentials)
       const normalizeCredentialId = (id: string): string => {
         // Convert base64url to standard base64
         return id.replace(/-/g, '+').replace(/_/g, '/');
@@ -260,28 +248,23 @@ serve(async (req: Request) => {
 
       const normalizedReceivedId = normalizeCredentialId(credential.id);
       
-      // Get the passkey from database - try exact match first
-      let { data: passkey, error: passkeyError } = await serviceClient
+      // First try exact match
+      let { data: passkey } = await serviceClient
         .from('user_passkeys')
         .select('*')
-        .eq('user_id', userId)
         .eq('credential_id', credential.id)
         .maybeSingle();
       
-      // If not found, try normalized ID
-      if (!passkey && allPasskeys) {
-        const matchingPasskey = allPasskeys.find(p => 
-          normalizeCredentialId(p.credential_id) === normalizedReceivedId
-        );
+      // If not found, try with normalized ID
+      if (!passkey) {
+        const { data: allPasskeys } = await serviceClient
+          .from('user_passkeys')
+          .select('*');
         
-        if (matchingPasskey) {
-          const { data: foundPasskey } = await serviceClient
-            .from('user_passkeys')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('credential_id', matchingPasskey.credential_id)
-            .single();
-          passkey = foundPasskey;
+        if (allPasskeys) {
+          passkey = allPasskeys.find(p => 
+            normalizeCredentialId(p.credential_id) === normalizedReceivedId
+          ) || null;
         }
       }
 
@@ -292,6 +275,9 @@ serve(async (req: Request) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      
+      const userId = passkey.user_id;
+      console.log('Found passkey for user ID:', userId);
       
       console.log('Found passkey:', passkey.id);
 

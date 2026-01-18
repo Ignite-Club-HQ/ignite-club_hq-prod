@@ -297,25 +297,22 @@ export function usePasskey() {
     }
   }, [refreshAccounts]);
 
-  // Authenticate with passkey
+  // Authenticate with passkey - supports both email-based and discoverable credentials
   const authenticateWithPasskey = useCallback(async (email?: string): Promise<{ 
     success: boolean; 
     error?: string;
+    userEmail?: string;
   }> => {
     setLoading(true);
     setError(null);
 
     try {
-      const lookupEmail = email || getStoredPasskeyEmail();
-      if (!lookupEmail) {
-        throw new Error('No email provided for passkey authentication');
-      }
-
       // Get authentication options from server
+      // If no email, use discoverable credentials mode
       const { data: optionsData, error: optionsError } = await supabase.functions.invoke(
         'passkey-authenticate',
         {
-          body: { action: 'get-options', email: lookupEmail },
+          body: { action: 'get-options', email: email || undefined },
         }
       );
 
@@ -324,17 +321,22 @@ export function usePasskey() {
       }
 
       const options = optionsData.options;
+      const isDiscoverable = optionsData.discoverable === true;
+
+      console.log('[Passkey] Authenticating with', isDiscoverable ? 'discoverable credentials' : `email: ${email}`);
 
       // Get credential using WebAuthn API
       const credential = await navigator.credentials.get({
         publicKey: {
           challenge: base64ToArrayBuffer(options.challenge),
           rpId: options.rpId,
-          allowCredentials: options.allowCredentials?.map((cred: any) => ({
-            id: base64ToArrayBuffer(cred.id),
-            type: cred.type,
-            transports: cred.transports,
-          })),
+          allowCredentials: options.allowCredentials?.length > 0 
+            ? options.allowCredentials.map((cred: any) => ({
+                id: base64ToArrayBuffer(cred.id),
+                type: cred.type,
+                transports: cred.transports,
+              }))
+            : undefined, // Empty/undefined enables discoverable credentials
           timeout: options.timeout || 60000,
           userVerification: 'required',
         },
@@ -347,12 +349,13 @@ export function usePasskey() {
       const response = credential.response as AuthenticatorAssertionResponse;
 
       // Send credential to server for verification and get session
+      // Email is optional now - server will find user from credential ID
       const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
         'passkey-authenticate',
         {
           body: {
             action: 'verify',
-            email: lookupEmail,
+            email: email, // May be undefined for discoverable credentials
             credential: {
               id: credential.id,
               rawId: arrayBufferToBase64(credential.rawId),
@@ -384,10 +387,14 @@ export function usePasskey() {
         }
       }
 
-      // Update last used account
-      setLastUsedAccount(lookupEmail);
+      // If we authenticated with discoverable credentials, add to localStorage
+      // The email will come from the session after login
+      if (email) {
+        setLastUsedAccount(email);
+      }
+      
       setLoading(false);
-      return { success: true };
+      return { success: true, userEmail: verifyData.userEmail };
     } catch (err: any) {
       const message = err.name === 'NotAllowedError'
         ? 'Passkey authentication was cancelled or timed out'
