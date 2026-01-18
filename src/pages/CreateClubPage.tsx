@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState } from "react"; // build trigger
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Camera, Loader2, Building2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
