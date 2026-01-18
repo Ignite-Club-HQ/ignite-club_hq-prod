@@ -28,6 +28,7 @@ export default function CompleteProfilePage() {
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const [biometricsLoading, setBiometricsLoading] = useState(false);
+  const [showOpenAppMessage, setShowOpenAppMessage] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { canPrompt, isInstalled, installApp } = usePWAInstall();
@@ -336,25 +337,100 @@ export default function CompleteProfilePage() {
               </div>
             )}
 
-            <Button
-              className="w-full" 
-              onClick={async () => {
-                // If user wants to install, trigger install first
-                if (installAndContinue && canPrompt) {
-                  const installed = await installApp();
-                  if (installed) {
-                    // After PWA is installed, it will open fresh - save profile and let PWA handle navigation
-                    await handleSubmit();
-                    return;
+            {/* Show "Open App" message after successful install */}
+            {showOpenAppMessage ? (
+              <div className="space-y-4 text-center p-4 rounded-lg border bg-primary/10 border-primary/20">
+                <div className="flex justify-center">
+                  <div className="p-3 rounded-full bg-primary/20">
+                    <Download className="h-6 w-6 text-primary" />
+                  </div>
+                </div>
+                <div>
+                  <p className="font-semibold text-lg">App Installed! 🎉</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Your profile has been saved. Now open Ignite Club HQ from your home screen to continue.
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Look for the Ignite icon on your home screen
+                </p>
+              </div>
+            ) : (
+              <Button
+                className="w-full" 
+                onClick={async () => {
+                  // If user wants to install, save profile first then trigger install
+                  if (installAndContinue && canPrompt) {
+                    setSaving(true);
+                    try {
+                      // Save profile first
+                      const { error } = await supabase
+                        .from("profiles")
+                        .update({
+                          display_name: displayName.trim(),
+                          avatar_url: avatarUrl || null,
+                        })
+                        .eq("id", user.id);
+
+                      if (error) {
+                        toast({
+                          title: "Error",
+                          description: "Failed to save profile. Please try again.",
+                          variant: "destructive",
+                        });
+                        setSaving(false);
+                        return;
+                      }
+
+                      // Handle push notifications if enabled
+                      if (pushEnabled && pushSupported) {
+                        try {
+                          await subscribeToPushNotifications(user.id);
+                        } catch (err) {
+                          console.warn("Push subscription error:", err);
+                        }
+                      }
+
+                      // Handle biometrics if enabled
+                      if (biometricsEnabled && biometricsAvailable) {
+                        try {
+                          await registerPasskey();
+                        } catch (err) {
+                          console.warn("Passkey registration error:", err);
+                        }
+                      }
+
+                      setSaving(false);
+
+                      // Now trigger install
+                      const installed = await installApp();
+                      if (installed) {
+                        // Show message to open the installed app
+                        setShowOpenAppMessage(true);
+                        toast({
+                          title: "App installed!",
+                          description: "Open Ignite Club HQ from your home screen.",
+                        });
+                        return;
+                      } else {
+                        // User dismissed install - navigate normally
+                        navigate("/", { replace: true });
+                        refreshProfile();
+                        return;
+                      }
+                    } catch (err) {
+                      console.error("Error during install flow:", err);
+                      setSaving(false);
+                    }
                   }
-                }
-                // Normal flow - just save profile
-                handleSubmit();
-              }}
-              disabled={saving || !displayName.trim()}
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (installAndContinue && canPrompt ? "Install & Continue" : "Continue to Ignite Club HQ")}
-            </Button>
+                  // Normal flow - just save profile
+                  handleSubmit();
+                }}
+                disabled={saving || !displayName.trim()}
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (installAndContinue && canPrompt ? "Install & Continue" : "Continue to Ignite Club HQ")}
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
