@@ -14,15 +14,35 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, MessageCircle, Loader2, Crown, Lock, Check, X, Users } from "lucide-react";
+import { Search, MessageCircle, Loader2, Crown, Lock, Check, X, Users, Filter } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface DMableUser {
   id: string;
   display_name: string | null;
   avatar_url: string | null;
   shared_clubs: string[];
+  club_ids: string[];
+  team_ids: string[];
+}
+
+interface ClubInfo {
+  id: string;
+  name: string;
+}
+
+interface TeamInfo {
+  id: string;
+  name: string;
+  club_id: string;
 }
 
 export function StartDMDialog() {
@@ -32,6 +52,8 @@ export function StartDMDialog() {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<DMableUser[]>([]);
+  const [selectedClubId, setSelectedClubId] = useState<string>("all");
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
 
   // Check if user has Pro access for DMs
   const { data: hasProAccess, isLoading: checkingPro } = useQuery({
@@ -62,18 +84,18 @@ export function StartDMDialog() {
     enabled: !!user && open,
   });
 
-  // Fetch users that can be DMed (members of shared Pro clubs)
-  const { data: dmableUsers, isLoading: loadingUsers } = useQuery({
-    queryKey: ["dmable-users", user?.id],
+  // Fetch users that can be DMed (members of shared Pro clubs) along with club/team info
+  const { data: dmData, isLoading: loadingUsers } = useQuery({
+    queryKey: ["dmable-users-with-filters", user?.id],
     queryFn: async () => {
       // Get Pro clubs user is a member of
       const { data: userRoles } = await supabase
         .from("user_roles")
-        .select("club_id")
+        .select("club_id, team_id")
         .eq("user_id", user!.id)
         .not("club_id", "is", null);
 
-      if (!userRoles?.length) return [];
+      if (!userRoles?.length) return { users: [], clubs: [], teams: [] };
 
       const clubIds = [...new Set(userRoles.map(r => r.club_id).filter(Boolean))] as string[];
 
@@ -85,34 +107,43 @@ export function StartDMDialog() {
         .or("is_pro.eq.true,is_pro_football.eq.true,admin_pro_override.eq.true,admin_pro_football_override.eq.true");
 
       const proClubIds = proClubs?.map(c => c.club_id) || [];
-      if (proClubIds.length === 0) return [];
+      if (proClubIds.length === 0) return { users: [], clubs: [], teams: [] };
 
-      // Get club names for display
-      const { data: clubs } = await supabase
-        .from("clubs")
-        .select("id, name")
-        .in("id", proClubIds);
+      // Fetch clubs and teams in parallel
+      const [clubsResult, teamsResult, clubMembersResult] = await Promise.all([
+        supabase.from("clubs").select("id, name").in("id", proClubIds),
+        supabase.from("teams").select("id, name, club_id").in("club_id", proClubIds),
+        supabase.from("user_roles").select("user_id, club_id, team_id").in("club_id", proClubIds).neq("user_id", user!.id),
+      ]);
 
-      const clubNameMap = new Map(clubs?.map(c => [c.id, c.name]) || []);
+      const clubs = (clubsResult.data || []) as ClubInfo[];
+      const teams = (teamsResult.data || []) as TeamInfo[];
+      const clubMembers = clubMembersResult.data || [];
 
-      // Get all members of these Pro clubs
-      const { data: clubMembers } = await supabase
-        .from("user_roles")
-        .select("user_id, club_id")
-        .in("club_id", proClubIds)
-        .neq("user_id", user!.id);
+      const clubNameMap = new Map(clubs.map(c => [c.id, c.name]));
 
-      if (!clubMembers?.length) return [];
+      if (!clubMembers.length) return { users: [], clubs, teams };
 
-      // Group by user and collect their shared clubs
-      const userClubMap = new Map<string, string[]>();
-      clubMembers.forEach((member: { user_id: string; club_id: string }) => {
+      // Group by user and collect their clubs and teams
+      const userClubMap = new Map<string, Set<string>>();
+      const userTeamMap = new Map<string, Set<string>>();
+      const userClubNameMap = new Map<string, string[]>();
+      
+      clubMembers.forEach((member: { user_id: string; club_id: string; team_id: string | null }) => {
         if (!userClubMap.has(member.user_id)) {
-          userClubMap.set(member.user_id, []);
+          userClubMap.set(member.user_id, new Set());
+          userTeamMap.set(member.user_id, new Set());
+          userClubNameMap.set(member.user_id, []);
         }
-        const clubName = clubNameMap.get(member.club_id);
-        if (clubName && !userClubMap.get(member.user_id)!.includes(clubName)) {
-          userClubMap.get(member.user_id)!.push(clubName);
+        if (member.club_id) {
+          userClubMap.get(member.user_id)!.add(member.club_id);
+          const clubName = clubNameMap.get(member.club_id);
+          if (clubName && !userClubNameMap.get(member.user_id)!.includes(clubName)) {
+            userClubNameMap.get(member.user_id)!.push(clubName);
+          }
+        }
+        if (member.team_id) {
+          userTeamMap.get(member.user_id)!.add(member.team_id);
         }
       });
 
@@ -124,13 +155,27 @@ export function StartDMDialog() {
         .select("id, display_name, avatar_url")
         .in("id", uniqueUserIds);
 
-      return (profiles || []).map(p => ({
+      const users = (profiles || []).map(p => ({
         ...p,
-        shared_clubs: userClubMap.get(p.id) || [],
+        shared_clubs: userClubNameMap.get(p.id) || [],
+        club_ids: [...(userClubMap.get(p.id) || [])],
+        team_ids: [...(userTeamMap.get(p.id) || [])],
       })) as DMableUser[];
+
+      return { users, clubs, teams };
     },
     enabled: !!user && open && hasProAccess === true,
   });
+
+  const dmableUsers = dmData?.users || [];
+  const availableClubs = dmData?.clubs || [];
+  const availableTeams = dmData?.teams || [];
+
+  // Filter teams based on selected club
+  const filteredTeams = useMemo(() => {
+    if (selectedClubId === "all") return availableTeams;
+    return availableTeams.filter(t => t.club_id === selectedClubId);
+  }, [availableTeams, selectedClubId]);
 
   // Start single DM mutation
   const startDMMutation = useMutation({
@@ -228,19 +273,41 @@ export function StartDMDialog() {
     }
   };
 
-  // Filter users by search query
+  // Filter users by search query, club, and team
   const filteredUsers = useMemo(() => {
     if (!dmableUsers) return [];
-    if (!searchQuery.trim()) return dmableUsers;
     
-    const query = searchQuery.toLowerCase();
-    return dmableUsers.filter(u => 
-      u.display_name?.toLowerCase().includes(query) ||
-      u.shared_clubs.some(c => c.toLowerCase().includes(query))
-    );
-  }, [dmableUsers, searchQuery]);
+    let filtered = dmableUsers;
+    
+    // Filter by club
+    if (selectedClubId !== "all") {
+      filtered = filtered.filter(u => u.club_ids.includes(selectedClubId));
+    }
+    
+    // Filter by team
+    if (selectedTeamId !== "all") {
+      filtered = filtered.filter(u => u.team_ids.includes(selectedTeamId));
+    }
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(u => 
+        u.display_name?.toLowerCase().includes(query) ||
+        u.shared_clubs.some(c => c.toLowerCase().includes(query))
+      );
+    }
+    
+    return filtered;
+  }, [dmableUsers, searchQuery, selectedClubId, selectedTeamId]);
 
   const isPending = startDMMutation.isPending || startGroupDMMutation.isPending;
+
+  // Reset team filter when club changes
+  const handleClubChange = (value: string) => {
+    setSelectedClubId(value);
+    setSelectedTeamId("all");
+  };
 
   return (
     <ResponsiveDialog open={open} onOpenChange={(isOpen) => {
@@ -248,6 +315,8 @@ export function StartDMDialog() {
       if (!isOpen) {
         setSelectedUsers([]);
         setSearchQuery("");
+        setSelectedClubId("all");
+        setSelectedTeamId("all");
       }
     }}>
       <Button variant="outline" size="sm" className="gap-2" onClick={() => setOpen(true)}>
@@ -305,6 +374,33 @@ export function StartDMDialog() {
                 </div>
               )}
 
+              {/* Filters */}
+              <div className="flex gap-2 mb-3">
+                <Select value={selectedClubId} onValueChange={handleClubChange}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="All Clubs" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Clubs</SelectItem>
+                    {availableClubs.map(club => (
+                      <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="All Teams" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Teams</SelectItem>
+                    {filteredTeams.map(team => (
+                      <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="relative mb-3">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -319,7 +415,9 @@ export function StartDMDialog() {
                 <div className="space-y-1">
                   {filteredUsers.length === 0 ? (
                     <div className="py-8 text-center text-muted-foreground">
-                      {searchQuery ? "No members found" : "No members available to message"}
+                      {searchQuery || selectedClubId !== "all" || selectedTeamId !== "all" 
+                        ? "No members found" 
+                        : "No members available to message"}
                     </div>
                   ) : (
                     filteredUsers.map((dmUser) => {
