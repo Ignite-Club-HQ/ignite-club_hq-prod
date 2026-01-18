@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronRight, Crown, MessageCircle, ImageIcon } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useMemo, useEffect } from "react";
+import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
 
 interface DMConversation {
   id: string;
@@ -84,6 +86,13 @@ interface DMConversationsListProps {
 
 export function DMConversationsList({ searchQuery = "" }: DMConversationsListProps) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Load cached data for instant display
+  const cachedData = useMemo(() => {
+    if (!user?.id) return null;
+    return getCachedMessagesPageData(user.id);
+  }, [user?.id]);
 
   // Fetch DM conversations with last message
   const { data: conversations, isLoading } = useQuery({
@@ -130,7 +139,7 @@ export function DMConversationsList({ searchQuery = "" }: DMConversationsListPro
         messagesResult.map(m => [m.conversationId, m.message])
       );
 
-      return convos.map(conv => {
+      const result = convos.map(conv => {
         const otherUserId = conv.participant_1 === user!.id ? conv.participant_2 : conv.participant_1;
         return {
           ...conv,
@@ -138,9 +147,47 @@ export function DMConversationsList({ searchQuery = "" }: DMConversationsListPro
           last_message: messageMap.get(conv.id) || null,
         };
       }) as DMConversation[];
+
+      // Cache the conversations and latest messages
+      const dmConversationsForCache = result.map(conv => ({
+        id: conv.id,
+        participant_1: conv.participant_1,
+        participant_2: conv.participant_2,
+        updated_at: conv.updated_at,
+        other_user: conv.other_user,
+      }));
+      
+      const latestDMMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
+      result.forEach(conv => {
+        if (conv.last_message) {
+          latestDMMessages[conv.id] = {
+            text: conv.last_message.text,
+            author: conv.last_message.author_id === user!.id ? "You" : (conv.other_user?.display_name || ""),
+            created_at: conv.last_message.created_at,
+            image_url: conv.last_message.image_url,
+          };
+        }
+      });
+      
+      cacheMessagesPageData(user!.id, { dmConversations: dmConversationsForCache, latestDMMessages });
+
+      return result;
     },
     enabled: !!user,
     staleTime: 30000,
+    placeholderData: () => {
+      // Return cached conversations as placeholder
+      if (!cachedData?.dmConversations?.length) return undefined;
+      return cachedData.dmConversations.map(conv => ({
+        ...conv,
+        last_message: cachedData.latestDMMessages?.[conv.id] ? {
+          text: cachedData.latestDMMessages[conv.id].text,
+          image_url: cachedData.latestDMMessages[conv.id].image_url || null,
+          created_at: cachedData.latestDMMessages[conv.id].created_at,
+          author_id: cachedData.latestDMMessages[conv.id].author === "You" ? user?.id || "" : conv.other_user?.id || "",
+        } : null,
+      })) as DMConversation[];
+    },
   });
 
   // Filter by search query

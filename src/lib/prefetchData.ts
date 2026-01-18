@@ -160,6 +160,49 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
       messagePromises.push(promise());
     });
 
+    // DM messages - prefetch conversations for Pro users
+    const dmPromise = async (): Promise<void> => {
+      try {
+        const { data: convos } = await supabase
+          .from("direct_conversations")
+          .select("id")
+          .or(`participant_1.eq.${userId},participant_2.eq.${userId}`)
+          .limit(10);
+        
+        if (convos?.length) {
+          await Promise.all(
+            convos.map(async (conv) => {
+              const { data } = await supabase
+                .from("direct_messages")
+                .select("id, text, image_url, created_at, author_id, conversation_id, reply_to_id")
+                .eq("conversation_id", conv.id)
+                .order("created_at", { ascending: false })
+                .limit(MESSAGES_PER_PAGE + 1);
+              
+              if (data) {
+                const messagesToCache = data.slice(0, MESSAGES_PER_PAGE);
+                const messages = messagesToCache.map((msg: any) => ({
+                  ...msg,
+                  author: null,
+                  reactions: [],
+                  reply_to: null,
+                }));
+                
+                queryClient.setQueryData(["dm-messages", conv.id], {
+                  messages,
+                  hasOlderMessages: data.length > MESSAGES_PER_PAGE,
+                  reactions: [],
+                });
+              }
+            })
+          );
+        }
+      } catch {
+        // Silent fail for DM prefetch
+      }
+    };
+    messagePromises.push(dmPromise());
+
     // Fire and forget - don't await message fetches
     Promise.allSettled(messagePromises).catch(console.error);
   } catch (error) {

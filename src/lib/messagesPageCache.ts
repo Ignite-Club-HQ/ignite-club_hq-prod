@@ -30,11 +30,16 @@ interface CachedGroup {
   clubs?: { name: string } | null;
 }
 
-interface LatestMessage {
-  text: string;
-  author: string;
-  created_at: string;
-  image_url?: string | null;
+interface CachedDMConversation {
+  id: string;
+  participant_1: string;
+  participant_2: string;
+  updated_at: string;
+  other_user: {
+    id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null;
 }
 
 interface MessagesPageCache {
@@ -44,10 +49,19 @@ interface MessagesPageCache {
   memberClubs: CachedClub[];
   adminClubs: CachedClub[];
   chatGroups: CachedGroup[];
+  dmConversations: CachedDMConversation[];
   latestBroadcast: { text: string; created_at: string; image_url: string | null; profiles: { display_name: string } | null } | null;
   latestTeamMessages: Record<string, LatestMessage>;
   latestClubMessages: Record<string, LatestMessage>;
   latestGroupMessages: Record<string, LatestMessage>;
+  latestDMMessages: Record<string, LatestMessage>;
+}
+
+interface LatestMessage {
+  text: string;
+  author: string;
+  created_at: string;
+  image_url?: string | null;
 }
 
 export function getCachedMessagesPageData(userId: string): Omit<MessagesPageCache, 'userId' | 'timestamp'> | null {
@@ -76,10 +90,12 @@ export function getCachedMessagesPageData(userId: string): Omit<MessagesPageCach
       memberClubs: data.memberClubs || [],
       adminClubs: data.adminClubs || [],
       chatGroups: data.chatGroups || [],
+      dmConversations: data.dmConversations || [],
       latestBroadcast: data.latestBroadcast || null,
       latestTeamMessages: data.latestTeamMessages || {},
       latestClubMessages: data.latestClubMessages || {},
       latestGroupMessages: data.latestGroupMessages || {},
+      latestDMMessages: data.latestDMMessages || {},
     };
   } catch {
     return null;
@@ -93,10 +109,12 @@ export function cacheMessagesPageData(
     memberClubs?: CachedClub[];
     adminClubs?: CachedClub[];
     chatGroups?: CachedGroup[];
+    dmConversations?: CachedDMConversation[];
     latestBroadcast?: { text: string; created_at: string; image_url?: string | null; profiles?: { display_name: string } | null } | null;
     latestTeamMessages?: Record<string, LatestMessage>;
     latestClubMessages?: Record<string, LatestMessage>;
     latestGroupMessages?: Record<string, LatestMessage>;
+    latestDMMessages?: Record<string, LatestMessage>;
   }
 ): void {
   try {
@@ -113,10 +131,12 @@ export function cacheMessagesPageData(
       memberClubs: data.memberClubs ?? existing?.memberClubs ?? [],
       adminClubs: data.adminClubs ?? existing?.adminClubs ?? [],
       chatGroups: data.chatGroups ?? existing?.chatGroups ?? [],
+      dmConversations: data.dmConversations ?? existing?.dmConversations ?? [],
       latestBroadcast: (data.latestBroadcast !== undefined ? data.latestBroadcast : (existing?.latestBroadcast ?? null)) as MessagesPageCache['latestBroadcast'],
       latestTeamMessages: data.latestTeamMessages ?? existing?.latestTeamMessages ?? {},
       latestClubMessages: data.latestClubMessages ?? existing?.latestClubMessages ?? {},
       latestGroupMessages: data.latestGroupMessages ?? existing?.latestGroupMessages ?? {},
+      latestDMMessages: data.latestDMMessages ?? existing?.latestDMMessages ?? {},
     };
     
     const jsonData = JSON.stringify(cacheData);
