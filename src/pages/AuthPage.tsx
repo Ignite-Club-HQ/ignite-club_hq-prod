@@ -95,11 +95,8 @@ export default function AuthPage() {
   }
 
   if (user) {
-    const redirectPath = sessionStorage.getItem("redirectAfterAuth");
-    if (redirectPath) {
-      sessionStorage.removeItem("redirectAfterAuth");
-      return <Navigate to={redirectPath} replace />;
-    }
+    // Always go to home - AppLayout will handle redirecting to /complete-profile if needed
+    // The redirectAfterAuth is preserved in sessionStorage for CompleteProfilePage to use
     return <Navigate to="/" replace />;
   }
 

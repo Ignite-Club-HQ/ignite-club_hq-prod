@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState } from "react"; // build trigger
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Camera, Loader2, Building2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,23 @@ export default function CreateClubPage() {
 
     setSaving(true);
 
+    // Check for duplicate club name
+    const { data: existingClub } = await supabase
+      .from("clubs")
+      .select("id")
+      .ilike("name", name.trim())
+      .maybeSingle();
+
+    if (existingClub) {
+      setSaving(false);
+      toast({
+        title: "Club name already exists",
+        description: "Please choose a different name for your club.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Create the club
     const { data: club, error: clubError } = await supabase
       .from("clubs")
@@ -71,7 +88,9 @@ export default function CreateClubPage() {
       setSaving(false);
       toast({
         title: "Error",
-        description: "Failed to create club. Please try again.",
+        description: clubError.message.includes("idx_unique_club_name") 
+          ? "A club with this name already exists." 
+          : "Failed to create club. Please try again.",
         variant: "destructive",
       });
       return;

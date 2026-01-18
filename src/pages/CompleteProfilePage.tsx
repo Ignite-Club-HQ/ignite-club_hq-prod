@@ -211,8 +211,14 @@ export default function CompleteProfilePage() {
         description: "Welcome to Ignite Club HQ!",
       });
       
-      // Navigate immediately after successful update - don't wait for state
-      navigate("/", { replace: true });
+      // Check if there's a pending redirect (e.g., from invite link)
+      const redirectPath = sessionStorage.getItem("redirectAfterAuth");
+      if (redirectPath) {
+        sessionStorage.removeItem("redirectAfterAuth");
+        navigate(redirectPath, { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
       
       // Refresh profile in background
       refreshProfile();
@@ -413,8 +419,14 @@ export default function CompleteProfilePage() {
                         });
                         return;
                       } else {
-                        // User dismissed install - navigate normally
-                        navigate("/", { replace: true });
+                        // User dismissed install - navigate to redirect or home
+                        const redirectPath = sessionStorage.getItem("redirectAfterAuth");
+                        if (redirectPath) {
+                          sessionStorage.removeItem("redirectAfterAuth");
+                          navigate(redirectPath, { replace: true });
+                        } else {
+                          navigate("/", { replace: true });
+                        }
                         refreshProfile();
                         return;
                       }
