@@ -1055,10 +1055,6 @@ export default function MessagesPage() {
           );
         })()}
 
-        {/* Direct Messages - Pro feature */}
-        {!showSkeletonLoading && hasAnyProAccess && (
-          <DMConversationsList searchQuery={searchQuery} />
-        )}
 
         {/* Club Announcements */}
         {!showSkeletonLoading && filteredClubs.map((club: any) => {
@@ -1268,6 +1264,11 @@ export default function MessagesPage() {
               </p>
             </CardContent>
           </Card>
+        )}
+
+        {/* Direct Messages Section - Pro feature - separated at the bottom */}
+        {!showSkeletonLoading && hasAnyProAccess && (
+          <DMConversationsList searchQuery={searchQuery} />
         )}
 
         {/* Sponsor/Ad Carousel */}
