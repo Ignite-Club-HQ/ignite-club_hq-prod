@@ -94,12 +94,30 @@ export default function ManagePromoCodesPage() {
   const { data: promoCodes, isLoading } = useQuery({
     queryKey: ["promo-codes"],
     queryFn: async () => {
+      // Fetch promo codes with club relationship only (created_by references auth.users, not profiles)
       const { data, error } = await supabase
         .from("promo_codes")
-        .select("*, profiles:created_by(display_name), clubs:club_id(id, name)")
+        .select("*, clubs:club_id(id, name)")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+      
+      // Fetch creator profiles separately if needed
+      if (data && data.length > 0) {
+        const creatorIds = [...new Set(data.map(p => p.created_by).filter(Boolean))];
+        if (creatorIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, display_name")
+            .in("id", creatorIds);
+          
+          const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+          return data.map(promo => ({
+            ...promo,
+            creator_profile: profileMap.get(promo.created_by) || null
+          }));
+        }
+      }
+      return data?.map(promo => ({ ...promo, creator_profile: null })) || [];
     },
     enabled: hasAccess,
   });
@@ -533,7 +551,7 @@ export default function ManagePromoCodesPage() {
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
                           Used {promo.uses_count} times
-                          {promo.profiles && ` • Created by ${(promo.profiles as any).display_name}`}
+                          {promo.creator_profile && ` • Created by ${promo.creator_profile.display_name}`}
                           {promo.expires_at && (
                             <span className={isExpired ? "text-destructive" : ""}>
                               {" "}• {isExpired ? "Expired" : "Expires"} {format(parseISO(promo.expires_at), "MMM d, yyyy")}
