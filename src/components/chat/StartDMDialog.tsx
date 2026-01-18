@@ -105,7 +105,7 @@ export function StartDMDialog() {
 
       // Group by user and collect their shared clubs
       const userClubMap = new Map<string, string[]>();
-      clubMembers.forEach(member => {
+      clubMembers.forEach((member: { user_id: string; club_id: string }) => {
         if (!userClubMap.has(member.user_id)) {
           userClubMap.set(member.user_id, []);
         }
