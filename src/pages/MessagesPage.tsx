@@ -1055,8 +1055,12 @@ export default function MessagesPage() {
           );
         })()}
 
-
-        {/* Club Announcements */}
+        {/* Club Chats Section */}
+        {!showSkeletonLoading && filteredClubs.length > 0 && (
+          <div className="flex items-center gap-2 pt-4 pb-1 border-t mt-2">
+            <span className="text-sm font-medium text-muted-foreground">Club Chats</span>
+          </div>
+        )}
         {!showSkeletonLoading && filteredClubs.map((club: any) => {
           const lastMessage = displayLatestClubMessages?.[club.id];
           const unreadCount = unreadCounts?.clubs[club.id] || 0;
@@ -1156,7 +1160,12 @@ export default function MessagesPage() {
           );
         })}
 
-        {/* Team Chats */}
+        {/* Team Chats Section */}
+        {!showSkeletonLoading && filteredTeams.length > 0 && (
+          <div className="flex items-center gap-2 pt-4 pb-1 border-t mt-2">
+            <span className="text-sm font-medium text-muted-foreground">Team Chats</span>
+          </div>
+        )}
         {!showSkeletonLoading &&
           filteredTeams.map((team: any) => {
             const lastMessage = displayLatestTeamMessages?.[team.id];
@@ -1217,7 +1226,12 @@ export default function MessagesPage() {
           })
         }
 
-        {/* Chat Groups */}
+        {/* Chat Groups Section */}
+        {!showSkeletonLoading && filteredChatGroups.length > 0 && (
+          <div className="flex items-center gap-2 pt-4 pb-1 border-t mt-2">
+            <span className="text-sm font-medium text-muted-foreground">Group Chats</span>
+          </div>
+        )}
         {!showSkeletonLoading && filteredChatGroups.map((group: any) => {
           const canManage =
             isAppAdmin ||
