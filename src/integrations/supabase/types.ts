@@ -2076,6 +2076,7 @@ export type Database = {
           club_id: string | null
           code: string
           created_at: string
+          created_by: string | null
           expires_at: string | null
           id: string
           is_active: boolean
@@ -2089,6 +2090,7 @@ export type Database = {
           club_id?: string | null
           code: string
           created_at?: string
+          created_by?: string | null
           expires_at?: string | null
           id?: string
           is_active?: boolean
@@ -2102,6 +2104,7 @@ export type Database = {
           club_id?: string | null
           code?: string
           created_at?: string
+          created_by?: string | null
           expires_at?: string | null
           id?: string
           is_active?: boolean
