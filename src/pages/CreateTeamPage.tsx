@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { AssignTeamAdminSection, TeamAdminAssignment } from "@/components/AssignTeamAdminSection";
+import { TeamAdminInviteDialog } from "@/components/TeamAdminInviteDialog";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -36,6 +37,11 @@ export default function CreateTeamPage() {
   const [folderId, setFolderId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [adminAssignment, setAdminAssignment] = useState<TeamAdminAssignment | null>(null);
+  
+  // For showing invite dialog after team creation
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [createdTeam, setCreatedTeam] = useState<{ id: string; name: string } | null>(null);
+  const [generatedInviteLink, setGeneratedInviteLink] = useState("");
 
   const { data: club } = useQuery({
     queryKey: ["club", clubId],
@@ -109,6 +115,15 @@ export default function CreateTeamPage() {
     reader.readAsDataURL(file);
   };
 
+  const generateToken = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let token = '';
+    for (let i = 0; i < 8; i++) {
+      token += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return token;
+  };
+
   const handleSubmit = async () => {
     if (!name.trim()) {
       toast({
@@ -169,28 +184,33 @@ export default function CreateTeamPage() {
           description: `${adminAssignment.userDisplayName} has been assigned as Team Admin.`,
         });
       }
-    } else if (adminAssignment?.type === 'invite_link' && adminAssignment.inviteToken) {
-      // Create invite link for new user
+      navigate(`/teams/${team.id}`);
+    } else if (adminAssignment?.type === 'invite_link') {
+      // Generate token NOW (after team is created) and create invite link
+      const token = generateToken();
       const { error: inviteError } = await supabase.from("team_invites").insert({
         team_id: team.id,
-        token: adminAssignment.inviteToken,
+        token: token,
         role: "team_admin" as AppRole,
         created_by: user!.id,
         max_uses: 1,
       });
 
       setSaving(false);
+      
       if (inviteError) {
         toast({
           title: "Warning",
           description: "Team created but couldn't create invite link.",
           variant: "destructive",
         });
+        navigate(`/teams/${team.id}`);
       } else {
-        toast({
-          title: "Team created!",
-          description: "Share the invite link with the person who will manage this team.",
-        });
+        // Show the invite dialog with the generated link
+        const inviteLink = `${window.location.origin}/join/${token}?install=true`;
+        setCreatedTeam({ id: team.id, name: team.name });
+        setGeneratedInviteLink(inviteLink);
+        setShowInviteDialog(true);
       }
     } else {
       // Default: Assign creator as team_admin
@@ -215,9 +235,14 @@ export default function CreateTeamPage() {
         title: "Team created!",
         description: `${name} has been created successfully.`,
       });
+      navigate(`/teams/${team.id}`);
     }
+  };
 
-    navigate(`/teams/${team.id}`);
+  const handleInviteDialogDone = () => {
+    if (createdTeam) {
+      navigate(`/teams/${createdTeam.id}`);
+    }
   };
 
   return (
@@ -412,6 +437,15 @@ export default function CreateTeamPage() {
           </Button>
         </div>
       </div>
+
+      {/* Invite Dialog - shown after team creation when invite link is selected */}
+      <TeamAdminInviteDialog
+        open={showInviteDialog}
+        onOpenChange={setShowInviteDialog}
+        teamName={createdTeam?.name || name}
+        inviteLink={generatedInviteLink}
+        onDone={handleInviteDialogDone}
+      />
     </div>
   );
 }
