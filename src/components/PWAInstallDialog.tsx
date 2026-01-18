@@ -163,13 +163,18 @@ export function PWAInstallDialog({ forceShow = false, autoShow = true, onClose, 
               </div>
             </div>
           ) : (
-            // Fallback instructions for other browsers
+            // Fallback instructions for other browsers / in-app browsers
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground text-center">
                 Add Ignite to your home screen from your browser menu.
               </p>
               <div className="text-sm text-muted-foreground text-center">
                 Look for "Add to Home Screen" or "Install App" option.
+              </div>
+              <div className="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <p className="text-xs text-amber-600 dark:text-amber-400 text-center">
+                  💡 <strong>Tip:</strong> If you're in Facebook, Instagram, or another app, tap the menu (⋮) and select "Open in Chrome" or "Open in Browser" for the best install experience.
+                </p>
               </div>
             </div>
           )}
