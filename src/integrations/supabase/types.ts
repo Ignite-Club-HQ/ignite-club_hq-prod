@@ -3173,6 +3173,10 @@ export type Database = {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
       }
+      can_view_full_profile: {
+        Args: { _profile_id: string; _viewer_id: string }
+        Returns: boolean
+      }
       check_password_reset_rate_limit: {
         Args: { p_email: string }
         Returns: boolean
