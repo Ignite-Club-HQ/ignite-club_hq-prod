@@ -1,0 +1,357 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { ChevronRight, Crown, MessageCircle, ImageIcon, EyeOff } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { useMemo } from "react";
+import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+interface DMConversation {
+  id: string;
+  participant_1: string;
+  participant_2: string;
+  updated_at: string;
+  other_user: {
+    id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null;
+  last_message: {
+    text: string;
+    image_url: string | null;
+    created_at: string;
+    author_id: string;
+  } | null;
+}
+
+// Skeleton for loading state
+function DMSkeleton() {
+  return (
+    <Card>
+      <CardContent className="p-4 flex items-center gap-4">
+        <Skeleton className="h-12 w-12 rounded-full shrink-0" />
+        <div className="flex-1 min-w-0 space-y-2">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-3 w-48" />
+        </div>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-5 w-5 rounded-full" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Message preview component
+const MessagePreview = ({ 
+  text, 
+  imageUrl,
+  isOwn,
+}: { 
+  text?: string; 
+  imageUrl?: string | null;
+  isOwn: boolean;
+}) => {
+  const hasText = text && text.trim();
+  const isImageOnly = !hasText && imageUrl;
+  const hasTextAndImage = hasText && imageUrl;
+  
+  return (
+    <span className="flex items-center gap-1.5">
+      {isOwn && <span className="text-muted-foreground">You:</span>}
+      {isImageOnly && imageUrl && (
+        <img 
+          src={imageUrl} 
+          alt="" 
+          className="h-5 w-5 rounded object-cover shrink-0"
+        />
+      )}
+      {hasTextAndImage && (
+        <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      )}
+      <span className="truncate">{hasText ? text : (isImageOnly ? "Image" : "Start a conversation")}</span>
+    </span>
+  );
+};
+
+interface DMConversationsListProps {
+  searchQuery?: string;
+}
+
+export function DMConversationsList({ searchQuery = "" }: DMConversationsListProps) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Fetch hidden conversations
+  const { data: hiddenConversationIds } = useQuery({
+    queryKey: ["hidden-dm-conversations", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("hidden_dm_conversations")
+        .select("conversation_id")
+        .eq("user_id", user!.id);
+      return new Set(data?.map(h => h.conversation_id) || []);
+    },
+    enabled: !!user,
+  });
+
+  // Hide conversation mutation
+  const hideConversationMutation = useMutation({
+    mutationFn: async (conversationId: string) => {
+      const { error } = await supabase
+        .from("hidden_dm_conversations")
+        .insert({
+          user_id: user!.id,
+          conversation_id: conversationId,
+        });
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Conversation hidden");
+      queryClient.invalidateQueries({ queryKey: ["dm-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["hidden-dm-conversations"] });
+    },
+    onError: (error) => {
+      toast.error("Failed to hide conversation");
+      console.error("Hide conversation error:", error);
+    },
+  });
+
+  // Load cached data for instant display
+  const cachedData = useMemo(() => {
+    if (!user?.id) return null;
+    return getCachedMessagesPageData(user.id);
+  }, [user?.id]);
+
+  // Fetch DM conversations with last message
+  const { data: conversations, isLoading } = useQuery({
+    queryKey: ["dm-conversations", user?.id],
+    queryFn: async () => {
+      const { data: convos, error } = await supabase
+        .from("direct_conversations")
+        .select("*")
+        .or(`participant_1.eq.${user!.id},participant_2.eq.${user!.id}`)
+        .order("updated_at", { ascending: false });
+
+      if (error) throw error;
+      if (!convos?.length) return [];
+
+      // Get other user IDs
+      const otherUserIds = convos.map(c => 
+        c.participant_1 === user!.id ? c.participant_2 : c.participant_1
+      );
+
+      // Fetch profiles and last messages in parallel
+      const [profilesResult, messagesResult] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", otherUserIds),
+        Promise.all(
+          convos.map(async (conv) => {
+            const { data } = await supabase
+              .from("direct_messages")
+              .select("text, image_url, created_at, author_id")
+              .eq("conversation_id", conv.id)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            return { conversationId: conv.id, message: data };
+          })
+        ),
+      ]);
+
+      const profileMap = new Map(
+        profilesResult.data?.map(p => [p.id, p]) || []
+      );
+      const messageMap = new Map(
+        messagesResult.map(m => [m.conversationId, m.message])
+      );
+
+      const result = convos.map(conv => {
+        const otherUserId = conv.participant_1 === user!.id ? conv.participant_2 : conv.participant_1;
+        return {
+          ...conv,
+          other_user: profileMap.get(otherUserId) || null,
+          last_message: messageMap.get(conv.id) || null,
+        };
+      }) as DMConversation[];
+
+      // Cache the conversations and latest messages
+      const dmConversationsForCache = result.map(conv => ({
+        id: conv.id,
+        participant_1: conv.participant_1,
+        participant_2: conv.participant_2,
+        updated_at: conv.updated_at,
+        other_user: conv.other_user,
+      }));
+      
+      const latestDMMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
+      result.forEach(conv => {
+        if (conv.last_message) {
+          latestDMMessages[conv.id] = {
+            text: conv.last_message.text,
+            author: conv.last_message.author_id === user!.id ? "You" : (conv.other_user?.display_name || ""),
+            created_at: conv.last_message.created_at,
+            image_url: conv.last_message.image_url,
+          };
+        }
+      });
+      
+      cacheMessagesPageData(user!.id, { dmConversations: dmConversationsForCache, latestDMMessages });
+
+      return result;
+    },
+    enabled: !!user,
+    staleTime: 30000,
+    placeholderData: () => {
+      // Return cached conversations as placeholder
+      if (!cachedData?.dmConversations?.length) return undefined;
+      return cachedData.dmConversations.map(conv => ({
+        ...conv,
+        last_message: cachedData.latestDMMessages?.[conv.id] ? {
+          text: cachedData.latestDMMessages[conv.id].text,
+          image_url: cachedData.latestDMMessages[conv.id].image_url || null,
+          created_at: cachedData.latestDMMessages[conv.id].created_at,
+          author_id: cachedData.latestDMMessages[conv.id].author === "You" ? user?.id || "" : conv.other_user?.id || "",
+        } : null,
+      })) as DMConversation[];
+    },
+  });
+
+  // Filter by search query and exclude hidden conversations
+  const filteredConversations = conversations?.filter(conv => {
+    // Exclude hidden conversations
+    if (hiddenConversationIds?.has(conv.id)) return false;
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return conv.other_user?.display_name?.toLowerCase().includes(query);
+  }) || [];
+
+  if (isLoading) {
+    return (
+      <>
+        <DMSkeleton />
+        <DMSkeleton />
+      </>
+    );
+  }
+
+  if (filteredConversations.length === 0) {
+    if (searchQuery) return null; // Don't show empty state when searching
+    
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-6 text-center">
+          <MessageCircle className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+          <p className="text-muted-foreground">No direct messages yet</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Start a conversation with a club member
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-2 border-t pt-4 mt-4">
+      {/* Section header */}
+      <div className="flex items-center gap-2 pb-1">
+        <span className="text-sm font-medium text-muted-foreground">Direct Messages</span>
+        <Badge variant="secondary" className="gap-1 text-xs">
+          <Crown className="h-3 w-3" />
+          Pro
+        </Badge>
+      </div>
+
+      {filteredConversations.map((conv) => {
+        const isOwn = conv.last_message?.author_id === user?.id;
+        
+        return (
+          <Card key={conv.id} className="hover:border-primary/50 transition-colors">
+            <CardContent className="p-4 flex items-center gap-4">
+              <Link to={`/messages/dm/${conv.id}`} className="flex items-center gap-4 flex-1 min-w-0">
+                <Avatar className="h-12 w-12 shrink-0">
+                  <AvatarImage src={conv.other_user?.avatar_url || undefined} />
+                  <AvatarFallback className="bg-secondary text-secondary-foreground">
+                    {conv.other_user?.display_name?.charAt(0).toUpperCase() || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <h3 className="truncate font-semibold">
+                    {conv.other_user?.display_name || "Unknown User"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground truncate">
+                    <MessagePreview 
+                      text={conv.last_message?.text} 
+                      imageUrl={conv.last_message?.image_url}
+                      isOwn={isOwn}
+                    />
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  {conv.last_message?.created_at && (
+                    <span className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(conv.last_message.created_at), { addSuffix: true })}
+                    </span>
+                  )}
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </div>
+              </Link>
+              
+              {/* Hide button */}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-muted"
+                  >
+                    <EyeOff className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Hide conversation?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will hide the conversation with {conv.other_user?.display_name || "this user"} from your list. 
+                      The messages will be preserved and the conversation will reappear if either of you sends a new message.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => hideConversationMutation.mutate(conv.id)}
+                    >
+                      Hide
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}

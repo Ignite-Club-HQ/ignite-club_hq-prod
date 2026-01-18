@@ -27,6 +27,7 @@ interface ResponsiveDialogProps {
 interface ResponsiveDialogContentProps {
   children: React.ReactNode;
   className?: string;
+  fullScreen?: boolean;
 }
 
 interface ResponsiveDialogHeaderProps {
@@ -82,13 +83,19 @@ export function ResponsiveDialog({
 export function ResponsiveDialogContent({
   children,
   className,
+  fullScreen = false,
 }: ResponsiveDialogContentProps) {
   const { isMobile } = React.useContext(ResponsiveDialogContext);
 
   if (isMobile) {
     return (
-      <DrawerContent className={className}>
-        <div className="mx-auto w-full max-w-lg px-4 pb-safe max-h-[85vh] overflow-y-auto">{children}</div>
+      <DrawerContent className={fullScreen ? "h-[100dvh] max-h-[100dvh]" : className}>
+        <div className={fullScreen 
+          ? "flex flex-col h-full w-full overflow-hidden" 
+          : "mx-auto w-full max-w-lg px-4 pb-safe max-h-[85vh] overflow-y-auto"
+        }>
+          {children}
+        </div>
       </DrawerContent>
     );
   }

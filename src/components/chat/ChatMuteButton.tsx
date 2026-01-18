@@ -6,7 +6,7 @@ import { BellOff, Bell, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface ChatMuteButtonProps {
-  chatType: "team" | "club" | "group";
+  chatType: "team" | "club" | "group" | "dm";
   chatId: string;
 }
 

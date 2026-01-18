@@ -29,12 +29,12 @@ const CACHE_KEY_PREFIX = "ignite_message_cache_";
 const CACHE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MAX_CACHED_MESSAGES = 100; // Per chat
 
-function getCacheKey(type: "team" | "club" | "group" | "broadcast", targetId: string): string {
+function getCacheKey(type: "team" | "club" | "group" | "broadcast" | "dm", targetId: string): string {
   return `${CACHE_KEY_PREFIX}${type}_${targetId}`;
 }
 
 // Get cached messages for a specific chat
-export function getCachedMessages(type: "team" | "club" | "group" | "broadcast", targetId: string): CachedMessage[] {
+export function getCachedMessages(type: "team" | "club" | "group" | "broadcast" | "dm", targetId: string): CachedMessage[] {
   try {
     // Check if localStorage is available (Safari private mode blocks it)
     if (typeof localStorage === 'undefined') return [];
@@ -61,7 +61,7 @@ export function getCachedMessages(type: "team" | "club" | "group" | "broadcast",
 
 // Save messages to cache
 export function cacheMessages(
-  type: "team" | "club" | "group" | "broadcast",
+  type: "team" | "club" | "group" | "broadcast" | "dm",
   targetId: string,
   messages: CachedMessage[]
 ): void {
@@ -97,7 +97,7 @@ export function cacheMessages(
 
 // Add a single message to cache (for optimistic updates)
 export function addMessageToCache(
-  type: "team" | "club" | "group" | "broadcast",
+  type: "team" | "club" | "group" | "broadcast" | "dm",
   targetId: string,
   message: CachedMessage
 ): void {
@@ -142,14 +142,14 @@ function clearOldCaches(): void {
 }
 
 // Check if we have cached messages for a chat
-export function hasCachedMessages(type: "team" | "club" | "group" | "broadcast", targetId: string): boolean {
+export function hasCachedMessages(type: "team" | "club" | "group" | "broadcast" | "dm", targetId: string): boolean {
   return getCachedMessages(type, targetId).length > 0;
 }
 
 // Check if messages unexpectedly dropped to 0 (had cache but now empty)
 // Returns true if a refetch should be triggered
 export function shouldRefetchMessages(
-  type: "team" | "club" | "group" | "broadcast",
+  type: "team" | "club" | "group" | "broadcast" | "dm",
   targetId: string,
   fetchedCount: number
 ): boolean {
@@ -161,7 +161,7 @@ export function shouldRefetchMessages(
 }
 
 // Clear cache for a specific chat
-export function clearMessageCache(type: "team" | "club" | "group" | "broadcast", targetId: string): void {
+export function clearMessageCache(type: "team" | "club" | "group" | "broadcast" | "dm", targetId: string): void {
   try {
     const key = getCacheKey(type, targetId);
     localStorage.removeItem(key);

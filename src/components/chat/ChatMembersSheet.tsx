@@ -36,11 +36,38 @@ export function ChatMembersSheet({
   const previousCountRef = useRef<number | null>(null);
   const cacheKey = `chat-members-count-${chatType}-${chatId}`;
 
+  // Check if this is a personal group (no team_id or club_id)
+  const isPersonalGroup = chatType === "group" && !teamId && !clubId;
+
   // Fetch members based on chat type - exclude avatar_url initially for speed
   const { data: members, isLoading: membersLoading } = useQuery({
-    queryKey: ["chat-members", chatType, chatId],
+    queryKey: ["chat-members", chatType, chatId, teamId, clubId],
     queryFn: async () => {
-      // First, get user_ids and roles quickly (no avatar)
+      // For personal groups, fetch from group_members table
+      if (chatType === "group" && !teamId && !clubId) {
+        const { data: groupMembers, error } = await supabase
+          .from("group_members")
+          .select("user_id")
+          .eq("group_id", chatId);
+        
+        if (error || !groupMembers?.length) return [];
+        
+        const userIds = groupMembers.map(gm => gm.user_id);
+        
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", userIds);
+        
+        return (profiles || []).map(p => ({
+          id: p.id,
+          display_name: p.display_name,
+          avatar_url: p.avatar_url,
+          role: undefined, // Personal groups don't have roles
+        })) as Member[];
+      }
+      
+      // For team/club groups, use role-based membership
       let roleQuery;
       
       if (chatType === "team") {
