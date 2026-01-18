@@ -53,8 +53,8 @@ export function PasskeyAccountSelector({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[300px] pr-4">
-          <div className="space-y-2">
+        <ScrollArea className="max-h-[300px]">
+          <div className="space-y-2 px-1 py-1">
             {accounts.map((account) => {
               const isAuthenticating = authenticatingEmail === account.email;
               const isDisabled = loading || (authenticatingEmail !== null && !isAuthenticating);
