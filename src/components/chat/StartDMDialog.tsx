@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, MessageCircle, Loader2, Crown, Lock } from "lucide-react";
+import { Search, MessageCircle, Loader2, Crown, Lock, Check, X, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
@@ -28,8 +28,10 @@ interface DMableUser {
 export function StartDMDialog() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedUsers, setSelectedUsers] = useState<DMableUser[]>([]);
 
   // Check if user has Pro access for DMs
   const { data: hasProAccess, isLoading: checkingPro } = useQuery({
@@ -130,7 +132,7 @@ export function StartDMDialog() {
     enabled: !!user && open && hasProAccess === true,
   });
 
-  // Start DM mutation
+  // Start single DM mutation
   const startDMMutation = useMutation({
     mutationFn: async (otherUserId: string) => {
       const { data, error } = await supabase.rpc("get_or_create_dm_conversation", {
@@ -141,12 +143,74 @@ export function StartDMDialog() {
     },
     onSuccess: (conversationId) => {
       setOpen(false);
+      setSelectedUsers([]);
       navigate(`/messages/dm/${conversationId}`);
     },
     onError: (error) => {
       toast.error("Failed to start conversation: " + error.message);
     },
   });
+
+  // Start group DM mutation (creates a chat group)
+  const startGroupDMMutation = useMutation({
+    mutationFn: async (users: DMableUser[]) => {
+      // Create a group chat with all selected users + current user
+      const groupName = users.map(u => u.display_name?.split(" ")[0] || "User").join(", ");
+      
+      const allowedRoles: ("basic_user" | "club_admin" | "team_admin" | "coach" | "player" | "parent" | "app_admin")[] = 
+        ["basic_user", "parent", "player", "coach", "team_admin", "club_admin"];
+      
+      const { data, error } = await supabase
+        .from("chat_groups")
+        .insert({
+          name: groupName,
+          created_by: user!.id,
+          allowed_roles: allowedRoles,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data.id as string;
+    },
+    onSuccess: (groupId) => {
+      setOpen(false);
+      setSelectedUsers([]);
+      queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
+      navigate(`/messages/group/${groupId}`);
+      toast.success("Group chat created!");
+    },
+    onError: (error) => {
+      toast.error("Failed to create group chat: " + error.message);
+    },
+  });
+
+  const toggleUserSelection = (dmUser: DMableUser) => {
+    setSelectedUsers(prev => {
+      const isSelected = prev.some(u => u.id === dmUser.id);
+      if (isSelected) {
+        return prev.filter(u => u.id !== dmUser.id);
+      } else {
+        return [...prev, dmUser];
+      }
+    });
+  };
+
+  const removeSelectedUser = (userId: string) => {
+    setSelectedUsers(prev => prev.filter(u => u.id !== userId));
+  };
+
+  const handleStartConversation = () => {
+    if (selectedUsers.length === 0) return;
+    
+    if (selectedUsers.length === 1) {
+      // Single user - start regular DM
+      startDMMutation.mutate(selectedUsers[0].id);
+    } else {
+      // Multiple users - create group chat
+      startGroupDMMutation.mutate(selectedUsers);
+    }
+  };
 
   // Filter users by search query
   const filteredUsers = useMemo(() => {
@@ -160,8 +224,16 @@ export function StartDMDialog() {
     );
   }, [dmableUsers, searchQuery]);
 
+  const isPending = startDMMutation.isPending || startGroupDMMutation.isPending;
+
   return (
-    <ResponsiveDialog open={open} onOpenChange={setOpen}>
+    <ResponsiveDialog open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen);
+      if (!isOpen) {
+        setSelectedUsers([]);
+        setSearchQuery("");
+      }
+    }}>
       <Button variant="outline" size="sm" className="gap-2" onClick={() => setOpen(true)}>
         <MessageCircle className="h-4 w-4" />
         <span className="hidden sm:inline">New DM</span>
@@ -170,14 +242,14 @@ export function StartDMDialog() {
       <ResponsiveDialogContent fullScreen className="sm:max-w-md sm:max-h-[85vh] flex flex-col p-0">
         <ResponsiveDialogHeader className="p-4 pb-2 border-b sm:border-b-0">
           <ResponsiveDialogTitle className="flex items-center gap-2">
-            Start a Direct Message
+            Start a Conversation
             <Badge variant="secondary" className="gap-1">
               <Crown className="h-3 w-3" />
               Pro
             </Badge>
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            Message members from your Pro clubs
+            Select one or more members to message
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
@@ -200,6 +272,23 @@ export function StartDMDialog() {
             </div>
           ) : (
             <>
+              {/* Selected users chips */}
+              {selectedUsers.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3 p-2 bg-muted/50 rounded-lg">
+                  {selectedUsers.map(u => (
+                    <Badge key={u.id} variant="secondary" className="gap-1 pr-1">
+                      {u.display_name?.split(" ")[0] || "User"}
+                      <button
+                        onClick={() => removeSelectedUser(u.id)}
+                        className="ml-1 rounded-full hover:bg-background/50 p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
               <div className="relative mb-3">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -217,35 +306,65 @@ export function StartDMDialog() {
                       {searchQuery ? "No members found" : "No members available to message"}
                     </div>
                   ) : (
-                    filteredUsers.map((dmUser) => (
-                      <button
-                        key={dmUser.id}
-                        onClick={() => startDMMutation.mutate(dmUser.id)}
-                        disabled={startDMMutation.isPending}
-                        className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors text-left"
-                      >
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={dmUser.avatar_url || undefined} />
-                          <AvatarFallback>
-                            {dmUser.display_name?.charAt(0).toUpperCase() || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">
-                            {dmUser.display_name || "Unknown User"}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {dmUser.shared_clubs.join(", ")}
-                          </p>
-                        </div>
-                        {startDMMutation.isPending && startDMMutation.variables === dmUser.id && (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        )}
-                      </button>
-                    ))
+                    filteredUsers.map((dmUser) => {
+                      const isSelected = selectedUsers.some(u => u.id === dmUser.id);
+                      return (
+                        <button
+                          key={dmUser.id}
+                          onClick={() => toggleUserSelection(dmUser)}
+                          disabled={isPending}
+                          className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left ${
+                            isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
+                          }`}
+                        >
+                          <div className="relative">
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={dmUser.avatar_url || undefined} />
+                              <AvatarFallback>
+                                {dmUser.display_name?.charAt(0).toUpperCase() || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            {isSelected && (
+                              <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                                <Check className="h-3 w-3 text-primary-foreground" />
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">
+                              {dmUser.display_name || "Unknown User"}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {dmUser.shared_clubs.join(", ")}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               </ScrollArea>
+
+              {/* Start conversation button */}
+              {selectedUsers.length > 0 && (
+                <Button
+                  onClick={handleStartConversation}
+                  disabled={isPending}
+                  className="mt-3 gap-2"
+                >
+                  {isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : selectedUsers.length > 1 ? (
+                    <Users className="h-4 w-4" />
+                  ) : (
+                    <MessageCircle className="h-4 w-4" />
+                  )}
+                  {selectedUsers.length === 1 
+                    ? "Start Chat" 
+                    : `Create Group (${selectedUsers.length} people)`
+                  }
+                </Button>
+              )}
             </>
           )}
         </div>
