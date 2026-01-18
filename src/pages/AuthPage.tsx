@@ -206,7 +206,13 @@ export default function AuthPage() {
       return;
     }
 
-    // Always show account selector so user knows which account they're authenticating
+    // If only one account, authenticate directly without showing selector
+    if (storedAccounts.length === 1) {
+      await authenticateAccount(storedAccounts[0].email);
+      return;
+    }
+
+    // Multiple accounts - show account selector
     setAccountSelectorOpen(true);
   };
 

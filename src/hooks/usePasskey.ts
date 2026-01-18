@@ -73,6 +73,15 @@ export function getStoredPasskeyAccounts(): PasskeyAccount[] {
   }
 }
 
+// Set all passkey accounts (used for syncing from database)
+export function setStoredPasskeyAccounts(accounts: PasskeyAccount[]): void {
+  try {
+    localStorage.setItem(PASSKEY_ACCOUNTS_KEY, JSON.stringify(accounts));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 // Add a passkey account
 export function addStoredPasskeyAccount(email: string, displayName?: string): void {
   try {
@@ -419,4 +428,43 @@ export function usePasskey() {
     refreshAccounts,
     getStoredPasskeyEmail,
   };
+}
+
+// Sync passkey accounts from database - call this on login to restore any lost localStorage data
+export async function syncPasskeyAccountsFromDatabase(userId: string, userEmail: string, displayName?: string): Promise<void> {
+  try {
+    const { data: passkeys, error } = await supabase
+      .from('user_passkeys')
+      .select('id')
+      .eq('user_id', userId);
+    
+    if (error || !passkeys) {
+      console.log('[Passkey Sync] No passkeys found or error:', error?.message);
+      return;
+    }
+    
+    if (passkeys.length > 0) {
+      // User has passkeys in the database, ensure they're in local storage
+      const existingAccounts = getStoredPasskeyAccounts();
+      const emailLower = userEmail.toLowerCase();
+      const hasAccount = existingAccounts.some(a => a.email.toLowerCase() === emailLower);
+      
+      if (!hasAccount) {
+        console.log('[Passkey Sync] Restoring passkey account to localStorage for:', userEmail);
+        addStoredPasskeyAccount(userEmail, displayName);
+      }
+    } else {
+      // No passkeys in database - remove from localStorage if present
+      const existingAccounts = getStoredPasskeyAccounts();
+      const emailLower = userEmail.toLowerCase();
+      const hasAccount = existingAccounts.some(a => a.email.toLowerCase() === emailLower);
+      
+      if (hasAccount) {
+        console.log('[Passkey Sync] Removing orphaned passkey account from localStorage:', userEmail);
+        removeStoredPasskeyAccount(userEmail);
+      }
+    }
+  } catch (err) {
+    console.error('[Passkey Sync] Error syncing passkey accounts:', err);
+  }
 }

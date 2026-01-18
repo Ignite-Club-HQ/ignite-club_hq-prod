@@ -4,6 +4,7 @@ import { MoreVertical, Pencil, Trash2, X, Check, Reply, Clock } from "lucide-rea
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { EmojiPicker } from "./EmojiPicker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -363,6 +364,26 @@ export const ChatMessage = memo(function ChatMessage({
   const displayName = authorName || getPlaceholderName(authorId);
   const hasName = !!authorName;
 
+  // Handle inserting emoji at cursor position
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  const handleEditEmojiSelect = useCallback((emoji: string) => {
+    const input = inputRef.current;
+    if (input) {
+      const start = input.selectionStart || editText.length;
+      const end = input.selectionEnd || editText.length;
+      const newText = editText.slice(0, start) + emoji + editText.slice(end);
+      setEditText(newText);
+      // Set cursor position after emoji
+      requestAnimationFrame(() => {
+        input.focus();
+        input.setSelectionRange(start + emoji.length, start + emoji.length);
+      });
+    } else {
+      setEditText(prev => prev + emoji);
+    }
+  }, [editText]);
+
   if (isEditing) {
     return (
       <div className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}>
@@ -373,8 +394,9 @@ export const ChatMessage = memo(function ChatMessage({
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 max-w-[75%]">
-          <div className="flex gap-2">
+          <div className="flex items-center gap-1">
             <Input
+              ref={inputRef}
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
               className="flex-1"
@@ -387,6 +409,7 @@ export const ChatMessage = memo(function ChatMessage({
                 }
               }}
             />
+            <EmojiPicker onEmojiSelect={handleEditEmojiSelect} />
             <Button size="icon" variant="ghost" onClick={handleSaveEdit}>
               <Check className="h-4 w-4" />
             </Button>
