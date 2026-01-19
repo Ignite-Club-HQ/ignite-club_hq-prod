@@ -291,7 +291,9 @@ export default function TeamDetailPage() {
   
   // isClubAdmin is already defined above (before isSubscriptionLoading calculation)
   
+  // Club admins can view pitch board, but only team admins/coaches can edit
   const canAccessPitchBoard = isCoachOrAdmin || isClubAdmin;
+  const canEditPitchBoard = isCoachOrAdmin; // Club admins who are not team members get view-only
 
   // Fetch pending invites for this team
   const { data: pendingInvites = [] } = useQuery({
@@ -1404,7 +1406,7 @@ export default function TeamDetailPage() {
             initialMinutesPerHalf={teamSubscription?.minutes_per_half || 10}
             initialTeamSize={teamSubscription?.team_size}
             initialFormation={teamSubscription?.formation || undefined}
-            readOnly={!canAccessPitchBoard}
+            readOnly={!canEditPitchBoard}
             initialLinkedEventId={linkedEventId}
           />
         </Suspense>,

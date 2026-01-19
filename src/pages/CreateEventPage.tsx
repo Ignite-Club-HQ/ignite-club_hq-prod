@@ -168,17 +168,64 @@ export default function CreateEventPage() {
     }
   }, [activeClubFilter, clubs, clubId]);
 
-  const { data: teams } = useQuery({
-    queryKey: ["club-teams-for-event", clubId],
+  // Check if user is a club admin for the selected club
+  const { data: isClubAdminForSelectedClub } = useQuery({
+    queryKey: ["is-club-admin-for-event", clubId, user?.id],
     queryFn: async () => {
       const { data } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("club_id", clubId)
+        .eq("role", "club_admin")
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!clubId && !!user,
+  });
+
+  // Get teams user has direct membership in (team_admin, coach, or any team role)
+  const { data: userTeamIds } = useQuery({
+    queryKey: ["user-team-memberships", clubId, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("team_id")
+        .eq("user_id", user!.id)
+        .not("team_id", "is", null);
+      
+      return data?.map(r => r.team_id).filter(Boolean) || [];
+    },
+    enabled: !!clubId && !!user,
+  });
+
+  const { data: teams } = useQuery({
+    queryKey: ["club-teams-for-event", clubId, user?.id, isClubAdminForSelectedClub, userTeamIds],
+    queryFn: async () => {
+      // If user is club admin but not a member of any team in this club,
+      // only show teams they have direct membership in
+      // If user is team admin/coach, they already have the team in userTeamIds
+      
+      // Get all teams in the club first
+      const { data: allTeams } = await supabase
         .from("teams")
-        .select("id, name")
+        .select("id, name, club_id")
         .eq("club_id", clubId);
 
-      return data || [];
+      if (!allTeams) return [];
+
+      // Filter to only teams the user is a member of
+      if (userTeamIds && userTeamIds.length > 0) {
+        const teamsInClub = allTeams.filter(t => 
+          userTeamIds.includes(t.id)
+        );
+        return teamsInClub;
+      }
+
+      // If no team memberships, return empty (club admin without team membership can't create team events)
+      return [];
     },
-    enabled: !!clubId,
+    enabled: !!clubId && userTeamIds !== undefined,
   });
 
   // Fetch members for duty assignment
