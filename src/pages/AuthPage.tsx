@@ -49,18 +49,43 @@ export default function AuthPage() {
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   
+  const autoPromptTriggered = useRef(false);
   const { toast } = useToast();
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
-  const { isAvailable, loading: passkeyLoading, authenticateWithPasskey } = usePasskey();
+  const { isAvailable, accounts, loading: passkeyLoading, authenticateWithPasskey } = usePasskey();
   
-  // Check if biometrics are available
+  // Check if biometrics are available and auto-prompt discoverable credentials
+  // Only runs on the auth page when user is not authenticated
   useEffect(() => {
-    const checkBiometrics = async () => {
+    const checkBiometricsAndAutoPrompt = async () => {
       const available = await isPlatformAuthenticatorAvailable();
       setBiometricsAvailable(available);
+      
+      // Only auto-prompt if:
+      // 1. Biometrics are available
+      // 2. Haven't already prompted this session
+      // 3. Auth loading is complete
+      // 4. User is NOT already authenticated (prevents prompt on redirect)
+      if (available && !autoPromptTriggered.current && !authLoading && !user) {
+        autoPromptTriggered.current = true;
+        // Small delay to ensure UI is ready
+        setTimeout(async () => {
+          console.log('[AuthPage] Auto-prompting discoverable credentials');
+          const result = await authenticateWithPasskey(); // No email = discoverable mode
+          if (!result.success && result.error) {
+            // Only show toast if user didn't just cancel
+            if (!result.error.includes('cancelled') && !result.error.includes('timed out')) {
+              toast({
+                title: "Sign in with passkey",
+                description: "Use the button below if you have a passkey set up.",
+              });
+            }
+          }
+        }, 300);
+      }
     };
-    checkBiometrics();
-  }, []);
+    checkBiometricsAndAutoPrompt();
+  }, [authLoading, user, authenticateWithPasskey, toast]);
   
 
 
