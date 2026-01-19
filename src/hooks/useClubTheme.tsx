@@ -214,18 +214,28 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
             .eq('id', user.id)
             .single();
           
-          if (!error && data?.active_club_theme_id) {
-            // Database has a preference - use it (overrides localStorage for cross-device sync)
-            setActiveClubThemeState(data.active_club_theme_id);
-            safeSetItem(getStorageKey(user.id), data.active_club_theme_id);
+          if (!error && data) {
+            // We successfully fetched profile data
+            if (data.active_club_theme_id) {
+              // Database has a club theme preference - use it (overrides localStorage for cross-device sync)
+              setActiveClubThemeState(data.active_club_theme_id);
+              safeSetItem(getStorageKey(user.id), data.active_club_theme_id);
+            } else {
+              // Database has null (user explicitly chose Ignite/default theme)
+              // This is a valid preference - clear any localStorage club theme
+              setActiveClubThemeState(null);
+              localStorage.removeItem(getStorageKey(user.id));
+              localStorage.removeItem(getStorageDataKey(user.id));
+              setCachedThemeData(null);
+              applyThemeCSS(null, isDarkMode);
+            }
+            // Either way, user has made a choice (or we've synced) - don't auto-set
             setHasCheckedDefault(true);
-          } else if (!error && data && data.active_club_theme_id === null && !storedId) {
-            // No preference in DB and no localStorage - will auto-set later
-            setHasCheckedDefault(false);
           } else if (storedId) {
-            // Have localStorage but no DB record - sync to DB
+            // Have localStorage but failed to fetch DB - use localStorage, don't auto-set
             setHasCheckedDefault(true);
           }
+          // If no data and no storedId, hasCheckedDefault stays false and auto-set may occur
         } catch (err) {
           console.error('Failed to load club theme from database:', err);
         } finally {
