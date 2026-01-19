@@ -40,13 +40,20 @@
           var theme = localStorage.getItem('app-theme');
           if (theme === 'light') {
             document.documentElement.classList.remove('dark');
+            document.documentElement.style.colorScheme = 'light';
           } else {
             // Default to dark theme if not set or if set to dark
             document.documentElement.classList.add('dark');
+            document.documentElement.style.colorScheme = 'dark';
           }
         } catch (e) {}
       })();
     </script>
+    <!-- Initial background color based on theme - prevents flash during load -->
+    <style>
+      :root { background-color: hsl(0 0% 100%); }
+      .dark { background-color: hsl(160 15% 6%); }
+    </style>
   </head>
 
   <body>
