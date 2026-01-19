@@ -125,7 +125,7 @@ export default function TeamDetailPage() {
     enabled: !!id,
   });
 
-  const { data: clubSubscription } = useQuery({
+  const { data: clubSubscription, isLoading: isClubSubscriptionLoading } = useQuery({
     queryKey: ["club-subscription", team?.club_id],
     queryFn: async () => {
       const { data } = await supabase
@@ -137,6 +137,9 @@ export default function TeamDetailPage() {
     },
     enabled: !!team?.club_id,
   });
+  
+  // Track if subscription data is still loading - don't show Pro lock while loading
+  const isSubscriptionLoading = isClubSubscriptionLoading || (!!team?.club_id && clubSubscription === undefined);
 
   // Pro Access Logic:
   // 1. If club has Pro → ALL teams inherit Pro (clubSubscription takes precedence)
@@ -1104,12 +1107,12 @@ export default function TeamDetailPage() {
 
           {/* Subscription Payments Section - for admins/coaches, Pro only */}
           {(isCoachOrAdmin || isClubAdmin) && (
-            <AccordionItem value="subscription-payments" className="border rounded-lg px-4" disabled={!isTeamPro && !isAppAdmin}>
-              <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isTeamPro && !isAppAdmin}>
+            <AccordionItem value="subscription-payments" className="border rounded-lg px-4" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
+              <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-primary" />
                   <span className="text-lg font-semibold">Subscription Fees</span>
-                  {!isTeamPro && !isAppAdmin && (
+                  {!isTeamPro && !isAppAdmin && !isSubscriptionLoading && (
                     <div className="flex items-center gap-1.5 ml-2">
                       <Lock className="h-4 w-4 text-muted-foreground" />
                       <Badge variant="outline" className="text-xs font-normal">Pro</Badge>
@@ -1134,12 +1137,12 @@ export default function TeamDetailPage() {
 
           {/* Team Sponsor - Pro only */}
           {isAdmin && team.club_id && (
-            <AccordionItem value="team-sponsor" className="border rounded-lg px-4" disabled={!isTeamPro && !isAppAdmin}>
-              <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isTeamPro && !isAppAdmin}>
+            <AccordionItem value="team-sponsor" className="border rounded-lg px-4" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
+              <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
                 <div className="flex items-center gap-2">
                   <Building2 className="h-5 w-5 text-primary" />
                   <span className="text-lg font-semibold">Team Sponsor</span>
-                  {!isTeamPro && !isAppAdmin && (
+                  {!isTeamPro && !isAppAdmin && !isSubscriptionLoading && (
                     <div className="flex items-center gap-1.5 ml-2">
                       <Lock className="h-4 w-4 text-muted-foreground" />
                       <Badge variant="outline" className="text-xs font-normal">Pro</Badge>
@@ -1163,12 +1166,12 @@ export default function TeamDetailPage() {
 
           {/* Pitch Settings Section - Pro Football only */}
           {isAdmin && isSoccerClub && (
-            <AccordionItem value="pitch-settings" className="border rounded-lg px-4" disabled={!hasProFootball && !isAppAdmin}>
-              <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!hasProFootball && !isAppAdmin}>
+            <AccordionItem value="pitch-settings" className="border rounded-lg px-4" disabled={!hasProFootball && !isAppAdmin && !isSubscriptionLoading}>
+              <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!hasProFootball && !isAppAdmin && !isSubscriptionLoading}>
                 <div className="flex items-center gap-2">
                   <LayoutGrid className="h-5 w-5 text-primary" />
                   <span className="text-lg font-semibold">Pitch Settings</span>
-                  {!hasProFootball && !isAppAdmin && (
+                  {!hasProFootball && !isAppAdmin && !isSubscriptionLoading && (
                     <div className="flex items-center gap-1.5 ml-2">
                       <Lock className="h-4 w-4 text-muted-foreground" />
                       <Badge variant="outline" className="text-xs font-normal">Pro Football</Badge>
