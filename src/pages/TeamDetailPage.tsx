@@ -154,11 +154,13 @@ export default function TeamDetailPage() {
                                (teamSubscription as any)?.admin_pro_override || (teamSubscription as any)?.admin_pro_football_override;
   
   // Team has Pro if: club has Pro (inherited) OR (club is free AND team has individual Pro)
-  const isTeamPro = isSubscriptionLoading ? false : (clubHasPro || (!clubHasPro && teamHasIndividualPro));
+  // IMPORTANT: During loading, assume Pro access (optimistic) to avoid flashing Pro locks
+  const isTeamPro = isSubscriptionLoading ? true : (clubHasPro || (!clubHasPro && teamHasIndividualPro));
   
   const clubHasProFootball = clubSubscription?.is_pro_football || clubSubscription?.admin_pro_football_override;
   const teamHasIndividualProFootball = teamSubscription?.is_pro_football || (teamSubscription as any)?.admin_pro_football_override;
-  const hasProFootball = isSubscriptionLoading ? false : (clubHasProFootball || (!clubHasProFootball && teamHasIndividualProFootball));
+  // During loading, assume Pro access to avoid flashing Pro locks
+  const hasProFootball = isSubscriptionLoading ? true : (clubHasProFootball || (!clubHasProFootball && teamHasIndividualProFootball));
 
   // Force refresh member list when navigating to this page
   useEffect(() => {
