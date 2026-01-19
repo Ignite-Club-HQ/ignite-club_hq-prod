@@ -16,6 +16,7 @@ interface Profile {
   avatar_url: string | null;
   ignite_points: number;
   has_sausage_reward: boolean;
+  theme_preference: string | null;
 }
 
 interface AuthContextType {
@@ -88,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         const fetchPromise = supabase
           .from("profiles")
-          .select("id, display_name, avatar_url, ignite_points, has_sausage_reward")
+          .select("id, display_name, avatar_url, ignite_points, has_sausage_reward, theme_preference")
           .eq("id", userId)
           .maybeSingle();
         
@@ -107,10 +108,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         
         if (data) {
-          setProfile(data as Profile);
-          setCachedProfile(data as Profile);
+          const profileData = data as Profile;
+          setProfile(profileData);
+          setCachedProfile(profileData);
           setProfileError(false);
-          return data as Profile;
+          
+          // Apply user's theme preference on login
+          if (profileData.theme_preference) {
+            const root = window.document.documentElement;
+            root.classList.remove('light', 'dark');
+            root.classList.add(profileData.theme_preference);
+            root.style.colorScheme = profileData.theme_preference;
+            localStorage.setItem('app-theme', profileData.theme_preference);
+          }
+          
+          return profileData;
         }
         
         // No profile found - this is okay for new users, not an error
