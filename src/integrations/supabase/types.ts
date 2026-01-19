@@ -2222,6 +2222,7 @@ export type Database = {
           photo_consent_given_at: string | null
           profile_visibility: string | null
           scheduled_deletion_at: string | null
+          theme_preference: string | null
           updated_at: string
         }
         Insert: {
@@ -2237,6 +2238,7 @@ export type Database = {
           photo_consent_given_at?: string | null
           profile_visibility?: string | null
           scheduled_deletion_at?: string | null
+          theme_preference?: string | null
           updated_at?: string
         }
         Update: {
@@ -2252,6 +2254,7 @@ export type Database = {
           photo_consent_given_at?: string | null
           profile_visibility?: string | null
           scheduled_deletion_at?: string | null
+          theme_preference?: string | null
           updated_at?: string
         }
         Relationships: []
