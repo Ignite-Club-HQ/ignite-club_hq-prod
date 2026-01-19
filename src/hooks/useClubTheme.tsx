@@ -28,13 +28,15 @@ interface ClubTheme {
   darkAccent: HSLColor | null;
 }
 
-// Minimal cache structure - excludes logoUrl to prevent quota issues
+// Cache structure - includes logoUrl for instant header display
 interface CachedThemeData {
   clubId: string;
   clubName: string;
+  logoUrl: string | null;
   showLogoInHeader: boolean;
   showNameInHeader: boolean;
   logoOnlyMode: boolean;
+  sport: string | null;
   primary: HSLColor | null;
   secondary: HSLColor | null;
   accent: HSLColor | null;
@@ -43,13 +45,15 @@ interface CachedThemeData {
   darkAccent: HSLColor | null;
 }
 
-// Helper to convert full theme to cacheable version (excludes large data like logoUrl)
+// Helper to convert full theme to cacheable version (includes logoUrl for instant display)
 const toCacheableTheme = (theme: ClubTheme): CachedThemeData => ({
   clubId: theme.clubId,
   clubName: theme.clubName,
+  logoUrl: theme.logoUrl,
   showLogoInHeader: theme.showLogoInHeader,
   showNameInHeader: theme.showNameInHeader,
   logoOnlyMode: theme.logoOnlyMode,
+  sport: theme.sport,
   primary: theme.primary,
   secondary: theme.secondary,
   accent: theme.accent,
@@ -185,10 +189,14 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         if (storedData) {
           try {
             const parsedData = JSON.parse(storedData) as CachedThemeData;
-            // Create a minimal theme for CSS application (logoUrl will come from server)
-            const themeForCSS: ClubTheme = { ...parsedData, logoUrl: null, sport: null };
-            setCachedThemeData(themeForCSS);
-            applyThemeCSS(themeForCSS, isDarkMode);
+            // Create full theme from cache including logoUrl for instant display
+            const themeFromCache: ClubTheme = { 
+              ...parsedData, 
+              logoUrl: parsedData.logoUrl ?? null, 
+              sport: parsedData.sport ?? null 
+            };
+            setCachedThemeData(themeFromCache);
+            applyThemeCSS(themeFromCache, isDarkMode);
           } catch {
             // Invalid cache, will be refreshed from server
           }
