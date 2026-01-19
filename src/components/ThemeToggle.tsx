@@ -29,28 +29,8 @@ export function ThemeToggle() {
     localStorage.setItem('app-theme', theme);
   }, [theme]);
 
-  // Load theme from profile on login
-  useEffect(() => {
-    if (!user) return;
-    
-    const loadThemeFromProfile = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('theme_preference')
-          .eq('id', user.id)
-          .single();
-        
-        if (!error && data?.theme_preference) {
-          setThemeState(data.theme_preference);
-        }
-      } catch (err) {
-        console.error('Failed to load theme preference:', err);
-      }
-    };
-    
-    loadThemeFromProfile();
-  }, [user]);
+  // No need to load theme from profile here - useAuth handles it on fresh login
+  // On page refresh, localStorage (set by index.html) is the source of truth
 
   // Save theme to profile when changed
   const saveThemeToProfile = useCallback(async (newTheme: string) => {
