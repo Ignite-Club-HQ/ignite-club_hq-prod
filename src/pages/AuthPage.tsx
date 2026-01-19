@@ -55,43 +55,63 @@ export default function AuthPage() {
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
   const { isAvailable, accounts, loading: passkeyLoading, authenticateWithPasskey } = usePasskey();
   
-  // Check if biometrics are available and auto-prompt discoverable credentials
-  // Only runs when user is on /auth and definitely not authenticated
+  // Check if biometrics are available - separate from auto-prompt
   useEffect(() => {
-    // Only run on the /auth route - prevent prompts when this component
-    // might briefly render during other route navigations
+    const checkBiometrics = async () => {
+      const available = await isPlatformAuthenticatorAvailable();
+      setBiometricsAvailable(available);
+    };
+    checkBiometrics();
+  }, []);
+  
+  // Auto-prompt for discoverable credentials - ONLY on /auth page
+  // This is completely separate from biometrics check to prevent prompts on other pages
+  useEffect(() => {
+    // CRITICAL: Only run on the /auth route - prevent prompts when navigating to other pages
+    // On page refresh of protected routes, AppLayout redirects to /auth briefly before auth state loads
     if (location.pathname !== '/auth') {
+      console.log('[AuthPage] Skipping auto-prompt - not on /auth page');
       return;
     }
     
-    const checkBiometricsAndAutoPrompt = async () => {
+    // Wait for auth to finish loading and confirm user is not authenticated
+    if (authLoading) {
+      console.log('[AuthPage] Skipping auto-prompt - auth still loading');
+      return;
+    }
+    
+    // If user exists, they're about to be redirected - don't prompt
+    if (user) {
+      console.log('[AuthPage] Skipping auto-prompt - user already authenticated');
+      return;
+    }
+    
+    // Only auto-prompt once per page load
+    if (autoPromptTriggered.current) {
+      return;
+    }
+    
+    const doAutoPrompt = async () => {
       const available = await isPlatformAuthenticatorAvailable();
-      setBiometricsAvailable(available);
+      if (!available) return;
       
-      // Only auto-prompt if:
-      // 1. Biometrics are available
-      // 2. Haven't already prompted this session
-      // 3. Auth loading is complete
-      // 4. User is NOT already authenticated (prevents prompt on redirect)
-      if (available && !autoPromptTriggered.current && !authLoading && !user) {
-        autoPromptTriggered.current = true;
-        // Small delay to ensure UI is ready
-        setTimeout(async () => {
-          console.log('[AuthPage] Auto-prompting discoverable credentials');
-          const result = await authenticateWithPasskey(); // No email = discoverable mode
-          if (!result.success && result.error) {
-            // Only show toast if user didn't just cancel
-            if (!result.error.includes('cancelled') && !result.error.includes('timed out')) {
-              toast({
-                title: "Sign in with passkey",
-                description: "Use the button below if you have a passkey set up.",
-              });
-            }
+      autoPromptTriggered.current = true;
+      // Longer delay to ensure we're truly on auth page and not mid-redirect
+      setTimeout(async () => {
+        console.log('[AuthPage] Auto-prompting discoverable credentials');
+        const result = await authenticateWithPasskey();
+        if (!result.success && result.error) {
+          if (!result.error.includes('cancelled') && !result.error.includes('timed out')) {
+            toast({
+              title: "Sign in with passkey",
+              description: "Use the button below if you have a passkey set up.",
+            });
           }
-        }, 300);
-      }
+        }
+      }, 500);
     };
-    checkBiometricsAndAutoPrompt();
+    
+    doAutoPrompt();
   }, [location.pathname, authLoading, user, authenticateWithPasskey, toast]);
   
 
