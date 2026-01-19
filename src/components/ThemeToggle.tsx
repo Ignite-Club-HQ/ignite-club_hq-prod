@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export function ThemeToggle() {
   const { user } = useAuth();
+  const [mounted, setMounted] = useState(false);
   const [theme, setThemeState] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('app-theme') || 'dark';
@@ -13,6 +14,11 @@ export function ThemeToggle() {
     return 'dark';
   });
   const [isSaving, setIsSaving] = useState(false);
+
+  // Track mount state to prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Apply theme to DOM and localStorage
   useEffect(() => {
@@ -69,10 +75,31 @@ export function ThemeToggle() {
     saveThemeToProfile(newTheme);
   };
 
+  const isDark = theme === 'dark';
+
+  // Use explicit styling based on current theme state to prevent flash
   return (
-    <Button variant="ghost" size="icon" onClick={toggleTheme} disabled={isSaving}>
-      <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-      <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+    <Button 
+      variant="ghost" 
+      size="icon" 
+      onClick={toggleTheme} 
+      disabled={isSaving}
+      className="relative"
+    >
+      <Sun 
+        className="h-5 w-5 transition-all" 
+        style={{ 
+          transform: isDark ? 'rotate(-90deg) scale(0)' : 'rotate(0deg) scale(1)',
+          position: isDark ? 'absolute' : 'relative'
+        }}
+      />
+      <Moon 
+        className="h-5 w-5 transition-all" 
+        style={{ 
+          transform: isDark ? 'rotate(0deg) scale(1)' : 'rotate(90deg) scale(0)',
+          position: isDark ? 'relative' : 'absolute'
+        }}
+      />
       <span className="sr-only">Toggle theme</span>
     </Button>
   );
