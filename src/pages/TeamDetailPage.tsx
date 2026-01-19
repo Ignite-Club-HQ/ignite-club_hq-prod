@@ -182,6 +182,22 @@ export default function TeamDetailPage() {
   // During loading, assume Pro access to avoid flashing Pro locks
   const hasProFootball = isSubscriptionLoading ? true : (clubHasProFootball || (!clubHasProFootball && teamHasIndividualProFootball));
 
+  // Debug logging - remove after fixing
+  console.log('🔍 Pro Debug:', {
+    isLoading,
+    isClubSubscriptionLoading,
+    isClubSubscriptionFetching,
+    isClubAdminLoading,
+    isClubAdminFetching,
+    isSubscriptionLoading,
+    clubSubscription,
+    clubHasPro,
+    teamSubscription,
+    teamHasIndividualPro,
+    isTeamPro,
+    isClubAdmin
+  });
+
   // Force refresh member list when navigating to this page
   useEffect(() => {
     if (id) {
