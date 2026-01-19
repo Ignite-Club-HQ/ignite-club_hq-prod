@@ -622,8 +622,8 @@ export default function TeamDetailPage() {
         </Card>
       )}
 
-      {/* Quick Actions */}
-      {(isMember || isClubAdmin) && (
+      {/* Quick Actions - Team Chat only for team members, not club admins who aren't members */}
+      {isMember && (
         <div className="grid grid-cols-2 gap-3">
           <Link to={`/messages/${team.id}`}>
             <Card className="hover:border-primary/50 transition-colors">
@@ -911,7 +911,8 @@ export default function TeamDetailPage() {
             </AccordionContent>
           </AccordionItem>
 
-          {/* Chat Groups Section */}
+          {/* Chat Groups Section - only for team members */}
+          {isMember && (
           <AccordionItem value="chat-groups" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center gap-2">
@@ -946,6 +947,7 @@ export default function TeamDetailPage() {
               </div>
             </AccordionContent>
           </AccordionItem>
+          )}
 
           {/* Admin Section - collapsed by default */}
           {isAdmin && (
@@ -1117,9 +1119,9 @@ export default function TeamDetailPage() {
             </AccordionItem>
           )}
 
-          {/* Subscription Payments Section - for admins/coaches, Pro only */}
+          {/* Subscription Payments Section - for team admins/coaches only (not club admins who aren't team members) */}
           {/* Use isSubscriptionLoading || isTeamPro to prevent Pro locks during loading */}
-          {(isCoachOrAdmin || isClubAdmin) && (
+          {isCoachOrAdmin && (
             <AccordionItem value="subscription-payments" className="border rounded-lg px-4" disabled={!isSubscriptionLoading && !isTeamPro && !isAppAdmin}>
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isSubscriptionLoading && !isTeamPro && !isAppAdmin}>
                 <div className="flex items-center gap-2">
