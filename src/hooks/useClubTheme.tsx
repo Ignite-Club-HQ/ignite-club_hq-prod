@@ -174,8 +174,10 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
 
   // Track if we've checked for default theme for this user session
   const [hasCheckedDefault, setHasCheckedDefault] = useState(false);
+  const [isLoadingFromDb, setIsLoadingFromDb] = useState(false);
 
   // INSTANT THEME APPLICATION: Restore from localStorage immediately on mount
+  // Then load from database for cross-device sync
   useEffect(() => {
     if (user?.id && typeof window !== "undefined") {
       const storedId = localStorage.getItem(getStorageKey(user.id));
@@ -183,7 +185,6 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       
       if (storedId) {
         setActiveClubThemeState(storedId);
-        setHasCheckedDefault(true);
         
         // Apply cached theme data INSTANTLY before fetch completes
         if (storedData) {
@@ -202,6 +203,37 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           }
         }
       }
+      
+      // Load theme preference from database (cross-device sync)
+      const loadThemeFromDb = async () => {
+        setIsLoadingFromDb(true);
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('active_club_theme_id')
+            .eq('id', user.id)
+            .single();
+          
+          if (!error && data?.active_club_theme_id) {
+            // Database has a preference - use it (overrides localStorage for cross-device sync)
+            setActiveClubThemeState(data.active_club_theme_id);
+            safeSetItem(getStorageKey(user.id), data.active_club_theme_id);
+            setHasCheckedDefault(true);
+          } else if (!error && data && data.active_club_theme_id === null && !storedId) {
+            // No preference in DB and no localStorage - will auto-set later
+            setHasCheckedDefault(false);
+          } else if (storedId) {
+            // Have localStorage but no DB record - sync to DB
+            setHasCheckedDefault(true);
+          }
+        } catch (err) {
+          console.error('Failed to load club theme from database:', err);
+        } finally {
+          setIsLoadingFromDb(false);
+        }
+      };
+      
+      loadThemeFromDb();
     }
   }, [user?.id, isDarkMode]);
 
@@ -354,7 +386,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
 
   // Auto-set theme for new members who haven't set a preference yet
   useEffect(() => {
-    if (!user?.id || hasCheckedDefault || isLoading) return;
+    if (!user?.id || hasCheckedDefault || isLoading || isLoadingFromDb) return;
     
     // Check if user has any stored preference (including explicit "none")
     const hasStoredPreference = localStorage.getItem(getStorageKey(user.id)) !== null;
@@ -367,10 +399,17 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       safeSetItem(getStorageDataKey(user.id), JSON.stringify(toCacheableTheme(firstTheme)));
       setCachedThemeData(firstTheme);
       applyThemeCSS(firstTheme, isDarkMode);
+      
+      // Also save to database for cross-device sync
+      supabase
+        .from('profiles')
+        .update({ active_club_theme_id: firstTheme.clubId })
+        .eq('id', user.id)
+        .then(() => console.log('Auto-set club theme saved to profile'));
     }
     
     setHasCheckedDefault(true);
-  }, [user?.id, availableClubThemes, isLoading, hasCheckedDefault, isDarkMode]);
+  }, [user?.id, availableClubThemes, isLoading, isLoadingFromDb, hasCheckedDefault, isDarkMode]);
 
   const setActiveClubTheme = (clubId: string | null) => {
     setActiveClubThemeState(clubId);
@@ -390,6 +429,15 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem(dataKey);
         setCachedThemeData(null);
       }
+      
+      // Save preference to database for cross-device sync
+      supabase
+        .from('profiles')
+        .update({ active_club_theme_id: clubId })
+        .eq('id', user.id)
+        .then(({ error }) => {
+          if (error) console.error('Failed to save club theme preference:', error);
+        });
     }
   };
 
