@@ -139,9 +139,10 @@ export default function TeamDetailPage() {
   });
   
   // Track if subscription data is still loading - don't show Pro lock while loading
-  // clubSubscription query is enabled when team?.club_id exists, so we just check isClubSubscriptionLoading
-  // If team has no club_id, there's no club subscription to load
-  const isSubscriptionLoading = !!team?.club_id && isClubSubscriptionLoading;
+  // Must wait for:
+  // 1. Team to load (so we know if it has a club_id)
+  // 2. Club subscription to load (if team has a club_id)
+  const isSubscriptionLoading = isLoading || (!!team?.club_id && isClubSubscriptionLoading);
 
   // Pro Access Logic:
   // 1. If club has Pro → ALL teams inherit Pro (clubSubscription takes precedence)
