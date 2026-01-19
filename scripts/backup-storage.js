@@ -3,6 +3,7 @@
  * 
  * This script backs up files from Supabase storage buckets to GCS.
  * It supports incremental backups - only backing up new or modified files.
+ * Files are organized by club/team for easy disaster recovery.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -26,6 +27,18 @@ const BUCKETS_TO_BACKUP = [
 const MANIFEST_PATH = 'supabase-buckets/.backup-manifest.json';
 
 /**
+ * Sanitize a name for use in file paths
+ */
+function sanitizeName(name) {
+  if (!name) return 'unknown';
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 50) || 'unknown';
+}
+
+/**
  * Generate a mapping of storage file paths to their club/team associations
  * by querying the database tables that reference storage files.
  */
@@ -37,8 +50,38 @@ async function generateFileMapping(supabase) {
     vaultFiles: [],
     sponsorLogos: [],
     clubLogos: [],
-    avatars: []
+    avatars: [],
+    // Lookup maps for quick path resolution
+    pathToClubTeam: {}
   };
+
+  // Fetch all clubs for reference
+  const { data: allClubs } = await supabase
+    .from('clubs')
+    .select('id, name, logo_url');
+  
+  const clubMap = {};
+  if (allClubs) {
+    for (const club of allClubs) {
+      clubMap[club.id] = { name: club.name, logoUrl: club.logo_url };
+    }
+  }
+
+  // Fetch all teams for reference
+  const { data: allTeams } = await supabase
+    .from('teams')
+    .select('id, name, club_id');
+  
+  const teamMap = {};
+  if (allTeams) {
+    for (const team of allTeams) {
+      teamMap[team.id] = { 
+        name: team.name, 
+        clubId: team.club_id,
+        clubName: clubMap[team.club_id]?.name || null
+      };
+    }
+  }
 
   // Fetch photos with club/team associations
   try {
@@ -59,17 +102,34 @@ async function generateFileMapping(supabase) {
       .is('deleted_at', null);
     
     if (!error && photos) {
-      mapping.photos = photos.map(p => ({
-        id: p.id,
-        storagePath: extractStoragePath(p.image_url || p.file_url, 'photos'),
-        clubId: p.club_id,
-        clubName: p.clubs?.name || null,
-        teamId: p.team_id,
-        teamName: p.teams?.name || null,
-        uploaderId: p.uploader_id,
-        folderId: p.folder_id,
-        createdAt: p.created_at
-      }));
+      mapping.photos = photos.map(p => {
+        const storagePath = extractStoragePath(p.image_url || p.file_url, 'photos');
+        const clubName = p.clubs?.name || (p.teams?.club_id ? clubMap[p.teams.club_id]?.name : null);
+        const teamName = p.teams?.name || null;
+        
+        // Add to path lookup
+        if (storagePath) {
+          mapping.pathToClubTeam[`photos/${storagePath}`] = {
+            clubId: p.club_id || p.teams?.club_id,
+            clubName,
+            teamId: p.team_id,
+            teamName,
+            type: 'photo'
+          };
+        }
+        
+        return {
+          id: p.id,
+          storagePath,
+          clubId: p.club_id || p.teams?.club_id,
+          clubName,
+          teamId: p.team_id,
+          teamName,
+          uploaderId: p.uploader_id,
+          folderId: p.folder_id,
+          createdAt: p.created_at
+        };
+      });
     }
   } catch (err) {
     console.error('Error fetching photos mapping:', err.message);
@@ -93,18 +153,35 @@ async function generateFileMapping(supabase) {
       `);
     
     if (!error && vaultFiles) {
-      mapping.vaultFiles = vaultFiles.map(f => ({
-        id: f.id,
-        storagePath: extractStoragePath(f.file_url, 'photos'),
-        name: f.name,
-        clubId: f.club_id,
-        clubName: f.clubs?.name || null,
-        teamId: f.team_id,
-        teamName: f.teams?.name || null,
-        uploaderId: f.uploader_id,
-        folderId: f.folder_id,
-        createdAt: f.created_at
-      }));
+      mapping.vaultFiles = vaultFiles.map(f => {
+        const storagePath = extractStoragePath(f.file_url, 'photos');
+        const clubName = f.clubs?.name || null;
+        const teamName = f.teams?.name || null;
+        
+        // Add to path lookup
+        if (storagePath) {
+          mapping.pathToClubTeam[`photos/${storagePath}`] = {
+            clubId: f.club_id,
+            clubName,
+            teamId: f.team_id,
+            teamName,
+            type: 'vault'
+          };
+        }
+        
+        return {
+          id: f.id,
+          storagePath,
+          name: f.name,
+          clubId: f.club_id,
+          clubName,
+          teamId: f.team_id,
+          teamName,
+          uploaderId: f.uploader_id,
+          folderId: f.folder_id,
+          createdAt: f.created_at
+        };
+      });
     }
   } catch (err) {
     console.error('Error fetching vault files mapping:', err.message);
@@ -123,14 +200,29 @@ async function generateFileMapping(supabase) {
     
     if (teamMsgs) {
       for (const msg of teamMsgs) {
+        const storagePath = extractStoragePath(msg.image_url, 'chat-attachments');
+        const clubName = msg.teams?.clubs?.name || null;
+        const teamName = msg.teams?.name || null;
+        
+        // Add to path lookup
+        if (storagePath) {
+          mapping.pathToClubTeam[`chat-attachments/${storagePath}`] = {
+            clubId: msg.teams?.club_id,
+            clubName,
+            teamId: msg.team_id,
+            teamName,
+            type: 'team-chat'
+          };
+        }
+        
         mapping.chatAttachments.push({
           id: msg.id,
           type: 'team',
-          storagePath: extractStoragePath(msg.image_url, 'chat-attachments'),
+          storagePath,
           teamId: msg.team_id,
-          teamName: msg.teams?.name || null,
+          teamName,
           clubId: msg.teams?.club_id || null,
-          clubName: msg.teams?.clubs?.name || null,
+          clubName,
           authorId: msg.author_id,
           createdAt: msg.created_at
         });
@@ -148,12 +240,26 @@ async function generateFileMapping(supabase) {
     
     if (clubMsgs) {
       for (const msg of clubMsgs) {
+        const storagePath = extractStoragePath(msg.image_url, 'chat-attachments');
+        const clubName = msg.clubs?.name || null;
+        
+        // Add to path lookup
+        if (storagePath) {
+          mapping.pathToClubTeam[`chat-attachments/${storagePath}`] = {
+            clubId: msg.club_id,
+            clubName,
+            teamId: null,
+            teamName: null,
+            type: 'club-chat'
+          };
+        }
+        
         mapping.chatAttachments.push({
           id: msg.id,
           type: 'club',
-          storagePath: extractStoragePath(msg.image_url, 'chat-attachments'),
+          storagePath,
           clubId: msg.club_id,
-          clubName: msg.clubs?.name || null,
+          clubName,
           authorId: msg.author_id,
           createdAt: msg.created_at
         });
@@ -171,14 +277,33 @@ async function generateFileMapping(supabase) {
     
     if (groupMsgs) {
       for (const msg of groupMsgs) {
+        const storagePath = extractStoragePath(msg.image_url, 'chat-attachments');
+        const clubId = msg.chat_groups?.club_id;
+        const teamId = msg.chat_groups?.team_id;
+        const clubName = clubId ? clubMap[clubId]?.name : null;
+        const teamName = teamId ? teamMap[teamId]?.name : null;
+        
+        // Add to path lookup
+        if (storagePath) {
+          mapping.pathToClubTeam[`chat-attachments/${storagePath}`] = {
+            clubId,
+            clubName,
+            teamId,
+            teamName,
+            type: 'group-chat'
+          };
+        }
+        
         mapping.chatAttachments.push({
           id: msg.id,
           type: 'group',
-          storagePath: extractStoragePath(msg.image_url, 'chat-attachments'),
+          storagePath,
           groupId: msg.group_id,
           groupName: msg.chat_groups?.name || null,
-          clubId: msg.chat_groups?.club_id || null,
-          teamId: msg.chat_groups?.team_id || null,
+          clubId,
+          clubName,
+          teamId,
+          teamName,
           authorId: msg.author_id,
           createdAt: msg.created_at
         });
@@ -193,10 +318,23 @@ async function generateFileMapping(supabase) {
     
     if (broadcastMsgs) {
       for (const msg of broadcastMsgs) {
+        const storagePath = extractStoragePath(msg.image_url, 'chat-attachments');
+        
+        // Add to path lookup (broadcast = system level)
+        if (storagePath) {
+          mapping.pathToClubTeam[`chat-attachments/${storagePath}`] = {
+            clubId: null,
+            clubName: null,
+            teamId: null,
+            teamName: null,
+            type: 'broadcast'
+          };
+        }
+        
         mapping.chatAttachments.push({
           id: msg.id,
           type: 'broadcast',
-          storagePath: extractStoragePath(msg.image_url, 'chat-attachments'),
+          storagePath,
           authorId: msg.author_id,
           createdAt: msg.created_at
         });
@@ -217,15 +355,32 @@ async function generateFileMapping(supabase) {
       `);
     
     if (sponsors) {
-      mapping.sponsorLogos = sponsors.filter(s => s.logo_url).map(s => ({
-        id: s.id,
-        storagePath: extractStoragePath(s.logo_url, 'sponsor-logos'),
-        name: s.name,
-        clubId: s.club_id,
-        clubName: s.clubs?.name || null,
-        teamId: s.team_id,
-        teamName: s.teams?.name || null
-      }));
+      mapping.sponsorLogos = sponsors.filter(s => s.logo_url).map(s => {
+        const storagePath = extractStoragePath(s.logo_url, 'sponsor-logos');
+        const clubName = s.clubs?.name || null;
+        const teamName = s.teams?.name || null;
+        
+        // Add to path lookup
+        if (storagePath) {
+          mapping.pathToClubTeam[`sponsor-logos/${storagePath}`] = {
+            clubId: s.club_id,
+            clubName,
+            teamId: s.team_id,
+            teamName,
+            type: 'sponsor'
+          };
+        }
+        
+        return {
+          id: s.id,
+          storagePath,
+          name: s.name,
+          clubId: s.club_id,
+          clubName,
+          teamId: s.team_id,
+          teamName
+        };
+      });
     }
   } catch (err) {
     console.error('Error fetching sponsor logos mapping:', err.message);
@@ -233,17 +388,29 @@ async function generateFileMapping(supabase) {
 
   // Fetch club logos (from clubs table)
   try {
-    const { data: clubs } = await supabase
-      .from('clubs')
-      .select('id, name, logo_url')
-      .not('logo_url', 'is', null);
-    
-    if (clubs) {
-      mapping.clubLogos = clubs.map(c => ({
-        id: c.id,
-        storagePath: extractStoragePath(c.logo_url, 'club-logos'),
-        clubName: c.name
-      }));
+    if (allClubs) {
+      mapping.clubLogos = allClubs.filter(c => c.logo_url).map(c => {
+        const storagePath = extractStoragePath(c.logo_url, 'club-logos') || 
+                           extractStoragePath(c.logo_url, 'photos');
+        
+        // Add to path lookup
+        if (storagePath) {
+          const bucket = c.logo_url.includes('/club-logos/') ? 'club-logos' : 'photos';
+          mapping.pathToClubTeam[`${bucket}/${storagePath}`] = {
+            clubId: c.id,
+            clubName: c.name,
+            teamId: null,
+            teamName: null,
+            type: 'club-logo'
+          };
+        }
+        
+        return {
+          id: c.id,
+          storagePath,
+          clubName: c.name
+        };
+      });
     }
   } catch (err) {
     console.error('Error fetching club logos mapping:', err.message);
@@ -257,11 +424,24 @@ async function generateFileMapping(supabase) {
       .not('avatar_url', 'is', null);
     
     if (profiles) {
-      mapping.avatars = profiles.map(p => ({
-        userId: p.id,
-        displayName: p.display_name,
-        storagePath: extractStoragePath(p.avatar_url, 'avatars')
-      }));
+      mapping.avatars = profiles.map(p => {
+        const storagePath = extractStoragePath(p.avatar_url, 'avatars');
+        
+        // Add to path lookup (avatars are user-level, not club/team)
+        if (storagePath) {
+          mapping.pathToClubTeam[`avatars/${storagePath}`] = {
+            userId: p.id,
+            displayName: p.display_name,
+            type: 'avatar'
+          };
+        }
+        
+        return {
+          userId: p.id,
+          displayName: p.display_name,
+          storagePath
+        };
+      });
     }
   } catch (err) {
     console.error('Error fetching avatars mapping:', err.message);
@@ -294,6 +474,51 @@ function extractStoragePath(url, bucket) {
   
   // If no pattern matches, return the URL as-is for manual inspection
   return url;
+}
+
+/**
+ * Determine the organized GCS path for a file based on its club/team association
+ */
+function getOrganizedPath(datePrefix, bucketName, filePath, fileMapping) {
+  const lookupKey = `${bucketName}/${filePath}`;
+  const info = fileMapping.pathToClubTeam[lookupKey];
+  
+  // Base path structure: supabase-buckets/{date}/
+  let basePath = `supabase-buckets/${datePrefix}`;
+  
+  if (!info) {
+    // No mapping found - put in _unassociated folder with bucket name
+    return `${basePath}/_unassociated/${bucketName}/${filePath}`;
+  }
+  
+  // Handle different file types
+  if (info.type === 'avatar') {
+    // Avatars go under _users folder
+    const userName = sanitizeName(info.displayName) || info.userId?.substring(0, 8) || 'unknown';
+    return `${basePath}/_users/${userName}/avatars/${filePath}`;
+  }
+  
+  if (info.type === 'broadcast') {
+    // Broadcast messages go under _system folder
+    return `${basePath}/_system/broadcast/${filePath}`;
+  }
+  
+  // For club/team associated files
+  if (info.clubId && info.clubName) {
+    const clubFolder = sanitizeName(info.clubName);
+    
+    if (info.teamId && info.teamName) {
+      // File belongs to a specific team
+      const teamFolder = sanitizeName(info.teamName);
+      return `${basePath}/clubs/${clubFolder}/teams/${teamFolder}/${bucketName}/${filePath}`;
+    } else {
+      // File belongs to club level (no specific team)
+      return `${basePath}/clubs/${clubFolder}/_club-level/${bucketName}/${filePath}`;
+    }
+  }
+  
+  // No club association - put in unassociated
+  return `${basePath}/_unassociated/${bucketName}/${filePath}`;
 }
 
 async function main() {
@@ -332,14 +557,29 @@ async function main() {
 
   console.log(`Starting backup to GCS bucket: ${GCS_BUCKET_NAME}`);
   console.log(`Date prefix: ${datePrefix}`);
+  console.log('Files will be organized by club/team for easy disaster recovery');
   console.log('---');
 
   // Generate file mapping from database before backing up files
   console.log('\nGenerating file mapping from database...');
   const fileMapping = await generateFileMapping(supabase);
   
+  // Count files by club for summary
+  const clubFileCounts = {};
+  for (const [path, info] of Object.entries(fileMapping.pathToClubTeam)) {
+    const clubName = info.clubName || '_unassociated';
+    const teamName = info.teamName || '_club-level';
+    const key = info.clubName ? `${clubName} > ${teamName}` : clubName;
+    clubFileCounts[key] = (clubFileCounts[key] || 0) + 1;
+  }
+  
+  console.log('\nFile distribution by club/team:');
+  for (const [key, count] of Object.entries(clubFileCounts).sort((a, b) => b[1] - a[1])) {
+    console.log(`  ${key}: ${count} files`);
+  }
+  
   // Save file mapping to GCS
-  const fileMappingPath = `supabase-buckets/${datePrefix}/file-mapping.json`;
+  const fileMappingPath = `supabase-buckets/${datePrefix}/_metadata/file-mapping.json`;
   await gcsBucket.file(fileMappingPath).save(JSON.stringify(fileMapping, null, 2), {
     contentType: 'application/json',
     metadata: {
@@ -352,10 +592,13 @@ async function main() {
       }
     }
   });
-  console.log(`✓ File mapping saved: ${fileMappingPath}`);
+  console.log(`\n✓ File mapping saved: ${fileMappingPath}`);
   console.log(`  - Photos: ${fileMapping.photos?.length || 0}`);
   console.log(`  - Chat attachments: ${fileMapping.chatAttachments?.length || 0}`);
   console.log(`  - Vault files: ${fileMapping.vaultFiles?.length || 0}`);
+  console.log(`  - Sponsor logos: ${fileMapping.sponsorLogos?.length || 0}`);
+  console.log(`  - Club logos: ${fileMapping.clubLogos?.length || 0}`);
+  console.log(`  - Avatars: ${fileMapping.avatars?.length || 0}`);
 
   for (const bucketName of BUCKETS_TO_BACKUP) {
     console.log(`\nProcessing bucket: ${bucketName}`);
@@ -375,7 +618,8 @@ async function main() {
         datePrefix, 
         '', 
         previousManifest, 
-        newManifest
+        newManifest,
+        fileMapping
       );
       totalFiles += result.count;
       totalBytes += result.bytes;
@@ -392,12 +636,84 @@ async function main() {
     console.log(`\nSaved manifest with ${Object.keys(newManifest).length} entries`);
   }
 
+  // Create a restore guide
+  const restoreGuidePath = `supabase-buckets/${datePrefix}/_metadata/RESTORE-GUIDE.md`;
+  const restoreGuide = `# Backup Restore Guide
+
+## Backup Date: ${datePrefix}
+
+## Folder Structure
+
+This backup is organized by club and team for easy disaster recovery:
+
+\`\`\`
+supabase-buckets/${datePrefix}/
+├── _metadata/
+│   ├── file-mapping.json    # Complete mapping of files to clubs/teams
+│   └── RESTORE-GUIDE.md     # This file
+├── _system/
+│   └── broadcast/           # System-wide broadcast images
+├── _users/
+│   └── {user-name}/
+│       └── avatars/         # User avatar images
+├── _unassociated/
+│   └── {bucket}/            # Files not linked to any club/team
+└── clubs/
+    └── {club-name}/
+        ├── _club-level/
+        │   ├── photos/      # Club-level photos
+        │   ├── sponsor-logos/
+        │   └── chat-attachments/
+        └── teams/
+            └── {team-name}/
+                ├── photos/
+                ├── chat-attachments/
+                └── sponsor-logos/
+\`\`\`
+
+## How to Restore a Single Club
+
+1. Identify the club folder: \`clubs/{club-name}/\`
+2. Download all files from that folder
+3. Use the file-mapping.json to recreate database records
+4. Upload files back to Supabase storage maintaining the original paths
+
+## How to Restore a Single Team
+
+1. Identify the team folder: \`clubs/{club-name}/teams/{team-name}/\`
+2. Download all files from that folder
+3. Cross-reference with file-mapping.json for database records
+4. Upload files back to Supabase storage
+
+## File Counts
+
+${Object.entries(clubFileCounts).sort((a, b) => b[1] - a[1]).map(([key, count]) => `- ${key}: ${count} files`).join('\n')}
+
+## Notes
+
+- Original bucket and path are preserved in GCS file metadata
+- The file-mapping.json contains full database associations
+- Avatars are stored separately under _users/
+- Unassociated files (no club/team link) are in _unassociated/
+`;
+
+  await gcsBucket.file(restoreGuidePath).save(restoreGuide, {
+    contentType: 'text/markdown',
+    metadata: {
+      metadata: {
+        backupDate: datePrefix
+      }
+    }
+  });
+  console.log(`✓ Restore guide saved: ${restoreGuidePath}`);
+
   console.log('\n---');
   if (totalFiles === 0 && skippedFiles > 0) {
     console.log(`Backup complete: No changes detected (${skippedFiles} files unchanged)`);
   } else {
     console.log(`Backup complete: ${totalFiles} files backed up (${formatBytes(totalBytes)}), ${skippedFiles} unchanged`);
   }
+  console.log(`\nFiles organized by club/team in: supabase-buckets/${datePrefix}/clubs/`);
 }
 
 async function loadManifest(gcsBucket) {
@@ -455,7 +771,7 @@ function hasFileChanged(fileKey, fileMetadata, previousManifest) {
   return false;
 }
 
-async function backupBucket(supabase, gcsBucket, bucketName, datePrefix, path, previousManifest, newManifest) {
+async function backupBucket(supabase, gcsBucket, bucketName, datePrefix, path, previousManifest, newManifest, fileMapping) {
   let count = 0;
   let bytes = 0;
   let skipped = 0;
@@ -490,7 +806,8 @@ async function backupBucket(supabase, gcsBucket, bucketName, datePrefix, path, p
         datePrefix, 
         filePath, 
         previousManifest, 
-        newManifest
+        newManifest,
+        fileMapping
       );
       count += subResult.count;
       bytes += subResult.bytes;
@@ -524,7 +841,8 @@ async function backupBucket(supabase, gcsBucket, bucketName, datePrefix, path, p
           continue;
         }
 
-        const gcsPath = `supabase-buckets/${datePrefix}/${bucketName}/${filePath}`;
+        // Get organized path based on club/team association
+        const gcsPath = getOrganizedPath(datePrefix, bucketName, filePath, fileMapping);
         const buffer = Buffer.from(await data.arrayBuffer());
         
         await gcsBucket.file(gcsPath).save(buffer, {
