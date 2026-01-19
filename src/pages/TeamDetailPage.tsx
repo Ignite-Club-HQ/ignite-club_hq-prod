@@ -1119,9 +1119,9 @@ export default function TeamDetailPage() {
             </AccordionItem>
           )}
 
-          {/* Subscription Payments Section - for team admins/coaches only (not club admins who aren't team members) */}
+          {/* Subscription Payments Section - for team admins/coaches OR club admins */}
           {/* Use isSubscriptionLoading || isTeamPro to prevent Pro locks during loading */}
-          {isCoachOrAdmin && (
+          {(isCoachOrAdmin || isClubAdmin) && (
             <AccordionItem value="subscription-payments" className="border rounded-lg px-4" disabled={!isSubscriptionLoading && !isTeamPro && !isAppAdmin}>
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isSubscriptionLoading && !isTeamPro && !isAppAdmin}>
                 <div className="flex items-center gap-2">
