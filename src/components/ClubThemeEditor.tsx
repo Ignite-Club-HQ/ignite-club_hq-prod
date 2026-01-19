@@ -583,7 +583,34 @@ export function ClubThemeEditor({
           <Switch
             id="show-logo"
             checked={showLogoInHeader}
-            onCheckedChange={setShowLogoInHeader}
+            onCheckedChange={async (checked) => {
+              setShowLogoInHeader(checked);
+              
+              // Auto-save immediately
+              const { error } = await supabase
+                .from("clubs")
+                .update({ show_logo_in_header: checked })
+                .eq("id", clubId);
+              
+              if (error) {
+                toast({
+                  title: "Error",
+                  description: "Failed to update setting.",
+                  variant: "destructive",
+                });
+                setShowLogoInHeader(!checked);
+                return;
+              }
+              
+              toast({
+                title: checked ? "Club logo enabled" : "Club logo disabled",
+                description: checked 
+                  ? "Club logo will show in header"
+                  : "Club logo hidden from header",
+              });
+              
+              onSave?.();
+            }}
             disabled={!clubLogoUrl || logoOnlyMode}
           />
         </div>
@@ -599,7 +626,34 @@ export function ClubThemeEditor({
           <Switch
             id="show-name"
             checked={showNameInHeader}
-            onCheckedChange={setShowNameInHeader}
+            onCheckedChange={async (checked) => {
+              setShowNameInHeader(checked);
+              
+              // Auto-save immediately
+              const { error } = await supabase
+                .from("clubs")
+                .update({ show_name_in_header: checked })
+                .eq("id", clubId);
+              
+              if (error) {
+                toast({
+                  title: "Error",
+                  description: "Failed to update setting.",
+                  variant: "destructive",
+                });
+                setShowNameInHeader(!checked);
+                return;
+              }
+              
+              toast({
+                title: checked ? "Club name enabled" : "Club name disabled",
+                description: checked 
+                  ? "Club name will show in header"
+                  : "Club name hidden from header",
+              });
+              
+              onSave?.();
+            }}
           />
         </div>
 
