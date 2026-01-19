@@ -78,7 +78,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 
-  const fetchProfile = useCallback(async (userId: string, retries = 5): Promise<Profile | null> => {
+  // Flag to track if this is a fresh login (not a page refresh)
+  const [isFreshLogin, setIsFreshLogin] = useState(false);
+
+  const fetchProfile = useCallback(async (userId: string, retries = 5, applyTheme = false): Promise<Profile | null> => {
     setProfileError(false);
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -113,13 +116,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setCachedProfile(profileData);
           setProfileError(false);
           
-          // Apply user's theme preference on login
-          if (profileData.theme_preference) {
-            const root = window.document.documentElement;
-            root.classList.remove('light', 'dark');
-            root.classList.add(profileData.theme_preference);
-            root.style.colorScheme = profileData.theme_preference;
-            localStorage.setItem('app-theme', profileData.theme_preference);
+          // Only apply theme preference on fresh login, not page refresh
+          // On page refresh, localStorage (set by index.html) is the source of truth
+          if (applyTheme && profileData.theme_preference) {
+            const currentTheme = localStorage.getItem('app-theme');
+            // Only override if this is a fresh login (not a refresh with existing theme)
+            if (!currentTheme || isFreshLogin) {
+              const root = window.document.documentElement;
+              root.classList.remove('light', 'dark');
+              root.classList.add(profileData.theme_preference);
+              root.style.colorScheme = profileData.theme_preference;
+              localStorage.setItem('app-theme', profileData.theme_preference);
+            }
           }
           
           return profileData;
@@ -142,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setProfileError(true);
     return null;
-  }, []);
+  }, [isFreshLogin]);
 
   const MESSAGE_NOTIFICATION_TYPES = [
     'team_message', 'club_message', 'group_message', 'broadcast',
@@ -172,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
     let profileFetched = false;
     
-    const handleSession = async (currentSession: Session | null, isInitial = false) => {
+    const handleSession = async (currentSession: Session | null, isInitial = false, applyTheme = false) => {
       if (!mounted || !currentSession?.user) return;
       if (profileFetched && !isInitial) return;
       
@@ -189,12 +197,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(cached);
         setProfileLoading(false);
         setLoading(false);
-        // Refresh profile in background
-        fetchProfile(userId).catch(console.error);
+        // Refresh profile in background (without applying theme)
+        fetchProfile(userId, 5, false).catch(console.error);
       } else {
         // No cache - fetch profile
         setProfileLoading(true);
-        fetchProfile(userId)
+        fetchProfile(userId, 5, applyTheme)
           .finally(() => {
             if (mounted) {
               setProfileLoading(false);
@@ -225,10 +233,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
-        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && currentSession?.user) {
-          handleSession(currentSession, event === 'INITIAL_SESSION');
+        if (event === 'SIGNED_IN') {
+          // This is a fresh login - apply theme from profile
+          setIsFreshLogin(true);
+          handleSession(currentSession, false, true);
+        } else if ((event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && currentSession?.user) {
+          // Page refresh or token refresh - don't override theme
+          setIsFreshLogin(false);
+          handleSession(currentSession, event === 'INITIAL_SESSION', false);
         } else if (event === 'SIGNED_OUT') {
           profileFetched = false;
+          setIsFreshLogin(false);
           setProfile(null);
           setCachedProfile(null);
           setUnreadCount(0);
@@ -260,7 +275,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(existingSession?.user ?? null);
       
       if (existingSession?.user && !profileFetched) {
-        await handleSession(existingSession, true);
+        // Initial page load - don't apply theme from profile (localStorage is source of truth)
+        await handleSession(existingSession, true, false);
       } else {
         // No session - done loading
         if (mounted) {
