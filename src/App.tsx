@@ -74,9 +74,9 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
 
-// Loading fallback component - explicit colors to avoid theme flash in PWA
+// Loading fallback component - uses CSS variables to respect current theme
 const PageLoader = () => (
-  <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'hsl(160, 15%, 6%)' }}>
+  <div className="min-h-screen flex items-center justify-center bg-background">
     <Loader2 className="h-8 w-8 animate-spin text-primary" />
   </div>
 );
