@@ -6,11 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Checkbox } from "@/components/ui/checkbox";
+
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
-import { usePasskey, isPlatformAuthenticatorAvailable, getRememberMe, setRememberMe } from "@/hooks/usePasskey";
+import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
 
 import { z } from "zod";
 
@@ -48,23 +48,25 @@ export default function AuthPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
-  const [rememberMe, setRememberMeState] = useState(getRememberMe());
+  
   const autoPromptTriggered = useRef(false);
   const { toast } = useToast();
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
   const { isAvailable, accounts, loading: passkeyLoading, authenticateWithPasskey } = usePasskey();
   
   // Check if biometrics are available and auto-prompt discoverable credentials
+  // Only runs on the auth page when user is not authenticated
   useEffect(() => {
     const checkBiometricsAndAutoPrompt = async () => {
       const available = await isPlatformAuthenticatorAvailable();
       setBiometricsAvailable(available);
       
-      console.log('[AuthPage] Biometrics check:', { available, authLoading, autoPromptTriggered: autoPromptTriggered.current });
-      
-      // Auto-trigger discoverable credentials prompt on page load
-      // This shows ALL available passkeys from the device (not just ones in localStorage)
-      if (available && !autoPromptTriggered.current && !authLoading) {
+      // Only auto-prompt if:
+      // 1. Biometrics are available
+      // 2. Haven't already prompted this session
+      // 3. Auth loading is complete
+      // 4. User is NOT already authenticated (prevents prompt on redirect)
+      if (available && !autoPromptTriggered.current && !authLoading && !user) {
         autoPromptTriggered.current = true;
         // Small delay to ensure UI is ready
         setTimeout(async () => {
@@ -83,13 +85,8 @@ export default function AuthPage() {
       }
     };
     checkBiometricsAndAutoPrompt();
-  }, [authLoading, authenticateWithPasskey, toast]);
+  }, [authLoading, user, authenticateWithPasskey, toast]);
   
-  // Handle Remember Me checkbox change
-  const handleRememberMeChange = (checked: boolean) => {
-    setRememberMeState(checked);
-    setRememberMe(checked);
-  };
 
 
   if (authLoading) {
@@ -290,21 +287,6 @@ export default function AuthPage() {
                       </button>
                     </div>
                   </div>
-                  {biometricsAvailable && (
-                    <div className="flex items-center space-x-2">
-                      <Checkbox 
-                        id="remember-me" 
-                        checked={rememberMe}
-                        onCheckedChange={handleRememberMeChange}
-                      />
-                      <label
-                        htmlFor="remember-me"
-                        className="text-sm text-muted-foreground cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        Remember me (auto-prompt biometrics)
-                      </label>
-                    </div>
-                  )}
                   
                   <Button 
                     className="w-full" 
