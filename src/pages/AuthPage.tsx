@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Navigate } from "react-router-dom";
 import { Flame, Mail, Lock, Loader2, Eye, EyeOff, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,13 +49,11 @@ export default function AuthPage() {
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   
-  const autoPromptTriggered = useRef(false);
-  const location = useLocation();
   const { toast } = useToast();
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
   const { isAvailable, accounts, loading: passkeyLoading, authenticateWithPasskey } = usePasskey();
   
-  // Check if biometrics are available - separate from auto-prompt
+  // Check if biometrics are available (for showing the passkey button)
   useEffect(() => {
     const checkBiometrics = async () => {
       const available = await isPlatformAuthenticatorAvailable();
@@ -63,56 +61,6 @@ export default function AuthPage() {
     };
     checkBiometrics();
   }, []);
-  
-  // Auto-prompt for discoverable credentials - ONLY on /auth page
-  // This is completely separate from biometrics check to prevent prompts on other pages
-  useEffect(() => {
-    // CRITICAL: Only run on the /auth route - prevent prompts when navigating to other pages
-    // On page refresh of protected routes, AppLayout redirects to /auth briefly before auth state loads
-    if (location.pathname !== '/auth') {
-      console.log('[AuthPage] Skipping auto-prompt - not on /auth page');
-      return;
-    }
-    
-    // Wait for auth to finish loading and confirm user is not authenticated
-    if (authLoading) {
-      console.log('[AuthPage] Skipping auto-prompt - auth still loading');
-      return;
-    }
-    
-    // If user exists, they're about to be redirected - don't prompt
-    if (user) {
-      console.log('[AuthPage] Skipping auto-prompt - user already authenticated');
-      return;
-    }
-    
-    // Only auto-prompt once per page load
-    if (autoPromptTriggered.current) {
-      return;
-    }
-    
-    const doAutoPrompt = async () => {
-      const available = await isPlatformAuthenticatorAvailable();
-      if (!available) return;
-      
-      autoPromptTriggered.current = true;
-      // Longer delay to ensure we're truly on auth page and not mid-redirect
-      setTimeout(async () => {
-        console.log('[AuthPage] Auto-prompting discoverable credentials');
-        const result = await authenticateWithPasskey();
-        if (!result.success && result.error) {
-          if (!result.error.includes('cancelled') && !result.error.includes('timed out')) {
-            toast({
-              title: "Sign in with passkey",
-              description: "Use the button below if you have a passkey set up.",
-            });
-          }
-        }
-      }, 500);
-    };
-    
-    doAutoPrompt();
-  }, [location.pathname, authLoading, user, authenticateWithPasskey, toast]);
   
 
 
