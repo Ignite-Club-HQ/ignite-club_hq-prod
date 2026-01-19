@@ -2210,6 +2210,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          active_club_theme_id: string | null
           avatar_url: string | null
           created_at: string
           display_name: string | null
@@ -2226,6 +2227,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          active_club_theme_id?: string | null
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
@@ -2242,6 +2244,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          active_club_theme_id?: string | null
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
@@ -2257,7 +2260,15 @@ export type Database = {
           theme_preference?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_active_club_theme_id_fkey"
+            columns: ["active_club_theme_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       promo_codes: {
         Row: {
