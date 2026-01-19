@@ -125,7 +125,7 @@ export default function TeamDetailPage() {
     enabled: !!id,
   });
 
-  const { data: clubSubscription, isLoading: isClubSubscriptionLoading } = useQuery({
+  const { data: clubSubscription, isLoading: isClubSubscriptionLoading, isFetching: isClubSubscriptionFetching } = useQuery({
     queryKey: ["club-subscription", team?.club_id],
     queryFn: async () => {
       const { data } = await supabase
@@ -136,10 +136,11 @@ export default function TeamDetailPage() {
       return data;
     },
     enabled: !!team?.club_id,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes to prevent unnecessary refetches
   });
 
   // Check if user is club admin for this team's club (needed for isSubscriptionLoading calculation)
-  const { data: isClubAdmin, isLoading: isClubAdminLoading } = useQuery({
+  const { data: isClubAdmin, isLoading: isClubAdminLoading, isFetching: isClubAdminFetching } = useQuery({
     queryKey: ["is-club-admin", user?.id, team?.club_id],
     queryFn: async () => {
       const { data } = await supabase
@@ -152,14 +153,16 @@ export default function TeamDetailPage() {
       return !!data;
     },
     enabled: !!user && !!team?.club_id,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
   
-  // Track if subscription data is still loading - don't show Pro lock while loading
+  // Track if subscription data is still loading - don't show Pro lock while loading OR refetching
   // Must wait for:
   // 1. Team to load (so we know if it has a club_id)
-  // 2. Club subscription to load (if team has a club_id)
-  // 3. Club admin check to complete (affects whether we show admin features)
-  const isSubscriptionLoading = isLoading || (!!team?.club_id && (isClubSubscriptionLoading || isClubAdminLoading));
+  // 2. Club subscription to load/refetch (if team has a club_id)
+  // 3. Club admin check to load/refetch (affects whether we show admin features)
+  // Using isFetching catches both initial load AND background refetches
+  const isSubscriptionLoading = isLoading || (!!team?.club_id && (isClubSubscriptionLoading || isClubAdminLoading || isClubSubscriptionFetching || isClubAdminFetching));
 
   // Pro Access Logic:
   // 1. If club has Pro → ALL teams inherit Pro (clubSubscription takes precedence)
@@ -638,7 +641,8 @@ export default function TeamDetailPage() {
               </CardContent>
             </Card>
           </Link>
-          {isTeamPro ? (
+          {/* Vault - show as accessible during loading (optimistic) or when Pro */}
+          {(isSubscriptionLoading || isTeamPro) ? (
             <Link to={`/vault?team=${team.id}`}>
               <Card className="hover:border-primary/50 transition-colors">
                 <CardContent className="p-4 flex flex-col items-center gap-2">
@@ -1114,13 +1118,15 @@ export default function TeamDetailPage() {
           )}
 
           {/* Subscription Payments Section - for admins/coaches, Pro only */}
+          {/* Use isSubscriptionLoading || isTeamPro to prevent Pro locks during loading */}
           {(isCoachOrAdmin || isClubAdmin) && (
-            <AccordionItem value="subscription-payments" className="border rounded-lg px-4" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
-              <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
+            <AccordionItem value="subscription-payments" className="border rounded-lg px-4" disabled={!isSubscriptionLoading && !isTeamPro && !isAppAdmin}>
+              <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isSubscriptionLoading && !isTeamPro && !isAppAdmin}>
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-primary" />
                   <span className="text-lg font-semibold">Subscription Fees</span>
-                  {!isTeamPro && !isAppAdmin && !isSubscriptionLoading && (
+                  {/* Only show Pro lock when NOT loading AND NOT Pro AND NOT AppAdmin */}
+                  {!isSubscriptionLoading && !isTeamPro && !isAppAdmin && (
                     <div className="flex items-center gap-1.5 ml-2">
                       <Lock className="h-4 w-4 text-muted-foreground" />
                       <Badge variant="outline" className="text-xs font-normal">Pro</Badge>
