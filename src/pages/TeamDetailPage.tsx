@@ -137,12 +137,29 @@ export default function TeamDetailPage() {
     },
     enabled: !!team?.club_id,
   });
+
+  // Check if user is club admin for this team's club (needed for isSubscriptionLoading calculation)
+  const { data: isClubAdmin, isLoading: isClubAdminLoading } = useQuery({
+    queryKey: ["is-club-admin", user?.id, team?.club_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("club_id", team!.club_id)
+        .eq("role", "club_admin")
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!user && !!team?.club_id,
+  });
   
   // Track if subscription data is still loading - don't show Pro lock while loading
   // Must wait for:
   // 1. Team to load (so we know if it has a club_id)
   // 2. Club subscription to load (if team has a club_id)
-  const isSubscriptionLoading = isLoading || (!!team?.club_id && isClubSubscriptionLoading);
+  // 3. Club admin check to complete (affects whether we show admin features)
+  const isSubscriptionLoading = isLoading || (!!team?.club_id && (isClubSubscriptionLoading || isClubAdminLoading));
 
   // Pro Access Logic:
   // 1. If club has Pro → ALL teams inherit Pro (clubSubscription takes precedence)
@@ -269,21 +286,7 @@ export default function TeamDetailPage() {
   // isMember includes club admins - they have implicit access to all teams in their club
   const isMember = userRoles.length > 0 || isAppAdmin;
   
-  // Check if user is club admin for this team's club
-  const { data: isClubAdmin } = useQuery({
-    queryKey: ["is-club-admin", user?.id, team?.club_id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", user!.id)
-        .eq("club_id", team!.club_id)
-        .eq("role", "club_admin")
-        .maybeSingle();
-      return !!data;
-    },
-    enabled: !!user && !!team?.club_id,
-  });
+  // isClubAdmin is already defined above (before isSubscriptionLoading calculation)
   
   const canAccessPitchBoard = isCoachOrAdmin || isClubAdmin;
 
