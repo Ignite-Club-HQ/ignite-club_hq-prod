@@ -90,8 +90,9 @@ export default function MemberSubscriptionPaymentsManager({
   });
 
   // Fetch club subscription for member payment settings
-  const { data: clubSubscription } = useQuery({
-    queryKey: ["club-subscription", clubId],
+  // IMPORTANT: Use a different query key to avoid overwriting the full club-subscription cache
+  const { data: clubPaymentSettings } = useQuery({
+    queryKey: ["club-payment-settings", clubId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("club_subscriptions")
@@ -105,9 +106,9 @@ export default function MemberSubscriptionPaymentsManager({
 
   // Check if current user has paid
   const currentUserPayment = payments.find(p => p.user_id === user?.id);
-  const canPayOnline = clubSubscription?.member_payments_enabled && 
-    clubSubscription?.member_subscription_amount && 
-    clubSubscription.member_subscription_amount > 0;
+  const canPayOnline = clubPaymentSettings?.member_payments_enabled && 
+    clubPaymentSettings?.member_subscription_amount && 
+    clubPaymentSettings.member_subscription_amount > 0;
 
   // Create a map of user_id -> payment record for quick lookup
   const paymentMap = payments.reduce((acc, payment) => {
@@ -264,7 +265,7 @@ export default function MemberSubscriptionPaymentsManager({
               <div>
                 <p className="font-medium">Pay Your Subscription</p>
                 <p className="text-sm text-muted-foreground">
-                  ${clubSubscription.member_subscription_amount} for {paymentPeriod}
+                  ${clubPaymentSettings?.member_subscription_amount} for {paymentPeriod}
                 </p>
               </div>
               <Button 
