@@ -139,23 +139,24 @@ export default function TeamDetailPage() {
   });
   
   // Track if subscription data is still loading - don't show Pro lock while loading
-  const isSubscriptionLoading = isClubSubscriptionLoading || (!!team?.club_id && clubSubscription === undefined);
+  // Must also wait for team to load if we have a club_id, since clubSubscription depends on it
+  const isSubscriptionLoading = isClubSubscriptionLoading || (!!team?.club_id && clubSubscription === undefined && !isClubSubscriptionLoading);
 
   // Pro Access Logic:
   // 1. If club has Pro → ALL teams inherit Pro (clubSubscription takes precedence)
   // 2. If club does NOT have Pro → check team's individual subscription
   const clubHasPro = clubSubscription?.is_pro || clubSubscription?.is_pro_football || 
-                     (clubSubscription as any)?.admin_pro_override || (clubSubscription as any)?.admin_pro_football_override;
+                     clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override;
   
   const teamHasIndividualPro = teamSubscription?.is_pro || teamSubscription?.is_pro_football ||
                                (teamSubscription as any)?.admin_pro_override || (teamSubscription as any)?.admin_pro_football_override;
   
   // Team has Pro if: club has Pro (inherited) OR (club is free AND team has individual Pro)
-  const isTeamPro = clubHasPro || (!clubHasPro && teamHasIndividualPro);
+  const isTeamPro = isSubscriptionLoading ? false : (clubHasPro || (!clubHasPro && teamHasIndividualPro));
   
-  const clubHasProFootball = clubSubscription?.is_pro_football || (clubSubscription as any)?.admin_pro_football_override;
+  const clubHasProFootball = clubSubscription?.is_pro_football || clubSubscription?.admin_pro_football_override;
   const teamHasIndividualProFootball = teamSubscription?.is_pro_football || (teamSubscription as any)?.admin_pro_football_override;
-  const hasProFootball = clubHasProFootball || (!clubHasProFootball && teamHasIndividualProFootball);
+  const hasProFootball = isSubscriptionLoading ? false : (clubHasProFootball || (!clubHasProFootball && teamHasIndividualProFootball));
 
   // Force refresh member list when navigating to this page
   useEffect(() => {
@@ -1120,8 +1121,12 @@ export default function TeamDetailPage() {
                   )}
                 </div>
               </AccordionTrigger>
-              {(isTeamPro || isAppAdmin) && (
-                <AccordionContent>
+              <AccordionContent>
+                {isSubscriptionLoading ? (
+                  <div className="pt-2 flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (isTeamPro || isAppAdmin) ? (
                   <div className="pt-2">
                     <MemberSubscriptionPaymentsManager
                       clubId={team.club_id}
@@ -1130,8 +1135,12 @@ export default function TeamDetailPage() {
                       isAdmin={isCoachOrAdmin || isClubAdmin}
                     />
                   </div>
-                </AccordionContent>
-              )}
+                ) : (
+                  <div className="pt-2 text-center text-muted-foreground py-4">
+                    Upgrade to Pro to access this feature.
+                  </div>
+                )}
+              </AccordionContent>
             </AccordionItem>
           )}
 
@@ -1150,8 +1159,12 @@ export default function TeamDetailPage() {
                   )}
                 </div>
               </AccordionTrigger>
-              {(isTeamPro || isAppAdmin) && (
-                <AccordionContent>
+              <AccordionContent>
+                {isSubscriptionLoading ? (
+                  <div className="pt-2 flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (isTeamPro || isAppAdmin) ? (
                   <div className="pt-2">
                     <TeamSponsorSelector
                       teamId={id!}
@@ -1159,8 +1172,12 @@ export default function TeamDetailPage() {
                       onUpdate={() => queryClient.invalidateQueries({ queryKey: ["team", id] })}
                     />
                   </div>
-                </AccordionContent>
-              )}
+                ) : (
+                  <div className="pt-2 text-center text-muted-foreground py-4">
+                    Upgrade to Pro to access this feature.
+                  </div>
+                )}
+              </AccordionContent>
             </AccordionItem>
           )}
 
@@ -1179,8 +1196,12 @@ export default function TeamDetailPage() {
                   )}
                 </div>
               </AccordionTrigger>
-              {(hasProFootball || isAppAdmin) && (
-                <AccordionContent>
+              <AccordionContent>
+                {isSubscriptionLoading ? (
+                  <div className="pt-2 flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (hasProFootball || isAppAdmin) ? (
                   <div className="pt-2 space-y-4">
                     {/* Player Positions Editor */}
                     <div className="flex justify-end">
@@ -1322,8 +1343,12 @@ export default function TeamDetailPage() {
                     }}
                   />
                   </div>
-                </AccordionContent>
-              )}
+                ) : (
+                  <div className="pt-2 text-center text-muted-foreground py-4">
+                    Upgrade to Pro Football to access this feature.
+                  </div>
+                )}
+              </AccordionContent>
             </AccordionItem>
           )}
         </Accordion>
