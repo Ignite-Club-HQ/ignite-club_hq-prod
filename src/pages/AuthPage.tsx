@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { Flame, Mail, Lock, Loader2, Eye, EyeOff, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,13 +50,20 @@ export default function AuthPage() {
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   
   const autoPromptTriggered = useRef(false);
+  const location = useLocation();
   const { toast } = useToast();
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
   const { isAvailable, accounts, loading: passkeyLoading, authenticateWithPasskey } = usePasskey();
   
   // Check if biometrics are available and auto-prompt discoverable credentials
-  // Only runs on the auth page when user is not authenticated
+  // Only runs when user is on /auth and definitely not authenticated
   useEffect(() => {
+    // Only run on the /auth route - prevent prompts when this component
+    // might briefly render during other route navigations
+    if (location.pathname !== '/auth') {
+      return;
+    }
+    
     const checkBiometricsAndAutoPrompt = async () => {
       const available = await isPlatformAuthenticatorAvailable();
       setBiometricsAvailable(available);
@@ -85,7 +92,7 @@ export default function AuthPage() {
       }
     };
     checkBiometricsAndAutoPrompt();
-  }, [authLoading, user, authenticateWithPasskey, toast]);
+  }, [location.pathname, authLoading, user, authenticateWithPasskey, toast]);
   
 
 
