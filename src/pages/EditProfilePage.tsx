@@ -562,17 +562,19 @@ export default function EditProfilePage() {
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const storagePath = `avatars/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(storagePath, file, { upsert: true });
+        .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // Store the storage URL format (will be converted to signed URL when displayed)
-      const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
-      const storageUrl = `${supabaseUrl}/storage/v1/object/public/avatars/${storagePath}`;
+      // Get the public URL for the uploaded file
+      const { data: publicUrlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+      
+      const storageUrl = publicUrlData.publicUrl;
 
       setAvatarUrl(storageUrl);
       toast({ title: "Photo uploaded!" });
