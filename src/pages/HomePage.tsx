@@ -1118,7 +1118,7 @@ export default function HomePage() {
       </ResponsiveDialog>
 
       {/* Points Card */}
-      <Card className="gradient-emerald border-0">
+      <Card className={`${activeThemeData ? 'gradient-themed' : 'gradient-emerald'} border-0`}>
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>

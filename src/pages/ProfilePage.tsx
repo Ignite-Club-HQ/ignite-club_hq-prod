@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, Flame, Trophy, Users, Settings, ChevronRight, ChevronDown, Baby, Loader2, Ticket, Crown, CreditCard, MessageSquare, ClipboardList, Calendar, CheckCircle2, Building2, ShieldCheck, UserCog, FileText, Gift, MinusCircle, FileArchive, BarChart3, Lock, Video, Plus, Megaphone, Fingerprint } from "lucide-react";
+import { LogOut, Flame, Trophy, Users, Settings, ChevronRight, ChevronDown, Baby, Loader2, Ticket, Crown, CreditCard, MessageSquare, ClipboardList, Calendar, CheckCircle2, Building2, ShieldCheck, UserCog, FileText, Gift, MinusCircle, FileArchive, BarChart3, Lock, Video, Plus, Megaphone, Fingerprint, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -517,8 +517,17 @@ export default function ProfilePage() {
       <div className="flex items-center gap-4">
         <Avatar className="h-20 w-20 border-4 border-primary/20">
           <AvatarImage src={profile?.avatar_url || undefined} />
-          <AvatarFallback className="p-0">
-            <img src={resolvedTheme === 'light' ? igniteIconLight : igniteIcon} alt="Profile" className="h-full w-full object-cover rounded-full" />
+          <AvatarFallback className="bg-muted flex items-center justify-center p-0">
+            {/* Show club logo in avatar when in club mode, otherwise show ignite icon */}
+            {activeThemeData?.logoUrl ? (
+              <img 
+                src={activeThemeData.logoUrl} 
+                alt={activeThemeData.clubName}
+                className="h-14 w-14 object-contain"
+              />
+            ) : (
+              <img src={resolvedTheme === 'light' ? igniteIconLight : igniteIcon} alt="Profile" className="h-full w-full object-cover rounded-full" />
+            )}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1">

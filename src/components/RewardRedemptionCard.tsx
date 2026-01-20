@@ -76,7 +76,7 @@ export default function RewardRedemptionCard() {
   const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { activeClubFilter, activeClubTeamIds } = useClubTheme();
+  const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [selectedReward, setSelectedReward] = useState<ClubReward | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -411,7 +411,7 @@ export default function RewardRedemptionCard() {
     const latestRedemption = pendingRedemptions[0];
     return (
       <>
-        <Card className="gradient-emerald border-0 overflow-hidden">
+        <Card className={`${activeThemeData ? 'gradient-themed' : 'gradient-emerald'} border-0 overflow-hidden`}>
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -544,7 +544,7 @@ export default function RewardRedemptionCard() {
 
   return (
     <>
-      <Card className="gradient-emerald border-0 overflow-hidden">
+      <Card className={`${activeThemeData ? 'gradient-themed' : 'gradient-emerald'} border-0 overflow-hidden`}>
         <CardContent className="p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
