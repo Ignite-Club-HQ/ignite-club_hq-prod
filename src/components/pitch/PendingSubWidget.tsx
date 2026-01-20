@@ -69,6 +69,8 @@ interface PitchBoardState {
 
 interface PendingSubWidgetProps {
   onAcceptSub: () => void;
+  /** If true, only show sub info - no controls to edit */
+  readOnly?: boolean;
 }
 
 interface SubInfo {
@@ -77,7 +79,7 @@ interface SubInfo {
   secondsUntil: number;
 }
 
-export default function PendingSubWidget({ onAcceptSub }: PendingSubWidgetProps) {
+export default function PendingSubWidget({ onAcceptSub, readOnly = false }: PendingSubWidgetProps) {
   const [subInfo, setSubInfo] = useState<SubInfo | null>(null);
   const [teamName, setTeamName] = useState<string>("");
   const [isSnoozed, setIsSnoozed] = useState(false);
@@ -537,16 +539,18 @@ export default function PendingSubWidget({ onAcceptSub }: PendingSubWidgetProps)
   return (
     <>
       <Card className={`relative ${isDue ? "border-warning/50 bg-warning/10 animate-pulse" : "border-primary/30 bg-primary/5"}`}>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-1 right-1 h-6 w-6 text-muted-foreground hover:text-foreground z-10"
-          onClick={handleSnooze}
-          title="Snooze for 1 minute"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-        <CardContent className="p-4 pr-8">
+        {!readOnly && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-1 right-1 h-6 w-6 text-muted-foreground hover:text-foreground z-10"
+            onClick={handleSnooze}
+            title="Snooze for 1 minute"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+        <CardContent className={`p-4 ${!readOnly ? 'pr-8' : ''}`}>
           <div className="flex items-center gap-4">
             <div className={`p-3 rounded-full shrink-0 ${isDue ? "bg-warning/20" : "bg-primary/10"}`}>
               {isDue ? (
@@ -571,24 +575,26 @@ export default function PendingSubWidget({ onAcceptSub }: PendingSubWidgetProps)
                 <p className="text-xs text-muted-foreground">{teamName}</p>
               )}
             </div>
-            <Button 
-              size="sm"
-              variant={isDue ? "default" : "outline"}
-              className={`shrink-0 gap-1 ${isDue ? "bg-warning text-warning-foreground hover:bg-warning/90" : ""}`}
-              onClick={handleAcceptClick}
-            >
-              {isDue ? (
-                <>
-                  <UserRoundCheck className="h-4 w-4" />
-                  Accept Sub
-                </>
-              ) : (
-                <>
-                  View
-                  <ChevronRight className="h-4 w-4" />
-                </>
-              )}
-            </Button>
+            {!readOnly && (
+              <Button 
+                size="sm"
+                variant={isDue ? "default" : "outline"}
+                className={`shrink-0 gap-1 ${isDue ? "bg-warning text-warning-foreground hover:bg-warning/90" : ""}`}
+                onClick={handleAcceptClick}
+              >
+                {isDue ? (
+                  <>
+                    <UserRoundCheck className="h-4 w-4" />
+                    Accept Sub
+                  </>
+                ) : (
+                  <>
+                    View
+                    <ChevronRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
