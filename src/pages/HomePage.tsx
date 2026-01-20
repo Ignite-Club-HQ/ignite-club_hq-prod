@@ -989,40 +989,50 @@ export default function HomePage() {
       </section>
 
       {/* Game Timer Widget - shown when game in progress */}
-      {/* Only coaches/team_admins of the specific team can control, others view read-only */}
+      {/* Only members of the SPECIFIC team with active timer can see this widget */}
+      {/* Only coaches/team_admins of that team can edit, others view read-only */}
       {(() => {
-        // Check if there's a timer running and if user has edit access
+        // Check if there's a timer running
         const timerStateRaw = typeof window !== 'undefined' ? localStorage.getItem('pitch-board-timer-state') : null;
-        if (!timerStateRaw && !isAppAdmin && !userRoles?.some(r => r.role === "coach" || r.role === "team_admin" || r.role === "club_admin")) {
+        if (!timerStateRaw) {
           return null;
         }
         
-        // Determine if user has edit access to the team in the timer
-        let hasEditAccess = isAppAdmin;
+        // Parse timer state to get the team ID
         let timerTeamId: string | null = null;
-        
-        if (timerStateRaw) {
-          try {
-            const parsed = JSON.parse(timerStateRaw);
-            timerTeamId = parsed.teamId;
-            // Check if user is coach or team_admin of THIS specific team
-            if (timerTeamId && userRoles?.some(r => 
-              r.team_id === timerTeamId && (r.role === "coach" || r.role === "team_admin")
-            )) {
-              hasEditAccess = true;
-            }
-          } catch {
-            // Ignore parsing errors
-          }
+        try {
+          const parsed = JSON.parse(timerStateRaw);
+          timerTeamId = parsed.teamId;
+        } catch {
+          return null; // Invalid timer state
         }
         
-        // Show widget if user is a team member or club admin (view-only for non-coaches)
-        const canViewWidget = isAppAdmin || userRoles?.some(r => 
-          r.role === "coach" || r.role === "team_admin" || r.role === "club_admin" ||
-          (timerTeamId && r.team_id === timerTeamId && (r.role === "player" || r.role === "parent"))
+        if (!timerTeamId) {
+          return null; // No team associated with timer
+        }
+        
+        // Check if user is a member of THIS SPECIFIC team (any role counts for viewing)
+        const isTeamMember = userRoles?.some(r => r.team_id === timerTeamId);
+        
+        // Club admins of the club that owns this team can also view
+        // Find the team to get its club_id
+        const timerTeamData = mySoccerTeams?.find(t => t.id === timerTeamId) || 
+                              readOnlySoccerTeams?.find(t => t.id === timerTeamId);
+        const isClubAdminOfTeam = timerTeamData && userRoles?.some(r => 
+          r.role === 'club_admin' && r.club_id === timerTeamData.club_id
         );
         
-        if (!canViewWidget) return null;
+        // Only show to: app admins, actual team members, or club admins of that team's club
+        const canViewWidget = isAppAdmin || isTeamMember || isClubAdminOfTeam;
+        
+        if (!canViewWidget) {
+          return null;
+        }
+        
+        // Check if user has EDIT access (coach or team_admin of THIS team, or app_admin)
+        const hasEditAccess = isAppAdmin || userRoles?.some(r => 
+          r.team_id === timerTeamId && (r.role === "coach" || r.role === "team_admin")
+        );
         
         return (
           <>
@@ -1037,9 +1047,13 @@ export default function HomePage() {
                 // Open pitch board for the active game team
                 const timerState = localStorage.getItem('pitch-board-timer-state');
                 if (timerState) {
-                  const parsed = JSON.parse(timerState);
-                  if (parsed.teamId && parsed.teamName) {
-                    openPitchBoard(parsed.teamId, parsed.teamName, false);
+                  try {
+                    const parsed = JSON.parse(timerState);
+                    if (parsed.teamId && parsed.teamName) {
+                      openPitchBoard(parsed.teamId, parsed.teamName, false);
+                    }
+                  } catch {
+                    // Ignore parsing errors
                   }
                 }
               }} 
