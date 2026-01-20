@@ -39,9 +39,11 @@ const saveTimerState = (state: TimerState) => {
 
 interface GameTimerWidgetProps {
   onOpenPitchBoard?: (teamId: string, teamName: string) => void;
+  /** If true, only show timer info - no controls to edit */
+  readOnly?: boolean;
 }
 
-export default function GameTimerWidget({ onOpenPitchBoard }: GameTimerWidgetProps) {
+export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: GameTimerWidgetProps) {
   const [timerState, setTimerState] = useState<TimerState | null>(null);
   const [displaySeconds, setDisplaySeconds] = useState(0);
   const { isLandscape } = useIsLandscape();
@@ -130,15 +132,17 @@ export default function GameTimerWidget({ onOpenPitchBoard }: GameTimerWidgetPro
   if (isLandscape) {
     return (
       <Card className="border-primary/30 bg-primary/5 relative w-fit">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-0 right-0 h-5 w-5 text-muted-foreground hover:text-foreground"
-          onClick={handleDismiss}
-        >
-          <X className="h-3 w-3" />
-        </Button>
-        <CardContent className="p-2 pr-6">
+        {!readOnly && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-0 right-0 h-5 w-5 text-muted-foreground hover:text-foreground"
+            onClick={handleDismiss}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        )}
+        <CardContent className={`p-2 ${!readOnly ? 'pr-6' : ''}`}>
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-full bg-primary/10 shrink-0">
               <Timer className={`h-4 w-4 text-primary ${timerState.isRunning ? 'animate-pulse' : ''}`} />
@@ -154,30 +158,32 @@ export default function GameTimerWidget({ onOpenPitchBoard }: GameTimerWidgetPro
                 <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />
               )}
             </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <Button 
-                variant="outline" 
-                size="icon" 
-                className="h-7 w-7"
-                onClick={toggleTimer}
-              >
-                {timerState.isRunning ? (
-                  <Pause className="h-3.5 w-3.5" />
-                ) : (
-                  <Play className="h-3.5 w-3.5" />
-                )}
-              </Button>
-              {timerState.teamId && timerState.teamName && onOpenPitchBoard && (
+            {!readOnly && (
+              <div className="flex items-center gap-1 shrink-0">
                 <Button 
-                  variant="default" 
+                  variant="outline" 
                   size="icon" 
                   className="h-7 w-7"
-                  onClick={handleOpenPitchBoard}
+                  onClick={toggleTimer}
                 >
-                  <ExternalLink className="h-3.5 w-3.5" />
+                  {timerState.isRunning ? (
+                    <Pause className="h-3.5 w-3.5" />
+                  ) : (
+                    <Play className="h-3.5 w-3.5" />
+                  )}
                 </Button>
-              )}
-            </div>
+                {timerState.teamId && timerState.teamName && onOpenPitchBoard && (
+                  <Button 
+                    variant="default" 
+                    size="icon" 
+                    className="h-7 w-7"
+                    onClick={handleOpenPitchBoard}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -186,15 +192,17 @@ export default function GameTimerWidget({ onOpenPitchBoard }: GameTimerWidgetPro
 
   return (
     <Card className="border-primary/30 bg-primary/5 relative">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute top-1 right-1 h-6 w-6 text-muted-foreground hover:text-foreground"
-        onClick={handleDismiss}
-      >
-        <X className="h-4 w-4" />
-      </Button>
-      <CardContent className="p-4 pr-8">
+      {!readOnly && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-1 right-1 h-6 w-6 text-muted-foreground hover:text-foreground"
+          onClick={handleDismiss}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      )}
+      <CardContent className={`p-4 ${!readOnly ? 'pr-8' : ''}`}>
         <div className="flex items-center gap-4">
           <div className="p-3 rounded-full bg-primary/10 shrink-0">
             <Timer className={`h-6 w-6 text-primary ${timerState.isRunning ? 'animate-pulse' : ''}`} />
@@ -215,30 +223,32 @@ export default function GameTimerWidget({ onOpenPitchBoard }: GameTimerWidgetPro
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="h-10 w-10"
-              onClick={toggleTimer}
-            >
-              {timerState.isRunning ? (
-                <Pause className="h-5 w-5" />
-              ) : (
-                <Play className="h-5 w-5" />
-              )}
-            </Button>
-            {timerState.teamId && timerState.teamName && onOpenPitchBoard && (
+          {!readOnly && (
+            <div className="flex items-center gap-2 shrink-0">
               <Button 
-                variant="default" 
+                variant="outline" 
                 size="icon" 
                 className="h-10 w-10"
-                onClick={handleOpenPitchBoard}
+                onClick={toggleTimer}
               >
-                <ExternalLink className="h-5 w-5" />
+                {timerState.isRunning ? (
+                  <Pause className="h-5 w-5" />
+                ) : (
+                  <Play className="h-5 w-5" />
+                )}
               </Button>
-            )}
-          </div>
+              {timerState.teamId && timerState.teamName && onOpenPitchBoard && (
+                <Button 
+                  variant="default" 
+                  size="icon" 
+                  className="h-10 w-10"
+                  onClick={handleOpenPitchBoard}
+                >
+                  <ExternalLink className="h-5 w-5" />
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
