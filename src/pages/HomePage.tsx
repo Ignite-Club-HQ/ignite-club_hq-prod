@@ -988,22 +988,65 @@ export default function HomePage() {
         </p>
       </section>
 
-      {/* Game Timer Widget - shown when game in progress (only for coaches/admins) */}
-      {(isAppAdmin || userRoles?.some(r => r.role === "coach" || r.role === "team_admin" || r.role === "club_admin")) && (
-        <>
-          <GameTimerWidget onOpenPitchBoard={openPitchBoard} />
-          <PendingSubWidget onAcceptSub={() => {
-            // Open pitch board for the active game team
-            const timerState = localStorage.getItem('pitch-board-timer-state');
-            if (timerState) {
-              const parsed = JSON.parse(timerState);
-              if (parsed.teamId && parsed.teamName) {
-                openPitchBoard(parsed.teamId, parsed.teamName, false);
-              }
+      {/* Game Timer Widget - shown when game in progress */}
+      {/* Only coaches/team_admins of the specific team can control, others view read-only */}
+      {(() => {
+        // Check if there's a timer running and if user has edit access
+        const timerStateRaw = typeof window !== 'undefined' ? localStorage.getItem('pitch-board-timer-state') : null;
+        if (!timerStateRaw && !isAppAdmin && !userRoles?.some(r => r.role === "coach" || r.role === "team_admin" || r.role === "club_admin")) {
+          return null;
+        }
+        
+        // Determine if user has edit access to the team in the timer
+        let hasEditAccess = isAppAdmin;
+        let timerTeamId: string | null = null;
+        
+        if (timerStateRaw) {
+          try {
+            const parsed = JSON.parse(timerStateRaw);
+            timerTeamId = parsed.teamId;
+            // Check if user is coach or team_admin of THIS specific team
+            if (timerTeamId && userRoles?.some(r => 
+              r.team_id === timerTeamId && (r.role === "coach" || r.role === "team_admin")
+            )) {
+              hasEditAccess = true;
             }
-          }} />
-        </>
-      )}
+          } catch {
+            // Ignore parsing errors
+          }
+        }
+        
+        // Show widget if user is a team member or club admin (view-only for non-coaches)
+        const canViewWidget = isAppAdmin || userRoles?.some(r => 
+          r.role === "coach" || r.role === "team_admin" || r.role === "club_admin" ||
+          (timerTeamId && r.team_id === timerTeamId && (r.role === "player" || r.role === "parent"))
+        );
+        
+        if (!canViewWidget) return null;
+        
+        return (
+          <>
+            <GameTimerWidget 
+              onOpenPitchBoard={hasEditAccess ? openPitchBoard : undefined}
+              readOnly={!hasEditAccess}
+            />
+            <PendingSubWidget 
+              readOnly={!hasEditAccess}
+              onAcceptSub={() => {
+                if (!hasEditAccess) return;
+                // Open pitch board for the active game team
+                const timerState = localStorage.getItem('pitch-board-timer-state');
+                if (timerState) {
+                  const parsed = JSON.parse(timerState);
+                  if (parsed.teamId && parsed.teamName) {
+                    openPitchBoard(parsed.teamId, parsed.teamName, false);
+                  }
+                }
+              }} 
+            />
+          </>
+        );
+      })()}
 
       {/* Account Recovery Banner */}
       {user && (
