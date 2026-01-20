@@ -558,3 +558,25 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
 export function useClubTheme() {
   return useContext(ClubThemeContext);
 }
+
+/**
+ * Synchronously check localStorage for cached club theme data.
+ * Use this for initial render to prevent gradient flash before React hydrates.
+ * Returns true if user has an active club theme cached.
+ */
+export function hasClubThemeCached(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    // Check for any cached theme data - means user has club theme active
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(STORAGE_DATA_KEY_PREFIX)) {
+        const data = localStorage.getItem(key);
+        if (data) return true;
+      }
+    }
+  } catch {
+    // localStorage not available
+  }
+  return false;
+}
