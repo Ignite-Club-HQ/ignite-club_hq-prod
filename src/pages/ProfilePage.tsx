@@ -517,24 +517,19 @@ export default function ProfilePage() {
       <div className="flex items-center gap-4">
         <Avatar className="h-20 w-20 border-4 border-primary/20">
           <AvatarImage src={profile?.avatar_url || undefined} />
-          <AvatarFallback className="bg-muted flex items-center justify-center">
-            <User className="h-10 w-10 text-muted-foreground" />
+          <AvatarFallback className="bg-muted flex items-center justify-center p-0">
+            {/* Show club logo in avatar when in club mode, otherwise show ignite icon */}
+            {activeThemeData?.logoUrl ? (
+              <img 
+                src={activeThemeData.logoUrl} 
+                alt={activeThemeData.clubName}
+                className="h-14 w-14 object-contain"
+              />
+            ) : (
+              <img src={resolvedTheme === 'light' ? igniteIconLight : igniteIcon} alt="Profile" className="h-full w-full object-cover rounded-full" />
+            )}
           </AvatarFallback>
         </Avatar>
-        {/* Club logo in rounded square when in club mode, otherwise flame in rounded square */}
-        {activeThemeData?.logoUrl ? (
-          <div className="h-12 w-12 rounded-xl bg-card flex items-center justify-center overflow-hidden border-2 border-primary/20">
-            <img 
-              src={activeThemeData.logoUrl} 
-              alt={activeThemeData.clubName}
-              className="h-9 w-9 object-contain"
-            />
-          </div>
-        ) : (
-          <div className="p-2 rounded-xl bg-primary">
-            <Flame className="h-6 w-6 text-primary-foreground" />
-          </div>
-        )}
         <div className="flex-1">
           <h1 className="text-2xl font-bold">{profile?.display_name}</h1>
           <p className="text-sm text-muted-foreground">{user?.email}</p>
