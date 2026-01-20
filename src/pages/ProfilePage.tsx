@@ -521,18 +521,18 @@ export default function ProfilePage() {
             <img src={resolvedTheme === 'light' ? igniteIconLight : igniteIcon} alt="Profile" className="h-full w-full object-cover rounded-full" />
           </AvatarFallback>
         </Avatar>
-        {/* Club logo in circle when in club mode, otherwise flame in circle */}
+        {/* Club logo in rounded square when in club mode, otherwise flame in rounded square */}
         {activeThemeData?.logoUrl ? (
-          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden border-2 border-primary/20">
+          <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center overflow-hidden border-2 border-primary/20">
             <img 
               src={activeThemeData.logoUrl} 
               alt={activeThemeData.clubName}
-              className="h-8 w-8 object-contain"
+              className="h-9 w-9 object-contain"
             />
           </div>
         ) : (
-          <div className="p-2 rounded-full bg-primary">
-            <Flame className="h-5 w-5 text-primary-foreground" />
+          <div className="p-2 rounded-xl bg-primary">
+            <Flame className="h-6 w-6 text-primary-foreground" />
           </div>
         )}
         <div className="flex-1">
