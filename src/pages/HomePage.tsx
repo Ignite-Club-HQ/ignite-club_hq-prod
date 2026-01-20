@@ -621,52 +621,35 @@ export default function HomePage() {
     enabled: !!user,
   });
 
-  // Fetch user's soccer teams with Pro Football subscription where user is coach/admin
+  // Fetch user's soccer teams with Pro Football subscription where user is direct team member (coach/team_admin)
+  // Club admins who are not explicit team members get read-only access (handled separately)
   const { data: mySoccerTeams } = useQuery({
     queryKey: ["my-soccer-teams-pro", user?.id],
     queryFn: async () => {
-      // Only fetch teams where user is coach, team_admin, or has club_admin/app_admin role
+      // Only fetch teams where user is coach or team_admin (direct team edit access)
       const { data: userRoles, error: rolesError } = await supabase
         .from("user_roles")
-        .select("team_id, club_id, role")
-        .eq("user_id", user!.id);
+        .select("team_id, role")
+        .eq("user_id", user!.id)
+        .in("role", ["coach", "team_admin"]);
       
       if (rolesError) throw rolesError;
       if (!userRoles?.length) return [];
 
-      const isAppAdmin = userRoles.some(r => r.role === "app_admin");
-      
       // Get teams where user is coach or team_admin
       const coachAdminTeamIds = userRoles
-        .filter(r => r.team_id && (r.role === "coach" || r.role === "team_admin"))
+        .filter(r => r.team_id)
         .map(r => r.team_id) as string[];
       
-      // Get clubs where user is club_admin
-      const adminClubIds = userRoles
-        .filter(r => r.club_id && r.role === "club_admin")
-        .map(r => r.club_id) as string[];
-
-      // If not admin of any team/club and not app admin, return empty
-      if (!isAppAdmin && coachAdminTeamIds.length === 0 && adminClubIds.length === 0) {
+      if (coachAdminTeamIds.length === 0) {
         return [];
       }
 
-      // Fetch all teams where user has admin/coach access
-      let teamsQuery = supabase
+      // Fetch team details
+      const { data: teamsData, error: teamsError } = await supabase
         .from("teams")
-        .select("id, name, club_id, clubs (id, name, sport)");
-      
-      if (isAppAdmin) {
-        // App admin can see all teams
-      } else if (adminClubIds.length > 0 && coachAdminTeamIds.length > 0) {
-        teamsQuery = teamsQuery.or(`id.in.(${coachAdminTeamIds.join(",")}),club_id.in.(${adminClubIds.join(",")})`);
-      } else if (adminClubIds.length > 0) {
-        teamsQuery = teamsQuery.in("club_id", adminClubIds);
-      } else {
-        teamsQuery = teamsQuery.in("id", coachAdminTeamIds);
-      }
-
-      const { data: teamsData, error: teamsError } = await teamsQuery;
+        .select("id, name, club_id, clubs (id, name, sport)")
+        .in("id", coachAdminTeamIds);
       
       if (teamsError) throw teamsError;
       
@@ -702,40 +685,62 @@ export default function HomePage() {
         
         // Add teams from Pro Football clubs
         soccerTeams.forEach(t => {
-          if (t.club_id && proFootballClubIds.has(t.club_id)) {
+          if (t.club_id && proFootballClubIds.has(t.id)) {
             proFootballTeamIds.add(t.id);
           }
         });
       }
 
-      // Coaches and admins require Pro Football subscription for pitch board access
+      // Coaches and team admins require Pro Football subscription for pitch board access
       return soccerTeams.filter(t => proFootballTeamIds.has(t.id));
     },
     enabled: !!user,
   });
 
-  // Fetch soccer teams where user is a member (player/parent) with Pro Football for read-only access
+  // Fetch soccer teams where user is a member (player/parent) OR club admin with Pro Football for read-only access
+  // Club admins who are not explicit team members (coach/team_admin) get view-only access
   const { data: readOnlySoccerTeams } = useQuery({
     queryKey: ["read-only-soccer-teams", user?.id],
     queryFn: async () => {
-      // Get user's team memberships where they are player or parent
+      // Get user's roles
       const { data: userRoles, error: rolesError } = await supabase
         .from("user_roles")
-        .select("team_id, role")
-        .eq("user_id", user!.id)
-        .in("role", ["player", "parent"]);
+        .select("team_id, club_id, role")
+        .eq("user_id", user!.id);
       
       if (rolesError) throw rolesError;
       if (!userRoles?.length) return [];
 
-      const memberTeamIds = userRoles.map(r => r.team_id).filter(Boolean) as string[];
-      if (!memberTeamIds.length) return [];
+      const isAppAdmin = userRoles.some(r => r.role === "app_admin");
 
-      // Fetch team details for member teams
-      const { data: teamsData, error: teamsError } = await supabase
+      // Get team IDs where user is player or parent
+      const memberTeamIds = userRoles
+        .filter(r => r.team_id && (r.role === "player" || r.role === "parent"))
+        .map(r => r.team_id) as string[];
+      
+      // Get club IDs where user is club_admin (these teams get read-only access)
+      const adminClubIds = userRoles
+        .filter(r => r.club_id && r.role === "club_admin")
+        .map(r => r.club_id) as string[];
+
+      // Build query based on roles
+      let teamsQuery = supabase
         .from("teams")
-        .select("id, name, club_id, clubs (id, name, sport)")
-        .in("id", memberTeamIds);
+        .select("id, name, club_id, clubs (id, name, sport)");
+      
+      if (isAppAdmin) {
+        // App admin can see all teams (read-only for teams they're not coach/team_admin of)
+      } else if (memberTeamIds.length > 0 && adminClubIds.length > 0) {
+        teamsQuery = teamsQuery.or(`id.in.(${memberTeamIds.join(",")}),club_id.in.(${adminClubIds.join(",")})`);
+      } else if (adminClubIds.length > 0) {
+        teamsQuery = teamsQuery.in("club_id", adminClubIds);
+      } else if (memberTeamIds.length > 0) {
+        teamsQuery = teamsQuery.in("id", memberTeamIds);
+      } else {
+        return [];
+      }
+
+      const { data: teamsData, error: teamsError } = await teamsQuery;
       
       if (teamsError) throw teamsError;
       
@@ -771,13 +776,13 @@ export default function HomePage() {
         
         // Add teams from Pro Football clubs
         soccerTeams.forEach(t => {
-          if (t.club_id && proFootballClubIds.has(t.club_id)) {
+          if (t.club_id && proFootballClubIds.has(t.id)) {
             proFootballTeamIds.add(t.id);
           }
         });
       }
 
-      // Return only teams with Pro Football that aren't already in mySoccerTeams (coach/admin teams)
+      // Return only teams with Pro Football
       return soccerTeams.filter(t => proFootballTeamIds.has(t.id));
     },
     enabled: !!user,

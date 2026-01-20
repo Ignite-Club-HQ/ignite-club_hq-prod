@@ -72,6 +72,24 @@ interface Child {
   ignite_points: number;
 }
 
+// Check localStorage instantly to prevent gradient flash before React hydrates
+const getInitialThemeState = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    // Check for any cached theme data - means user has club theme active
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('ignite-club-theme-data-')) {
+        const data = localStorage.getItem(key);
+        if (data) return true;
+      }
+    }
+  } catch {
+    // localStorage not available
+  }
+  return false;
+};
+
 export default function RewardRedemptionCard() {
   const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
@@ -84,6 +102,10 @@ export default function RewardRedemptionCard() {
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [selectedRedemption, setSelectedRedemption] = useState<RewardRedemption | null>(null);
   const [selectedRedeemFor, setSelectedRedeemFor] = useState<string>("myself"); // "myself" or child_id
+  
+  // Use cached theme state to prevent gradient flash on initial render
+  const [hasClubThemeCached] = useState(getInitialThemeState);
+  const hasClubTheme = activeThemeData || hasClubThemeCached;
 
   // Note: We don't auto-open the rewards dialog when a club filter is active
   // The filter just limits which clubs are shown, user must click to open dialog
@@ -411,7 +433,7 @@ export default function RewardRedemptionCard() {
     const latestRedemption = pendingRedemptions[0];
     return (
       <>
-        <Card className={`${activeThemeData ? 'gradient-themed' : 'gradient-emerald'} border-0 overflow-hidden`}>
+        <Card className={`${hasClubTheme ? 'gradient-themed' : 'gradient-emerald'} border-0 overflow-hidden`}>
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -544,7 +566,7 @@ export default function RewardRedemptionCard() {
 
   return (
     <>
-      <Card className={`${activeThemeData ? 'gradient-themed' : 'gradient-emerald'} border-0 overflow-hidden`}>
+      <Card className={`${hasClubTheme ? 'gradient-themed' : 'gradient-emerald'} border-0 overflow-hidden`}>
         <CardContent className="p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
