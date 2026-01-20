@@ -53,7 +53,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { findNearbyGameEvent } from "@/hooks/useNearbyGameEvent";
-import { useClubTheme } from "@/hooks/useClubTheme";
+import { useClubTheme, hasClubThemeCached } from "@/hooks/useClubTheme";
 import { ClubSponsorSection } from "@/components/ClubSponsorSection";
 import { MultiClubSponsorCarousel } from "@/components/MultiClubSponsorCarousel";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
@@ -123,6 +123,10 @@ export default function HomePage() {
   const navigate = useNavigate();
   const { canPrompt, isInstalled, isIOS, isReady, installApp } = usePWAInstall();
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
+  
+  // Use cached theme state to prevent gradient flash on initial render
+  const [initialHasClubTheme] = useState(hasClubThemeCached);
+  const hasClubTheme = activeThemeData || initialHasClubTheme;
   
   // Only show install card on first login if app is not already installed
   const installCardDismissedKey = `ignite-install-dismissed-${user?.id}`;
@@ -1123,7 +1127,7 @@ export default function HomePage() {
       </ResponsiveDialog>
 
       {/* Points Card */}
-      <Card className={`${activeThemeData ? 'gradient-themed' : 'gradient-emerald'} border-0`}>
+      <Card className={`${hasClubTheme ? 'gradient-themed' : 'gradient-emerald'} border-0`}>
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
