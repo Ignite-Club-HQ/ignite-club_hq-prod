@@ -906,9 +906,13 @@ export default function HomePage() {
 
   const clubRequestMutation = useMutation({
     mutationFn: async () => {
+      // Use activeClubFilter if in club mode, otherwise use selectedClub
+      const clubToJoin = activeClubFilter || selectedClub;
+      if (!clubToJoin) throw new Error("No club selected");
+      
       const { error } = await supabase.from("role_requests").insert({
         user_id: user!.id,
-        club_id: selectedClub,
+        club_id: clubToJoin,
         role: selectedClubRole,
         status: "pending",
       });
@@ -1407,21 +1411,32 @@ export default function HomePage() {
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
           <div className="space-y-4 pt-4">
-            <div className="space-y-2">
-              <Label>Select Club</Label>
-              <SearchableSelect
-                options={clubs?.map((club) => ({
-                  value: club.id,
-                  label: club.name,
-                  icon: <span>{getSportEmoji(club.sport)}</span>,
-                })) || []}
-                value={selectedClub}
-                onValueChange={setSelectedClub}
-                placeholder="Choose a club..."
-                searchPlaceholder="Search clubs..."
-                emptyMessage="No clubs found."
-              />
-            </div>
+            {/* Only show club selector if not in club mode */}
+            {!activeClubFilter ? (
+              <div className="space-y-2">
+                <Label>Select Club</Label>
+                <SearchableSelect
+                  options={clubs?.map((club) => ({
+                    value: club.id,
+                    label: club.name,
+                    icon: <span>{getSportEmoji(club.sport)}</span>,
+                  })) || []}
+                  value={selectedClub}
+                  onValueChange={setSelectedClub}
+                  placeholder="Choose a club..."
+                  searchPlaceholder="Search clubs..."
+                  emptyMessage="No clubs found."
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Club</Label>
+                <div className="flex items-center gap-2 p-2 rounded-md border bg-muted/50">
+                  <span>{getSportEmoji(clubs?.find(c => c.id === activeClubFilter)?.sport)}</span>
+                  <span className="font-medium">{clubs?.find(c => c.id === activeClubFilter)?.name}</span>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Select Role</Label>
               <Select value={selectedClubRole} onValueChange={(v) => setSelectedClubRole(v as ClubRole)}>
@@ -1442,7 +1457,7 @@ export default function HomePage() {
             <Button
               className="w-full sm:w-auto"
               onClick={() => clubRequestMutation.mutate()}
-              disabled={!selectedClub || clubRequestMutation.isPending}
+              disabled={!(activeClubFilter || selectedClub) || clubRequestMutation.isPending}
             >
               {clubRequestMutation.isPending ? "Submitting..." : "Submit Request"}
             </Button>
@@ -1459,35 +1474,45 @@ export default function HomePage() {
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
           <div className="space-y-4 pt-4">
-            <div className="space-y-2">
-              <Label>Select Club (optional)</Label>
-              <SearchableSelect
-                options={[
-                  { value: "all", label: "All clubs" },
-                  ...(clubs?.map((club) => ({
-                    value: club.id,
-                    label: club.name,
-                    icon: <span>{getSportEmoji(club.sport)}</span>,
-                  })) || [])
-                ]}
-                value={selectedClubForTeam || "all"}
-                onValueChange={(v) => {
-                  setSelectedClubForTeam(v);
-                  setSelectedTeam(""); // Reset team when club changes
-                }}
-                placeholder="All clubs..."
-                searchPlaceholder="Search clubs..."
-                emptyMessage="No clubs found."
-              />
-            </div>
+            {/* Only show club filter if not in club mode */}
+            {!activeClubFilter && (
+              <div className="space-y-2">
+                <Label>Select Club (optional)</Label>
+                <SearchableSelect
+                  options={[
+                    { value: "all", label: "All clubs" },
+                    ...(clubs?.map((club) => ({
+                      value: club.id,
+                      label: club.name,
+                      icon: <span>{getSportEmoji(club.sport)}</span>,
+                    })) || [])
+                  ]}
+                  value={selectedClubForTeam || "all"}
+                  onValueChange={(v) => {
+                    setSelectedClubForTeam(v);
+                    setSelectedTeam(""); // Reset team when club changes
+                  }}
+                  placeholder="All clubs..."
+                  searchPlaceholder="Search clubs..."
+                  emptyMessage="No clubs found."
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Select Team</Label>
               <SearchableSelect
                 options={teams
-                  ?.filter(team => !selectedClubForTeam || selectedClubForTeam === "all" || team.club_id === selectedClubForTeam)
+                  ?.filter(team => {
+                    // In club mode, only show teams from the active club
+                    if (activeClubFilter) {
+                      return team.club_id === activeClubFilter;
+                    }
+                    // Otherwise, filter by selected club if any
+                    return !selectedClubForTeam || selectedClubForTeam === "all" || team.club_id === selectedClubForTeam;
+                  })
                   .map((team) => ({
                     value: team.id,
-                    label: `${team.name} (${team.clubs?.name})`,
+                    label: activeClubFilter ? team.name : `${team.name} (${team.clubs?.name})`,
                     icon: <span>{getSportEmoji(team.clubs?.sport)}</span>,
                   })) || []}
                 value={selectedTeam}
