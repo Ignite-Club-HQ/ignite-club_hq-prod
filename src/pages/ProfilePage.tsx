@@ -522,7 +522,26 @@ export default function ProfilePage() {
           </AvatarFallback>
         </Avatar>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">{profile?.display_name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">{profile?.display_name}</h1>
+            {/* Club logo with flame overlay when in club mode, otherwise just flame */}
+            {activeThemeData?.logoUrl ? (
+              <div className="relative">
+                <img 
+                  src={activeThemeData.logoUrl} 
+                  alt={activeThemeData.clubName}
+                  className="h-7 w-auto max-w-[28px] object-contain"
+                />
+                <div className="absolute -bottom-0.5 -right-0.5 p-0.5 rounded-full shadow-sm" style={{ backgroundColor: 'hsl(160, 84%, 39%)' }}>
+                  <Flame className="h-2 w-2" style={{ color: 'white' }} />
+                </div>
+              </div>
+            ) : (
+              <div className="p-1 rounded-md bg-primary">
+                <Flame className="h-4 w-4 text-primary-foreground" />
+              </div>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">{user?.email}</p>
         </div>
       </div>
