@@ -452,6 +452,7 @@ export default function TeamChatPage() {
         .from("team_messages")
         .select("id, text, image_url, created_at, author_id, team_id, reply_to_id")
         .eq("team_id", teamId!)
+        .is("deleted_at", null)
         .lt("created_at", oldestMessage.created_at)
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PER_PAGE + 1)

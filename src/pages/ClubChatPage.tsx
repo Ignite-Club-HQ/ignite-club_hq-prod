@@ -465,6 +465,7 @@ export default function ClubChatPage() {
         .from("club_messages")
         .select("id, text, image_url, created_at, author_id, club_id, reply_to_id")
         .eq("club_id", clubId!)
+        .is("deleted_at", null)
         .lt("created_at", oldestMessage.created_at)
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PER_PAGE + 1)

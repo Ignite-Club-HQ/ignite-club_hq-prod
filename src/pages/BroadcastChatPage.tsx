@@ -329,6 +329,7 @@ export default function BroadcastChatPage() {
       const { data: olderData, error } = await supabase
         .from("broadcast_messages")
         .select("*")
+        .is("deleted_at", null)
         .lt("created_at", oldestMessage.created_at)
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PER_PAGE + 1)
