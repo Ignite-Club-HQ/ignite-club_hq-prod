@@ -887,7 +887,8 @@ export default function MessagesPage() {
     );
   }, [displayClubsWithAnnouncements, query, activeClubFilter]);
 
-  const showBroadcast = (!query || "ignite support".includes(query)) && !activeClubFilter;
+  // Always show broadcast in club mode - it's a global support channel
+  const showBroadcast = !query || "ignite support".includes(query);
 
   const hasNoResults = query && 
     filteredChatGroups.length === 0 && 
