@@ -336,8 +336,9 @@ export default function TeamChatPage() {
   const isAnyRefreshing = isRefreshing || isManualRefreshing;
 
   useEffect(() => {
-    // Sync when we have actual messages - always update if we have data
-    if (messages && messages.length > 0) {
+    // Always sync localMessages with messages from query cache
+    // This ensures optimistic updates (deletions, edits) are reflected immediately
+    if (messages) {
       setLocalMessages(messages);
     }
   }, [messages]);
