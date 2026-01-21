@@ -183,7 +183,8 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   // Load state from localStorage on mount
   useEffect(() => {
     const saved = loadTimerState();
-    if (saved) {
+    // Only restore state if it belongs to THIS team (prevents timer bleeding between games)
+    if (saved && saved.teamId === teamId) {
       // Only use saved minutesPerHalf if no external value is provided
       if (externalMinutesPerHalf === undefined) {
         setInternalMinutesPerHalf(saved.minutesPerHalf);
@@ -212,7 +213,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       }
     }
     setHasInitialized(true);
-  }, [externalMinutesPerHalf]);
+  }, [externalMinutesPerHalf, teamId]);
 
   // Save state to localStorage whenever it changes (only after initialization)
   useEffect(() => {
