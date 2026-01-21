@@ -245,17 +245,35 @@ export const ChatMessage = memo(function ChatMessage({
 
   const deleteMessageMutation = useMutation({
     mutationFn: async () => {
+      // Soft delete - set deleted_at instead of removing the row
       const { error } = await supabase
         .from(getTableName())
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", id);
       if (error) throw error;
     },
+    onMutate: async () => {
+      // Optimistically hide the message from the UI
+      await queryClient.cancelQueries({ queryKey });
+      const previousMessages = queryClient.getQueryData(queryKey);
+      
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        const existingMessages: any[] = Array.isArray(old) ? old : old?.messages || [];
+        const updatedMessages = existingMessages.filter((msg: any) => msg.id !== id);
+        if (Array.isArray(old)) return updatedMessages;
+        return { ...old, messages: updatedMessages };
+      });
+      
+      return { previousMessages };
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
       toast.success("Message deleted");
     },
-    onError: () => {
+    onError: (err, variables, context) => {
+      if (context?.previousMessages) {
+        queryClient.setQueryData(queryKey, context.previousMessages);
+      }
       toast.error("Failed to delete message");
     },
   });

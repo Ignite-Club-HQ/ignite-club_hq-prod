@@ -158,8 +158,9 @@ export default function DirectMessagePage() {
     queryFn: async () => {
       const { data: rawMessages, error } = await supabase
         .from("direct_messages")
-        .select("id, text, image_url, created_at, author_id, conversation_id, reply_to_id")
+        .select("id, text, image_url, created_at, author_id, conversation_id, reply_to_id, deleted_at")
         .eq("conversation_id", conversationId)
+        .is("deleted_at", null) // Only fetch non-deleted messages
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PER_PAGE + 1);
       if (error) throw error;

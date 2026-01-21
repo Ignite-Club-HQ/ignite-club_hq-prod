@@ -223,8 +223,9 @@ export default function GroupChatPage() {
       // Fetch messages WITHOUT profile join to avoid timeout from large avatar_url
       const { data: rawMessages, error } = await supabase
         .from("group_messages")
-        .select("id, text, image_url, created_at, author_id, group_id, reply_to_id")
+        .select("id, text, image_url, created_at, author_id, group_id, reply_to_id, deleted_at")
         .eq("group_id", groupId)
+        .is("deleted_at", null) // Only fetch non-deleted messages
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PER_PAGE + 1);
       if (error) throw error;
@@ -717,6 +718,11 @@ export default function GroupChatPage() {
           const updated = payload.new as any;
           queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
             if (!old) return { messages: [], reactions: [] };
+            // If message was soft-deleted, remove it from the list
+            if (updated.deleted_at) {
+              return { ...old, messages: old.messages.filter(m => m.id !== updated.id) };
+            }
+            // Otherwise update the message content
             return { ...old, messages: old.messages.map(m => m.id === updated.id ? { ...m, text: updated.text, image_url: updated.image_url } : m) };
           });
         }
@@ -883,17 +889,35 @@ export default function GroupChatPage() {
     },
   });
 
-  // Delete message mutation
+  // Delete message mutation (soft delete)
   const deleteMessageMutation = useMutation({
     mutationFn: async (messageId: string) => {
-      const { error } = await supabase.from("group_messages").delete().eq("id", messageId);
+      const { error } = await supabase
+        .from("group_messages")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", messageId);
       if (error) throw error;
     },
+    onMutate: async (messageId: string) => {
+      // Optimistically hide the message
+      await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
+      const previousData = queryClient.getQueryData(["group-messages", groupId]);
+      
+      queryClient.setQueryData(["group-messages", groupId], (old: any) => {
+        if (!old) return old;
+        const existingMessages: GroupMessage[] = old?.messages || [];
+        return { ...old, messages: existingMessages.filter(m => m.id !== messageId) };
+      });
+      
+      return { previousData };
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
       toast.success("Message deleted");
     },
-    onError: () => {
+    onError: (err, variables, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(["group-messages", groupId], context.previousData);
+      }
       toast.error("Failed to delete message");
     },
   });
