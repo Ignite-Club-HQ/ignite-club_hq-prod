@@ -1826,7 +1826,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const notificationBody = batchSubs.length > 1
         ? `Time for ${batchSubs.length} substitutions`
         : `Time to sub: ${playerOutName} ➜ ${playerInName}`;
-      if (isSoundEnabled()) {
+      if (isSoundEnabled(teamId)) {
         playSubAlertBeep(notificationBody);
       }
       
@@ -1856,7 +1856,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         const notificationBody = halftimeSubs.length > 1
           ? `Halftime: ${halftimeSubs.length} substitutions`
           : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
-        if (isSoundEnabled()) {
+        if (isSoundEnabled(teamId)) {
           playSubAlertBeep(notificationBody);
         }
         

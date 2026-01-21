@@ -91,7 +91,10 @@ interface GameTimerProps {
   onMinutesPerHalfChange?: (minutes: number) => void;
 }
 
-const TIMER_STORAGE_KEY = 'pitch-board-timer-state';
+// Legacy key used by widgets to find any active timer
+const ACTIVE_TIMER_KEY = 'pitch-board-timer-state';
+// Team-specific keys for timer isolation
+const TIMER_STORAGE_KEY_BASE = 'pitch-board-timer-state-team';
 
 interface TimerState {
   minutesPerHalf: number;
@@ -105,17 +108,51 @@ interface TimerState {
   isGameFinished?: boolean; // Track if game has reached full time
 }
 
-const saveTimerState = (state: TimerState) => {
+const getTeamTimerStorageKey = (teamId: string) => {
+  return `${TIMER_STORAGE_KEY_BASE}-${teamId}`;
+};
+
+const saveTimerState = (state: TimerState, teamId?: string) => {
   try {
-    localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(state));
+    // Always save to the active timer key for widgets to find
+    localStorage.setItem(ACTIVE_TIMER_KEY, JSON.stringify(state));
+    
+    // Also save to team-specific key for isolation between games
+    if (teamId) {
+      const teamKey = getTeamTimerStorageKey(teamId);
+      localStorage.setItem(teamKey, JSON.stringify(state));
+    }
   } catch (e) {
     console.error('Failed to save timer state:', e);
   }
 };
 
-const loadTimerState = (): TimerState | null => {
+const loadTimerState = (teamId?: string): TimerState | null => {
   try {
-    const saved = localStorage.getItem(TIMER_STORAGE_KEY);
+    // If teamId provided, load from team-specific key for isolation
+    if (teamId) {
+      const teamKey = getTeamTimerStorageKey(teamId);
+      const teamSaved = localStorage.getItem(teamKey);
+      if (teamSaved) {
+        return JSON.parse(teamSaved);
+      }
+      
+      // Fallback: check legacy/active key and migrate if it matches this team
+      const active = localStorage.getItem(ACTIVE_TIMER_KEY);
+      if (active) {
+        const activeState = JSON.parse(active) as TimerState;
+        if (activeState.teamId === teamId) {
+          // Save to team-specific key for future isolation
+          localStorage.setItem(teamKey, active);
+          return activeState;
+        }
+      }
+      // No timer state for this team
+      return null;
+    }
+    
+    // No teamId - load from active key (used by widgets)
+    const saved = localStorage.getItem(ACTIVE_TIMER_KEY);
     if (saved) {
       return JSON.parse(saved);
     }
@@ -125,9 +162,27 @@ const loadTimerState = (): TimerState | null => {
   return null;
 };
 
-export const clearTimerState = () => {
+export const clearTimerState = (teamId?: string) => {
   try {
-    localStorage.removeItem(TIMER_STORAGE_KEY);
+    // Clear team-specific key
+    if (teamId) {
+      const teamKey = getTeamTimerStorageKey(teamId);
+      localStorage.removeItem(teamKey);
+      
+      // Also clear active key if it matches this team
+      const active = localStorage.getItem(ACTIVE_TIMER_KEY);
+      if (active) {
+        try {
+          const activeState = JSON.parse(active) as TimerState;
+          if (activeState.teamId === teamId) {
+            localStorage.removeItem(ACTIVE_TIMER_KEY);
+          }
+        } catch {}
+      }
+    } else {
+      // No teamId - just clear active key
+      localStorage.removeItem(ACTIVE_TIMER_KEY);
+    }
   } catch (e) {
     console.error('Failed to clear timer state:', e);
   }
@@ -182,7 +237,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
 
   // Load state from localStorage on mount
   useEffect(() => {
-    const saved = loadTimerState();
+    const saved = loadTimerState(teamId);
     // Only restore state if it belongs to THIS team (prevents timer bleeding between games)
     if (saved && saved.teamId === teamId) {
       // Only use saved minutesPerHalf if no external value is provided
@@ -229,7 +284,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       teamId,
       teamName,
       isGameFinished,
-    });
+    }, teamId);
   }, [minutesPerHalf, currentHalf, elapsedSeconds, isRunning, soundEnabled, hasInitialized, teamId, teamName, isGameFinished]);
 
   const toggleTimer = useCallback(() => {
@@ -243,8 +298,8 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     setCurrentHalf(1);
     setElapsedSeconds(0);
     setIsGameFinished(false);
-    clearTimerState();
-  }, []);
+    clearTimerState(teamId);
+  }, [teamId]);
 
   // Expose state via ref
   useImperativeHandle(ref, () => ({
