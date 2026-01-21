@@ -689,7 +689,7 @@ export default function HomePage() {
         
         // Add teams from Pro Football clubs
         soccerTeams.forEach(t => {
-          if (t.club_id && proFootballClubIds.has(t.id)) {
+          if (t.club_id && proFootballClubIds.has(t.club_id)) {
             proFootballTeamIds.add(t.id);
           }
         });
@@ -780,7 +780,7 @@ export default function HomePage() {
         
         // Add teams from Pro Football clubs
         soccerTeams.forEach(t => {
-          if (t.club_id && proFootballClubIds.has(t.id)) {
+          if (t.club_id && proFootballClubIds.has(t.club_id)) {
             proFootballTeamIds.add(t.id);
           }
         });
