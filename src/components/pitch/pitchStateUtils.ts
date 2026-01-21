@@ -9,9 +9,39 @@ import {
 } from "./types";
 import { PitchPosition } from "./PositionBadge";
 
-export const loadTimerStateForMinutes = (): TimerState | null => {
+// Legacy key used by widgets to find any active timer
+const ACTIVE_TIMER_KEY = 'pitch-board-timer-state';
+// Team-specific keys for timer isolation
+const TIMER_STORAGE_KEY_BASE = 'pitch-board-timer-state-team';
+
+const getTeamTimerStorageKey = (teamId: string) => {
+  return `${TIMER_STORAGE_KEY_BASE}-${teamId}`;
+};
+
+export const loadTimerStateForMinutes = (teamId?: string): TimerState | null => {
   try {
-    const saved = localStorage.getItem(TIMER_STORAGE_KEY);
+    // If teamId provided, load from team-specific key for isolation
+    if (teamId) {
+      const teamKey = getTeamTimerStorageKey(teamId);
+      const teamSaved = localStorage.getItem(teamKey);
+      if (teamSaved) {
+        return JSON.parse(teamSaved);
+      }
+      
+      // Fallback: check active key and use if it matches this team
+      const active = localStorage.getItem(ACTIVE_TIMER_KEY);
+      if (active) {
+        const activeState = JSON.parse(active) as TimerState;
+        if (activeState.teamId === teamId) {
+          return activeState;
+        }
+      }
+      // No timer state for this team
+      return null;
+    }
+    
+    // No teamId - load from active key
+    const saved = localStorage.getItem(ACTIVE_TIMER_KEY);
     if (saved) {
       return JSON.parse(saved);
     }
@@ -22,9 +52,9 @@ export const loadTimerStateForMinutes = (): TimerState | null => {
 };
 
 // Check if sound is enabled in timer settings
-export const isSoundEnabled = (): boolean => {
+export const isSoundEnabled = (teamId?: string): boolean => {
   try {
-    const timerState = loadTimerStateForMinutes();
+    const timerState = loadTimerStateForMinutes(teamId);
     return timerState?.soundEnabled ?? true; // Default to true if not set
   } catch {
     return true;
@@ -33,7 +63,7 @@ export const isSoundEnabled = (): boolean => {
 
 export const savePitchState = (teamId: string, state: Omit<PitchBoardState, 'teamId' | 'lastUpdateTime'>) => {
   try {
-    const timerState = loadTimerStateForMinutes();
+    const timerState = loadTimerStateForMinutes(teamId);
     let currentTimerSeconds = 0;
     if (timerState) {
       if (timerState.isRunning && timerState.lastUpdateTime) {
@@ -73,7 +103,7 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
       return null;
     }
     
-    const timerState = loadTimerStateForMinutes();
+    const timerState = loadTimerStateForMinutes(teamId);
     if (timerState && state.lastTimerSeconds !== undefined) {
       let currentTimerSeconds = 0;
       if (timerState.isRunning && timerState.lastUpdateTime) {
