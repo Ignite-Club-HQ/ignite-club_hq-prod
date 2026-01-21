@@ -267,9 +267,6 @@ export const ChatMessage = memo(function ChatMessage({
         return { ...old, messages: updatedMessages };
       });
       
-      // Force immediate re-render by invalidating stale time
-      queryClient.invalidateQueries({ queryKey, refetchType: 'none' });
-      
       return { previousMessages };
     },
     onSuccess: () => {
@@ -278,6 +275,8 @@ export const ChatMessage = memo(function ChatMessage({
       if (targetId) {
         removeMessageFromCache(messageType, targetId, id);
       }
+      // Invalidate query to mark data stale - ensures fresh fetch on page reload
+      queryClient.invalidateQueries({ queryKey });
       toast.success("Message deleted");
     },
     onError: (err, variables, context) => {
