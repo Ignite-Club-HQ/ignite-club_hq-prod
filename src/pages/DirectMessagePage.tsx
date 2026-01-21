@@ -479,8 +479,8 @@ export default function DirectMessagePage() {
     }
     sendMessageMutation.mutate({
       text: message.trim(),
-      imageUrl,
-      replyToId: replyTo?.id,
+      imageUrl: imageUrl || null,
+      replyToId: replyTo?.id || null,
     });
     setMessage("");
     setImageUrl(null);
