@@ -2,7 +2,7 @@
 // Ultra-minimal static SW - push notifications only
 // IMPORTANT: This file must be served from the root with proper MIME type
 
-const SW_VERSION = '4.1.0';
+const SW_VERSION = '4.2.0';
 
 // Install - skip waiting to activate immediately
 self.addEventListener('install', (event) => {
@@ -45,7 +45,7 @@ self.addEventListener('push', (event) => {
   const options = {
     body: data.body,
     icon: '/ignite-logo.png',
-    badge: '/badge-mono.svg',
+    badge: '/badge-96.png',
     data: { url: data.url },
     tag: 'ignite-notification',
     renotify: true,
