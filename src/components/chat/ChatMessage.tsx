@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
+import { removeMessageFromCache } from "@/lib/messageCache";
 import { MessageContent } from "./MessageContent";
 import { MessageReactionsPopover, MessageReactionsDisplay } from "./MessageReactions";
 import { ReplyIndicator } from "./ReplyPreview";
@@ -272,6 +273,11 @@ export const ChatMessage = memo(function ChatMessage({
       return { previousMessages };
     },
     onSuccess: () => {
+      // Also remove from localStorage cache to prevent reappearing on navigation
+      const targetId = queryKey[1] as string;
+      if (targetId) {
+        removeMessageFromCache(messageType, targetId, id);
+      }
       toast.success("Message deleted");
     },
     onError: (err, variables, context) => {
