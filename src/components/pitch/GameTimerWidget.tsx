@@ -4,7 +4,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Play, Pause, Timer, ExternalLink, X } from "lucide-react";
 import { useIsLandscape } from "@/hooks/useIsLandscape";
 
-const TIMER_STORAGE_KEY = 'pitch-board-timer-state';
+// Active timer key - mirrors the one in GameTimer.tsx
+const ACTIVE_TIMER_KEY = 'pitch-board-timer-state';
+const TIMER_STORAGE_KEY_BASE = 'pitch-board-timer-state-team';
 
 interface TimerState {
   minutesPerHalf: number;
@@ -15,23 +17,62 @@ interface TimerState {
   lastUpdateTime: number;
   teamId?: string;
   teamName?: string;
+  isGameFinished?: boolean;
 }
 
-const loadTimerState = (): TimerState | null => {
+const getTeamTimerStorageKey = (teamId: string) => {
+  return `${TIMER_STORAGE_KEY_BASE}-${teamId}`;
+};
+
+/**
+ * Load the active timer state for display in widget.
+ * First checks the ACTIVE_TIMER_KEY, then validates against team-specific storage
+ * to ensure we're showing the correct timer even after navigation.
+ */
+const loadActiveTimerState = (): TimerState | null => {
   try {
-    const saved = localStorage.getItem(TIMER_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
+    // First, check the active timer key
+    const activeRaw = localStorage.getItem(ACTIVE_TIMER_KEY);
+    if (!activeRaw) return null;
+    
+    const activeState = JSON.parse(activeRaw) as TimerState;
+    
+    // If the active state has a teamId, verify it exists in team-specific storage
+    // This ensures we don't show stale data from a cleared timer
+    if (activeState.teamId) {
+      const teamKey = getTeamTimerStorageKey(activeState.teamId);
+      const teamRaw = localStorage.getItem(teamKey);
+      
+      if (teamRaw) {
+        // Use the team-specific state as it's more reliable
+        return JSON.parse(teamRaw) as TimerState;
+      }
+      
+      // Team-specific storage doesn't exist but active key does - 
+      // this could happen during migration, so trust the active key
+      return activeState;
     }
+    
+    return activeState;
   } catch (e) {
-    console.error('Failed to load timer state:', e);
+    console.error('Failed to load active timer state:', e);
   }
   return null;
 };
 
+/**
+ * Save timer state to both active key and team-specific key
+ */
 const saveTimerState = (state: TimerState) => {
   try {
-    localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(state));
+    // Save to active key for widgets
+    localStorage.setItem(ACTIVE_TIMER_KEY, JSON.stringify(state));
+    
+    // Also save to team-specific key for isolation
+    if (state.teamId) {
+      const teamKey = getTeamTimerStorageKey(state.teamId);
+      localStorage.setItem(teamKey, JSON.stringify(state));
+    }
   } catch (e) {
     console.error('Failed to save timer state:', e);
   }
@@ -51,7 +92,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   // Load and sync timer state
   useEffect(() => {
     const checkTimerState = () => {
-      const saved = loadTimerState();
+      const saved = loadActiveTimerState();
       if (saved) {
         let currentElapsed = saved.elapsedSeconds;
         
@@ -103,7 +144,15 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
   const handleDismiss = (e: React.MouseEvent) => {
     e.stopPropagation();
-    localStorage.removeItem(TIMER_STORAGE_KEY);
+    
+    // Clear the active timer key
+    localStorage.removeItem(ACTIVE_TIMER_KEY);
+    
+    // Also clear the team-specific key if we have a teamId
+    if (timerState?.teamId) {
+      const teamKey = getTeamTimerStorageKey(timerState.teamId);
+      localStorage.removeItem(teamKey);
+    }
     
     // Clear auto-sub plan from pitch state before removing it
     const pitchStateRaw = localStorage.getItem('pitch-board-state');
