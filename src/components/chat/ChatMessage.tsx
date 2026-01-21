@@ -257,6 +257,7 @@ export const ChatMessage = memo(function ChatMessage({
       await queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
       
+      // Update query cache - this triggers re-render via messages -> localMessages sync
       queryClient.setQueryData(queryKey, (old: any) => {
         if (!old) return old;
         const existingMessages: any[] = Array.isArray(old) ? old : old?.messages || [];
@@ -264,6 +265,9 @@ export const ChatMessage = memo(function ChatMessage({
         if (Array.isArray(old)) return updatedMessages;
         return { ...old, messages: updatedMessages };
       });
+      
+      // Force immediate re-render by invalidating stale time
+      queryClient.invalidateQueries({ queryKey, refetchType: 'none' });
       
       return { previousMessages };
     },
