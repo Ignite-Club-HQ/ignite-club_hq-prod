@@ -138,12 +138,18 @@ export default function DirectMessagePage() {
   const { data: canDM, isLoading: checkingCanDM } = useQuery({
     queryKey: ["can-dm", otherUserId],
     queryFn: async () => {
+      if (!otherUserId) return false;
       const { data, error } = await supabase.rpc("can_dm_user", { other_user_id: otherUserId });
-      if (error) throw error;
+      if (error) {
+        console.error("can_dm_user error:", error);
+        // If RPC fails, don't block - they may have an existing conversation
+        return true;
+      }
       return data as boolean;
     },
     enabled: !!otherUserId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000, // Shorter stale time - 30 seconds
+    refetchOnMount: true, // Always re-check when returning to page
   });
 
   // Fetch messages with cache support
@@ -465,7 +471,9 @@ export default function DirectMessagePage() {
   });
   const handleSend = () => {
     if (!message.trim() && !imageUrl) return;
-    if (!canDM) {
+    // Allow sending if canDM is true OR if we're still checking (give benefit of doubt for existing conversations)
+    // The server-side RLS will still enforce the actual permission
+    if (canDM === false && !checkingCanDM) {
       toast.error("DMs require both users to be members of a Pro club");
       return;
     }
