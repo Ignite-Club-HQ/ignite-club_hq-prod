@@ -151,7 +151,8 @@ export default function BroadcastChatPage() {
 
       const { data: rawMessages, error } = await supabase
         .from("broadcast_messages")
-        .select("id, text, image_url, created_at, author_id, reply_to_id")
+        .select("id, text, image_url, created_at, author_id, reply_to_id, deleted_at")
+        .is("deleted_at", null) // Only fetch non-deleted messages
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PER_PAGE + 1);
 
@@ -521,6 +522,11 @@ export default function BroadcastChatPage() {
           const updated = payload.new as any;
           queryClient.setQueryData(["broadcast-messages"], (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
+            // If message was soft-deleted, remove it from the list
+            if (updated.deleted_at) {
+              return { ...old, messages: existingMessages.filter(m => m.id !== updated.id) };
+            }
+            // Otherwise update the message content
             return {
               ...old,
               messages: existingMessages.map(m => m.id === updated.id ? { ...m, text: updated.text, image_url: updated.image_url } : m),

@@ -220,6 +220,7 @@ export type Database = {
         Row: {
           author_id: string
           created_at: string
+          deleted_at: string | null
           id: string
           image_url: string | null
           reply_to_id: string | null
@@ -228,6 +229,7 @@ export type Database = {
         Insert: {
           author_id: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
@@ -236,6 +238,7 @@ export type Database = {
         Update: {
           author_id?: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
@@ -477,6 +480,7 @@ export type Database = {
           author_id: string
           club_id: string
           created_at: string
+          deleted_at: string | null
           id: string
           image_url: string | null
           reply_to_id: string | null
@@ -486,6 +490,7 @@ export type Database = {
           author_id: string
           club_id: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
@@ -495,6 +500,7 @@ export type Database = {
           author_id?: string
           club_id?: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
@@ -879,6 +885,7 @@ export type Database = {
           author_id: string
           conversation_id: string
           created_at: string
+          deleted_at: string | null
           id: string
           image_url: string | null
           reply_to_id: string | null
@@ -888,6 +895,7 @@ export type Database = {
           author_id: string
           conversation_id: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
@@ -897,6 +905,7 @@ export type Database = {
           author_id?: string
           conversation_id?: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
@@ -1517,6 +1526,7 @@ export type Database = {
         Row: {
           author_id: string
           created_at: string
+          deleted_at: string | null
           group_id: string
           id: string
           image_url: string | null
@@ -1526,6 +1536,7 @@ export type Database = {
         Insert: {
           author_id: string
           created_at?: string
+          deleted_at?: string | null
           group_id: string
           id?: string
           image_url?: string | null
@@ -1535,6 +1546,7 @@ export type Database = {
         Update: {
           author_id?: string
           created_at?: string
+          deleted_at?: string | null
           group_id?: string
           id?: string
           image_url?: string | null
@@ -2835,6 +2847,7 @@ export type Database = {
         Row: {
           author_id: string
           created_at: string
+          deleted_at: string | null
           id: string
           image_url: string | null
           reply_to_id: string | null
@@ -2844,6 +2857,7 @@ export type Database = {
         Insert: {
           author_id: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
@@ -2853,6 +2867,7 @@ export type Database = {
         Update: {
           author_id?: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           image_url?: string | null
           reply_to_id?: string | null

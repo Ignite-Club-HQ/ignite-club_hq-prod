@@ -201,8 +201,9 @@ export default function TeamChatPage() {
       // Fetch messages WITHOUT profile join to avoid timeout from large avatar_url
       const { data: rawMessages, error } = await supabase
         .from("team_messages")
-        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id")
+        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, deleted_at")
         .eq("team_id", teamId!)
+        .is("deleted_at", null) // Only fetch non-deleted messages
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PER_PAGE + 1);
       if (error) throw error;
@@ -690,6 +691,11 @@ export default function TeamChatPage() {
           const updated = payload.new as any;
           queryClient.setQueryData(["team-messages", teamId], (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
+            // If message was soft-deleted, remove it from the list
+            if (updated.deleted_at) {
+              return { ...(old || {}), messages: existingMessages.filter(m => m.id !== updated.id) };
+            }
+            // Otherwise update the message content
             return {
               ...(old || {}),
               messages: existingMessages.map(m =>
