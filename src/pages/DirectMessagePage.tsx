@@ -365,8 +365,8 @@ export default function DirectMessagePage() {
           conversation_id: conversationId!,
           author_id: user!.id,
           text,
-          image_url: imageUrl,
-          reply_to_id: replyToId,
+          image_url: imageUrl || null,
+          reply_to_id: replyToId || null, // Ensure empty string becomes null for UUID column
         })
         .select()
         .single();
