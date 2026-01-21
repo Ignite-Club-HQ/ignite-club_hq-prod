@@ -113,6 +113,21 @@ export function addMessageToCache(
   }
 }
 
+// Remove a message from cache (for deletion)
+export function removeMessageFromCache(
+  type: "team" | "club" | "group" | "broadcast" | "dm",
+  targetId: string,
+  messageId: string
+): void {
+  try {
+    const existing = getCachedMessages(type, targetId);
+    const updated = existing.filter(m => m.id !== messageId);
+    cacheMessages(type, targetId, updated);
+  } catch {
+    // Ignore errors - caching is not critical
+  }
+}
+
 // Clear old caches to free up space
 function clearOldCaches(): void {
   try {
