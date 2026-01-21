@@ -74,6 +74,8 @@ export default function DirectMessagePage() {
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
+  const replyToRef = useRef(replyTo);
+  replyToRef.current = replyTo;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -136,12 +138,18 @@ export default function DirectMessagePage() {
   const { data: canDM, isLoading: checkingCanDM } = useQuery({
     queryKey: ["can-dm", otherUserId],
     queryFn: async () => {
+      if (!otherUserId) return false;
       const { data, error } = await supabase.rpc("can_dm_user", { other_user_id: otherUserId });
-      if (error) throw error;
+      if (error) {
+        console.error("can_dm_user error:", error);
+        // If RPC fails, don't block - they may have an existing conversation
+        return true;
+      }
       return data as boolean;
     },
     enabled: !!otherUserId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000, // Shorter stale time - 30 seconds
+    refetchOnMount: true, // Always re-check when returning to page
   });
 
   // Fetch messages with cache support
@@ -222,8 +230,8 @@ export default function DirectMessagePage() {
       };
     },
     enabled: !!conversationId,
-    staleTime: 1000 * 60 * 5,
-    refetchOnMount: false,
+    staleTime: 30 * 1000, // 30 seconds - shorter stale time to ensure fresh data
+    refetchOnMount: 'always', // Always refetch when returning to page
     refetchOnWindowFocus: false,
     placeholderData: () => {
       // Return cached messages as placeholder for instant load
@@ -265,6 +273,8 @@ export default function DirectMessagePage() {
   }, [messagesData]);
 
   const [localMessages, setLocalMessages] = useState<DirectMessage[] | undefined>(undefined);
+  const localMessagesRef = useRef(localMessages);
+  localMessagesRef.current = localMessages;
   const hasInitialScrolled = useRef(false);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   
@@ -296,11 +306,22 @@ export default function DirectMessagePage() {
   
   const isAnyRefreshing = isRefreshing || isManualRefreshing;
 
+  // Sync localMessages with fetched messages
+  // Always update when we have fresh data (even if empty) to avoid stale optimistic messages
   useEffect(() => {
-    if (messages && messages.length > 0) {
-      setLocalMessages(messages);
+    if (messages) {
+      // If we have messages from the server, use them
+      if (messages.length > 0) {
+        setLocalMessages(messages);
+      } else {
+        // Only clear local messages if the query is not using placeholder data
+        // This prevents clearing optimistic updates during initial fetch
+        if (!messagesLoading) {
+          setLocalMessages(messages);
+        }
+      }
     }
-  }, [messages]);
+  }, [messages, messagesLoading]);
 
   useEffect(() => {
     if (!localMessages?.length) return;
@@ -344,8 +365,8 @@ export default function DirectMessagePage() {
           conversation_id: conversationId!,
           author_id: user!.id,
           text,
-          image_url: imageUrl,
-          reply_to_id: replyToId,
+          image_url: imageUrl || null,
+          reply_to_id: replyToId || null, // Ensure empty string becomes null for UUID column
         })
         .select()
         .single();
@@ -370,14 +391,77 @@ export default function DirectMessagePage() {
       setLocalMessages((prev) => [...(prev || []), optimisticMessage]);
       setTimeout(scrollToBottom, 50);
     },
-    onSuccess: async () => {
+    onSuccess: async (newMessage) => {
+      const currentReplyTo = replyToRef.current;
+      
+      // Update the query cache with the new message to replace optimistic one
+      queryClient.setQueryData(
+        ["dm-messages", conversationId],
+        (oldData: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
+          if (!oldData) {
+            const msg: DirectMessage = {
+              ...newMessage,
+              author: {
+                display_name: profileRef.current?.display_name || null,
+                avatar_url: profileRef.current?.avatar_url || null,
+              },
+              reactions: [],
+              reply_to: currentReplyTo ? { text: currentReplyTo.text, author: currentReplyTo.author } : null,
+            };
+            return { messages: [msg], hasOlderMessages: false };
+          }
+          
+          // Replace optimistic message with real one
+          const updatedMessages = oldData.messages
+            .filter((m) => !m.id.startsWith("temp-"))
+            .concat({
+              ...newMessage,
+              author: {
+                display_name: profileRef.current?.display_name || null,
+                avatar_url: profileRef.current?.avatar_url || null,
+              },
+              reactions: [],
+              reply_to: currentReplyTo ? { text: currentReplyTo.text, author: currentReplyTo.author } : null,
+            });
+          
+          return { ...oldData, messages: updatedMessages };
+        }
+      );
+      
+      // Also update the local message cache for offline/fast reload
+      const currentMessages = localMessagesRef.current || [];
+      const realMessages = currentMessages
+        .filter((m) => !m.id.startsWith("temp-"))
+        .concat({
+          ...newMessage,
+          author: {
+            display_name: profileRef.current?.display_name || null,
+            avatar_url: profileRef.current?.avatar_url || null,
+          },
+          reactions: [],
+          reply_to: currentReplyTo ? { text: currentReplyTo.text, author: currentReplyTo.author } : null,
+        });
+      
+      const messagesToCache: CachedMessage[] = realMessages.map(m => ({
+        id: m.id,
+        text: m.text,
+        author_id: m.author_id,
+        created_at: m.created_at,
+        image_url: m.image_url,
+        reply_to_id: m.reply_to_id,
+        profiles: m.author ? { display_name: m.author.display_name, avatar_url: m.author.avatar_url } : null,
+        reactions: m.reactions || [],
+        reply_to: m.reply_to ? { text: m.reply_to.text, author: m.reply_to.author } : null,
+      }));
+      cacheMessages("dm", conversationId!, messagesToCache);
+      
       // Unhide conversation if it was hidden (so it reappears for both users)
       await supabase
         .from("hidden_dm_conversations")
         .delete()
         .eq("conversation_id", conversationId!);
       
-      queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+      // Invalidate other related queries
       queryClient.invalidateQueries({ queryKey: ["dm-conversations"] });
       queryClient.invalidateQueries({ queryKey: ["hidden-dm-conversations"] });
     },
@@ -387,14 +471,16 @@ export default function DirectMessagePage() {
   });
   const handleSend = () => {
     if (!message.trim() && !imageUrl) return;
-    if (!canDM) {
+    // Allow sending if canDM is true OR if we're still checking (give benefit of doubt for existing conversations)
+    // The server-side RLS will still enforce the actual permission
+    if (canDM === false && !checkingCanDM) {
       toast.error("DMs require both users to be members of a Pro club");
       return;
     }
     sendMessageMutation.mutate({
       text: message.trim(),
-      imageUrl,
-      replyToId: replyTo?.id,
+      imageUrl: imageUrl || null,
+      replyToId: replyTo?.id || null,
     });
     setMessage("");
     setImageUrl(null);
