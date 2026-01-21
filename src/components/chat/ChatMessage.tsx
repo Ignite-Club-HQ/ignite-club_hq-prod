@@ -275,8 +275,13 @@ export const ChatMessage = memo(function ChatMessage({
       if (targetId) {
         removeMessageFromCache(messageType, targetId, id);
       }
-      // Don't invalidate here - optimistic update already removed it from UI
-      // and the query filters out deleted_at messages on next fetch
+      // Also clear the messagesPage cache to ensure deleted message doesn't show in previews
+      try {
+        localStorage.removeItem('messages-page-cache');
+      } catch {}
+      // Force refetch to ensure UI stays in sync with database
+      // The query filters out deleted_at messages, so this will return clean data
+      queryClient.invalidateQueries({ queryKey, refetchType: 'none' });
       toast.success("Message deleted");
     },
     onError: (err, variables, context) => {
