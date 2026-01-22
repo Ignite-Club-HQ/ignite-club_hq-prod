@@ -75,55 +75,58 @@ export type NotificationType = typeof ALL_NOTIFICATION_TYPES[number];
 export type NotificationIconConfig = {
   iconName: string;
   colorClass: string;
+  emoji: string;
 };
 
 export const NOTIFICATION_ICON_CONFIG: Record<string, NotificationIconConfig> = {
   // Message types
-  team_message: { iconName: 'MessageSquare', colorClass: 'text-blue-500' },
-  club_message: { iconName: 'MessageSquare', colorClass: 'text-blue-500' },
-  group_message: { iconName: 'MessageSquare', colorClass: 'text-blue-500' },
-  direct_message: { iconName: 'MessageSquare', colorClass: 'text-blue-500' },
-  broadcast: { iconName: 'Megaphone', colorClass: 'text-purple-500' },
-  message_mention: { iconName: 'AtSign', colorClass: 'text-pink-500' },
-  message_reaction: { iconName: 'Heart', colorClass: 'text-red-500' },
-  message_reply: { iconName: 'Reply', colorClass: 'text-cyan-500' },
+  team_message: { iconName: 'MessageSquare', colorClass: 'text-blue-500', emoji: '💬' },
+  club_message: { iconName: 'MessageSquare', colorClass: 'text-blue-500', emoji: '💬' },
+  group_message: { iconName: 'MessageSquare', colorClass: 'text-blue-500', emoji: '💬' },
+  direct_message: { iconName: 'MessageSquare', colorClass: 'text-blue-500', emoji: '💬' },
+  broadcast: { iconName: 'Megaphone', colorClass: 'text-purple-500', emoji: '📢' },
+  message_mention: { iconName: 'AtSign', colorClass: 'text-pink-500', emoji: '📣' },
+  message_reaction: { iconName: 'Heart', colorClass: 'text-red-500', emoji: '❤️' },
+  message_reply: { iconName: 'Reply', colorClass: 'text-cyan-500', emoji: '↩️' },
   
   // Event types
-  event_invite: { iconName: 'Calendar', colorClass: 'text-orange-500' },
-  event_cancelled: { iconName: 'Calendar', colorClass: 'text-orange-500' },
-  event_reminder: { iconName: 'Calendar', colorClass: 'text-orange-500' },
-  event_updated: { iconName: 'Calendar', colorClass: 'text-orange-500' },
-  rsvp_reminder: { iconName: 'Calendar', colorClass: 'text-orange-500' },
-  duty_assigned: { iconName: 'ClipboardList', colorClass: 'text-amber-500' },
+  event_invite: { iconName: 'Calendar', colorClass: 'text-orange-500', emoji: '📅' },
+  event_cancelled: { iconName: 'Calendar', colorClass: 'text-orange-500', emoji: '❌' },
+  event_reminder: { iconName: 'Calendar', colorClass: 'text-orange-500', emoji: '📅' },
+  event_updated: { iconName: 'Calendar', colorClass: 'text-orange-500', emoji: '📅' },
+  rsvp_reminder: { iconName: 'Calendar', colorClass: 'text-orange-500', emoji: '✅' },
+  rsvp: { iconName: 'CheckCircle', colorClass: 'text-green-500', emoji: '✅' },
+  duty_assigned: { iconName: 'ClipboardList', colorClass: 'text-amber-500', emoji: '📋' },
   
   // Media types
-  photo_uploaded: { iconName: 'Image', colorClass: 'text-emerald-500' },
-  photo_comment: { iconName: 'Image', colorClass: 'text-emerald-500' },
-  photo_reaction: { iconName: 'Heart', colorClass: 'text-red-500' },
-  comment_reply: { iconName: 'Reply', colorClass: 'text-cyan-500' },
-  comment_reaction: { iconName: 'Heart', colorClass: 'text-red-500' },
+  photo_uploaded: { iconName: 'Image', colorClass: 'text-emerald-500', emoji: '📸' },
+  photo_comment: { iconName: 'Image', colorClass: 'text-emerald-500', emoji: '💬' },
+  photo_reaction: { iconName: 'Heart', colorClass: 'text-red-500', emoji: '❤️' },
+  comment_reply: { iconName: 'Reply', colorClass: 'text-cyan-500', emoji: '↩️' },
+  comment_reaction: { iconName: 'Heart', colorClass: 'text-red-500', emoji: '❤️' },
   
   // Membership types
-  membership: { iconName: 'Users', colorClass: 'text-teal-500' },
-  join_request: { iconName: 'UserPlus', colorClass: 'text-indigo-500' },
-  join_request_approved: { iconName: 'CheckCircle', colorClass: 'text-green-500' },
-  join_request_denied: { iconName: 'XCircle', colorClass: 'text-red-500' },
-  join_request_processed: { iconName: 'Users', colorClass: 'text-teal-500' },
-  role_assigned: { iconName: 'UserPlus', colorClass: 'text-indigo-500' },
-  role_removed: { iconName: 'UserMinus', colorClass: 'text-gray-500' },
-  team_invite: { iconName: 'UserPlus', colorClass: 'text-indigo-500' },
+  membership: { iconName: 'Users', colorClass: 'text-teal-500', emoji: '👥' },
+  join_request: { iconName: 'UserPlus', colorClass: 'text-indigo-500', emoji: '👋' },
+  join_request_approved: { iconName: 'CheckCircle', colorClass: 'text-green-500', emoji: '✅' },
+  join_request_denied: { iconName: 'XCircle', colorClass: 'text-red-500', emoji: '❌' },
+  join_request_processed: { iconName: 'Users', colorClass: 'text-teal-500', emoji: '👥' },
+  role_assigned: { iconName: 'UserPlus', colorClass: 'text-indigo-500', emoji: '🎖️' },
+  role_removed: { iconName: 'UserMinus', colorClass: 'text-gray-500', emoji: '👤' },
+  team_invite: { iconName: 'UserPlus', colorClass: 'text-indigo-500', emoji: '👋' },
   
   // Admin types
-  subscription_expiring: { iconName: 'AlertTriangle', colorClass: 'text-yellow-500' },
-  subscription_expired: { iconName: 'AlertCircle', colorClass: 'text-red-500' },
-  storage_limit: { iconName: 'HardDrive', colorClass: 'text-orange-500' },
-  system_announcement: { iconName: 'Info', colorClass: 'text-blue-500' },
+  subscription_expiring: { iconName: 'AlertTriangle', colorClass: 'text-yellow-500', emoji: '⚠️' },
+  subscription_expired: { iconName: 'AlertCircle', colorClass: 'text-red-500', emoji: '🚨' },
+  storage_limit: { iconName: 'HardDrive', colorClass: 'text-orange-500', emoji: '💾' },
+  system_announcement: { iconName: 'Info', colorClass: 'text-blue-500', emoji: 'ℹ️' },
 };
 
 // Default icon config for unknown types
 export const DEFAULT_NOTIFICATION_ICON: NotificationIconConfig = {
   iconName: 'Bell',
-  colorClass: 'text-primary'
+  colorClass: 'text-primary',
+  emoji: '🔔'
 };
 
 /**
