@@ -11,6 +11,7 @@ import {
   Heart, 
   Reply, 
   UserPlus, 
+  UserMinus,
   CheckCircle, 
   XCircle,
   Megaphone,
@@ -20,6 +21,10 @@ import {
   Trash2,
   AtSign,
   ArrowLeft,
+  AlertTriangle,
+  AlertCircle,
+  HardDrive,
+  Info,
   type LucideIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,45 +37,35 @@ import { formatDistanceToNow, parseISO } from "date-fns";
 import { playNotificationSound, showBrowserNotification } from "@/lib/notifications";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
+import { getNotificationIconConfig, type NotificationIconConfig } from "@/lib/notificationTypes";
 
-// Map notification types to icons and colors
+// Icon name to component mapping
+const ICON_MAP: Record<string, LucideIcon> = {
+  Bell,
+  MessageSquare,
+  Image,
+  Calendar,
+  Heart,
+  Reply,
+  UserPlus,
+  UserMinus,
+  CheckCircle,
+  XCircle,
+  Megaphone,
+  Users,
+  ClipboardList,
+  AtSign,
+  AlertTriangle,
+  AlertCircle,
+  HardDrive,
+  Info,
+};
+
+// Get notification icon component and color from centralized config
 const getNotificationIcon = (type: string): { Icon: LucideIcon; colorClass: string } => {
-  switch (type) {
-    case "team_message":
-    case "club_message":
-    case "group_message":
-      return { Icon: MessageSquare, colorClass: "text-blue-500" };
-    case "broadcast":
-      return { Icon: Megaphone, colorClass: "text-purple-500" };
-    case "message_mention":
-      return { Icon: AtSign, colorClass: "text-pink-500" };
-    case "message_reaction":
-    case "photo_reaction":
-    case "comment_reaction":
-      return { Icon: Heart, colorClass: "text-red-500" };
-    case "message_reply":
-    case "comment_reply":
-      return { Icon: Reply, colorClass: "text-cyan-500" };
-    case "photo_uploaded":
-    case "photo_comment":
-      return { Icon: Image, colorClass: "text-emerald-500" };
-    case "event_invite":
-    case "event_cancelled":
-    case "event_reminder":
-      return { Icon: Calendar, colorClass: "text-orange-500" };
-    case "duty_assigned":
-      return { Icon: ClipboardList, colorClass: "text-amber-500" };
-    case "join_request":
-      return { Icon: UserPlus, colorClass: "text-indigo-500" };
-    case "join_request_approved":
-      return { Icon: CheckCircle, colorClass: "text-green-500" };
-    case "join_request_denied":
-      return { Icon: XCircle, colorClass: "text-red-500" };
-    case "join_request_processed":
-      return { Icon: Users, colorClass: "text-teal-500" };
-    default:
-      return { Icon: Bell, colorClass: "text-primary" };
-  }
+  const config = getNotificationIconConfig(type);
+  const Icon = ICON_MAP[config.iconName] || Bell;
+  return { Icon, colorClass: config.colorClass };
 };
 
 interface Notification {
