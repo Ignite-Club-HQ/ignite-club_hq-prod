@@ -25,7 +25,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { DemoLoginSection } from "@/components/DemoLoginSection";
 import igniteIcon from "@/assets/ignite-icon.png";
 import igniteIconLight from "@/assets/ignite-icon-light.png";
-import { getNotificationIconConfig } from "@/lib/notificationTypes";
+import { NotificationIcon } from "@/components/NotificationIcon";
 
 // Helper to pick the best color from palette based on background contrast
 function getBestContrastColor(
@@ -476,10 +476,10 @@ export function AppHeader() {
     navigate("/notifications");
   };
 
-  // Use centralized notification icon config
-  const getNotificationIcon = (type: string): string => {
-    return getNotificationIconConfig(type).emoji;
-  };
+  // Render notification icon using centralized component
+  const renderNotificationIcon = (type: string) => (
+    <NotificationIcon type={type} mode="emoji" />
+  );
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-lg safe-area-top">
@@ -600,7 +600,7 @@ export function AppHeader() {
                         handleNotificationClick(notification);
                       }}
                     >
-                      <span className="text-xl">{getNotificationIcon(notification.type)}</span>
+                      {renderNotificationIcon(notification.type)}
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm line-clamp-2 ${!notification.is_read ? "font-medium" : ""}`}>
                           {notification.message}
