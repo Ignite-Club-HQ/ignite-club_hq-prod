@@ -14,12 +14,7 @@ import { toast } from "@/hooks/use-toast";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
-
-
-const MESSAGE_NOTIFICATION_TYPES = [
-  'team_message', 'club_message', 'group_message', 'broadcast',
-  'message_reply', 'message_reaction', 'message_mention', 'direct_message'
-];
+import { MESSAGE_NOTIFICATION_TYPES } from "@/lib/notificationTypes";
 
 const MESSAGES_PER_PAGE = 15;
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
