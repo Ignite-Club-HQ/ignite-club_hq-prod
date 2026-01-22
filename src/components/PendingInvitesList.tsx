@@ -79,12 +79,29 @@ export default function PendingInvitesList({ invites, teamId, clubId }: PendingI
       if (!teamId) return null;
       const { data } = await supabase
         .from("teams")
-        .select("name")
+        .select("name, club_id")
         .eq("id", teamId)
         .single();
       return data;
     },
     enabled: !!teamId,
+    staleTime: 1000 * 60 * 10,
+  });
+
+  // Fetch club branding for emails
+  const { data: clubBranding } = useQuery({
+    queryKey: ["club-branding-for-invites", teamData?.club_id || clubId],
+    queryFn: async () => {
+      const targetClubId = teamData?.club_id || clubId;
+      if (!targetClubId) return null;
+      const { data } = await supabase
+        .from("clubs")
+        .select("name, logo_url")
+        .eq("id", targetClubId)
+        .single();
+      return data;
+    },
+    enabled: !!(teamData?.club_id || clubId),
     staleTime: 1000 * 60 * 10,
   });
 
@@ -178,14 +195,16 @@ export default function PendingInvitesList({ invites, teamId, clubId }: PendingI
         await supabase.functions.invoke("send-email", {
           body: {
             to: email,
-            subject: "Reminder: You're invited to join the team!",
-            html: `
-              <h2>Reminder: You've been invited!</h2>
-              <p>Hi ${name},</p>
-              <p>This is a reminder that you've been invited to join the team as a <strong>${role}</strong>.</p>
-              <p><a href="${link}" style="display: inline-block; padding: 12px 24px; background-color: #f97316; color: white; text-decoration: none; border-radius: 6px;">Accept Invitation</a></p>
-              <p>Or copy this link: ${link}</p>
-            `,
+            subject: `Reminder: You're invited to join ${teamName}!`,
+            template: "invite-reminder",
+            templateData: {
+              recipientName: name,
+              teamName,
+              clubName: clubBranding?.name || "The Club",
+              roleName: role.charAt(0).toUpperCase() + role.slice(1).replace("_", " "),
+              inviteLink: link,
+              clubLogoUrl: clubBranding?.logo_url || undefined,
+            },
           },
         });
         emailSuccessCount++;

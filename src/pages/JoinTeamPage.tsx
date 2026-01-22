@@ -316,6 +316,40 @@ export default function JoinTeamPage() {
       related_id: invite.team_id,
     });
 
+    // Send membership confirmation email if user has an email
+    if (user.email) {
+      try {
+        // Fetch club branding for the email
+        const { data: clubBranding } = await supabase
+          .from("clubs")
+          .select("name, logo_url")
+          .eq("id", invite.teams?.club_id)
+          .single();
+
+        const teamLink = `${window.location.origin}/team/${invite.team_id}`;
+        
+        await supabase.functions.invoke("send-email", {
+          body: {
+            to: user.email,
+            subject: `Welcome to ${invite.teams?.name}!`,
+            template: "membership-confirmation",
+            templateData: {
+              recipientName: userProfile?.display_name || pendingInviteData?.invited_label || user.email.split("@")[0],
+              teamName: invite.teams?.name || "the team",
+              clubName: clubBranding?.name || invite.teams?.clubs?.name || "The Club",
+              roleName: roleNames,
+              teamLink,
+              clubLogoUrl: clubBranding?.logo_url || undefined,
+            },
+          },
+        });
+        console.log("Membership confirmation email sent to", user.email);
+      } catch (emailError) {
+        // Don't fail the join if email fails
+        console.error("Failed to send membership confirmation email:", emailError);
+      }
+    }
+
     return rolesToAdd;
   };
 

@@ -1,6 +1,13 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { renderAsync } from "npm:@react-email/components@0.0.22";
+import * as React from "npm:react@18.3.1";
+import { TeamInviteEmail } from "./_templates/team-invite.tsx";
+import { EventReminderEmail } from "./_templates/event-reminder.tsx";
+import { MembershipConfirmationEmail } from "./_templates/membership-confirmation.tsx";
+import { MagicLinkEmail } from "./_templates/magic-link.tsx";
+import { RenewalReminderEmail } from "./_templates/renewal-reminder.tsx";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -24,11 +31,83 @@ const RATE_LIMIT_WINDOW_SECONDS = 3600; // 1 hour
 const RATE_LIMIT_MAX_EMAILS = 50; // 50 emails per hour per user
 const MAX_REQUEST_SIZE = 102400; // 100KB max for email content
 
+// Template types
+type TemplateType = 
+  | "team-invite" 
+  | "invite-reminder" 
+  | "event-reminder" 
+  | "membership-confirmation" 
+  | "magic-link"
+  | "renewal-reminder";
+
 interface EmailRequest {
   to: string | string[];
   subject: string;
-  html: string;
+  html?: string;
   from?: string;
+  // Template-based email
+  template?: TemplateType;
+  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData;
+}
+
+interface TeamInviteTemplateData {
+  recipientName: string;
+  teamName: string;
+  clubName: string;
+  roleName: string;
+  inviteLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+  childrenNames?: string[];
+}
+
+interface EventReminderTemplateData {
+  recipientName: string;
+  eventTitle: string;
+  teamName: string;
+  clubName: string;
+  eventDate: string;
+  eventTime: string;
+  eventLocation?: string;
+  eventType: string;
+  eventLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+  hoursUntilEvent?: number;
+}
+
+interface MembershipConfirmationTemplateData {
+  recipientName: string;
+  teamName: string;
+  clubName: string;
+  roleName: string;
+  teamLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+  welcomeMessage?: string;
+}
+
+interface MagicLinkTemplateData {
+  recipientName?: string;
+  magicLink: string;
+  otp?: string;
+  expiresInMinutes?: number;
+  actionType: 'login' | 'signup' | 'reset-password' | 'verify-email';
+  appName?: string;
+  logoUrl?: string;
+  primaryColor?: string;
+}
+
+interface RenewalReminderTemplateData {
+  recipientName?: string;
+  entityName: string;
+  entityType: 'team' | 'club';
+  tierName: string;
+  expiryDate: string;
+  daysUntilExpiry: number;
+  manageLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
 }
 
 // Sanitize error messages
@@ -101,6 +180,90 @@ async function checkRateLimit(
   return { allowed: true, remaining: RATE_LIMIT_MAX_EMAILS - 1, resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
 }
 
+// Render email template
+async function renderEmailTemplate(template: TemplateType, data: any): Promise<string> {
+  switch (template) {
+    case "team-invite":
+    case "invite-reminder":
+      return await renderAsync(
+        React.createElement(TeamInviteEmail, {
+          recipientName: data.recipientName,
+          teamName: data.teamName,
+          clubName: data.clubName,
+          roleName: data.roleName,
+          inviteLink: data.inviteLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || "#f97316",
+          childrenNames: data.childrenNames || [],
+        })
+      );
+    
+    case "event-reminder":
+      return await renderAsync(
+        React.createElement(EventReminderEmail, {
+          recipientName: data.recipientName,
+          eventTitle: data.eventTitle,
+          teamName: data.teamName,
+          clubName: data.clubName,
+          eventDate: data.eventDate,
+          eventTime: data.eventTime,
+          eventLocation: data.eventLocation,
+          eventType: data.eventType,
+          eventLink: data.eventLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || "#f97316",
+          hoursUntilEvent: data.hoursUntilEvent,
+        })
+      );
+    
+    case "membership-confirmation":
+      return await renderAsync(
+        React.createElement(MembershipConfirmationEmail, {
+          recipientName: data.recipientName,
+          teamName: data.teamName,
+          clubName: data.clubName,
+          roleName: data.roleName,
+          teamLink: data.teamLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || "#f97316",
+          welcomeMessage: data.welcomeMessage,
+        })
+      );
+    
+    case "magic-link":
+      return await renderAsync(
+        React.createElement(MagicLinkEmail, {
+          recipientName: data.recipientName,
+          magicLink: data.magicLink,
+          otp: data.otp,
+          expiresInMinutes: data.expiresInMinutes || 60,
+          actionType: data.actionType,
+          appName: data.appName || "Ignite Club HQ",
+          logoUrl: data.logoUrl,
+          primaryColor: data.primaryColor || "#f97316",
+        })
+      );
+    
+    case "renewal-reminder":
+      return await renderAsync(
+        React.createElement(RenewalReminderEmail, {
+          recipientName: data.recipientName,
+          entityName: data.entityName,
+          entityType: data.entityType,
+          tierName: data.tierName,
+          expiryDate: data.expiryDate,
+          daysUntilExpiry: data.daysUntilExpiry,
+          manageLink: data.manageLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || "#10b981",
+        })
+      );
+    
+    default:
+      throw new Error(`Unknown template: ${template}`);
+  }
+}
+
 serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -157,12 +320,20 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const { to, subject, html, from }: EmailRequest = await req.json();
+    const { to, subject, html, from, template, templateData }: EmailRequest = await req.json();
 
     // Validate required fields
-    if (!to || !subject || !html) {
+    if (!to || !subject) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
+        JSON.stringify({ error: "Missing required fields: to and subject" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Either html or template must be provided
+    if (!html && !template) {
+      return new Response(
+        JSON.stringify({ error: "Either html or template must be provided" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
@@ -186,16 +357,31 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
+    // Generate HTML from template or use provided HTML
+    let emailHtml = html;
+    if (template && templateData) {
+      try {
+        emailHtml = await renderEmailTemplate(template, templateData);
+        console.log(`Rendered ${template} template successfully`);
+      } catch (templateError) {
+        console.error("Template rendering error:", sanitizeError(templateError));
+        return new Response(
+          JSON.stringify({ error: "Failed to render email template" }),
+          { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+    }
+
     // Use Resend's verified test sender by default
     const sender = from || "Ignite Club HQ <onboarding@resend.dev>";
 
-    console.log(`Sending email to ${toArray.length} recipient(s): ${toArray.join(", ")}`);
+    console.log(`Sending ${template || 'custom'} email to ${toArray.length} recipient(s)`);
 
     const emailResponse = await resend.emails.send({
       from: sender,
       to: toArray,
       subject,
-      html,
+      html: emailHtml!,
     });
 
     // Verify the response has an ID (successful send)
@@ -218,7 +404,8 @@ serve(async (req: Request): Promise<Response> => {
         success: true, 
         verified: true,
         emailId: emailResponse.data.id,
-        recipientCount: toArray.length
+        recipientCount: toArray.length,
+        template: template || 'custom'
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
