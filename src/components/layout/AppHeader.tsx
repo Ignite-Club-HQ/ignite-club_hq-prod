@@ -25,6 +25,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { DemoLoginSection } from "@/components/DemoLoginSection";
 import igniteIcon from "@/assets/ignite-icon.png";
 import igniteIconLight from "@/assets/ignite-icon-light.png";
+import { getNotificationIconConfig } from "@/lib/notificationTypes";
 
 // Helper to pick the best color from palette based on background contrast
 function getBestContrastColor(
@@ -475,22 +476,9 @@ export function AppHeader() {
     navigate("/notifications");
   };
 
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case "team_message":
-      case "club_message":
-      case "group_message":
-        return "💬";
-      case "event_invite":
-      case "event_reminder":
-        return "📅";
-      case "rsvp":
-        return "✅";
-      case "role_assigned":
-        return "🎖️";
-      default:
-        return "🔔";
-    }
+  // Use centralized notification icon config
+  const getNotificationIcon = (type: string): string => {
+    return getNotificationIconConfig(type).emoji;
   };
 
   return (
