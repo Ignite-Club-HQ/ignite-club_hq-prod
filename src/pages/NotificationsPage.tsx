@@ -2,30 +2,14 @@ import { useEffect, useCallback, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { 
-  Bell, 
+  Bell,
   Check, 
   CheckCheck, 
-  MessageSquare, 
-  Image, 
-  Calendar, 
-  Heart, 
-  Reply, 
-  UserPlus, 
-  UserMinus,
-  CheckCircle, 
+  CheckCircle,
   XCircle,
-  Megaphone,
-  Users,
-  ClipboardList,
   RefreshCw,
   Trash2,
-  AtSign,
   ArrowLeft,
-  AlertTriangle,
-  AlertCircle,
-  HardDrive,
-  Info,
-  type LucideIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,36 +21,7 @@ import { formatDistanceToNow, parseISO } from "date-fns";
 import { playNotificationSound, showBrowserNotification } from "@/lib/notifications";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
-import { getNotificationIconConfig, type NotificationIconConfig } from "@/lib/notificationTypes";
-
-// Icon name to component mapping
-const ICON_MAP: Record<string, LucideIcon> = {
-  Bell,
-  MessageSquare,
-  Image,
-  Calendar,
-  Heart,
-  Reply,
-  UserPlus,
-  UserMinus,
-  CheckCircle,
-  XCircle,
-  Megaphone,
-  Users,
-  ClipboardList,
-  AtSign,
-  AlertTriangle,
-  AlertCircle,
-  HardDrive,
-  Info,
-};
-
-// Get notification icon component and color from centralized config
-const getNotificationIcon = (type: string): { Icon: LucideIcon; colorClass: string } => {
-  const config = getNotificationIconConfig(type);
-  const Icon = ICON_MAP[config.iconName] || Bell;
-  return { Icon, colorClass: config.colorClass };
-};
+import { useNotificationIcon } from "@/components/NotificationIcon";
 
 interface Notification {
   id: string;
@@ -75,6 +30,16 @@ interface Notification {
   read: boolean;
   created_at: string;
   related_id: string | null;
+}
+
+// Helper component for rendering notification icons with read state
+function NotificationIconWrapper({ type, isRead }: { type: string; isRead: boolean }) {
+  const { Icon, colorClass } = useNotificationIcon(type);
+  return (
+    <div className={`p-2 rounded-lg ${isRead ? "bg-muted" : "bg-primary/10"}`}>
+      <Icon className={`h-4 w-4 ${isRead ? "text-muted-foreground" : colorClass}`} />
+    </div>
+  );
 }
 
 const NOTIFICATIONS_PER_PAGE = 30;
@@ -610,14 +575,7 @@ export default function NotificationsPage() {
               onDelete={() => deleteNotification.mutate(notification.id)}
             >
               <div className="flex items-start gap-3">
-                {(() => {
-                  const { Icon, colorClass } = getNotificationIcon(notification.type);
-                  return (
-                    <div className={`p-2 rounded-lg ${notification.read ? "bg-muted" : "bg-primary/10"}`}>
-                      <Icon className={`h-4 w-4 ${notification.read ? "text-muted-foreground" : colorClass}`} />
-                    </div>
-                  );
-                })()}
+                <NotificationIconWrapper type={notification.type} isRead={notification.read} />
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm ${notification.read ? "text-muted-foreground" : ""}`}>
                     {notification.message}
