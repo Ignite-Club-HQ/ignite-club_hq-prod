@@ -7,6 +7,7 @@ import { TeamInviteEmail } from "./_templates/team-invite.tsx";
 import { EventReminderEmail } from "./_templates/event-reminder.tsx";
 import { MembershipConfirmationEmail } from "./_templates/membership-confirmation.tsx";
 import { MagicLinkEmail } from "./_templates/magic-link.tsx";
+import { RenewalReminderEmail } from "./_templates/renewal-reminder.tsx";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -36,7 +37,8 @@ type TemplateType =
   | "invite-reminder" 
   | "event-reminder" 
   | "membership-confirmation" 
-  | "magic-link";
+  | "magic-link"
+  | "renewal-reminder";
 
 interface EmailRequest {
   to: string | string[];
@@ -45,7 +47,7 @@ interface EmailRequest {
   from?: string;
   // Template-based email
   template?: TemplateType;
-  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData;
+  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData;
 }
 
 interface TeamInviteTemplateData {
@@ -93,6 +95,18 @@ interface MagicLinkTemplateData {
   actionType: 'login' | 'signup' | 'reset-password' | 'verify-email';
   appName?: string;
   logoUrl?: string;
+  primaryColor?: string;
+}
+
+interface RenewalReminderTemplateData {
+  recipientName?: string;
+  entityName: string;
+  entityType: 'team' | 'club';
+  tierName: string;
+  expiryDate: string;
+  daysUntilExpiry: number;
+  manageLink: string;
+  clubLogoUrl?: string;
   primaryColor?: string;
 }
 
@@ -227,6 +241,21 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           appName: data.appName || "Ignite Club HQ",
           logoUrl: data.logoUrl,
           primaryColor: data.primaryColor || "#f97316",
+        })
+      );
+    
+    case "renewal-reminder":
+      return await renderAsync(
+        React.createElement(RenewalReminderEmail, {
+          recipientName: data.recipientName,
+          entityName: data.entityName,
+          entityType: data.entityType,
+          tierName: data.tierName,
+          expiryDate: data.expiryDate,
+          daysUntilExpiry: data.daysUntilExpiry,
+          manageLink: data.manageLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || "#10b981",
         })
       );
     
