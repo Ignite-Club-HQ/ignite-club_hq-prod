@@ -89,6 +89,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
     enabled: !!teamId,
   });
 
+  // Fetch club branding data for emails
+  const { data: clubBranding } = useQuery({
+    queryKey: ["club-branding", clubId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("clubs")
+        .select("name, logo_url")
+        .eq("id", clubId)
+        .single();
+      return data;
+    },
+    enabled: !!clubId,
+  });
+
   // Search for existing users
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
     queryKey: ["user-search-team-member", debouncedSearch],
@@ -218,14 +232,15 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
             body: {
               to: email,
               subject: `You're invited to join ${teamName}`,
-              html: `
-                <h2>You've been invited to join ${teamName}!</h2>
-                <p>Hi ${customName},</p>
-                <p>You've been invited to join <strong>${teamName}</strong> as a <strong>${roleOptions.find(r => r.value === selectedRole)?.label}</strong>.</p>
-                <p><a href="${link}" style="display: inline-block; padding: 12px 24px; background-color: #f97316; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Accept Invite</a></p>
-                <p>Or copy this link: ${link}</p>
-                <p>See you there!</p>
-              `,
+              template: "team-invite",
+              templateData: {
+                recipientName: customName.trim(),
+                teamName,
+                clubName: clubBranding?.name || "The Club",
+                roleName: roleOptions.find(r => r.value === selectedRole)?.label || "Member",
+                inviteLink: link,
+                clubLogoUrl: clubBranding?.logo_url || undefined,
+              },
             },
           });
           toast({
@@ -313,15 +328,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
               body: {
                 to: member.email.trim(),
                 subject: `You're invited to join ${teamName}`,
-                html: `
-                  <h2>You've been invited to join ${teamName}!</h2>
-                  <p>Hi ${member.name},</p>
-                  <p>You've been invited to join <strong>${teamName}</strong> as a <strong>${roleOptions.find(r => r.value === memberRole)?.label}</strong>.</p>
-                  ${childrenInfo}
-                  <p><a href="${link}" style="display: inline-block; padding: 12px 24px; background-color: #f97316; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Accept Invite</a></p>
-                  <p>Or copy this link: ${link}</p>
-                  <p>See you there!</p>
-                `,
+                template: "team-invite",
+                templateData: {
+                  recipientName: member.name.trim(),
+                  teamName,
+                  clubName: clubBranding?.name || "The Club",
+                  roleName: roleOptions.find(r => r.value === memberRole)?.label || "Member",
+                  inviteLink: link,
+                  clubLogoUrl: clubBranding?.logo_url || undefined,
+                  childrenNames: validChildren.map(c => c.name.trim()),
+                },
               },
             });
             

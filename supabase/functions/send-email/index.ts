@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { renderAsync } from "npm:@react-email/components@0.0.22";
+import * as React from "npm:react@18.3.1";
+import { TeamInviteEmail } from "./_templates/team-invite.tsx";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -27,8 +30,22 @@ const MAX_REQUEST_SIZE = 102400; // 100KB max for email content
 interface EmailRequest {
   to: string | string[];
   subject: string;
-  html: string;
+  html?: string;
   from?: string;
+  // Template-based email
+  template?: "team-invite" | "invite-reminder";
+  templateData?: TeamInviteTemplateData;
+}
+
+interface TeamInviteTemplateData {
+  recipientName: string;
+  teamName: string;
+  clubName: string;
+  roleName: string;
+  inviteLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+  childrenNames?: string[];
 }
 
 // Sanitize error messages
@@ -101,6 +118,28 @@ async function checkRateLimit(
   return { allowed: true, remaining: RATE_LIMIT_MAX_EMAILS - 1, resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
 }
 
+// Render email template
+async function renderEmailTemplate(template: string, data: TeamInviteTemplateData): Promise<string> {
+  switch (template) {
+    case "team-invite":
+    case "invite-reminder":
+      return await renderAsync(
+        React.createElement(TeamInviteEmail, {
+          recipientName: data.recipientName,
+          teamName: data.teamName,
+          clubName: data.clubName,
+          roleName: data.roleName,
+          inviteLink: data.inviteLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || "#f97316",
+          childrenNames: data.childrenNames || [],
+        })
+      );
+    default:
+      throw new Error(`Unknown template: ${template}`);
+  }
+}
+
 serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -157,12 +196,20 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const { to, subject, html, from }: EmailRequest = await req.json();
+    const { to, subject, html, from, template, templateData }: EmailRequest = await req.json();
 
     // Validate required fields
-    if (!to || !subject || !html) {
+    if (!to || !subject) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
+        JSON.stringify({ error: "Missing required fields: to and subject" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Either html or template must be provided
+    if (!html && !template) {
+      return new Response(
+        JSON.stringify({ error: "Either html or template must be provided" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
@@ -186,6 +233,21 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
+    // Generate HTML from template or use provided HTML
+    let emailHtml = html;
+    if (template && templateData) {
+      try {
+        emailHtml = await renderEmailTemplate(template, templateData);
+        console.log(`Rendered ${template} template for ${templateData.recipientName}`);
+      } catch (templateError) {
+        console.error("Template rendering error:", sanitizeError(templateError));
+        return new Response(
+          JSON.stringify({ error: "Failed to render email template" }),
+          { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+    }
+
     // Use Resend's verified test sender by default
     const sender = from || "Ignite Club HQ <onboarding@resend.dev>";
 
@@ -195,7 +257,7 @@ serve(async (req: Request): Promise<Response> => {
       from: sender,
       to: toArray,
       subject,
-      html,
+      html: emailHtml!,
     });
 
     // Verify the response has an ID (successful send)
