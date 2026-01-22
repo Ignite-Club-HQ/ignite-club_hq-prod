@@ -1,100 +1,34 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import { Resend } from "resend";
-
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
-// Email templates
-function eventReminderEmail(eventTitle: string, eventDate: string): string {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #f97316, #ea580c); color: white; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; }
-        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
-        .button { display: inline-block; background: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin-top: 20px; }
-        .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 20px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>🔥 Event Reminder</h1>
-        </div>
-        <div class="content">
-          <h2>Don't forget to RSVP!</h2>
-          <p>You haven't responded to <strong>${eventTitle}</strong> yet.</p>
-          <p><strong>📅 Date:</strong> ${eventDate}</p>
-          <p>Please let your team know if you can make it!</p>
-          <a href="https://igniteclubhq.com/events" class="button">View Event</a>
-        </div>
-        <div class="footer">
-          <p>Ignite Club HQ - Team Management Made Easy</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-}
-
-function dutyReminderEmail(dutyName: string, eventTitle: string, eventDate: string): string {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; }
-        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
-        .highlight { background: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 20px 0; }
-        .button { display: inline-block; background: #8b5cf6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin-top: 20px; }
-        .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 20px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>📋 Duty Reminder</h1>
-        </div>
-        <div class="content">
-          <h2>You have a duty tomorrow!</h2>
-          <div class="highlight">
-            <p><strong>🎯 Duty:</strong> ${dutyName}</p>
-            <p><strong>📅 Event:</strong> ${eventTitle}</p>
-            <p><strong>🕐 Date:</strong> ${eventDate}</p>
-          </div>
-          <p>Please make sure you're prepared for your duty!</p>
-          <a href="https://igniteclubhq.com/events" class="button">View Details</a>
-        </div>
-        <div class="footer">
-          <p>Ignite Club HQ - Team Management Made Easy</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-}
-
-async function sendEmail(to: string, subject: string, html: string): Promise<void> {
+// Helper function to call the centralized send-email function
+async function sendTemplateEmail(
+  supabase: any,
+  to: string,
+  subject: string,
+  template: string,
+  templateData: Record<string, any>
+): Promise<boolean> {
   try {
-    await resend.emails.send({
-      from: "Ignite Club HQ <contact@igniteclubhq.app>",
-      to: [to],
-      subject,
-      html,
+    const { error } = await supabase.functions.invoke("send-email", {
+      body: { to, subject, template, templateData },
     });
-    console.log(`Email sent to ${to}`);
-  } catch (error) {
-    console.error(`Failed to send email to ${to}:`, error);
+    
+    if (error) {
+      console.error(`Failed to send ${template} email to ${to}:`, error);
+      return false;
+    }
+    
+    console.log(`${template} email sent to ${to}`);
+    return true;
+  } catch (e) {
+    console.error(`Error sending ${template} email to ${to}:`, e);
+    return false;
   }
 }
 
@@ -124,7 +58,6 @@ serve(async (req) => {
     console.log("Checking for events needing reminders...");
 
     // Find events that need reminders sent
-    // Events where: event_date - reminder_hours_before <= now AND reminder_sent = false AND not cancelled
     const now = new Date();
     
     const { data: events, error: eventsError } = await supabase
@@ -133,9 +66,21 @@ serve(async (req) => {
         id,
         title,
         event_date,
+        start_time,
+        location,
+        location_name,
+        address,
         reminder_hours_before,
         club_id,
-        team_id
+        team_id,
+        type,
+        teams (
+          name,
+          clubs (
+            name,
+            logo_url
+          )
+        )
       `)
       .eq("reminder_sent", false)
       .eq("is_cancelled", false)
@@ -157,6 +102,9 @@ serve(async (req) => {
       // Check if it's time to send the reminder
       if (now >= reminderTime) {
         console.log(`Sending reminders for event: ${event.title}`);
+
+        // Calculate hours until event for urgency display
+        const hoursUntilEvent = Math.round((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60));
 
         // Get all RSVPs for this event
         const { data: rsvps } = await supabase
@@ -196,37 +144,64 @@ serve(async (req) => {
           if (notifError) {
             console.error(`Error creating notifications for event ${event.id}:`, notifError);
           } else {
-            console.log(`Sent ${nonRsvpMembers.length} reminders for event ${event.title}`);
+            console.log(`Created ${nonRsvpMembers.length} notifications for event ${event.title}`);
             totalReminders += nonRsvpMembers.length;
           }
 
-          // Send emails to non-RSVPed members
-          const eventDateFormatted = new Date(event.event_date).toLocaleDateString('en-AU', {
+          // Format event details for email
+          const eventDateFormatted = eventDate.toLocaleDateString('en-AU', {
             weekday: 'long',
             day: 'numeric',
             month: 'long',
             year: 'numeric'
           });
 
-          // Get user emails using our secure function
+          const eventTime = event.start_time || "TBD";
+          const eventLocation = event.location_name || event.address || event.location || undefined;
+          const teamName = event.teams?.name || "Your Team";
+          const clubName = event.teams?.clubs?.name || "Your Club";
+          const clubLogoUrl = event.teams?.clubs?.logo_url || undefined;
+          const eventLink = `https://ignite-club-launchpad.lovable.app/event/${event.id}`;
+
+          // Get user emails and profiles
           const { data: userEmails, error: emailError } = await supabase
             .rpc('get_user_emails_by_ids', { user_ids: nonRsvpMembers });
           
           if (emailError) {
             console.error('Error fetching user emails:', emailError);
           } else if (userEmails && userEmails.length > 0) {
-            console.log(`Sending ${userEmails.length} event reminder emails...`);
+            console.log(`Sending ${userEmails.length} event reminder emails using template...`);
+            
+            // Get profiles for recipient names
+            const { data: profiles } = await supabase
+              .from("profiles")
+              .select("id, display_name")
+              .in("id", nonRsvpMembers);
+            
+            const profileMap = new Map(profiles?.map(p => [p.id, p.display_name]) || []);
             
             for (const user of userEmails) {
-              try {
-                await sendEmail(
-                  user.email,
-                  `Reminder: RSVP for ${event.title}`,
-                  eventReminderEmail(event.title, eventDateFormatted)
-                );
-              } catch (e) {
-                console.error(`Failed to send email to ${user.email}:`, e);
-              }
+              const recipientName = profileMap.get(user.id) || user.email.split("@")[0];
+              
+              await sendTemplateEmail(
+                supabase,
+                user.email,
+                `Reminder: RSVP for ${event.title}`,
+                "event-reminder",
+                {
+                  recipientName,
+                  eventTitle: event.title,
+                  teamName,
+                  clubName,
+                  eventDate: eventDateFormatted,
+                  eventTime,
+                  eventLocation,
+                  eventType: event.type || "event",
+                  eventLink,
+                  clubLogoUrl,
+                  hoursUntilEvent: hoursUntilEvent > 0 ? hoursUntilEvent : undefined,
+                }
+              );
             }
           }
         }
@@ -256,6 +231,18 @@ serve(async (req) => {
         id,
         title,
         event_date,
+        start_time,
+        location,
+        location_name,
+        address,
+        type,
+        teams (
+          name,
+          clubs (
+            name,
+            logo_url
+          )
+        ),
         duties!inner (
           id,
           assigned_to,
@@ -273,6 +260,21 @@ serve(async (req) => {
 
       for (const event of upcomingEventsWithDuties || []) {
         const duties = (event as any).duties || [];
+        const eventDate = new Date(event.event_date);
+        
+        const eventDateFormatted = eventDate.toLocaleDateString('en-AU', {
+          weekday: 'long',
+          day: 'numeric', 
+          month: 'long',
+          year: 'numeric'
+        });
+
+        const eventTime = event.start_time || "TBD";
+        const eventLocation = event.location_name || event.address || event.location || undefined;
+        const teamName = event.teams?.name || "Your Team";
+        const clubName = event.teams?.clubs?.name || "Your Club";
+        const clubLogoUrl = event.teams?.clubs?.logo_url || undefined;
+        const eventLink = `https://ignite-club-launchpad.lovable.app/event/${event.id}`;
         
         for (const duty of duties) {
           if (duty.assigned_to) {
@@ -298,30 +300,42 @@ serve(async (req) => {
               if (dutyNotifError) {
                 console.error(`Error creating duty reminder for duty ${duty.id}:`, dutyNotifError);
               } else {
-                console.log(`Sent duty reminder to ${duty.assigned_to} for ${duty.name}`);
+                console.log(`Created duty reminder notification for ${duty.assigned_to}`);
                 totalReminders++;
 
-                // Send duty reminder email
-                const eventDateFormatted = new Date(event.event_date).toLocaleDateString('en-AU', {
-                  weekday: 'long',
-                  day: 'numeric', 
-                  month: 'long',
-                  year: 'numeric'
-                });
-
+                // Get user email and profile for duty reminder
                 const { data: dutyUserEmails } = await supabase
                   .rpc('get_user_emails_by_ids', { user_ids: [duty.assigned_to] });
 
                 if (dutyUserEmails && dutyUserEmails.length > 0) {
-                  try {
-                    await sendEmail(
-                      dutyUserEmails[0].email,
-                      `Duty Reminder: ${duty.name} for ${event.title}`,
-                      dutyReminderEmail(duty.name, event.title, eventDateFormatted)
-                    );
-                  } catch (e) {
-                    console.error(`Failed to send duty email:`, e);
-                  }
+                  const { data: profile } = await supabase
+                    .from("profiles")
+                    .select("display_name")
+                    .eq("id", duty.assigned_to)
+                    .single();
+                  
+                  const recipientName = profile?.display_name || dutyUserEmails[0].email.split("@")[0];
+                  
+                  // Use event-reminder template with duty info in title
+                  await sendTemplateEmail(
+                    supabase,
+                    dutyUserEmails[0].email,
+                    `Duty Reminder: ${duty.name} for ${event.title}`,
+                    "event-reminder",
+                    {
+                      recipientName,
+                      eventTitle: `${duty.name} - ${event.title}`,
+                      teamName,
+                      clubName,
+                      eventDate: eventDateFormatted,
+                      eventTime,
+                      eventLocation,
+                      eventType: "duty",
+                      eventLink,
+                      clubLogoUrl,
+                      hoursUntilEvent: 24,
+                    }
+                  );
                 }
               }
             }
