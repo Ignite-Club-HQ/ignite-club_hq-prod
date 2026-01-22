@@ -1,62 +1,31 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { Resend } from "resend";
-
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
 };
 
-// Email template for renewal reminders
-function renewalReminderEmail(entityName: string, tierName: string, expiryDate: string, entityType: 'team' | 'club'): string {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; }
-        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
-        .info-box { background: #ecfdf5; padding: 15px; border-radius: 8px; border-left: 4px solid #10b981; margin: 20px 0; }
-        .button { display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin-top: 20px; }
-        .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 20px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>🔄 Subscription Renewal</h1>
-        </div>
-        <div class="content">
-          <h2>Heads up!</h2>
-          <div class="info-box">
-            <p><strong>${entityName}</strong>'s <strong>${tierName}</strong> subscription will automatically renew on <strong>${expiryDate}</strong>.</p>
-          </div>
-          <p>If you'd like to cancel or make changes, please visit your ${entityType} settings before the renewal date.</p>
-          <a href="https://igniteclubhq.com/${entityType}s" class="button">Manage Subscription</a>
-        </div>
-        <div class="footer">
-          <p>Ignite Club HQ - Team Management Made Easy</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-}
-
-async function sendEmail(to: string, subject: string, html: string): Promise<void> {
+// Helper function to call the centralized send-email function
+async function sendTemplateEmail(
+  supabase: any,
+  to: string,
+  subject: string,
+  template: string,
+  templateData: any
+): Promise<boolean> {
   try {
-    await resend.emails.send({
-      from: "Ignite Club HQ <contact@igniteclubhq.app>",
-      to: [to],
-      subject,
-      html,
+    const { error } = await supabase.functions.invoke("send-email", {
+      body: { to, subject, template, templateData },
     });
-    console.log(`Email sent to ${to}`);
-  } catch (error) {
-    console.error(`Failed to send email to ${to}:`, error);
+    if (error) {
+      console.error(`Failed to send ${template} email to ${to}:`, error);
+      return false;
+    }
+    console.log(`Sent ${template} email to ${to}`);
+    return true;
+  } catch (e) {
+    console.error(`Exception sending ${template} email to ${to}:`, e);
+    return false;
   }
 }
 
@@ -131,19 +100,26 @@ Deno.serve(async (req) => {
           .in('role', ['team_admin', 'coach']);
 
         if (teamAdmins && teamAdmins.length > 0) {
+          // Get team details with club info
           const { data: team } = await supabase
             .from('teams')
-            .select('name')
+            .select('name, club_id, clubs(name, logo_url)')
             .eq('id', sub.team_id)
             .single();
 
           const teamName = team?.name || 'Your team';
+          const clubName = team?.clubs?.name || '';
+          const clubLogoUrl = team?.clubs?.logo_url || undefined;
           const tierName = sub.is_pro_football ? 'Pro Football' : 'Pro';
           const expiryDate = new Date(sub.expires_at).toLocaleDateString('en-AU', {
+            weekday: 'long',
             day: 'numeric',
             month: 'long',
             year: 'numeric'
           });
+
+          // Calculate days until expiry
+          const daysUntilExpiry = Math.ceil((new Date(sub.expires_at).getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
 
           const notifications = teamAdmins.map(admin => ({
             user_id: admin.user_id,
@@ -155,22 +131,40 @@ Deno.serve(async (req) => {
           await supabase.from('notifications').insert(notifications);
           teamReminders++;
 
-          // Send emails to team admins
+          // Send emails to team admins using the new template
           const adminIds = teamAdmins.map(a => a.user_id);
           const { data: adminEmails } = await supabase
             .rpc('get_user_emails_by_ids', { user_ids: adminIds });
 
+          // Get admin profiles for personalized greeting
+          const { data: adminProfiles } = await supabase
+            .from('profiles')
+            .select('id, display_name')
+            .in('id', adminIds);
+
+          const profileMap = new Map(adminProfiles?.map(p => [p.id, p.display_name]) || []);
+
           if (adminEmails && adminEmails.length > 0) {
             for (const admin of adminEmails) {
-              try {
-                await sendEmail(
-                  admin.email,
-                  `Subscription Renewal: ${teamName}`,
-                  renewalReminderEmail(teamName, tierName, expiryDate, 'team')
-                );
-              } catch (e) {
-                console.error(`Failed to send renewal email:`, e);
-              }
+              const recipientName = profileMap.get(admin.user_id) || undefined;
+              
+              await sendTemplateEmail(
+                supabase,
+                admin.email,
+                `Subscription Renewal: ${teamName}`,
+                'renewal-reminder',
+                {
+                  recipientName,
+                  entityName: teamName,
+                  entityType: 'team',
+                  tierName,
+                  expiryDate,
+                  daysUntilExpiry,
+                  manageLink: `https://ignite-club-launchpad.lovable.app/team/${sub.team_id}`,
+                  clubLogoUrl,
+                  primaryColor: '#10b981',
+                }
+              );
             }
           }
         }
@@ -220,17 +214,22 @@ Deno.serve(async (req) => {
         if (clubAdmins && clubAdmins.length > 0) {
           const { data: club } = await supabase
             .from('clubs')
-            .select('name')
+            .select('name, logo_url')
             .eq('id', sub.club_id)
             .single();
 
           const clubName = club?.name || 'Your club';
+          const clubLogoUrl = club?.logo_url || undefined;
           const tierName = sub.is_pro_football ? 'Club Pro Football' : 'Club Pro';
           const expiryDate = new Date(sub.expires_at).toLocaleDateString('en-AU', {
+            weekday: 'long',
             day: 'numeric',
             month: 'long',
             year: 'numeric'
           });
+
+          // Calculate days until expiry
+          const daysUntilExpiry = Math.ceil((new Date(sub.expires_at).getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
 
           const notifications = clubAdmins.map(admin => ({
             user_id: admin.user_id,
@@ -242,22 +241,40 @@ Deno.serve(async (req) => {
           await supabase.from('notifications').insert(notifications);
           clubReminders++;
 
-          // Send emails to club admins
+          // Send emails to club admins using the new template
           const adminIds = clubAdmins.map(a => a.user_id);
           const { data: adminEmails } = await supabase
             .rpc('get_user_emails_by_ids', { user_ids: adminIds });
 
+          // Get admin profiles for personalized greeting
+          const { data: adminProfiles } = await supabase
+            .from('profiles')
+            .select('id, display_name')
+            .in('id', adminIds);
+
+          const profileMap = new Map(adminProfiles?.map(p => [p.id, p.display_name]) || []);
+
           if (adminEmails && adminEmails.length > 0) {
             for (const admin of adminEmails) {
-              try {
-                await sendEmail(
-                  admin.email,
-                  `Subscription Renewal: ${clubName}`,
-                  renewalReminderEmail(clubName, tierName, expiryDate, 'club')
-                );
-              } catch (e) {
-                console.error(`Failed to send renewal email:`, e);
-              }
+              const recipientName = profileMap.get(admin.user_id) || undefined;
+              
+              await sendTemplateEmail(
+                supabase,
+                admin.email,
+                `Subscription Renewal: ${clubName}`,
+                'renewal-reminder',
+                {
+                  recipientName,
+                  entityName: clubName,
+                  entityType: 'club',
+                  tierName,
+                  expiryDate,
+                  daysUntilExpiry,
+                  manageLink: `https://ignite-club-launchpad.lovable.app/club/${sub.club_id}`,
+                  clubLogoUrl,
+                  primaryColor: '#10b981',
+                }
+              );
             }
           }
         }
