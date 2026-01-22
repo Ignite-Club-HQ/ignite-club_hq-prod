@@ -4,6 +4,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { renderAsync } from "npm:@react-email/components@0.0.22";
 import * as React from "npm:react@18.3.1";
 import { TeamInviteEmail } from "./_templates/team-invite.tsx";
+import { EventReminderEmail } from "./_templates/event-reminder.tsx";
+import { MembershipConfirmationEmail } from "./_templates/membership-confirmation.tsx";
+import { MagicLinkEmail } from "./_templates/magic-link.tsx";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -27,14 +30,22 @@ const RATE_LIMIT_WINDOW_SECONDS = 3600; // 1 hour
 const RATE_LIMIT_MAX_EMAILS = 50; // 50 emails per hour per user
 const MAX_REQUEST_SIZE = 102400; // 100KB max for email content
 
+// Template types
+type TemplateType = 
+  | "team-invite" 
+  | "invite-reminder" 
+  | "event-reminder" 
+  | "membership-confirmation" 
+  | "magic-link";
+
 interface EmailRequest {
   to: string | string[];
   subject: string;
   html?: string;
   from?: string;
   // Template-based email
-  template?: "team-invite" | "invite-reminder";
-  templateData?: TeamInviteTemplateData;
+  template?: TemplateType;
+  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData;
 }
 
 interface TeamInviteTemplateData {
@@ -46,6 +57,43 @@ interface TeamInviteTemplateData {
   clubLogoUrl?: string;
   primaryColor?: string;
   childrenNames?: string[];
+}
+
+interface EventReminderTemplateData {
+  recipientName: string;
+  eventTitle: string;
+  teamName: string;
+  clubName: string;
+  eventDate: string;
+  eventTime: string;
+  eventLocation?: string;
+  eventType: string;
+  eventLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+  hoursUntilEvent?: number;
+}
+
+interface MembershipConfirmationTemplateData {
+  recipientName: string;
+  teamName: string;
+  clubName: string;
+  roleName: string;
+  teamLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+  welcomeMessage?: string;
+}
+
+interface MagicLinkTemplateData {
+  recipientName?: string;
+  magicLink: string;
+  otp?: string;
+  expiresInMinutes?: number;
+  actionType: 'login' | 'signup' | 'reset-password' | 'verify-email';
+  appName?: string;
+  logoUrl?: string;
+  primaryColor?: string;
 }
 
 // Sanitize error messages
@@ -119,7 +167,7 @@ async function checkRateLimit(
 }
 
 // Render email template
-async function renderEmailTemplate(template: string, data: TeamInviteTemplateData): Promise<string> {
+async function renderEmailTemplate(template: TemplateType, data: any): Promise<string> {
   switch (template) {
     case "team-invite":
     case "invite-reminder":
@@ -135,6 +183,53 @@ async function renderEmailTemplate(template: string, data: TeamInviteTemplateDat
           childrenNames: data.childrenNames || [],
         })
       );
+    
+    case "event-reminder":
+      return await renderAsync(
+        React.createElement(EventReminderEmail, {
+          recipientName: data.recipientName,
+          eventTitle: data.eventTitle,
+          teamName: data.teamName,
+          clubName: data.clubName,
+          eventDate: data.eventDate,
+          eventTime: data.eventTime,
+          eventLocation: data.eventLocation,
+          eventType: data.eventType,
+          eventLink: data.eventLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || "#f97316",
+          hoursUntilEvent: data.hoursUntilEvent,
+        })
+      );
+    
+    case "membership-confirmation":
+      return await renderAsync(
+        React.createElement(MembershipConfirmationEmail, {
+          recipientName: data.recipientName,
+          teamName: data.teamName,
+          clubName: data.clubName,
+          roleName: data.roleName,
+          teamLink: data.teamLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || "#f97316",
+          welcomeMessage: data.welcomeMessage,
+        })
+      );
+    
+    case "magic-link":
+      return await renderAsync(
+        React.createElement(MagicLinkEmail, {
+          recipientName: data.recipientName,
+          magicLink: data.magicLink,
+          otp: data.otp,
+          expiresInMinutes: data.expiresInMinutes || 60,
+          actionType: data.actionType,
+          appName: data.appName || "Ignite Club HQ",
+          logoUrl: data.logoUrl,
+          primaryColor: data.primaryColor || "#f97316",
+        })
+      );
+    
     default:
       throw new Error(`Unknown template: ${template}`);
   }
@@ -238,7 +333,7 @@ serve(async (req: Request): Promise<Response> => {
     if (template && templateData) {
       try {
         emailHtml = await renderEmailTemplate(template, templateData);
-        console.log(`Rendered ${template} template for ${templateData.recipientName}`);
+        console.log(`Rendered ${template} template successfully`);
       } catch (templateError) {
         console.error("Template rendering error:", sanitizeError(templateError));
         return new Response(
@@ -251,7 +346,7 @@ serve(async (req: Request): Promise<Response> => {
     // Use Resend's verified test sender by default
     const sender = from || "Ignite Club HQ <onboarding@resend.dev>";
 
-    console.log(`Sending email to ${toArray.length} recipient(s): ${toArray.join(", ")}`);
+    console.log(`Sending ${template || 'custom'} email to ${toArray.length} recipient(s)`);
 
     const emailResponse = await resend.emails.send({
       from: sender,
@@ -280,7 +375,8 @@ serve(async (req: Request): Promise<Response> => {
         success: true, 
         verified: true,
         emailId: emailResponse.data.id,
-        recipientCount: toArray.length
+        recipientCount: toArray.length,
+        template: template || 'custom'
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
