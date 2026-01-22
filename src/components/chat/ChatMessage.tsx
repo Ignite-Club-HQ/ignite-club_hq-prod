@@ -246,10 +246,10 @@ export const ChatMessage = memo(function ChatMessage({
 
   const deleteMessageMutation = useMutation({
     mutationFn: async () => {
-      // Soft delete - set deleted_at instead of removing the row
+      // Hard delete - permanently remove from database
       const { error } = await supabase
         .from(getTableName())
-        .update({ deleted_at: new Date().toISOString() })
+        .delete()
         .eq("id", id);
       if (error) throw error;
     },
@@ -275,13 +275,10 @@ export const ChatMessage = memo(function ChatMessage({
       if (targetId) {
         removeMessageFromCache(messageType, targetId, id);
       }
-      // Also clear the messagesPage cache to ensure deleted message doesn't show in previews
+      // Clear the messagesPage cache to ensure deleted message doesn't show in previews
       try {
         localStorage.removeItem('messages-page-cache');
       } catch {}
-      // Force refetch to ensure UI stays in sync with database
-      // The query filters out deleted_at messages, so this will return clean data
-      queryClient.invalidateQueries({ queryKey, refetchType: 'none' });
       toast.success("Message deleted");
     },
     onError: (err, variables, context) => {
