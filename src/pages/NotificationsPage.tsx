@@ -2,25 +2,14 @@ import { useEffect, useCallback, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { 
-  Bell, 
+  Bell,
   Check, 
   CheckCheck, 
-  MessageSquare, 
-  Image, 
-  Calendar, 
-  Heart, 
-  Reply, 
-  UserPlus, 
-  CheckCircle, 
+  CheckCircle,
   XCircle,
-  Megaphone,
-  Users,
-  ClipboardList,
   RefreshCw,
   Trash2,
-  AtSign,
   ArrowLeft,
-  type LucideIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,46 +21,7 @@ import { formatDistanceToNow, parseISO } from "date-fns";
 import { playNotificationSound, showBrowserNotification } from "@/lib/notifications";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
-
-// Map notification types to icons and colors
-const getNotificationIcon = (type: string): { Icon: LucideIcon; colorClass: string } => {
-  switch (type) {
-    case "team_message":
-    case "club_message":
-    case "group_message":
-      return { Icon: MessageSquare, colorClass: "text-blue-500" };
-    case "broadcast":
-      return { Icon: Megaphone, colorClass: "text-purple-500" };
-    case "message_mention":
-      return { Icon: AtSign, colorClass: "text-pink-500" };
-    case "message_reaction":
-    case "photo_reaction":
-    case "comment_reaction":
-      return { Icon: Heart, colorClass: "text-red-500" };
-    case "message_reply":
-    case "comment_reply":
-      return { Icon: Reply, colorClass: "text-cyan-500" };
-    case "photo_uploaded":
-    case "photo_comment":
-      return { Icon: Image, colorClass: "text-emerald-500" };
-    case "event_invite":
-    case "event_cancelled":
-    case "event_reminder":
-      return { Icon: Calendar, colorClass: "text-orange-500" };
-    case "duty_assigned":
-      return { Icon: ClipboardList, colorClass: "text-amber-500" };
-    case "join_request":
-      return { Icon: UserPlus, colorClass: "text-indigo-500" };
-    case "join_request_approved":
-      return { Icon: CheckCircle, colorClass: "text-green-500" };
-    case "join_request_denied":
-      return { Icon: XCircle, colorClass: "text-red-500" };
-    case "join_request_processed":
-      return { Icon: Users, colorClass: "text-teal-500" };
-    default:
-      return { Icon: Bell, colorClass: "text-primary" };
-  }
-};
+import { useNotificationIcon } from "@/components/NotificationIcon";
 
 interface Notification {
   id: string;
@@ -80,6 +30,16 @@ interface Notification {
   read: boolean;
   created_at: string;
   related_id: string | null;
+}
+
+// Helper component for rendering notification icons with read state
+function NotificationIconWrapper({ type, isRead }: { type: string; isRead: boolean }) {
+  const { Icon, colorClass } = useNotificationIcon(type);
+  return (
+    <div className={`p-2 rounded-lg ${isRead ? "bg-muted" : "bg-primary/10"}`}>
+      <Icon className={`h-4 w-4 ${isRead ? "text-muted-foreground" : colorClass}`} />
+    </div>
+  );
 }
 
 const NOTIFICATIONS_PER_PAGE = 30;
@@ -615,14 +575,7 @@ export default function NotificationsPage() {
               onDelete={() => deleteNotification.mutate(notification.id)}
             >
               <div className="flex items-start gap-3">
-                {(() => {
-                  const { Icon, colorClass } = getNotificationIcon(notification.type);
-                  return (
-                    <div className={`p-2 rounded-lg ${notification.read ? "bg-muted" : "bg-primary/10"}`}>
-                      <Icon className={`h-4 w-4 ${notification.read ? "text-muted-foreground" : colorClass}`} />
-                    </div>
-                  );
-                })()}
+                <NotificationIconWrapper type={notification.type} isRead={notification.read} />
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm ${notification.read ? "text-muted-foreground" : ""}`}>
                     {notification.message}

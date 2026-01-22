@@ -9,6 +9,7 @@ import { clearProfileCache } from "@/lib/profileCache";
 import { clearRolesCache } from "@/lib/rolesCache";
 import { clearClubTeamCache } from "@/lib/clubTeamCache";
 import { syncPasskeyAccountsFromDatabase } from "@/hooks/usePasskey";
+import { MESSAGE_NOTIFICATION_TYPES } from "@/lib/notificationTypes";
 
 interface Profile {
   id: string;
@@ -152,10 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return null;
   }, [isFreshLogin]);
 
-  const MESSAGE_NOTIFICATION_TYPES = [
-    'team_message', 'club_message', 'group_message', 'broadcast',
-    'message_reply', 'message_reaction', 'message_mention'
-  ];
+  // MESSAGE_NOTIFICATION_TYPES imported from @/lib/notificationTypes
 
   const fetchUnreadCount = async (userId: string) => {
     const [allResult, messagesResult] = await Promise.all([

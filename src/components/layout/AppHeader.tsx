@@ -25,6 +25,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { DemoLoginSection } from "@/components/DemoLoginSection";
 import igniteIcon from "@/assets/ignite-icon.png";
 import igniteIconLight from "@/assets/ignite-icon-light.png";
+import { NotificationIcon } from "@/components/NotificationIcon";
 
 // Helper to pick the best color from palette based on background contrast
 function getBestContrastColor(
@@ -475,23 +476,10 @@ export function AppHeader() {
     navigate("/notifications");
   };
 
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case "team_message":
-      case "club_message":
-      case "group_message":
-        return "💬";
-      case "event_invite":
-      case "event_reminder":
-        return "📅";
-      case "rsvp":
-        return "✅";
-      case "role_assigned":
-        return "🎖️";
-      default:
-        return "🔔";
-    }
-  };
+  // Render notification icon using centralized component
+  const renderNotificationIcon = (type: string) => (
+    <NotificationIcon type={type} mode="emoji" />
+  );
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-lg safe-area-top">
@@ -612,7 +600,7 @@ export function AppHeader() {
                         handleNotificationClick(notification);
                       }}
                     >
-                      <span className="text-xl">{getNotificationIcon(notification.type)}</span>
+                      {renderNotificationIcon(notification.type)}
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm line-clamp-2 ${!notification.is_read ? "font-medium" : ""}`}>
                           {notification.message}
