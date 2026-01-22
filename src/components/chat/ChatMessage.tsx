@@ -267,17 +267,21 @@ export const ChatMessage = memo(function ChatMessage({
         return { ...old, messages: updatedMessages };
       });
       
-      // Force immediate re-render by invalidating stale time
-      queryClient.invalidateQueries({ queryKey, refetchType: 'none' });
-      
       return { previousMessages };
     },
     onSuccess: () => {
-      // Also remove from localStorage cache to prevent reappearing on navigation
+      // Remove from localStorage cache to prevent reappearing on navigation
       const targetId = queryKey[1] as string;
       if (targetId) {
         removeMessageFromCache(messageType, targetId, id);
       }
+      // Also clear the messagesPage cache to ensure deleted message doesn't show in previews
+      try {
+        localStorage.removeItem('messages-page-cache');
+      } catch {}
+      // Force refetch to ensure UI stays in sync with database
+      // The query filters out deleted_at messages, so this will return clean data
+      queryClient.invalidateQueries({ queryKey, refetchType: 'none' });
       toast.success("Message deleted");
     },
     onError: (err, variables, context) => {
