@@ -154,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const MESSAGE_NOTIFICATION_TYPES = [
     'team_message', 'club_message', 'group_message', 'broadcast',
-    'message_reply', 'message_reaction', 'message_mention'
+    'message_reply', 'message_reaction', 'message_mention', 'direct_message'
   ];
 
   const fetchUnreadCount = async (userId: string) => {
