@@ -6,6 +6,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Retry configuration
+const MAX_RETRIES = 2;
+const RETRY_DELAYS = [1000, 2000]; // 1s, 2s
+
 // Base64url utilities with robust handling
 function base64UrlToUint8Array(base64Url: string): Uint8Array {
   let cleaned = base64Url.trim();
@@ -227,7 +231,8 @@ async function logDeliveryStatus(
   endpoint: string,
   status: 'sent' | 'failed' | 'expired' | 'invalid' | 'skipped',
   statusCode: number | null,
-  errorMessage: string | null
+  errorMessage: string | null,
+  retryCount: number = 0
 ) {
   try {
     const { error } = await supabase
@@ -238,7 +243,7 @@ async function logDeliveryStatus(
         endpoint: endpoint.substring(0, 500),
         status,
         status_code: statusCode,
-        error_message: errorMessage?.substring(0, 1000)
+        error_message: errorMessage ? `${errorMessage} (retries: ${retryCount})`.substring(0, 1000) : null
       });
     
     if (error) {
@@ -247,6 +252,122 @@ async function logDeliveryStatus(
   } catch (err) {
     console.error('Error logging push delivery');
   }
+}
+
+// Sleep utility
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Send push notification with retry logic
+async function sendPushWithRetry(
+  sub: any,
+  payload: string,
+  vapidPublicKey: string,
+  vapidPrivateKey: string,
+  vapidSubject: string
+): Promise<{ success: boolean; statusCode: number | null; error?: string; retryCount: number }> {
+  let lastError: string | null = null;
+  let lastStatusCode: number | null = null;
+  
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      // Wait before retry (not on first attempt)
+      if (attempt > 0) {
+        const delay = RETRY_DELAYS[attempt - 1] || 2000;
+        console.log(`[PUSH] Retry ${attempt}/${MAX_RETRIES} after ${delay}ms`);
+        await sleep(delay);
+      }
+
+      const { ciphertext, salt, localPublicKey } = await encryptPayload(
+        payload,
+        sub.p256dh,
+        sub.auth
+      );
+
+      const encryptedBody = buildAes128gcmBody(salt, localPublicKey, ciphertext);
+
+      const endpointUrl = new URL(sub.endpoint);
+      const audience = `${endpointUrl.protocol}//${endpointUrl.host}`;
+
+      const vapidJwt = await generateVapidJwt(
+        audience,
+        vapidSubject,
+        vapidPrivateKey,
+        vapidPublicKey
+      );
+
+      const response = await fetch(sub.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'Content-Encoding': 'aes128gcm',
+          'Content-Length': String(encryptedBody.byteLength),
+          'TTL': '86400',
+          'Urgency': 'high',
+          'Authorization': `vapid t=${vapidJwt}, k=${vapidPublicKey}`
+        },
+        body: encryptedBody
+      });
+      
+      lastStatusCode = response.status;
+      
+      if (response.status === 201 || response.status === 200) {
+        return { success: true, statusCode: response.status, retryCount: attempt };
+      }
+      
+      // Don't retry for permanent failures
+      if (response.status === 410 || response.status === 404) {
+        return { 
+          success: false, 
+          statusCode: response.status, 
+          error: 'Subscription expired',
+          retryCount: attempt 
+        };
+      }
+      
+      if (response.status === 401 || response.status === 403) {
+        return { 
+          success: false, 
+          statusCode: response.status, 
+          error: 'Authorization failed',
+          retryCount: attempt 
+        };
+      }
+
+      // Retry on 5xx errors or 429 (rate limit)
+      if (response.status >= 500 || response.status === 429) {
+        lastError = `Server error: ${response.status}`;
+        console.log(`[PUSH] Retryable error: ${response.status}`);
+        continue;
+      }
+
+      // Other errors - don't retry
+      lastError = `Failed with status: ${response.status}`;
+      return { 
+        success: false, 
+        statusCode: response.status, 
+        error: lastError,
+        retryCount: attempt 
+      };
+      
+    } catch (err: any) {
+      lastError = err.message || 'Unknown error';
+      console.error(`[PUSH] Attempt ${attempt + 1} error:`, lastError);
+      
+      // Network errors might be temporary - retry
+      if (attempt < MAX_RETRIES) {
+        continue;
+      }
+    }
+  }
+
+  return { 
+    success: false, 
+    statusCode: lastStatusCode, 
+    error: lastError || 'Max retries exceeded',
+    retryCount: MAX_RETRIES 
+  };
 }
 
 serve(async (req) => {
@@ -307,82 +428,67 @@ serve(async (req) => {
     });
     
     let successCount = 0;
-    const failedEndpoints: string[] = [];
-    const results: Array<{endpoint: string; status: string; statusCode?: number}> = [];
+    const expiredEndpoints: string[] = [];
+    const results: Array<{endpoint: string; status: string; statusCode?: number; retries?: number}> = [];
     
     for (const sub of subscriptions) {
       const endpointShort = sub.endpoint.substring(0, 60) + '...';
       
-      try {
-        // Skip invalid subscriptions (missing keys)
-        if (!sub.p256dh || !sub.auth) {
-          console.log(`[PUSH] Skipping invalid subscription`);
-          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'skipped', null, 'Invalid subscription');
-          results.push({ endpoint: endpointShort, status: 'skipped' });
-          continue;
-        }
+      // Skip invalid subscriptions (missing keys)
+      if (!sub.p256dh || !sub.auth) {
+        console.log(`[PUSH] Skipping invalid subscription - missing keys`);
+        await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'skipped', null, 'Missing keys');
+        results.push({ endpoint: endpointShort, status: 'skipped' });
+        continue;
+      }
 
-        const { ciphertext, salt, localPublicKey } = await encryptPayload(
-          payload,
-          sub.p256dh,
-          sub.auth
-        );
+      const result = await sendPushWithRetry(
+        sub,
+        payload,
+        vapidPublicKey,
+        vapidPrivateKey,
+        vapidSubject
+      );
 
-        const encryptedBody = buildAes128gcmBody(salt, localPublicKey, ciphertext);
-
-        const endpointUrl = new URL(sub.endpoint);
-        const audience = `${endpointUrl.protocol}//${endpointUrl.host}`;
-
-        const vapidJwt = await generateVapidJwt(
-          audience,
-          vapidSubject,
-          vapidPrivateKey,
-          vapidPublicKey
-        );
-
-        const response = await fetch(sub.endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/octet-stream',
-            'Content-Encoding': 'aes128gcm',
-            'Content-Length': String(encryptedBody.byteLength),
-            'TTL': '86400',
-            'Urgency': 'high',
-            'Authorization': `vapid t=${vapidJwt}, k=${vapidPublicKey}`
-          },
-          body: encryptedBody
+      if (result.success) {
+        successCount++;
+        console.log(`[PUSH] SUCCESS (attempt ${result.retryCount + 1})`);
+        await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'sent', result.statusCode, null, result.retryCount);
+        results.push({ 
+          endpoint: endpointShort, 
+          status: 'sent', 
+          statusCode: result.statusCode || undefined,
+          retries: result.retryCount 
         });
-        
-        if (response.status === 201 || response.status === 200) {
-          successCount++;
-          console.log(`[PUSH] SUCCESS`);
-          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'sent', response.status, null);
-          results.push({ endpoint: endpointShort, status: 'sent', statusCode: response.status });
-        } else if (response.status === 410 || response.status === 404) {
-          console.log(`[PUSH] Subscription EXPIRED`);
-          failedEndpoints.push(sub.id);
-          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'expired', response.status, 'Subscription expired');
-          results.push({ endpoint: endpointShort, status: 'expired', statusCode: response.status });
-        } else {
-          console.error(`[PUSH] FAILED with status ${response.status}`);
-          await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'failed', response.status, 'Push failed');
-          results.push({ endpoint: endpointShort, status: 'failed', statusCode: response.status });
-        }
-        
-      } catch (err) {
-        console.error(`[PUSH] ERROR`);
-        await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'failed', null, 'Processing error');
-        results.push({ endpoint: endpointShort, status: 'failed' });
+      } else if (result.statusCode === 410 || result.statusCode === 404) {
+        console.log(`[PUSH] Subscription EXPIRED`);
+        expiredEndpoints.push(sub.id);
+        await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'expired', result.statusCode, 'Subscription expired', result.retryCount);
+        results.push({ 
+          endpoint: endpointShort, 
+          status: 'expired', 
+          statusCode: result.statusCode || undefined,
+          retries: result.retryCount 
+        });
+      } else {
+        console.error(`[PUSH] FAILED: ${result.error}`);
+        await logDeliveryStatus(supabase, notificationId, userId, sub.endpoint, 'failed', result.statusCode, result.error || 'Unknown error', result.retryCount);
+        results.push({ 
+          endpoint: endpointShort, 
+          status: 'failed', 
+          statusCode: result.statusCode || undefined,
+          retries: result.retryCount 
+        });
       }
     }
     
     // Clean up expired subscriptions
-    if (failedEndpoints.length > 0) {
+    if (expiredEndpoints.length > 0) {
       await supabase
         .from('push_subscriptions')
         .delete()
-        .in('id', failedEndpoints);
-      console.log(`[PUSH] Cleaned up ${failedEndpoints.length} expired subscription(s)`);
+        .in('id', expiredEndpoints);
+      console.log(`[PUSH] Cleaned up ${expiredEndpoints.length} expired subscription(s)`);
     }
     
     console.log(`[PUSH] COMPLETE: ${successCount}/${subscriptions.length} sent successfully`);
@@ -392,7 +498,7 @@ serve(async (req) => {
         message: 'Push notifications processed',
         sent: successCount,
         total: subscriptions.length,
-        cleaned: failedEndpoints.length,
+        cleaned: expiredEndpoints.length,
         results
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
