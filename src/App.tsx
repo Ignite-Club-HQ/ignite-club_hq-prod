@@ -70,6 +70,7 @@ const SponsorAnalyticsPage = lazy(() => import("./pages/SponsorAnalyticsPage"));
 const ManageAdsPage = lazy(() => import("./pages/ManageAdsPage"));
 const VideoGuideDownloadPage = lazy(() => import("./pages/VideoGuideDownloadPage"));
 const AttendanceStatsPage = lazy(() => import("./pages/AttendanceStatsPage"));
+const PushAnalyticsPage = lazy(() => import("./pages/PushAnalyticsPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -151,6 +152,7 @@ const App = () => (
                   <Route path="/admin/backups" element={<ManageBackupsPage />} />
                   <Route path="/admin/sponsor-analytics" element={<SponsorAnalyticsPage />} />
                   <Route path="/admin/ads" element={<ManageAdsPage />} />
+                  <Route path="/admin/push-analytics" element={<PushAnalyticsPage />} />
                 </Route>
                 
                 <Route path="*" element={<NotFound />} />

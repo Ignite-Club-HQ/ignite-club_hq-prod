@@ -58,6 +58,27 @@ export type Database = {
           },
         ]
       }
+      admin_alerts: {
+        Row: {
+          alert_type: string
+          created_at: string
+          details: Json | null
+          id: string
+        }
+        Insert: {
+          alert_type: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+        }
+        Relationships: []
+      }
       app_ad_analytics: {
         Row: {
           ad_id: string
@@ -2334,6 +2355,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      push_alert_settings: {
+        Row: {
+          alerts_enabled: boolean
+          check_window_hours: number
+          cooldown_hours: number
+          failure_threshold_percent: number
+          id: string
+          min_notifications: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          alerts_enabled?: boolean
+          check_window_hours?: number
+          cooldown_hours?: number
+          failure_threshold_percent?: number
+          id?: string
+          min_notifications?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          alerts_enabled?: boolean
+          check_window_hours?: number
+          cooldown_hours?: number
+          failure_threshold_percent?: number
+          id?: string
+          min_notifications?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       push_notification_logs: {
         Row: {
