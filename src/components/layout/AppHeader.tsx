@@ -248,7 +248,7 @@ export function AppHeader() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { profile, unreadCount, user } = useAuth();
-  const { activeThemeData } = useClubTheme();
+  const { activeThemeData, activeClubTheme } = useClubTheme();
   const { setTheme, theme } = useTheme();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -658,7 +658,16 @@ export function AppHeader() {
                 <User className="mr-3 h-5 w-5" />
                 <span className="text-sm">My Profile</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); navigate("/clubs"); }} className="py-3 px-3">
+              <DropdownMenuItem onSelect={(e) => { 
+                e.preventDefault(); 
+                setProfileOpen(false); 
+                // In club mode, go directly to the club detail page
+                if (activeClubTheme) {
+                  navigate(`/clubs/${activeClubTheme}`);
+                } else {
+                  navigate("/clubs");
+                }
+              }} className="py-3 px-3">
                 <Building2 className="mr-3 h-5 w-5" />
                 <span className="text-sm">My Clubs and Teams</span>
               </DropdownMenuItem>
