@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Copy, Check, Send, Users, Plus, Trash2, Upload, Baby } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Copy, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar } from "lucide-react";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -681,10 +681,24 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
                 <Baby className="h-4 w-4 text-pink-600 mt-0.5 shrink-0" />
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-pink-600">Adding a parent with child players</p>
-                  <p className="text-xs text-muted-foreground">
-                    After adding the parent, you'll be able to add their child's name and year of birth. 
+                  <p className="text-xs text-muted-foreground mb-2">
+                    After adding the parent, you'll be able to add their child's details. 
                     The child will be registered as a player when the parent accepts the invite.
                   </p>
+                  {/* Example child fields preview */}
+                  <div className="bg-background/50 rounded-lg p-2 border border-pink-500/10">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Example child fields:</p>
+                    <div className="flex flex-wrap gap-2">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <User className="h-3 w-3" />
+                        <span>Child's Name</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>Year of Birth</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
