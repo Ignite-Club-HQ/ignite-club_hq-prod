@@ -15,6 +15,7 @@ export interface CachedTeam {
   logo_url: string | null;
   club_id: string;
   level_age: string | null;
+  team_type?: "junior" | "senior" | "mixed";
   cached_at: number;
 }
 
@@ -177,6 +178,7 @@ export function cacheTeam(team: {
   logo_url: string | null;
   club_id: string;
   level_age: string | null;
+  team_type?: "junior" | "senior" | "mixed";
 }) {
   ensureMemoryCacheLoaded();
   teamsMemoryCache.set(team.id, { ...team, cached_at: Date.now() });
@@ -189,6 +191,7 @@ export function cacheTeams(teams: Array<{
   logo_url: string | null;
   club_id: string;
   level_age: string | null;
+  team_type?: "junior" | "senior" | "mixed";
 }>) {
   ensureMemoryCacheLoaded();
   const now = Date.now();

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Camera, Loader2, AlertCircle, Users, Sparkles, FolderOpen } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, AlertCircle, Users, Sparkles, FolderOpen, Baby, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +35,7 @@ export default function CreateTeamPage() {
   const [description, setDescription] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [folderId, setFolderId] = useState<string | null>(null);
+  const [teamType, setTeamType] = useState<"junior" | "senior" | "mixed">("mixed");
   const [saving, setSaving] = useState(false);
   const [adminAssignment, setAdminAssignment] = useState<TeamAdminAssignment | null>(null);
   
@@ -161,6 +162,7 @@ export default function CreateTeamPage() {
         description: description.trim() || null,
         logo_url: logoUrl || null,
         folder_id: folderId || null,
+        team_type: teamType,
         created_by: user!.id,
       })
       .select()
@@ -376,8 +378,57 @@ export default function CreateTeamPage() {
                 rows={4}
                 className="text-base resize-none bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors"
               />
-              <p className="text-xs text-muted-foreground text-right">
-                {description.length}/500
+              <p className="text-xs text-muted-foreground text-right">{description.length}/500</p>
+            </div>
+
+            {/* Team Type */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Team Type</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTeamType("junior")}
+                  className={`p-3 rounded-xl text-center transition-all border-2 ${
+                    teamType === "junior"
+                      ? "border-pink-500 bg-pink-500/10"
+                      : "border-border hover:border-pink-500/50"
+                  }`}
+                >
+                  <Baby className={`h-5 w-5 mx-auto mb-1 ${teamType === "junior" ? "text-pink-600" : "text-muted-foreground"}`} />
+                  <p className={`text-sm font-medium ${teamType === "junior" ? "text-pink-600" : ""}`}>Junior</p>
+                  <p className="text-[10px] text-muted-foreground">Kids only</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTeamType("senior")}
+                  className={`p-3 rounded-xl text-center transition-all border-2 ${
+                    teamType === "senior"
+                      ? "border-amber-500 bg-amber-500/10"
+                      : "border-border hover:border-amber-500/50"
+                  }`}
+                >
+                  <UserCheck className={`h-5 w-5 mx-auto mb-1 ${teamType === "senior" ? "text-amber-600" : "text-muted-foreground"}`} />
+                  <p className={`text-sm font-medium ${teamType === "senior" ? "text-amber-600" : ""}`}>Senior</p>
+                  <p className="text-[10px] text-muted-foreground">Adults only</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTeamType("mixed")}
+                  className={`p-3 rounded-xl text-center transition-all border-2 ${
+                    teamType === "mixed"
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover:border-primary/50"
+                  }`}
+                >
+                  <Users className={`h-5 w-5 mx-auto mb-1 ${teamType === "mixed" ? "text-primary" : "text-muted-foreground"}`} />
+                  <p className={`text-sm font-medium ${teamType === "mixed" ? "text-primary" : ""}`}>Mixed</p>
+                  <p className="text-[10px] text-muted-foreground">All ages</p>
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {teamType === "junior" && "Only parents with child players can be added"}
+                {teamType === "senior" && "Only adult players can be added (no parents/kids)"}
+                {teamType === "mixed" && "All member types can be added"}
               </p>
             </div>
 
