@@ -674,6 +674,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
             </div>
           </div>
 
+          {/* Parent role preview - shows what fields will be available */}
+          {selectedRole === "parent" && (
+            <div className="p-3 rounded-xl bg-pink-500/5 border border-pink-500/20 mb-5">
+              <div className="flex items-start gap-2">
+                <Baby className="h-4 w-4 text-pink-600 mt-0.5 shrink-0" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-pink-600">Adding a parent with child players</p>
+                  <p className="text-xs text-muted-foreground">
+                    After adding the parent, you'll be able to add their child's name and year of birth. 
+                    The child will be registered as a player when the parent accepts the invite.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <TabsContent value="single" className="space-y-5 mt-0">
             {/* Selected User Preview */}
             {selectedUser && (
