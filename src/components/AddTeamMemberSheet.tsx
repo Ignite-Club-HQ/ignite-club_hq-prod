@@ -43,8 +43,8 @@ interface AddTeamMemberSheetProps {
   clubId: string;
 }
 
-const roleOptions: { value: TeamRole; label: string; description: string; color: string }[] = [
-  { value: "parent", label: "Parent", description: "Add parent + child players", color: "bg-pink-500/20 text-pink-600 border-pink-500/30" },
+const roleOptions: { value: TeamRole; label: string; description: string; color: string; icon?: string }[] = [
+  { value: "parent", label: "Parent", description: "Add parent + child players", color: "bg-pink-500/20 text-pink-600 border-pink-500/30", icon: "👶" },
   { value: "player", label: "Adult Player", description: "18+ team player", color: "bg-amber-500/20 text-amber-600 border-amber-500/30" },
   { value: "coach", label: "Coach", description: "Team coach", color: "bg-emerald-500/20 text-emerald-600 border-emerald-500/30" },
   { value: "team_admin", label: "Team Admin", description: "Full admin access", color: "bg-blue-500/20 text-blue-600 border-blue-500/30" },
@@ -662,9 +662,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
                       : "border-border hover:border-primary/50 hover:bg-muted/50"
                   }`}
                 >
-                  <Badge variant="outline" className={`mb-1.5 ${opt.color}`}>
-                    {opt.label}
-                  </Badge>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Badge variant="outline" className={opt.color}>
+                      {opt.label}
+                    </Badge>
+                    {opt.icon && <span className="text-sm">{opt.icon}</span>}
+                  </div>
                   <p className="text-xs text-muted-foreground">{opt.description}</p>
                 </button>
               ))}
