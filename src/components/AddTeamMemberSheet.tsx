@@ -44,8 +44,8 @@ interface AddTeamMemberSheetProps {
 }
 
 const roleOptions: { value: TeamRole; label: string; description: string; color: string }[] = [
-  { value: "player", label: "Player", description: "Active team player", color: "bg-amber-500/20 text-amber-600 border-amber-500/30" },
-  { value: "parent", label: "Parent", description: "Parent/Guardian", color: "bg-pink-500/20 text-pink-600 border-pink-500/30" },
+  { value: "parent", label: "Parent", description: "Add parent + child players", color: "bg-pink-500/20 text-pink-600 border-pink-500/30" },
+  { value: "player", label: "Adult Player", description: "18+ team player", color: "bg-amber-500/20 text-amber-600 border-amber-500/30" },
   { value: "coach", label: "Coach", description: "Team coach", color: "bg-emerald-500/20 text-emerald-600 border-emerald-500/30" },
   { value: "team_admin", label: "Team Admin", description: "Full admin access", color: "bg-blue-500/20 text-blue-600 border-blue-500/30" },
 ];
@@ -63,13 +63,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
   } | null>(null);
   const [customName, setCustomName] = useState("");
   const [customEmail, setCustomEmail] = useState("");
-  const [selectedRole, setSelectedRole] = useState<TeamRole>("player");
+  const [selectedRole, setSelectedRole] = useState<TeamRole>("parent");
   const [copied, setCopied] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [isSendingNotification, setIsSendingNotification] = useState(false);
   const [mode, setMode] = useState<"single" | "bulk">("single");
   const [bulkMembers, setBulkMembers] = useState<BulkMember[]>([
-    { id: crypto.randomUUID(), name: "", email: "", role: "player", children: [] },
+    { id: crypto.randomUUID(), name: "", email: "", role: "parent", children: [] },
   ]);
   const [bulkResults, setBulkResults] = useState<{ name: string; email: string; link: string; sent: boolean; role?: string; childrenCount?: number }[]>([]);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
@@ -432,7 +432,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
     setSelectedUser(null);
     setCustomName("");
     setCustomEmail("");
-    setSelectedRole("player");
+    setSelectedRole("parent");
     setInviteLink(null);
     setCopied(false);
     setMode("single");
@@ -647,6 +647,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
           {/* Role Selection - shared between modes */}
           <div className="space-y-2 mb-5">
             <Label>Role</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              To add child players, select Parent and add their details
+            </p>
             <div className="grid grid-cols-2 gap-2">
               {roleOptions.map((opt) => (
                 <button
