@@ -6,10 +6,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Configuration
-const FAILURE_THRESHOLD_PERCENT = 20; // Alert if failure rate exceeds 20%
-const CHECK_WINDOW_HOURS = 24; // Look at last 24 hours
-const MIN_NOTIFICATIONS_FOR_ALERT = 10; // Minimum notifications before alerting
+// Default configuration (used if database settings not found)
+const DEFAULT_SETTINGS = {
+  failure_threshold_percent: 20,
+  check_window_hours: 24,
+  min_notifications: 10,
+  cooldown_hours: 6,
+  alerts_enabled: true,
+};
 
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -21,9 +25,33 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const windowStart = new Date(Date.now() - CHECK_WINDOW_HOURS * 60 * 60 * 1000);
+    // Load settings from database
+    const { data: settingsData } = await supabase
+      .from("push_alert_settings")
+      .select("*")
+      .limit(1)
+      .single();
 
-    // Get notification stats from the last 24 hours
+    const settings = settingsData || DEFAULT_SETTINGS;
+    
+    console.log(`Using settings: threshold=${settings.failure_threshold_percent}%, window=${settings.check_window_hours}h, min=${settings.min_notifications}, cooldown=${settings.cooldown_hours}h, enabled=${settings.alerts_enabled}`);
+
+    // Check if alerts are enabled
+    if (!settings.alerts_enabled) {
+      console.log("Push failure alerts are disabled");
+      return new Response(
+        JSON.stringify({ 
+          checked: true, 
+          alertSent: false, 
+          reason: "alerts_disabled"
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const windowStart = new Date(Date.now() - settings.check_window_hours * 60 * 60 * 1000);
+
+    // Get notification stats from the configured time window
     const { data: logs, error: logsError } = await supabase
       .from("push_notification_logs")
       .select("status")
@@ -34,8 +62,8 @@ serve(async (req: Request): Promise<Response> => {
       throw logsError;
     }
 
-    if (!logs || logs.length < MIN_NOTIFICATIONS_FOR_ALERT) {
-      console.log(`Only ${logs?.length || 0} notifications in window, skipping alert check (minimum: ${MIN_NOTIFICATIONS_FOR_ALERT})`);
+    if (!logs || logs.length < settings.min_notifications) {
+      console.log(`Only ${logs?.length || 0} notifications in window, skipping alert check (minimum: ${settings.min_notifications})`);
       return new Response(
         JSON.stringify({ 
           checked: true, 
@@ -54,10 +82,10 @@ serve(async (req: Request): Promise<Response> => {
     const sent = logs.filter(l => l.status === "sent").length;
     const failureRate = ((failed + expired) / total) * 100;
 
-    console.log(`Push notification stats (last ${CHECK_WINDOW_HOURS}h): ${total} total, ${sent} sent, ${failed} failed, ${expired} expired, ${failureRate.toFixed(1)}% failure rate`);
+    console.log(`Push notification stats (last ${settings.check_window_hours}h): ${total} total, ${sent} sent, ${failed} failed, ${expired} expired, ${failureRate.toFixed(1)}% failure rate`);
 
-    if (failureRate <= FAILURE_THRESHOLD_PERCENT) {
-      console.log(`Failure rate ${failureRate.toFixed(1)}% is within threshold (${FAILURE_THRESHOLD_PERCENT}%)`);
+    if (failureRate <= settings.failure_threshold_percent) {
+      console.log(`Failure rate ${failureRate.toFixed(1)}% is within threshold (${settings.failure_threshold_percent}%)`);
       return new Response(
         JSON.stringify({ 
           checked: true, 
@@ -69,8 +97,8 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Check if we already sent an alert recently (within last 6 hours)
-    const recentAlertWindow = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    // Check if we already sent an alert recently (based on cooldown setting)
+    const recentAlertWindow = new Date(Date.now() - settings.cooldown_hours * 60 * 60 * 1000);
     const { data: recentAlerts } = await supabase
       .from("admin_alerts")
       .select("id")
@@ -79,7 +107,7 @@ serve(async (req: Request): Promise<Response> => {
       .limit(1);
 
     if (recentAlerts && recentAlerts.length > 0) {
-      console.log("Alert already sent within last 6 hours, skipping");
+      console.log(`Alert already sent within last ${settings.cooldown_hours} hours, skipping`);
       return new Response(
         JSON.stringify({ 
           checked: true, 
@@ -153,7 +181,7 @@ serve(async (req: Request): Promise<Response> => {
             High failure rate detected: ${failureRate.toFixed(1)}%
           </p>
           <p style="color: #7f1d1d; margin: 0 0 20px 0;">
-            The push notification failure rate has exceeded the ${FAILURE_THRESHOLD_PERCENT}% threshold in the last ${CHECK_WINDOW_HOURS} hours.
+            The push notification failure rate has exceeded the ${settings.failure_threshold_percent}% threshold in the last ${settings.check_window_hours} hours.
           </p>
           
           <div style="background: white; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
@@ -196,7 +224,7 @@ serve(async (req: Request): Promise<Response> => {
           </div>
         </div>
         <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 16px;">
-          This is an automated alert from Ignite Club HQ. You will not receive another alert for 6 hours.
+          This is an automated alert from Ignite Club HQ. You will not receive another alert for ${settings.cooldown_hours} hours.
         </p>
       </div>
     `;
@@ -224,8 +252,9 @@ serve(async (req: Request): Promise<Response> => {
         failed,
         expired,
         failureRate: failureRate.toFixed(1),
-        threshold: FAILURE_THRESHOLD_PERCENT,
-        windowHours: CHECK_WINDOW_HOURS,
+        threshold: settings.failure_threshold_percent,
+        windowHours: settings.check_window_hours,
+        cooldownHours: settings.cooldown_hours,
         recipientCount: adminEmails.length,
       },
     });

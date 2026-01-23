@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
@@ -9,6 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { 
   Bell, 
   CheckCircle, 
@@ -19,9 +22,11 @@ import {
   Trash2,
   TrendingUp,
   TrendingDown,
-  Users
+  Users,
+  Settings,
+  Save
 } from "lucide-react";
-import { format, subDays, startOfDay, endOfDay } from "date-fns";
+import { format, subDays, startOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
@@ -57,11 +62,23 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   skipped: <Clock className="h-4 w-4 text-muted-foreground" />,
 };
 
+interface AlertSettings {
+  id: string;
+  failure_threshold_percent: number;
+  check_window_hours: number;
+  min_notifications: number;
+  cooldown_hours: number;
+  alerts_enabled: boolean;
+}
+
 export default function PushAnalyticsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [timeRange, setTimeRange] = useState("7");
   const [isCleaningUp, setIsCleaningUp] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [localSettings, setLocalSettings] = useState<AlertSettings | null>(null);
 
   // Check if user is admin
   const { data: isAdmin } = useQuery({
@@ -109,6 +126,47 @@ export default function PushAnalyticsPage() {
       return count || 0;
     },
     enabled: isAdmin === true,
+  });
+
+  // Fetch alert settings
+  const { data: alertSettings, isLoading: settingsLoading } = useQuery({
+    queryKey: ["push-alert-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("push_alert_settings")
+        .select("*")
+        .limit(1)
+        .single();
+
+      if (error) throw error;
+      if (!localSettings) setLocalSettings(data as AlertSettings);
+      return data as AlertSettings;
+    },
+    enabled: isAdmin === true,
+  });
+
+  // Update settings mutation
+  const updateSettings = useMutation({
+    mutationFn: async (settings: Partial<AlertSettings>) => {
+      if (!alertSettings?.id) throw new Error("No settings found");
+      const { error } = await supabase
+        .from("push_alert_settings")
+        .update({
+          ...settings,
+          updated_at: new Date().toISOString(),
+          updated_by: user?.id,
+        })
+        .eq("id", alertSettings.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["push-alert-settings"] });
+      toast({ title: "Settings saved", description: "Alert thresholds updated successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to save", description: error.message, variant: "destructive" });
+    },
   });
 
   // Calculate stats
@@ -194,6 +252,18 @@ export default function PushAnalyticsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button 
+              variant={showSettings ? "default" : "outline"} 
+              size="icon"
+              onClick={() => {
+                setShowSettings(!showSettings);
+                if (!showSettings && alertSettings) {
+                  setLocalSettings(alertSettings);
+                }
+              }}
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
             <Select value={timeRange} onValueChange={setTimeRange}>
               <SelectTrigger className="w-[140px]">
                 <SelectValue />
@@ -210,6 +280,163 @@ export default function PushAnalyticsPage() {
             </Button>
           </div>
         </div>
+
+        {/* Alert Settings Panel */}
+        {showSettings && (
+          <Card className="border-primary/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Alert Settings
+              </CardTitle>
+              <CardDescription>
+                Configure when email alerts are sent to app admins
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {settingsLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : localSettings ? (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="alerts-enabled">Enable Email Alerts</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Send email alerts when failure rate exceeds threshold
+                      </p>
+                    </div>
+                    <Switch
+                      id="alerts-enabled"
+                      checked={localSettings.alerts_enabled}
+                      onCheckedChange={(checked) => 
+                        setLocalSettings({ ...localSettings, alerts_enabled: checked })
+                      }
+                    />
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="threshold">Failure Threshold (%)</Label>
+                      <Input
+                        id="threshold"
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={localSettings.failure_threshold_percent}
+                        onChange={(e) => 
+                          setLocalSettings({ 
+                            ...localSettings, 
+                            failure_threshold_percent: parseInt(e.target.value) || 20 
+                          })
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Alert when failure rate exceeds this %
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="window">Check Window (hours)</Label>
+                      <Input
+                        id="window"
+                        type="number"
+                        min={1}
+                        max={168}
+                        value={localSettings.check_window_hours}
+                        onChange={(e) => 
+                          setLocalSettings({ 
+                            ...localSettings, 
+                            check_window_hours: parseInt(e.target.value) || 24 
+                          })
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Time window to analyze
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="min-notifications">Minimum Notifications</Label>
+                      <Input
+                        id="min-notifications"
+                        type="number"
+                        min={1}
+                        max={1000}
+                        value={localSettings.min_notifications}
+                        onChange={(e) => 
+                          setLocalSettings({ 
+                            ...localSettings, 
+                            min_notifications: parseInt(e.target.value) || 10 
+                          })
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Required before alerting
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="cooldown">Cooldown (hours)</Label>
+                      <Input
+                        id="cooldown"
+                        type="number"
+                        min={1}
+                        max={72}
+                        value={localSettings.cooldown_hours}
+                        onChange={(e) => 
+                          setLocalSettings({ 
+                            ...localSettings, 
+                            cooldown_hours: parseInt(e.target.value) || 6 
+                          })
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Time between alerts
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setLocalSettings(alertSettings || null);
+                        setShowSettings(false);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        updateSettings.mutate({
+                          failure_threshold_percent: localSettings.failure_threshold_percent,
+                          check_window_hours: localSettings.check_window_hours,
+                          min_notifications: localSettings.min_notifications,
+                          cooldown_hours: localSettings.cooldown_hours,
+                          alerts_enabled: localSettings.alerts_enabled,
+                        });
+                        setShowSettings(false);
+                      }}
+                      disabled={updateSettings.isPending}
+                    >
+                      {updateSettings.isPending ? (
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-2" />
+                      )}
+                      Save Settings
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">Failed to load settings</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Summary Cards */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
