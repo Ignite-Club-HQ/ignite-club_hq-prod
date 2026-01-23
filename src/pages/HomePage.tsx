@@ -1356,7 +1356,14 @@ export default function HomePage() {
           <Button 
             variant="outline" 
             className="w-full h-auto py-4 flex flex-col gap-2"
-            onClick={() => navigate("/clubs", { state: { fromCreateTeam: true } })}
+            onClick={() => {
+              // In club mode, go directly to the club detail page
+              if (activeClubFilter) {
+                navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
+              } else {
+                navigate("/clubs", { state: { fromCreateTeam: true } });
+              }
+            }}
           >
             <UserPlus className="h-5 w-5 text-primary" />
             <span className="text-sm">Create Team or Club</span>
