@@ -36,21 +36,42 @@ interface BulkMember {
 }
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
+type TeamType = "junior" | "senior" | "mixed";
 
 interface AddTeamMemberSheetProps {
   teamId: string;
   teamName: string;
   clubId: string;
+  teamType?: TeamType;
 }
 
-const roleOptions: { value: TeamRole; label: string; description: string; color: string; icon?: string }[] = [
-  { value: "parent", label: "Parent", description: "Add parent + child players", color: "bg-pink-500/20 text-pink-600 border-pink-500/30", icon: "👶" },
-  { value: "player", label: "Adult Player", description: "18+ team player", color: "bg-amber-500/20 text-amber-600 border-amber-500/30" },
+const allRoleOptions: { value: TeamRole; label: string; description: string; color: string; icon?: string; juniorOnly?: boolean; seniorOnly?: boolean }[] = [
+  { value: "parent", label: "Parent", description: "Add parent + child players", color: "bg-pink-500/20 text-pink-600 border-pink-500/30", icon: "👶", juniorOnly: true },
+  { value: "player", label: "Adult Player", description: "18+ team player", color: "bg-amber-500/20 text-amber-600 border-amber-500/30", seniorOnly: true },
   { value: "coach", label: "Coach", description: "Team coach", color: "bg-emerald-500/20 text-emerald-600 border-emerald-500/30" },
   { value: "team_admin", label: "Team Admin", description: "Full admin access", color: "bg-blue-500/20 text-blue-600 border-blue-500/30" },
 ];
 
-export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeamMemberSheetProps) {
+export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed" }: AddTeamMemberSheetProps) {
+  // Filter role options based on team type
+  const roleOptions = allRoleOptions.filter(opt => {
+    if (teamType === "junior") {
+      // Junior teams: no adult players
+      return !opt.seniorOnly;
+    } else if (teamType === "senior") {
+      // Senior teams: no parents/kids
+      return !opt.juniorOnly;
+    }
+    // Mixed: all roles
+    return true;
+  });
+  
+  // Get default role based on team type
+  const getDefaultRole = (): TeamRole => {
+    if (teamType === "senior") return "player";
+    return "parent"; // junior and mixed default to parent
+  };
+  
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -63,7 +84,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
   } | null>(null);
   const [customName, setCustomName] = useState("");
   const [customEmail, setCustomEmail] = useState("");
-  const [selectedRole, setSelectedRole] = useState<TeamRole>("parent");
+  const [selectedRole, setSelectedRole] = useState<TeamRole>(getDefaultRole());
   const [copied, setCopied] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [isSendingNotification, setIsSendingNotification] = useState(false);
@@ -432,11 +453,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
     setSelectedUser(null);
     setCustomName("");
     setCustomEmail("");
-    setSelectedRole("parent");
+    setSelectedRole(getDefaultRole());
     setInviteLink(null);
     setCopied(false);
     setMode("single");
-    setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: "player", children: [] }]);
+    setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [] }]);
     setBulkResults([]);
   };
 

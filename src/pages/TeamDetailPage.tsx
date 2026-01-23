@@ -754,6 +754,7 @@ export default function TeamDetailPage() {
                         teamId={id!} 
                         teamName={team.name} 
                         clubId={team.club_id}
+                        teamType={(team as any).team_type || "mixed"}
                       />
                     </div>
                   </div>
