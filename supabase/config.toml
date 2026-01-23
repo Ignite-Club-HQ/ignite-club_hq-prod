@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.cleanup-push-subscriptions]
 verify_jwt = false
+
+[functions.check-push-failure-rate]
+verify_jwt = false
