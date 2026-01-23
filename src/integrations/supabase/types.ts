@@ -3164,6 +3164,7 @@ export type Database = {
           logo_url: string | null
           name: string
           sponsor_id: string | null
+          team_type: string | null
           updated_at: string
         }
         Insert: {
@@ -3181,6 +3182,7 @@ export type Database = {
           logo_url?: string | null
           name: string
           sponsor_id?: string | null
+          team_type?: string | null
           updated_at?: string
         }
         Update: {
@@ -3198,6 +3200,7 @@ export type Database = {
           logo_url?: string | null
           name?: string
           sponsor_id?: string | null
+          team_type?: string | null
           updated_at?: string
         }
         Relationships: [

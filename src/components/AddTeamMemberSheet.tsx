@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Copy, Check, Send, Users, Plus, Trash2, Upload, Baby } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Copy, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar } from "lucide-react";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,21 +36,42 @@ interface BulkMember {
 }
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
+type TeamType = "junior" | "senior" | "mixed";
 
 interface AddTeamMemberSheetProps {
   teamId: string;
   teamName: string;
   clubId: string;
+  teamType?: TeamType;
 }
 
-const roleOptions: { value: TeamRole; label: string; description: string; color: string }[] = [
-  { value: "player", label: "Player", description: "Active team player", color: "bg-amber-500/20 text-amber-600 border-amber-500/30" },
-  { value: "parent", label: "Parent", description: "Parent/Guardian", color: "bg-pink-500/20 text-pink-600 border-pink-500/30" },
+const allRoleOptions: { value: TeamRole; label: string; description: string; color: string; icon?: string; juniorOnly?: boolean; seniorOnly?: boolean }[] = [
+  { value: "parent", label: "Parent", description: "Add parent + child players", color: "bg-pink-500/20 text-pink-600 border-pink-500/30", icon: "👶", juniorOnly: true },
+  { value: "player", label: "Adult Player", description: "18+ team player", color: "bg-amber-500/20 text-amber-600 border-amber-500/30", seniorOnly: true },
   { value: "coach", label: "Coach", description: "Team coach", color: "bg-emerald-500/20 text-emerald-600 border-emerald-500/30" },
   { value: "team_admin", label: "Team Admin", description: "Full admin access", color: "bg-blue-500/20 text-blue-600 border-blue-500/30" },
 ];
 
-export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeamMemberSheetProps) {
+export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed" }: AddTeamMemberSheetProps) {
+  // Filter role options based on team type
+  const roleOptions = allRoleOptions.filter(opt => {
+    if (teamType === "junior") {
+      // Junior teams: no adult players
+      return !opt.seniorOnly;
+    } else if (teamType === "senior") {
+      // Senior teams: no parents/kids
+      return !opt.juniorOnly;
+    }
+    // Mixed: all roles
+    return true;
+  });
+  
+  // Get default role based on team type
+  const getDefaultRole = (): TeamRole => {
+    if (teamType === "senior") return "player";
+    return "parent"; // junior and mixed default to parent
+  };
+  
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -63,13 +84,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
   } | null>(null);
   const [customName, setCustomName] = useState("");
   const [customEmail, setCustomEmail] = useState("");
-  const [selectedRole, setSelectedRole] = useState<TeamRole>("player");
+  const [selectedRole, setSelectedRole] = useState<TeamRole>(getDefaultRole());
   const [copied, setCopied] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [isSendingNotification, setIsSendingNotification] = useState(false);
   const [mode, setMode] = useState<"single" | "bulk">("single");
   const [bulkMembers, setBulkMembers] = useState<BulkMember[]>([
-    { id: crypto.randomUUID(), name: "", email: "", role: "player", children: [] },
+    { id: crypto.randomUUID(), name: "", email: "", role: "parent", children: [] },
   ]);
   const [bulkResults, setBulkResults] = useState<{ name: string; email: string; link: string; sent: boolean; role?: string; childrenCount?: number }[]>([]);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
@@ -432,11 +453,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
     setSelectedUser(null);
     setCustomName("");
     setCustomEmail("");
-    setSelectedRole("player");
+    setSelectedRole(getDefaultRole());
     setInviteLink(null);
     setCopied(false);
     setMode("single");
-    setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: "player", children: [] }]);
+    setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [] }]);
     setBulkResults([]);
   };
 
@@ -647,6 +668,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
           {/* Role Selection - shared between modes */}
           <div className="space-y-2 mb-5">
             <Label>Role</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              To add child players, select Parent and add their details
+            </p>
             <div className="grid grid-cols-2 gap-2">
               {roleOptions.map((opt) => (
                 <button
@@ -659,14 +683,47 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
                       : "border-border hover:border-primary/50 hover:bg-muted/50"
                   }`}
                 >
-                  <Badge variant="outline" className={`mb-1.5 ${opt.color}`}>
-                    {opt.label}
-                  </Badge>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Badge variant="outline" className={opt.color}>
+                      {opt.label}
+                    </Badge>
+                    {opt.icon && <span className="text-sm">{opt.icon}</span>}
+                  </div>
                   <p className="text-xs text-muted-foreground">{opt.description}</p>
                 </button>
               ))}
             </div>
           </div>
+
+          {/* Parent role preview - shows what fields will be available */}
+          {selectedRole === "parent" && (
+            <div className="p-3 rounded-xl bg-pink-500/5 border border-pink-500/20 mb-5">
+              <div className="flex items-start gap-2">
+                <Baby className="h-4 w-4 text-pink-600 mt-0.5 shrink-0" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-pink-600">Adding a parent with child players</p>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    After adding the parent, you'll be able to add their child's details. 
+                    The child will be registered as a player when the parent accepts the invite.
+                  </p>
+                  {/* Example child fields preview */}
+                  <div className="bg-background/50 rounded-lg p-2 border border-pink-500/10">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Example child fields:</p>
+                    <div className="flex flex-wrap gap-2">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <User className="h-3 w-3" />
+                        <span>Child's Name</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>Year of Birth</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <TabsContent value="single" className="space-y-5 mt-0">
             {/* Selected User Preview */}
@@ -823,6 +880,34 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId }: AddTeam
               <p className="text-sm text-muted-foreground">
                 Add multiple members at once. Include emails to auto-send unique invite links.
               </p>
+              
+              {/* Parent role preview hint for bulk tab */}
+              {selectedRole === "parent" && (
+                <div className="p-3 rounded-xl bg-pink-500/5 border border-pink-500/20">
+                  <div className="flex items-start gap-2">
+                    <Baby className="h-4 w-4 text-pink-600 mt-0.5 shrink-0" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-pink-600">Adding parents with child players</p>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        For each parent row, you can add their children's details below.
+                      </p>
+                      <div className="bg-background/50 rounded-lg p-2 border border-pink-500/10">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Child fields per parent:</p>
+                        <div className="flex flex-wrap gap-2">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <User className="h-3 w-3" />
+                            <span>Child's Name</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            <span>Year of Birth</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               {/* CSV Import */}
               <div className="flex gap-2">
