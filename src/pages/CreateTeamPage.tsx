@@ -33,7 +33,7 @@ export default function CreateTeamPage() {
   const [name, setName] = useState("");
   const [levelAge, setLevelAge] = useState("");
   const [description, setDescription] = useState("");
-  const [logoUrl, setLogoUrl] = useState("");
+  
   const [folderId, setFolderId] = useState<string | null>(null);
   const [teamType, setTeamType] = useState<"junior" | "senior" | "mixed">("mixed");
   const [saving, setSaving] = useState(false);
@@ -102,13 +102,17 @@ export default function CreateTeamPage() {
     clubSubscription?.team_limit !== undefined &&
     teamCount >= clubSubscription.team_limit;
 
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState("");
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setLogoFile(file);
     const reader = new FileReader();
     reader.onloadend = () => {
-      setLogoUrl(reader.result as string);
+      setLogoPreview(reader.result as string);
     };
     reader.readAsDataURL(file);
   };
@@ -152,7 +156,7 @@ export default function CreateTeamPage() {
       return;
     }
 
-    // Create the team
+    // Create the team (without logo - will update after upload)
     const { data: team, error: teamError } = await supabase
       .from("teams")
       .insert({
@@ -160,7 +164,7 @@ export default function CreateTeamPage() {
         club_id: clubId!,
         level_age: levelAge.trim() || null,
         description: description.trim() || null,
-        logo_url: logoUrl || null,
+        logo_url: null, // Will be updated after upload
         folder_id: folderId || null,
         team_type: teamType,
         created_by: user!.id,
@@ -185,6 +189,31 @@ export default function CreateTeamPage() {
         });
       }
       return;
+    }
+
+    // Upload logo to storage if one was selected
+    if (logoFile) {
+      try {
+        const fileExt = logoFile.name.split('.').pop();
+        const fileName = `${clubId}/${team.id}/${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('club-logos')
+          .upload(fileName, logoFile, { upsert: true });
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from('club-logos')
+            .getPublicUrl(fileName);
+
+          await supabase
+            .from("teams")
+            .update({ logo_url: urlData.publicUrl })
+            .eq("id", team.id);
+        }
+      } catch (error) {
+        console.error('Team logo upload error:', error);
+      }
     }
 
     // Handle admin assignment
@@ -311,7 +340,7 @@ export default function CreateTeamPage() {
             <div className="relative group">
               <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 to-primary/30 rounded-full blur opacity-40 group-hover:opacity-60 transition-opacity" />
               <Avatar className="relative h-32 w-32 border-4 border-background shadow-xl">
-                <AvatarImage src={logoUrl || undefined} className="object-cover" />
+                <AvatarImage src={logoPreview || undefined} className="object-cover" />
                 <AvatarFallback className="bg-muted text-muted-foreground text-4xl">
                   {name.charAt(0)?.toUpperCase() || <Users className="h-12 w-12" />}
                 </AvatarFallback>

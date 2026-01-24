@@ -27,17 +27,24 @@ export default function CreateClubPage() {
   
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [logoUrl, setLogoUrl] = useState("");
+  
   const [sport, setSport] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState("");
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Store the file for upload after club creation
+    setLogoFile(file);
+    
+    // Create a preview URL
     const reader = new FileReader();
     reader.onloadend = () => {
-      setLogoUrl(reader.result as string);
+      setLogoPreview(reader.result as string);
     };
     reader.readAsDataURL(file);
   };
@@ -71,13 +78,13 @@ export default function CreateClubPage() {
       return;
     }
 
-    // Create the club
+    // Create the club first (without logo)
     const { data: club, error: clubError } = await supabase
       .from("clubs")
       .insert({
         name: name.trim(),
         description: description.trim() || null,
-        logo_url: logoUrl || null,
+        logo_url: null, // Will be updated after upload
         sport: sport || null,
         created_by: user!.id,
       })
@@ -94,6 +101,36 @@ export default function CreateClubPage() {
         variant: "destructive",
       });
       return;
+    }
+
+    // Upload logo to storage if one was selected
+    let finalLogoUrl: string | null = null;
+    if (logoFile) {
+      try {
+        const fileExt = logoFile.name.split('.').pop();
+        const fileName = `${club.id}/${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('club-logos')
+          .upload(fileName, logoFile, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('club-logos')
+          .getPublicUrl(fileName);
+
+        finalLogoUrl = urlData.publicUrl;
+
+        // Update the club with the logo URL
+        await supabase
+          .from("clubs")
+          .update({ logo_url: finalLogoUrl })
+          .eq("id", club.id);
+      } catch (error) {
+        console.error('Logo upload error:', error);
+        // Continue without logo - club is still created
+      }
     }
 
     // Assign creator as club_admin
@@ -145,7 +182,7 @@ export default function CreateClubPage() {
             <div className="relative group">
               <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 to-primary/30 rounded-full blur opacity-40 group-hover:opacity-60 transition-opacity" />
               <Avatar className="relative h-32 w-32 border-4 border-background shadow-xl">
-                <AvatarImage src={logoUrl || undefined} className="object-cover" />
+                <AvatarImage src={logoPreview || undefined} className="object-cover" />
                 <AvatarFallback className="bg-muted text-muted-foreground text-4xl">
                   {name.charAt(0)?.toUpperCase() || <Building2 className="h-12 w-12" />}
                 </AvatarFallback>

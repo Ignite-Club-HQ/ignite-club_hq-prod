@@ -74,15 +74,42 @@ export default function EditTeamPage() {
     }
   }, [team]);
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const [uploading, setUploading] = useState(false);
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setLogoUrl(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id || !team?.club_id) return;
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${team.club_id}/${id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('club-logos')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('club-logos')
+        .getPublicUrl(fileName);
+
+      setLogoUrl(urlData.publicUrl);
+      toast({
+        title: "Logo uploaded",
+        description: "Your team logo has been uploaded successfully.",
+      });
+    } catch (error) {
+      console.error('Logo upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload logo. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -172,13 +199,18 @@ export default function EditTeamPage() {
                   {name.charAt(0)?.toUpperCase() || "T"}
                 </AvatarFallback>
               </Avatar>
-              <label className="absolute bottom-0 right-0 p-2.5 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors shadow-lg">
-                <Camera className="h-5 w-5 text-primary-foreground" />
+              <label className={`absolute bottom-0 right-0 p-2.5 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors shadow-lg ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                {uploading ? (
+                  <Loader2 className="h-5 w-5 text-primary-foreground animate-spin" />
+                ) : (
+                  <Camera className="h-5 w-5 text-primary-foreground" />
+                )}
                 <input
                   type="file"
                   accept="image/*"
                   className="hidden"
                   onChange={handleLogoUpload}
+                  disabled={uploading}
                 />
               </label>
             </div>
