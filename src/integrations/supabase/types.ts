@@ -2824,7 +2824,7 @@ export type Database = {
           id: string
           name: string
           sort_order: number
-          team_id: string
+          team_id: string | null
           updated_at: string
         }
         Insert: {
@@ -2836,7 +2836,7 @@ export type Database = {
           id?: string
           name: string
           sort_order?: number
-          team_id: string
+          team_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -2848,7 +2848,7 @@ export type Database = {
           id?: string
           name?: string
           sort_order?: number
-          team_id?: string
+          team_id?: string | null
           updated_at?: string
         }
         Relationships: [
