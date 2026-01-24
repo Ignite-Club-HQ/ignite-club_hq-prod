@@ -29,6 +29,18 @@ async function sendTemplateEmail(
   }
 }
 
+// Check if user has email admin notifications enabled
+async function isEmailAdminEnabled(supabase: any, userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("notification_preferences")
+    .select("email_admin_enabled")
+    .eq("user_id", userId)
+    .single();
+  
+  // Default to true if no preferences set
+  return data?.email_admin_enabled ?? true;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -146,6 +158,13 @@ Deno.serve(async (req) => {
 
           if (adminEmails && adminEmails.length > 0) {
             for (const admin of adminEmails) {
+              // Check if user has email admin notifications enabled
+              const emailEnabled = await isEmailAdminEnabled(supabase, admin.user_id);
+              if (!emailEnabled) {
+                console.log(`User ${admin.user_id} has email_admin_enabled=false, skipping renewal email`);
+                continue;
+              }
+              
               const recipientName = profileMap.get(admin.user_id) || undefined;
               
               await sendTemplateEmail(
@@ -256,6 +275,13 @@ Deno.serve(async (req) => {
 
           if (adminEmails && adminEmails.length > 0) {
             for (const admin of adminEmails) {
+              // Check if user has email admin notifications enabled
+              const emailEnabled = await isEmailAdminEnabled(supabase, admin.user_id);
+              if (!emailEnabled) {
+                console.log(`User ${admin.user_id} has email_admin_enabled=false, skipping renewal email`);
+                continue;
+              }
+              
               const recipientName = profileMap.get(admin.user_id) || undefined;
               
               await sendTemplateEmail(
