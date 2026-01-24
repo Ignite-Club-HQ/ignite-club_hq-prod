@@ -1222,7 +1222,11 @@ export default function TeamDetailPage() {
                   </div>
                 ) : (isTeamPro || isAppAdmin) ? (
                   <div className="pt-2">
-                    <TeamRewardsManager teamId={id!} clubId={team.club_id} />
+                    <TeamRewardsManager 
+                      teamId={id!} 
+                      clubId={team.club_id} 
+                      disableTeamOverrides={clubSubscription?.disable_team_pom_rewards || false}
+                    />
                   </div>
                 ) : (
                   <div className="pt-2 text-center text-muted-foreground py-4">

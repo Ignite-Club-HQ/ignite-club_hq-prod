@@ -91,6 +91,40 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
   const [uploadingQr, setUploadingQr] = useState(false);
   const hasCreatedDefault = useRef(false);
 
+  // Fetch club subscription settings
+  const { data: clubSubscription } = useQuery({
+    queryKey: ["club-subscription-rewards", clubId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("club_subscriptions")
+        .select("disable_team_pom_rewards")
+        .eq("club_id", clubId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Toggle team POM rewards setting
+  const toggleTeamPomRewardsMutation = useMutation({
+    mutationFn: async (disabled: boolean) => {
+      const { error } = await supabase
+        .from("club_subscriptions")
+        .update({ disable_team_pom_rewards: disabled })
+        .eq("club_id", clubId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["club-subscription-rewards", clubId] });
+      queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+      toast({ 
+        title: clubSubscription?.disable_team_pom_rewards 
+          ? "Team admins can now create custom rewards" 
+          : "Team reward overrides disabled" 
+      });
+    },
+  });
+
   // Fetch sponsors for this club
   const { data: sponsors = [] } = useQuery({
     queryKey: ["sponsors", clubId],
@@ -381,6 +415,26 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
           </Button>
         </div>
       </div>
+
+      {/* Team Override Settings */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-amber-500" />
+              <span className="font-medium text-sm">Lock Player of Match Rewards</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Prevent team admins from creating their own Player of Match rewards
+            </p>
+          </div>
+          <Switch
+            checked={clubSubscription?.disable_team_pom_rewards || false}
+            onCheckedChange={(checked) => toggleTeamPomRewardsMutation.mutate(checked)}
+            disabled={toggleTeamPomRewardsMutation.isPending}
+          />
+        </div>
+      </Card>
 
       {/* Rewards List */}
       <div className="space-y-3">

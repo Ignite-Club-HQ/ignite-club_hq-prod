@@ -671,6 +671,7 @@ export type Database = {
           admin_pro_override: boolean
           club_id: string
           created_at: string
+          disable_team_pom_rewards: boolean
           expires_at: string | null
           id: string
           is_pro: boolean
@@ -697,6 +698,7 @@ export type Database = {
           admin_pro_override?: boolean
           club_id: string
           created_at?: string
+          disable_team_pom_rewards?: boolean
           expires_at?: string | null
           id?: string
           is_pro?: boolean
@@ -723,6 +725,7 @@ export type Database = {
           admin_pro_override?: boolean
           club_id?: string
           created_at?: string
+          disable_team_pom_rewards?: boolean
           expires_at?: string | null
           id?: string
           is_pro?: boolean
