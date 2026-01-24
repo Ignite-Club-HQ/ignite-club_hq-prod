@@ -27,6 +27,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { CreateTeamFolderDialog } from "@/components/CreateTeamFolderDialog";
 
 interface TeamFolder {
   id: string;
@@ -83,12 +84,12 @@ export default function TeamFoldersManager({ clubId, isAdmin }: TeamFoldersManag
   });
 
   const createFolderMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (params: { name: string; description: string; color: string }) => {
       const { error } = await supabase.from("team_folders").insert({
         club_id: clubId,
-        name: folderName.trim(),
-        description: folderDescription.trim() || null,
-        color: folderColor,
+        name: params.name,
+        description: params.description || null,
+        color: params.color,
         sort_order: folders.length,
         created_by: user?.id,
       } as any);
@@ -97,9 +98,6 @@ export default function TeamFoldersManager({ clubId, isAdmin }: TeamFoldersManag
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-folders", clubId] });
       setCreateDialogOpen(false);
-      setFolderName("");
-      setFolderDescription("");
-      setFolderColor("default");
       toast({ title: "Folder created" });
     },
     onError: () => {
@@ -236,107 +234,14 @@ export default function TeamFoldersManager({ clubId, isAdmin }: TeamFoldersManag
         <Button variant="outline" size="sm" onClick={() => setCreateDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-1" /> Add Folder
         </Button>
-        <ResponsiveDialog open={createDialogOpen} onOpenChange={(open) => {
-          if (!open) {
-            setFolderName("");
-            setFolderDescription("");
-            setFolderColor("default");
+        <CreateTeamFolderDialog
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
+          onCreateFolder={(name, description, color) => 
+            createFolderMutation.mutate({ name, description, color })
           }
-          setCreateDialogOpen(open);
-        }}>
-          <ResponsiveDialogContent className="sm:max-w-md">
-            <ResponsiveDialogHeader>
-              <ResponsiveDialogTitle>Create Team Folder</ResponsiveDialogTitle>
-            </ResponsiveDialogHeader>
-
-            <div className="py-6 space-y-6">
-              {/* Icon */}
-              <div className="flex justify-center">
-                <div className="h-20 w-20 rounded-2xl bg-primary/10 flex items-center justify-center">
-                  <FolderPlus className="h-10 w-10 text-primary" />
-                </div>
-              </div>
-
-              {/* Folder Name Input */}
-              <div className="space-y-2">
-                <Input
-                  id="folder-name"
-                  placeholder="Enter folder name"
-                  value={folderName}
-                  onChange={(e) => setFolderName(e.target.value)}
-                  className="text-center text-lg h-12"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && folderName.trim() && !createFolderMutation.isPending) {
-                      createFolderMutation.mutate();
-                    }
-                  }}
-                />
-                <p className="text-sm text-muted-foreground text-center">
-                  Organize your teams into folders
-                </p>
-              </div>
-
-              {/* Description */}
-              <div className="space-y-2">
-                <Label htmlFor="folder-description" className="text-sm font-medium">
-                  Description (optional)
-                </Label>
-                <Textarea
-                  id="folder-description"
-                  placeholder="Optional description for this folder"
-                  value={folderDescription}
-                  onChange={(e) => setFolderDescription(e.target.value)}
-                  rows={2}
-                  className="resize-none"
-                />
-              </div>
-
-              {/* Color Selection */}
-              <div className="space-y-3">
-                <Label className="text-sm font-medium">Folder Color</Label>
-                <div className="flex flex-wrap justify-center gap-3">
-                  {FOLDER_COLORS.map((color) => (
-                    <button
-                      key={color.value}
-                      type="button"
-                      onClick={() => setFolderColor(color.value)}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${color.bgClassName} ${
-                        folderColor === color.value ? "ring-2 ring-offset-2 ring-primary scale-110" : "hover:scale-105"
-                      }`}
-                    >
-                      <Folder className={`h-5 w-5 ${color.className}`} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <ResponsiveDialogFooter className="gap-2 sm:gap-0">
-              <Button 
-                variant="outline" 
-                onClick={() => setCreateDialogOpen(false)}
-                className="flex-1 sm:flex-none"
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={() => createFolderMutation.mutate()}
-                disabled={!folderName.trim() || createFolderMutation.isPending}
-                className="flex-1 sm:flex-none"
-              >
-                {createFolderMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  "Create Folder"
-                )}
-              </Button>
-            </ResponsiveDialogFooter>
-          </ResponsiveDialogContent>
-        </ResponsiveDialog>
+          isCreating={createFolderMutation.isPending}
+        />
       </div>
 
       {isLoading ? (
