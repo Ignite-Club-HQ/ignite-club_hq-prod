@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Fingerprint, User, X, Loader2 } from "lucide-react";
+import { Fingerprint, User, X, Loader2, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ interface PasskeyAccountSelectorProps {
   onOpenChange: (open: boolean) => void;
   accounts: PasskeyAccount[];
   onSelectAccount: (email: string) => Promise<void>;
+  onRemoveAccount?: (email: string) => void;
   loading?: boolean;
   selectedEmail?: string | null;
 }
@@ -26,6 +27,7 @@ export function PasskeyAccountSelector({
   onOpenChange,
   accounts,
   onSelectAccount,
+  onRemoveAccount,
   loading = false,
   selectedEmail = null,
 }: PasskeyAccountSelectorProps) {
@@ -38,6 +40,11 @@ export function PasskeyAccountSelector({
     } finally {
       setAuthenticatingEmail(null);
     }
+  };
+
+  const handleRemoveAccount = (e: React.MouseEvent, email: string) => {
+    e.stopPropagation();
+    onRemoveAccount?.(email);
   };
 
   return (
@@ -96,11 +103,22 @@ export function PasskeyAccountSelector({
                       {account.email}
                     </p>
                   </div>
-                  {isAuthenticating && (
-                    <span className="text-xs text-primary font-medium">
-                      Authenticating...
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {isAuthenticating && (
+                      <span className="text-xs text-primary font-medium">
+                        Authenticating...
+                      </span>
+                    )}
+                    {onRemoveAccount && !isAuthenticating && (
+                      <button
+                        onClick={(e) => handleRemoveAccount(e, account.email)}
+                        className="p-1.5 rounded-full hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Remove account"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </button>
               );
             })}
