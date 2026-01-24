@@ -51,7 +51,10 @@ export function CreateTeamFolderDialog({
 
   // Detect keyboard visibility on mobile
   useEffect(() => {
-    if (!isMobile) return;
+    if (!isMobile || !open) {
+      setKeyboardVisible(false);
+      return;
+    }
     
     const handleResize = () => {
       const viewportHeight = window.visualViewport?.height || window.innerHeight;
@@ -61,27 +64,36 @@ export function CreateTeamFolderDialog({
 
     window.visualViewport?.addEventListener('resize', handleResize);
     window.addEventListener('resize', handleResize);
+    handleResize();
     
     return () => {
       window.visualViewport?.removeEventListener('resize', handleResize);
       window.removeEventListener('resize', handleResize);
     };
-  }, [isMobile]);
+  }, [isMobile, open]);
+
+  // Reset state when closing
+  useEffect(() => {
+    if (!open) {
+      // Small delay to allow close animation
+      const timer = setTimeout(() => {
+        setFolderName("");
+        setFolderDescription("");
+        setFolderColor("default");
+        setKeyboardVisible(false);
+        // Remove focus from any focused element to prevent blue button state
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [open]);
 
   const handleCreate = () => {
     if (folderName.trim()) {
       onCreateFolder(folderName.trim(), folderDescription.trim(), folderColor);
     }
-  };
-
-  const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen) {
-      setFolderName("");
-      setFolderDescription("");
-      setFolderColor("default");
-      setKeyboardVisible(false);
-    }
-    onOpenChange(newOpen);
   };
 
   const formContent = (
@@ -152,7 +164,7 @@ export function CreateTeamFolderDialog({
     <div className="flex gap-2">
       <Button
         variant="outline"
-        onClick={() => handleOpenChange(false)}
+        onClick={() => onOpenChange(false)}
         className="flex-1"
       >
         Cancel
@@ -176,21 +188,16 @@ export function CreateTeamFolderDialog({
 
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={handleOpenChange}>
-        <DrawerContent 
-          className={keyboardVisible ? "h-[100dvh] rounded-none" : ""}
-        >
-          <div className={keyboardVisible 
-            ? "flex flex-col h-full px-4 pb-safe" 
-            : "mx-auto w-full max-w-lg px-4 pb-safe"
-          }>
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent>
+          <div className="mx-auto w-full max-w-lg px-4 pb-safe">
             <DrawerHeader className="px-0">
               <DrawerTitle className="flex items-center gap-2">
                 <FolderPlus className="h-5 w-5 text-primary" />
                 Create Team Folder
               </DrawerTitle>
             </DrawerHeader>
-            <div className="flex-1 py-2">
+            <div className="py-2">
               {formContent}
             </div>
             <div className="py-4">
@@ -203,7 +210,7 @@ export function CreateTeamFolderDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
