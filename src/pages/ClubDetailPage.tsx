@@ -67,7 +67,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import AddMemberDialog from "@/components/AddMemberDialog";
+import AddClubAdminSheet from "@/components/AddClubAdminSheet";
 import AwardPointsDialog from "@/components/AwardPointsDialog";
 import { getFolderColorClass, FOLDER_COLORS } from "@/components/TeamFoldersManager";
 import ClubInviteLinkDialog from "@/components/ClubInviteLinkDialog";
@@ -1465,10 +1465,9 @@ export default function ClubDetailPage() {
                 {isAdmin && (
                   <div className="flex items-center gap-2 justify-end mb-3">
                     <ClubInviteLinkDialog clubId={id!} clubName={club.name} />
-                    <AddMemberDialog 
-                      type="club" 
-                      entityId={id!} 
-                      entityName={club.name}
+                    <AddClubAdminSheet 
+                      clubId={id!}
+                      clubName={club.name}
                     />
                   </div>
                 )}
