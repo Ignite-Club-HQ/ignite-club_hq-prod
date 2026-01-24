@@ -187,7 +187,7 @@ export default function ClubDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("*, team_folders(id, name)")
+        .select("*, team_folders!teams_folder_id_fkey(id, name)")
         .eq("club_id", id!)
         .order("name");
 
