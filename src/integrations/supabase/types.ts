@@ -559,6 +559,7 @@ export type Database = {
           reward_type: string
           show_qr_code: boolean
           sponsor_id: string | null
+          team_id: string | null
           updated_at: string
         }
         Insert: {
@@ -575,6 +576,7 @@ export type Database = {
           reward_type?: string
           show_qr_code?: boolean
           sponsor_id?: string | null
+          team_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -591,6 +593,7 @@ export type Database = {
           reward_type?: string
           show_qr_code?: boolean
           sponsor_id?: string | null
+          team_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -606,6 +609,13 @@ export type Database = {
             columns: ["sponsor_id"]
             isOneToOne: false
             referencedRelation: "sponsors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_rewards_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -661,6 +671,7 @@ export type Database = {
           admin_pro_override: boolean
           club_id: string
           created_at: string
+          disable_team_pom_rewards: boolean
           expires_at: string | null
           id: string
           is_pro: boolean
@@ -687,6 +698,7 @@ export type Database = {
           admin_pro_override?: boolean
           club_id: string
           created_at?: string
+          disable_team_pom_rewards?: boolean
           expires_at?: string | null
           id?: string
           is_pro?: boolean
@@ -713,6 +725,7 @@ export type Database = {
           admin_pro_override?: boolean
           club_id?: string
           created_at?: string
+          disable_team_pom_rewards?: boolean
           expires_at?: string | null
           id?: string
           is_pro?: boolean
@@ -1630,6 +1643,7 @@ export type Database = {
           paid_at: string | null
           payment_period: string
           payment_status: string
+          payment_type: string
           stripe_payment_intent_id: string | null
           updated_at: string
           user_id: string
@@ -1643,6 +1657,7 @@ export type Database = {
           paid_at?: string | null
           payment_period: string
           payment_status?: string
+          payment_type?: string
           stripe_payment_intent_id?: string | null
           updated_at?: string
           user_id: string
@@ -1656,6 +1671,7 @@ export type Database = {
           paid_at?: string | null
           payment_period?: string
           payment_status?: string
+          payment_type?: string
           stripe_payment_intent_id?: string | null
           updated_at?: string
           user_id?: string

@@ -80,17 +80,36 @@ export default function PlayerOfMatchSelector({
     },
   });
 
-  // Fetch POM reward for this club
+  // Fetch POM reward - team-specific first, then club-level fallback
   const { data: pomReward } = useQuery({
-    queryKey: ["pom-reward", clubId],
+    queryKey: ["pom-reward", clubId, teamId],
     queryFn: async () => {
+      // First try team-specific reward
+      if (teamId) {
+        const { data: teamReward, error: teamError } = await supabase
+          .from("club_rewards")
+          .select("*")
+          .eq("club_id", clubId)
+          .eq("team_id", teamId)
+          .eq("reward_type", "player_of_match")
+          .eq("is_active", true)
+          .maybeSingle();
+        
+        if (!teamError && teamReward) {
+          return teamReward;
+        }
+      }
+      
+      // Fall back to club-level reward (team_id is null)
       const { data, error } = await supabase
         .from("club_rewards")
         .select("*")
         .eq("club_id", clubId)
+        .is("team_id", null)
         .eq("reward_type", "player_of_match")
         .eq("is_active", true)
         .maybeSingle();
+      
       if (error) throw error;
       return data;
     },

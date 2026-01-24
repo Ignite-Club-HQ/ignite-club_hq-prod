@@ -62,6 +62,7 @@ import MemberSubscriptionPaymentsManager from "@/components/MemberSubscriptionPa
 import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import { TeamSponsorSelector } from "@/components/TeamSponsorSelector";
 import PendingInvitesList from "@/components/PendingInvitesList";
+import TeamRewardsManager from "@/components/TeamRewardsManager";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -1129,7 +1130,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isSubscriptionLoading && !isTeamPro && !isAppAdmin}>
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Subscription Fees</span>
+                  <span className="text-lg font-semibold">Fee Payments</span>
                   {/* Only show Pro lock when NOT loading AND NOT Pro AND NOT AppAdmin */}
                   {!isSubscriptionLoading && !isTeamPro && !isAppAdmin && (
                     <div className="flex items-center gap-1.5 ml-2">
@@ -1188,6 +1189,43 @@ export default function TeamDetailPage() {
                       teamId={id!}
                       currentSponsorId={team.sponsor_id || null}
                       onUpdate={() => queryClient.invalidateQueries({ queryKey: ["team", id] })}
+                    />
+                  </div>
+                ) : (
+                  <div className="pt-2 text-center text-muted-foreground py-4">
+                    Upgrade to Pro to access this feature.
+                  </div>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          )}
+
+          {/* Team Rewards Section - Pro only */}
+          {isAdmin && team.club_id && (
+            <AccordionItem value="team-rewards" className="border rounded-lg px-4" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
+              <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
+                <div className="flex items-center gap-2">
+                  <Flame className="h-5 w-5 text-primary" />
+                  <span className="text-lg font-semibold">Team Rewards</span>
+                  {!isTeamPro && !isAppAdmin && !isSubscriptionLoading && (
+                    <div className="flex items-center gap-1.5 ml-2">
+                      <Lock className="h-4 w-4 text-muted-foreground" />
+                      <Badge variant="outline" className="text-xs font-normal">Pro</Badge>
+                    </div>
+                  )}
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                {isSubscriptionLoading ? (
+                  <div className="pt-2 flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (isTeamPro || isAppAdmin) ? (
+                  <div className="pt-2">
+                    <TeamRewardsManager 
+                      teamId={id!} 
+                      clubId={team.club_id} 
+                      disableTeamOverrides={clubSubscription?.disable_team_pom_rewards || false}
                     />
                   </div>
                 ) : (
