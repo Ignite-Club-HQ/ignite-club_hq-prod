@@ -372,8 +372,8 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    // Use Resend's verified test sender by default
-    const sender = from || "Ignite Club HQ <onboarding@resend.dev>";
+    // Use verified domain sender
+    const sender = from || "Ignite Club HQ <support@igniteclubhq.app>";
 
     console.log(`Sending ${template || 'custom'} email to ${toArray.length} recipient(s)`);
 
