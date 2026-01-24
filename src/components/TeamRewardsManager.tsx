@@ -278,12 +278,7 @@ export default function TeamRewardsManager({ teamId, clubId, disableTeamOverride
                       {activeReward.description}
                     </p>
                   )}
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30">
-                      <Star className="h-3 w-3 mr-1 fill-current" />
-                      {activeReward.points_required} points
-                    </Badge>
-                  </div>
+                  {/* POM rewards are awarded by selection, not points-based */}
                 </div>
               </div>
 
@@ -373,19 +368,7 @@ export default function TeamRewardsManager({ teamId, clubId, disableTeamOverride
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="reward-points">Points to Award</Label>
-              <Input
-                id="reward-points"
-                type="number"
-                min={0}
-                value={pointsRequired}
-                onChange={(e) => setPointsRequired(parseInt(e.target.value) || 0)}
-              />
-              <p className="text-xs text-muted-foreground">
-                The selected Player of the Match will earn these Ignite points.
-              </p>
-            </div>
+            {/* POM rewards are awarded by selection, not points-based - no points field needed */}
           </div>
 
           <ResponsiveDialogFooter>
