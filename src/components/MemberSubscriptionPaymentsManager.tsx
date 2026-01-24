@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, CreditCard, X, Loader2, ExternalLink } from "lucide-react";
+import { Check, CreditCard, X, Loader2, ExternalLink, Shirt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+
+type PaymentType = "subscription" | "uniform";
 
 interface Member {
   profile: {
@@ -56,6 +59,7 @@ export default function MemberSubscriptionPaymentsManager({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
+  const [activeTab, setActiveTab] = useState<PaymentType>("subscription");
   const [selectedMember, setSelectedMember] = useState<{
     userId: string;
     displayName: string;
@@ -74,7 +78,7 @@ export default function MemberSubscriptionPaymentsManager({
   const memberIds = Object.keys(members);
   
   const { data: payments = [], isLoading: isPaymentsLoading } = useQuery({
-    queryKey: ["member-subscription-payments", clubId, memberIds.join(","), paymentPeriod],
+    queryKey: ["member-subscription-payments", clubId, memberIds.join(","), paymentPeriod, activeTab],
     queryFn: async () => {
       if (memberIds.length === 0) return [];
       const { data, error } = await supabase
@@ -82,6 +86,7 @@ export default function MemberSubscriptionPaymentsManager({
         .select("*")
         .eq("club_id", clubId)
         .eq("payment_period", paymentPeriod)
+        .eq("payment_type", activeTab)
         .in("user_id", memberIds);
       if (error) throw error;
       return data || [];
@@ -90,7 +95,6 @@ export default function MemberSubscriptionPaymentsManager({
   });
 
   // Fetch club subscription for member payment settings
-  // IMPORTANT: Use a different query key to avoid overwriting the full club-subscription cache
   const { data: clubPaymentSettings } = useQuery({
     queryKey: ["club-payment-settings", clubId],
     queryFn: async () => {
@@ -104,9 +108,10 @@ export default function MemberSubscriptionPaymentsManager({
     },
   });
 
-  // Check if current user has paid
+  // Check if current user has paid for current tab type
   const currentUserPayment = payments.find(p => p.user_id === user?.id);
-  const canPayOnline = clubPaymentSettings?.member_payments_enabled && 
+  const canPayOnline = activeTab === "subscription" && 
+    clubPaymentSettings?.member_payments_enabled && 
     clubPaymentSettings?.member_subscription_amount && 
     clubPaymentSettings.member_subscription_amount > 0;
 
@@ -123,6 +128,7 @@ export default function MemberSubscriptionPaymentsManager({
         user_id: selectedMember.userId,
         club_id: clubId,
         payment_period: paymentPeriod,
+        payment_type: activeTab,
         amount: amount ? parseFloat(amount) : null,
         notes: notes.trim() || null,
         marked_by: user!.id,
@@ -135,7 +141,7 @@ export default function MemberSubscriptionPaymentsManager({
       setSelectedMember(null);
       setAmount("");
       setNotes("");
-      toast({ title: "Payment marked" });
+      toast({ title: `${activeTab === "subscription" ? "Subscription" : "Uniform"} payment marked` });
     },
     onError: (error: any) => {
       if (error.code === "23505") {
@@ -169,10 +175,8 @@ export default function MemberSubscriptionPaymentsManager({
     
     const existingPayment = paymentMap[userId];
     if (existingPayment) {
-      // Show option to remove payment
       setDeletePaymentId(existingPayment.id);
     } else {
-      // Open dialog to mark as paid
       setSelectedMember({ userId, displayName });
       setPaymentDialogOpen(true);
     }
@@ -209,7 +213,7 @@ export default function MemberSubscriptionPaymentsManager({
     }
   };
 
-  // Filter to only show players and parents (not admins/coaches for payment tracking)
+  // Filter to only show players and parents
   const payableMembers = Object.entries(members).filter(([_, member]) => {
     const roles = member.roles?.map(r => r.role) || [];
     return roles.some(r => ["player", "parent"].includes(r));
@@ -218,9 +222,11 @@ export default function MemberSubscriptionPaymentsManager({
   const paidCount = payableMembers.filter(([userId]) => paymentMap[userId]).length;
   const unpaidCount = payableMembers.length - paidCount;
 
-  // Check if current user is in payable members
   const isPayableMember = user && payableMembers.some(([userId]) => userId === user.id);
   const hasCurrentUserPaid = !!currentUserPayment;
+
+  const paymentTypeLabel = activeTab === "subscription" ? "Subscription" : "Uniform";
+  const PaymentTypeIcon = activeTab === "subscription" ? CreditCard : Shirt;
 
   if (payableMembers.length === 0) {
     return (
@@ -233,154 +239,175 @@ export default function MemberSubscriptionPaymentsManager({
 
   return (
     <div className="space-y-4">
-      {/* Period Selector and Summary */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Label htmlFor="payment-period" className="text-sm text-muted-foreground whitespace-nowrap">
-            Period:
-          </Label>
-          <Input
-            id="payment-period"
-            value={paymentPeriod}
-            onChange={(e) => setPaymentPeriod(e.target.value)}
-            placeholder={currentYear.toString()}
-            className="w-32"
-          />
-        </div>
-        <div className="flex gap-2">
-          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/30">
-            {paidCount} Paid
-          </Badge>
-          <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30">
-            {unpaidCount} Unpaid
-          </Badge>
-        </div>
-      </div>
+      {/* Payment Type Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as PaymentType)}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="subscription" className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            Subscription
+          </TabsTrigger>
+          <TabsTrigger value="uniform" className="flex items-center gap-2">
+            <Shirt className="h-4 w-4" />
+            Uniform
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Pay Online Button for current user */}
-      {isPayableMember && !hasCurrentUserPaid && canPayOnline && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div>
-                <p className="font-medium">Pay Your Subscription</p>
-                <p className="text-sm text-muted-foreground">
-                  ${clubPaymentSettings?.member_subscription_amount} for {paymentPeriod}
-                </p>
-              </div>
-              <Button 
-                onClick={handlePayOnline}
-                disabled={isProcessingPayment}
-              >
-                {isProcessingPayment ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="h-4 w-4 mr-2" />
-                    Pay Now
-                    <ExternalLink className="h-3 w-3 ml-1" />
-                  </>
-                )}
-              </Button>
+        <TabsContent value={activeTab} className="mt-4 space-y-4">
+          {/* Period Selector and Summary */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="payment-period" className="text-sm text-muted-foreground whitespace-nowrap">
+                Period:
+              </Label>
+              <Input
+                id="payment-period"
+                value={paymentPeriod}
+                onChange={(e) => setPaymentPeriod(e.target.value)}
+                placeholder={currentYear.toString()}
+                className="w-32"
+              />
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {isPayableMember && hasCurrentUserPaid && (
-        <Card className="border-emerald-500/30 bg-emerald-500/5">
-          <CardContent className="p-4 flex items-center gap-3">
-            <Check className="h-5 w-5 text-emerald-500" />
-            <div>
-              <p className="font-medium text-emerald-500">Your subscription is paid for {paymentPeriod}</p>
-              {currentUserPayment.notes && (
-                <p className="text-sm text-muted-foreground">{currentUserPayment.notes}</p>
-              )}
+            <div className="flex gap-2">
+              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+                {paidCount} Paid
+              </Badge>
+              <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+                {unpaidCount} Unpaid
+              </Badge>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
 
-      {/* Members List */}
-      {isPaymentsLoading ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {payableMembers.map(([userId, member]) => {
-            const payment = paymentMap[userId];
-            const isPaid = !!payment;
-            
-            return (
-              <Card 
-                key={userId}
-                className={`transition-colors ${
-                  isAdmin ? "cursor-pointer hover:bg-muted/50" : ""
-                } ${
-                  isPaid ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30"
-                }`}
-                onClick={() => handleMemberClick(userId, member.profile?.display_name || "Unknown")}
-              >
-                <CardContent className="p-3 flex items-center gap-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={member.profile?.avatar_url || undefined} />
-                    <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                      {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">
-                      {member.profile?.display_name || "Unknown User"}
-                      {userId === user?.id && <span className="text-muted-foreground"> (You)</span>}
+          {/* Pay Online Button for current user (subscription only) */}
+          {activeTab === "subscription" && isPayableMember && !hasCurrentUserPaid && canPayOnline && (
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">Pay Your Subscription</p>
+                    <p className="text-sm text-muted-foreground">
+                      ${clubPaymentSettings?.member_subscription_amount} for {paymentPeriod}
                     </p>
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                      {member.roles?.map((roleItem) => {
-                        const roleLabels: Record<string, string> = {
-                          player: "Player",
-                          parent: "Parent",
-                        };
-                        if (!["player", "parent"].includes(roleItem.role)) return null;
-                        return (
-                          <Badge key={roleItem.id} variant="secondary" className="text-xs">
-                            {roleLabels[roleItem.role] || roleItem.role}
-                          </Badge>
-                        );
-                      })}
-                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {isPaid ? (
-                      <div className="flex items-center gap-1 text-emerald-500">
-                        <Check className="h-5 w-5" />
-                        <span className="text-xs font-medium">Paid</span>
-                      </div>
+                  <Button 
+                    onClick={handlePayOnline}
+                    disabled={isProcessingPayment}
+                  >
+                    {isProcessingPayment ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Processing...
+                      </>
                     ) : (
-                      <div className="flex items-center gap-1 text-amber-500">
-                        <X className="h-5 w-5" />
-                        <span className="text-xs font-medium">Unpaid</span>
-                      </div>
+                      <>
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        Pay Now
+                        <ExternalLink className="h-3 w-3 ml-1" />
+                      </>
                     )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {isPayableMember && hasCurrentUserPaid && (
+            <Card className="border-emerald-500/30 bg-emerald-500/5">
+              <CardContent className="p-4 flex items-center gap-3">
+                <Check className="h-5 w-5 text-emerald-500" />
+                <div>
+                  <p className="font-medium text-emerald-600">
+                    Your {paymentTypeLabel.toLowerCase()} is paid for {paymentPeriod}
+                  </p>
+                  {currentUserPayment.notes && (
+                    <p className="text-sm text-muted-foreground">{currentUserPayment.notes}</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Members List */}
+          {isPaymentsLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {payableMembers.map(([userId, member]) => {
+                const payment = paymentMap[userId];
+                const isPaid = !!payment;
+                
+                return (
+                  <Card 
+                    key={userId}
+                    className={`transition-colors ${
+                      isAdmin ? "cursor-pointer hover:bg-muted/50" : ""
+                    } ${
+                      isPaid ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30"
+                    }`}
+                    onClick={() => handleMemberClick(userId, member.profile?.display_name || "Unknown")}
+                  >
+                    <CardContent className="p-3 flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={member.profile?.avatar_url || undefined} />
+                        <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                          {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">
+                          {member.profile?.display_name || "Unknown User"}
+                          {userId === user?.id && <span className="text-muted-foreground"> (You)</span>}
+                        </p>
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {member.roles?.map((roleItem) => {
+                            const roleLabels: Record<string, string> = {
+                              player: "Player",
+                              parent: "Parent",
+                            };
+                            if (!["player", "parent"].includes(roleItem.role)) return null;
+                            return (
+                              <Badge key={roleItem.id} variant="secondary" className="text-xs">
+                                {roleLabels[roleItem.role] || roleItem.role}
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isPaid ? (
+                          <div className="flex items-center gap-1 text-emerald-500">
+                            <Check className="h-5 w-5" />
+                            <span className="text-xs font-medium">Paid</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 text-amber-500">
+                            <X className="h-5 w-5" />
+                            <span className="text-xs font-medium">Unpaid</span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Mark as Paid Dialog */}
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Mark Subscription as Paid</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <PaymentTypeIcon className="h-5 w-5" />
+              Mark {paymentTypeLabel} as Paid
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Mark <span className="font-medium text-foreground">{selectedMember?.displayName}</span> as having paid their club subscription for <span className="font-medium text-foreground">{paymentPeriod}</span>.
+              Mark <span className="font-medium text-foreground">{selectedMember?.displayName}</span> as having paid their {paymentTypeLabel.toLowerCase()} fee for <span className="font-medium text-foreground">{paymentPeriod}</span>.
             </p>
             <div className="space-y-2">
               <Label htmlFor="amount">Amount (optional)</Label>
@@ -428,7 +455,7 @@ export default function MemberSubscriptionPaymentsManager({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Payment Record?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will mark this member as unpaid for this period. You can mark them as paid again later.
+              This will mark this member as unpaid for {paymentTypeLabel.toLowerCase()} this period. You can mark them as paid again later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
