@@ -1643,6 +1643,7 @@ export type Database = {
           paid_at: string | null
           payment_period: string
           payment_status: string
+          payment_type: string
           stripe_payment_intent_id: string | null
           updated_at: string
           user_id: string
@@ -1656,6 +1657,7 @@ export type Database = {
           paid_at?: string | null
           payment_period: string
           payment_status?: string
+          payment_type?: string
           stripe_payment_intent_id?: string | null
           updated_at?: string
           user_id: string
@@ -1669,6 +1671,7 @@ export type Database = {
           paid_at?: string | null
           payment_period?: string
           payment_status?: string
+          payment_type?: string
           stripe_payment_intent_id?: string | null
           updated_at?: string
           user_id?: string
