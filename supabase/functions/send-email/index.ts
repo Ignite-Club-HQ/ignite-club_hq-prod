@@ -180,6 +180,9 @@ async function checkRateLimit(
   return { allowed: true, remaining: RATE_LIMIT_MAX_EMAILS - 1, resetAt: new Date(now.getTime() + RATE_LIMIT_WINDOW_SECONDS * 1000) };
 }
 
+// Ignite brand color - emerald green
+const IGNITE_BRAND_COLOR = "#10b981";
+
 // Render email template
 async function renderEmailTemplate(template: TemplateType, data: any): Promise<string> {
   switch (template) {
@@ -193,7 +196,7 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           roleName: data.roleName,
           inviteLink: data.inviteLink,
           clubLogoUrl: data.clubLogoUrl,
-          primaryColor: data.primaryColor || "#f97316",
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
           childrenNames: data.childrenNames || [],
         })
       );
@@ -211,7 +214,7 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           eventType: data.eventType,
           eventLink: data.eventLink,
           clubLogoUrl: data.clubLogoUrl,
-          primaryColor: data.primaryColor || "#f97316",
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
           hoursUntilEvent: data.hoursUntilEvent,
         })
       );
@@ -225,7 +228,7 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           roleName: data.roleName,
           teamLink: data.teamLink,
           clubLogoUrl: data.clubLogoUrl,
-          primaryColor: data.primaryColor || "#f97316",
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
           welcomeMessage: data.welcomeMessage,
         })
       );
@@ -240,7 +243,7 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           actionType: data.actionType,
           appName: data.appName || "Ignite Club HQ",
           logoUrl: data.logoUrl,
-          primaryColor: data.primaryColor || "#f97316",
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
         })
       );
     
@@ -255,7 +258,7 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           daysUntilExpiry: data.daysUntilExpiry,
           manageLink: data.manageLink,
           clubLogoUrl: data.clubLogoUrl,
-          primaryColor: data.primaryColor || "#10b981",
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
         })
       );
     
