@@ -520,9 +520,14 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
                         </Badge>
                       )}
                       {reward.reward_type === "player_of_match" && (
-                        <Badge className="text-xs bg-amber-500/20 text-amber-600 border-amber-500/30" variant="outline">
-                          <Trophy className="h-3 w-3 mr-1" /> Player of Match
-                        </Badge>
+                        <>
+                          <Badge className="text-xs bg-amber-500/20 text-amber-600 border-amber-500/30" variant="outline">
+                            <Trophy className="h-3 w-3 mr-1" /> Player of Match
+                          </Badge>
+                          <Badge className="text-xs" variant="outline">
+                            Award Only
+                          </Badge>
+                        </>
                       )}
                       {reward.is_default && (
                         <Badge className="text-xs bg-primary/10 text-primary border-primary/30" variant="outline">
