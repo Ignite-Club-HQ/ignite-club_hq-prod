@@ -193,7 +193,7 @@ export default function RewardRedemptionCard() {
     enabled: !!user,
   });
 
-  // Fetch available rewards for selected club
+  // Fetch available rewards for selected club (exclude player_of_match rewards - those can only be awarded, not redeemed)
   const { data: availableRewards = [], isLoading: rewardsLoading } = useQuery({
     queryKey: ["available-rewards", selectedClubId],
     queryFn: async () => {
@@ -202,6 +202,7 @@ export default function RewardRedemptionCard() {
         .select("*, sponsors(id, name, logo_url)")
         .eq("club_id", selectedClubId!)
         .eq("is_active", true)
+        .neq("reward_type", "player_of_match")
         .order("points_required", { ascending: true });
       return (data || []) as ClubReward[];
     },
