@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, X, UserCheck, Copy, Send, MoreHorizontal, Trash2, Check, Pencil, Mail, MailX, AlertCircle } from "lucide-react";
+import { Clock, X, UserCheck, Copy, Send, MoreHorizontal, Trash2, Check, Pencil, Mail, MailX, AlertCircle, Loader2, RotateCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -91,6 +91,7 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
   const [copied, setCopied] = useState(false);
   const [editName, setEditName] = useState(invite.invited_label || "");
   const [editRole, setEditRole] = useState<AppRole>(invite.role as AppRole);
+  const [isResending, setIsResending] = useState(false);
 
   // Fetch existing invite link for this role
   const { data: inviteLink } = useQuery({
@@ -114,6 +115,54 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
     enabled: !!teamId,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
+
+  // Fetch team name and club branding for resend email
+  const { data: teamData } = useQuery({
+    queryKey: ["team-name", teamId],
+    queryFn: async () => {
+      if (!teamId) return null;
+      const { data } = await supabase
+        .from("teams")
+        .select("name, club_id, clubs(name, logo_url)")
+        .eq("id", teamId)
+        .single();
+      return data;
+    },
+    enabled: !!teamId,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Fetch club branding for club invites
+  const { data: clubData } = useQuery({
+    queryKey: ["club-branding-invite", clubId],
+    queryFn: async () => {
+      if (!clubId) return null;
+      const { data } = await supabase
+        .from("clubs")
+        .select("name, logo_url")
+        .eq("id", clubId)
+        .single();
+      return data;
+    },
+    enabled: !!clubId && !teamId,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Get the pending invite token for resending
+  const { data: pendingInviteToken } = useQuery({
+    queryKey: ["pending-invite-token", invite.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("pending_invites")
+        .select("invite_token")
+        .eq("id", invite.id)
+        .single();
+      return data?.invite_token;
+    },
+    enabled: !!invite.id,
+    staleTime: 1000 * 60 * 5,
+  });
+
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -175,6 +224,100 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
       toast({ title: "Failed to update invite", variant: "destructive" });
     },
   });
+
+  // Handle resend email
+  const handleResendEmail = async () => {
+    if (!invite.invited_email) {
+      toast({ 
+        title: "No email address", 
+        description: "This invite doesn't have an email address",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    if (!pendingInviteToken) {
+      toast({ 
+        title: "No invite token", 
+        description: "Could not find invite token for resending",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    setIsResending(true);
+    
+    try {
+      const inviteLinkForEmail = `${window.location.origin}/join/p/${pendingInviteToken}`;
+      const recipientName = invite.invited_label || invite.profiles?.display_name || "Member";
+      
+      // Determine team/club names for email
+      const teamName = teamData?.name || clubData?.name || "the team";
+      const clubName = teamData?.clubs?.name || clubData?.name || "The Club";
+      const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url || undefined;
+      
+      const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
+        body: {
+          to: invite.invited_email,
+          subject: `Reminder: You're invited to join ${teamName}`,
+          template: "team-invite",
+          templateData: {
+            recipientName,
+            teamName,
+            clubName,
+            roleName: roleLabels[invite.role] || invite.role.replace("_", " "),
+            inviteLink: inviteLinkForEmail,
+            clubLogoUrl,
+          },
+        },
+      });
+
+      if (funcError) {
+        throw new Error(funcError.message || "Failed to send email");
+      }
+
+      if (emailResult?.verified && emailResult?.success) {
+        // Update pending invite with email status
+        await supabase
+          .from("pending_invites")
+          .update({
+            email_sent_at: new Date().toISOString(),
+            email_id: emailResult.emailId,
+            email_error: null,
+          } as any)
+          .eq("id", invite.id);
+
+        queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, clubId] });
+        
+        toast({ 
+          title: "Email sent!", 
+          description: `Invite email resent to ${invite.invited_email}` 
+        });
+      } else {
+        throw new Error(emailResult?.error || "Email not verified");
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      
+      // Update pending invite with error
+      await supabase
+        .from("pending_invites")
+        .update({
+          email_error: errorMessage,
+        } as any)
+        .eq("id", invite.id);
+
+      queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, clubId] });
+      
+      toast({ 
+        title: "Failed to send email", 
+        description: errorMessage,
+        variant: "destructive" 
+      });
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   const handleCopyLink = async () => {
     if (!inviteLink) {
@@ -289,6 +432,29 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
 
           {/* Quick action buttons */}
           <div className="flex items-center gap-1">
+            {/* Show Resend Email button when email failed or not sent */}
+            {invite.invited_email && (!invite.email_sent_at || invite.email_error) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2 gap-1 text-xs hidden sm:flex border-orange-500/30 text-orange-600 hover:bg-orange-500/10"
+                onClick={handleResendEmail}
+                disabled={isResending}
+              >
+                {isResending ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <RotateCw className="h-3 w-3" />
+                    Resend Email
+                  </>
+                )}
+              </Button>
+            )}
+            
             <Button
               variant="outline"
               size="sm"
@@ -303,8 +469,8 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
                 </>
               ) : (
                 <>
-                  <Send className="h-3 w-3" />
-                  Resend
+                  <Copy className="h-3 w-3" />
+                  Copy Link
                 </>
               )}
             </Button>
@@ -324,6 +490,19 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
                   <Copy className="h-4 w-4 mr-2" />
                   Copy invite link
                 </DropdownMenuItem>
+                {invite.invited_email && (
+                  <DropdownMenuItem 
+                    onClick={handleResendEmail} 
+                    disabled={isResending}
+                  >
+                    {isResending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RotateCw className="h-4 w-4 mr-2" />
+                    )}
+                    {invite.email_sent_at && !invite.email_error ? "Resend email" : "Send email"}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={() => setShowDeleteDialog(true)}
