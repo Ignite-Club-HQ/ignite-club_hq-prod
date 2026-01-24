@@ -29,7 +29,7 @@ interface TeamInviteEmailProps {
 const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
 
 // Ignite logo URL (hosted on production domain)
-const IGNITE_LOGO_URL = `${PRODUCTION_DOMAIN}/ignite-logo.png`;
+const IGNITE_LOGO_URL = `${PRODUCTION_DOMAIN}/ignite-email-logo.png`;
 
 // Check if a URL is a valid external URL (not base64)
 const isValidExternalUrl = (url?: string): boolean => {
