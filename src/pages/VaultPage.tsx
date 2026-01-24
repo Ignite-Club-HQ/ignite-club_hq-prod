@@ -1022,7 +1022,7 @@ export default function VaultPage() {
       const insertData: any = {
         name,
         created_by: user!.id,
-        parent_folder_id: getCurrentFolderId(),
+        parent_id: getCurrentFolderId(),
       };
 
       if (currentView.type === "club") {
