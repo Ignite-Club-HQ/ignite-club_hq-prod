@@ -112,15 +112,38 @@ export default function PendingInvitesList({ invites, teamId, clubId }: PendingI
         .delete()
         .in("id", ids);
       if (error) throw error;
+      return ids;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, clubId] });
-      toast({ title: `${selectedIds.size} invite(s) revoked` });
+    onMutate: async (ids) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["pending-invites", teamId, clubId] });
+      
+      // Snapshot the previous value
+      const previousInvites = queryClient.getQueryData(["pending-invites", teamId, clubId]);
+      
+      // Optimistically update to remove the deleted invites
+      queryClient.setQueryData(["pending-invites", teamId, clubId], (old: any[] | undefined) => {
+        if (!old) return old;
+        return old.filter((inv: any) => !ids.includes(inv.id));
+      });
+      
+      return { previousInvites };
+    },
+    onSuccess: (_, ids) => {
+      toast({ title: `${ids.length} invite(s) revoked` });
       setSelectedIds(new Set());
       setShowBulkDeleteDialog(false);
     },
-    onError: () => {
+    onError: (error, _, context) => {
+      // Rollback to the previous value on error
+      if (context?.previousInvites) {
+        queryClient.setQueryData(["pending-invites", teamId, clubId], context.previousInvites);
+      }
       toast({ title: "Failed to revoke invites", variant: "destructive" });
+    },
+    onSettled: () => {
+      // Refetch to ensure we have the latest data
+      queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, clubId] });
     },
   });
 
