@@ -25,17 +25,47 @@ interface MembershipConfirmationEmailProps {
   welcomeMessage?: string;
 }
 
+// Production domain for all links
+const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
+
+// Ignite brand color - emerald green
+const IGNITE_BRAND_COLOR = "#10b981";
+
+// Ignite icon URL for footer (hosted on production domain)
+const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-email-icon.png`;
+
+// Check if a URL is a valid external URL (not base64)
+const isValidExternalUrl = (url?: string): boolean => {
+  if (!url) return false;
+  return url.startsWith('http://') || url.startsWith('https://');
+};
+
+// Ensure link uses production domain
+const normalizeLink = (link: string): string => {
+  try {
+    const url = new URL(link);
+    return `${PRODUCTION_DOMAIN}${url.pathname}`;
+  } catch {
+    if (link.startsWith('/')) {
+      return `${PRODUCTION_DOMAIN}${link}`;
+    }
+    return link;
+  }
+};
+
 export const MembershipConfirmationEmail = ({
   recipientName = "Member",
   teamName = "The Team",
   clubName = "The Club",
   roleName = "Player",
-  teamLink = "https://example.com/team",
+  teamLink = "https://igniteclubhq.app/team",
   clubLogoUrl,
-  primaryColor = "#f97316",
+  primaryColor = IGNITE_BRAND_COLOR,
   welcomeMessage,
 }: MembershipConfirmationEmailProps) => {
   const previewText = `Welcome to ${teamName}! You're now a ${roleName}.`;
+  const normalizedTeamLink = normalizeLink(teamLink);
+  const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
 
   return (
     <Html>
@@ -45,9 +75,9 @@ export const MembershipConfirmationEmail = ({
         <Container style={container}>
           {/* Header with Logo */}
           <Section style={headerSection}>
-            {clubLogoUrl ? (
+            {validClubLogoUrl ? (
               <Img
-                src={clubLogoUrl}
+                src={validClubLogoUrl}
                 width="80"
                 height="80"
                 alt={clubName}
@@ -76,7 +106,7 @@ export const MembershipConfirmationEmail = ({
             <Heading style={heading}>Welcome to the Team!</Heading>
             
             <Text style={paragraph}>
-              Hi {recipientName},
+              Dear {recipientName},
             </Text>
             
             <Text style={paragraph}>
@@ -108,7 +138,7 @@ export const MembershipConfirmationEmail = ({
             </Section>
 
             <Section style={buttonSection}>
-              <Button style={{ ...button, backgroundColor: primaryColor }} href={teamLink}>
+              <Button style={{ ...button, backgroundColor: primaryColor }} href={normalizedTeamLink}>
                 Go to Your Team
               </Button>
             </Section>
@@ -121,12 +151,24 @@ export const MembershipConfirmationEmail = ({
             <Text style={footerText}>
               You're receiving this because you joined {teamName} on {clubName}.
             </Text>
-            <Text style={footerBrand}>
-              Powered by{' '}
-              <Link href="https://ignite-club-launchpad.lovable.app" style={footerLink}>
-                Ignite Club HQ
-              </Link>
-            </Text>
+            <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
+              <tr>
+                <td style={{ paddingRight: '8px', verticalAlign: 'middle' }}>
+                  <Img
+                    src={IGNITE_ICON_URL}
+                    width="24"
+                    height="24"
+                    alt="Ignite Club HQ"
+                    style={igniteLogoStyle}
+                  />
+                </td>
+                <td style={{ verticalAlign: 'middle' }}>
+                  <Link href={PRODUCTION_DOMAIN} style={footerBrandTextLink}>
+                    Powered by Ignite Club HQ
+                  </Link>
+                </td>
+              </tr>
+            </table>
           </Section>
         </Container>
       </Body>
@@ -234,15 +276,15 @@ const paragraph = {
 };
 
 const messageBox = {
-  backgroundColor: '#fffbeb',
+  backgroundColor: '#f0fdf4',
   borderRadius: '8px',
   padding: '20px',
   margin: '20px 0',
-  borderLeft: '4px solid #f59e0b',
+  borderLeft: `4px solid ${IGNITE_BRAND_COLOR}`,
 };
 
 const messageText = {
-  color: '#92400e',
+  color: '#166534',
   fontSize: '15px',
   fontStyle: 'italic',
   margin: '0 0 8px 0',
@@ -250,7 +292,7 @@ const messageText = {
 };
 
 const messageAuthor = {
-  color: '#b45309',
+  color: '#15803d',
   fontSize: '13px',
   margin: '0',
   fontWeight: '500',
@@ -315,14 +357,13 @@ const footerText = {
   textAlign: 'center' as const,
 };
 
-const footerBrand = {
-  color: '#8898aa',
-  fontSize: '12px',
-  textAlign: 'center' as const,
-  margin: '0',
+const igniteLogoStyle = {
+  display: 'block',
+  borderRadius: '4px',
 };
 
-const footerLink = {
-  color: '#f97316',
+const footerBrandTextLink = {
+  color: IGNITE_BRAND_COLOR,
+  fontSize: '12px',
   textDecoration: 'none',
 };
