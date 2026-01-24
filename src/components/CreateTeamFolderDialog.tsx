@@ -137,26 +137,24 @@ export function CreateTeamFolderDialog({
         </div>
       )}
 
-      {/* Color Selection - hide when keyboard visible */}
-      {!keyboardVisible && (
-        <div className="space-y-3">
-          <Label className="text-sm font-medium">Folder Color</Label>
-          <div className="flex flex-wrap justify-center gap-3">
-            {FOLDER_COLORS.map((color) => (
-              <button
-                key={color.value}
-                type="button"
-                onClick={() => setFolderColor(color.value)}
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${color.bgClassName || "bg-muted"} ${
-                  folderColor === color.value ? "ring-2 ring-offset-2 ring-primary scale-110" : "hover:scale-105"
-                }`}
-              >
-                <Folder className={`h-5 w-5 ${color.className}`} />
-              </button>
-            ))}
-          </div>
+      {/* Color Selection - always show, compact when keyboard visible */}
+      <div className={keyboardVisible ? "space-y-2" : "space-y-3"}>
+        <Label className="text-sm font-medium">Folder Color</Label>
+        <div className="flex flex-wrap justify-center gap-3">
+          {FOLDER_COLORS.map((color) => (
+            <button
+              key={color.value}
+              type="button"
+              onClick={() => setFolderColor(color.value)}
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${color.bgClassName || "bg-muted"} ${
+                folderColor === color.value ? "ring-2 ring-offset-2 ring-primary scale-110" : "hover:scale-105"
+              }`}
+            >
+              <Folder className={`h-5 w-5 ${color.className}`} />
+            </button>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 
