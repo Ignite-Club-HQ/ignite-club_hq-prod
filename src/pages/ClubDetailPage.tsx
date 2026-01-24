@@ -187,7 +187,7 @@ export default function ClubDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("*, team_folders(id, name)")
+        .select("*, team_folders!teams_folder_id_fkey(id, name)")
         .eq("club_id", id!)
         .order("name");
 
@@ -495,7 +495,8 @@ export default function ClubDetailPage() {
   
   // Initialize showAllTeams based on admin status (once we know it)
   // Admins see all teams by default, non-admins see only their teams
-  const effectiveShowAllTeams = showAllTeams !== null ? showAllTeams : isAdmin;
+  // Default to true while loading to avoid hiding teams during initial render
+  const effectiveShowAllTeams = showAllTeams !== null ? showAllTeams : (isAdmin !== false ? true : false);
   
   // Fetch team subscriptions to show Pro status badges
   const { data: teamSubscriptions = [] } = useQuery({
