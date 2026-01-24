@@ -25,17 +25,44 @@ interface TeamInviteEmailProps {
   childrenNames?: string[];
 }
 
+// Production domain for all links
+const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
+
+// Check if a URL is a valid external URL (not base64)
+const isValidExternalUrl = (url?: string): boolean => {
+  if (!url) return false;
+  return url.startsWith('http://') || url.startsWith('https://');
+};
+
+// Ensure invite link uses production domain
+const normalizeInviteLink = (link: string): string => {
+  // Extract the path from the invite link
+  try {
+    const url = new URL(link);
+    return `${PRODUCTION_DOMAIN}${url.pathname}`;
+  } catch {
+    // If it's already just a path or malformed, prepend production domain
+    if (link.startsWith('/')) {
+      return `${PRODUCTION_DOMAIN}${link}`;
+    }
+    return link;
+  }
+};
+
 export const TeamInviteEmail = ({
   recipientName = "Member",
   teamName = "The Team",
   clubName = "The Club",
   roleName = "Player",
-  inviteLink = "https://example.com/join",
+  inviteLink = "https://igniteclubhq.app/join",
   clubLogoUrl,
   primaryColor = "#f97316",
   childrenNames = [],
 }: TeamInviteEmailProps) => {
   const previewText = `You're invited to join ${teamName}!`;
+  const normalizedInviteLink = normalizeInviteLink(inviteLink);
+  // Only use club logo if it's a valid external URL (not base64)
+  const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
 
   return (
     <Html>
@@ -45,9 +72,9 @@ export const TeamInviteEmail = ({
         <Container style={container}>
           {/* Header with Logo */}
           <Section style={headerSection}>
-            {clubLogoUrl ? (
+            {validClubLogoUrl ? (
               <Img
-                src={clubLogoUrl}
+                src={validClubLogoUrl}
                 width="80"
                 height="80"
                 alt={clubName}
@@ -89,7 +116,7 @@ export const TeamInviteEmail = ({
             )}
 
             <Section style={buttonSection}>
-              <Button style={{ ...button, backgroundColor: primaryColor }} href={inviteLink}>
+              <Button style={{ ...button, backgroundColor: primaryColor }} href={normalizedInviteLink}>
                 Accept Invitation
               </Button>
             </Section>
@@ -98,8 +125,8 @@ export const TeamInviteEmail = ({
               Or copy and paste this link into your browser:
             </Text>
             <Text style={linkText}>
-              <Link href={inviteLink} style={{ color: primaryColor }}>
-                {inviteLink}
+              <Link href={normalizedInviteLink} style={{ color: primaryColor }}>
+                {normalizedInviteLink}
               </Link>
             </Text>
           </Section>
@@ -113,7 +140,7 @@ export const TeamInviteEmail = ({
             </Text>
             <Text style={footerBrand}>
               Powered by{' '}
-              <Link href="https://ignite-club-launchpad.lovable.app" style={footerLink}>
+              <Link href={PRODUCTION_DOMAIN} style={footerLink}>
                 Ignite Club HQ
               </Link>
             </Text>
