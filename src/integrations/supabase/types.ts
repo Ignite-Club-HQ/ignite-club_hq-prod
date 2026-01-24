@@ -559,6 +559,7 @@ export type Database = {
           reward_type: string
           show_qr_code: boolean
           sponsor_id: string | null
+          team_id: string | null
           updated_at: string
         }
         Insert: {
@@ -575,6 +576,7 @@ export type Database = {
           reward_type?: string
           show_qr_code?: boolean
           sponsor_id?: string | null
+          team_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -591,6 +593,7 @@ export type Database = {
           reward_type?: string
           show_qr_code?: boolean
           sponsor_id?: string | null
+          team_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -606,6 +609,13 @@ export type Database = {
             columns: ["sponsor_id"]
             isOneToOne: false
             referencedRelation: "sponsors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_rewards_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
