@@ -3230,7 +3230,7 @@ export type Database = {
             foreignKeyName: "teams_folder_id_fkey"
             columns: ["folder_id"]
             isOneToOne: false
-            referencedRelation: "vault_folders"
+            referencedRelation: "team_folders"
             referencedColumns: ["id"]
           },
           {
