@@ -46,9 +46,10 @@ interface TeamReward {
 interface TeamRewardsManagerProps {
   teamId: string;
   clubId: string;
+  disableTeamOverrides?: boolean;
 }
 
-export default function TeamRewardsManager({ teamId, clubId }: TeamRewardsManagerProps) {
+export default function TeamRewardsManager({ teamId, clubId, disableTeamOverrides = false }: TeamRewardsManagerProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -229,13 +230,22 @@ export default function TeamRewardsManager({ teamId, clubId }: TeamRewardsManage
           <Trophy className="h-5 w-5 text-amber-500" />
           <span className="font-medium">Player of the Match Reward</span>
         </div>
-        {!teamReward && (
+        {!teamReward && !disableTeamOverrides && (
           <Button size="sm" variant="outline" onClick={() => handleOpenDialog()}>
             <Plus className="h-4 w-4 mr-1" />
             Override Club Default
           </Button>
         )}
       </div>
+
+      {disableTeamOverrides && !teamReward && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            Team-specific rewards are disabled by your club admin. The club default reward is used for all teams.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-4">
