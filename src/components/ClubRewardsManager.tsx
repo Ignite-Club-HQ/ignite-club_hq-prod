@@ -513,13 +513,21 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
                     
                     {/* Badges */}
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
-                      <Badge variant="secondary" className="text-xs font-medium">
-                        {reward.points_required} points
-                      </Badge>
-                      {reward.reward_type === "player_of_match" && (
-                        <Badge className="text-xs bg-amber-500/20 text-amber-600 border-amber-500/30" variant="outline">
-                          <Trophy className="h-3 w-3 mr-1" /> Player of Match
+                      {/* Only show points for general rewards - POM rewards don't use points */}
+                      {reward.reward_type !== "player_of_match" && (
+                        <Badge variant="secondary" className="text-xs font-medium">
+                          {reward.points_required} points
                         </Badge>
+                      )}
+                      {reward.reward_type === "player_of_match" && (
+                        <>
+                          <Badge className="text-xs bg-amber-500/20 text-amber-600 border-amber-500/30" variant="outline">
+                            <Trophy className="h-3 w-3 mr-1" /> Player of Match
+                          </Badge>
+                          <Badge className="text-xs" variant="outline">
+                            Award Only
+                          </Badge>
+                        </>
                       )}
                       {reward.is_default && (
                         <Badge className="text-xs bg-primary/10 text-primary border-primary/30" variant="outline">
@@ -699,17 +707,20 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
                 </Label>
               </RadioGroup>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="points-required">Points Required</Label>
-              <Input
-                id="points-required"
-                type="number"
-                min={1}
-                value={pointsRequired}
-                onChange={(e) => setPointsRequired(parseInt(e.target.value) || 1)}
-                className="h-11"
-              />
-            </div>
+            {/* Only show points field for general rewards - POM rewards are awarded by selection, not redeemed with points */}
+            {rewardType !== "player_of_match" && (
+              <div className="space-y-2">
+                <Label htmlFor="points-required">Points Required</Label>
+                <Input
+                  id="points-required"
+                  type="number"
+                  min={1}
+                  value={pointsRequired}
+                  onChange={(e) => setPointsRequired(parseInt(e.target.value) || 1)}
+                  className="h-11"
+                />
+              </div>
+            )}
 
             {/* Sponsor Selector */}
             {sponsors.length > 0 && (
