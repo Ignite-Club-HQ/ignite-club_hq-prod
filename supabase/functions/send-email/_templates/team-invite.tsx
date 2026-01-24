@@ -28,6 +28,9 @@ interface TeamInviteEmailProps {
 // Production domain for all links
 const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
 
+// Ignite logo URL (hosted on production domain)
+const IGNITE_LOGO_URL = `${PRODUCTION_DOMAIN}/ignite-logo.png`;
+
 // Check if a URL is a valid external URL (not base64)
 const isValidExternalUrl = (url?: string): boolean => {
   if (!url) return false;
@@ -138,12 +141,18 @@ export const TeamInviteEmail = ({
             <Text style={footerText}>
               This invitation was sent by {clubName}. If you didn't expect this email, you can safely ignore it.
             </Text>
-            <Text style={footerBrand}>
-              Powered by{' '}
-              <Link href={PRODUCTION_DOMAIN} style={footerLink}>
-                Ignite Club HQ
-              </Link>
-            </Text>
+            <Link href={PRODUCTION_DOMAIN} style={footerBrandLink}>
+              <Img
+                src={IGNITE_LOGO_URL}
+                width="24"
+                height="24"
+                alt="Ignite Club HQ"
+                style={igniteLogoStyle}
+              />
+              <Text style={footerBrandText}>
+                Powered by Ignite Club HQ
+              </Text>
+            </Link>
           </Section>
         </Container>
       </Body>
@@ -290,14 +299,28 @@ const footerText = {
   textAlign: 'center' as const,
 };
 
-const footerBrand = {
+const footerBrandLink = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '8px',
+  textDecoration: 'none',
+};
+
+const igniteLogoStyle = {
+  display: 'inline-block',
+  verticalAlign: 'middle',
+  borderRadius: '4px',
+};
+
+const footerBrandText = {
   color: '#8898aa',
   fontSize: '12px',
-  textAlign: 'center' as const,
   margin: '0',
+  display: 'inline',
 };
 
 const footerLink = {
-  color: '#f97316',
+  color: '#10b981',
   textDecoration: 'none',
 };
