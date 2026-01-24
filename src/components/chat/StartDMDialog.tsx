@@ -328,10 +328,12 @@ export function StartDMDialog() {
         <ResponsiveDialogHeader className="p-4 pb-2 border-b sm:border-b-0">
           <ResponsiveDialogTitle className="flex items-center gap-2">
             Start a Conversation
-            <Badge variant="secondary" className="gap-1">
-              <Crown className="h-3 w-3" />
-              Pro
-            </Badge>
+            {!hasProAccess && (
+              <Badge variant="secondary" className="gap-1">
+                <Crown className="h-3 w-3" />
+                Pro
+              </Badge>
+            )}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
             Select one or more members to message
