@@ -31,8 +31,8 @@ const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
 // Ignite brand color - emerald green
 const IGNITE_BRAND_COLOR = "#10b981";
 
-// Ignite logo URL (hosted on production domain) - use the existing ignite-logo.png
-const IGNITE_LOGO_URL = `${PRODUCTION_DOMAIN}/ignite-logo.png`;
+// Ignite icon URL for footer (hosted on production domain)
+const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-icon.png`;
 
 // Check if a URL is a valid external URL (not base64)
 const isValidExternalUrl = (url?: string): boolean => {
@@ -103,7 +103,7 @@ export const TeamInviteEmail = ({
             <Heading style={heading}>You're Invited! 🎉</Heading>
             
             <Text style={paragraph}>
-              Hi {recipientName},
+              Dear {recipientName},
             </Text>
             
             <Text style={paragraph}>
@@ -148,7 +148,7 @@ export const TeamInviteEmail = ({
               <tr>
                 <td style={{ paddingRight: '8px', verticalAlign: 'middle' }}>
                   <Img
-                    src={IGNITE_LOGO_URL}
+                    src={IGNITE_ICON_URL}
                     width="24"
                     height="24"
                     alt="Ignite Club HQ"
