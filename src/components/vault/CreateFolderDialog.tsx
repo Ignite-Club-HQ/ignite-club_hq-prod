@@ -42,38 +42,28 @@ export function CreateFolderDialog({
     <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
       <ResponsiveDialogContent className="sm:max-w-md">
         <ResponsiveDialogHeader>
-          <ResponsiveDialogTitle>Create New Folder</ResponsiveDialogTitle>
+          <ResponsiveDialogTitle className="flex items-center gap-2">
+            <FolderPlus className="h-5 w-5 text-primary" />
+            Create New Folder
+          </ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
 
-        <div className="py-6 space-y-6">
-          {/* Icon */}
-          <div className="flex justify-center">
-            <div className="h-20 w-20 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <FolderPlus className="h-10 w-10 text-primary" />
-            </div>
-          </div>
-
-          {/* Input */}
-          <div className="space-y-2">
-            <Input
-              value={folderName}
-              onChange={(e) => setFolderName(e.target.value)}
-              placeholder="Enter folder name"
-              className="text-center text-lg h-12"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && folderName.trim() && !isCreating) {
-                  handleCreate();
-                }
-              }}
-            />
-            <p className="text-sm text-muted-foreground text-center">
-              Organize your files with folders
-            </p>
-          </div>
+        <div className="py-4 px-1">
+          <Input
+            value={folderName}
+            onChange={(e) => setFolderName(e.target.value)}
+            placeholder="Folder name"
+            className="h-12"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && folderName.trim() && !isCreating) {
+                handleCreate();
+              }
+            }}
+          />
         </div>
 
-        <ResponsiveDialogFooter className="gap-2 sm:gap-0">
+        <ResponsiveDialogFooter className="gap-2 sm:gap-0 pb-2">
           <Button
             variant="outline"
             onClick={() => handleOpenChange(false)}
@@ -92,7 +82,7 @@ export function CreateFolderDialog({
                 Creating...
               </>
             ) : (
-              "Create Folder"
+              "Create"
             )}
           </Button>
         </ResponsiveDialogFooter>
