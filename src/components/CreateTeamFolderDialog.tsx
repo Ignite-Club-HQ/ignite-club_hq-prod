@@ -188,7 +188,7 @@ export function CreateTeamFolderDialog({
 
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
+      <Drawer open={open} onOpenChange={onOpenChange} autoFocus={false}>
         <DrawerContent>
           <div className="mx-auto w-full max-w-lg px-4 pb-safe">
             <DrawerHeader className="px-0">
