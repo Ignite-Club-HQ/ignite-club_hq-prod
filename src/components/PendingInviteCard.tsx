@@ -123,13 +123,35 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
         .eq("id", invite.id);
       if (error) throw error;
     },
+    onMutate: async () => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["pending-invites", teamId, clubId] });
+      
+      // Snapshot the previous value
+      const previousInvites = queryClient.getQueryData(["pending-invites", teamId, clubId]);
+      
+      // Optimistically update to remove the deleted invite
+      queryClient.setQueryData(["pending-invites", teamId, clubId], (old: any[] | undefined) => {
+        if (!old) return old;
+        return old.filter((inv: any) => inv.id !== invite.id);
+      });
+      
+      return { previousInvites };
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, clubId] });
       toast({ title: "Pending invite revoked" });
       setShowDeleteDialog(false);
     },
-    onError: () => {
+    onError: (error, _, context) => {
+      // Rollback to the previous value on error
+      if (context?.previousInvites) {
+        queryClient.setQueryData(["pending-invites", teamId, clubId], context.previousInvites);
+      }
       toast({ title: "Failed to revoke invite", variant: "destructive" });
+    },
+    onSettled: () => {
+      // Refetch to ensure we have the latest data
+      queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, clubId] });
     },
   });
 
