@@ -202,9 +202,12 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
     setShowEditDialog(true);
   };
 
-  const displayName = invite.profiles?.display_name || invite.invited_label || "Unknown";
-  const avatarUrl = invite.profiles?.avatar_url;
-  const isExistingUser = !!invite.profiles?.id;
+  // Prioritize invited_label (manual entry) over profile name to avoid showing the inviter's name
+  // Only use profile display_name if there's no label AND profiles match indicates a real user match
+  const displayName = invite.invited_label || invite.profiles?.display_name || "Unknown";
+  const avatarUrl = invite.invited_label ? undefined : invite.profiles?.avatar_url;
+  // Only show "Existing" badge if there's no manual label (indicating profile was auto-matched, not placeholder)
+  const isExistingUser = !invite.invited_label && !!invite.profiles?.id;
   const roleColor = roleColors[invite.role] || "bg-muted text-muted-foreground";
   const roleLabel = roleLabels[invite.role] || invite.role.replace("_", " ");
   const timeAgo = formatDistanceToNow(new Date(invite.created_at), { addSuffix: true });
