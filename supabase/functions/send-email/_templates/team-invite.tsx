@@ -25,17 +25,50 @@ interface TeamInviteEmailProps {
   childrenNames?: string[];
 }
 
+// Production domain for all links
+const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
+
+// Ignite brand color - emerald green
+const IGNITE_BRAND_COLOR = "#10b981";
+
+// Ignite icon URL for footer (hosted on production domain)
+const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-icon.png`;
+
+// Check if a URL is a valid external URL (not base64)
+const isValidExternalUrl = (url?: string): boolean => {
+  if (!url) return false;
+  return url.startsWith('http://') || url.startsWith('https://');
+};
+
+// Ensure invite link uses production domain
+const normalizeInviteLink = (link: string): string => {
+  // Extract the path from the invite link
+  try {
+    const url = new URL(link);
+    return `${PRODUCTION_DOMAIN}${url.pathname}`;
+  } catch {
+    // If it's already just a path or malformed, prepend production domain
+    if (link.startsWith('/')) {
+      return `${PRODUCTION_DOMAIN}${link}`;
+    }
+    return link;
+  }
+};
+
 export const TeamInviteEmail = ({
   recipientName = "Member",
   teamName = "The Team",
   clubName = "The Club",
   roleName = "Player",
-  inviteLink = "https://example.com/join",
+  inviteLink = "https://igniteclubhq.app/join",
   clubLogoUrl,
-  primaryColor = "#f97316",
+  primaryColor = IGNITE_BRAND_COLOR,
   childrenNames = [],
 }: TeamInviteEmailProps) => {
   const previewText = `You're invited to join ${teamName}!`;
+  const normalizedInviteLink = normalizeInviteLink(inviteLink);
+  // Only use club logo if it's a valid external URL (not base64)
+  const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
 
   return (
     <Html>
@@ -45,9 +78,9 @@ export const TeamInviteEmail = ({
         <Container style={container}>
           {/* Header with Logo */}
           <Section style={headerSection}>
-            {clubLogoUrl ? (
+            {validClubLogoUrl ? (
               <Img
-                src={clubLogoUrl}
+                src={validClubLogoUrl}
                 width="80"
                 height="80"
                 alt={clubName}
@@ -70,7 +103,7 @@ export const TeamInviteEmail = ({
             <Heading style={heading}>You're Invited! 🎉</Heading>
             
             <Text style={paragraph}>
-              Hi {recipientName},
+              Dear {recipientName},
             </Text>
             
             <Text style={paragraph}>
@@ -89,7 +122,7 @@ export const TeamInviteEmail = ({
             )}
 
             <Section style={buttonSection}>
-              <Button style={{ ...button, backgroundColor: primaryColor }} href={inviteLink}>
+              <Button style={{ ...button, backgroundColor: primaryColor }} href={normalizedInviteLink}>
                 Accept Invitation
               </Button>
             </Section>
@@ -98,8 +131,8 @@ export const TeamInviteEmail = ({
               Or copy and paste this link into your browser:
             </Text>
             <Text style={linkText}>
-              <Link href={inviteLink} style={{ color: primaryColor }}>
-                {inviteLink}
+              <Link href={normalizedInviteLink} style={{ color: primaryColor }}>
+                {normalizedInviteLink}
               </Link>
             </Text>
           </Section>
@@ -111,12 +144,24 @@ export const TeamInviteEmail = ({
             <Text style={footerText}>
               This invitation was sent by {clubName}. If you didn't expect this email, you can safely ignore it.
             </Text>
-            <Text style={footerBrand}>
-              Powered by{' '}
-              <Link href="https://ignite-club-launchpad.lovable.app" style={footerLink}>
-                Ignite Club HQ
-              </Link>
-            </Text>
+            <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
+              <tr>
+                <td style={{ paddingRight: '8px', verticalAlign: 'middle' }}>
+                  <Img
+                    src={IGNITE_ICON_URL}
+                    width="24"
+                    height="24"
+                    alt="Ignite Club HQ"
+                    style={igniteLogoStyle}
+                  />
+                </td>
+                <td style={{ verticalAlign: 'middle' }}>
+                  <Link href={PRODUCTION_DOMAIN} style={footerBrandTextLink}>
+                    Powered by Ignite Club HQ
+                  </Link>
+                </td>
+              </tr>
+            </table>
           </Section>
         </Container>
       </Body>
@@ -263,14 +308,13 @@ const footerText = {
   textAlign: 'center' as const,
 };
 
-const footerBrand = {
-  color: '#8898aa',
-  fontSize: '12px',
-  textAlign: 'center' as const,
-  margin: '0',
+const igniteLogoStyle = {
+  display: 'block',
+  borderRadius: '4px',
 };
 
-const footerLink = {
-  color: '#f97316',
+const footerBrandTextLink = {
+  color: IGNITE_BRAND_COLOR,
+  fontSize: '12px',
   textDecoration: 'none',
 };

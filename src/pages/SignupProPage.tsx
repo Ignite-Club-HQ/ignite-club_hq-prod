@@ -89,6 +89,7 @@ export default function SignupProPage() {
   const [clubName, setClubName] = useState("");
   const [clubDescription, setClubDescription] = useState("");
   const [clubLogoUrl, setClubLogoUrl] = useState("");
+  const [clubLogoFile, setClubLogoFile] = useState<File | null>(null);
   const [clubSport, setClubSport] = useState(selectedPlan === "pro_football" ? "Soccer" : "");
   const [createdClubId, setCreatedClubId] = useState<string | null>(null);
 
@@ -97,6 +98,7 @@ export default function SignupProPage() {
   const [teamLevelAge, setTeamLevelAge] = useState("");
   const [teamDescription, setTeamDescription] = useState("");
   const [teamLogoUrl, setTeamLogoUrl] = useState("");
+  const [teamLogoFile, setTeamLogoFile] = useState<File | null>(null);
   const [createdTeamId, setCreatedTeamId] = useState<string | null>(null);
 
   // Step 5: Promo code
@@ -194,6 +196,7 @@ export default function SignupProPage() {
   const handleClubLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setClubLogoFile(file);
     const reader = new FileReader();
     reader.onloadend = () => setClubLogoUrl(reader.result as string);
     reader.readAsDataURL(file);
@@ -202,6 +205,7 @@ export default function SignupProPage() {
   const handleTeamLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setTeamLogoFile(file);
     const reader = new FileReader();
     reader.onloadend = () => setTeamLogoUrl(reader.result as string);
     reader.readAsDataURL(file);
@@ -233,7 +237,7 @@ export default function SignupProPage() {
       .insert({
         name: clubName.trim(),
         description: clubDescription.trim() || null,
-        logo_url: clubLogoUrl || null,
+        logo_url: null, // Will be updated after upload
         sport: clubSport || null,
         created_by: user!.id,
       })
@@ -250,6 +254,31 @@ export default function SignupProPage() {
         variant: "destructive" 
       });
       return;
+    }
+
+    // Upload logo to storage if one was selected
+    if (clubLogoFile) {
+      try {
+        const fileExt = clubLogoFile.name.split('.').pop();
+        const fileName = `${club.id}/${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('club-logos')
+          .upload(fileName, clubLogoFile, { upsert: true });
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from('club-logos')
+            .getPublicUrl(fileName);
+
+          await supabase
+            .from("clubs")
+            .update({ logo_url: urlData.publicUrl })
+            .eq("id", club.id);
+        }
+      } catch (error) {
+        console.error('Logo upload error:', error);
+      }
     }
 
     // Assign creator as club_admin
@@ -280,7 +309,7 @@ export default function SignupProPage() {
         club_id: createdClubId!,
         level_age: teamLevelAge.trim() || null,
         description: teamDescription.trim() || null,
-        logo_url: teamLogoUrl || null,
+        logo_url: null, // Will be updated after upload
         created_by: user!.id,
       })
       .select()
@@ -290,6 +319,31 @@ export default function SignupProPage() {
       setSaving(false);
       toast({ title: "Error", description: "Failed to create team. Please try again.", variant: "destructive" });
       return;
+    }
+
+    // Upload team logo to storage if one was selected
+    if (teamLogoFile) {
+      try {
+        const fileExt = teamLogoFile.name.split('.').pop();
+        const fileName = `${createdClubId}/${team.id}/${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('club-logos')
+          .upload(fileName, teamLogoFile, { upsert: true });
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from('club-logos')
+            .getPublicUrl(fileName);
+
+          await supabase
+            .from("teams")
+            .update({ logo_url: urlData.publicUrl })
+            .eq("id", team.id);
+        }
+      } catch (error) {
+        console.error('Team logo upload error:', error);
+      }
     }
 
     // Assign creator as team_admin

@@ -61,15 +61,45 @@ export default function EditClubPage() {
     }
   }, [club]);
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const [uploading, setUploading] = useState(false);
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setLogoUrl(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+
+    setUploading(true);
+    try {
+      // Create a unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${id}/${Date.now()}.${fileExt}`;
+
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('club-logos')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get the public URL
+      const { data: urlData } = supabase.storage
+        .from('club-logos')
+        .getPublicUrl(fileName);
+
+      setLogoUrl(urlData.publicUrl);
+      toast({
+        title: "Logo uploaded",
+        description: "Your club logo has been uploaded successfully.",
+      });
+    } catch (error) {
+      console.error('Logo upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload logo. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -151,13 +181,18 @@ export default function EditClubPage() {
                   {name.charAt(0)?.toUpperCase() || "C"}
                 </AvatarFallback>
               </Avatar>
-              <label className="absolute bottom-0 right-0 p-2.5 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors shadow-lg">
-                <Camera className="h-5 w-5 text-primary-foreground" />
+              <label className={`absolute bottom-0 right-0 p-2.5 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors shadow-lg ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                {uploading ? (
+                  <Loader2 className="h-5 w-5 text-primary-foreground animate-spin" />
+                ) : (
+                  <Camera className="h-5 w-5 text-primary-foreground" />
+                )}
                 <input
                   type="file"
                   accept="image/*"
                   className="hidden"
                   onChange={handleLogoUpload}
+                  disabled={uploading}
                 />
               </label>
             </div>
