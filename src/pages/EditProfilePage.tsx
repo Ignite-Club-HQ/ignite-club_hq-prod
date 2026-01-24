@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, User, Camera, Bell, MessageSquare, Calendar, Image, Users, Download, Smartphone, LayoutGrid, Send, Settings, FileText, Shield, Trash2, DatabaseBackup, Moon, Sun, Database } from "lucide-react";
+import { ArrowLeft, Loader2, User, Camera, Bell, MessageSquare, Calendar, Image, Users, Download, Smartphone, LayoutGrid, Send, Settings, FileText, Shield, Trash2, DatabaseBackup, Moon, Sun, Database, Mail } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,14 @@ interface NotificationPreferences {
   pitch_board_enabled: boolean;
 }
 
+interface EmailPreferences {
+  email_messages_enabled: boolean;
+  email_events_enabled: boolean;
+  email_media_enabled: boolean;
+  email_membership_enabled: boolean;
+  email_admin_enabled: boolean;
+}
+
 export default function EditProfilePage() {
   const { user, profile, refreshProfile, signOut } = useAuth();
   const navigate = useNavigate();
@@ -52,7 +60,15 @@ export default function EditProfilePage() {
     membership_enabled: true,
     pitch_board_enabled: true,
   });
+  const [emailPreferences, setEmailPreferences] = useState<EmailPreferences>({
+    email_messages_enabled: true,
+    email_events_enabled: true,
+    email_media_enabled: true,
+    email_membership_enabled: true,
+    email_admin_enabled: true,
+  });
   const [prefsLoading, setPrefsLoading] = useState(false);
+  const [emailPrefsLoading, setEmailPrefsLoading] = useState(false);
   const [testingPush, setTestingPush] = useState(false);
   const [testingDbSave, setTestingDbSave] = useState(false);
   const [resettingPush, setResettingPush] = useState(false);
@@ -87,6 +103,13 @@ export default function EditProfilePage() {
           media_enabled: data.media_enabled,
           membership_enabled: data.membership_enabled,
           pitch_board_enabled: data.pitch_board_enabled ?? true,
+        });
+        setEmailPreferences({
+          email_messages_enabled: data.email_messages_enabled ?? true,
+          email_events_enabled: data.email_events_enabled ?? true,
+          email_media_enabled: data.email_media_enabled ?? true,
+          email_membership_enabled: data.email_membership_enabled ?? true,
+          email_admin_enabled: data.email_admin_enabled ?? true,
         });
       }
     };
@@ -203,6 +226,35 @@ export default function EditProfilePage() {
     }
     
     setPrefsLoading(false);
+  };
+
+  const handleEmailPreferenceChange = async (key: keyof EmailPreferences, value: boolean) => {
+    if (!user) return;
+    
+    const newPrefs = { ...emailPreferences, [key]: value };
+    setEmailPreferences(newPrefs);
+    setEmailPrefsLoading(true);
+    
+    try {
+      // Upsert preferences
+      const { error } = await supabase
+        .from("notification_preferences")
+        .upsert({
+          user_id: user.id,
+          ...newPrefs,
+        }, { onConflict: "user_id" });
+      
+      if (error) throw error;
+    } catch (error) {
+      // Revert on error
+      setEmailPreferences(emailPreferences);
+      toast({
+        title: "Failed to update email preference",
+        variant: "destructive",
+      });
+    }
+    
+    setEmailPrefsLoading(false);
   };
 
   const handleTestPush = async () => {
@@ -1003,6 +1055,112 @@ export default function EditProfilePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Email Notifications Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            Email Notifications
+          </CardTitle>
+          <CardDescription>
+            Choose which types of emails you want to receive
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <Label htmlFor="email-messages">Messages</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Direct messages & chat notifications
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="email-messages"
+                checked={emailPreferences.email_messages_enabled}
+                onCheckedChange={(v) => handleEmailPreferenceChange("email_messages_enabled", v)}
+                disabled={emailPrefsLoading}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <Label htmlFor="email-events">Events & Reminders</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Event invites, reminders & duty assignments
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="email-events"
+                checked={emailPreferences.email_events_enabled}
+                onCheckedChange={(v) => handleEmailPreferenceChange("email_events_enabled", v)}
+                disabled={emailPrefsLoading}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Image className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <Label htmlFor="email-media">Media</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Photo uploads & comments
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="email-media"
+                checked={emailPreferences.email_media_enabled}
+                onCheckedChange={(v) => handleEmailPreferenceChange("email_media_enabled", v)}
+                disabled={emailPrefsLoading}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <Label htmlFor="email-membership">Membership</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Team invites & join confirmations
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="email-membership"
+                checked={emailPreferences.email_membership_enabled}
+                onCheckedChange={(v) => handleEmailPreferenceChange("email_membership_enabled", v)}
+                disabled={emailPrefsLoading}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Settings className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <Label htmlFor="email-admin">Account & Admin</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Subscription renewals & system alerts
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="email-admin"
+                checked={emailPreferences.email_admin_enabled}
+                onCheckedChange={(v) => handleEmailPreferenceChange("email_admin_enabled", v)}
+                disabled={emailPrefsLoading}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Legal Links Card */}
       <Card>

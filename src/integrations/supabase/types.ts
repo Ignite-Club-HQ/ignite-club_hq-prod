@@ -1814,6 +1814,11 @@ export type Database = {
       notification_preferences: {
         Row: {
           created_at: string
+          email_admin_enabled: boolean
+          email_events_enabled: boolean
+          email_media_enabled: boolean
+          email_membership_enabled: boolean
+          email_messages_enabled: boolean
           events_enabled: boolean
           id: string
           media_enabled: boolean
@@ -1825,6 +1830,11 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          email_admin_enabled?: boolean
+          email_events_enabled?: boolean
+          email_media_enabled?: boolean
+          email_membership_enabled?: boolean
+          email_messages_enabled?: boolean
           events_enabled?: boolean
           id?: string
           media_enabled?: boolean
@@ -1836,6 +1846,11 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          email_admin_enabled?: boolean
+          email_events_enabled?: boolean
+          email_media_enabled?: boolean
+          email_membership_enabled?: boolean
+          email_messages_enabled?: boolean
           events_enabled?: boolean
           id?: string
           media_enabled?: boolean
