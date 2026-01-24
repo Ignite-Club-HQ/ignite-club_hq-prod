@@ -1366,7 +1366,7 @@ export default function HomePage() {
             }}
           >
             <UserPlus className="h-5 w-5 text-primary" />
-            <span className="text-sm">Create Team or Club</span>
+            <span className="text-sm">{activeClubFilter ? "Create Team" : "Create Team or Club"}</span>
           </Button>
           <Button 
             variant="outline" 
