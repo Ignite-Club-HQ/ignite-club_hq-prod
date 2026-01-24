@@ -1278,7 +1278,7 @@ export default function MessagesPage() {
 
         {/* Direct Messages Section - Pro feature - separated at the bottom */}
         {!showSkeletonLoading && hasAnyProAccess && (
-          <DMConversationsList searchQuery={searchQuery} />
+          <DMConversationsList searchQuery={searchQuery} hasProAccess={hasAnyProAccess} />
         )}
 
         {/* Sponsor/Ad Carousel */}
