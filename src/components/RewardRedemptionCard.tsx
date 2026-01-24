@@ -602,43 +602,69 @@ export default function RewardRedemptionCard() {
               </div>
             </div>
           ) : hasClubs ? (
-            <div className="space-y-3">
-              <p className="text-sm text-primary-foreground/90">
-                Select a club to view available rewards:
-              </p>
-              <div className="grid gap-2">
-                {userClubs.map((club: any) => {
-                  const clubHasPro = isAppAdmin || club.hasPro;
-                  return (
-                    <button
-                      key={club.id}
-                      onClick={() => clubHasPro ? setSelectedClubId(club.id) : null}
-                      disabled={!clubHasPro}
-                      className={`flex items-center justify-between p-3 rounded-lg transition-colors text-left ${
-                        clubHasPro 
-                          ? "bg-primary-foreground/10 hover:bg-primary-foreground/20 cursor-pointer" 
-                          : "bg-primary-foreground/5 cursor-not-allowed opacity-70"
-                      }`}
+            (() => {
+              // In club mode with a single Pro club, show a simple "Browse Rewards" button
+              const proClubs = userClubs.filter((club: any) => isAppAdmin || club.hasPro);
+              const isSingleClubMode = activeClubFilter && proClubs.length === 1;
+              
+              if (isSingleClubMode) {
+                const club = proClubs[0];
+                return (
+                  <div className="space-y-3">
+                    <Button
+                      className="w-full bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground border-0"
+                      variant="secondary"
+                      onClick={() => setSelectedClubId(club.id)}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-primary-foreground">{club.name}</span>
-                        {!clubHasPro && (
-                          <Badge variant="outline" className="text-xs bg-primary-foreground/10 border-primary-foreground/30 text-primary-foreground">
-                            <Lock className="h-3 w-3 mr-1" />
-                            Pro
-                          </Badge>
-                        )}
-                      </div>
-                      {clubHasPro ? (
-                        <ChevronRight className="h-4 w-4 text-primary-foreground/70" />
-                      ) : (
-                        <Lock className="h-4 w-4 text-primary-foreground/50" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+                      <Gift className="h-4 w-4 mr-2" />
+                      Browse Rewards
+                      <ChevronRight className="h-4 w-4 ml-auto" />
+                    </Button>
+                  </div>
+                );
+              }
+              
+              // Default: show club selection grid
+              return (
+                <div className="space-y-3">
+                  <p className="text-sm text-primary-foreground/90">
+                    Select a club to view available rewards:
+                  </p>
+                  <div className="grid gap-2">
+                    {userClubs.map((club: any) => {
+                      const clubHasPro = isAppAdmin || club.hasPro;
+                      return (
+                        <button
+                          key={club.id}
+                          onClick={() => clubHasPro ? setSelectedClubId(club.id) : null}
+                          disabled={!clubHasPro}
+                          className={`flex items-center justify-between p-3 rounded-lg transition-colors text-left ${
+                            clubHasPro 
+                              ? "bg-primary-foreground/10 hover:bg-primary-foreground/20 cursor-pointer" 
+                              : "bg-primary-foreground/5 cursor-not-allowed opacity-70"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-primary-foreground">{club.name}</span>
+                            {!clubHasPro && (
+                              <Badge variant="outline" className="text-xs bg-primary-foreground/10 border-primary-foreground/30 text-primary-foreground">
+                                <Lock className="h-3 w-3 mr-1" />
+                                Pro
+                              </Badge>
+                            )}
+                          </div>
+                          {clubHasPro ? (
+                            <ChevronRight className="h-4 w-4 text-primary-foreground/70" />
+                          ) : (
+                            <Lock className="h-4 w-4 text-primary-foreground/50" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()
           ) : (
             <div className="bg-primary-foreground/10 rounded-lg p-3">
               <p className="text-sm text-primary-foreground">
