@@ -95,9 +95,10 @@ const MessagePreview = ({
 
 interface DMConversationsListProps {
   searchQuery?: string;
+  hasProAccess?: boolean;
 }
 
-export function DMConversationsList({ searchQuery = "" }: DMConversationsListProps) {
+export function DMConversationsList({ searchQuery = "", hasProAccess = false }: DMConversationsListProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -278,10 +279,12 @@ export function DMConversationsList({ searchQuery = "" }: DMConversationsListPro
       {/* Section header */}
       <div className="flex items-center gap-2 pb-1">
         <span className="text-sm font-medium text-muted-foreground">Direct Messages</span>
-        <Badge variant="secondary" className="gap-1 text-xs">
-          <Crown className="h-3 w-3" />
-          Pro
-        </Badge>
+        {!hasProAccess && (
+          <Badge variant="secondary" className="gap-1 text-xs">
+            <Crown className="h-3 w-3" />
+            Pro
+          </Badge>
+        )}
       </div>
 
       {filteredConversations.map((conv) => {
