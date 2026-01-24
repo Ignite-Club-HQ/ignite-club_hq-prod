@@ -21,15 +21,43 @@ interface EventReminderEmailProps {
   eventTitle: string;
   teamName: string;
   clubName: string;
-  eventDate: string; // Formatted date string (e.g., "Saturday, January 25, 2025")
-  eventTime: string; // Formatted time string (e.g., "2:00 PM")
+  eventDate: string;
+  eventTime: string;
   eventLocation?: string;
-  eventType: string; // "Training", "Match", "Meeting", etc.
+  eventType: string;
   eventLink: string;
   clubLogoUrl?: string;
   primaryColor?: string;
   hoursUntilEvent?: number;
 }
+
+// Production domain for all links
+const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
+
+// Ignite brand color - emerald green
+const IGNITE_BRAND_COLOR = "#10b981";
+
+// Ignite icon URL for footer (hosted on production domain)
+const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-email-icon.png`;
+
+// Check if a URL is a valid external URL (not base64)
+const isValidExternalUrl = (url?: string): boolean => {
+  if (!url) return false;
+  return url.startsWith('http://') || url.startsWith('https://');
+};
+
+// Ensure link uses production domain
+const normalizeLink = (link: string): string => {
+  try {
+    const url = new URL(link);
+    return `${PRODUCTION_DOMAIN}${url.pathname}`;
+  } catch {
+    if (link.startsWith('/')) {
+      return `${PRODUCTION_DOMAIN}${link}`;
+    }
+    return link;
+  }
+};
 
 export const EventReminderEmail = ({
   recipientName = "Member",
@@ -40,15 +68,17 @@ export const EventReminderEmail = ({
   eventTime = "2:00 PM",
   eventLocation,
   eventType = "Event",
-  eventLink = "https://example.com/event",
+  eventLink = "https://igniteclubhq.app/event",
   clubLogoUrl,
-  primaryColor = "#f97316",
+  primaryColor = IGNITE_BRAND_COLOR,
   hoursUntilEvent,
 }: EventReminderEmailProps) => {
   const previewText = `Reminder: ${eventTitle} - ${eventDate} at ${eventTime}`;
   const urgencyText = hoursUntilEvent && hoursUntilEvent <= 24 
     ? `Starting in ${hoursUntilEvent} hour${hoursUntilEvent === 1 ? '' : 's'}!` 
     : null;
+  const normalizedEventLink = normalizeLink(eventLink);
+  const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
 
   return (
     <Html>
@@ -58,9 +88,9 @@ export const EventReminderEmail = ({
         <Container style={container}>
           {/* Header with Logo */}
           <Section style={headerSection}>
-            {clubLogoUrl ? (
+            {validClubLogoUrl ? (
               <Img
-                src={clubLogoUrl}
+                src={validClubLogoUrl}
                 width="60"
                 height="60"
                 alt={clubName}
@@ -81,7 +111,7 @@ export const EventReminderEmail = ({
           {/* Urgency Banner */}
           {urgencyText && (
             <Section style={{ ...urgencyBanner, backgroundColor: primaryColor }}>
-              <Text style={urgencyText as any}>⏰ {urgencyText}</Text>
+              <Text style={urgencyBannerText}>⏰ {urgencyText}</Text>
             </Section>
           )}
 
@@ -90,7 +120,7 @@ export const EventReminderEmail = ({
             <Heading style={heading}>📅 Event Reminder</Heading>
             
             <Text style={paragraph}>
-              Hi {recipientName},
+              Dear {recipientName},
             </Text>
             
             <Text style={paragraph}>
@@ -99,7 +129,7 @@ export const EventReminderEmail = ({
 
             {/* Event Details Card */}
             <Section style={eventCard}>
-              <Text style={eventTitle as any}>{eventTitle}</Text>
+              <Text style={eventTitleStyle}>{eventTitle}</Text>
               
               <Section style={detailsGrid}>
                 <Row>
@@ -124,7 +154,7 @@ export const EventReminderEmail = ({
             </Section>
 
             <Section style={buttonSection}>
-              <Button style={{ ...button, backgroundColor: primaryColor }} href={eventLink}>
+              <Button style={{ ...button, backgroundColor: primaryColor }} href={normalizedEventLink}>
                 View Event Details
               </Button>
             </Section>
@@ -140,14 +170,26 @@ export const EventReminderEmail = ({
           <Section style={footerSection}>
             <Text style={footerText}>
               This reminder was sent by {clubName}. 
-              <Link href={eventLink} style={{ color: primaryColor }}> Manage your notification preferences</Link>
+              <Link href={normalizedEventLink} style={{ color: primaryColor }}> Manage your notification preferences</Link>
             </Text>
-            <Text style={footerBrand}>
-              Powered by{' '}
-              <Link href="https://ignite-club-launchpad.lovable.app" style={footerLink}>
-                Ignite Club HQ
-              </Link>
-            </Text>
+            <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
+              <tr>
+                <td style={{ paddingRight: '8px', verticalAlign: 'middle' }}>
+                  <Img
+                    src={IGNITE_ICON_URL}
+                    width="24"
+                    height="24"
+                    alt="Ignite Club HQ"
+                    style={igniteLogoStyle}
+                  />
+                </td>
+                <td style={{ verticalAlign: 'middle' }}>
+                  <Link href={PRODUCTION_DOMAIN} style={footerBrandTextLink}>
+                    Powered by Ignite Club HQ
+                  </Link>
+                </td>
+              </tr>
+            </table>
           </Section>
         </Container>
       </Body>
@@ -223,6 +265,13 @@ const urgencyBanner = {
   textAlign: 'center' as const,
 };
 
+const urgencyBannerText = {
+  color: '#ffffff',
+  fontSize: '16px',
+  fontWeight: 'bold',
+  margin: '0',
+};
+
 const contentSection = {
   padding: '32px 40px',
 };
@@ -248,6 +297,14 @@ const eventCard = {
   padding: '24px',
   margin: '24px 0',
   border: '1px solid #e2e8f0',
+};
+
+const eventTitleStyle = {
+  color: '#1e293b',
+  fontSize: '20px',
+  fontWeight: 'bold',
+  margin: '0 0 16px 0',
+  textAlign: 'center' as const,
 };
 
 const detailsGrid = {
@@ -311,14 +368,13 @@ const footerText = {
   textAlign: 'center' as const,
 };
 
-const footerBrand = {
-  color: '#8898aa',
-  fontSize: '12px',
-  textAlign: 'center' as const,
-  margin: '0',
+const igniteLogoStyle = {
+  display: 'block',
+  borderRadius: '4px',
 };
 
-const footerLink = {
-  color: '#f97316',
+const footerBrandTextLink = {
+  color: IGNITE_BRAND_COLOR,
+  fontSize: '12px',
   textDecoration: 'none',
 };

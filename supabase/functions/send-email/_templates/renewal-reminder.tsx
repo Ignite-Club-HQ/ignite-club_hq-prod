@@ -26,6 +26,43 @@ interface RenewalReminderEmailProps {
   primaryColor?: string;
 }
 
+// Production domain for all links
+const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
+
+// Ignite brand color - emerald green
+const IGNITE_BRAND_COLOR = "#10b981";
+
+// Ignite icon URL for footer (hosted on production domain)
+const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-email-icon.png`;
+
+// Check if a URL is a valid external URL (not base64)
+const isValidExternalUrl = (url?: string): boolean => {
+  if (!url) return false;
+  return url.startsWith('http://') || url.startsWith('https://');
+};
+
+// Ensure link uses production domain
+const normalizeLink = (link: string): string => {
+  try {
+    const url = new URL(link);
+    return `${PRODUCTION_DOMAIN}${url.pathname}`;
+  } catch {
+    if (link.startsWith('/')) {
+      return `${PRODUCTION_DOMAIN}${link}`;
+    }
+    return link;
+  }
+};
+
+// Helper to darken/lighten hex color
+function adjustColor(hex: string, amount: number): string {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, Math.max(0, (num >> 16) + amount));
+  const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amount));
+  const b = Math.min(255, Math.max(0, (num & 0x0000FF) + amount));
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
+
 export const RenewalReminderEmail = ({
   recipientName,
   entityName = "Your Organization",
@@ -33,12 +70,14 @@ export const RenewalReminderEmail = ({
   tierName = "Pro",
   expiryDate = "January 30, 2025",
   daysUntilExpiry = 7,
-  manageLink = "https://example.com/settings",
+  manageLink = "https://igniteclubhq.app/settings",
   clubLogoUrl,
-  primaryColor = "#10b981",
+  primaryColor = IGNITE_BRAND_COLOR,
 }: RenewalReminderEmailProps) => {
   const previewText = `${entityName}'s ${tierName} subscription renews on ${expiryDate}`;
   const entityLabel = entityType === 'club' ? 'club' : 'team';
+  const normalizedManageLink = normalizeLink(manageLink);
+  const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
 
   return (
     <Html>
@@ -48,9 +87,9 @@ export const RenewalReminderEmail = ({
         <Container style={container}>
           {/* Header */}
           <Section style={{ ...headerSection, background: `linear-gradient(135deg, ${primaryColor}, ${adjustColor(primaryColor, -20)})` }}>
-            {clubLogoUrl ? (
+            {validClubLogoUrl ? (
               <Img
-                src={clubLogoUrl}
+                src={validClubLogoUrl}
                 width="60"
                 height="60"
                 alt={entityName}
@@ -71,7 +110,7 @@ export const RenewalReminderEmail = ({
           {/* Main Content */}
           <Section style={contentSection}>
             {recipientName && (
-              <Text style={greeting}>Hi {recipientName},</Text>
+              <Text style={greeting}>Dear {recipientName},</Text>
             )}
             
             <Text style={paragraph}>
@@ -99,7 +138,7 @@ export const RenewalReminderEmail = ({
               </Text>
               
               <Section style={buttonSection}>
-                <Button style={{ ...button, backgroundColor: primaryColor }} href={manageLink}>
+                <Button style={{ ...button, backgroundColor: primaryColor }} href={normalizedManageLink}>
                   Manage Subscription
                 </Button>
               </Section>
@@ -135,27 +174,30 @@ export const RenewalReminderEmail = ({
               You're receiving this because you're an admin of {entityName}. 
               If you have questions about your subscription, reply to this email.
             </Text>
-            <Text style={footerBrand}>
-              Powered by{' '}
-              <Link href="https://ignite-club-launchpad.lovable.app" style={footerLink}>
-                Ignite Club HQ
-              </Link>
-            </Text>
+            <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
+              <tr>
+                <td style={{ paddingRight: '8px', verticalAlign: 'middle' }}>
+                  <Img
+                    src={IGNITE_ICON_URL}
+                    width="24"
+                    height="24"
+                    alt="Ignite Club HQ"
+                    style={igniteLogoStyle}
+                  />
+                </td>
+                <td style={{ verticalAlign: 'middle' }}>
+                  <Link href={PRODUCTION_DOMAIN} style={footerBrandTextLink}>
+                    Powered by Ignite Club HQ
+                  </Link>
+                </td>
+              </tr>
+            </table>
           </Section>
         </Container>
       </Body>
     </Html>
   );
 };
-
-// Helper to darken/lighten hex color
-function adjustColor(hex: string, amount: number): string {
-  const num = parseInt(hex.replace('#', ''), 16);
-  const r = Math.min(255, Math.max(0, (num >> 16) + amount));
-  const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amount));
-  const b = Math.min(255, Math.max(0, (num & 0x0000FF) + amount));
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
-}
 
 export default RenewalReminderEmail;
 
@@ -263,7 +305,7 @@ const infoBox = {
   borderRadius: '8px',
   padding: '20px',
   margin: '24px 0',
-  borderLeft: '4px solid #10b981',
+  borderLeft: `4px solid ${IGNITE_BRAND_COLOR}`,
 };
 
 const infoTitle = {
@@ -355,14 +397,13 @@ const footerText = {
   textAlign: 'center' as const,
 };
 
-const footerBrand = {
-  color: '#8898aa',
-  fontSize: '12px',
-  textAlign: 'center' as const,
-  margin: '0',
+const igniteLogoStyle = {
+  display: 'block',
+  borderRadius: '4px',
 };
 
-const footerLink = {
-  color: '#10b981',
+const footerBrandTextLink = {
+  color: IGNITE_BRAND_COLOR,
+  fontSize: '12px',
   textDecoration: 'none',
 };
