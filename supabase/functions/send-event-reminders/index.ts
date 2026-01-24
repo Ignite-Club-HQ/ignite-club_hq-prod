@@ -32,6 +32,18 @@ async function sendTemplateEmail(
   }
 }
 
+// Check if user has email notifications enabled for events
+async function isEmailEventsEnabled(supabase: any, userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("notification_preferences")
+    .select("email_events_enabled")
+    .eq("user_id", userId)
+    .single();
+  
+  // Default to true if no preferences set
+  return data?.email_events_enabled ?? true;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -181,6 +193,13 @@ serve(async (req) => {
             const profileMap = new Map(profiles?.map(p => [p.id, p.display_name]) || []);
             
             for (const user of userEmails) {
+              // Check if user has email events enabled
+              const emailEnabled = await isEmailEventsEnabled(supabase, user.id);
+              if (!emailEnabled) {
+                console.log(`User ${user.id} has email_events_enabled=false, skipping email`);
+                continue;
+              }
+              
               const recipientName = profileMap.get(user.id) || user.email.split("@")[0];
               
               await sendTemplateEmail(
@@ -308,6 +327,13 @@ serve(async (req) => {
                   .rpc('get_user_emails_by_ids', { user_ids: [duty.assigned_to] });
 
                 if (dutyUserEmails && dutyUserEmails.length > 0) {
+                  // Check if user has email events enabled
+                  const emailEnabled = await isEmailEventsEnabled(supabase, duty.assigned_to);
+                  if (!emailEnabled) {
+                    console.log(`User ${duty.assigned_to} has email_events_enabled=false, skipping duty email`);
+                    continue;
+                  }
+                  
                   const { data: profile } = await supabase
                     .from("profiles")
                     .select("display_name")
