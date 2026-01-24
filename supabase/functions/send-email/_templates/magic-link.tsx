@@ -11,14 +11,13 @@ import {
   Preview,
   Section,
   Text,
-  Code,
 } from 'npm:@react-email/components@0.0.22'
 import * as React from 'npm:react@18.3.1'
 
 interface MagicLinkEmailProps {
   recipientName?: string;
   magicLink: string;
-  otp?: string; // One-time password/code if using code-based auth
+  otp?: string;
   expiresInMinutes?: number;
   actionType: 'login' | 'signup' | 'reset-password' | 'verify-email';
   appName?: string;
@@ -26,15 +25,30 @@ interface MagicLinkEmailProps {
   primaryColor?: string;
 }
 
+// Production domain for all links
+const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
+
+// Ignite brand color - emerald green
+const IGNITE_BRAND_COLOR = "#10b981";
+
+// Ignite icon URL for footer (hosted on production domain)
+const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-email-icon.png`;
+
+// Check if a URL is a valid external URL (not base64)
+const isValidExternalUrl = (url?: string): boolean => {
+  if (!url) return false;
+  return url.startsWith('http://') || url.startsWith('https://');
+};
+
 export const MagicLinkEmail = ({
   recipientName,
-  magicLink = "https://example.com/auth/verify",
+  magicLink = "https://igniteclubhq.app/auth/verify",
   otp,
   expiresInMinutes = 60,
   actionType = 'login',
   appName = "Ignite Club HQ",
   logoUrl,
-  primaryColor = "#f97316",
+  primaryColor = IGNITE_BRAND_COLOR,
 }: MagicLinkEmailProps) => {
   const actionTitles = {
     'login': 'Sign in to your account',
@@ -58,6 +72,7 @@ export const MagicLinkEmail = ({
   };
 
   const previewText = actionTitles[actionType];
+  const validLogoUrl = isValidExternalUrl(logoUrl) ? logoUrl : undefined;
 
   return (
     <Html>
@@ -67,9 +82,9 @@ export const MagicLinkEmail = ({
         <Container style={container}>
           {/* Header */}
           <Section style={headerSection}>
-            {logoUrl ? (
+            {validLogoUrl ? (
               <Img
-                src={logoUrl}
+                src={validLogoUrl}
                 width="120"
                 height="40"
                 alt={appName}
@@ -88,7 +103,7 @@ export const MagicLinkEmail = ({
             
             {recipientName && (
               <Text style={paragraph}>
-                Hi {recipientName},
+                Dear {recipientName},
               </Text>
             )}
             
@@ -145,12 +160,24 @@ export const MagicLinkEmail = ({
               This is an automated security email from {appName}.
               Please do not reply to this email.
             </Text>
-            <Text style={footerBrand}>
-              <Link href="https://ignite-club-launchpad.lovable.app" style={footerLink}>
-                {appName}
-              </Link>
-              {' '} — Team Management Made Simple
-            </Text>
+            <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
+              <tr>
+                <td style={{ paddingRight: '8px', verticalAlign: 'middle' }}>
+                  <Img
+                    src={IGNITE_ICON_URL}
+                    width="24"
+                    height="24"
+                    alt="Ignite Club HQ"
+                    style={igniteLogoStyle}
+                  />
+                </td>
+                <td style={{ verticalAlign: 'middle' }}>
+                  <Link href={PRODUCTION_DOMAIN} style={footerBrandTextLink}>
+                    Powered by Ignite Club HQ
+                  </Link>
+                </td>
+              </tr>
+            </table>
           </Section>
         </Container>
       </Body>
@@ -321,15 +348,13 @@ const footerText = {
   textAlign: 'center' as const,
 };
 
-const footerBrand = {
-  color: '#8898aa',
-  fontSize: '12px',
-  textAlign: 'center' as const,
-  margin: '0',
+const igniteLogoStyle = {
+  display: 'block',
+  borderRadius: '4px',
 };
 
-const footerLink = {
-  color: '#f97316',
+const footerBrandTextLink = {
+  color: IGNITE_BRAND_COLOR,
+  fontSize: '12px',
   textDecoration: 'none',
-  fontWeight: '600',
 };
