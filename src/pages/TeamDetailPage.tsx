@@ -1130,7 +1130,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isSubscriptionLoading && !isTeamPro && !isAppAdmin}>
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Subscription Fees</span>
+                  <span className="text-lg font-semibold">Fee Payments</span>
                   {/* Only show Pro lock when NOT loading AND NOT Pro AND NOT AppAdmin */}
                   {!isSubscriptionLoading && !isTeamPro && !isAppAdmin && (
                     <div className="flex items-center gap-1.5 ml-2">
