@@ -1,4 +1,4 @@
-import { CheckCircle, Home, ArrowRight } from "lucide-react";
+import { CheckCircle, Home, ArrowRight, ExternalLink } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { InviteFlowProgress } from "@/components/InviteFlowProgress";
@@ -9,6 +9,14 @@ interface PWAInstalledGuideProps {
 }
 
 export function PWAInstalledGuide({ appName = "Ignite", onDismiss }: PWAInstalledGuideProps) {
+  // Detect iOS - can't programmatically open PWA on iOS
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+
+  // Open the PWA by navigating to the origin URL (triggers standalone mode if installed on Android)
+  const handleOpenApp = () => {
+    window.location.href = window.location.origin;
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <InviteFlowProgress currentStep="install" className="fixed top-0 left-0 right-0" />
@@ -28,8 +36,32 @@ export function PWAInstalledGuide({ appName = "Ignite", onDismiss }: PWAInstalle
             </p>
           </div>
 
+          {/* App icon preview */}
+          <div className="flex flex-col items-center gap-2">
+            <div className="p-3 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
+              <img 
+                src="/ignite-logo.png" 
+                alt={`${appName} app icon`}
+                className="h-16 w-16 rounded-xl"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">Look for this icon</p>
+          </div>
+
+          {/* Open app button - only show on non-iOS (Android supports PWA launching) */}
+          {!isIOS && (
+            <Button 
+              onClick={handleOpenApp} 
+              className="w-full gap-2"
+              size="lg"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open {appName} App
+            </Button>
+          )}
+
           <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-            <p className="font-medium text-sm">To continue:</p>
+            <p className="font-medium text-sm">{isIOS ? "To continue:" : "Or find it manually:"}</p>
             <div className="flex items-center gap-3 text-left">
               <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <span className="text-primary font-semibold text-sm">1</span>
@@ -48,12 +80,6 @@ export function PWAInstalledGuide({ appName = "Ignite", onDismiss }: PWAInstalle
                 </div>
                 <span>from home screen</span>
               </div>
-            </div>
-            <div className="flex items-center gap-3 text-left">
-              <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-primary font-semibold text-sm">3</span>
-              </div>
-              <p className="text-sm">Sign up and get started!</p>
             </div>
           </div>
 
