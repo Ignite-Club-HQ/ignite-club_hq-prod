@@ -75,27 +75,36 @@ export function AppLayout() {
     );
   }
 
-  // Profile completion gate - only redirect if profile EXISTS but display_name is missing
-  // AND we've finished loading fresh data from the server (not just from cache)
-  // This prevents stale cached profiles from incorrectly redirecting established users
-  if (profile && !profile.display_name && !profileLoading) {
-    return <Navigate to="/complete-profile" replace />;
+  // Profile completion gate - redirect to complete-profile if:
+  // 1. Profile exists but display_name is missing (existing user needs to complete)
+  // 2. Profile is null after loading finished (new user needs to create profile)
+  // Only gate when profileLoading is false (we have server truth, not stale cache)
+  if (!profileLoading) {
+    if (profile && !profile.display_name) {
+      return <Navigate to="/complete-profile" replace />;
+    }
+    // New user - profile doesn't exist yet, redirect to complete-profile to create it
+    if (!profile && !profileError) {
+      return <Navigate to="/complete-profile" replace />;
+    }
   }
 
-  // If profile is null but no error (should be rare), show loading/retry
+  // If profile is null and still loading, show loading screen
   if (!profile) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <img src={logo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Loading your profile...</p>
-        <Button onClick={async () => {
-          setRetrying(true);
-          await refreshProfile();
-          setRetrying(false);
-        }}>
-          Retry
-        </Button>
+        {!profileLoading && (
+          <Button onClick={async () => {
+            setRetrying(true);
+            await refreshProfile();
+            setRetrying(false);
+          }}>
+            Retry
+          </Button>
+        )}
       </div>
     );
   }
