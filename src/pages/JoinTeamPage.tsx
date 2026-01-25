@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Loader2, CheckCircle, XCircle, Users, AlertTriangle } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Users, AlertTriangle, Download, Share, PlusSquare, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -11,8 +11,8 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { PWAInstallDialog } from "@/components/PWAInstallDialog";
 import { PhotoConsentDialog } from "@/components/PhotoConsentDialog";
+import { usePWAInstall } from "@/hooks/usePWAInstall";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -42,11 +42,10 @@ export default function JoinTeamPage() {
   const { toast } = useToast();
   const [joined, setJoined] = useState(false);
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>([]);
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [showPhotoConsent, setShowPhotoConsent] = useState(false);
   const [pendingJoinRoles, setPendingJoinRoles] = useState<AppRole[]>([]);
   const [nameValidationError, setNameValidationError] = useState<string | null>(null);
-  const shouldPromptInstall = searchParams.get("install") === "true";
+  const { canPrompt, isInstalled, isIOS, installApp } = usePWAInstall();
 
   // Check if this is a pending invite token (name-restricted) or a regular team invite
   const isPendingInvite = location.pathname.startsWith("/join/p/");
@@ -404,9 +403,6 @@ export default function JoinTeamPage() {
       setJoined(true);
       const roleNames = rolesToAdd.map(r => roleLabels[r]).join(", ");
       toast({ title: `Successfully joined as ${roleNames}!` });
-      if (shouldPromptInstall) {
-        setShowInstallPrompt(true);
-      }
     },
     onError: (error: Error) => {
       toast({ title: error.message || "Failed to join team", variant: "destructive" });
@@ -430,9 +426,6 @@ export default function JoinTeamPage() {
         setJoined(true);
         const roleNames = result.map(r => roleLabels[r]).join(", ");
         toast({ title: `Successfully joined as ${roleNames}!` });
-        if (shouldPromptInstall) {
-          setShowInstallPrompt(true);
-        }
       } catch (error) {
         toast({ title: (error as Error).message || "Failed to join team", variant: "destructive" });
       }
@@ -547,23 +540,79 @@ export default function JoinTeamPage() {
 
   // Joined successfully
   if (joined) {
+    const handleInstall = async () => {
+      await installApp();
+    };
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Welcome to the Team!</h2>
-            <p className="text-muted-foreground mb-4">
-              You've successfully joined {invite.teams?.name}.
-            </p>
-            <Button onClick={() => navigate(`/teams/${invite.team_id}`)}>View Team</Button>
+          <CardContent className="p-6 space-y-6">
+            {/* Success message */}
+            <div className="text-center">
+              <CheckCircle className="h-12 w-12 text-primary mx-auto mb-4" />
+              <h2 className="text-xl font-semibold mb-2">Welcome to the Team!</h2>
+              <p className="text-muted-foreground">
+                You've successfully joined {invite.teams?.name}.
+              </p>
+            </div>
+
+            {/* App install instructions - only show if not already installed */}
+            {!isInstalled && (
+              <div className="border-t border-border pt-4 space-y-4">
+                <div className="flex items-center justify-center gap-2">
+                  <Smartphone className="h-5 w-5 text-primary" />
+                  <h3 className="font-medium">Install the App</h3>
+                </div>
+                <p className="text-sm text-muted-foreground text-center">
+                  Get the best experience with push notifications and offline access!
+                </p>
+
+                {isIOS ? (
+                  // iOS instructions
+                  <div className="space-y-2 bg-muted/50 rounded-lg p-4">
+                    <p className="text-sm font-medium text-center mb-3">Add to your home screen:</p>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3 text-sm">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium">1</span>
+                        <span className="flex items-center gap-2">
+                          Tap the <Share className="h-4 w-4 text-primary" /> Share button
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium">2</span>
+                        <span className="flex items-center gap-2">
+                          Tap <PlusSquare className="h-4 w-4 text-primary" /> "Add to Home Screen"
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium">3</span>
+                        <span>Tap "Add" to install</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : canPrompt ? (
+                  // Android/Chrome can prompt directly
+                  <Button onClick={handleInstall} className="w-full" variant="outline">
+                    <Download className="h-4 w-4 mr-2" />
+                    Install App
+                  </Button>
+                ) : (
+                  // Fallback instructions for other browsers
+                  <div className="space-y-2 bg-muted/50 rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground text-center">
+                      Look for "Add to Home Screen" or "Install App" in your browser menu.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <Button onClick={() => navigate(`/teams/${invite.team_id}`)} className="w-full" size="lg">
+              View Team
+            </Button>
           </CardContent>
         </Card>
-        
-        <PWAInstallDialog 
-          forceShow={showInstallPrompt} 
-          onClose={() => setShowInstallPrompt(false)} 
-        />
       </div>
     );
   }
