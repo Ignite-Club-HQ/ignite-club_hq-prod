@@ -198,18 +198,22 @@ export default function CompleteProfilePage() {
       let pendingInvites: any[] = [];
       
       if (userEmail) {
-        // First try matching by email
+        // First try matching by email (use ilike for case-insensitive matching)
         const { data: emailInvites, error: emailError } = await supabase
           .from("pending_invites")
           .select("id, team_id, club_id, role, invited_user_id, invited_email")
-          .eq("invited_email", userEmail)
+          .ilike("invited_email", userEmail)
           .eq("status", "pending");
         
         if (emailError) {
           console.error("[CompleteProfile] Error fetching invites by email:", emailError);
-        } else if (emailInvites && emailInvites.length > 0) {
-          pendingInvites = emailInvites;
-          console.log("[CompleteProfile] Found invites by email:", emailInvites.length);
+          console.error("[CompleteProfile] Email error details:", JSON.stringify(emailError));
+        } else {
+          console.log("[CompleteProfile] Email invites query result:", emailInvites);
+          if (emailInvites && emailInvites.length > 0) {
+            pendingInvites = emailInvites;
+            console.log("[CompleteProfile] Found invites by email:", emailInvites.length);
+          }
         }
       }
       
