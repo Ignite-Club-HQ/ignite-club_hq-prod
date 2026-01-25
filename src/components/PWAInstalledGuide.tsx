@@ -1,4 +1,4 @@
-import { CheckCircle, Home, ArrowRight, ExternalLink } from "lucide-react";
+import { CheckCircle, Home, ArrowRight, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { InviteFlowProgress } from "@/components/InviteFlowProgress";
@@ -9,14 +9,6 @@ interface PWAInstalledGuideProps {
 }
 
 export function PWAInstalledGuide({ appName = "Ignite", onDismiss }: PWAInstalledGuideProps) {
-  // Detect iOS - can't programmatically open PWA on iOS
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-
-  // Open the PWA by navigating to the origin URL (triggers standalone mode if installed on Android)
-  const handleOpenApp = () => {
-    window.location.href = window.location.origin;
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <InviteFlowProgress currentStep="install" className="fixed top-0 left-0 right-0" />
@@ -48,35 +40,25 @@ export function PWAInstalledGuide({ appName = "Ignite", onDismiss }: PWAInstalle
             <p className="text-xs text-muted-foreground">Look for this icon</p>
           </div>
 
-          {/* Open app button - show for all platforms, iOS will open in browser */}
-          <Button 
-            onClick={handleOpenApp} 
-            className="w-full gap-2"
-            size="lg"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Open {appName} App
-          </Button>
-
-          <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-            <p className="font-medium text-sm">Or find it manually:</p>
-            <div className="flex items-center gap-3 text-left">
-              <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-primary font-semibold text-sm">1</span>
+          {/* Clear next steps */}
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-4">
+            <p className="font-semibold text-primary">Next steps:</p>
+            <div className="flex items-start gap-3 text-left">
+              <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+                <X className="h-4 w-4 text-primary-foreground" />
               </div>
-              <p className="text-sm">Close this browser tab</p>
+              <div>
+                <p className="font-medium">Close this browser</p>
+                <p className="text-sm text-muted-foreground">Swipe up or tap the X to close</p>
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-left">
-              <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-primary font-semibold text-sm">2</span>
+            <div className="flex items-start gap-3 text-left">
+              <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+                <Home className="h-4 w-4 text-primary-foreground" />
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span>Open</span>
-                <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-background border">
-                  <Home className="h-3 w-3" />
-                  <span className="font-medium">{appName}</span>
-                </div>
-                <span>from home screen</span>
+              <div>
+                <p className="font-medium">Open {appName} from home screen</p>
+                <p className="text-sm text-muted-foreground">Tap the {appName} icon you just installed</p>
               </div>
             </div>
           </div>
