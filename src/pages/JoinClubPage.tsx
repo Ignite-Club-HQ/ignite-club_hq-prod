@@ -152,7 +152,15 @@ export default function JoinClubPage() {
   const handleJoinClick = async () => {
     // Try to install PWA first - await the user's choice before proceeding
     if (canPrompt && !isInstalled) {
-      await installApp();
+      const installed = await installApp();
+      // If PWA was installed, reload the page to open in the installed app
+      // The PWA will intercept this URL and open in standalone mode
+      if (installed) {
+        // Small delay to let the PWA installation complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+        window.location.reload();
+        return;
+      }
     }
     
     // If not logged in, redirect to auth
