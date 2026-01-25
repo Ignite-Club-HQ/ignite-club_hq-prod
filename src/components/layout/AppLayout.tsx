@@ -76,8 +76,9 @@ export function AppLayout() {
   }
 
   // Profile completion gate - only redirect if profile EXISTS but display_name is missing
-  // This ensures existing users with profiles are never redirected here due to temporary issues
-  if (profile && !profile.display_name) {
+  // AND we've finished loading fresh data from the server (not just from cache)
+  // This prevents stale cached profiles from incorrectly redirecting established users
+  if (profile && !profile.display_name && !profileLoading) {
     return <Navigate to="/complete-profile" replace />;
   }
 
