@@ -37,9 +37,18 @@ export default function JoinClubPage() {
   const [joined, setJoined] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [showInstalledGuide, setShowInstalledGuide] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
   const autoJoinAttempted = useRef(false);
   const shouldPromptInstall = searchParams.get("install") === "true";
   const { canPrompt, isInstalled, isIOS, installApp } = usePWAInstall();
+  
+  // Watch for installation completion - show guide only after app is actually installed
+  useEffect(() => {
+    if (isInstalling && isInstalled) {
+      setIsInstalling(false);
+      setShowInstalledGuide(true);
+    }
+  }, [isInstalling, isInstalled]);
   
   // Check if we should auto-join (returning from auth after install flow)
   const shouldAutoJoin = sessionStorage.getItem("autoJoinAfterAuth") === "true";
@@ -234,15 +243,26 @@ export default function JoinClubPage() {
 
   // Handle join action - show install prompt first, then redirect to auth if not logged in
   const handleJoinClick = async () => {
-    // Try to install PWA first - await the user's choice before proceeding
-    if (canPrompt && !isInstalled) {
-      const installed = await installApp();
-      // If PWA was installed, store the invite URL and auto-join flag, then show guide
-      if (installed) {
+    // On iOS, skip PWA install flow entirely
+    if (!isIOS) {
+      // Try to install PWA first - await the user's choice before proceeding
+      if (canPrompt && !isInstalled) {
+        setIsInstalling(true);
+        // Store invite data now in case we need it after install completes
         localStorage.setItem("pwa_pending_invite", `/join-club/${token}`);
         sessionStorage.setItem("autoJoinAfterAuth", "true");
-        setShowInstalledGuide(true);
-        return;
+        
+        const accepted = await installApp();
+        
+        if (accepted) {
+          // User accepted - keep isInstalling true, wait for appinstalled event
+          // The useEffect watching isInstalled will handle showing the guide
+          return;
+        } else {
+          // User declined - clean up and continue normal flow
+          setIsInstalling(false);
+          localStorage.removeItem("pwa_pending_invite");
+        }
       }
     }
     
