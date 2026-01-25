@@ -15,6 +15,7 @@ import { PhotoConsentDialog } from "@/components/PhotoConsentDialog";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { IOSInstallGuide } from "@/components/IOSInstallGuide";
 import { PWAInstalledGuide } from "@/components/PWAInstalledGuide";
+import { InviteFlowProgress, setInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -196,6 +197,28 @@ export default function JoinTeamPage() {
       setNameValidationError(null);
     }
   }, [isPendingInvite, pendingInviteData, userProfile, user]);
+
+  // Set up invite flow context when invite is loaded (for progress tracking across pages)
+  useEffect(() => {
+    if (invite) {
+      setInviteFlowContext({
+        active: true,
+        clubName: invite.teams?.clubs?.name || undefined,
+        clubLogoUrl: invite.teams?.clubs?.logo_url || undefined,
+        teamName: invite.teams?.name || undefined,
+        role: invite.role,
+        inviteToken: token,
+        isIOS: isIOS,
+      });
+    }
+  }, [invite, token, isIOS]);
+
+  // Clear invite flow context on successful join
+  useEffect(() => {
+    if (joined) {
+      clearInviteFlowContext();
+    }
+  }, [joined]);
 
   // Check if this is a fixed role invite (admin roles that don't allow additional selection)
   const isFixedRoleInvite = invite?.role && fixedRoles.includes(invite.role as AppRole);
@@ -797,8 +820,23 @@ export default function JoinTeamPage() {
     );
   }
 
+  // Determine current step for progress indicator
+  const getCurrentStep = () => {
+    if (showInstalledGuide) return "install";
+    return "view";
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Fixed progress indicator at top */}
+      <InviteFlowProgress 
+        currentStep={getCurrentStep()} 
+        isIOS={isIOS}
+        isExistingUser={!!user}
+        className="fixed top-0 left-0 right-0"
+      />
+      
+      <div className="flex-1 flex items-center justify-center p-4 pt-16">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
@@ -951,6 +989,7 @@ export default function JoinTeamPage() {
           )}
         </CardContent>
       </Card>
+      </div>
 
       {/* Photo Consent Dialog for Parents */}
       <PhotoConsentDialog

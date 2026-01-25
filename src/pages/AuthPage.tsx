@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
 import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
+import { InviteFlowProgress, getInviteFlowContext } from "@/components/InviteFlowProgress";
 
 import { z } from "zod";
 
@@ -48,6 +49,10 @@ export default function AuthPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
+  
+  // Check if we're in an invite flow
+  const inviteFlowContext = getInviteFlowContext();
+  const isInInviteFlow = inviteFlowContext?.active === true;
   
   // Check if we should default to signup tab (new user from invite)
   const defaultTab = sessionStorage.getItem("authDefaultTab") || "signin";
@@ -200,7 +205,18 @@ export default function AuthPage() {
 
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Show progress indicator if in invite flow */}
+      {isInInviteFlow && (
+        <InviteFlowProgress 
+          currentStep="auth" 
+          isIOS={inviteFlowContext?.isIOS}
+          isExistingUser={false}
+          className="fixed top-0 left-0 right-0"
+        />
+      )}
+      
+      <div className={`flex-1 flex flex-col items-center justify-center p-4 ${isInInviteFlow ? 'pt-16' : ''}`}>
       <div className="w-full max-w-md space-y-8 animate-slide-up">
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
@@ -497,6 +513,7 @@ export default function AuthPage() {
             <a href="mailto:support@igniteclubhq.app" className="hover:text-foreground hover:underline">Support</a>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
