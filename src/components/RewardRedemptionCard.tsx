@@ -107,9 +107,6 @@ export default function RewardRedemptionCard() {
   const [hasClubThemeCached] = useState(getInitialThemeState);
   const hasClubTheme = activeThemeData || hasClubThemeCached;
 
-  // Note: We don't auto-open the rewards dialog when a club filter is active
-  // The filter just limits which clubs are shown, user must click to open dialog
-
   // Check if app admin
   const { data: isAppAdmin } = useQuery({
     queryKey: ["is-app-admin", user?.id],
@@ -429,6 +426,7 @@ export default function RewardRedemptionCard() {
   const hasClubs = userClubs.length > 0;
   const isLoadingClubsWithNoCache = isLoadingClubs && userClubs.length === 0;
 
+
   // If user has a pending redemption, show it prominently
   if (pendingRedemptions.length > 0) {
     const latestRedemption = pendingRedemptions[0];
@@ -609,6 +607,11 @@ export default function RewardRedemptionCard() {
               
               if (isSingleClubMode) {
                 const club = proClubs[0];
+                // Auto-open if not already showing rewards
+                if (!selectedClubId) {
+                  // Use setTimeout to avoid state update during render
+                  setTimeout(() => setSelectedClubId(club.id), 0);
+                }
                 return (
                   <div className="space-y-3">
                     <Button
