@@ -1835,6 +1835,7 @@ export type Database = {
           email_media_enabled: boolean
           email_membership_enabled: boolean
           email_messages_enabled: boolean
+          email_pitch_board_enabled: boolean
           events_enabled: boolean
           id: string
           media_enabled: boolean
@@ -1851,6 +1852,7 @@ export type Database = {
           email_media_enabled?: boolean
           email_membership_enabled?: boolean
           email_messages_enabled?: boolean
+          email_pitch_board_enabled?: boolean
           events_enabled?: boolean
           id?: string
           media_enabled?: boolean
@@ -1867,6 +1869,7 @@ export type Database = {
           email_media_enabled?: boolean
           email_membership_enabled?: boolean
           email_messages_enabled?: boolean
+          email_pitch_board_enabled?: boolean
           events_enabled?: boolean
           id?: string
           media_enabled?: boolean

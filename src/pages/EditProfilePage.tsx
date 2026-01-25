@@ -37,6 +37,7 @@ interface EmailPreferences {
   email_media_enabled: boolean;
   email_membership_enabled: boolean;
   email_admin_enabled: boolean;
+  email_pitch_board_enabled: boolean;
 }
 
 export default function EditProfilePage() {
@@ -66,6 +67,7 @@ export default function EditProfilePage() {
     email_media_enabled: true,
     email_membership_enabled: true,
     email_admin_enabled: true,
+    email_pitch_board_enabled: true,
   });
   const [prefsLoading, setPrefsLoading] = useState(false);
   const [emailPrefsLoading, setEmailPrefsLoading] = useState(false);
@@ -110,6 +112,7 @@ export default function EditProfilePage() {
           email_media_enabled: data.email_media_enabled ?? true,
           email_membership_enabled: data.email_membership_enabled ?? true,
           email_admin_enabled: data.email_admin_enabled ?? true,
+          email_pitch_board_enabled: data.email_pitch_board_enabled ?? true,
         });
       }
     };
@@ -1155,6 +1158,24 @@ export default function EditProfilePage() {
                 id="email-admin"
                 checked={emailPreferences.email_admin_enabled}
                 onCheckedChange={(v) => handleEmailPreferenceChange("email_admin_enabled", v)}
+                disabled={emailPrefsLoading}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <Label htmlFor="email-pitch-board">Pitch Board</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Substitution alerts & game updates
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="email-pitch-board"
+                checked={emailPreferences.email_pitch_board_enabled}
+                onCheckedChange={(v) => handleEmailPreferenceChange("email_pitch_board_enabled", v)}
                 disabled={emailPrefsLoading}
               />
             </div>
