@@ -334,14 +334,16 @@ export default function JoinClubPage() {
 
           <Button 
             onClick={handleJoinClick} 
-            disabled={joinMutation.isPending || authLoading}
+            disabled={joinMutation.isPending}
             className="w-full"
             size="lg"
           >
-            {(joinMutation.isPending || authLoading) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {canPrompt && !isInstalled
-              ? (!user ? "Install App & Sign in to Join" : `Install App & Join as ${roleLabels[invite.role as AppRole]}`)
-              : (!user ? "Sign in to Join" : `Join as ${roleLabels[invite.role as AppRole]}`)}
+            {joinMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {!user 
+              ? (canPrompt && !isInstalled 
+                  ? "Install App & Create Account"
+                  : "Create Account to Join")
+              : `Join as ${roleLabels[invite.role as AppRole]}`}
           </Button>
           <Button 
             variant="ghost" 
