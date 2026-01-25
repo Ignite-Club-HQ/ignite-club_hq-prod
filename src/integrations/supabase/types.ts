@@ -3629,6 +3629,20 @@ export type Database = {
       }
       require_app_admin: { Args: never; Returns: boolean }
       require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
+      send_duty_notification_email: {
+        Args: {
+          p_club_logo_url: string
+          p_club_name: string
+          p_duty_name: string
+          p_event_date: string
+          p_event_id: string
+          p_event_time: string
+          p_event_title: string
+          p_recipient_user_id: string
+          p_team_name: string
+        }
+        Returns: undefined
+      }
       send_message_notification_email: {
         Args: {
           p_context_id: string
