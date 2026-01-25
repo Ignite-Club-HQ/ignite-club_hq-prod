@@ -90,7 +90,8 @@ export const MessageNotificationEmail = ({
     ? messagePreview.substring(0, 150) + '...' 
     : messagePreview;
 
-  const displayContextName = contextName || 'Ignite Club HQ';
+  // Use contextName for display, never fall back to generic defaults
+  const displayContextName = contextName || (messageType === 'direct' ? senderName : 'Your Team');
 
   return (
     <Html>
