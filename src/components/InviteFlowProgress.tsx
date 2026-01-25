@@ -16,6 +16,8 @@ interface InviteFlowProgressProps {
 
 // Steps for new users (need to create account)
 const NEW_USER_STEPS: InviteStep[] = ["view", "install", "auth", "profile", "done"];
+// Steps for new users on iOS (skip install step - no programmatic prompt)
+const NEW_USER_STEPS_IOS: InviteStep[] = ["view", "auth", "profile", "done"];
 // Steps for existing users (already logged in)
 const EXISTING_USER_STEPS: InviteStep[] = ["view", "done"];
 
@@ -74,8 +76,11 @@ export function InviteFlowProgress({
   isExistingUser = false,
   className 
 }: InviteFlowProgressProps) {
-  // Determine which steps to show based on user type
-  const steps = isExistingUser ? EXISTING_USER_STEPS : NEW_USER_STEPS;
+  // Determine which steps to show based on user type and platform
+  // iOS users skip install step since there's no programmatic prompt
+  const steps = isExistingUser 
+    ? EXISTING_USER_STEPS 
+    : (isIOS ? NEW_USER_STEPS_IOS : NEW_USER_STEPS);
   
   const currentIndex = steps.indexOf(currentStep);
   

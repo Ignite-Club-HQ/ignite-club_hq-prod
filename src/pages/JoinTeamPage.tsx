@@ -560,17 +560,21 @@ export default function JoinTeamPage() {
 
   // Handle join action - redirect to auth if not logged in
   const handleJoinClick = async () => {
-    // Try to install PWA first - await the user's choice before proceeding
-    if (canPrompt && !isInstalled) {
-      setIsInstalling(true);
-      const installed = await installApp();
-      setIsInstalling(false);
-      // If PWA was installed, store the invite URL and auto-join flag, then show guide
-      if (installed) {
-        localStorage.setItem("pwa_pending_invite", location.pathname);
-        sessionStorage.setItem("autoJoinAfterAuth", "true");
-        setShowInstalledGuide(true);
-        return;
+    // On iOS, skip PWA install flow entirely - go straight to auth
+    // iOS can't programmatically trigger install, so we'll show IOSInstallPrompt after signup
+    if (!isIOS) {
+      // Try to install PWA first - await the user's choice before proceeding
+      if (canPrompt && !isInstalled) {
+        setIsInstalling(true);
+        const installed = await installApp();
+        setIsInstalling(false);
+        // If PWA was installed, store the invite URL and auto-join flag, then show guide
+        if (installed) {
+          localStorage.setItem("pwa_pending_invite", location.pathname);
+          sessionStorage.setItem("autoJoinAfterAuth", "true");
+          setShowInstalledGuide(true);
+          return;
+        }
       }
     }
     
@@ -625,7 +629,7 @@ export default function JoinTeamPage() {
   if (isInstalling) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
-        <InviteFlowProgress currentStep="install" className="fixed top-0 left-0 right-0 z-50" />
+        <InviteFlowProgress currentStep="install" isIOS={isIOS} className="fixed top-0 left-0 right-0 z-50" />
         <div className="flex-1 flex items-center justify-center p-4 pt-16">
           <Card className="w-full max-w-md">
             <CardContent className="p-6 text-center space-y-6">
