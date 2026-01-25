@@ -85,29 +85,14 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    // Get sender's name and avatar
+    // Get sender's name
     const { data: senderProfile } = await supabase
       .from('profiles')
-      .select('display_name, avatar_url')
+      .select('display_name')
       .eq('id', payload.senderUserId)
       .single();
 
     const senderName = senderProfile?.display_name || 'Someone';
-    const senderAvatarUrl = senderProfile?.avatar_url || null;
-    
-    // Only use Gravatar for Ignite Support (broadcast messages)
-    const isIgniteSupport = payload.messageType === 'broadcast';
-    let igniteGravatarUrl: string | null = null;
-    
-    if (isIgniteSupport) {
-      // Generate SHA-256 hash for support@igniteclubhq.app
-      const encoder = new TextEncoder();
-      const data = encoder.encode('support@igniteclubhq.app');
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      igniteGravatarUrl = `https://www.gravatar.com/avatar/${hashHex}?s=64&d=mp`;
-    }
 
     // Get recipient's name
     const { data: recipientProfile } = await supabase
@@ -178,7 +163,6 @@ serve(async (req: Request): Promise<Response> => {
         templateData: {
           recipientName,
           senderName,
-          senderAvatarUrl: isIgniteSupport ? igniteGravatarUrl : senderAvatarUrl,
           messagePreview: payload.messageText || '',
           messageType: payload.messageType,
           contextName: payload.contextName,

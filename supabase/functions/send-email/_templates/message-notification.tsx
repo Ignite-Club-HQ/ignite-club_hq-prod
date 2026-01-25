@@ -17,7 +17,6 @@ import * as React from 'npm:react@18.3.1';
 interface MessageNotificationEmailProps {
   recipientName?: string;
   senderName: string;
-  senderAvatarUrl?: string;
   messagePreview: string;
   messageType: 'team' | 'club' | 'group' | 'direct' | 'broadcast';
   contextName?: string;
@@ -58,7 +57,6 @@ const normalizeLink = (link: string): string => {
 export const MessageNotificationEmail = ({
   recipientName,
   senderName,
-  senderAvatarUrl,
   messagePreview,
   messageType,
   contextName,
@@ -70,7 +68,6 @@ export const MessageNotificationEmail = ({
   const previewText = `New message from ${senderName}${contextName ? ` in ${contextName}` : ''}`;
   const normalizedMessageLink = normalizeLink(messageLink);
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
-  const validSenderAvatarUrl = isValidExternalUrl(senderAvatarUrl) ? senderAvatarUrl : undefined;
 
   const getMessageTypeLabel = () => {
     switch (messageType) {
@@ -129,31 +126,14 @@ export const MessageNotificationEmail = ({
             
             <Text style={contextLabel}>{getMessageTypeLabel()}</Text>
 
-            {/* Message Card with Sender Avatar */}
+            {/* Message Card */}
             <Section style={messageCard}>
-              <table cellPadding="0" cellSpacing="0" style={{ width: '100%' }}>
-                <tr>
-                  {validSenderAvatarUrl && (
-                    <td style={{ width: '48px', verticalAlign: 'top', paddingRight: '12px' }}>
-                      <Img
-                        src={validSenderAvatarUrl}
-                        width="40"
-                        height="40"
-                        alt={senderName}
-                        style={senderAvatarStyle}
-                      />
-                    </td>
-                  )}
-                  <td style={{ verticalAlign: 'top' }}>
-                    <Text style={senderText}>
-                      <strong>{senderName}</strong> says:
-                    </Text>
-                    <Text style={messageText}>
-                      {hasImage && !messagePreview ? '📷 Sent an image' : truncatedPreview}
-                    </Text>
-                  </td>
-                </tr>
-              </table>
+              <Text style={senderText}>
+                <strong>{senderName}</strong> says:
+              </Text>
+              <Text style={messageText}>
+                {hasImage && !messagePreview ? '📷 Sent an image' : truncatedPreview}
+              </Text>
             </Section>
 
             {/* CTA Button */}
@@ -295,11 +275,6 @@ const messageCard = {
   padding: '20px 24px',
   margin: '0 0 24px 0',
   border: '1px solid #e2e8f0',
-};
-
-const senderAvatarStyle = {
-  borderRadius: '50%',
-  objectFit: 'cover' as const,
 };
 
 const senderText = {

@@ -83,7 +83,7 @@ export function prefetchProfiles(ids: string[]) {
       try {
         const { data } = await supabase
           .from("profiles")
-          .select("id, display_name, avatar_url, email_hash")
+          .select("id, display_name, avatar_url")
           .in("id", missing)
           .abortSignal(controller.signal);
         
