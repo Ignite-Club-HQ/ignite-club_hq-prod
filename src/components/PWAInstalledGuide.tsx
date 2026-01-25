@@ -1,6 +1,7 @@
 import { CheckCircle, Home, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { InviteFlowProgress } from "@/components/InviteFlowProgress";
 
 interface PWAInstalledGuideProps {
   appName?: string;
@@ -9,7 +10,9 @@ interface PWAInstalledGuideProps {
 
 export function PWAInstalledGuide({ appName = "Ignite", onDismiss }: PWAInstalledGuideProps) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex flex-col bg-background">
+      <InviteFlowProgress currentStep="install" className="fixed top-0 left-0 right-0" />
+      <div className="flex-1 flex items-center justify-center p-4 pt-16">
       <Card className="w-full max-w-md">
         <CardContent className="p-6 text-center space-y-6">
           <div className="flex justify-center">
@@ -68,6 +71,7 @@ export function PWAInstalledGuide({ appName = "Ignite", onDismiss }: PWAInstalle
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
