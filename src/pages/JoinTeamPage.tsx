@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { PhotoConsentDialog } from "@/components/PhotoConsentDialog";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
+import { IOSInstallGuide } from "@/components/IOSInstallGuide";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -755,27 +756,7 @@ export default function JoinTeamPage() {
               <p className="text-xs text-muted-foreground text-center">
                 For the best experience with push notifications and offline access
               </p>
-              <div className="space-y-2 bg-muted/50 rounded-lg p-3">
-                <p className="text-xs font-medium text-center mb-2">Add to your home screen:</p>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-medium">1</span>
-                    <span className="flex items-center gap-1.5">
-                      Tap the <Share className="h-3.5 w-3.5 text-primary" /> Share button
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-medium">2</span>
-                    <span className="flex items-center gap-1.5">
-                      Tap <PlusSquare className="h-3.5 w-3.5 text-primary" /> "Add to Home Screen"
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-medium">3</span>
-                    <span>Tap "Add" to install</span>
-                  </div>
-                </div>
-              </div>
+              <IOSInstallGuide compact />
             </div>
           )}
         </CardContent>
