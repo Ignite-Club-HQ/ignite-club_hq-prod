@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PWAInstallDialog } from "@/components/PWAInstallDialog";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { IOSInstallGuide } from "@/components/IOSInstallGuide";
+import { PWAInstalledGuide } from "@/components/PWAInstalledGuide";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -34,6 +35,7 @@ export default function JoinClubPage() {
   const { toast } = useToast();
   const [joined, setJoined] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [showInstalledGuide, setShowInstalledGuide] = useState(false);
   const shouldPromptInstall = searchParams.get("install") === "true";
   const { canPrompt, isInstalled, isIOS, installApp } = usePWAInstall();
 
@@ -153,12 +155,11 @@ export default function JoinClubPage() {
     // Try to install PWA first - await the user's choice before proceeding
     if (canPrompt && !isInstalled) {
       const installed = await installApp();
-      // If PWA was installed, reload the page to open in the installed app
-      // The PWA will intercept this URL and open in standalone mode
+      // If PWA was installed, store the invite URL and show the guide
       if (installed) {
-        // Small delay to let the PWA installation complete
-        await new Promise(resolve => setTimeout(resolve, 500));
-        window.location.reload();
+        // Store the invite URL so the PWA can resume the flow
+        localStorage.setItem("pwa_pending_invite", `/join-club/${token}`);
+        setShowInstalledGuide(true);
         return;
       }
     }
@@ -173,6 +174,23 @@ export default function JoinClubPage() {
     // User is logged in - proceed with join
     joinMutation.mutate();
   };
+
+  // Handle "continue in browser" from installed guide
+  const handleContinueInBrowser = () => {
+    setShowInstalledGuide(false);
+    localStorage.removeItem("pwa_pending_invite");
+    if (!user) {
+      sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
+      navigate("/auth");
+    } else {
+      joinMutation.mutate();
+    }
+  };
+
+  // Show installed guide if user just installed the PWA
+  if (showInstalledGuide) {
+    return <PWAInstalledGuide appName="Ignite" onDismiss={handleContinueInBrowser} />;
+  }
 
   if (inviteLoading) {
     return (
