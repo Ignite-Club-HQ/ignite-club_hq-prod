@@ -741,7 +741,7 @@ export default function TeamDetailPage() {
             </AccordionTrigger>
             <AccordionContent>
               <div className="space-y-4 pt-2">
-                {isAdmin && (
+                {(isAdmin || isClubAdmin) && (
                   <div className="flex flex-wrap gap-2 justify-between items-center">
                     <PromoteToTeamAdminDialog
                       teamId={id!}
