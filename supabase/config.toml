@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.send-reward-redeemed-email]
 verify_jwt = false
+
+[functions.send-game-stats-email]
+verify_jwt = false

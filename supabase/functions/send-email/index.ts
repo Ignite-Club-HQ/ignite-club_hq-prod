@@ -17,6 +17,7 @@ import { PitchBoardNotificationEmail } from "./_templates/pitch-board-notificati
 import { DutyAssignedEmail } from "./_templates/duty-assigned.tsx";
 import { PointsAwardedEmail } from "./_templates/points-awarded.tsx";
 import { RewardRedeemedEmail } from "./_templates/reward-redeemed.tsx";
+import { GameStatsReadyEmail } from "./_templates/game-stats-ready.tsx";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -56,7 +57,8 @@ type TemplateType =
   | "pitch-board-notification"
   | "duty-assigned"
   | "points-awarded"
-  | "reward-redeemed";
+  | "reward-redeemed"
+  | "game-stats-ready";
 
 interface EmailRequest {
   to: string | string[];
@@ -65,7 +67,7 @@ interface EmailRequest {
   from?: string;
   // Template-based email
   template?: TemplateType;
-  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData | SubscriptionRenewedTemplateData | PaymentFailedTemplateData | PhotoUploadedTemplateData | PitchBoardNotificationTemplateData | DutyAssignedTemplateData | PointsAwardedTemplateData | RewardRedeemedTemplateData;
+  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData | SubscriptionRenewedTemplateData | PaymentFailedTemplateData | PhotoUploadedTemplateData | PitchBoardNotificationTemplateData | DutyAssignedTemplateData | PointsAwardedTemplateData | RewardRedeemedTemplateData | GameStatsReadyTemplateData;
 }
 
 interface TeamInviteTemplateData {
@@ -238,6 +240,20 @@ interface RewardRedeemedTemplateData {
   rewardLogoUrl?: string;
   primaryColor?: string;
   redeemedForChildName?: string;
+}
+
+interface GameStatsReadyTemplateData {
+  recipientName?: string;
+  teamName: string;
+  eventTitle: string;
+  eventDate: string;
+  opponent?: string;
+  totalPlayers: number;
+  totalGameTime: string;
+  reportLink: string;
+  clubName: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
 }
 
 // Sanitize error messages
@@ -528,6 +544,23 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           rewardLogoUrl: data.rewardLogoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
           redeemedForChildName: data.redeemedForChildName,
+        })
+      );
+    
+    case "game-stats-ready":
+      return await renderAsync(
+        React.createElement(GameStatsReadyEmail, {
+          recipientName: data.recipientName,
+          teamName: data.teamName,
+          eventTitle: data.eventTitle,
+          eventDate: data.eventDate,
+          opponent: data.opponent,
+          totalPlayers: data.totalPlayers,
+          totalGameTime: data.totalGameTime,
+          reportLink: data.reportLink,
+          clubName: data.clubName,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
         })
       );
     

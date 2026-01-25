@@ -323,6 +323,9 @@ export default function GlobalSubMonitor() {
     executedSubs?: SubstitutionEvent[];
     halfDuration?: number;
     goals?: Goal[];
+    eventTitle?: string;
+    eventDate?: string;
+    opponent?: string;
   } | null>(null);
   const lastCheckedSubRef = useRef<string | null>(null);
   const gameFinishedShownRef = useRef(false);
@@ -462,7 +465,7 @@ export default function GlobalSubMonitor() {
   }, [user?.id, pitchBoardNotificationsEnabled]);
 
   // Check for game finished
-  const checkForGameFinished = useCallback(() => {
+  const checkForGameFinished = useCallback(async () => {
     const isPitchBoardOpen = localStorage.getItem(PITCH_BOARD_OPEN_KEY) === "true";
     if (isPitchBoardOpen) return;
     if (gameFinishedShownRef.current) return;
@@ -509,6 +512,29 @@ export default function GlobalSubMonitor() {
       // Create database notification (triggers server-side push)
       createPitchBoardNotification('game_finished', notificationBody);
 
+      // Fetch event details if linked
+      let eventTitle: string | undefined;
+      let eventDate: string | undefined;
+      let opponent: string | undefined;
+
+      if (pitchState.linkedEventId) {
+        try {
+          const { data: eventData } = await supabase
+            .from('events')
+            .select('title, event_date, opponent')
+            .eq('id', pitchState.linkedEventId)
+            .single();
+          
+          if (eventData) {
+            eventTitle = eventData.title;
+            eventDate = eventData.event_date ? new Date(eventData.event_date).toLocaleDateString() : undefined;
+            opponent = eventData.opponent || undefined;
+          }
+        } catch (err) {
+          console.error('[GAME] Error fetching event details:', err);
+        }
+      }
+
       setFinishedGameData({
         players: pitchState.players,
         totalGameTime,
@@ -520,6 +546,9 @@ export default function GlobalSubMonitor() {
         executedSubs: pitchState.executedSubs || pitchState.autoSubPlan?.filter(s => s.executed) || [],
         halfDuration,
         goals: pitchState.goals || [],
+        eventTitle,
+        eventDate,
+        opponent,
       });
       setGameFinishedOpen(true);
     }
@@ -924,6 +953,9 @@ export default function GlobalSubMonitor() {
           executedSubs={finishedGameData.executedSubs}
           halfDuration={finishedGameData.halfDuration}
           goals={finishedGameData.goals}
+          eventTitle={finishedGameData.eventTitle}
+          eventDate={finishedGameData.eventDate}
+          opponent={finishedGameData.opponent}
         />
       )}
     </>
