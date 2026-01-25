@@ -87,9 +87,9 @@ export function usePWAInstall() {
       await promptToUse.prompt();
       const { outcome } = await promptToUse.userChoice;
       
-      if (outcome === "accepted") {
-        setIsInstalled(true);
-      }
+      // NOTE: Don't set isInstalled here! The user has only ACCEPTED the prompt,
+      // but installation is still in progress. The 'appinstalled' event handler
+      // will set isInstalled to true when installation actually completes.
       
       // Always clear prompt after use (it's single-use) and update canPrompt
       setDeferredPrompt(null);
