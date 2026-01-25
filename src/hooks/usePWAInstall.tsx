@@ -50,17 +50,11 @@ export function usePWAInstall() {
       };
 
       const handleAppInstalled = () => {
-        console.log("[PWA] appinstalled event fired - waiting for installation to fully complete");
-        // Add a delay to ensure the app is actually installed before updating state
-        // Some browsers fire this event immediately when user clicks "Install" 
-        // before the actual installation process completes
-        setTimeout(() => {
-          console.log("[PWA] Installation delay complete, updating state");
-          setIsInstalled(true);
-          setCanPrompt(false);
-          setDeferredPrompt(null);
-          globalDeferredPrompt = null;
-        }, 3000); // 3 second delay to allow installation to complete
+        console.log("[PWA] appinstalled event fired - installation complete");
+        setIsInstalled(true);
+        setCanPrompt(false);
+        setDeferredPrompt(null);
+        globalDeferredPrompt = null;
       };
 
       window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
