@@ -633,22 +633,33 @@ export default function JoinTeamPage() {
         <div className="flex-1 flex items-center justify-center p-4 pt-16">
           <Card className="w-full max-w-md">
             <CardContent className="p-6 text-center space-y-6">
-              <div className="flex justify-center">
-                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Download className="h-10 w-10 text-primary animate-bounce" />
+              {/* App icon with loading overlay */}
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative">
+                  <div className="p-3 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
+                    <img 
+                      src="/ignite-logo.png" 
+                      alt="Ignite app icon"
+                      className="h-16 w-16 rounded-xl"
+                    />
+                  </div>
+                  {/* Loading spinner overlay */}
+                  <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-background border-2 border-primary flex items-center justify-center">
+                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                  </div>
                 </div>
               </div>
               
               <div className="space-y-2">
-                <h2 className="text-2xl font-bold">Installing App...</h2>
+                <h2 className="text-2xl font-bold">Installing Ignite...</h2>
                 <p className="text-muted-foreground">
-                  Please complete the installation prompt to continue.
+                  Please tap "Install" on the browser prompt to add the app to your home screen.
                 </p>
               </div>
 
-              <div className="flex items-center justify-center gap-2">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <span className="text-sm text-muted-foreground">Waiting for installation...</span>
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Download className="h-4 w-4 animate-bounce" />
+                <span>Waiting for installation...</span>
               </div>
             </CardContent>
           </Card>
