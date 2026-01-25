@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Loader2, CheckCircle, XCircle, Users, AlertTriangle, Download, Share, PlusSquare, Smartphone } from "lucide-react";
@@ -48,7 +48,11 @@ export default function JoinTeamPage() {
   const [pendingJoinRoles, setPendingJoinRoles] = useState<AppRole[]>([]);
   const [nameValidationError, setNameValidationError] = useState<string | null>(null);
   const [showInstalledGuide, setShowInstalledGuide] = useState(false);
+  const autoJoinAttempted = useRef(false);
   const { canPrompt, isInstalled, isIOS, installApp } = usePWAInstall();
+  
+  // Check if we should auto-join (returning from auth after install flow)
+  const shouldAutoJoin = sessionStorage.getItem("autoJoinAfterAuth") === "true";
 
   // Check if this is a pending invite token (name-restricted) or a regular team invite
   const isPendingInvite = location.pathname.startsWith("/join/p/");
@@ -412,6 +416,26 @@ export default function JoinTeamPage() {
     },
   });
 
+  // Auto-join effect: when user returns from auth and shouldAutoJoin is true
+  useEffect(() => {
+    if (
+      shouldAutoJoin && 
+      user && 
+      invite && 
+      !joined && 
+      !joinMutation.isPending &&
+      !autoJoinAttempted.current &&
+      !nameValidationError
+    ) {
+      autoJoinAttempted.current = true;
+      sessionStorage.removeItem("autoJoinAfterAuth");
+      // Small delay to ensure UI is ready
+      setTimeout(() => {
+        joinMutation.mutate();
+      }, 500);
+    }
+  }, [shouldAutoJoin, user, invite, joined, joinMutation, nameValidationError]);
+
   // Handle photo consent given
   const handlePhotoConsentGiven = async () => {
     if (!user) return;
@@ -452,18 +476,19 @@ export default function JoinTeamPage() {
     // Try to install PWA first - await the user's choice before proceeding
     if (canPrompt && !isInstalled) {
       const installed = await installApp();
-      // If PWA was installed, store the invite URL and show the guide
+      // If PWA was installed, store the invite URL and auto-join flag, then show guide
       if (installed) {
-        // Store the invite URL so the PWA can resume the flow
         localStorage.setItem("pwa_pending_invite", location.pathname);
+        sessionStorage.setItem("autoJoinAfterAuth", "true");
         setShowInstalledGuide(true);
         return;
       }
     }
     
-    // If not logged in, redirect to auth
+    // If not logged in, redirect to auth with auto-join flag
     if (!user) {
       sessionStorage.setItem("redirectAfterAuth", location.pathname);
+      sessionStorage.setItem("autoJoinAfterAuth", "true");
       navigate("/auth");
       return;
     }
@@ -476,6 +501,7 @@ export default function JoinTeamPage() {
   const handleContinueInBrowser = () => {
     setShowInstalledGuide(false);
     localStorage.removeItem("pwa_pending_invite");
+    // Keep auto-join flag so they auto-join after auth
     if (!user) {
       sessionStorage.setItem("redirectAfterAuth", location.pathname);
       navigate("/auth");
