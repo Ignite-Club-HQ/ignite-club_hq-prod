@@ -734,6 +734,54 @@ export default function JoinTeamPage() {
           >
             Cancel
           </Button>
+
+          {/* App install instructions - show on join form if not installed */}
+          {!isInstalled && (
+            <div className="border-t border-border pt-4 mt-4 space-y-3">
+              <div className="flex items-center justify-center gap-2">
+                <Smartphone className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-medium">Install the App</h3>
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                For the best experience with push notifications and offline access
+              </p>
+
+              {isIOS ? (
+                <div className="space-y-2 bg-muted/50 rounded-lg p-3">
+                  <p className="text-xs font-medium text-center mb-2">Add to your home screen:</p>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-medium">1</span>
+                      <span className="flex items-center gap-1.5">
+                        Tap the <Share className="h-3.5 w-3.5 text-primary" /> Share button
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-medium">2</span>
+                      <span className="flex items-center gap-1.5">
+                        Tap <PlusSquare className="h-3.5 w-3.5 text-primary" /> "Add to Home Screen"
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-medium">3</span>
+                      <span>Tap "Add" to install</span>
+                    </div>
+                  </div>
+                </div>
+              ) : canPrompt ? (
+                <Button onClick={async () => await installApp()} className="w-full" variant="outline" size="sm">
+                  <Download className="h-4 w-4 mr-2" />
+                  Install App
+                </Button>
+              ) : (
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground text-center">
+                    Look for "Add to Home Screen" or "Install App" in your browser menu.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
