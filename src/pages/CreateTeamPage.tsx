@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Camera, Loader2, AlertCircle, Users, Sparkles, FolderOpen, Baby, UserCheck } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, AlertCircle, Users, Sparkles, FolderOpen, Baby, UserCheck, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -328,9 +328,17 @@ export default function CreateTeamPage() {
           {teamLimitExceeded && (
             <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Your club has reached its team limit ({clubSubscription?.team_limit} teams). 
-                Please upgrade your club subscription to add more teams.
+              <AlertDescription className="flex flex-col gap-3">
+                <span>
+                  Your club has reached its team limit ({clubSubscription?.team_limit} teams). 
+                  Please upgrade your club subscription to add more teams.
+                </span>
+                <Button asChild size="sm" className="w-fit">
+                  <Link to={`/clubs/${clubId}/upgrade`}>
+                    <Crown className="h-4 w-4 mr-2" />
+                    Upgrade Plan
+                  </Link>
+                </Button>
               </AlertDescription>
             </Alert>
           )}
