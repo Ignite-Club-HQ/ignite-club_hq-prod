@@ -4,6 +4,7 @@ export interface CachedProfile {
   id: string;
   display_name: string | null;
   avatar_url: string | null;
+  email_hash: string | null; // SHA-256 hash for Gravatar
   cached_at: number;
 }
 
@@ -115,7 +116,7 @@ export function getProfilesFromCache(ids: string[]): {
 }
 
 // Cache profiles after fetching
-export function cacheProfiles(profiles: Array<{ id: string; display_name: string | null; avatar_url: string | null }>) {
+export function cacheProfiles(profiles: Array<{ id: string; display_name: string | null; avatar_url: string | null; email_hash?: string | null }>) {
   const cache = getCache();
   const now = Date.now();
   
@@ -124,6 +125,7 @@ export function cacheProfiles(profiles: Array<{ id: string; display_name: string
       id: profile.id,
       display_name: profile.display_name,
       avatar_url: profile.avatar_url,
+      email_hash: profile.email_hash || null,
       cached_at: now,
     });
   }
@@ -132,12 +134,14 @@ export function cacheProfiles(profiles: Array<{ id: string; display_name: string
 }
 
 // Update a single profile in cache (e.g., after edit)
-export function updateProfileCache(profile: { id: string; display_name: string | null; avatar_url: string | null }) {
+export function updateProfileCache(profile: { id: string; display_name: string | null; avatar_url: string | null; email_hash?: string | null }) {
   const cache = getCache();
+  const existing = cache.get(profile.id);
   cache.set(profile.id, {
     id: profile.id,
     display_name: profile.display_name,
     avatar_url: profile.avatar_url,
+    email_hash: profile.email_hash ?? existing?.email_hash ?? null,
     cached_at: Date.now(),
   });
   saveCache(cache);
@@ -162,7 +166,7 @@ async function backgroundRefresh(ids: string[]) {
   try {
     const { data } = await supabase
       .from("profiles")
-      .select("id, display_name, avatar_url")
+      .select("id, display_name, avatar_url, email_hash")
       .in("id", idsToRefresh);
     
     if (data) {
@@ -206,7 +210,7 @@ export async function fetchProfilesWithCache(
     
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, display_name, avatar_url")
+      .select("id, display_name, avatar_url, email_hash")
       .in("id", missing)
       .abortSignal(controller.signal);
     
@@ -221,6 +225,7 @@ export async function fetchProfilesWithCache(
           id: profile.id,
           display_name: profile.display_name,
           avatar_url: profile.avatar_url,
+          email_hash: profile.email_hash,
           cached_at: Date.now(),
         });
       }
