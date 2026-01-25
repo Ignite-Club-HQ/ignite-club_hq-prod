@@ -3677,6 +3677,10 @@ export type Database = {
         Args: { _team_id: string }
         Returns: boolean
       }
+      user_email_matches_invite: {
+        Args: { _invited_email: string; _user_id: string }
+        Returns: boolean
+      }
       validate_promo_code: {
         Args: { _club_id?: string; _code: string }
         Returns: {
