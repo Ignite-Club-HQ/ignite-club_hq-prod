@@ -150,14 +150,15 @@ export default function JoinClubPage() {
 
   // Handle join action - redirect to auth if not logged in
   const handleJoinClick = async () => {
-    // Try to install PWA first (if possible)
-    if (canPrompt && !isInstalled) {
-      await installApp();
-    }
+    // If not logged in, redirect to auth first (don't try to install - it will be dismissed on navigate)
     if (!user) {
       sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
       navigate("/auth");
       return;
+    }
+    // User is logged in - try to install PWA first (if possible), then join
+    if (canPrompt && !isInstalled) {
+      await installApp();
     }
     joinMutation.mutate();
   };
@@ -285,9 +286,7 @@ export default function JoinClubPage() {
           >
             {(joinMutation.isPending || authLoading) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {!user 
-              ? (canPrompt && !isInstalled 
-                  ? "Install App & Sign in to Join"
-                  : "Sign in to Join")
+              ? "Sign in to Join"
               : (canPrompt && !isInstalled
                   ? `Install App & Join as ${roleLabels[invite.role as AppRole]}`
                   : `Join as ${roleLabels[invite.role as AppRole]}`)}
