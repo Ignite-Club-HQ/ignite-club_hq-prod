@@ -1,8 +1,10 @@
 import {
   Body,
+  Button,
   Container,
   Head,
   Heading,
+  Hr,
   Html,
   Img,
   Link,
@@ -23,6 +25,34 @@ interface PaymentFailedEmailProps {
   primaryColor?: string;
 }
 
+// Production domain for all links
+const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
+
+// Ignite brand color - emerald green
+const IGNITE_BRAND_COLOR = "#10b981";
+
+// Ignite icon URL for footer (hosted on production domain)
+const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-email-icon.png`;
+
+// Check if a URL is a valid external URL (not base64)
+const isValidExternalUrl = (url?: string): boolean => {
+  if (!url) return false;
+  return url.startsWith('http://') || url.startsWith('https://');
+};
+
+// Ensure link uses production domain
+const normalizeLink = (link: string): string => {
+  try {
+    const url = new URL(link);
+    return `${PRODUCTION_DOMAIN}${url.pathname}`;
+  } catch {
+    if (link.startsWith('/')) {
+      return `${PRODUCTION_DOMAIN}${link}`;
+    }
+    return link;
+  }
+};
+
 export const PaymentFailedEmail = ({
   recipientName,
   entityName,
@@ -31,9 +61,11 @@ export const PaymentFailedEmail = ({
   failureDate,
   updatePaymentLink,
   clubLogoUrl,
-  primaryColor = '#10b981',
+  primaryColor = IGNITE_BRAND_COLOR,
 }: PaymentFailedEmailProps) => {
   const previewText = `Action required: Your ${entityType} subscription payment failed`;
+  const normalizedUpdatePaymentLink = normalizeLink(updatePaymentLink);
+  const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
   
   return (
     <Html>
@@ -41,132 +73,130 @@ export const PaymentFailedEmail = ({
       <Preview>{previewText}</Preview>
       <Body style={main}>
         <Container style={container}>
-          {/* Header with logo */}
+          {/* Header with Logo */}
           <Section style={headerSection}>
-            <table width="100%" cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
-              <tr>
-                <td align="center">
-                  <Img
-                    src="https://igniteclubhq.app/ignite-email-icon.png"
-                    width="48"
-                    height="48"
-                    alt="Ignite"
-                    style={logo}
-                  />
-                </td>
-              </tr>
-            </table>
+            {validClubLogoUrl ? (
+              <Img
+                src={validClubLogoUrl}
+                width="80"
+                height="80"
+                alt={entityName}
+                style={logoStyle}
+              />
+            ) : (
+              <div style={{ ...logoPlaceholder, backgroundColor: '#dc2626' }}>
+                <Text style={logoPlaceholderText}>
+                  {entityName.charAt(0).toUpperCase()}
+                </Text>
+              </div>
+            )}
+            <Text style={clubNameText}>{entityName}</Text>
           </Section>
 
-          {/* Warning icon */}
-          <Section style={{ textAlign: 'center', padding: '20px 0' }}>
-            <table width="100%" cellPadding="0" cellSpacing="0">
-              <tr>
-                <td align="center">
-                  <div style={{
-                    width: '64px',
-                    height: '64px',
-                    borderRadius: '50%',
-                    backgroundColor: '#fef2f2',
-                    display: 'inline-block',
-                    lineHeight: '64px',
-                    textAlign: 'center',
-                  }}>
-                    <span style={{ fontSize: '32px' }}>⚠️</span>
-                  </div>
-                </td>
-              </tr>
-            </table>
+          <Hr style={divider} />
+
+          {/* Warning Banner */}
+          <Section style={warningBanner}>
+            <Text style={warningEmoji}>⚠️</Text>
+            <Text style={warningText}>Action Required</Text>
           </Section>
 
-          {/* Main content */}
-          <Heading style={h1}>Payment Failed</Heading>
-          
-          <Text style={text}>
-            {recipientName ? `Hi ${recipientName},` : 'Hi there,'}
-          </Text>
-          
-          <Text style={text}>
-            We were unable to process your payment for the <strong>{tierName}</strong> subscription 
-            for <strong>{entityName}</strong>.
-          </Text>
+          {/* Main Content */}
+          <Section style={contentSection}>
+            <Heading style={heading}>Payment Failed</Heading>
+            
+            <Text style={paragraph}>
+              {recipientName ? `Dear ${recipientName},` : 'Hi there,'}
+            </Text>
+            
+            <Text style={paragraph}>
+              We were unable to process your payment for the <strong>{tierName}</strong> subscription 
+              for <strong style={{ color: primaryColor }}>{entityName}</strong>.
+            </Text>
 
-          {/* Alert box */}
-          <Section style={alertBox}>
-            <Text style={alertText}>
-              <strong>⚠️ Action Required:</strong> Please update your payment method to avoid 
-              interruption to your subscription benefits.
+            {/* Alert box */}
+            <Section style={alertBox}>
+              <Text style={alertText}>
+                <strong>⚠️ Action Required:</strong> Please update your payment method to avoid 
+                interruption to your subscription benefits.
+              </Text>
+            </Section>
+
+            {/* Failure details card */}
+            <Section style={detailsCard}>
+              <table width="100%" cellPadding="0" cellSpacing="0">
+                <tr>
+                  <td style={detailLabel}>Subscription</td>
+                  <td style={detailValue}>{tierName}</td>
+                </tr>
+                <tr>
+                  <td style={detailLabel}>{entityType === 'club' ? 'Club' : 'Team'}</td>
+                  <td style={detailValue}>{entityName}</td>
+                </tr>
+                <tr>
+                  <td style={detailLabel}>Failed On</td>
+                  <td style={detailValue}>{failureDate}</td>
+                </tr>
+              </table>
+            </Section>
+
+            <Text style={paragraph}>
+              Common reasons for payment failure include:
+            </Text>
+            <Section style={reasonsList}>
+              <Text style={reasonItem}>• Expired card</Text>
+              <Text style={reasonItem}>• Insufficient funds</Text>
+              <Text style={reasonItem}>• Card declined by bank</Text>
+            </Section>
+
+            {/* CTA Button */}
+            <Section style={buttonSection}>
+              <Button style={{ ...button, backgroundColor: '#dc2626' }} href={normalizedUpdatePaymentLink}>
+                Update Payment Method
+              </Button>
+            </Section>
+
+            <Text style={orText}>
+              Or copy and paste this link into your browser:
+            </Text>
+            <Text style={linkText}>
+              <Link href={normalizedUpdatePaymentLink} style={{ color: primaryColor }}>
+                {normalizedUpdatePaymentLink}
+              </Link>
             </Text>
           </Section>
 
-          {/* Failure details card */}
-          <Section style={detailsCard}>
-            <table width="100%" cellPadding="0" cellSpacing="0">
-              <tr>
-                <td style={detailLabel}>Subscription</td>
-                <td style={detailValue}>{tierName}</td>
-              </tr>
-              <tr>
-                <td style={detailLabel}>{entityType === 'club' ? 'Club' : 'Team'}</td>
-                <td style={detailValue}>{entityName}</td>
-              </tr>
-              <tr>
-                <td style={detailLabel}>Failed On</td>
-                <td style={detailValue}>{failureDate}</td>
-              </tr>
-            </table>
-          </Section>
-
-          <Text style={text}>
-            Common reasons for payment failure include:
-          </Text>
-          <ul style={{ ...text, paddingLeft: '64px' }}>
-            <li>Expired card</li>
-            <li>Insufficient funds</li>
-            <li>Card declined by bank</li>
-          </ul>
-
-          {/* CTA Button */}
-          <Section style={{ textAlign: 'center', marginTop: '32px' }}>
-            <table width="100%" cellPadding="0" cellSpacing="0">
-              <tr>
-                <td align="center">
-                  <Link
-                    href={updatePaymentLink}
-                    style={{
-                      ...button,
-                      backgroundColor: '#dc2626',
-                    }}
-                  >
-                    Update Payment Method
-                  </Link>
-                </td>
-              </tr>
-            </table>
-          </Section>
-
-          <Text style={{ ...text, textAlign: 'center', marginTop: '24px' }}>
-            <Link href={updatePaymentLink} style={{ color: primaryColor }}>
-              Or manage your subscription settings →
-            </Link>
-          </Text>
+          <Hr style={divider} />
 
           {/* Footer */}
-          <Section style={footer}>
+          <Section style={footerSection}>
             <Text style={footerText}>
               You're receiving this email because you're an admin of {entityName}.
             </Text>
             <Text style={footerText}>
               Need help? Contact us at{' '}
-              <Link href="mailto:support@igniteclubhq.app" style={footerLink}>
+              <Link href="mailto:support@igniteclubhq.app" style={{ color: primaryColor }}>
                 support@igniteclubhq.app
               </Link>
             </Text>
-            <Text style={footerText}>
-              <Link href="https://igniteclubhq.app" style={footerLink}>
-                Ignite Club HQ
-              </Link>
-            </Text>
+            <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
+              <tr>
+                <td style={{ paddingRight: '8px', verticalAlign: 'middle' }}>
+                  <Img
+                    src={IGNITE_ICON_URL}
+                    width="24"
+                    height="24"
+                    alt="Ignite Club HQ"
+                    style={igniteLogoStyle}
+                  />
+                </td>
+                <td style={{ verticalAlign: 'middle' }}>
+                  <Link href={PRODUCTION_DOMAIN} style={footerBrandTextLink}>
+                    Powered by Ignite Club HQ
+                  </Link>
+                </td>
+              </tr>
+            </table>
           </Section>
         </Container>
       </Body>
@@ -176,65 +206,125 @@ export const PaymentFailedEmail = ({
 
 export default PaymentFailedEmail;
 
+// Styles
 const main = {
   backgroundColor: '#f6f9fc',
-  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, sans-serif',
+  fontFamily:
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, sans-serif',
 };
 
 const container = {
   backgroundColor: '#ffffff',
   margin: '0 auto',
-  padding: '20px 0 48px',
-  marginBottom: '64px',
-  maxWidth: '600px',
+  padding: '0',
+  marginBottom: '40px',
+  borderRadius: '12px',
+  overflow: 'hidden',
+  maxWidth: '560px',
+  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.07)',
 };
 
 const headerSection = {
-  padding: '32px 20px 0',
-};
-
-const logo = {
-  margin: '0 auto',
-};
-
-const h1 = {
-  color: '#dc2626',
-  fontSize: '24px',
-  fontWeight: '600',
-  lineHeight: '1.25',
-  padding: '0 48px',
+  backgroundColor: '#fafafa',
+  padding: '32px 40px',
   textAlign: 'center' as const,
-  margin: '16px 0',
 };
 
-const text = {
-  color: '#4b5563',
+const logoStyle = {
+  margin: '0 auto',
+  borderRadius: '12px',
+  objectFit: 'cover' as const,
+};
+
+const logoPlaceholder = {
+  width: '80px',
+  height: '80px',
+  borderRadius: '12px',
+  margin: '0 auto',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const logoPlaceholderText = {
+  color: '#ffffff',
+  fontSize: '36px',
+  fontWeight: 'bold',
+  margin: '0',
+  lineHeight: '80px',
+  textAlign: 'center' as const,
+};
+
+const clubNameText = {
+  color: '#1a1a1a',
+  fontSize: '18px',
+  fontWeight: '600',
+  margin: '16px 0 0 0',
+};
+
+const divider = {
+  borderColor: '#e6e6e6',
+  margin: '0',
+};
+
+const warningBanner = {
+  backgroundColor: '#fef2f2',
+  padding: '20px',
+  textAlign: 'center' as const,
+};
+
+const warningEmoji = {
+  fontSize: '40px',
+  margin: '0',
+  lineHeight: '1',
+};
+
+const warningText = {
+  color: '#dc2626',
+  fontSize: '20px',
+  fontWeight: 'bold',
+  margin: '8px 0 0 0',
+};
+
+const contentSection = {
+  padding: '32px 40px',
+};
+
+const heading = {
+  color: '#dc2626',
+  fontSize: '26px',
+  fontWeight: 'bold',
+  margin: '0 0 24px 0',
+  textAlign: 'center' as const,
+};
+
+const paragraph = {
+  color: '#4a4a4a',
   fontSize: '16px',
-  lineHeight: '1.5',
-  padding: '0 48px',
-  margin: '16px 0',
+  lineHeight: '26px',
+  margin: '0 0 16px 0',
 };
 
 const alertBox = {
   backgroundColor: '#fef2f2',
-  borderRadius: '8px',
-  padding: '16px 24px',
-  margin: '24px 48px',
+  borderRadius: '12px',
+  padding: '20px 24px',
+  margin: '24px 0',
   border: '1px solid #fecaca',
 };
 
 const alertText = {
   color: '#991b1b',
   fontSize: '14px',
-  lineHeight: '1.5',
+  lineHeight: '22px',
   margin: '0',
 };
 
 const detailsCard = {
   backgroundColor: '#fef2f2',
-  borderRadius: '8px',
+  borderRadius: '12px',
   padding: '24px',
-  margin: '24px 48px',
+  margin: '24px 0',
   border: '1px solid #fecaca',
 };
 
@@ -253,32 +343,70 @@ const detailValue = {
   textAlign: 'right' as const,
 };
 
+const reasonsList = {
+  backgroundColor: '#f8fafc',
+  borderRadius: '12px',
+  padding: '16px 24px',
+  margin: '0 0 24px 0',
+};
+
+const reasonItem = {
+  color: '#475569',
+  fontSize: '14px',
+  margin: '0 0 8px 0',
+  lineHeight: '20px',
+};
+
+const buttonSection = {
+  textAlign: 'center' as const,
+  margin: '32px 0',
+};
+
 const button = {
   borderRadius: '8px',
   color: '#ffffff',
-  display: 'inline-block',
   fontSize: '16px',
-  fontWeight: '600',
-  padding: '14px 32px',
+  fontWeight: 'bold',
   textDecoration: 'none',
   textAlign: 'center' as const,
+  display: 'inline-block',
+  padding: '14px 32px',
 };
 
-const footer = {
-  marginTop: '40px',
-  padding: '20px 48px',
-  borderTop: '1px solid #e5e7eb',
+const orText = {
+  color: '#8898aa',
+  fontSize: '13px',
+  textAlign: 'center' as const,
+  margin: '24px 0 8px 0',
+};
+
+const linkText = {
+  fontSize: '13px',
+  textAlign: 'center' as const,
+  margin: '0',
+  wordBreak: 'break-all' as const,
+};
+
+const footerSection = {
+  backgroundColor: '#fafafa',
+  padding: '24px 40px',
 };
 
 const footerText = {
-  color: '#9ca3af',
+  color: '#8898aa',
   fontSize: '12px',
-  lineHeight: '1.5',
-  margin: '8px 0',
+  lineHeight: '20px',
+  margin: '0 0 12px 0',
   textAlign: 'center' as const,
 };
 
-const footerLink = {
-  color: '#6b7280',
-  textDecoration: 'underline',
+const igniteLogoStyle = {
+  display: 'block',
+  borderRadius: '4px',
+};
+
+const footerBrandTextLink = {
+  color: IGNITE_BRAND_COLOR,
+  fontSize: '12px',
+  textDecoration: 'none',
 };
