@@ -684,13 +684,13 @@ export default function JoinTeamPage() {
               <div className="space-y-2">
                 <h2 className="text-2xl font-bold">Installing Ignite...</h2>
                 <p className="text-muted-foreground">
-                  Please tap "Install" on the browser prompt to add the app to your home screen.
+                  Please wait while the app is being added to your home screen.
                 </p>
               </div>
 
               <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Download className="h-4 w-4 animate-bounce" />
-                <span>Waiting for installation...</span>
+                <span>This will only take a moment...</span>
               </div>
             </CardContent>
           </Card>
