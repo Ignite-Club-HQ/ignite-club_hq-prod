@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, User, Camera, Bell, MessageSquare, Calendar, Image, Users, Download, Smartphone, LayoutGrid, Send, Settings, FileText, Shield, Trash2, DatabaseBackup, Moon, Sun, Database, Mail } from "lucide-react";
+import { ArrowLeft, Loader2, User, Camera, Bell, MessageSquare, Calendar, Image, Users, Download, Smartphone, LayoutGrid, Send, Settings, FileText, Shield, Trash2, DatabaseBackup, Moon, Sun, Database, Mail, Gift, Trophy } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,8 @@ interface EmailPreferences {
   email_membership_enabled: boolean;
   email_admin_enabled: boolean;
   email_pitch_board_enabled: boolean;
+  email_rewards_enabled: boolean;
+  email_pom_enabled: boolean;
 }
 
 export default function EditProfilePage() {
@@ -68,6 +70,8 @@ export default function EditProfilePage() {
     email_membership_enabled: true,
     email_admin_enabled: true,
     email_pitch_board_enabled: true,
+    email_rewards_enabled: true,
+    email_pom_enabled: true,
   });
   const [prefsLoading, setPrefsLoading] = useState(false);
   const [emailPrefsLoading, setEmailPrefsLoading] = useState(false);
@@ -113,6 +117,8 @@ export default function EditProfilePage() {
           email_membership_enabled: data.email_membership_enabled ?? true,
           email_admin_enabled: data.email_admin_enabled ?? true,
           email_pitch_board_enabled: data.email_pitch_board_enabled ?? true,
+          email_rewards_enabled: data.email_rewards_enabled ?? true,
+          email_pom_enabled: data.email_pom_enabled ?? true,
         });
       }
     };
@@ -1176,6 +1182,41 @@ export default function EditProfilePage() {
                 id="email-pitch-board"
                 checked={emailPreferences.email_pitch_board_enabled}
                 onCheckedChange={(v) => handleEmailPreferenceChange("email_pitch_board_enabled", v)}
+                disabled={emailPrefsLoading}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Gift className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <Label htmlFor="email-rewards">Rewards</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Reward redemptions & point updates
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="email-rewards"
+                checked={emailPreferences.email_rewards_enabled}
+                onCheckedChange={(v) => handleEmailPreferenceChange("email_rewards_enabled", v)}
+                disabled={emailPrefsLoading}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <Label htmlFor="email-pom">Player of Match</Label>
+                  <p className="text-xs text-muted-foreground">
+                    POM selections & award notifications
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="email-pom"
+                checked={emailPreferences.email_pom_enabled}
+                onCheckedChange={(v) => handleEmailPreferenceChange("email_pom_enabled", v)}
                 disabled={emailPrefsLoading}
               />
             </div>
