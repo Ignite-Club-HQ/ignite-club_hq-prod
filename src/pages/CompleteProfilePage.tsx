@@ -254,7 +254,8 @@ export default function CompleteProfilePage() {
           if (invite.team_id) {
             roleQuery.eq("team_id", invite.team_id);
           } else if (clubId) {
-            roleQuery.eq("club_id", clubId);
+            // Club-only role (no team)
+            roleQuery.eq("club_id", clubId).is("team_id", null);
           }
           
           const { data: existingRole } = await roleQuery.maybeSingle();
