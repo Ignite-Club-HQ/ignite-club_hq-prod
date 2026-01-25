@@ -53,6 +53,15 @@ export default function JoinTeamPage() {
   const autoJoinAttempted = useRef(false);
   const { canPrompt, isInstalled, isIOS, installApp } = usePWAInstall();
   
+  // Watch for installation completion - show guide only after app is actually installed
+  useEffect(() => {
+    if (isInstalling && isInstalled) {
+      // App finished installing - show the installed guide
+      setIsInstalling(false);
+      setShowInstalledGuide(true);
+    }
+  }, [isInstalling, isInstalled]);
+  
   // Check if we should auto-join (returning from auth after install flow)
   const shouldAutoJoin = sessionStorage.getItem("autoJoinAfterAuth") === "true";
 
@@ -566,14 +575,20 @@ export default function JoinTeamPage() {
       // Try to install PWA first - await the user's choice before proceeding
       if (canPrompt && !isInstalled) {
         setIsInstalling(true);
-        const installed = await installApp();
-        setIsInstalling(false);
-        // If PWA was installed, store the invite URL and auto-join flag, then show guide
-        if (installed) {
-          localStorage.setItem("pwa_pending_invite", location.pathname);
-          sessionStorage.setItem("autoJoinAfterAuth", "true");
-          setShowInstalledGuide(true);
+        // Store invite data now in case we need it after install completes
+        localStorage.setItem("pwa_pending_invite", location.pathname);
+        sessionStorage.setItem("autoJoinAfterAuth", "true");
+        
+        const accepted = await installApp();
+        
+        if (accepted) {
+          // User accepted - keep isInstalling true, wait for appinstalled event
+          // The useEffect watching isInstalled will handle showing the guide
           return;
+        } else {
+          // User declined - clean up and continue normal flow
+          setIsInstalling(false);
+          localStorage.removeItem("pwa_pending_invite");
         }
       }
     }
