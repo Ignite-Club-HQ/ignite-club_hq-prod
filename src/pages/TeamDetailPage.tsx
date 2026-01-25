@@ -51,7 +51,6 @@ import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
 import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
-import TeamInviteLinkDialog from "@/components/TeamInviteLinkDialog";
 import { TeamAdminInviteDialog } from "@/components/TeamAdminInviteDialog";
 import TeamPlayerPositionEditor from "@/components/TeamPlayerPositionEditor";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
@@ -750,7 +749,6 @@ export default function TeamDetailPage() {
                       members={members}
                     />
                     <div className="flex flex-wrap gap-2">
-                      <TeamInviteLinkDialog teamId={id!} teamName={team.name} />
                       <AddTeamMemberSheet 
                         teamId={id!} 
                         teamName={team.name} 

@@ -15,6 +15,7 @@ import { PhotoConsentDialog } from "@/components/PhotoConsentDialog";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { IOSInstallGuide } from "@/components/IOSInstallGuide";
 import { PWAInstalledGuide } from "@/components/PWAInstalledGuide";
+import { InviteFlowProgress, setInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -98,7 +99,8 @@ export default function JoinTeamPage() {
             logo_url: row.team_logo_url,
             club_id: row.club_id,
             clubs: {
-              name: row.club_name
+              name: row.club_name,
+              logo_url: undefined as string | undefined
             }
           }
         };
@@ -129,7 +131,8 @@ export default function JoinTeamPage() {
             logo_url: pendingInviteData.team_logo_url,
             club_id: pendingInviteData.club_id,
             clubs: {
-              name: pendingInviteData.club_name
+              name: pendingInviteData.club_name,
+              logo_url: pendingInviteData.club_logo_url
             }
           }
         }
@@ -195,6 +198,28 @@ export default function JoinTeamPage() {
     }
   }, [isPendingInvite, pendingInviteData, userProfile, user]);
 
+  // Set up invite flow context when invite is loaded (for progress tracking across pages)
+  useEffect(() => {
+    if (invite) {
+      setInviteFlowContext({
+        active: true,
+        clubName: invite.teams?.clubs?.name || undefined,
+        clubLogoUrl: invite.teams?.clubs?.logo_url || undefined,
+        teamName: invite.teams?.name || undefined,
+        role: invite.role,
+        inviteToken: token,
+        isIOS: isIOS,
+      });
+    }
+  }, [invite, token, isIOS]);
+
+  // Clear invite flow context on successful join
+  useEffect(() => {
+    if (joined) {
+      clearInviteFlowContext();
+    }
+  }, [joined]);
+
   // Check if this is a fixed role invite (admin roles that don't allow additional selection)
   const isFixedRoleInvite = invite?.role && fixedRoles.includes(invite.role as AppRole);
 
@@ -209,6 +234,14 @@ export default function JoinTeamPage() {
       }
     }
   }, [invite?.role, existingRoles, isFixedRoleInvite]);
+
+  // Block regular invite links - only email invites (pending invites) are now allowed
+  // Silently redirect to home
+  useEffect(() => {
+    if (!isPendingInvite && !isLoading) {
+      navigate("/", { replace: true });
+    }
+  }, [isPendingInvite, isLoading, navigate]);
 
   const toggleRole = (role: AppRole) => {
     setSelectedRoles(prev => 
@@ -240,8 +273,9 @@ export default function JoinTeamPage() {
           .update({ display_name: pendingInviteData.invited_label })
           .eq("id", user.id);
       } else if (actualName !== expectedName) {
+        const adminType = pendingInviteData.team_id ? "team admin" : "club admin";
         throw new Error(
-          `This invite was created for "${pendingInviteData.invited_label}". Please create a new account with that name or contact your team admin for a different invite link.`
+          `This invite was created for "${pendingInviteData.invited_label}". Please create a new account with that name or contact your ${adminType} for a different invite link.`
         );
       }
 
@@ -595,6 +629,35 @@ export default function JoinTeamPage() {
     }
   };
 
+  // Show installing progress screen
+  if (isInstalling) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center space-y-6">
+            <div className="flex justify-center">
+              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                <Download className="h-10 w-10 text-primary animate-bounce" />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold">Installing App...</h2>
+              <p className="text-muted-foreground">
+                Please complete the installation prompt to continue.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <span className="text-sm text-muted-foreground">Waiting for installation...</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Show installed guide if user just installed the PWA
   if (showInstalledGuide) {
     return <PWAInstalledGuide appName="Ignite" onDismiss={handleContinueInBrowser} />;
@@ -605,6 +668,15 @@ export default function JoinTeamPage() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-muted-foreground">Loading team invite...</p>
+      </div>
+    );
+  }
+
+  // Block regular invite links - only email invites (pending invites) are now allowed
+  if (!isPendingInvite) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -627,7 +699,7 @@ export default function JoinTeamPage() {
   }
 
   // Check if pending invite is already used
-  if (isPendingInvite && pendingInviteData?.status !== "pending") {
+  if (pendingInviteData?.status !== "pending") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
@@ -635,28 +707,7 @@ export default function JoinTeamPage() {
             <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Invite Already Used</h2>
             <p className="text-muted-foreground mb-4">
-              This invite link has already been used. Contact your team admin for a new invite.
-            </p>
-            <Button onClick={() => navigate("/")}>Go to Home</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Check if regular invite is expired
-  const isExpired = !isPendingInvite && invite.expires_at && new Date(invite.expires_at) < new Date();
-  const isMaxUsesReached = !isPendingInvite && invite.max_uses && invite.uses_count >= invite.max_uses;
-
-  if (isExpired || isMaxUsesReached) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Invite Link Unavailable</h2>
-            <p className="text-muted-foreground mb-4">
-              {isExpired ? "This invite link has expired." : "This invite link has reached its usage limit."}
+              This invite link has already been used. Contact your {pendingInviteData?.team_id ? "team admin" : "club admin"} for a new invite.
             </p>
             <Button onClick={() => navigate("/")}>Go to Home</Button>
           </CardContent>
@@ -765,20 +816,35 @@ export default function JoinTeamPage() {
     );
   }
 
+  // Determine current step for progress indicator
+  const getCurrentStep = () => {
+    if (showInstalledGuide) return "install";
+    return "view";
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Fixed progress indicator at top */}
+      <InviteFlowProgress 
+        currentStep={getCurrentStep()} 
+        isIOS={isIOS}
+        isExistingUser={!!user}
+        className="fixed top-0 left-0 right-0"
+      />
+      
+      <div className="flex-1 flex items-center justify-center p-4 pt-16">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <Avatar className="h-20 w-20 border-2 border-primary/20">
-              <AvatarImage src={invite.teams?.logo_url || undefined} />
+              <AvatarImage src={invite.teams?.logo_url || invite.teams?.clubs?.logo_url || undefined} />
               <AvatarFallback className="bg-primary/20 text-primary text-2xl">
-                {invite.teams?.name?.charAt(0)?.toUpperCase() || "T"}
+                {(invite.teams?.name || invite.teams?.clubs?.name)?.charAt(0)?.toUpperCase() || "T"}
               </AvatarFallback>
             </Avatar>
           </div>
-          <CardTitle>Join {invite.teams?.name}</CardTitle>
-          {invite.teams?.clubs?.name && (
+          <CardTitle>Join {invite.teams?.name || invite.teams?.clubs?.name}</CardTitle>
+          {invite.teams?.clubs?.name && invite.teams?.name && (
             <p className="text-muted-foreground text-sm">{invite.teams.clubs.name}</p>
           )}
           {isPendingInvite && pendingInviteData?.invited_label && (
@@ -803,7 +869,7 @@ export default function JoinTeamPage() {
                 <p className="font-medium text-destructive">Link Not Valid For Existing Users</p>
                 <p className="text-muted-foreground mt-1">{nameValidationError}</p>
                 <p className="text-muted-foreground mt-2">
-                  Contact your team admin to be added directly or to receive a general invite link.
+                  Contact your {invite?.team_id ? "team admin" : "club admin"} to be added directly or to receive a general invite link.
                 </p>
               </div>
             </div>
@@ -919,6 +985,7 @@ export default function JoinTeamPage() {
           )}
         </CardContent>
       </Card>
+      </div>
 
       {/* Photo Consent Dialog for Parents */}
       <PhotoConsentDialog

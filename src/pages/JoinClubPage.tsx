@@ -13,6 +13,7 @@ import { PWAInstallDialog } from "@/components/PWAInstallDialog";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { IOSInstallGuide } from "@/components/IOSInstallGuide";
 import { PWAInstalledGuide } from "@/components/PWAInstalledGuide";
+import { InviteFlowProgress, setInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -109,6 +110,37 @@ export default function JoinClubPage() {
 
   // Check if user needs to complete their profile first
   const needsProfileCompletion = user && userProfile !== undefined && !userProfile?.display_name;
+
+  // Set up invite flow context when invite is loaded (for progress tracking across pages)
+  useEffect(() => {
+    if (invite) {
+      setInviteFlowContext({
+        active: true,
+        clubName: invite.clubs?.name || undefined,
+        clubLogoUrl: invite.clubs?.logo_url || undefined,
+        teamName: undefined,
+        role: invite.role,
+        inviteToken: token,
+        isIOS: isIOS,
+      });
+    }
+  }, [invite, token, isIOS]);
+
+  // Clear invite flow context on successful join
+  useEffect(() => {
+    if (joined) {
+      clearInviteFlowContext();
+    }
+  }, [joined]);
+
+  // Club shareable invite links are no longer supported - only email invites work
+  // This page handles /join-club/:token which are all shareable links
+  // Silently redirect to home
+  useEffect(() => {
+    if (!inviteLoading) {
+      navigate("/", { replace: true });
+    }
+  }, [inviteLoading, navigate]);
 
   const joinMutation = useMutation({
     mutationFn: async () => {
@@ -279,150 +311,10 @@ export default function JoinClubPage() {
     );
   }
 
-  if (inviteError || !invite) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Invalid Invite Link</h2>
-            <p className="text-muted-foreground mb-4">
-              This invite link is invalid or has been deleted.
-            </p>
-            <Button onClick={() => navigate("/")}>Go to Home</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Check if invite is expired
-  const isExpired = invite.expires_at && new Date(invite.expires_at) < new Date();
-  const isMaxUsesReached = invite.max_uses && invite.uses_count >= invite.max_uses;
-
-  if (isExpired || isMaxUsesReached) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Invite Link Unavailable</h2>
-            <p className="text-muted-foreground mb-4">
-              {isExpired ? "This invite link has expired." : "This invite link has reached its usage limit."}
-            </p>
-            <Button onClick={() => navigate("/")}>Go to Home</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Check if user already has the invite role (only check if logged in)
-  const alreadyHasRole = user && existingRoles?.includes(invite.role as AppRole);
-
-  if (alreadyHasRole) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <CheckCircle className="h-12 w-12 text-primary mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Already a Member</h2>
-            <p className="text-muted-foreground mb-4">
-              You already have the {roleLabels[invite.role as AppRole]} role in {invite.clubs?.name}.
-            </p>
-            <Button onClick={() => navigate(`/clubs/${invite.club_id}`)}>View Club</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Joined successfully
-  if (joined) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Welcome to the Club!</h2>
-            <p className="text-muted-foreground mb-4">
-              You've successfully joined {invite.clubs?.name}.
-            </p>
-            <Button onClick={() => navigate(`/clubs/${invite.club_id}`)}>View Club</Button>
-          </CardContent>
-        </Card>
-        
-        {/* PWA Install Dialog for invite links */}
-        <PWAInstallDialog 
-          forceShow={showInstallPrompt} 
-          onClose={() => setShowInstallPrompt(false)} 
-        />
-      </div>
-    );
-  }
-
+  // Club shareable invite links are no longer supported - silently show loading while redirecting
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <Avatar className="h-20 w-20 border-2 border-primary/20">
-              <AvatarImage src={invite.clubs?.logo_url || undefined} />
-              <AvatarFallback className="bg-primary/20 text-primary text-2xl">
-                {invite.clubs?.name?.charAt(0)?.toUpperCase() || "C"}
-              </AvatarFallback>
-            </Avatar>
-          </div>
-          <CardTitle>Join {invite.clubs?.name}</CardTitle>
-          {invite.clubs?.description && (
-            <p className="text-muted-foreground text-sm mt-2">{invite.clubs.description}</p>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-center gap-2">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">You'll join as:</span>
-            <Badge variant="secondary">{roleLabels[invite.role as AppRole]}</Badge>
-          </div>
-
-          <Button 
-            onClick={handleJoinClick} 
-            disabled={joinMutation.isPending || (user && profileLoading)}
-            className="w-full"
-            size="lg"
-          >
-            {(joinMutation.isPending || (user && profileLoading)) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {!user 
-              ? (canPrompt && !isInstalled 
-                  ? "Install App & Create Account"
-                  : "Create Account to Join")
-              : needsProfileCompletion
-                ? "Complete Profile to Join"
-                : `Join as ${roleLabels[invite.role as AppRole]}`}
-          </Button>
-          <Button 
-            variant="ghost" 
-            onClick={() => navigate("/")}
-            className="w-full"
-          >
-            Cancel
-          </Button>
-
-          {/* iOS install instructions - show on join form if not installed */}
-          {!isInstalled && isIOS && (
-            <div className="border-t border-border pt-4 mt-4 space-y-3">
-              <div className="flex items-center justify-center gap-2">
-                <Smartphone className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-medium">Install the App</h3>
-              </div>
-              <p className="text-xs text-muted-foreground text-center">
-                For the best experience with push notifications and offline access
-              </p>
-              <IOSInstallGuide compact />
-            </div>
-          )}
-        </CardContent>
-      </Card>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   );
 }

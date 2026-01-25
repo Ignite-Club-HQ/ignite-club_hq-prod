@@ -3534,6 +3534,7 @@ export type Database = {
         Args: { _token: string }
         Returns: {
           club_id: string
+          club_logo_url: string
           club_name: string
           id: string
           invited_email: string
