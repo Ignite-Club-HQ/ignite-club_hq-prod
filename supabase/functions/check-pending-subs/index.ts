@@ -12,6 +12,7 @@ interface TimerState {
   minutesPerHalf: number;
   lastUpdateTime: number;
   teamName?: string;
+  teamId?: string;
 }
 
 interface Player {
@@ -21,6 +22,7 @@ interface Player {
   position?: { x: number; y: number };
   isOnPitch: boolean;
   playTime: number;
+  currentPitchPosition?: string;
 }
 
 interface SubstitutionEvent {
@@ -36,10 +38,53 @@ interface PitchState {
   autoSubPlan: SubstitutionEvent[];
   autoSubActive: boolean;
   autoSubPaused?: boolean;
+  linkedEventId?: string;
 }
 
 const CHECK_INTERVAL_MS = 10000; // Check every 10 seconds
 const TOTAL_DURATION_MS = 55000; // Run for 55 seconds (leave 5s buffer before next cron)
+
+// Send email notification for pitch board events
+async function sendPitchBoardEmail(
+  supabase: any,
+  userId: string,
+  teamId: string | undefined,
+  teamName: string,
+  notificationType: 'pending_sub' | 'half_time' | 'full_time' | 'game_linked',
+  notificationMessage: string,
+  eventId?: string,
+  playerOutName?: string,
+  playerInName?: string,
+  position?: string,
+  elapsedMinutes?: number,
+  currentHalf?: number
+) {
+  try {
+    const { error } = await supabase.functions.invoke('send-pitch-board-notification-email', {
+      body: {
+        recipientUserId: userId,
+        teamId,
+        teamName,
+        notificationType,
+        notificationMessage,
+        eventId,
+        playerOutName,
+        playerInName,
+        position,
+        elapsedMinutes,
+        currentHalf,
+      },
+    });
+
+    if (error) {
+      console.error(`[CHECK-SUBS] Failed to send email for ${notificationType}:`, error.message);
+    } else {
+      console.log(`[CHECK-SUBS] Email sent for ${notificationType} to user ${userId}`);
+    }
+  } catch (err) {
+    console.error(`[CHECK-SUBS] Error invoking email function:`, err);
+  }
+}
 
 async function checkGames(supabase: any): Promise<number> {
   // Get all active games
@@ -73,6 +118,9 @@ async function checkGames(supabase: any): Promise<number> {
     const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
     const currentHalf = timerState.currentHalf;
     const halfDurationSecs = timerState.minutesPerHalf * 60;
+    const teamName = timerState.teamName || 'Your team';
+    const teamId = timerState.teamId || game.team_id;
+    const linkedEventId = pitchState.linkedEventId;
     
     // Calculate absolute time for comparison (sub.time is relative to half start)
     const getAbsoluteSubTime = (sub: SubstitutionEvent) => {
@@ -95,8 +143,9 @@ async function checkGames(supabase: any): Promise<number> {
     if (nextSub) {
       const playerOutName = nextSub.playerOut.name || `#${nextSub.playerOut.number}`;
       const playerInName = nextSub.playerIn.name || `#${nextSub.playerIn.number}`;
-      const position = (nextSub.playerOut as any).currentPitchPosition || 'Pitch';
+      const position = nextSub.playerOut.currentPitchPosition || 'Pitch';
       const notificationBody = `${playerOutName} → Bench. ${playerInName} → ${position}`;
+      const elapsedMinutes = Math.floor(currentElapsed / 60);
 
       console.log(`[CHECK-SUBS] Game ${game.id}: Sub due at ${nextSub.time}s, current=${currentElapsed}s`);
 
@@ -128,6 +177,22 @@ async function checkGames(supabase: any): Promise<number> {
         console.log(`[CHECK-SUBS] Notification created: ${notifData?.id} for user ${game.user_id}`);
       }
 
+      // Send email notification
+      await sendPitchBoardEmail(
+        supabase,
+        game.user_id,
+        teamId,
+        teamName,
+        'pending_sub',
+        notificationBody,
+        linkedEventId,
+        playerOutName,
+        playerInName,
+        position,
+        elapsedMinutes,
+        currentHalf
+      );
+
       // Update last_sub_check_time with ABSOLUTE time
       const absoluteSubTime = getAbsoluteSubTime(nextSub);
       const { error: updateError } = await supabase
@@ -137,6 +202,57 @@ async function checkGames(supabase: any): Promise<number> {
       
       if (updateError) {
         console.error(`[CHECK-SUBS] Failed to update last_sub_check_time:`, updateError.message);
+      }
+    }
+
+    // Check for half time (when transitioning from first to second half)
+    const isHalfTime = currentHalf === 1 && currentElapsed >= halfDurationSecs;
+    const halfTimeCheckKey = `half_time_sent_${game.id}`;
+    
+    // We track half time notifications separately to avoid duplicates
+    // Using a simple check: if current half is 2 and we haven't sent half time notification
+    if (isHalfTime) {
+      const halfTimeMarker = game.last_sub_check_time || 0;
+      const halfTimeThreshold = halfDurationSecs - 5; // Within 5 seconds of half time
+      
+      // Only send if we haven't already sent for this half time
+      if (halfTimeMarker < halfDurationSecs) {
+        const { data: prefs } = await supabase
+          .from('notification_preferences')
+          .select('pitch_board_enabled')
+          .eq('user_id', game.user_id)
+          .single();
+
+        if (prefs?.pitch_board_enabled !== false) {
+          // Create half time notification
+          await supabase
+            .from('notifications')
+            .insert({
+              user_id: game.user_id,
+              type: 'half_time',
+              message: `⏸️ ${teamName} - Half Time!`,
+              related_id: game.id,
+            });
+          notificationsSent++;
+
+          // Send half time email
+          await sendPitchBoardEmail(
+            supabase,
+            game.user_id,
+            teamId,
+            teamName,
+            'half_time',
+            `Half time for ${teamName}`,
+            linkedEventId,
+            undefined,
+            undefined,
+            undefined,
+            timerState.minutesPerHalf,
+            1
+          );
+
+          console.log(`[CHECK-SUBS] Half time notification sent for game ${game.id}`);
+        }
       }
     }
 
@@ -153,8 +269,6 @@ async function checkGames(supabase: any): Promise<number> {
         .single();
 
       if (prefs?.pitch_board_enabled !== false) {
-        const teamName = timerState.teamName || 'Your team';
-        
         await supabase
           .from('notifications')
           .insert({
@@ -164,6 +278,22 @@ async function checkGames(supabase: any): Promise<number> {
             related_id: game.id,
           });
         notificationsSent++;
+
+        // Send full time email
+        await sendPitchBoardEmail(
+          supabase,
+          game.user_id,
+          teamId,
+          teamName,
+          'full_time',
+          `Full time for ${teamName}`,
+          linkedEventId,
+          undefined,
+          undefined,
+          undefined,
+          timerState.minutesPerHalf * 2,
+          2
+        );
       }
 
       await supabase
