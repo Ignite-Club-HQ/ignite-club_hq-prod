@@ -158,7 +158,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
     },
     onSuccess: async ({ link, email, inviteToken }) => {
       setInviteLink(link);
-      queryClient.invalidateQueries({ queryKey: ["pending-invites", null, clubId] });
+      queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
 
       // Auto-send email notification if email was provided
       if (email) {
