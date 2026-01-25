@@ -13,6 +13,7 @@ import GlobalSubMonitor from "@/components/pitch/GlobalSubMonitor";
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { IOSInstallPrompt } from "@/components/IOSInstallPrompt";
 import { PushNotificationManager } from "@/components/PushNotificationManager";
+import { PWAPendingInviteHandler } from "@/components/PWAPendingInviteHandler";
 import { Loader2 } from "lucide-react";
 
 // Eagerly loaded pages (initial load)
@@ -91,6 +92,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <PWAPendingInviteHandler />
             <GlobalSubMonitor />
             <Suspense fallback={<PageLoader />}>
               <Routes>
