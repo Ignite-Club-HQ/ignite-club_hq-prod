@@ -74,7 +74,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(cachedProfile);
   // If we have cached profile, don't block UI - start with loading=false
   const [loading, setLoading] = useState(!cachedProfile);
-  const [profileLoading, setProfileLoading] = useState(!cachedProfile);
+  // Always start profileLoading as true - we need fresh data from server
+  // before making decisions like redirecting to complete-profile
+  // This prevents stale cached profiles from incorrectly gating users
+  const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
@@ -189,14 +192,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // This helps with RLS policies that check auth.uid()
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // If we have a cached profile, use it immediately - don't show loading
+      // If we have a cached profile, use it for display immediately
+      // BUT we still need to fetch fresh data before making gating decisions
       const cached = getCachedProfile();
       if (cached && cached.id === userId) {
         setProfile(cached);
-        setProfileLoading(false);
-        setLoading(false);
-        // Refresh profile in background (without applying theme)
-        fetchProfile(userId, 5, false).catch(console.error);
+        setLoading(false); // Allow UI to render with cached data
+        // ALWAYS fetch fresh profile - this updates the profile state with server truth
+        // and sets profileLoading to false when complete
+        fetchProfile(userId, 5, false)
+          .finally(() => {
+            if (mounted) {
+              setProfileLoading(false);
+            }
+          });
       } else {
         // No cache - fetch profile
         setProfileLoading(true);
