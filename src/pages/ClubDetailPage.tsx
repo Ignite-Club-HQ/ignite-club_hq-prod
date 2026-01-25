@@ -70,7 +70,6 @@ import { useToast } from "@/hooks/use-toast";
 import AddClubAdminSheet from "@/components/AddClubAdminSheet";
 import AwardPointsDialog from "@/components/AwardPointsDialog";
 import { getFolderColorClass, FOLDER_COLORS } from "@/components/TeamFoldersManager";
-import ClubInviteLinkDialog from "@/components/ClubInviteLinkDialog";
 import { SponsorsManager } from "@/components/SponsorsManager";
 import ClubRewardsManager from "@/components/ClubRewardsManager";
 import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
@@ -1466,7 +1465,6 @@ export default function ClubDetailPage() {
               <div className="space-y-2 pt-2">
                 {isAdmin && (
                   <div className="flex items-center gap-2 justify-end mb-3">
-                    <ClubInviteLinkDialog clubId={id!} clubName={club.name} />
                     <AddClubAdminSheet 
                       clubId={id!}
                       clubName={club.name}
