@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Loader2, CheckCircle, XCircle, Building2, Smartphone } from "lucide-react";
@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PWAInstallDialog } from "@/components/PWAInstallDialog";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { IOSInstallGuide } from "@/components/IOSInstallGuide";
+import { PWAInstalledGuide } from "@/components/PWAInstalledGuide";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -34,8 +35,13 @@ export default function JoinClubPage() {
   const { toast } = useToast();
   const [joined, setJoined] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [showInstalledGuide, setShowInstalledGuide] = useState(false);
+  const autoJoinAttempted = useRef(false);
   const shouldPromptInstall = searchParams.get("install") === "true";
   const { canPrompt, isInstalled, isIOS, installApp } = usePWAInstall();
+  
+  // Check if we should auto-join (returning from auth after install flow)
+  const shouldAutoJoin = sessionStorage.getItem("autoJoinAfterAuth") === "true";
 
   // Fetch invite details using secure RPC function
   const { data: invite, isLoading: inviteLoading, error: inviteError } = useQuery({
@@ -148,24 +154,43 @@ export default function JoinClubPage() {
     },
   });
 
+  // Auto-join effect: when user returns from auth and shouldAutoJoin is true
+  useEffect(() => {
+    if (
+      shouldAutoJoin && 
+      user && 
+      invite && 
+      !joined && 
+      !joinMutation.isPending &&
+      !autoJoinAttempted.current
+    ) {
+      autoJoinAttempted.current = true;
+      sessionStorage.removeItem("autoJoinAfterAuth");
+      // Small delay to ensure UI is ready
+      setTimeout(() => {
+        joinMutation.mutate();
+      }, 500);
+    }
+  }, [shouldAutoJoin, user, invite, joined, joinMutation]);
+
   // Handle join action - show install prompt first, then redirect to auth if not logged in
   const handleJoinClick = async () => {
     // Try to install PWA first - await the user's choice before proceeding
     if (canPrompt && !isInstalled) {
       const installed = await installApp();
-      // If PWA was installed, reload the page to open in the installed app
-      // The PWA will intercept this URL and open in standalone mode
+      // If PWA was installed, store the invite URL and auto-join flag, then show guide
       if (installed) {
-        // Small delay to let the PWA installation complete
-        await new Promise(resolve => setTimeout(resolve, 500));
-        window.location.reload();
+        localStorage.setItem("pwa_pending_invite", `/join-club/${token}`);
+        sessionStorage.setItem("autoJoinAfterAuth", "true");
+        setShowInstalledGuide(true);
         return;
       }
     }
     
-    // If not logged in, redirect to auth
+    // If not logged in, redirect to auth with auto-join flag
     if (!user) {
       sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
+      sessionStorage.setItem("autoJoinAfterAuth", "true");
       navigate("/auth");
       return;
     }
@@ -173,6 +198,24 @@ export default function JoinClubPage() {
     // User is logged in - proceed with join
     joinMutation.mutate();
   };
+
+  // Handle "continue in browser" from installed guide
+  const handleContinueInBrowser = () => {
+    setShowInstalledGuide(false);
+    localStorage.removeItem("pwa_pending_invite");
+    // Keep auto-join flag so they auto-join after auth
+    if (!user) {
+      sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
+      navigate("/auth");
+    } else {
+      joinMutation.mutate();
+    }
+  };
+
+  // Show installed guide if user just installed the PWA
+  if (showInstalledGuide) {
+    return <PWAInstalledGuide appName="Ignite" onDismiss={handleContinueInBrowser} />;
+  }
 
   if (inviteLoading) {
     return (
