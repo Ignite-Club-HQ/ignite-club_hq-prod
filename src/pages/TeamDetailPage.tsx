@@ -756,6 +756,7 @@ export default function TeamDetailPage() {
                         teamName={team.name} 
                         clubId={team.club_id}
                         teamType={(team as any).team_type || "mixed"}
+                        isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
                       />
                     </div>
                   </div>
