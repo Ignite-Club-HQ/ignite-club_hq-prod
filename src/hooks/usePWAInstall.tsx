@@ -77,7 +77,11 @@ export function usePWAInstall() {
 
   const installApp = async () => {
     const promptToUse = deferredPrompt || globalDeferredPrompt;
-    if (!promptToUse) return false;
+    if (!promptToUse) {
+      // No prompt available - reset state to reflect reality
+      setCanPrompt(false);
+      return false;
+    }
 
     try {
       await promptToUse.prompt();
@@ -85,14 +89,20 @@ export function usePWAInstall() {
       
       if (outcome === "accepted") {
         setIsInstalled(true);
-        setCanPrompt(false);
       }
       
+      // Always clear prompt after use (it's single-use) and update canPrompt
       setDeferredPrompt(null);
       globalDeferredPrompt = null;
+      setCanPrompt(false);
+      
       return outcome === "accepted";
     } catch (error) {
       console.error("Error installing app:", error);
+      // Clear stale state on error
+      setDeferredPrompt(null);
+      globalDeferredPrompt = null;
+      setCanPrompt(false);
       return false;
     }
   };
