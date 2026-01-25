@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.check-push-failure-rate]
 verify_jwt = false
+
+[functions.send-message-notification-email]
+verify_jwt = false

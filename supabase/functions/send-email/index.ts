@@ -8,6 +8,7 @@ import { EventReminderEmail } from "./_templates/event-reminder.tsx";
 import { MembershipConfirmationEmail } from "./_templates/membership-confirmation.tsx";
 import { MagicLinkEmail } from "./_templates/magic-link.tsx";
 import { RenewalReminderEmail } from "./_templates/renewal-reminder.tsx";
+import { MessageNotificationEmail } from "./_templates/message-notification.tsx";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -38,7 +39,8 @@ type TemplateType =
   | "event-reminder" 
   | "membership-confirmation" 
   | "magic-link"
-  | "renewal-reminder";
+  | "renewal-reminder"
+  | "message-notification";
 
 interface EmailRequest {
   to: string | string[];
@@ -47,7 +49,7 @@ interface EmailRequest {
   from?: string;
   // Template-based email
   template?: TemplateType;
-  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData;
+  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData;
 }
 
 interface TeamInviteTemplateData {
@@ -108,6 +110,18 @@ interface RenewalReminderTemplateData {
   manageLink: string;
   clubLogoUrl?: string;
   primaryColor?: string;
+}
+
+interface MessageNotificationTemplateData {
+  recipientName?: string;
+  senderName: string;
+  messagePreview: string;
+  messageType: 'team' | 'club' | 'group' | 'direct' | 'broadcast';
+  contextName?: string;
+  messageLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+  hasImage?: boolean;
 }
 
 // Sanitize error messages
@@ -259,6 +273,21 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           manageLink: data.manageLink,
           clubLogoUrl: data.clubLogoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+        })
+      );
+    
+    case "message-notification":
+      return await renderAsync(
+        React.createElement(MessageNotificationEmail, {
+          recipientName: data.recipientName,
+          senderName: data.senderName,
+          messagePreview: data.messagePreview,
+          messageType: data.messageType,
+          contextName: data.contextName,
+          messageLink: data.messageLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+          hasImage: data.hasImage,
         })
       );
     
