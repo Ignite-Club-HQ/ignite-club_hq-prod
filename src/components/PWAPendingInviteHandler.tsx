@@ -25,6 +25,8 @@ export function PWAPendingInviteHandler() {
       console.log("[PWA] Resuming pending invite:", pendingInvite);
       // Clear the pending invite so we don't redirect again
       localStorage.removeItem("pwa_pending_invite");
+      // Set auto-join flag so after auth they join automatically
+      sessionStorage.setItem("autoJoinAfterAuth", "true");
       navigate(pendingInvite, { replace: true });
     }
   }, [navigate, location.pathname]);
