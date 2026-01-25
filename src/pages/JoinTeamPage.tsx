@@ -867,8 +867,23 @@ export default function JoinTeamPage() {
   }
 
   // Determine current step for progress indicator
-  const getCurrentStep = () => {
+  const getCurrentStep = (): "view" | "install" | "auth" | "profile" | "done" => {
     if (showInstalledGuide) return "install";
+    if (isInstalling) return "install";
+    
+    // Check if we're in standalone mode (PWA) and should show auth step
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+    if (isStandalone && !user) {
+      // User opened PWA and needs to sign up
+      return "auth";
+    }
+    
+    // Check stored context for resume step
+    const storedContext = getInviteFlowContext();
+    if (storedContext?.currentStep && storedContext.currentStep !== "view") {
+      return storedContext.currentStep;
+    }
+    
     return "view";
   };
 
