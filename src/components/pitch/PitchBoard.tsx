@@ -402,6 +402,57 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, toast]);
   
+  // Handle linking event with email notifications
+  const handleLinkEvent = useCallback(async (eventId: string | null) => {
+    const previousLinkedEventId = linkedEventId;
+    setLinkedEventId(eventId);
+    
+    // Only send email notifications when linking (not unlinking) and event is different
+    if (eventId && eventId !== previousLinkedEventId && user?.id) {
+      try {
+        // Get team admins and coaches who should receive notifications
+        const { data: teamAdmins } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('team_id', teamId)
+          .in('role', ['team_admin', 'coach']);
+        
+        if (teamAdmins && teamAdmins.length > 0) {
+          // Get event details for the notification message
+          const { data: eventData } = await supabase
+            .from('events')
+            .select('title')
+            .eq('id', eventId)
+            .single();
+          
+          const eventTitle = eventData?.title || 'a game';
+          
+          // Send email notifications to all team admins/coaches (except the current user)
+          const recipientUserIds = teamAdmins
+            .map(r => r.user_id)
+            .filter(uid => uid !== user.id);
+          
+          for (const recipientUserId of recipientUserIds) {
+            supabase.functions.invoke('send-pitch-board-notification-email', {
+              body: {
+                recipientUserId,
+                teamId,
+                teamName,
+                notificationType: 'game_linked',
+                notificationMessage: `The pitch board has been linked to "${eventTitle}"`,
+                eventId,
+              },
+            }).catch(err => {
+              console.error('[PitchBoard] Failed to send game linked email:', err);
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[PitchBoard] Error sending game linked notifications:', error);
+      }
+    }
+  }, [linkedEventId, teamId, teamName, user?.id]);
+  
   // Undo history for subs and swaps (stores player states)
   const [undoHistory, setUndoHistory] = useState<{ players: Player[]; description: string }[]>([]);
   const MAX_UNDO_HISTORY = 10;
@@ -3360,7 +3411,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             onHideScoresChange={setHideScores}
             opponentName={opponentName}
             linkedEventId={linkedEventId}
-            onLinkEvent={readOnly ? undefined : setLinkedEventId}
+            onLinkEvent={readOnly ? undefined : handleLinkEvent}
             onOpenEventSelector={() => setLandscapeEventSelectorOpen(true)}
             currentScore={{ 
               team: goals.filter(g => !g.isOpponentGoal).length, 
@@ -3661,7 +3712,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             teamId={teamId}
             currentEventId={linkedEventId}
             onSelectEvent={(eventId) => {
-              setLinkedEventId(eventId);
+              handleLinkEvent(eventId);
               setLandscapeEventSelectorOpen(false);
             }}
           />
@@ -3692,7 +3743,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           eventId={linkedEventId || ''} 
           teamId={teamId}
           teamName={teamName} 
-          onLinkEvent={readOnly ? undefined : setLinkedEventId}
+          onLinkEvent={readOnly ? undefined : handleLinkEvent}
           showScoreToggle={gameInProgress && !hideScores}
           scoreExpanded={showScoreInPortrait}
           onToggleScore={() => setShowScoreInPortrait(!showScoreInPortrait)}
