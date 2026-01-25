@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
 import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
-import { InviteFlowProgress, getInviteFlowContext } from "@/components/InviteFlowProgress";
+import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 
 import { z } from "zod";
 
@@ -49,17 +49,26 @@ export default function AuthPage() {
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   
-  // Check if we're in an invite flow
-  const inviteFlowContext = getInviteFlowContext();
-  const isInInviteFlow = inviteFlowContext?.active === true;
-  
   // Check if we should default to signup view (new user from invite)
   const defaultView = sessionStorage.getItem("authDefaultTab") || "signin";
   const [authMode, setAuthMode] = useState<"signin" | "signup">(defaultView as "signin" | "signup");
   
-  // Clear the session storage after reading
+  // Check if we're actively in an invite flow - only valid if there's a pending redirect
+  const redirectAfterAuth = sessionStorage.getItem("redirectAfterAuth");
+  const inviteFlowContext = getInviteFlowContext();
+  
+  // Only show invite flow progress if there's an active context AND a pending redirect
+  // This prevents stale contexts from showing on normal sign-in
+  const isInInviteFlow = inviteFlowContext?.active === true && !!redirectAfterAuth;
+  
+  // Clear stale invite flow context and session storage
   useEffect(() => {
     sessionStorage.removeItem("authDefaultTab");
+    
+    // If there's an invite flow context but no pending redirect, it's stale - clear it
+    if (inviteFlowContext?.active && !redirectAfterAuth) {
+      clearInviteFlowContext();
+    }
   }, []);
   
   const { toast } = useToast();
@@ -93,7 +102,8 @@ export default function AuthPage() {
       sessionStorage.removeItem("redirectAfterAuth");
       return <Navigate to={redirectPath} replace />;
     }
-    // Default to home - AppLayout will handle redirecting to /complete-profile if needed
+    // Default to home - clear any stale invite flow context since we're not in a flow
+    clearInviteFlowContext();
     return <Navigate to="/" replace />;
   }
 
