@@ -47,14 +47,13 @@ Deno.serve(async (req) => {
     console.log(`[PITCH-EMAIL] Processing ${notificationType} email for user ${recipientUserId}`);
 
     // Check if user has email notifications enabled for pitch board
-    // We'll use the existing pitch_board_enabled preference or a new email-specific one
     const { data: prefs } = await supabase
       .from('notification_preferences')
-      .select('pitch_board_enabled, email_events_enabled')
+      .select('pitch_board_enabled, email_pitch_board_enabled')
       .eq('user_id', recipientUserId)
       .single();
 
-    // Only send if pitch board notifications are enabled and email events are enabled
+    // Only send if push pitch board notifications are enabled
     if (prefs?.pitch_board_enabled === false) {
       console.log(`[PITCH-EMAIL] User ${recipientUserId} has pitch board notifications disabled`);
       return new Response(JSON.stringify({ skipped: true, reason: 'pitch_board_disabled' }), {
@@ -62,9 +61,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (prefs?.email_events_enabled === false) {
-      console.log(`[PITCH-EMAIL] User ${recipientUserId} has email events disabled`);
-      return new Response(JSON.stringify({ skipped: true, reason: 'email_events_disabled' }), {
+    // Only send if email pitch board notifications are enabled
+    if (prefs?.email_pitch_board_enabled === false) {
+      console.log(`[PITCH-EMAIL] User ${recipientUserId} has email pitch board notifications disabled`);
+      return new Response(JSON.stringify({ skipped: true, reason: 'email_pitch_board_disabled' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
