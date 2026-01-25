@@ -232,10 +232,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         team_id: teamId,
         club_id: clubId,
         role: selectedRole as any,
-        invited_user_id: user!.id, // Set to current user as placeholder
+        invited_user_id: null, // Will be set when user accepts invite
         invited_by_user_id: user!.id,
         invited_label: customName.trim(),
-        invited_email: customEmail.trim() || null,
+        invited_email: customEmail.trim().toLowerCase() || null,
         invite_token: inviteToken,
       } as any);
       if (inviteError) throw inviteError;
@@ -320,10 +320,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           team_id: teamId,
           club_id: clubId,
           role: memberRole as any,
-          invited_user_id: user!.id,
+          invited_user_id: null, // Will be set when user accepts invite
           invited_by_user_id: user!.id,
           invited_label: member.name.trim(),
-          invited_email: member.email.trim() || null,
+          invited_email: member.email.trim().toLowerCase() || null,
           invite_token: inviteToken,
           metadata: childrenMetadata ? { children: JSON.parse(childrenMetadata) } : null,
         } as any);

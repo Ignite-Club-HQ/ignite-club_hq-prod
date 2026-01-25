@@ -1930,7 +1930,7 @@ export type Database = {
           invited_by_user_id: string
           invited_email: string | null
           invited_label: string | null
-          invited_user_id: string
+          invited_user_id: string | null
           metadata: Json | null
           role: Database["public"]["Enums"]["app_role"]
           status: string
@@ -1948,7 +1948,7 @@ export type Database = {
           invited_by_user_id: string
           invited_email?: string | null
           invited_label?: string | null
-          invited_user_id: string
+          invited_user_id?: string | null
           metadata?: Json | null
           role: Database["public"]["Enums"]["app_role"]
           status?: string
@@ -1966,7 +1966,7 @@ export type Database = {
           invited_by_user_id?: string
           invited_email?: string | null
           invited_label?: string | null
-          invited_user_id?: string
+          invited_user_id?: string | null
           metadata?: Json | null
           role?: Database["public"]["Enums"]["app_role"]
           status?: string

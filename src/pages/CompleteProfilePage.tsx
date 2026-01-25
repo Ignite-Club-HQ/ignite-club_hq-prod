@@ -191,37 +191,75 @@ export default function CompleteProfilePage() {
       }
 
       // After profile is created, check for pending invites and assign roles
-      const { data: pendingInvites } = await supabase
-        .from("pending_invites")
-        .select("id, team_id, club_id, role, invited_user_id")
-        .eq("invited_user_id", user.id)
-        .eq("status", "pending");
+      // Match by email since invited_user_id may not be set correctly for new users
+      const userEmail = user.email?.toLowerCase();
+      console.log("[CompleteProfile] Checking for pending invites for email:", userEmail);
+      
+      let pendingInvites: any[] = [];
+      
+      if (userEmail) {
+        // First try matching by email
+        const { data: emailInvites, error: emailError } = await supabase
+          .from("pending_invites")
+          .select("id, team_id, club_id, role, invited_user_id, invited_email")
+          .eq("invited_email", userEmail)
+          .eq("status", "pending");
+        
+        if (emailError) {
+          console.error("[CompleteProfile] Error fetching invites by email:", emailError);
+        } else if (emailInvites && emailInvites.length > 0) {
+          pendingInvites = emailInvites;
+          console.log("[CompleteProfile] Found invites by email:", emailInvites.length);
+        }
+      }
+      
+      // Also check by user ID (in case invited_user_id was set correctly)
+      if (pendingInvites.length === 0) {
+        const { data: userIdInvites } = await supabase
+          .from("pending_invites")
+          .select("id, team_id, club_id, role, invited_user_id, invited_email")
+          .eq("invited_user_id", user.id)
+          .eq("status", "pending");
+        
+        if (userIdInvites && userIdInvites.length > 0) {
+          pendingInvites = userIdInvites;
+          console.log("[CompleteProfile] Found invites by user ID:", userIdInvites.length);
+        }
+      }
 
-      if (pendingInvites && pendingInvites.length > 0) {
-        console.log("[CompleteProfile] Found pending invites to process:", pendingInvites.length);
+      if (pendingInvites.length > 0) {
+        console.log("[CompleteProfile] Processing pending invites:", pendingInvites.length);
         
         for (const invite of pendingInvites) {
+          console.log("[CompleteProfile] Processing invite:", invite.id, "role:", invite.role);
+          
+          // Get club_id from team if this is a team invite
+          let clubId = invite.club_id;
+          if (invite.team_id && !clubId) {
+            const { data: team } = await supabase
+              .from("teams")
+              .select("club_id")
+              .eq("id", invite.team_id)
+              .single();
+            clubId = team?.club_id;
+          }
+
           // Check if role already exists
-          const { data: existingRole } = await supabase
+          const roleQuery = supabase
             .from("user_roles")
             .select("id")
             .eq("user_id", user.id)
-            .eq("role", invite.role)
-            .eq(invite.team_id ? "team_id" : "club_id", invite.team_id || invite.club_id)
-            .maybeSingle();
+            .eq("role", invite.role);
+          
+          if (invite.team_id) {
+            roleQuery.eq("team_id", invite.team_id);
+          } else if (clubId) {
+            roleQuery.eq("club_id", clubId);
+          }
+          
+          const { data: existingRole } = await roleQuery.maybeSingle();
 
           if (!existingRole) {
-            // Get club_id from team if this is a team invite
-            let clubId = invite.club_id;
-            if (invite.team_id && !clubId) {
-              const { data: team } = await supabase
-                .from("teams")
-                .select("club_id")
-                .eq("id", invite.team_id)
-                .single();
-              clubId = team?.club_id;
-            }
-
             // Insert the role
             const { error: roleError } = await supabase
               .from("user_roles")
@@ -235,16 +273,37 @@ export default function CompleteProfilePage() {
             if (roleError) {
               console.error("[CompleteProfile] Failed to assign role from invite:", roleError);
             } else {
-              console.log("[CompleteProfile] Assigned role from invite:", invite.role);
+              console.log("[CompleteProfile] Successfully assigned role:", invite.role);
               
-              // Mark the invite as accepted
-              await supabase
+              // Mark the invite as accepted and update invited_user_id
+              const { error: updateError } = await supabase
                 .from("pending_invites")
-                .update({ status: "accepted", accepted_at: new Date().toISOString() })
+                .update({ 
+                  status: "accepted", 
+                  accepted_at: new Date().toISOString(),
+                  invited_user_id: user.id 
+                })
                 .eq("id", invite.id);
+              
+              if (updateError) {
+                console.error("[CompleteProfile] Failed to update invite status:", updateError);
+              }
             }
+          } else {
+            console.log("[CompleteProfile] Role already exists, skipping:", invite.role);
+            // Still mark invite as accepted
+            await supabase
+              .from("pending_invites")
+              .update({ 
+                status: "accepted", 
+                accepted_at: new Date().toISOString(),
+                invited_user_id: user.id 
+              })
+              .eq("id", invite.id);
           }
         }
+      } else {
+        console.log("[CompleteProfile] No pending invites found for user");
       }
 
       // If user opted in for push notifications, subscribe them
