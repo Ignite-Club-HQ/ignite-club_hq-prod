@@ -461,12 +461,13 @@ export default function ClubDetailPage() {
 
   // Fetch pending invites for this club
   const { data: pendingInvites = [] } = useQuery({
-    queryKey: ["pending-invites", null, id],
+    queryKey: ["pending-invites", null, id, isAdmin],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pending_invites")
         .select("id, role, invited_user_id, invited_label, invited_email, created_at, status, email_sent_at, email_id, email_error")
         .eq("club_id", id!)
+        .is("team_id", null)
         .eq("status", "pending")
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -479,7 +480,7 @@ export default function ClubDetailPage() {
               .from("profiles")
               .select("id, display_name, avatar_url")
               .eq("id", invite.invited_user_id)
-              .single();
+              .maybeSingle();
             return { ...invite, profiles: profile };
           }
           return { ...invite, profiles: null };
@@ -488,7 +489,8 @@ export default function ClubDetailPage() {
       
       return invitesWithProfiles;
     },
-    enabled: !!id && isAdmin,
+    enabled: !!id && isAdmin === true,
+    staleTime: 0,
   });
   
   // Initialize showAllTeams based on admin status (once we know it)
