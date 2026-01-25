@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Loader2, CheckCircle, XCircle, Building2 } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Building2, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -10,6 +10,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { PWAInstallDialog } from "@/components/PWAInstallDialog";
+import { usePWAInstall } from "@/hooks/usePWAInstall";
+import { IOSInstallGuide } from "@/components/IOSInstallGuide";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -33,6 +35,7 @@ export default function JoinClubPage() {
   const [joined, setJoined] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const shouldPromptInstall = searchParams.get("install") === "true";
+  const { canPrompt, isInstalled, isIOS, installApp } = usePWAInstall();
 
   // Fetch invite details using secure RPC function
   const { data: invite, isLoading: inviteLoading, error: inviteError } = useQuery({
@@ -145,15 +148,21 @@ export default function JoinClubPage() {
     },
   });
 
-  // Redirect to auth if not logged in
-  useEffect(() => {
-    if (!authLoading && !user) {
+  // Handle join action - redirect to auth if not logged in
+  const handleJoinClick = async () => {
+    // Try to install PWA first (if possible)
+    if (canPrompt && !isInstalled) {
+      await installApp();
+    }
+    if (!user) {
       sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
       navigate("/auth");
+      return;
     }
-  }, [authLoading, user, token, navigate]);
+    joinMutation.mutate();
+  };
 
-  if (authLoading || inviteLoading) {
+  if (inviteLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -200,8 +209,8 @@ export default function JoinClubPage() {
     );
   }
 
-  // Check if user already has the invite role
-  const alreadyHasRole = existingRoles?.includes(invite.role as AppRole);
+  // Check if user already has the invite role (only check if logged in)
+  const alreadyHasRole = user && existingRoles?.includes(invite.role as AppRole);
 
   if (alreadyHasRole) {
     return (
@@ -269,13 +278,19 @@ export default function JoinClubPage() {
           </div>
 
           <Button 
-            onClick={() => joinMutation.mutate()} 
-            disabled={joinMutation.isPending}
+            onClick={handleJoinClick} 
+            disabled={joinMutation.isPending || authLoading}
             className="w-full"
             size="lg"
           >
-            {joinMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Join Club
+            {(joinMutation.isPending || authLoading) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {!user 
+              ? (canPrompt && !isInstalled 
+                  ? "Install App & Sign in to Join"
+                  : "Sign in to Join")
+              : (canPrompt && !isInstalled
+                  ? `Install App & Join as ${roleLabels[invite.role as AppRole]}`
+                  : `Join as ${roleLabels[invite.role as AppRole]}`)}
           </Button>
           <Button 
             variant="ghost" 
@@ -284,6 +299,20 @@ export default function JoinClubPage() {
           >
             Cancel
           </Button>
+
+          {/* iOS install instructions - show on join form if not installed */}
+          {!isInstalled && isIOS && (
+            <div className="border-t border-border pt-4 mt-4 space-y-3">
+              <div className="flex items-center justify-center gap-2">
+                <Smartphone className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-medium">Install the App</h3>
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                For the best experience with push notifications and offline access
+              </p>
+              <IOSInstallGuide compact />
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

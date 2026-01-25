@@ -381,7 +381,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const signUp = async (email: string, password: string) => {
-    const redirectUrl = `${window.location.origin}/`;
+    // Check for pending redirect (e.g., from invite link)
+    const pendingRedirect = sessionStorage.getItem("redirectAfterAuth");
+    const redirectUrl = pendingRedirect 
+      ? `${window.location.origin}${pendingRedirect}`
+      : `${window.location.origin}/`;
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -396,10 +400,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
+    // Check for pending redirect (e.g., from invite link)
+    const pendingRedirect = sessionStorage.getItem("redirectAfterAuth");
+    const redirectUrl = pendingRedirect 
+      ? `${window.location.origin}${pendingRedirect}`
+      : `${window.location.origin}/`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: redirectUrl,
       },
     });
     return { error: error as Error | null };

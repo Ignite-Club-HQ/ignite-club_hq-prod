@@ -445,15 +445,21 @@ export default function JoinTeamPage() {
     });
   };
 
-  // Redirect to auth if not logged in
-  useEffect(() => {
-    if (!authLoading && !user) {
+  // Handle join action - redirect to auth if not logged in
+  const handleJoinClick = async () => {
+    if (!user) {
       sessionStorage.setItem("redirectAfterAuth", location.pathname);
       navigate("/auth");
+      return;
     }
-  }, [authLoading, user, location.pathname, navigate]);
+    // Try to install PWA first (if possible), then join
+    if (canPrompt && !isInstalled) {
+      await installApp();
+    }
+    joinMutation.mutate();
+  };
 
-  if (authLoading || isLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -713,29 +719,27 @@ export default function JoinTeamPage() {
           )}
 
           <Button 
-            onClick={async () => {
-              // Try to install PWA first (if possible), then join
-              if (canPrompt && !isInstalled) {
-                await installApp();
-              }
-              joinMutation.mutate();
-            }} 
-            disabled={joinMutation.isPending || selectedRoles.length === 0 || !!nameValidationError}
+            onClick={handleJoinClick} 
+            disabled={joinMutation.isPending || authLoading || (user && selectedRoles.length === 0) || (user && !!nameValidationError)}
             className="w-full"
             size="lg"
           >
-            {joinMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {nameValidationError 
-              ? "Cannot Join - Name Mismatch"
-              : isFixedRoleInvite
-                ? (canPrompt && !isInstalled 
-                    ? `Install App & Join as ${roleLabels[invite.role as AppRole]}`
-                    : `Join as ${roleLabels[invite.role as AppRole]}`)
-                : selectedRoles.length === 0 
-                  ? "Select at least one role" 
-                  : (canPrompt && !isInstalled
-                      ? `Install App & Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`
-                      : `Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`)
+            {(joinMutation.isPending || authLoading) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {!user 
+              ? (canPrompt && !isInstalled 
+                  ? "Install App & Sign in to Join"
+                  : "Sign in to Join")
+              : nameValidationError 
+                ? "Cannot Join - Name Mismatch"
+                : isFixedRoleInvite
+                  ? (canPrompt && !isInstalled 
+                      ? `Install App & Join as ${roleLabels[invite.role as AppRole]}`
+                      : `Join as ${roleLabels[invite.role as AppRole]}`)
+                  : selectedRoles.length === 0 
+                    ? "Select at least one role" 
+                    : (canPrompt && !isInstalled
+                        ? `Install App & Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`
+                        : `Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`)
             }
           </Button>
           <Button 
