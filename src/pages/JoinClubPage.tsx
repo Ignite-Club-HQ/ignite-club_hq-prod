@@ -148,17 +148,21 @@ export default function JoinClubPage() {
     },
   });
 
-  // Handle join action - redirect to auth if not logged in
+  // Handle join action - show install prompt first, then redirect to auth if not logged in
   const handleJoinClick = async () => {
-    // Try to install PWA first (if possible)
+    // Try to install PWA first - await the user's choice before proceeding
     if (canPrompt && !isInstalled) {
       await installApp();
     }
+    
+    // If not logged in, redirect to auth
     if (!user) {
       sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
       navigate("/auth");
       return;
     }
+    
+    // User is logged in - proceed with join
     joinMutation.mutate();
   };
 
@@ -284,13 +288,9 @@ export default function JoinClubPage() {
             size="lg"
           >
             {(joinMutation.isPending || authLoading) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {!user 
-              ? (canPrompt && !isInstalled 
-                  ? "Install App & Sign in to Join"
-                  : "Sign in to Join")
-              : (canPrompt && !isInstalled
-                  ? `Install App & Join as ${roleLabels[invite.role as AppRole]}`
-                  : `Join as ${roleLabels[invite.role as AppRole]}`)}
+            {canPrompt && !isInstalled
+              ? (!user ? "Install App & Sign in to Join" : `Install App & Join as ${roleLabels[invite.role as AppRole]}`)
+              : (!user ? "Sign in to Join" : `Join as ${roleLabels[invite.role as AppRole]}`)}
           </Button>
           <Button 
             variant="ghost" 
