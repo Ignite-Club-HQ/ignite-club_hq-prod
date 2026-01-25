@@ -179,7 +179,7 @@ Deno.serve(async (req) => {
                   tierName,
                   expiryDate,
                   daysUntilExpiry,
-                  manageLink: `https://ignite-club-launchpad.lovable.app/team/${sub.team_id}`,
+                  manageLink: `https://igniteclubhq.app/team/${sub.team_id}`,
                   clubLogoUrl,
                   primaryColor: '#10b981',
                 }
@@ -296,7 +296,7 @@ Deno.serve(async (req) => {
                   tierName,
                   expiryDate,
                   daysUntilExpiry,
-                  manageLink: `https://ignite-club-launchpad.lovable.app/club/${sub.club_id}`,
+                  manageLink: `https://igniteclubhq.app/club/${sub.club_id}`,
                   clubLogoUrl,
                   primaryColor: '#10b981',
                 }
