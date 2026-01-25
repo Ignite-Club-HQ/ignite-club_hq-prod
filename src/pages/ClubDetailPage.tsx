@@ -1573,7 +1573,7 @@ export default function ClubDetailPage() {
                                           message: `You have been removed from ${club?.name || "the club"}`,
                                           related_id: id,
                                         });
-                                        queryClient.invalidateQueries({ queryKey: ["club-roles", id] });
+                                        queryClient.invalidateQueries({ queryKey: ["club-members-roles", id] });
                                         toast({ title: "Member removed" });
                                       }
                                     }}
