@@ -90,6 +90,23 @@ export default function JoinClubPage() {
     enabled: !!invite?.club_id && !!user,
   });
 
+  // Fetch user's profile to check if profile is complete
+  const { data: userProfile, isLoading: profileLoading } = useQuery({
+    queryKey: ["user-profile-for-join-club", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", user!.id)
+        .single();
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  // Check if user needs to complete their profile first
+  const needsProfileCompletion = user && userProfile !== undefined && !userProfile?.display_name;
+
   const joinMutation = useMutation({
     mutationFn: async () => {
       if (!invite || !user) throw new Error("Missing data");
@@ -156,10 +173,20 @@ export default function JoinClubPage() {
 
   // Auto-join effect: when user returns from auth and shouldAutoJoin is true
   useEffect(() => {
+    // First check if user needs to complete their profile
+    if (user && userProfile !== undefined && !userProfile?.display_name) {
+      // User hasn't completed profile - redirect to complete profile
+      sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
+      // Keep auto-join flag for after profile completion
+      navigate("/complete-profile", { replace: true });
+      return;
+    }
+
     if (
       shouldAutoJoin && 
       user && 
       invite && 
+      userProfile?.display_name && // Only auto-join if profile is complete
       !joined && 
       !joinMutation.isPending &&
       !autoJoinAttempted.current
@@ -171,7 +198,7 @@ export default function JoinClubPage() {
         joinMutation.mutate();
       }, 500);
     }
-  }, [shouldAutoJoin, user, invite, joined, joinMutation]);
+  }, [shouldAutoJoin, user, invite, userProfile, joined, joinMutation, token, navigate]);
 
   // Handle join action - show install prompt first, then redirect to auth if not logged in
   const handleJoinClick = async () => {
@@ -194,8 +221,16 @@ export default function JoinClubPage() {
       navigate("/auth");
       return;
     }
+
+    // Check if user needs to complete their profile first
+    if (!userProfile?.display_name) {
+      sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
+      sessionStorage.setItem("autoJoinAfterAuth", "true");
+      navigate("/complete-profile");
+      return;
+    }
     
-    // User is logged in - proceed with join
+    // User is logged in with complete profile - proceed with join
     joinMutation.mutate();
   };
 
@@ -203,10 +238,14 @@ export default function JoinClubPage() {
   const handleContinueInBrowser = () => {
     setShowInstalledGuide(false);
     localStorage.removeItem("pwa_pending_invite");
-    // Keep auto-join flag so they auto-join after auth
+    // Keep auto-join flag so they auto-join after auth or profile completion
     if (!user) {
       sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
       navigate("/auth");
+    } else if (!userProfile?.display_name) {
+      sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
+      sessionStorage.setItem("autoJoinAfterAuth", "true");
+      navigate("/complete-profile");
     } else {
       joinMutation.mutate();
     }
@@ -334,14 +373,18 @@ export default function JoinClubPage() {
 
           <Button 
             onClick={handleJoinClick} 
-            disabled={joinMutation.isPending || authLoading}
+            disabled={joinMutation.isPending || (user && profileLoading)}
             className="w-full"
             size="lg"
           >
-            {(joinMutation.isPending || authLoading) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {canPrompt && !isInstalled
-              ? (!user ? "Install App & Sign in to Join" : `Install App & Join as ${roleLabels[invite.role as AppRole]}`)
-              : (!user ? "Sign in to Join" : `Join as ${roleLabels[invite.role as AppRole]}`)}
+            {(joinMutation.isPending || (user && profileLoading)) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {!user 
+              ? (canPrompt && !isInstalled 
+                  ? "Install App & Create Account"
+                  : "Create Account to Join")
+              : needsProfileCompletion
+                ? "Complete Profile to Join"
+                : `Join as ${roleLabels[invite.role as AppRole]}`}
           </Button>
           <Button 
             variant="ghost" 
