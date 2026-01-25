@@ -19,7 +19,7 @@ if (typeof window !== 'undefined') {
 // Minimum time to show "Installing..." state (in ms)
 const MIN_INSTALLING_TIME = 6000;
 // Maximum time to wait for appinstalled event before auto-transitioning
-const MAX_INSTALLING_TIME = 20000;
+const MAX_INSTALLING_TIME = 10000;
 
 export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(globalDeferredPrompt);
