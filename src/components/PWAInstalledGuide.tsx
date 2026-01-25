@@ -9,10 +9,12 @@ interface PWAInstalledGuideProps {
 }
 
 export function PWAInstalledGuide({ appName = "Ignite", onDismiss }: PWAInstalledGuideProps) {
-  // Open the PWA by navigating to the origin URL (triggers standalone mode if installed)
+  // Detect iOS - can't programmatically open PWA on iOS
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+
+  // Open the PWA by navigating to the origin URL (triggers standalone mode if installed on Android)
   const handleOpenApp = () => {
-    // Opening the app's URL will launch the PWA if installed
-    window.open(window.location.origin, "_blank");
+    window.location.href = window.location.origin;
   };
 
   return (
@@ -46,18 +48,20 @@ export function PWAInstalledGuide({ appName = "Ignite", onDismiss }: PWAInstalle
             <p className="text-xs text-muted-foreground">Look for this icon</p>
           </div>
 
-          {/* Open app button */}
-          <Button 
-            onClick={handleOpenApp} 
-            className="w-full gap-2"
-            size="lg"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Open {appName} App
-          </Button>
+          {/* Open app button - only show on non-iOS (Android supports PWA launching) */}
+          {!isIOS && (
+            <Button 
+              onClick={handleOpenApp} 
+              className="w-full gap-2"
+              size="lg"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open {appName} App
+            </Button>
+          )}
 
           <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-            <p className="font-medium text-sm">Or find it manually:</p>
+            <p className="font-medium text-sm">{isIOS ? "To continue:" : "Or find it manually:"}</p>
             <div className="flex items-center gap-3 text-left">
               <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <span className="text-primary font-semibold text-sm">1</span>
