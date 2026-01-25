@@ -624,28 +624,31 @@ export default function JoinTeamPage() {
   // Show installing progress screen
   if (isInstalling) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center space-y-6">
-            <div className="flex justify-center">
-              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                <Download className="h-10 w-10 text-primary animate-bounce" />
+      <div className="min-h-screen flex flex-col bg-background">
+        <InviteFlowProgress currentStep="install" className="fixed top-0 left-0 right-0 z-50" />
+        <div className="flex-1 flex items-center justify-center p-4 pt-16">
+          <Card className="w-full max-w-md">
+            <CardContent className="p-6 text-center space-y-6">
+              <div className="flex justify-center">
+                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Download className="h-10 w-10 text-primary animate-bounce" />
+                </div>
               </div>
-            </div>
-            
-            <div className="space-y-2">
-              <h2 className="text-2xl font-bold">Installing App...</h2>
-              <p className="text-muted-foreground">
-                Please complete the installation prompt to continue.
-              </p>
-            </div>
+              
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold">Installing App...</h2>
+                <p className="text-muted-foreground">
+                  Please complete the installation prompt to continue.
+                </p>
+              </div>
 
-            <div className="flex items-center justify-center gap-2">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              <span className="text-sm text-muted-foreground">Waiting for installation...</span>
-            </div>
-          </CardContent>
-        </Card>
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">Waiting for installation...</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

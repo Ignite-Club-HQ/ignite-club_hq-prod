@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { setInviteFlowContext } from "@/components/InviteFlowProgress";
 
 /**
  * This component checks if there's a pending invite stored from a PWA installation.
@@ -27,6 +28,14 @@ export function PWAPendingInviteHandler() {
       localStorage.removeItem("pwa_pending_invite");
       // Set auto-join flag so after auth they join automatically
       sessionStorage.setItem("autoJoinAfterAuth", "true");
+      // Signal to auth page that this is a new user flow
+      sessionStorage.setItem("authDefaultTab", "signup");
+      // Set up invite flow context to continue from auth step (post-install)
+      // The actual invite details will be populated when the invite page loads
+      setInviteFlowContext({
+        active: true,
+        inviteToken: pendingInvite.split("/").pop() || undefined,
+      });
       navigate(pendingInvite, { replace: true });
     }
   }, [navigate, location.pathname]);
