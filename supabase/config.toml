@@ -23,3 +23,9 @@ verify_jwt = false
 
 [functions.send-pitch-board-notification-email]
 verify_jwt = false
+
+[functions.send-duty-notification-email]
+verify_jwt = false
+
+[functions.send-points-notification-email]
+verify_jwt = false

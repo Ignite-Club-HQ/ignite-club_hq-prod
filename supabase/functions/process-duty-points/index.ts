@@ -49,6 +49,8 @@ Deno.serve(async (req) => {
           team_id,
           clubs!inner (
             id,
+            name,
+            logo_url,
             is_pro
           )
         )
@@ -66,6 +68,7 @@ Deno.serve(async (req) => {
 
     let processedCount = 0;
     let pointsAwarded = 0;
+    let emailsSent = 0;
 
     for (const duty of eligibleDuties || []) {
       const event = duty.events as any;
@@ -110,10 +113,12 @@ Deno.serve(async (req) => {
 
       const newPoints = (profile.ignite_points || 0) + 10;
       const updateData: any = { ignite_points: newPoints };
+      let rewardUnlocked = false;
 
       // Check for reward unlock at 20 points
       if (newPoints >= 20 && !profile.has_sausage_reward) {
         updateData.has_sausage_reward = true;
+        rewardUnlocked = true;
         
         // Send reward notification
         await supabase.from('notifications').insert({
@@ -144,18 +149,44 @@ Deno.serve(async (req) => {
         related_id: event.id,
       });
 
+      // Send points email notification
+      try {
+        const { error: emailError } = await supabase.functions.invoke('send-points-notification-email', {
+          body: {
+            recipientUserId: duty.assigned_to,
+            pointsAwarded: 10,
+            reason: 'Game duty completed',
+            totalPoints: newPoints,
+            clubName: club?.name || 'Your Club',
+            clubLogoUrl: club?.logo_url,
+            rewardUnlocked,
+            rewardName: rewardUnlocked ? 'Free Sausage Sizzle' : undefined,
+          },
+        });
+
+        if (!emailError) {
+          emailsSent++;
+          console.log(`Points email sent to user ${duty.assigned_to}`);
+        } else {
+          console.error(`Failed to send points email to user ${duty.assigned_to}:`, emailError);
+        }
+      } catch (emailErr) {
+        console.error(`Error sending points email:`, emailErr);
+      }
+
       processedCount++;
       pointsAwarded += 10;
       console.log(`Duty ${duty.id}: Awarded 10 points to user ${duty.assigned_to} (total: ${newPoints})`);
     }
 
-    console.log(`Processing complete. Processed: ${processedCount}, Points awarded: ${pointsAwarded}`);
+    console.log(`Processing complete. Processed: ${processedCount}, Points awarded: ${pointsAwarded}, Emails sent: ${emailsSent}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         processedCount,
         pointsAwarded,
+        emailsSent,
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

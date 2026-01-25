@@ -13,7 +13,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
 interface AwardPointsDialogProps {
@@ -22,6 +21,7 @@ interface AwardPointsDialogProps {
   currentPoints?: number;
   clubId: string;
   clubName: string;
+  clubLogoUrl?: string;
 }
 
 export default function AwardPointsDialog({
@@ -30,8 +30,8 @@ export default function AwardPointsDialog({
   currentPoints = 0,
   clubId,
   clubName,
+  clubLogoUrl,
 }: AwardPointsDialogProps) {
-  const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -67,6 +67,24 @@ export default function AwardPointsDialog({
 
       if (notificationError) {
         console.error("Failed to create notification:", notificationError);
+        // Don't throw - points were still awarded
+      }
+
+      // Send email notification
+      try {
+        await supabase.functions.invoke('send-points-notification-email', {
+          body: {
+            recipientUserId: memberId,
+            pointsAwarded: points,
+            reason: reason || (points > 0 ? 'Points awarded by admin' : 'Points adjustment'),
+            totalPoints: newPoints,
+            clubName,
+            clubLogoUrl,
+            rewardUnlocked: false,
+          },
+        });
+      } catch (emailErr) {
+        console.error("Failed to send points email:", emailErr);
         // Don't throw - points were still awarded
       }
     },
