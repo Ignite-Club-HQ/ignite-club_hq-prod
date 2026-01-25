@@ -240,8 +240,9 @@ export default function JoinTeamPage() {
           .update({ display_name: pendingInviteData.invited_label })
           .eq("id", user.id);
       } else if (actualName !== expectedName) {
+        const adminType = pendingInviteData.team_id ? "team admin" : "club admin";
         throw new Error(
-          `This invite was created for "${pendingInviteData.invited_label}". Please create a new account with that name or contact your team admin for a different invite link.`
+          `This invite was created for "${pendingInviteData.invited_label}". Please create a new account with that name or contact your ${adminType} for a different invite link.`
         );
       }
 
@@ -664,7 +665,7 @@ export default function JoinTeamPage() {
             <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Invite Already Used</h2>
             <p className="text-muted-foreground mb-4">
-              This invite link has already been used. Contact your team admin for a new invite.
+              This invite link has already been used. Contact your {pendingInviteData?.team_id ? "team admin" : "club admin"} for a new invite.
             </p>
             <Button onClick={() => navigate("/")}>Go to Home</Button>
           </CardContent>
@@ -832,7 +833,7 @@ export default function JoinTeamPage() {
                 <p className="font-medium text-destructive">Link Not Valid For Existing Users</p>
                 <p className="text-muted-foreground mt-1">{nameValidationError}</p>
                 <p className="text-muted-foreground mt-2">
-                  Contact your team admin to be added directly or to receive a general invite link.
+                  Contact your {invite?.team_id ? "team admin" : "club admin"} to be added directly or to receive a general invite link.
                 </p>
               </div>
             </div>
