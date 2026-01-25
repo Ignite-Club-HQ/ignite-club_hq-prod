@@ -23,6 +23,7 @@ export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(globalDeferredPrompt);
   const [canPrompt, setCanPrompt] = useState(!!globalDeferredPrompt);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isReady, setIsReady] = useState(false);
   
@@ -67,10 +68,11 @@ export function usePWAInstall() {
           const remaining = MIN_INSTALLING_TIME - elapsed;
           
           if (remaining > 0) {
-            // Wait for remaining time before setting installed
-            console.log(`[PWA] Waiting ${remaining}ms before showing installed state`);
+            // Wait for remaining time before transitioning
+            console.log(`[PWA] Waiting ${remaining}ms before completing`);
             setTimeout(() => {
-              console.log("[PWA] Minimum install time elapsed, setting installed");
+              console.log("[PWA] Minimum install time elapsed, completing");
+              setIsInstalling(false);
               setIsInstalled(true);
               setCanPrompt(false);
               setDeferredPrompt(null);
@@ -78,7 +80,8 @@ export function usePWAInstall() {
             }, remaining);
           } else {
             // Minimum time already passed
-            console.log("[PWA] Minimum install time already passed, setting installed");
+            console.log("[PWA] Minimum time passed, completing immediately");
+            setIsInstalling(false);
             setIsInstalled(true);
             setCanPrompt(false);
             setDeferredPrompt(null);
@@ -86,7 +89,8 @@ export function usePWAInstall() {
           }
         } else {
           // User hasn't accepted yet (edge case), just set installed
-          console.log("[PWA] No accept timestamp, setting installed immediately");
+          console.log("[PWA] No accept timestamp, completing immediately");
+          setIsInstalling(false);
           setIsInstalled(true);
           setCanPrompt(false);
           setDeferredPrompt(null);
@@ -124,7 +128,7 @@ export function usePWAInstall() {
     try {
       console.log("[PWA] Showing install prompt...");
       
-      // Record when user starts the install process
+      // Reset tracking state
       installAcceptedAt.current = null;
       appInstalledEventFired.current = false;
       
@@ -133,15 +137,17 @@ export function usePWAInstall() {
       console.log("[PWA] User choice:", outcome);
       
       if (outcome === "accepted") {
-        // Record the time user accepted - this starts the minimum install timer
+        // Record the time user accepted and start installing state
         installAcceptedAt.current = Date.now();
-        console.log("[PWA] User accepted install, timestamp recorded");
+        setIsInstalling(true);
+        console.log("[PWA] User accepted install, isInstalling = true");
         
-        // If appinstalled already fired (rare), handle it now
+        // If appinstalled already fired (rare), handle it now with minimum delay
         if (appInstalledEventFired.current) {
-          console.log("[PWA] appinstalled already fired, starting minimum timer");
+          console.log("[PWA] appinstalled already fired, waiting minimum time");
           setTimeout(() => {
             console.log("[PWA] Minimum install time elapsed after accept");
+            setIsInstalling(false);
             setIsInstalled(true);
             setCanPrompt(false);
             setDeferredPrompt(null);
@@ -162,6 +168,7 @@ export function usePWAInstall() {
       setDeferredPrompt(null);
       globalDeferredPrompt = null;
       setCanPrompt(false);
+      setIsInstalling(false);
       installAcceptedAt.current = null;
       return false;
     }
@@ -170,6 +177,7 @@ export function usePWAInstall() {
   return {
     canPrompt,
     isInstalled,
+    isInstalling,
     isIOS,
     isReady,
     installApp,
