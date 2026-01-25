@@ -1207,9 +1207,9 @@ export default function EditProfilePage() {
               <div className="flex items-center gap-2">
                 <Trophy className="h-4 w-4 text-muted-foreground" />
                 <div>
-                  <Label htmlFor="email-pom">Player of Match</Label>
+                  <Label htmlFor="email-pom">Game Stats & Player of Match</Label>
                   <p className="text-xs text-muted-foreground">
-                    POM selections & award notifications
+                    Player stats reports & POM award notifications
                   </p>
                 </div>
               </div>
