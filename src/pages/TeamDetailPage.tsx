@@ -741,22 +741,14 @@ export default function TeamDetailPage() {
             <AccordionContent>
               <div className="space-y-4 pt-2">
                 {(isAdmin || isClubAdmin) && (
-                  <div className="flex flex-wrap gap-2 justify-between items-center">
-                    <PromoteToTeamAdminDialog
-                      teamId={id!}
-                      teamName={team.name}
+                  <div className="flex flex-wrap gap-2 justify-end items-center">
+                    <AddTeamMemberSheet 
+                      teamId={id!} 
+                      teamName={team.name} 
                       clubId={team.club_id}
-                      members={members}
+                      teamType={(team as any).team_type || "mixed"}
+                      isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
                     />
-                    <div className="flex flex-wrap gap-2">
-                      <AddTeamMemberSheet 
-                        teamId={id!} 
-                        teamName={team.name} 
-                        clubId={team.club_id}
-                        teamType={(team as any).team_type || "mixed"}
-                        isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
-                      />
-                    </div>
                   </div>
                 )}
                 {Object.keys(members).length === 0 && pendingInvites.length === 0 && !isMembersLoading ? (
