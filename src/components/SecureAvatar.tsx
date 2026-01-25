@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 interface SecureAvatarProps {
   src?: string | null;
-  fallback: string;
+  fallback?: string;
   className?: string;
   fallbackClassName?: string;
 }
@@ -31,9 +31,11 @@ export function SecureAvatar({
       ) : (
         <AvatarImage src={effectiveSrc} />
       )}
-      <AvatarFallback className={cn("text-xs", fallbackClassName)}>
-        {fallback}
-      </AvatarFallback>
+      {fallback && (
+        <AvatarFallback className={cn("text-xs", fallbackClassName)}>
+          {fallback}
+        </AvatarFallback>
+      )}
     </Avatar>
   );
 }
