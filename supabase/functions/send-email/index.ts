@@ -12,6 +12,7 @@ import { MessageNotificationEmail } from "./_templates/message-notification.tsx"
 import { StorageWarningEmail } from "./_templates/storage-warning.tsx";
 import { SubscriptionRenewedEmail } from "./_templates/subscription-renewed.tsx";
 import { PaymentFailedEmail } from "./_templates/payment-failed.tsx";
+import { PhotoUploadedEmail } from "./_templates/photo-uploaded.tsx";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -46,7 +47,8 @@ type TemplateType =
   | "message-notification"
   | "storage-warning"
   | "subscription-renewed"
-  | "payment-failed";
+  | "payment-failed"
+  | "photo-uploaded";
 
 interface EmailRequest {
   to: string | string[];
@@ -55,7 +57,7 @@ interface EmailRequest {
   from?: string;
   // Template-based email
   template?: TemplateType;
-  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData | SubscriptionRenewedTemplateData | PaymentFailedTemplateData;
+  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData | SubscriptionRenewedTemplateData | PaymentFailedTemplateData | PhotoUploadedTemplateData;
 }
 
 interface TeamInviteTemplateData {
@@ -158,6 +160,21 @@ interface PaymentFailedTemplateData {
   recipientName?: string;
   entityName: string;
   entityType: 'team' | 'club';
+  tierName: string;
+  failureDate: string;
+  updatePaymentLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+}
+
+interface PhotoUploadedTemplateData {
+  recipientName?: string;
+  uploaderName: string;
+  contextType: 'team' | 'club';
+  contextName: string;
+  photoLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
   tierName: string;
   failureDate: string;
   updatePaymentLink: string;
@@ -371,6 +388,19 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           tierName: data.tierName,
           failureDate: data.failureDate,
           updatePaymentLink: data.updatePaymentLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+        })
+      );
+    
+    case "photo-uploaded":
+      return await renderAsync(
+        React.createElement(PhotoUploadedEmail, {
+          recipientName: data.recipientName,
+          uploaderName: data.uploaderName,
+          contextType: data.contextType,
+          contextName: data.contextName,
+          photoLink: data.photoLink,
           clubLogoUrl: data.clubLogoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
         })
