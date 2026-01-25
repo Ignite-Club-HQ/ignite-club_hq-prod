@@ -422,11 +422,31 @@ export default function JoinTeamPage() {
       shouldAutoJoin && 
       user && 
       invite && 
+      existingRoles !== undefined && // Wait for existing roles to load
       !joined && 
       !joinMutation.isPending &&
       !autoJoinAttempted.current &&
       !nameValidationError
     ) {
+      // Calculate roles to add - use invite role if user doesn't have it
+      const inviteRole = invite.role as AppRole;
+      const hasInviteRole = existingRoles?.includes(inviteRole);
+      
+      if (hasInviteRole) {
+        // User already has this role - just navigate to team
+        autoJoinAttempted.current = true;
+        sessionStorage.removeItem("autoJoinAfterAuth");
+        toast({ title: `You're already a member of ${invite.teams?.name}!` });
+        setJoined(true);
+        return;
+      }
+      
+      // Set the role before joining
+      if (selectedRoles.length === 0) {
+        setSelectedRoles([inviteRole]);
+        return; // Let the effect re-run after selectedRoles is set
+      }
+      
       autoJoinAttempted.current = true;
       sessionStorage.removeItem("autoJoinAfterAuth");
       // Small delay to ensure UI is ready
@@ -434,7 +454,7 @@ export default function JoinTeamPage() {
         joinMutation.mutate();
       }, 500);
     }
-  }, [shouldAutoJoin, user, invite, joined, joinMutation, nameValidationError]);
+  }, [shouldAutoJoin, user, invite, existingRoles, selectedRoles, joined, joinMutation, nameValidationError, toast]);
 
   // Handle photo consent given
   const handlePhotoConsentGiven = async () => {
