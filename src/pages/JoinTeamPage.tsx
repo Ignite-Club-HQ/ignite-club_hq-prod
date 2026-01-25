@@ -235,6 +235,14 @@ export default function JoinTeamPage() {
     }
   }, [invite?.role, existingRoles, isFixedRoleInvite]);
 
+  // Block regular invite links - only email invites (pending invites) are now allowed
+  // Silently redirect to home
+  useEffect(() => {
+    if (!isPendingInvite && !isLoading) {
+      navigate("/", { replace: true });
+    }
+  }, [isPendingInvite, isLoading, navigate]);
+
   const toggleRole = (role: AppRole) => {
     setSelectedRoles(prev => 
       prev.includes(role) 
@@ -667,17 +675,8 @@ export default function JoinTeamPage() {
   // Block regular invite links - only email invites (pending invites) are now allowed
   if (!isPendingInvite) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Invite Links Disabled</h2>
-            <p className="text-muted-foreground mb-4">
-              Shareable invite links are no longer supported. Please ask your team admin to send you an email invite instead.
-            </p>
-            <Button onClick={() => navigate("/")}>Go to Home</Button>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }

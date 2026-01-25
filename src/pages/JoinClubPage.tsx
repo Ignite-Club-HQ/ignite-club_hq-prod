@@ -133,6 +133,15 @@ export default function JoinClubPage() {
     }
   }, [joined]);
 
+  // Club shareable invite links are no longer supported - only email invites work
+  // This page handles /join-club/:token which are all shareable links
+  // Silently redirect to home
+  useEffect(() => {
+    if (!inviteLoading) {
+      navigate("/", { replace: true });
+    }
+  }, [inviteLoading, navigate]);
+
   const joinMutation = useMutation({
     mutationFn: async () => {
       if (!invite || !user) throw new Error("Missing data");
@@ -302,20 +311,10 @@ export default function JoinClubPage() {
     );
   }
 
-  // Club shareable invite links are no longer supported - only email invites work
-  // This page handles /join-club/:token which are all shareable links
+  // Club shareable invite links are no longer supported - silently show loading while redirecting
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardContent className="p-6 text-center">
-          <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Invite Links Disabled</h2>
-          <p className="text-muted-foreground mb-4">
-            Shareable invite links are no longer supported. Please ask your club admin to send you an email invite instead.
-          </p>
-          <Button onClick={() => navigate("/")}>Go to Home</Button>
-        </CardContent>
-      </Card>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   );
 }
