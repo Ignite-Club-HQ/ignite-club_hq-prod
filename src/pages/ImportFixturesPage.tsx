@@ -16,6 +16,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { FixturesCSVImport } from "@/components/FixturesCSVImport";
+import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
 
 export default function ImportFixturesPage() {
   const { user } = useAuth();
@@ -198,6 +199,23 @@ export default function ImportFixturesPage() {
     return !hasClubRoles && !hasTeamRoles;
   }, [clubAdminRoles, teamAdminRoles, rolesLoading]);
 
+  // Check if club admin is acting on a team they don't directly manage
+  const isClubAdminActingOnOtherTeam = useMemo(() => {
+    // Must be a club admin
+    if (!isClubAdmin) return false;
+    // If no team selected (all teams mode), show banner since they're acting on all teams
+    if (!teamId) return clubId ? true : false;
+    // Check if the selected team is NOT one they directly admin/coach
+    return !adminTeamIds.has(teamId);
+  }, [isClubAdmin, teamId, clubId, adminTeamIds]);
+
+  // Get selected team name for the banner
+  const selectedTeamName = useMemo(() => {
+    if (!teamId || !teams) return "all teams";
+    const team = teams.find(t => t.id === teamId);
+    return team?.name || "this team";
+  }, [teamId, teams]);
+
   if (hasNoAccess) {
     return (
       <div className="container max-w-lg mx-auto px-4 py-6 space-y-4">
@@ -376,6 +394,11 @@ export default function ImportFixturesPage() {
             Select a team to start importing fixtures.
           </AlertDescription>
         </Alert>
+      )}
+
+      {/* Club admin confirmation banner */}
+      {isClubAdminActingOnOtherTeam && clubId && (isClubAdmin || teamId) && isProActive && !proStatusLoading && (
+        <ClubAdminConfirmBanner teamName={selectedTeamName} action="import fixtures" />
       )}
 
       {/* Import Component */}
