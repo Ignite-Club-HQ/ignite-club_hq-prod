@@ -145,15 +145,17 @@ export default function JoinClubPage() {
     },
   });
 
-  // Redirect to auth if not logged in
-  useEffect(() => {
-    if (!authLoading && !user) {
+  // Handle join action - redirect to auth if not logged in
+  const handleJoinClick = () => {
+    if (!user) {
       sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
       navigate("/auth");
+      return;
     }
-  }, [authLoading, user, token, navigate]);
+    joinMutation.mutate();
+  };
 
-  if (authLoading || inviteLoading) {
+  if (inviteLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -200,8 +202,8 @@ export default function JoinClubPage() {
     );
   }
 
-  // Check if user already has the invite role
-  const alreadyHasRole = existingRoles?.includes(invite.role as AppRole);
+  // Check if user already has the invite role (only check if logged in)
+  const alreadyHasRole = user && existingRoles?.includes(invite.role as AppRole);
 
   if (alreadyHasRole) {
     return (
@@ -269,13 +271,13 @@ export default function JoinClubPage() {
           </div>
 
           <Button 
-            onClick={() => joinMutation.mutate()} 
-            disabled={joinMutation.isPending}
+            onClick={handleJoinClick} 
+            disabled={joinMutation.isPending || authLoading}
             className="w-full"
             size="lg"
           >
-            {joinMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Join Club
+            {(joinMutation.isPending || authLoading) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {user ? "Join Club" : "Sign in to Join"}
           </Button>
           <Button 
             variant="ghost" 
