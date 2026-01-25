@@ -226,6 +226,11 @@ export default function JoinClubPage() {
     if (!userProfile?.display_name) {
       sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
       sessionStorage.setItem("autoJoinAfterAuth", "true");
+      // Store the club name as a label hint for profile completion
+      if (invite?.clubs?.name) {
+        // For club invites, we don't have an invited_label, but we could use user's Google name if available
+        // Just ensure the redirect flow works - user will enter their own name
+      }
       navigate("/complete-profile");
       return;
     }

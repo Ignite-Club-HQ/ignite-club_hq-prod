@@ -440,6 +440,10 @@ export default function JoinTeamPage() {
       // User hasn't completed profile - redirect to complete profile
       sessionStorage.setItem("redirectAfterAuth", location.pathname);
       // Keep auto-join flag for after profile completion
+      // Store the invited_label for profile prefill if available (pending invite)
+      if (pendingInviteData?.invited_label) {
+        sessionStorage.setItem("inviteLabel", pendingInviteData.invited_label);
+      }
       navigate("/complete-profile", { replace: true });
       return;
     }
@@ -544,6 +548,10 @@ export default function JoinTeamPage() {
     if (!userProfile?.display_name) {
       sessionStorage.setItem("redirectAfterAuth", location.pathname);
       sessionStorage.setItem("autoJoinAfterAuth", "true");
+      // Store the invited_label for profile prefill if available (pending invite)
+      if (pendingInviteData?.invited_label) {
+        sessionStorage.setItem("inviteLabel", pendingInviteData.invited_label);
+      }
       navigate("/complete-profile");
       return;
     }
@@ -563,6 +571,10 @@ export default function JoinTeamPage() {
     } else if (!userProfile?.display_name) {
       sessionStorage.setItem("redirectAfterAuth", location.pathname);
       sessionStorage.setItem("autoJoinAfterAuth", "true");
+      // Store the invited_label for profile prefill if available (pending invite)
+      if (pendingInviteData?.invited_label) {
+        sessionStorage.setItem("inviteLabel", pendingInviteData.invited_label);
+      }
       navigate("/complete-profile");
     } else {
       joinMutation.mutate();
