@@ -741,22 +741,14 @@ export default function TeamDetailPage() {
             <AccordionContent>
               <div className="space-y-4 pt-2">
                 {(isAdmin || isClubAdmin) && (
-                  <div className="flex flex-wrap gap-2 justify-between items-center">
-                    <PromoteToTeamAdminDialog
-                      teamId={id!}
-                      teamName={team.name}
+                  <div className="flex flex-wrap gap-2 justify-end items-center">
+                    <AddTeamMemberSheet 
+                      teamId={id!} 
+                      teamName={team.name} 
                       clubId={team.club_id}
-                      members={members}
+                      teamType={(team as any).team_type || "mixed"}
+                      isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
                     />
-                    <div className="flex flex-wrap gap-2">
-                      <AddTeamMemberSheet 
-                        teamId={id!} 
-                        teamName={team.name} 
-                        clubId={team.club_id}
-                        teamType={(team as any).team_type || "mixed"}
-                        isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
-                      />
-                    </div>
                   </div>
                 )}
                 {Object.keys(members).length === 0 && pendingInvites.length === 0 && !isMembersLoading ? (
@@ -963,7 +955,28 @@ export default function TeamDetailPage() {
               </AccordionTrigger>
               <AccordionContent>
                 <div className="space-y-3 pt-2">
-          <Link to={`/teams/${id}/roles`}>
+                  {/* Quick Action: Add Team Admin */}
+                  <Card className="border-primary/30 bg-primary/5">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-primary/20">
+                          <Crown className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">Team Admin Management</p>
+                          <p className="text-xs text-muted-foreground">Add another admin to help manage the team</p>
+                        </div>
+                        <PromoteToTeamAdminDialog
+                          teamId={id!}
+                          teamName={team.name}
+                          clubId={team.club_id}
+                          members={members}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+          
+                  <Link to={`/teams/${id}/roles`}>
             <Card className="hover:border-primary/50 transition-colors">
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-primary/10">
