@@ -144,10 +144,10 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
         club_id: clubId,
         team_id: null,
         role: "club_admin" as any,
-        invited_user_id: user!.id, // Set to current user as placeholder
+        invited_user_id: null, // Will be set when user accepts invite
         invited_by_user_id: user!.id,
         invited_label: customName.trim(),
-        invited_email: customEmail.trim() || null,
+        invited_email: customEmail.trim().toLowerCase() || null,
         invite_token: inviteToken,
       } as any);
       if (inviteError) throw inviteError;
