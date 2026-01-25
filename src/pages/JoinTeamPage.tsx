@@ -726,10 +726,8 @@ export default function JoinTeamPage() {
           >
             {(joinMutation.isPending || authLoading) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {!user 
-              ? (canPrompt && !isInstalled 
-                  ? "Install App & Sign in to Join"
-                  : "Sign in to Join")
-              : nameValidationError 
+              ? "Sign in to Join"
+              : nameValidationError
                 ? "Cannot Join - Name Mismatch"
                 : isFixedRoleInvite
                   ? (canPrompt && !isInstalled 
