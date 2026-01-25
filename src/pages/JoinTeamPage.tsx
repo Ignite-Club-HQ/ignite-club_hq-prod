@@ -152,8 +152,8 @@ export default function JoinTeamPage() {
     enabled: !!invite?.team_id && !!user,
   });
 
-  // Fetch user's profile for name validation
-  const { data: userProfile } = useQuery({
+  // Fetch user's profile for name validation and profile completion check
+  const { data: userProfile, isLoading: profileLoading } = useQuery({
     queryKey: ["user-profile-for-join", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -165,6 +165,9 @@ export default function JoinTeamPage() {
     },
     enabled: !!user,
   });
+
+  // Check if user needs to complete their profile first
+  const needsProfileCompletion = user && userProfile !== undefined && !userProfile?.display_name;
 
   // Validate name for pending invites - only block EXISTING users with a different name already set
   // New signups (no display_name yet) are allowed - their name will be auto-set during join
@@ -432,11 +435,21 @@ export default function JoinTeamPage() {
 
   // Auto-join effect: when user returns from auth and shouldAutoJoin is true
   useEffect(() => {
+    // First check if user needs to complete their profile
+    if (user && userProfile !== undefined && !userProfile?.display_name) {
+      // User hasn't completed profile - redirect to complete profile
+      sessionStorage.setItem("redirectAfterAuth", location.pathname);
+      // Keep auto-join flag for after profile completion
+      navigate("/complete-profile", { replace: true });
+      return;
+    }
+
     if (
       shouldAutoJoin && 
       user && 
       invite && 
       existingRoles !== undefined && // Wait for existing roles to load
+      userProfile?.display_name && // Only auto-join if profile is complete
       !joined && 
       !joinMutation.isPending &&
       !autoJoinAttempted.current &&
@@ -468,7 +481,7 @@ export default function JoinTeamPage() {
         joinMutation.mutate();
       }, 500);
     }
-  }, [shouldAutoJoin, user, invite, existingRoles, selectedRoles, joined, joinMutation, nameValidationError, toast]);
+  }, [shouldAutoJoin, user, invite, existingRoles, selectedRoles, joined, joinMutation, nameValidationError, toast, userProfile, location.pathname, navigate]);
 
   // Handle photo consent given
   const handlePhotoConsentGiven = async () => {
@@ -526,8 +539,16 @@ export default function JoinTeamPage() {
       navigate("/auth");
       return;
     }
+
+    // Check if user needs to complete their profile first
+    if (!userProfile?.display_name) {
+      sessionStorage.setItem("redirectAfterAuth", location.pathname);
+      sessionStorage.setItem("autoJoinAfterAuth", "true");
+      navigate("/complete-profile");
+      return;
+    }
     
-    // User is logged in - proceed with join (may need photo consent for parent role)
+    // User is logged in with complete profile - proceed with join (may need photo consent for parent role)
     joinMutation.mutate();
   };
 
@@ -535,10 +556,14 @@ export default function JoinTeamPage() {
   const handleContinueInBrowser = () => {
     setShowInstalledGuide(false);
     localStorage.removeItem("pwa_pending_invite");
-    // Keep auto-join flag so they auto-join after auth
+    // Keep auto-join flag so they auto-join after auth or profile completion
     if (!user) {
       sessionStorage.setItem("redirectAfterAuth", location.pathname);
       navigate("/auth");
+    } else if (!userProfile?.display_name) {
+      sessionStorage.setItem("redirectAfterAuth", location.pathname);
+      sessionStorage.setItem("autoJoinAfterAuth", "true");
+      navigate("/complete-profile");
     } else {
       joinMutation.mutate();
     }
@@ -812,26 +837,24 @@ export default function JoinTeamPage() {
 
           <Button 
             onClick={handleJoinClick} 
-            disabled={joinMutation.isPending || authLoading || (user && selectedRoles.length === 0) || (user && !!nameValidationError)}
+            disabled={joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError)}
             className="w-full"
             size="lg"
           >
-            {(joinMutation.isPending || authLoading) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {(joinMutation.isPending || (user && profileLoading)) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {!user 
               ? (canPrompt && !isInstalled 
                   ? "Install App & Create Account"
                   : "Create Account to Join")
               : nameValidationError 
                 ? "Cannot Join - Name Mismatch"
-                : isFixedRoleInvite
-                  ? (canPrompt && !isInstalled 
-                      ? `Install App & Join as ${roleLabels[invite.role as AppRole]}`
-                      : `Join as ${roleLabels[invite.role as AppRole]}`)
-                  : selectedRoles.length === 0 
-                    ? "Select at least one role" 
-                    : (canPrompt && !isInstalled
-                        ? `Install App & Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`
-                        : `Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`)
+                : needsProfileCompletion
+                  ? "Complete Profile to Join"
+                  : isFixedRoleInvite
+                    ? `Join as ${roleLabels[invite.role as AppRole]}`
+                    : selectedRoles.length === 0 
+                      ? "Select at least one role" 
+                      : `Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`
             }
           </Button>
           <Button 
