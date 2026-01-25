@@ -28,7 +28,7 @@ export function PWAInstalledGuide({ appName = "Ignite", onDismiss }: PWAInstalle
             </p>
           </div>
 
-          {/* App icon preview */}
+          {/* App icon preview - so users know what to look for */}
           <div className="flex flex-col items-center gap-2">
             <div className="p-3 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
               <img 
@@ -37,7 +37,7 @@ export function PWAInstalledGuide({ appName = "Ignite", onDismiss }: PWAInstalle
                 className="h-16 w-16 rounded-xl"
               />
             </div>
-            <p className="text-xs text-muted-foreground">Look for this icon</p>
+            <p className="text-xs text-muted-foreground">Look for this icon on your home screen</p>
           </div>
 
           {/* Clear next steps */}
