@@ -607,11 +607,6 @@ export default function RewardRedemptionCard() {
               
               if (isSingleClubMode) {
                 const club = proClubs[0];
-                // Auto-open if not already showing rewards
-                if (!selectedClubId) {
-                  // Use setTimeout to avoid state update during render
-                  setTimeout(() => setSelectedClubId(club.id), 0);
-                }
                 return (
                   <div className="space-y-3">
                     <Button
