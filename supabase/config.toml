@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.send-message-notification-email]
 verify_jwt = false
+
+[functions.send-storage-warnings]
+verify_jwt = false
