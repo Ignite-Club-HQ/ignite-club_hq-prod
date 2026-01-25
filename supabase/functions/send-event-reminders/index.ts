@@ -173,7 +173,7 @@ serve(async (req) => {
           const teamName = event.teams?.name || "Your Team";
           const clubName = event.teams?.clubs?.name || "Your Club";
           const clubLogoUrl = event.teams?.clubs?.logo_url || undefined;
-          const eventLink = `https://ignite-club-launchpad.lovable.app/event/${event.id}`;
+          const eventLink = `https://igniteclubhq.app/events/${event.id}`;
 
           // Get user emails and profiles
           const { data: userEmails, error: emailError } = await supabase
@@ -293,7 +293,7 @@ serve(async (req) => {
         const teamName = event.teams?.name || "Your Team";
         const clubName = event.teams?.clubs?.name || "Your Club";
         const clubLogoUrl = event.teams?.clubs?.logo_url || undefined;
-        const eventLink = `https://ignite-club-launchpad.lovable.app/event/${event.id}`;
+        const eventLink = `https://igniteclubhq.app/events/${event.id}`;
         
         for (const duty of duties) {
           if (duty.assigned_to) {
