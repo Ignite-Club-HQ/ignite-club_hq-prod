@@ -1470,7 +1470,7 @@ export default function HomePage() {
           }
         }}
       >
-        <ResponsiveDialogContent className="max-w-md">
+        <ResponsiveDialogContent className="max-w-md sm:max-h-[85vh]">
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle className="flex items-center gap-2">
               <Gift className="h-5 w-5" />
@@ -1484,7 +1484,7 @@ export default function HomePage() {
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
           
-          <div className="space-y-3 pt-2">
+          <div className="flex-1 overflow-y-auto space-y-3 pt-2 pb-4">
             {!selectedRewardClubId ? (
               // Club selection view
               <div className="space-y-2">
@@ -1513,7 +1513,7 @@ export default function HomePage() {
                 No rewards available yet. Check back later!
               </p>
             ) : (
-              <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+              <div className="space-y-2">
                 {availableRewards.map((reward: any) => {
                   const currentPoints = profile?.ignite_points || 0;
                   const canAfford = currentPoints >= reward.points_required ||
@@ -1535,8 +1535,8 @@ export default function HomePage() {
                           : "bg-muted/20 opacity-60 cursor-not-allowed"
                       }`}
                     >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium">{reward.name}</span>
                           {reward.sponsors?.name && (
                             <Badge variant="outline" className="text-xs">
@@ -1545,7 +1545,7 @@ export default function HomePage() {
                           )}
                         </div>
                         {reward.description && (
-                          <p className="text-sm text-muted-foreground mt-1">{reward.description}</p>
+                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{reward.description}</p>
                         )}
                       </div>
                       <Badge variant={canAfford ? "default" : "secondary"} className="ml-2 shrink-0">
