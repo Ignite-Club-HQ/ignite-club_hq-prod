@@ -664,6 +664,24 @@ export default function JoinTeamPage() {
     );
   }
 
+  // Block regular invite links - only email invites (pending invites) are now allowed
+  if (!isPendingInvite) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Invite Links Disabled</h2>
+            <p className="text-muted-foreground mb-4">
+              Shareable invite links are no longer supported. Please ask your team admin to send you an email invite instead.
+            </p>
+            <Button onClick={() => navigate("/")}>Go to Home</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (inviteError || !invite) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -682,7 +700,7 @@ export default function JoinTeamPage() {
   }
 
   // Check if pending invite is already used
-  if (isPendingInvite && pendingInviteData?.status !== "pending") {
+  if (pendingInviteData?.status !== "pending") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
@@ -691,27 +709,6 @@ export default function JoinTeamPage() {
             <h2 className="text-xl font-semibold mb-2">Invite Already Used</h2>
             <p className="text-muted-foreground mb-4">
               This invite link has already been used. Contact your {pendingInviteData?.team_id ? "team admin" : "club admin"} for a new invite.
-            </p>
-            <Button onClick={() => navigate("/")}>Go to Home</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Check if regular invite is expired
-  const isExpired = !isPendingInvite && invite.expires_at && new Date(invite.expires_at) < new Date();
-  const isMaxUsesReached = !isPendingInvite && invite.max_uses && invite.uses_count >= invite.max_uses;
-
-  if (isExpired || isMaxUsesReached) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Invite Link Unavailable</h2>
-            <p className="text-muted-foreground mb-4">
-              {isExpired ? "This invite link has expired." : "This invite link has reached its usage limit."}
             </p>
             <Button onClick={() => navigate("/")}>Go to Home</Button>
           </CardContent>
