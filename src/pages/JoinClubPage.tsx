@@ -13,7 +13,7 @@ import { PWAInstallDialog } from "@/components/PWAInstallDialog";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { IOSInstallGuide } from "@/components/IOSInstallGuide";
 import { PWAInstalledGuide } from "@/components/PWAInstalledGuide";
-import { InviteFlowProgress, setInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
+import { InviteFlowProgress, setInviteFlowContext, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -123,6 +123,10 @@ export default function JoinClubPage() {
   // Set up invite flow context when invite is loaded (for progress tracking across pages)
   useEffect(() => {
     if (invite) {
+      // Check if we're resuming from a stored context (e.g., after PWA install)
+      const existingContext = getInviteFlowContext();
+      const resumeStep = existingContext?.currentStep;
+      
       setInviteFlowContext({
         active: true,
         clubName: invite.clubs?.name || undefined,
@@ -131,6 +135,7 @@ export default function JoinClubPage() {
         role: invite.role,
         inviteToken: token,
         isIOS: isIOS,
+        currentStep: resumeStep || "view",
       });
     }
   }, [invite, token, isIOS]);
@@ -248,9 +253,17 @@ export default function JoinClubPage() {
       // Try to install PWA first - await the user's choice before proceeding
       if (canPrompt && !isInstalled) {
         setIsInstalling(true);
-        // Store invite data now in case we need it after install completes
+        // Store invite data and update flow context for install step
         localStorage.setItem("pwa_pending_invite", `/join-club/${token}`);
         sessionStorage.setItem("autoJoinAfterAuth", "true");
+        
+        // Update invite flow context to track we're at install step
+        const existingContext = getInviteFlowContext();
+        setInviteFlowContext({
+          ...existingContext,
+          active: true,
+          currentStep: "install",
+        });
         
         const accepted = await installApp();
         

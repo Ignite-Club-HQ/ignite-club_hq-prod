@@ -29,7 +29,7 @@ const STEP_LABELS: Record<InviteStep, string> = {
   "done": "Done"
 };
 
-// Storage key for invite flow context
+// Storage key for invite flow context - use localStorage to persist across browser close/PWA open
 export const INVITE_FLOW_KEY = "inviteFlowContext";
 
 export interface InviteFlowContext {
@@ -40,33 +40,35 @@ export interface InviteFlowContext {
   role?: string;
   inviteToken?: string;
   isIOS?: boolean;
+  currentStep?: InviteStep; // Track current step to resume properly
 }
 
 export function setInviteFlowContext(context: InviteFlowContext) {
   try {
-    sessionStorage.setItem(INVITE_FLOW_KEY, JSON.stringify(context));
+    // Use localStorage to persist across browser close/PWA open
+    localStorage.setItem(INVITE_FLOW_KEY, JSON.stringify(context));
   } catch {
-    // sessionStorage not available
+    // localStorage not available
   }
 }
 
 export function getInviteFlowContext(): InviteFlowContext | null {
   try {
-    const stored = sessionStorage.getItem(INVITE_FLOW_KEY);
+    const stored = localStorage.getItem(INVITE_FLOW_KEY);
     if (stored) {
       return JSON.parse(stored);
     }
   } catch {
-    // sessionStorage not available or invalid JSON
+    // localStorage not available or invalid JSON
   }
   return null;
 }
 
 export function clearInviteFlowContext() {
   try {
-    sessionStorage.removeItem(INVITE_FLOW_KEY);
+    localStorage.removeItem(INVITE_FLOW_KEY);
   } catch {
-    // sessionStorage not available
+    // localStorage not available
   }
 }
 
