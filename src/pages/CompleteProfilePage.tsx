@@ -59,43 +59,43 @@ export default function CompleteProfilePage() {
     checkFeatures();
   }, []);
 
-  // Initialize form values once profile is loaded, with pending invite prefill
+  // Initialize form values once loading is complete, with pending invite prefill
   useEffect(() => {
     const initializeProfile = async () => {
       if (authLoading || profileLoading || initialized) return;
       
-      if (profile) {
-        let prefillName = profile.display_name || "";
+      // Initialize with existing profile data if available
+      let prefillName = profile?.display_name || "";
+      const prefillAvatar = profile?.avatar_url || "";
+      
+      // If no display name, check for pending invite with invited_label
+      if (!prefillName && user) {
+        // First try pending_invites table (for team invites with invited_label)
+        const { data: pendingInvite } = await supabase
+          .from("pending_invites")
+          .select("invited_label")
+          .eq("status", "pending")
+          .not("invited_label", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
         
-        // If no display name, check for pending invite with invited_label
-        if (!prefillName && user) {
-          // First try pending_invites table (for team invites with invited_label)
-          const { data: pendingInvite } = await supabase
-            .from("pending_invites")
-            .select("invited_label")
-            .eq("status", "pending")
-            .not("invited_label", "is", null)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          
-          if (pendingInvite?.invited_label) {
-            prefillName = pendingInvite.invited_label;
-          }
-          
-          // If still no name, check if there's a stored invite label from club/team join pages
-          if (!prefillName) {
-            const storedInviteLabel = sessionStorage.getItem("inviteLabel");
-            if (storedInviteLabel) {
-              prefillName = storedInviteLabel;
-            }
-          }
+        if (pendingInvite?.invited_label) {
+          prefillName = pendingInvite.invited_label;
         }
         
-        setDisplayName(prefillName);
-        setAvatarUrl(profile.avatar_url || "");
-        setInitialized(true);
+        // If still no name, check if there's a stored invite label from club/team join pages
+        if (!prefillName) {
+          const storedInviteLabel = sessionStorage.getItem("inviteLabel");
+          if (storedInviteLabel) {
+            prefillName = storedInviteLabel;
+          }
+        }
       }
+      
+      setDisplayName(prefillName);
+      setAvatarUrl(prefillAvatar);
+      setInitialized(true);
     };
     
     initializeProfile();
@@ -119,18 +119,19 @@ export default function CompleteProfilePage() {
     return <Navigate to="/auth" replace />;
   }
 
-  // If there was an error loading profile OR profile is null, redirect to home
-  // AppLayout will handle showing retry screen or proper routing
-  if (profileError || !profile) {
+  // If there was an error loading profile, redirect to home for retry handling
+  if (profileError) {
     return <Navigate to="/" replace />;
   }
 
-  // Redirect to home if profile already has display_name
-  if (profile.display_name) {
+  // If profile exists and already has display_name, redirect to home
+  if (profile?.display_name) {
     return <Navigate to="/" replace />;
   }
 
-  // Only show form if profile exists AND has no display_name
+  // Show the form for:
+  // 1. New users (profile is null) - will create profile
+  // 2. Existing users with no display_name - will update profile
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -169,13 +170,14 @@ export default function CompleteProfilePage() {
     setSaving(true);
 
     try {
+      // Use upsert to handle both new users (insert) and existing users (update)
       const { error } = await supabase
         .from("profiles")
-        .update({
+        .upsert({
+          id: user.id,
           display_name: displayName.trim(),
           avatar_url: avatarUrl || null,
-        })
-        .eq("id", user.id);
+        }, { onConflict: 'id' });
 
       if (error) {
         console.error("Profile update error:", error);
