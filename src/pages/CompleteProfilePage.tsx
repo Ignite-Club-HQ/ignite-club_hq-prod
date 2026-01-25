@@ -190,6 +190,63 @@ export default function CompleteProfilePage() {
         return;
       }
 
+      // After profile is created, check for pending invites and assign roles
+      const { data: pendingInvites } = await supabase
+        .from("pending_invites")
+        .select("id, team_id, club_id, role, invited_user_id")
+        .eq("invited_user_id", user.id)
+        .eq("status", "pending");
+
+      if (pendingInvites && pendingInvites.length > 0) {
+        console.log("[CompleteProfile] Found pending invites to process:", pendingInvites.length);
+        
+        for (const invite of pendingInvites) {
+          // Check if role already exists
+          const { data: existingRole } = await supabase
+            .from("user_roles")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("role", invite.role)
+            .eq(invite.team_id ? "team_id" : "club_id", invite.team_id || invite.club_id)
+            .maybeSingle();
+
+          if (!existingRole) {
+            // Get club_id from team if this is a team invite
+            let clubId = invite.club_id;
+            if (invite.team_id && !clubId) {
+              const { data: team } = await supabase
+                .from("teams")
+                .select("club_id")
+                .eq("id", invite.team_id)
+                .single();
+              clubId = team?.club_id;
+            }
+
+            // Insert the role
+            const { error: roleError } = await supabase
+              .from("user_roles")
+              .insert({
+                user_id: user.id,
+                role: invite.role,
+                team_id: invite.team_id || null,
+                club_id: clubId || null,
+              });
+
+            if (roleError) {
+              console.error("[CompleteProfile] Failed to assign role from invite:", roleError);
+            } else {
+              console.log("[CompleteProfile] Assigned role from invite:", invite.role);
+              
+              // Mark the invite as accepted
+              await supabase
+                .from("pending_invites")
+                .update({ status: "accepted", accepted_at: new Date().toISOString() })
+                .eq("id", invite.id);
+            }
+          }
+        }
+      }
+
       // If user opted in for push notifications, subscribe them
       if (pushEnabled && pushSupported) {
         setPushLoading(true);
