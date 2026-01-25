@@ -69,6 +69,7 @@ export default function CompleteProfilePage() {
         
         // If no display name, check for pending invite with invited_label
         if (!prefillName && user) {
+          // First try pending_invites table (for team invites with invited_label)
           const { data: pendingInvite } = await supabase
             .from("pending_invites")
             .select("invited_label")
@@ -80,6 +81,14 @@ export default function CompleteProfilePage() {
           
           if (pendingInvite?.invited_label) {
             prefillName = pendingInvite.invited_label;
+          }
+          
+          // If still no name, check if there's a stored invite label from club/team join pages
+          if (!prefillName) {
+            const storedInviteLabel = sessionStorage.getItem("inviteLabel");
+            if (storedInviteLabel) {
+              prefillName = storedInviteLabel;
+            }
           }
         }
         
@@ -223,7 +232,12 @@ export default function CompleteProfilePage() {
       
       // Check if there's a pending redirect (e.g., from invite link)
       const redirectPath = sessionStorage.getItem("redirectAfterAuth");
+      // Clean up stored invite label
+      sessionStorage.removeItem("inviteLabel");
+      
       if (redirectPath) {
+        // Keep autoJoinAfterAuth flag - it will be consumed by the join page
+        // Only remove redirectAfterAuth since we're using it now
         sessionStorage.removeItem("redirectAfterAuth");
         navigate(redirectPath, { replace: true });
       } else {
