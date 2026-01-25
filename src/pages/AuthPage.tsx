@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -54,9 +53,11 @@ export default function AuthPage() {
   const inviteFlowContext = getInviteFlowContext();
   const isInInviteFlow = inviteFlowContext?.active === true;
   
-  // Check if we should default to signup tab (new user from invite)
-  const defaultTab = sessionStorage.getItem("authDefaultTab") || "signin";
-  // Clear it after reading so it doesn't persist
+  // Check if we should default to signup view (new user from invite)
+  const defaultView = sessionStorage.getItem("authDefaultTab") || "signin";
+  const [authMode, setAuthMode] = useState<"signin" | "signup">(defaultView as "signin" | "signup");
+  
+  // Clear the session storage after reading
   useEffect(() => {
     sessionStorage.removeItem("authDefaultTab");
   }, []);
@@ -203,6 +204,19 @@ export default function AuthPage() {
     }
   };
 
+  const switchToSignUp = () => {
+    setAuthMode("signup");
+    // Clear password fields when switching
+    setPassword("");
+    setConfirmPassword("");
+  };
+
+  const switchToSignIn = () => {
+    setAuthMode("signin");
+    // Clear password fields when switching
+    setPassword("");
+    setConfirmPassword("");
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -231,15 +245,11 @@ export default function AuthPage() {
         </div>
 
         <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-          <Tabs defaultValue={defaultTab} className="w-full">
-            <CardHeader className="pb-2">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="signin">Sign In</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
-              </TabsList>
-            </CardHeader>
-            
-            <TabsContent value="signin">
+          {authMode === "signin" ? (
+            <>
+              <CardHeader className="pb-2">
+                <h2 className="text-xl font-semibold text-center">Sign In</h2>
+              </CardHeader>
               <CardContent className="space-y-4">
                 <CardDescription className="text-center">
                   Welcome back! Sign in to your account.
@@ -358,12 +368,26 @@ export default function AuthPage() {
                       )}
                     </Button>
                   )}
-                  
+
+                  {/* Sign up link */}
+                  <div className="text-center text-sm text-muted-foreground pt-2">
+                    Don't have an account?{" "}
+                    <button
+                      type="button"
+                      className="text-primary hover:underline font-medium"
+                      onClick={switchToSignUp}
+                    >
+                      Sign up here
+                    </button>
+                  </div>
                 </div>
               </CardContent>
-            </TabsContent>
-
-            <TabsContent value="signup">
+            </>
+          ) : (
+            <>
+              <CardHeader className="pb-2">
+                <h2 className="text-xl font-semibold text-center">Create Account</h2>
+              </CardHeader>
               <CardContent className="space-y-4">
                 <CardDescription className="text-center">
                   Create an account to get started.
@@ -488,10 +512,24 @@ export default function AuthPage() {
                       </>
                     )}
                   </Button>
+
+                  {/* Sign in link - only shown when NOT in invite flow */}
+                  {!isInInviteFlow && (
+                    <div className="text-center text-sm text-muted-foreground pt-2">
+                      Already have an account?{" "}
+                      <button
+                        type="button"
+                        className="text-primary hover:underline font-medium"
+                        onClick={switchToSignIn}
+                      >
+                        Sign in here
+                      </button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
-            </TabsContent>
-          </Tabs>
+            </>
+          )}
         </Card>
 
         {/* Forgot Password Dialog */}
