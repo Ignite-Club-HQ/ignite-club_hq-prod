@@ -3507,6 +3507,7 @@ export type Database = {
         Args: { message_text: string }
         Returns: string[]
       }
+      generate_email_hash: { Args: { email: string }; Returns: string }
       get_club_invite_by_token: {
         Args: { _token: string }
         Returns: {
