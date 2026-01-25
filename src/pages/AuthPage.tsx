@@ -49,6 +49,13 @@ export default function AuthPage() {
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   
+  // Check if we should default to signup tab (new user from invite)
+  const defaultTab = sessionStorage.getItem("authDefaultTab") || "signin";
+  // Clear it after reading so it doesn't persist
+  useEffect(() => {
+    sessionStorage.removeItem("authDefaultTab");
+  }, []);
+  
   const { toast } = useToast();
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
   const { isAvailable, accounts, loading: passkeyLoading, authenticateWithPasskey } = usePasskey();
@@ -208,7 +215,7 @@ export default function AuthPage() {
         </div>
 
         <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-          <Tabs defaultValue="signin" className="w-full">
+          <Tabs defaultValue={defaultTab} className="w-full">
             <CardHeader className="pb-2">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="signin">Sign In</TabsTrigger>

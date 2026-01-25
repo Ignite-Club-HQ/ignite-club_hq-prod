@@ -48,6 +48,7 @@ export default function JoinTeamPage() {
   const [pendingJoinRoles, setPendingJoinRoles] = useState<AppRole[]>([]);
   const [nameValidationError, setNameValidationError] = useState<string | null>(null);
   const [showInstalledGuide, setShowInstalledGuide] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
   const autoJoinAttempted = useRef(false);
   const { canPrompt, isInstalled, isIOS, installApp } = usePWAInstall();
   
@@ -535,7 +536,9 @@ export default function JoinTeamPage() {
   const handleJoinClick = async () => {
     // Try to install PWA first - await the user's choice before proceeding
     if (canPrompt && !isInstalled) {
+      setIsInstalling(true);
       const installed = await installApp();
+      setIsInstalling(false);
       // If PWA was installed, store the invite URL and auto-join flag, then show guide
       if (installed) {
         localStorage.setItem("pwa_pending_invite", location.pathname);
@@ -549,6 +552,8 @@ export default function JoinTeamPage() {
     if (!user) {
       sessionStorage.setItem("redirectAfterAuth", location.pathname);
       sessionStorage.setItem("autoJoinAfterAuth", "true");
+      // Signal to auth page that this is a new user (coming from invite)
+      sessionStorage.setItem("authDefaultTab", "signup");
       navigate("/auth");
       return;
     }
@@ -858,25 +863,38 @@ export default function JoinTeamPage() {
 
           <Button 
             onClick={handleJoinClick} 
-            disabled={joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError)}
+            disabled={isInstalling || joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError)}
             className="w-full"
             size="lg"
           >
-            {(joinMutation.isPending || (user && profileLoading)) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {!user 
-              ? (canPrompt && !isInstalled 
-                  ? "Install App & Create Account"
-                  : "Create Account to Join")
-              : nameValidationError 
-                ? "Cannot Join - Name Mismatch"
-                : needsProfileCompletion
-                  ? "Complete Profile to Join"
-                  : isFixedRoleInvite
-                    ? `Join as ${roleLabels[invite.role as AppRole]}`
-                    : selectedRoles.length === 0 
-                      ? "Select at least one role" 
-                      : `Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`
-            }
+            {isInstalling ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Installing App...
+              </>
+            ) : isInstalled && !user ? (
+              <>
+                <CheckCircle className="h-4 w-4 mr-2 text-primary-foreground" />
+                App Installed - Create Account
+              </>
+            ) : (joinMutation.isPending || (user && profileLoading)) ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : null}
+            {!isInstalling && !(isInstalled && !user) && !joinMutation.isPending && !(user && profileLoading) && (
+              !user 
+                ? (canPrompt && !isInstalled 
+                    ? "Install App & Create Account"
+                    : "Create Account to Join")
+                : nameValidationError 
+                  ? "Cannot Join - Name Mismatch"
+                  : needsProfileCompletion
+                    ? "Complete Profile to Join"
+                    : isFixedRoleInvite
+                      ? `Join as ${roleLabels[invite.role as AppRole]}`
+                      : selectedRoles.length === 0 
+                        ? "Select at least one role" 
+                        : `Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`
+            )}
           </Button>
           <Button 
             variant="ghost" 
