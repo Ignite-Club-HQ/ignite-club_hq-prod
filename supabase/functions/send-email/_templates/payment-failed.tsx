@@ -11,24 +11,18 @@ import {
   Preview,
   Section,
   Text,
-  Row,
-  Column,
 } from 'npm:@react-email/components@0.0.22'
 import * as React from 'npm:react@18.3.1'
 
-interface EventReminderEmailProps {
-  recipientName: string;
-  eventTitle: string;
-  teamName: string;
-  clubName: string;
-  eventDate: string;
-  eventTime: string;
-  eventLocation?: string;
-  eventType: string;
-  eventLink: string;
+interface PaymentFailedEmailProps {
+  recipientName?: string;
+  entityName: string;
+  entityType: 'team' | 'club';
+  tierName: string;
+  failureDate: string;
+  updatePaymentLink: string;
   clubLogoUrl?: string;
   primaryColor?: string;
-  hoursUntilEvent?: number;
 }
 
 // Production domain for all links
@@ -59,27 +53,20 @@ const normalizeLink = (link: string): string => {
   }
 };
 
-export const EventReminderEmail = ({
-  recipientName = "Member",
-  eventTitle = "Team Event",
-  teamName = "The Team",
-  clubName = "The Club",
-  eventDate = "Saturday, January 25, 2025",
-  eventTime = "2:00 PM",
-  eventLocation,
-  eventType = "Event",
-  eventLink = "https://igniteclubhq.app/event",
+export const PaymentFailedEmail = ({
+  recipientName,
+  entityName,
+  entityType,
+  tierName,
+  failureDate,
+  updatePaymentLink,
   clubLogoUrl,
   primaryColor = IGNITE_BRAND_COLOR,
-  hoursUntilEvent,
-}: EventReminderEmailProps) => {
-  const previewText = `Reminder: ${eventTitle} - ${eventDate} at ${eventTime}`;
-  const urgencyText = hoursUntilEvent && hoursUntilEvent <= 24 
-    ? `Starting in ${hoursUntilEvent} hour${hoursUntilEvent === 1 ? '' : 's'}!` 
-    : null;
-  const normalizedEventLink = normalizeLink(eventLink);
+}: PaymentFailedEmailProps) => {
+  const previewText = `Action required: Your ${entityType} subscription payment failed`;
+  const normalizedUpdatePaymentLink = normalizeLink(updatePaymentLink);
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
-
+  
   return (
     <Html>
       <Head />
@@ -91,80 +78,91 @@ export const EventReminderEmail = ({
             {validClubLogoUrl ? (
               <Img
                 src={validClubLogoUrl}
-                width="60"
-                height="60"
-                alt={clubName}
+                width="80"
+                height="80"
+                alt={entityName}
                 style={logoStyle}
               />
             ) : (
-              <div style={{ ...logoPlaceholder, backgroundColor: primaryColor }}>
+              <div style={{ ...logoPlaceholder, backgroundColor: '#dc2626' }}>
                 <Text style={logoPlaceholderText}>
-                  {clubName.charAt(0).toUpperCase()}
+                  {entityName.charAt(0).toUpperCase()}
                 </Text>
               </div>
             )}
-            <Text style={clubNameText}>{clubName}</Text>
+            <Text style={clubNameText}>{entityName}</Text>
           </Section>
 
           <Hr style={divider} />
 
-          {/* Urgency Banner */}
-          {urgencyText && (
-            <Section style={{ ...urgencyBanner, backgroundColor: primaryColor }}>
-              <Text style={urgencyBannerText}>⏰ {urgencyText}</Text>
-            </Section>
-          )}
+          {/* Warning Banner */}
+          <Section style={warningBanner}>
+            <Text style={warningEmoji}>⚠️</Text>
+            <Text style={warningText}>Action Required</Text>
+          </Section>
 
           {/* Main Content */}
           <Section style={contentSection}>
-            <Heading style={heading}>📅 Event Reminder</Heading>
+            <Heading style={heading}>Payment Failed</Heading>
             
             <Text style={paragraph}>
-              Dear {recipientName},
+              {recipientName ? `Dear ${recipientName},` : 'Hi there,'}
             </Text>
             
             <Text style={paragraph}>
-              This is a reminder about an upcoming <strong>{eventType.toLowerCase()}</strong> for <strong style={{ color: primaryColor }}>{teamName}</strong>.
+              We were unable to process your payment for the <strong>{tierName}</strong> subscription 
+              for <strong style={{ color: primaryColor }}>{entityName}</strong>.
             </Text>
 
-            {/* Event Details Card */}
-            <Section style={eventCard}>
-              <Text style={eventTitleStyle}>{eventTitle}</Text>
-              
-              <Section style={detailsGrid}>
-                <Row>
-                  <Column style={detailColumn}>
-                    <Text style={detailLabel}>📆 Date</Text>
-                    <Text style={detailValue}>{eventDate}</Text>
-                  </Column>
-                  <Column style={detailColumn}>
-                    <Text style={detailLabel}>🕐 Time</Text>
-                    <Text style={detailValue}>{eventTime}</Text>
-                  </Column>
-                </Row>
-                {eventLocation && (
-                  <Row>
-                    <Column>
-                      <Text style={detailLabel}>📍 Location</Text>
-                      <Text style={detailValue}>{eventLocation}</Text>
-                    </Column>
-                  </Row>
-                )}
-              </Section>
+            {/* Alert box */}
+            <Section style={alertBox}>
+              <Text style={alertText}>
+                <strong>⚠️ Action Required:</strong> Please update your payment method to avoid 
+                interruption to your subscription benefits.
+              </Text>
             </Section>
 
+            {/* Failure details card */}
+            <Section style={detailsCard}>
+              <table width="100%" cellPadding="0" cellSpacing="0">
+                <tr>
+                  <td style={detailLabel}>Subscription</td>
+                  <td style={detailValue}>{tierName}</td>
+                </tr>
+                <tr>
+                  <td style={detailLabel}>{entityType === 'club' ? 'Club' : 'Team'}</td>
+                  <td style={detailValue}>{entityName}</td>
+                </tr>
+                <tr>
+                  <td style={detailLabel}>Failed On</td>
+                  <td style={detailValue}>{failureDate}</td>
+                </tr>
+              </table>
+            </Section>
+
+            <Text style={paragraph}>
+              Common reasons for payment failure include:
+            </Text>
+            <Section style={reasonsList}>
+              <Text style={reasonItem}>• Expired card</Text>
+              <Text style={reasonItem}>• Insufficient funds</Text>
+              <Text style={reasonItem}>• Card declined by bank</Text>
+            </Section>
+
+            {/* CTA Button */}
             <Section style={buttonSection}>
-              <Button style={{ ...button, backgroundColor: primaryColor }} href={normalizedEventLink}>
-                View Event & RSVP Now
+              <Button style={{ ...button, backgroundColor: '#dc2626' }} href={normalizedUpdatePaymentLink}>
+                Update Payment Method
               </Button>
             </Section>
 
-            <Text style={rsvpPrompt}>
-              <strong>Haven't responded yet?</strong> Tap the button above to RSVP and let your team know if you can make it!
+            <Text style={orText}>
+              Or copy and paste this link into your browser:
             </Text>
-            
-            <Text style={linkFallback}>
-              Or copy this link: <Link href={normalizedEventLink} style={{ color: primaryColor }}>{normalizedEventLink}</Link>
+            <Text style={linkText}>
+              <Link href={normalizedUpdatePaymentLink} style={{ color: primaryColor }}>
+                {normalizedUpdatePaymentLink}
+              </Link>
             </Text>
           </Section>
 
@@ -173,8 +171,13 @@ export const EventReminderEmail = ({
           {/* Footer */}
           <Section style={footerSection}>
             <Text style={footerText}>
-              This reminder was sent by {clubName}. 
-              <Link href={normalizedEventLink} style={{ color: primaryColor }}> Manage your notification preferences</Link>
+              You're receiving this email because you're an admin of {entityName}.
+            </Text>
+            <Text style={footerText}>
+              Need help? Contact us at{' '}
+              <Link href="mailto:support@igniteclubhq.app" style={{ color: primaryColor }}>
+                support@igniteclubhq.app
+              </Link>
             </Text>
             <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
               <tr>
@@ -201,7 +204,7 @@ export const EventReminderEmail = ({
   );
 };
 
-export default EventReminderEmail;
+export default PaymentFailedEmail;
 
 // Styles
 const main = {
@@ -223,20 +226,20 @@ const container = {
 
 const headerSection = {
   backgroundColor: '#fafafa',
-  padding: '24px 40px',
+  padding: '32px 40px',
   textAlign: 'center' as const,
 };
 
 const logoStyle = {
   margin: '0 auto',
-  borderRadius: '10px',
+  borderRadius: '12px',
   objectFit: 'cover' as const,
 };
 
 const logoPlaceholder = {
-  width: '60px',
-  height: '60px',
-  borderRadius: '10px',
+  width: '80px',
+  height: '80px',
+  borderRadius: '12px',
   margin: '0 auto',
   display: 'flex',
   alignItems: 'center',
@@ -245,18 +248,18 @@ const logoPlaceholder = {
 
 const logoPlaceholderText = {
   color: '#ffffff',
-  fontSize: '28px',
+  fontSize: '36px',
   fontWeight: 'bold',
   margin: '0',
-  lineHeight: '60px',
+  lineHeight: '80px',
   textAlign: 'center' as const,
 };
 
 const clubNameText = {
   color: '#1a1a1a',
-  fontSize: '16px',
+  fontSize: '18px',
   fontWeight: '600',
-  margin: '12px 0 0 0',
+  margin: '16px 0 0 0',
 };
 
 const divider = {
@@ -264,16 +267,23 @@ const divider = {
   margin: '0',
 };
 
-const urgencyBanner = {
-  padding: '12px 20px',
+const warningBanner = {
+  backgroundColor: '#fef2f2',
+  padding: '20px',
   textAlign: 'center' as const,
 };
 
-const urgencyBannerText = {
-  color: '#ffffff',
-  fontSize: '16px',
-  fontWeight: 'bold',
+const warningEmoji = {
+  fontSize: '40px',
   margin: '0',
+  lineHeight: '1',
+};
+
+const warningText = {
+  color: '#dc2626',
+  fontSize: '20px',
+  fontWeight: 'bold',
+  margin: '8px 0 0 0',
 };
 
 const contentSection = {
@@ -281,8 +291,8 @@ const contentSection = {
 };
 
 const heading = {
-  color: '#1a1a1a',
-  fontSize: '24px',
+  color: '#dc2626',
+  fontSize: '26px',
   fontWeight: 'bold',
   margin: '0 0 24px 0',
   textAlign: 'center' as const,
@@ -295,49 +305,61 @@ const paragraph = {
   margin: '0 0 16px 0',
 };
 
-const eventCard = {
-  backgroundColor: '#f8fafc',
+const alertBox = {
+  backgroundColor: '#fef2f2',
+  borderRadius: '12px',
+  padding: '20px 24px',
+  margin: '24px 0',
+  border: '1px solid #fecaca',
+};
+
+const alertText = {
+  color: '#991b1b',
+  fontSize: '14px',
+  lineHeight: '22px',
+  margin: '0',
+};
+
+const detailsCard = {
+  backgroundColor: '#fef2f2',
   borderRadius: '12px',
   padding: '24px',
   margin: '24px 0',
-  border: '1px solid #e2e8f0',
-};
-
-const eventTitleStyle = {
-  color: '#1e293b',
-  fontSize: '20px',
-  fontWeight: 'bold',
-  margin: '0 0 16px 0',
-  textAlign: 'center' as const,
-};
-
-const detailsGrid = {
-  marginTop: '16px',
-};
-
-const detailColumn = {
-  width: '50%',
+  border: '1px solid #fecaca',
 };
 
 const detailLabel = {
-  color: '#64748b',
-  fontSize: '12px',
-  fontWeight: '600',
-  textTransform: 'uppercase' as const,
-  margin: '0 0 4px 0',
-  letterSpacing: '0.5px',
+  color: '#6b7280',
+  fontSize: '14px',
+  padding: '8px 0',
+  width: '50%',
 };
 
 const detailValue = {
-  color: '#1e293b',
-  fontSize: '15px',
-  fontWeight: '500',
-  margin: '0 0 12px 0',
+  color: '#1f2937',
+  fontSize: '14px',
+  fontWeight: '600',
+  padding: '8px 0',
+  textAlign: 'right' as const,
+};
+
+const reasonsList = {
+  backgroundColor: '#f8fafc',
+  borderRadius: '12px',
+  padding: '16px 24px',
+  margin: '0 0 24px 0',
+};
+
+const reasonItem = {
+  color: '#475569',
+  fontSize: '14px',
+  margin: '0 0 8px 0',
+  lineHeight: '20px',
 };
 
 const buttonSection = {
   textAlign: 'center' as const,
-  margin: '28px 0',
+  margin: '32px 0',
 };
 
 const button = {
@@ -351,19 +373,17 @@ const button = {
   padding: '14px 32px',
 };
 
-const rsvpPrompt = {
-  color: '#1e293b',
-  fontSize: '15px',
+const orText = {
+  color: '#8898aa',
+  fontSize: '13px',
   textAlign: 'center' as const,
-  margin: '16px 0 0 0',
-  lineHeight: '22px',
+  margin: '24px 0 8px 0',
 };
 
-const linkFallback = {
-  color: '#64748b',
-  fontSize: '12px',
+const linkText = {
+  fontSize: '13px',
   textAlign: 'center' as const,
-  margin: '12px 0 0 0',
+  margin: '0',
   wordBreak: 'break-all' as const,
 };
 

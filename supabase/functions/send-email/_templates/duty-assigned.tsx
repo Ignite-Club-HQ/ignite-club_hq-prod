@@ -11,24 +11,20 @@ import {
   Preview,
   Section,
   Text,
-  Row,
-  Column,
 } from 'npm:@react-email/components@0.0.22'
 import * as React from 'npm:react@18.3.1'
 
-interface EventReminderEmailProps {
-  recipientName: string;
+interface DutyAssignedEmailProps {
+  recipientName?: string;
+  dutyName: string;
   eventTitle: string;
-  teamName: string;
-  clubName: string;
   eventDate: string;
-  eventTime: string;
-  eventLocation?: string;
-  eventType: string;
+  eventTime?: string;
+  teamName?: string;
+  clubName: string;
   eventLink: string;
   clubLogoUrl?: string;
   primaryColor?: string;
-  hoursUntilEvent?: number;
 }
 
 // Production domain for all links
@@ -46,11 +42,11 @@ const isValidExternalUrl = (url?: string): boolean => {
   return url.startsWith('http://') || url.startsWith('https://');
 };
 
-// Ensure link uses production domain
+// Normalize links to use production domain
 const normalizeLink = (link: string): string => {
   try {
     const url = new URL(link);
-    return `${PRODUCTION_DOMAIN}${url.pathname}`;
+    return `${PRODUCTION_DOMAIN}${url.pathname}${url.search}`;
   } catch {
     if (link.startsWith('/')) {
       return `${PRODUCTION_DOMAIN}${link}`;
@@ -59,26 +55,22 @@ const normalizeLink = (link: string): string => {
   }
 };
 
-export const EventReminderEmail = ({
-  recipientName = "Member",
-  eventTitle = "Team Event",
-  teamName = "The Team",
+export const DutyAssignedEmail = ({
+  recipientName = "Team Member",
+  dutyName = "Game Duty",
+  eventTitle = "Upcoming Event",
+  eventDate = "",
+  eventTime = "",
+  teamName = "",
   clubName = "The Club",
-  eventDate = "Saturday, January 25, 2025",
-  eventTime = "2:00 PM",
-  eventLocation,
-  eventType = "Event",
-  eventLink = "https://igniteclubhq.app/event",
+  eventLink = "/events",
   clubLogoUrl,
   primaryColor = IGNITE_BRAND_COLOR,
-  hoursUntilEvent,
-}: EventReminderEmailProps) => {
-  const previewText = `Reminder: ${eventTitle} - ${eventDate} at ${eventTime}`;
-  const urgencyText = hoursUntilEvent && hoursUntilEvent <= 24 
-    ? `Starting in ${hoursUntilEvent} hour${hoursUntilEvent === 1 ? '' : 's'}!` 
-    : null;
+}: DutyAssignedEmailProps) => {
+  const previewText = `You've been assigned to ${dutyName} for ${eventTitle}`;
   const normalizedEventLink = normalizeLink(eventLink);
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
+  const displayName = teamName || clubName;
 
   return (
     <Html>
@@ -91,81 +83,74 @@ export const EventReminderEmail = ({
             {validClubLogoUrl ? (
               <Img
                 src={validClubLogoUrl}
-                width="60"
-                height="60"
+                width="80"
+                height="80"
                 alt={clubName}
                 style={logoStyle}
               />
             ) : (
-              <div style={{ ...logoPlaceholder, backgroundColor: primaryColor }}>
-                <Text style={logoPlaceholderText}>
-                  {clubName.charAt(0).toUpperCase()}
-                </Text>
-              </div>
+              <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
+                <tr>
+                  <td style={{ ...logoPlaceholder, backgroundColor: primaryColor }}>
+                    <span style={logoPlaceholderText}>
+                      {clubName.charAt(0).toUpperCase()}
+                    </span>
+                  </td>
+                </tr>
+              </table>
             )}
-            <Text style={clubNameText}>{clubName}</Text>
+            <Text style={clubNameText}>{displayName}</Text>
           </Section>
 
           <Hr style={divider} />
 
-          {/* Urgency Banner */}
-          {urgencyText && (
-            <Section style={{ ...urgencyBanner, backgroundColor: primaryColor }}>
-              <Text style={urgencyBannerText}>⏰ {urgencyText}</Text>
-            </Section>
-          )}
-
           {/* Main Content */}
           <Section style={contentSection}>
-            <Heading style={heading}>📅 Event Reminder</Heading>
+            <Heading style={heading}>Duty Assigned 📋</Heading>
             
             <Text style={paragraph}>
-              Dear {recipientName},
+              Hi {recipientName},
             </Text>
             
             <Text style={paragraph}>
-              This is a reminder about an upcoming <strong>{eventType.toLowerCase()}</strong> for <strong style={{ color: primaryColor }}>{teamName}</strong>.
+              You've been assigned to a duty for an upcoming event. Here are the details:
             </Text>
 
-            {/* Event Details Card */}
-            <Section style={eventCard}>
-              <Text style={eventTitleStyle}>{eventTitle}</Text>
-              
-              <Section style={detailsGrid}>
-                <Row>
-                  <Column style={detailColumn}>
-                    <Text style={detailLabel}>📆 Date</Text>
-                    <Text style={detailValue}>{eventDate}</Text>
-                  </Column>
-                  <Column style={detailColumn}>
-                    <Text style={detailLabel}>🕐 Time</Text>
-                    <Text style={detailValue}>{eventTime}</Text>
-                  </Column>
-                </Row>
-                {eventLocation && (
-                  <Row>
-                    <Column>
-                      <Text style={detailLabel}>📍 Location</Text>
-                      <Text style={detailValue}>{eventLocation}</Text>
-                    </Column>
-                  </Row>
+            {/* Duty Details Card */}
+            <Section style={dutyCard}>
+              <table cellPadding="0" cellSpacing="0" style={{ width: '100%' }}>
+                <tr>
+                  <td style={dutyLabelCell}>Duty:</td>
+                  <td style={dutyValueCell}><strong>{dutyName}</strong></td>
+                </tr>
+                <tr>
+                  <td style={dutyLabelCell}>Event:</td>
+                  <td style={dutyValueCell}>{eventTitle}</td>
+                </tr>
+                {eventDate && (
+                  <tr>
+                    <td style={dutyLabelCell}>Date:</td>
+                    <td style={dutyValueCell}>{eventDate}</td>
+                  </tr>
                 )}
-              </Section>
+                {eventTime && (
+                  <tr>
+                    <td style={dutyLabelCell}>Time:</td>
+                    <td style={dutyValueCell}>{eventTime}</td>
+                  </tr>
+                )}
+              </table>
             </Section>
+
+            <Text style={paragraph}>
+              Please make sure you're available and prepared for this duty. If you have any questions or need to make changes, please contact your team admin.
+            </Text>
 
             <Section style={buttonSection}>
               <Button style={{ ...button, backgroundColor: primaryColor }} href={normalizedEventLink}>
-                View Event & RSVP Now
+                View Event Details
               </Button>
             </Section>
-
-            <Text style={rsvpPrompt}>
-              <strong>Haven't responded yet?</strong> Tap the button above to RSVP and let your team know if you can make it!
-            </Text>
-            
-            <Text style={linkFallback}>
-              Or copy this link: <Link href={normalizedEventLink} style={{ color: primaryColor }}>{normalizedEventLink}</Link>
-            </Text>
           </Section>
 
           <Hr style={divider} />
@@ -173,8 +158,7 @@ export const EventReminderEmail = ({
           {/* Footer */}
           <Section style={footerSection}>
             <Text style={footerText}>
-              This reminder was sent by {clubName}. 
-              <Link href={normalizedEventLink} style={{ color: primaryColor }}> Manage your notification preferences</Link>
+              This notification was sent by {clubName}. You received this because you were assigned to a duty.
             </Text>
             <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
               <tr>
@@ -201,7 +185,7 @@ export const EventReminderEmail = ({
   );
 };
 
-export default EventReminderEmail;
+export default DutyAssignedEmail;
 
 // Styles
 const main = {
@@ -223,56 +207,39 @@ const container = {
 
 const headerSection = {
   backgroundColor: '#fafafa',
-  padding: '24px 40px',
+  padding: '32px 40px',
   textAlign: 'center' as const,
 };
 
 const logoStyle = {
   margin: '0 auto',
-  borderRadius: '10px',
+  borderRadius: '12px',
   objectFit: 'cover' as const,
 };
 
 const logoPlaceholder = {
-  width: '60px',
-  height: '60px',
-  borderRadius: '10px',
-  margin: '0 auto',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
+  width: '80px',
+  height: '80px',
+  borderRadius: '12px',
+  textAlign: 'center' as const,
 };
 
 const logoPlaceholderText = {
   color: '#ffffff',
-  fontSize: '28px',
-  fontWeight: 'bold',
-  margin: '0',
-  lineHeight: '60px',
-  textAlign: 'center' as const,
+  fontSize: '36px',
+  fontWeight: 'bold' as const,
+  lineHeight: '80px',
 };
 
 const clubNameText = {
   color: '#1a1a1a',
-  fontSize: '16px',
+  fontSize: '18px',
   fontWeight: '600',
-  margin: '12px 0 0 0',
+  margin: '16px 0 0 0',
 };
 
 const divider = {
   borderColor: '#e6e6e6',
-  margin: '0',
-};
-
-const urgencyBanner = {
-  padding: '12px 20px',
-  textAlign: 'center' as const,
-};
-
-const urgencyBannerText = {
-  color: '#ffffff',
-  fontSize: '16px',
-  fontWeight: 'bold',
   margin: '0',
 };
 
@@ -282,7 +249,7 @@ const contentSection = {
 
 const heading = {
   color: '#1a1a1a',
-  fontSize: '24px',
+  fontSize: '28px',
   fontWeight: 'bold',
   margin: '0 0 24px 0',
   textAlign: 'center' as const,
@@ -295,49 +262,31 @@ const paragraph = {
   margin: '0 0 16px 0',
 };
 
-const eventCard = {
-  backgroundColor: '#f8fafc',
-  borderRadius: '12px',
-  padding: '24px',
+const dutyCard = {
+  backgroundColor: '#f0f9ff',
+  borderRadius: '8px',
+  padding: '20px',
   margin: '24px 0',
-  border: '1px solid #e2e8f0',
+  borderLeft: '4px solid #0ea5e9',
 };
 
-const eventTitleStyle = {
-  color: '#1e293b',
-  fontSize: '20px',
-  fontWeight: 'bold',
-  margin: '0 0 16px 0',
-  textAlign: 'center' as const,
-};
-
-const detailsGrid = {
-  marginTop: '16px',
-};
-
-const detailColumn = {
-  width: '50%',
-};
-
-const detailLabel = {
+const dutyLabelCell = {
   color: '#64748b',
-  fontSize: '12px',
-  fontWeight: '600',
-  textTransform: 'uppercase' as const,
-  margin: '0 0 4px 0',
-  letterSpacing: '0.5px',
+  fontSize: '14px',
+  padding: '4px 12px 4px 0',
+  verticalAlign: 'top' as const,
+  width: '80px',
 };
 
-const detailValue = {
-  color: '#1e293b',
-  fontSize: '15px',
-  fontWeight: '500',
-  margin: '0 0 12px 0',
+const dutyValueCell = {
+  color: '#1a1a1a',
+  fontSize: '14px',
+  padding: '4px 0',
 };
 
 const buttonSection = {
   textAlign: 'center' as const,
-  margin: '28px 0',
+  margin: '32px 0',
 };
 
 const button = {
@@ -349,22 +298,6 @@ const button = {
   textAlign: 'center' as const,
   display: 'inline-block',
   padding: '14px 32px',
-};
-
-const rsvpPrompt = {
-  color: '#1e293b',
-  fontSize: '15px',
-  textAlign: 'center' as const,
-  margin: '16px 0 0 0',
-  lineHeight: '22px',
-};
-
-const linkFallback = {
-  color: '#64748b',
-  fontSize: '12px',
-  textAlign: 'center' as const,
-  margin: '12px 0 0 0',
-  wordBreak: 'break-all' as const,
 };
 
 const footerSection = {

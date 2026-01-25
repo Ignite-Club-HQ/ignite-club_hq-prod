@@ -259,11 +259,13 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
 
   // Calculate new expiry date based on current period end
   const periodEnd = new Date(invoice.lines.data[0]?.period?.end * 1000);
+  const renewalDate = new Date().toLocaleDateString('en-AU', { dateStyle: 'long' });
+  const nextBillingDate = periodEnd.toLocaleDateString('en-AU', { dateStyle: 'long' });
 
   // Try to find team subscription
   const { data: teamSub } = await supabase
     .from('team_subscriptions')
-    .select('team_id')
+    .select('team_id, is_pro_football, teams(name, created_by, club_id)')
     .eq('stripe_subscription_id', subscriptionId)
     .maybeSingle();
 
@@ -273,13 +275,69 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
       .update({ expires_at: periodEnd.toISOString() })
       .eq('stripe_subscription_id', subscriptionId);
     console.log('Team subscription renewed:', teamSub.team_id);
+
+    // Send email notification to team admins
+    const tierName = teamSub.is_pro_football ? 'Pro Football' : 'Pro';
+    const teamName = teamSub.teams?.name || 'Your Team';
+    
+    // Get team admins
+    const { data: teamAdmins } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('team_id', teamSub.team_id)
+      .in('role', ['team_admin', 'coach']);
+
+    if (teamAdmins && teamAdmins.length > 0) {
+      const adminUserIds = teamAdmins.map((a: any) => a.user_id);
+      const { data: emails } = await supabase.rpc('get_user_emails_by_ids', { user_ids: adminUserIds });
+      const { data: profiles } = await supabase.from('profiles').select('id, display_name').in('id', adminUserIds);
+
+      for (const admin of teamAdmins) {
+        const email = emails?.find((e: any) => e.id === admin.user_id)?.email;
+        const profile = profiles?.find((p: any) => p.id === admin.user_id);
+        
+        if (email) {
+          try {
+            await supabase.functions.invoke('send-email', {
+              body: {
+                to: email,
+                subject: `✅ Your ${teamName} subscription has been renewed`,
+                template: 'subscription-renewed',
+                templateData: {
+                  recipientName: profile?.display_name,
+                  entityName: teamName,
+                  entityType: 'team',
+                  tierName,
+                  renewalDate,
+                  nextBillingDate,
+                  manageLink: `https://igniteclubhq.app/team/${teamSub.team_id}/upgrade`,
+                },
+              },
+            });
+            console.log(`Renewal email sent to team admin: ${email}`);
+          } catch (err) {
+            console.error('Error sending renewal email:', err);
+          }
+        }
+      }
+    }
+
+    // Create notification
+    if (teamSub.teams?.created_by) {
+      await supabase.from('notifications').insert({
+        user_id: teamSub.teams.created_by,
+        type: 'subscription_renewed',
+        message: `Your ${tierName} subscription for ${teamName} has been renewed!`,
+        related_id: teamSub.team_id,
+      });
+    }
     return;
   }
 
   // Try to find club subscription
   const { data: clubSub } = await supabase
     .from('club_subscriptions')
-    .select('club_id')
+    .select('club_id, is_pro_football, plan, clubs(name, created_by)')
     .eq('stripe_subscription_id', subscriptionId)
     .maybeSingle();
 
@@ -289,6 +347,62 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
       .update({ expires_at: periodEnd.toISOString() })
       .eq('stripe_subscription_id', subscriptionId);
     console.log('Club subscription renewed:', clubSub.club_id);
+
+    // Send email notification to club admins
+    const tierName = clubSub.is_pro_football ? 'Pro Football' : 'Pro';
+    const clubName = clubSub.clubs?.name || 'Your Club';
+    
+    // Get club admins
+    const { data: clubAdmins } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('club_id', clubSub.club_id)
+      .eq('role', 'club_admin');
+
+    if (clubAdmins && clubAdmins.length > 0) {
+      const adminUserIds = clubAdmins.map((a: any) => a.user_id);
+      const { data: emails } = await supabase.rpc('get_user_emails_by_ids', { user_ids: adminUserIds });
+      const { data: profiles } = await supabase.from('profiles').select('id, display_name').in('id', adminUserIds);
+
+      for (const admin of clubAdmins) {
+        const email = emails?.find((e: any) => e.id === admin.user_id)?.email;
+        const profile = profiles?.find((p: any) => p.id === admin.user_id);
+        
+        if (email) {
+          try {
+            await supabase.functions.invoke('send-email', {
+              body: {
+                to: email,
+                subject: `✅ Your ${clubName} subscription has been renewed`,
+                template: 'subscription-renewed',
+                templateData: {
+                  recipientName: profile?.display_name,
+                  entityName: clubName,
+                  entityType: 'club',
+                  tierName,
+                  renewalDate,
+                  nextBillingDate,
+                  manageLink: `https://igniteclubhq.app/club/${clubSub.club_id}/upgrade`,
+                },
+              },
+            });
+            console.log(`Renewal email sent to club admin: ${email}`);
+          } catch (err) {
+            console.error('Error sending renewal email:', err);
+          }
+        }
+      }
+    }
+
+    // Create notification
+    if (clubSub.clubs?.created_by) {
+      await supabase.from('notifications').insert({
+        user_id: clubSub.clubs.created_by,
+        type: 'subscription_renewed',
+        message: `Your Club ${tierName} subscription for ${clubName} has been renewed!`,
+        related_id: clubSub.club_id,
+      });
+    }
   }
 }
 
@@ -296,14 +410,60 @@ async function handlePaymentFailed(supabase: any, invoice: any) {
   const subscriptionId = invoice.subscription;
   console.log('Processing payment failure for:', subscriptionId);
 
+  const failureDate = new Date().toLocaleDateString('en-AU', { dateStyle: 'long' });
+
   // Find the subscription and notify the owner
   const { data: teamSub } = await supabase
     .from('team_subscriptions')
-    .select('team_id, teams(created_by)')
+    .select('team_id, is_pro_football, teams(name, created_by)')
     .eq('stripe_subscription_id', subscriptionId)
     .maybeSingle();
 
   if (teamSub?.teams?.created_by) {
+    const tierName = teamSub.is_pro_football ? 'Pro Football' : 'Pro';
+    const teamName = teamSub.teams?.name || 'Your Team';
+    
+    // Get team admins
+    const { data: teamAdmins } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('team_id', teamSub.team_id)
+      .in('role', ['team_admin', 'coach']);
+
+    if (teamAdmins && teamAdmins.length > 0) {
+      const adminUserIds = teamAdmins.map((a: any) => a.user_id);
+      const { data: emails } = await supabase.rpc('get_user_emails_by_ids', { user_ids: adminUserIds });
+      const { data: profiles } = await supabase.from('profiles').select('id, display_name').in('id', adminUserIds);
+
+      for (const admin of teamAdmins) {
+        const email = emails?.find((e: any) => e.id === admin.user_id)?.email;
+        const profile = profiles?.find((p: any) => p.id === admin.user_id);
+        
+        if (email) {
+          try {
+            await supabase.functions.invoke('send-email', {
+              body: {
+                to: email,
+                subject: `⚠️ Payment failed for ${teamName} subscription`,
+                template: 'payment-failed',
+                templateData: {
+                  recipientName: profile?.display_name,
+                  entityName: teamName,
+                  entityType: 'team',
+                  tierName,
+                  failureDate,
+                  updatePaymentLink: `https://igniteclubhq.app/team/${teamSub.team_id}/upgrade`,
+                },
+              },
+            });
+            console.log(`Payment failed email sent to team admin: ${email}`);
+          } catch (err) {
+            console.error('Error sending payment failed email:', err);
+          }
+        }
+      }
+    }
+
     await supabase.from('notifications').insert({
       user_id: teamSub.teams.created_by,
       type: 'payment_failed',
@@ -315,11 +475,55 @@ async function handlePaymentFailed(supabase: any, invoice: any) {
 
   const { data: clubSub } = await supabase
     .from('club_subscriptions')
-    .select('club_id, clubs(created_by)')
+    .select('club_id, is_pro_football, clubs(name, created_by)')
     .eq('stripe_subscription_id', subscriptionId)
     .maybeSingle();
 
   if (clubSub?.clubs?.created_by) {
+    const tierName = clubSub.is_pro_football ? 'Pro Football' : 'Pro';
+    const clubName = clubSub.clubs?.name || 'Your Club';
+    
+    // Get club admins
+    const { data: clubAdmins } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('club_id', clubSub.club_id)
+      .eq('role', 'club_admin');
+
+    if (clubAdmins && clubAdmins.length > 0) {
+      const adminUserIds = clubAdmins.map((a: any) => a.user_id);
+      const { data: emails } = await supabase.rpc('get_user_emails_by_ids', { user_ids: adminUserIds });
+      const { data: profiles } = await supabase.from('profiles').select('id, display_name').in('id', adminUserIds);
+
+      for (const admin of clubAdmins) {
+        const email = emails?.find((e: any) => e.id === admin.user_id)?.email;
+        const profile = profiles?.find((p: any) => p.id === admin.user_id);
+        
+        if (email) {
+          try {
+            await supabase.functions.invoke('send-email', {
+              body: {
+                to: email,
+                subject: `⚠️ Payment failed for ${clubName} subscription`,
+                template: 'payment-failed',
+                templateData: {
+                  recipientName: profile?.display_name,
+                  entityName: clubName,
+                  entityType: 'club',
+                  tierName,
+                  failureDate,
+                  updatePaymentLink: `https://igniteclubhq.app/club/${clubSub.club_id}/upgrade`,
+                },
+              },
+            });
+            console.log(`Payment failed email sent to club admin: ${email}`);
+          } catch (err) {
+            console.error('Error sending payment failed email:', err);
+          }
+        }
+      }
+    }
+
     await supabase.from('notifications').insert({
       user_id: clubSub.clubs.created_by,
       type: 'payment_failed',

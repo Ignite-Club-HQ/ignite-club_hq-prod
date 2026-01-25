@@ -47,6 +47,10 @@ interface SaveGameStatsParams {
   teamSize: number;
   executedSubs: SubstitutionEvent[];
   goals?: Goal[];
+  // For email notification
+  eventTitle?: string;
+  eventDate?: string;
+  opponent?: string;
 }
 
 export function useGameStats() {
@@ -64,6 +68,9 @@ export function useGameStats() {
       teamSize,
       executedSubs,
       goals = [],
+      eventTitle,
+      eventDate,
+      opponent,
     }: SaveGameStatsParams) => {
       // Calculate positions played per player based on their current position and subs
       const playerPositionsMap = new Map<string, Set<string>>();
@@ -189,6 +196,30 @@ export function useGameStats() {
 
       if (statsError) {
         throw new Error(`Failed to save player stats: ${statsError.message}`);
+      }
+
+      // Send email notification to team admins/coaches (Pro Football only)
+      const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+      };
+
+      try {
+        await supabase.functions.invoke('send-game-stats-email', {
+          body: {
+            eventId,
+            teamId,
+            eventTitle: eventTitle || 'Game',
+            eventDate: eventDate || new Date().toLocaleDateString(),
+            opponent: opponent || '',
+            totalPlayers: players.length,
+            totalGameTime: formatTime(totalGameTime),
+          },
+        });
+      } catch (emailErr) {
+        console.error("Failed to send game stats email:", emailErr);
+        // Don't throw - stats were still saved
       }
 
       return { success: true };

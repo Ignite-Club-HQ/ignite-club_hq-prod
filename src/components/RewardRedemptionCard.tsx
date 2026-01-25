@@ -257,6 +257,7 @@ export default function RewardRedemptionCard() {
     mutationFn: async ({ reward, forChildId }: { reward: ClubReward; forChildId: string | null }) => {
       // Determine whose points to use
       let pointsSource: { id: string; points: number; isChild: boolean };
+      let childName: string | null = null;
       
       if (forChildId) {
         const child = children.find(c => c.id === forChildId);
@@ -265,6 +266,7 @@ export default function RewardRedemptionCard() {
           throw new Error(`${child.name} doesn't have enough points`);
         }
         pointsSource = { id: forChildId, points: child.ignite_points, isChild: true };
+        childName = child.name;
       } else {
         const currentPoints = profile?.ignite_points || 0;
         if (currentPoints < reward.points_required) {
@@ -287,11 +289,13 @@ export default function RewardRedemptionCard() {
       if (redemptionError) throw redemptionError;
 
       // Deduct points from the appropriate source
+      const remainingPoints = pointsSource.points - reward.points_required;
+      
       if (pointsSource.isChild) {
         const { error: updateError } = await supabase
           .from("children")
           .update({
-            ignite_points: pointsSource.points - reward.points_required,
+            ignite_points: remainingPoints,
           })
           .eq("id", pointsSource.id);
         if (updateError) throw updateError;
@@ -299,11 +303,46 @@ export default function RewardRedemptionCard() {
         const { error: updateError } = await supabase
           .from("profiles")
           .update({
-            ignite_points: pointsSource.points - reward.points_required,
+            ignite_points: remainingPoints,
             has_sausage_reward: false,
           })
           .eq("id", user!.id);
         if (updateError) throw updateError;
+      }
+
+      // Get club details for email
+      const { data: club } = await supabase
+        .from("clubs")
+        .select("name, logo_url")
+        .eq("id", reward.club_id)
+        .single();
+
+      // Get sponsor name if applicable
+      let sponsorName: string | undefined;
+      if (reward.sponsors?.name) {
+        sponsorName = reward.sponsors.name;
+      }
+
+      // Send email notification
+      try {
+        await supabase.functions.invoke('send-reward-redeemed-email', {
+          body: {
+            recipientUserId: user!.id,
+            rewardName: reward.name,
+            pointsSpent: reward.points_required,
+            remainingPoints,
+            clubName: club?.name || 'Your Club',
+            rewardDescription: reward.description,
+            sponsorName,
+            showQrCode: reward.show_qr_code,
+            clubLogoUrl: club?.logo_url,
+            rewardLogoUrl: reward.logo_url,
+            redeemedForChildName: childName || undefined,
+          },
+        });
+      } catch (emailErr) {
+        console.error("Failed to send reward redeemed email:", emailErr);
+        // Don't throw - redemption was still successful
       }
     },
     onSuccess: () => {
@@ -607,11 +646,6 @@ export default function RewardRedemptionCard() {
               
               if (isSingleClubMode) {
                 const club = proClubs[0];
-                // Auto-open if not already showing rewards
-                if (!selectedClubId) {
-                  // Use setTimeout to avoid state update during render
-                  setTimeout(() => setSelectedClubId(club.id), 0);
-                }
                 return (
                   <div className="space-y-3">
                     <Button

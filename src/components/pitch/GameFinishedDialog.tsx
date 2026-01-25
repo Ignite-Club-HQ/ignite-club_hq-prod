@@ -54,6 +54,10 @@ interface GameFinishedDialogProps {
   executedSubs?: SubstitutionEvent[];
   halfDuration?: number;
   goals?: Goal[];
+  // Event details for email notification
+  eventTitle?: string;
+  eventDate?: string;
+  opponent?: string;
 }
 
 const PITCH_STATE_KEY = 'pitch-board-state';
@@ -72,6 +76,9 @@ export default function GameFinishedDialog({
   executedSubs = [],
   halfDuration,
   goals = [],
+  eventTitle,
+  eventDate,
+  opponent,
 }: GameFinishedDialogProps) {
   const { saveGameStats, isSaving } = useGameStats();
   const [statsSaved, setStatsSaved] = useState(false);
@@ -102,6 +109,9 @@ export default function GameFinishedDialog({
           teamSize,
           executedSubs,
           goals,
+          eventTitle,
+          eventDate,
+          opponent,
         });
         setStatsSaved(true);
       } catch (error) {

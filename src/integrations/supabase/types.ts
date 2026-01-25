@@ -1835,6 +1835,9 @@ export type Database = {
           email_media_enabled: boolean
           email_membership_enabled: boolean
           email_messages_enabled: boolean
+          email_pitch_board_enabled: boolean
+          email_pom_enabled: boolean
+          email_rewards_enabled: boolean
           events_enabled: boolean
           id: string
           media_enabled: boolean
@@ -1851,6 +1854,9 @@ export type Database = {
           email_media_enabled?: boolean
           email_membership_enabled?: boolean
           email_messages_enabled?: boolean
+          email_pitch_board_enabled?: boolean
+          email_pom_enabled?: boolean
+          email_rewards_enabled?: boolean
           events_enabled?: boolean
           id?: string
           media_enabled?: boolean
@@ -1867,6 +1873,9 @@ export type Database = {
           email_media_enabled?: boolean
           email_membership_enabled?: boolean
           email_messages_enabled?: boolean
+          email_pitch_board_enabled?: boolean
+          email_pom_enabled?: boolean
+          email_rewards_enabled?: boolean
           events_enabled?: boolean
           id?: string
           media_enabled?: boolean
@@ -3620,6 +3629,44 @@ export type Database = {
       }
       require_app_admin: { Args: never; Returns: boolean }
       require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
+      send_duty_notification_email: {
+        Args: {
+          p_club_logo_url: string
+          p_club_name: string
+          p_duty_name: string
+          p_event_date: string
+          p_event_id: string
+          p_event_time: string
+          p_event_title: string
+          p_recipient_user_id: string
+          p_team_name: string
+        }
+        Returns: undefined
+      }
+      send_message_notification_email: {
+        Args: {
+          p_context_id: string
+          p_context_name: string
+          p_has_image?: boolean
+          p_message_id: string
+          p_message_text: string
+          p_message_type: string
+          p_recipient_user_id: string
+          p_sender_user_id: string
+        }
+        Returns: undefined
+      }
+      send_photo_notification_email: {
+        Args: {
+          p_context_id: string
+          p_context_name: string
+          p_context_type: string
+          p_photo_id: string
+          p_recipient_user_id: string
+          p_uploader_user_id: string
+        }
+        Returns: undefined
+      }
       shares_team_or_club_with: {
         Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean

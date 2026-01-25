@@ -8,6 +8,16 @@ import { EventReminderEmail } from "./_templates/event-reminder.tsx";
 import { MembershipConfirmationEmail } from "./_templates/membership-confirmation.tsx";
 import { MagicLinkEmail } from "./_templates/magic-link.tsx";
 import { RenewalReminderEmail } from "./_templates/renewal-reminder.tsx";
+import { MessageNotificationEmail } from "./_templates/message-notification.tsx";
+import { StorageWarningEmail } from "./_templates/storage-warning.tsx";
+import { SubscriptionRenewedEmail } from "./_templates/subscription-renewed.tsx";
+import { PaymentFailedEmail } from "./_templates/payment-failed.tsx";
+import { PhotoUploadedEmail } from "./_templates/photo-uploaded.tsx";
+import { PitchBoardNotificationEmail } from "./_templates/pitch-board-notification.tsx";
+import { DutyAssignedEmail } from "./_templates/duty-assigned.tsx";
+import { PointsAwardedEmail } from "./_templates/points-awarded.tsx";
+import { RewardRedeemedEmail } from "./_templates/reward-redeemed.tsx";
+import { GameStatsReadyEmail } from "./_templates/game-stats-ready.tsx";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -38,7 +48,17 @@ type TemplateType =
   | "event-reminder" 
   | "membership-confirmation" 
   | "magic-link"
-  | "renewal-reminder";
+  | "renewal-reminder"
+  | "message-notification"
+  | "storage-warning"
+  | "subscription-renewed"
+  | "payment-failed"
+  | "photo-uploaded"
+  | "pitch-board-notification"
+  | "duty-assigned"
+  | "points-awarded"
+  | "reward-redeemed"
+  | "game-stats-ready";
 
 interface EmailRequest {
   to: string | string[];
@@ -47,7 +67,7 @@ interface EmailRequest {
   from?: string;
   // Template-based email
   template?: TemplateType;
-  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData;
+  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData | SubscriptionRenewedTemplateData | PaymentFailedTemplateData | PhotoUploadedTemplateData | PitchBoardNotificationTemplateData | DutyAssignedTemplateData | PointsAwardedTemplateData | RewardRedeemedTemplateData | GameStatsReadyTemplateData;
 }
 
 interface TeamInviteTemplateData {
@@ -106,6 +126,132 @@ interface RenewalReminderTemplateData {
   expiryDate: string;
   daysUntilExpiry: number;
   manageLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+}
+
+interface MessageNotificationTemplateData {
+  recipientName?: string;
+  senderName: string;
+  messagePreview: string;
+  messageType: 'team' | 'club' | 'group' | 'direct' | 'broadcast';
+  contextName?: string;
+  messageLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+  hasImage?: boolean;
+}
+
+interface StorageWarningTemplateData {
+  recipientName?: string;
+  entityName: string;
+  entityType: 'team' | 'club';
+  storageUsedGB: number;
+  storageLimitGB: number;
+  usagePercentage: number;
+  upgradeLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+}
+
+interface SubscriptionRenewedTemplateData {
+  recipientName?: string;
+  entityName: string;
+  entityType: 'team' | 'club';
+  tierName: string;
+  renewalDate: string;
+  nextBillingDate: string;
+  manageLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+}
+
+interface PaymentFailedTemplateData {
+  recipientName?: string;
+  entityName: string;
+  entityType: 'team' | 'club';
+  tierName: string;
+  failureDate: string;
+  updatePaymentLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+}
+
+interface PhotoUploadedTemplateData {
+  recipientName?: string;
+  uploaderName: string;
+  contextType: 'team' | 'club';
+  contextName: string;
+  photoLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+}
+
+interface PitchBoardNotificationTemplateData {
+  recipientName: string;
+  teamName: string;
+  notificationType: 'pending_sub' | 'half_time' | 'full_time' | 'game_linked';
+  notificationMessage: string;
+  eventLink?: string;
+  playerOutName?: string;
+  playerInName?: string;
+  position?: string;
+  elapsedMinutes?: number;
+  currentHalf?: number;
+}
+
+interface DutyAssignedTemplateData {
+  recipientName?: string;
+  dutyName: string;
+  eventTitle: string;
+  eventDate: string;
+  eventTime?: string;
+  teamName?: string;
+  clubName: string;
+  eventLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+}
+
+interface PointsAwardedTemplateData {
+  recipientName?: string;
+  pointsAwarded: number;
+  reason?: string;
+  totalPoints: number;
+  clubName: string;
+  profileLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+  rewardUnlocked?: boolean;
+  rewardName?: string;
+}
+
+interface RewardRedeemedTemplateData {
+  recipientName?: string;
+  rewardName: string;
+  pointsSpent: number;
+  remainingPoints: number;
+  clubName: string;
+  rewardDescription?: string;
+  sponsorName?: string;
+  showQrCode?: boolean;
+  profileLink: string;
+  clubLogoUrl?: string;
+  rewardLogoUrl?: string;
+  primaryColor?: string;
+  redeemedForChildName?: string;
+}
+
+interface GameStatsReadyTemplateData {
+  recipientName?: string;
+  teamName: string;
+  eventTitle: string;
+  eventDate: string;
+  opponent?: string;
+  totalPlayers: number;
+  totalGameTime: string;
+  reportLink: string;
+  clubName: string;
   clubLogoUrl?: string;
   primaryColor?: string;
 }
@@ -257,6 +403,162 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           expiryDate: data.expiryDate,
           daysUntilExpiry: data.daysUntilExpiry,
           manageLink: data.manageLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+        })
+      );
+    
+    case "message-notification":
+      return await renderAsync(
+        React.createElement(MessageNotificationEmail, {
+          recipientName: data.recipientName,
+          senderName: data.senderName,
+          messagePreview: data.messagePreview,
+          messageType: data.messageType,
+          contextName: data.contextName,
+          messageLink: data.messageLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+          hasImage: data.hasImage,
+        })
+      );
+    
+    case "storage-warning":
+      return await renderAsync(
+        React.createElement(StorageWarningEmail, {
+          recipientName: data.recipientName,
+          entityName: data.entityName,
+          entityType: data.entityType,
+          storageUsedGB: data.storageUsedGB,
+          storageLimitGB: data.storageLimitGB,
+          usagePercentage: data.usagePercentage,
+          upgradeLink: data.upgradeLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+        })
+      );
+    
+    case "subscription-renewed":
+      return await renderAsync(
+        React.createElement(SubscriptionRenewedEmail, {
+          recipientName: data.recipientName,
+          entityName: data.entityName,
+          entityType: data.entityType,
+          tierName: data.tierName,
+          renewalDate: data.renewalDate,
+          nextBillingDate: data.nextBillingDate,
+          manageLink: data.manageLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+        })
+      );
+    
+    case "payment-failed":
+      return await renderAsync(
+        React.createElement(PaymentFailedEmail, {
+          recipientName: data.recipientName,
+          entityName: data.entityName,
+          entityType: data.entityType,
+          tierName: data.tierName,
+          failureDate: data.failureDate,
+          updatePaymentLink: data.updatePaymentLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+        })
+      );
+    
+    case "photo-uploaded":
+      return await renderAsync(
+        React.createElement(PhotoUploadedEmail, {
+          recipientName: data.recipientName,
+          uploaderName: data.uploaderName,
+          contextType: data.contextType,
+          contextName: data.contextName,
+          photoLink: data.photoLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+        })
+      );
+    
+    case "pitch-board-notification":
+      return await renderAsync(
+        React.createElement(PitchBoardNotificationEmail, {
+          recipientName: data.recipientName,
+          teamName: data.teamName,
+          notificationType: data.notificationType,
+          notificationMessage: data.notificationMessage,
+          eventLink: data.eventLink,
+          playerOutName: data.playerOutName,
+          playerInName: data.playerInName,
+          position: data.position,
+          elapsedMinutes: data.elapsedMinutes,
+          currentHalf: data.currentHalf,
+        })
+      );
+    
+    case "duty-assigned":
+      return await renderAsync(
+        React.createElement(DutyAssignedEmail, {
+          recipientName: data.recipientName,
+          dutyName: data.dutyName,
+          eventTitle: data.eventTitle,
+          eventDate: data.eventDate,
+          eventTime: data.eventTime,
+          teamName: data.teamName,
+          clubName: data.clubName,
+          eventLink: data.eventLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+        })
+      );
+    
+    case "points-awarded":
+      return await renderAsync(
+        React.createElement(PointsAwardedEmail, {
+          recipientName: data.recipientName,
+          pointsAwarded: data.pointsAwarded,
+          reason: data.reason,
+          totalPoints: data.totalPoints,
+          clubName: data.clubName,
+          profileLink: data.profileLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+          rewardUnlocked: data.rewardUnlocked,
+          rewardName: data.rewardName,
+        })
+      );
+    
+    case "reward-redeemed":
+      return await renderAsync(
+        React.createElement(RewardRedeemedEmail, {
+          recipientName: data.recipientName,
+          rewardName: data.rewardName,
+          pointsSpent: data.pointsSpent,
+          remainingPoints: data.remainingPoints,
+          clubName: data.clubName,
+          rewardDescription: data.rewardDescription,
+          sponsorName: data.sponsorName,
+          showQrCode: data.showQrCode,
+          profileLink: data.profileLink,
+          clubLogoUrl: data.clubLogoUrl,
+          rewardLogoUrl: data.rewardLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+          redeemedForChildName: data.redeemedForChildName,
+        })
+      );
+    
+    case "game-stats-ready":
+      return await renderAsync(
+        React.createElement(GameStatsReadyEmail, {
+          recipientName: data.recipientName,
+          teamName: data.teamName,
+          eventTitle: data.eventTitle,
+          eventDate: data.eventDate,
+          opponent: data.opponent,
+          totalPlayers: data.totalPlayers,
+          totalGameTime: data.totalGameTime,
+          reportLink: data.reportLink,
+          clubName: data.clubName,
           clubLogoUrl: data.clubLogoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
         })
