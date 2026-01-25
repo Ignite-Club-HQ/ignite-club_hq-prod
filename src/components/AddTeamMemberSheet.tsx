@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Copy, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar } from "lucide-react";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
+import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +44,8 @@ interface AddTeamMemberSheetProps {
   teamName: string;
   clubId: string;
   teamType?: TeamType;
+  /** True when the user is a club admin but NOT a direct member of this team */
+  isClubAdminOnly?: boolean;
 }
 
 const allRoleOptions: { value: TeamRole; label: string; description: string; color: string; icon?: string; juniorOnly?: boolean; seniorOnly?: boolean }[] = [
@@ -52,7 +55,7 @@ const allRoleOptions: { value: TeamRole; label: string; description: string; col
   { value: "team_admin", label: "Team Admin", description: "Full admin access", color: "bg-blue-500/20 text-blue-600 border-blue-500/30" },
 ];
 
-export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed" }: AddTeamMemberSheetProps) {
+export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false }: AddTeamMemberSheetProps) {
   // Filter role options based on team type
   const roleOptions = allRoleOptions.filter(opt => {
     if (teamType === "junior") {
@@ -652,6 +655,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             Add an existing user or enter a name to send an invite
           </SheetDescription>
         </SheetHeader>
+
+        {/* Club admin confirmation banner */}
+        {isClubAdminOnly && (
+          <div className="mb-4">
+            <ClubAdminConfirmBanner teamName={teamName} action="add members" />
+          </div>
+        )}
 
         <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-4">

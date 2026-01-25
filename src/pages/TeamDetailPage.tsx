@@ -741,7 +741,7 @@ export default function TeamDetailPage() {
             </AccordionTrigger>
             <AccordionContent>
               <div className="space-y-4 pt-2">
-                {isAdmin && (
+                {(isAdmin || isClubAdmin) && (
                   <div className="flex flex-wrap gap-2 justify-between items-center">
                     <PromoteToTeamAdminDialog
                       teamId={id!}
@@ -756,6 +756,7 @@ export default function TeamDetailPage() {
                         teamName={team.name} 
                         clubId={team.club_id}
                         teamType={(team as any).team_type || "mixed"}
+                        isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
                       />
                     </div>
                   </div>
