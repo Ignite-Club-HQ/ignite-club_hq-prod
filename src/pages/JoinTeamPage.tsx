@@ -337,13 +337,26 @@ export default function JoinTeamPage() {
     if (user.email) {
       try {
         // Fetch club branding for the email
-        const { data: clubBranding } = await supabase
-          .from("clubs")
-          .select("name, logo_url")
-          .eq("id", invite.teams?.club_id)
-          .single();
+        const clubId = invite.teams?.club_id;
+        let clubLogoUrl: string | undefined;
+        let clubName = invite.teams?.clubs?.name || "Your Club";
+        
+        if (clubId) {
+          const { data: clubBranding } = await supabase
+            .from("clubs")
+            .select("name, logo_url")
+            .eq("id", clubId)
+            .single();
+          
+          if (clubBranding) {
+            clubName = clubBranding.name || clubName;
+            clubLogoUrl = clubBranding.logo_url || undefined;
+          }
+        }
 
         const teamLink = `${window.location.origin}/team/${invite.team_id}`;
+        
+        console.log("Sending membership email with:", { clubName, clubLogoUrl, teamName: invite.teams?.name });
         
         await supabase.functions.invoke("send-email", {
           body: {
@@ -353,10 +366,10 @@ export default function JoinTeamPage() {
             templateData: {
               recipientName: userProfile?.display_name || pendingInviteData?.invited_label || user.email.split("@")[0],
               teamName: invite.teams?.name || "the team",
-              clubName: clubBranding?.name || invite.teams?.clubs?.name || "The Club",
+              clubName,
               roleName: roleNames,
               teamLink,
-              clubLogoUrl: clubBranding?.logo_url || undefined,
+              clubLogoUrl,
             },
           },
         });

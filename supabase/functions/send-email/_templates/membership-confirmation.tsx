@@ -56,7 +56,7 @@ const normalizeLink = (link: string): string => {
 export const MembershipConfirmationEmail = ({
   recipientName = "Member",
   teamName = "The Team",
-  clubName = "The Club",
+  clubName = "Your Club",
   roleName = "Player",
   teamLink = "https://igniteclubhq.app/team",
   clubLogoUrl,
