@@ -16,6 +16,7 @@ import { PhotoUploadedEmail } from "./_templates/photo-uploaded.tsx";
 import { PitchBoardNotificationEmail } from "./_templates/pitch-board-notification.tsx";
 import { DutyAssignedEmail } from "./_templates/duty-assigned.tsx";
 import { PointsAwardedEmail } from "./_templates/points-awarded.tsx";
+import { RewardRedeemedEmail } from "./_templates/reward-redeemed.tsx";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -54,7 +55,8 @@ type TemplateType =
   | "photo-uploaded"
   | "pitch-board-notification"
   | "duty-assigned"
-  | "points-awarded";
+  | "points-awarded"
+  | "reward-redeemed";
 
 interface EmailRequest {
   to: string | string[];
@@ -63,7 +65,7 @@ interface EmailRequest {
   from?: string;
   // Template-based email
   template?: TemplateType;
-  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData | SubscriptionRenewedTemplateData | PaymentFailedTemplateData | PhotoUploadedTemplateData | PitchBoardNotificationTemplateData | DutyAssignedTemplateData | PointsAwardedTemplateData;
+  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData | SubscriptionRenewedTemplateData | PaymentFailedTemplateData | PhotoUploadedTemplateData | PitchBoardNotificationTemplateData | DutyAssignedTemplateData | PointsAwardedTemplateData | RewardRedeemedTemplateData;
 }
 
 interface TeamInviteTemplateData {
@@ -220,6 +222,22 @@ interface PointsAwardedTemplateData {
   primaryColor?: string;
   rewardUnlocked?: boolean;
   rewardName?: string;
+}
+
+interface RewardRedeemedTemplateData {
+  recipientName?: string;
+  rewardName: string;
+  pointsSpent: number;
+  remainingPoints: number;
+  clubName: string;
+  rewardDescription?: string;
+  sponsorName?: string;
+  showQrCode?: boolean;
+  profileLink: string;
+  clubLogoUrl?: string;
+  rewardLogoUrl?: string;
+  primaryColor?: string;
+  redeemedForChildName?: string;
 }
 
 // Sanitize error messages
@@ -491,6 +509,25 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
           rewardUnlocked: data.rewardUnlocked,
           rewardName: data.rewardName,
+        })
+      );
+    
+    case "reward-redeemed":
+      return await renderAsync(
+        React.createElement(RewardRedeemedEmail, {
+          recipientName: data.recipientName,
+          rewardName: data.rewardName,
+          pointsSpent: data.pointsSpent,
+          remainingPoints: data.remainingPoints,
+          clubName: data.clubName,
+          rewardDescription: data.rewardDescription,
+          sponsorName: data.sponsorName,
+          showQrCode: data.showQrCode,
+          profileLink: data.profileLink,
+          clubLogoUrl: data.clubLogoUrl,
+          rewardLogoUrl: data.rewardLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+          redeemedForChildName: data.redeemedForChildName,
         })
       );
     
