@@ -98,7 +98,8 @@ export default function JoinTeamPage() {
             logo_url: row.team_logo_url,
             club_id: row.club_id,
             clubs: {
-              name: row.club_name
+              name: row.club_name,
+              logo_url: undefined as string | undefined
             }
           }
         };
@@ -129,7 +130,8 @@ export default function JoinTeamPage() {
             logo_url: pendingInviteData.team_logo_url,
             club_id: pendingInviteData.club_id,
             clubs: {
-              name: pendingInviteData.club_name
+              name: pendingInviteData.club_name,
+              logo_url: pendingInviteData.club_logo_url
             }
           }
         }
@@ -801,14 +803,14 @@ export default function JoinTeamPage() {
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <Avatar className="h-20 w-20 border-2 border-primary/20">
-              <AvatarImage src={invite.teams?.logo_url || undefined} />
+              <AvatarImage src={invite.teams?.logo_url || invite.teams?.clubs?.logo_url || undefined} />
               <AvatarFallback className="bg-primary/20 text-primary text-2xl">
-                {invite.teams?.name?.charAt(0)?.toUpperCase() || "T"}
+                {(invite.teams?.name || invite.teams?.clubs?.name)?.charAt(0)?.toUpperCase() || "T"}
               </AvatarFallback>
             </Avatar>
           </div>
-          <CardTitle>Join {invite.teams?.name}</CardTitle>
-          {invite.teams?.clubs?.name && (
+          <CardTitle>Join {invite.teams?.name || invite.teams?.clubs?.name}</CardTitle>
+          {invite.teams?.clubs?.name && invite.teams?.name && (
             <p className="text-muted-foreground text-sm">{invite.teams.clubs.name}</p>
           )}
           {isPendingInvite && pendingInviteData?.invited_label && (
