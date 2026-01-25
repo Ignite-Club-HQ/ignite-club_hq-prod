@@ -173,34 +173,42 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
       if (error) throw error;
     },
     onMutate: async () => {
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["pending-invites", teamId, clubId] });
+      // Cancel any outgoing refetches - use broad pattern to match all pending-invites queries
+      await queryClient.cancelQueries({ queryKey: ["pending-invites"] });
       
-      // Snapshot the previous value
-      const previousInvites = queryClient.getQueryData(["pending-invites", teamId, clubId]);
+      // Snapshot and optimistically update all matching queries
+      const queryCache = queryClient.getQueryCache();
+      const pendingInviteQueries = queryCache.findAll({ queryKey: ["pending-invites"] });
       
-      // Optimistically update to remove the deleted invite
-      queryClient.setQueryData(["pending-invites", teamId, clubId], (old: any[] | undefined) => {
-        if (!old) return old;
-        return old.filter((inv: any) => inv.id !== invite.id);
+      const previousData: { queryKey: any; data: any }[] = [];
+      pendingInviteQueries.forEach((query) => {
+        const data = query.state.data;
+        previousData.push({ queryKey: query.queryKey, data });
+        
+        // Optimistically remove the invite from this query
+        if (Array.isArray(data)) {
+          queryClient.setQueryData(query.queryKey, data.filter((inv: any) => inv.id !== invite.id));
+        }
       });
       
-      return { previousInvites };
+      return { previousData };
     },
     onSuccess: () => {
       toast({ title: "Pending invite revoked" });
       setShowDeleteDialog(false);
     },
     onError: (error, _, context) => {
-      // Rollback to the previous value on error
-      if (context?.previousInvites) {
-        queryClient.setQueryData(["pending-invites", teamId, clubId], context.previousInvites);
+      // Rollback all queries to their previous values on error
+      if (context?.previousData) {
+        context.previousData.forEach(({ queryKey, data }) => {
+          queryClient.setQueryData(queryKey, data);
+        });
       }
       toast({ title: "Failed to revoke invite", variant: "destructive" });
     },
     onSettled: () => {
-      // Refetch to ensure we have the latest data
-      queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, clubId] });
+      // Refetch all pending-invites queries to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
     },
   });
 
@@ -216,7 +224,7 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, clubId] });
+      queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
       toast({ title: "Pending invite updated" });
       setShowEditDialog(false);
     },
@@ -287,7 +295,7 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
           } as any)
           .eq("id", invite.id);
 
-        queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, clubId] });
+        queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
         
         toast({ 
           title: "Email sent!", 
@@ -307,7 +315,7 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
         } as any)
         .eq("id", invite.id);
 
-      queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, clubId] });
+      queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
       
       toast({ 
         title: "Failed to send email", 
