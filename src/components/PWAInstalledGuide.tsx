@@ -50,7 +50,7 @@ export function PWAInstalledGuide({ appName = "Ignite", onDismiss }: PWAInstalle
               <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <span className="text-primary font-semibold text-sm">3</span>
               </div>
-              <p className="text-sm">Sign up and join your team!</p>
+              <p className="text-sm">Sign up and get started!</p>
             </div>
           </div>
 
