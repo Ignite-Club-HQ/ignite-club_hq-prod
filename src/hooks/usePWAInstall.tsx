@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -16,12 +16,19 @@ if (typeof window !== 'undefined') {
   });
 }
 
+// Minimum time to show "Installing..." state (in ms)
+const MIN_INSTALLING_TIME = 3000;
+
 export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(globalDeferredPrompt);
   const [canPrompt, setCanPrompt] = useState(!!globalDeferredPrompt);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  
+  // Track when installation was accepted and when appinstalled event fired
+  const installAcceptedAt = useRef<number | null>(null);
+  const appInstalledEventFired = useRef(false);
 
   useEffect(() => {
     try {
@@ -50,11 +57,41 @@ export function usePWAInstall() {
       };
 
       const handleAppInstalled = () => {
-        console.log("[PWA] appinstalled event fired - installation complete");
-        setIsInstalled(true);
-        setCanPrompt(false);
-        setDeferredPrompt(null);
-        globalDeferredPrompt = null;
+        console.log("[PWA] appinstalled event fired");
+        appInstalledEventFired.current = true;
+        
+        // Check if minimum time has passed since user accepted
+        const acceptedAt = installAcceptedAt.current;
+        if (acceptedAt) {
+          const elapsed = Date.now() - acceptedAt;
+          const remaining = MIN_INSTALLING_TIME - elapsed;
+          
+          if (remaining > 0) {
+            // Wait for remaining time before setting installed
+            console.log(`[PWA] Waiting ${remaining}ms before showing installed state`);
+            setTimeout(() => {
+              console.log("[PWA] Minimum install time elapsed, setting installed");
+              setIsInstalled(true);
+              setCanPrompt(false);
+              setDeferredPrompt(null);
+              globalDeferredPrompt = null;
+            }, remaining);
+          } else {
+            // Minimum time already passed
+            console.log("[PWA] Minimum install time already passed, setting installed");
+            setIsInstalled(true);
+            setCanPrompt(false);
+            setDeferredPrompt(null);
+            globalDeferredPrompt = null;
+          }
+        } else {
+          // User hasn't accepted yet (edge case), just set installed
+          console.log("[PWA] No accept timestamp, setting installed immediately");
+          setIsInstalled(true);
+          setCanPrompt(false);
+          setDeferredPrompt(null);
+          globalDeferredPrompt = null;
+        }
       };
 
       window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -86,13 +123,32 @@ export function usePWAInstall() {
 
     try {
       console.log("[PWA] Showing install prompt...");
+      
+      // Record when user starts the install process
+      installAcceptedAt.current = null;
+      appInstalledEventFired.current = false;
+      
       await promptToUse.prompt();
       const { outcome } = await promptToUse.userChoice;
       console.log("[PWA] User choice:", outcome);
       
-      // NOTE: Don't set isInstalled here! The user has only ACCEPTED the prompt,
-      // but installation is still in progress. The 'appinstalled' event handler
-      // will set isInstalled to true when installation actually completes.
+      if (outcome === "accepted") {
+        // Record the time user accepted - this starts the minimum install timer
+        installAcceptedAt.current = Date.now();
+        console.log("[PWA] User accepted install, timestamp recorded");
+        
+        // If appinstalled already fired (rare), handle it now
+        if (appInstalledEventFired.current) {
+          console.log("[PWA] appinstalled already fired, starting minimum timer");
+          setTimeout(() => {
+            console.log("[PWA] Minimum install time elapsed after accept");
+            setIsInstalled(true);
+            setCanPrompt(false);
+            setDeferredPrompt(null);
+            globalDeferredPrompt = null;
+          }, MIN_INSTALLING_TIME);
+        }
+      }
       
       // Always clear prompt after use (it's single-use) and update canPrompt
       setDeferredPrompt(null);
@@ -106,6 +162,7 @@ export function usePWAInstall() {
       setDeferredPrompt(null);
       globalDeferredPrompt = null;
       setCanPrompt(false);
+      installAcceptedAt.current = null;
       return false;
     }
   };
