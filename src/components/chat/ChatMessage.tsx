@@ -5,7 +5,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmojiPicker } from "./EmojiPicker";
-import { getGravatarUrlFromHash } from "@/lib/gravatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,7 +37,6 @@ interface ChatMessageProps {
   authorId: string;
   authorName?: string | null;
   authorAvatar?: string | null;
-  authorEmailHash?: string | null; // For Gravatar fallback
   timestamp: string;
   isOwn: boolean;
   isAdmin?: boolean;
@@ -60,7 +58,6 @@ export const ChatMessage = memo(function ChatMessage({
   authorId,
   authorName,
   authorAvatar,
-  authorEmailHash,
   timestamp,
   isOwn,
   isAdmin = false,
@@ -77,19 +74,8 @@ export const ChatMessage = memo(function ChatMessage({
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(text);
-  const [gravatarError, setGravatarError] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const queryClient = useQueryClient();
-  
-  // Build effective avatar URL with Gravatar fallback
-  const effectiveAvatarUrl = authorAvatar || 
-    (!gravatarError && authorEmailHash ? getGravatarUrlFromHash(authorEmailHash, 64, '404') : undefined);
-  
-  const handleAvatarError = () => {
-    if (!authorAvatar && authorEmailHash) {
-      setGravatarError(true);
-    }
-  };
 
   const getMessageIdField = () => {
     switch (messageType) {
@@ -431,7 +417,7 @@ export const ChatMessage = memo(function ChatMessage({
     return (
       <div className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}>
         <Avatar className="h-8 w-8 shrink-0">
-          <AvatarImage src={effectiveAvatarUrl} onError={handleAvatarError} />
+          <AvatarImage src={authorAvatar || undefined} />
           <AvatarFallback className="text-xs">
             {displayName.charAt(0).toUpperCase()}
           </AvatarFallback>
@@ -468,7 +454,7 @@ export const ChatMessage = memo(function ChatMessage({
   return (
     <div className={`flex gap-3 group ${isOwn ? "flex-row-reverse" : ""}`}>
       <Avatar className="h-8 w-8 shrink-0">
-        <AvatarImage src={effectiveAvatarUrl} onError={handleAvatarError} />
+        <AvatarImage src={authorAvatar || undefined} />
         <AvatarFallback className="text-xs">
           {displayName.charAt(0).toUpperCase()}
         </AvatarFallback>

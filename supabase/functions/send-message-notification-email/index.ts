@@ -85,14 +85,19 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    // Get sender's name
+    // Get sender's name and email_hash for Gravatar
     const { data: senderProfile } = await supabase
       .from('profiles')
-      .select('display_name')
+      .select('display_name, avatar_url, email_hash')
       .eq('id', payload.senderUserId)
       .single();
 
     const senderName = senderProfile?.display_name || 'Someone';
+    const senderAvatarUrl = senderProfile?.avatar_url || null;
+    // Build Gravatar URL from email_hash if no custom avatar
+    const senderGravatarUrl = senderProfile?.email_hash 
+      ? `https://www.gravatar.com/avatar/${senderProfile.email_hash}?s=64&d=404`
+      : null;
 
     // Get recipient's name
     const { data: recipientProfile } = await supabase
@@ -163,6 +168,7 @@ serve(async (req: Request): Promise<Response> => {
         templateData: {
           recipientName,
           senderName,
+          senderAvatarUrl: senderAvatarUrl || senderGravatarUrl,
           messagePreview: payload.messageText || '',
           messageType: payload.messageType,
           contextName: payload.contextName,
