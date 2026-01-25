@@ -91,6 +91,7 @@ export default function JoinClubPage() {
   });
 
   // Fetch user's profile to check if profile is complete
+  // Use staleTime: 0 to ensure fresh data when returning from profile completion
   const { data: userProfile, isLoading: profileLoading } = useQuery({
     queryKey: ["user-profile-for-join-club", user?.id],
     queryFn: async () => {
@@ -102,6 +103,8 @@ export default function JoinClubPage() {
       return data;
     },
     enabled: !!user,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   // Check if user needs to complete their profile first

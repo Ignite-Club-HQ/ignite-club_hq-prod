@@ -153,6 +153,7 @@ export default function JoinTeamPage() {
   });
 
   // Fetch user's profile for name validation and profile completion check
+  // Use staleTime: 0 to ensure fresh data when returning from profile completion
   const { data: userProfile, isLoading: profileLoading } = useQuery({
     queryKey: ["user-profile-for-join", user?.id],
     queryFn: async () => {
@@ -164,6 +165,8 @@ export default function JoinTeamPage() {
       return data;
     },
     enabled: !!user,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   // Check if user needs to complete their profile first
