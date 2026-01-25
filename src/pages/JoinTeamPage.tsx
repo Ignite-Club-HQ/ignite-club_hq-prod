@@ -438,11 +438,14 @@ export default function JoinTeamPage() {
 
   // Auto-join effect: when user returns from auth and shouldAutoJoin is true
   useEffect(() => {
+    // Wait for profile to finish loading before making any decisions
+    if (profileLoading) return;
+    
     // First check if user needs to complete their profile
     if (user && userProfile !== undefined && !userProfile?.display_name) {
       // User hasn't completed profile - redirect to complete profile
       sessionStorage.setItem("redirectAfterAuth", location.pathname);
-      // Keep auto-join flag for after profile completion
+      sessionStorage.setItem("autoJoinAfterAuth", "true"); // Ensure flag is set
       // Store the invited_label for profile prefill if available (pending invite)
       if (pendingInviteData?.invited_label) {
         sessionStorage.setItem("inviteLabel", pendingInviteData.invited_label);
@@ -450,6 +453,9 @@ export default function JoinTeamPage() {
       navigate("/complete-profile", { replace: true });
       return;
     }
+
+    // Wait for invite data to load before attempting auto-join
+    if (isLoading) return;
 
     if (
       shouldAutoJoin && 
@@ -488,7 +494,7 @@ export default function JoinTeamPage() {
         joinMutation.mutate();
       }, 500);
     }
-  }, [shouldAutoJoin, user, invite, existingRoles, selectedRoles, joined, joinMutation, nameValidationError, toast, userProfile, location.pathname, navigate]);
+  }, [shouldAutoJoin, user, invite, existingRoles, selectedRoles, joined, joinMutation, nameValidationError, toast, userProfile, location.pathname, navigate, profileLoading, isLoading, pendingInviteData]);
 
   // Handle photo consent given
   const handlePhotoConsentGiven = async () => {
