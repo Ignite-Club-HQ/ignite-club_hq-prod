@@ -91,6 +91,7 @@ export default function JoinClubPage() {
   });
 
   // Fetch user's profile to check if profile is complete
+  // Use staleTime: 0 to ensure fresh data when returning from profile completion
   const { data: userProfile, isLoading: profileLoading } = useQuery({
     queryKey: ["user-profile-for-join-club", user?.id],
     queryFn: async () => {
@@ -102,6 +103,8 @@ export default function JoinClubPage() {
       return data;
     },
     enabled: !!user,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   // Check if user needs to complete their profile first
@@ -173,14 +176,20 @@ export default function JoinClubPage() {
 
   // Auto-join effect: when user returns from auth and shouldAutoJoin is true
   useEffect(() => {
+    // Wait for profile to finish loading before making any decisions
+    if (profileLoading) return;
+    
     // First check if user needs to complete their profile
     if (user && userProfile !== undefined && !userProfile?.display_name) {
       // User hasn't completed profile - redirect to complete profile
       sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
-      // Keep auto-join flag for after profile completion
+      sessionStorage.setItem("autoJoinAfterAuth", "true"); // Ensure flag is set
       navigate("/complete-profile", { replace: true });
       return;
     }
+
+    // Wait for invite data to load before attempting auto-join
+    if (inviteLoading) return;
 
     if (
       shouldAutoJoin && 
@@ -198,7 +207,7 @@ export default function JoinClubPage() {
         joinMutation.mutate();
       }, 500);
     }
-  }, [shouldAutoJoin, user, invite, userProfile, joined, joinMutation, token, navigate]);
+  }, [shouldAutoJoin, user, invite, userProfile, joined, joinMutation, token, navigate, profileLoading, inviteLoading]);
 
   // Handle join action - show install prompt first, then redirect to auth if not logged in
   const handleJoinClick = async () => {
