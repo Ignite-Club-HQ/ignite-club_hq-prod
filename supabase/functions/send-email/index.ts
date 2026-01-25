@@ -13,6 +13,7 @@ import { StorageWarningEmail } from "./_templates/storage-warning.tsx";
 import { SubscriptionRenewedEmail } from "./_templates/subscription-renewed.tsx";
 import { PaymentFailedEmail } from "./_templates/payment-failed.tsx";
 import { PhotoUploadedEmail } from "./_templates/photo-uploaded.tsx";
+import { PitchBoardNotificationEmail } from "./_templates/pitch-board-notification.tsx";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -48,7 +49,8 @@ type TemplateType =
   | "storage-warning"
   | "subscription-renewed"
   | "payment-failed"
-  | "photo-uploaded";
+  | "photo-uploaded"
+  | "pitch-board-notification";
 
 interface EmailRequest {
   to: string | string[];
@@ -57,7 +59,7 @@ interface EmailRequest {
   from?: string;
   // Template-based email
   template?: TemplateType;
-  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData | SubscriptionRenewedTemplateData | PaymentFailedTemplateData | PhotoUploadedTemplateData;
+  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData | SubscriptionRenewedTemplateData | PaymentFailedTemplateData | PhotoUploadedTemplateData | PitchBoardNotificationTemplateData;
 }
 
 interface TeamInviteTemplateData {
@@ -175,11 +177,19 @@ interface PhotoUploadedTemplateData {
   photoLink: string;
   clubLogoUrl?: string;
   primaryColor?: string;
-  tierName: string;
-  failureDate: string;
-  updatePaymentLink: string;
-  clubLogoUrl?: string;
-  primaryColor?: string;
+}
+
+interface PitchBoardNotificationTemplateData {
+  recipientName: string;
+  teamName: string;
+  notificationType: 'pending_sub' | 'half_time' | 'full_time' | 'game_linked';
+  notificationMessage: string;
+  eventLink?: string;
+  playerOutName?: string;
+  playerInName?: string;
+  position?: string;
+  elapsedMinutes?: number;
+  currentHalf?: number;
 }
 
 // Sanitize error messages
@@ -403,6 +413,22 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           photoLink: data.photoLink,
           clubLogoUrl: data.clubLogoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+        })
+      );
+    
+    case "pitch-board-notification":
+      return await renderAsync(
+        React.createElement(PitchBoardNotificationEmail, {
+          recipientName: data.recipientName,
+          teamName: data.teamName,
+          notificationType: data.notificationType,
+          notificationMessage: data.notificationMessage,
+          eventLink: data.eventLink,
+          playerOutName: data.playerOutName,
+          playerInName: data.playerInName,
+          position: data.position,
+          elapsedMinutes: data.elapsedMinutes,
+          currentHalf: data.currentHalf,
         })
       );
     
