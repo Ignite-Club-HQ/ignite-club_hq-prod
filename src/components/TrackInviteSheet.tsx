@@ -77,9 +77,10 @@ export default function TrackInviteSheet({
         team_id: teamId || null,
         club_id: clubId || null,
         role: role as any,
-        invited_user_id: selectedUser?.id || user!.id,
+        invited_user_id: selectedUser?.id || null, // Only set if selecting existing user
         invited_by_user_id: user!.id,
         invited_label: selectedUser ? null : customLabel.trim(),
+        invited_email: null, // TrackInvite doesn't capture email
       } as any);
       
       if (error) throw error;
