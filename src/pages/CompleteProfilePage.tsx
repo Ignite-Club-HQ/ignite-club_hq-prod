@@ -1,18 +1,29 @@
 import { useState, useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { Flame, User, Camera, Loader2, Bell, Download, Fingerprint } from "lucide-react";
+import { Flame, User, Camera, Loader2, Bell, Download, Fingerprint, UserPlus, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { subscribeToPushNotifications, checkPushSubscription } from "@/lib/pushNotifications";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
+
+interface PendingInvite {
+  id: string;
+  team_id: string | null;
+  club_id: string | null;
+  role: string;
+  invited_label: string | null;
+  club_name?: string;
+  team_name?: string;
+}
 
 export default function CompleteProfilePage() {
   const { user, profile, loading: authLoading, profileLoading, profileError, refreshProfile } = useAuth();
@@ -29,6 +40,9 @@ export default function CompleteProfilePage() {
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const [biometricsLoading, setBiometricsLoading] = useState(false);
   const [showOpenAppMessage, setShowOpenAppMessage] = useState(false);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [acceptInvites, setAcceptInvites] = useState(true);
+  const [invitesLoading, setInvitesLoading] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { canPrompt, isInstalled, installApp, isReady: pwaReady, isIOS } = usePWAInstall();
@@ -59,6 +73,58 @@ export default function CompleteProfilePage() {
     checkFeatures();
   }, []);
 
+  // Fetch pending invites for the user's email
+  useEffect(() => {
+    const fetchPendingInvites = async () => {
+      if (!user?.email || authLoading) return;
+      
+      setInvitesLoading(true);
+      const userEmail = user.email.toLowerCase();
+      console.log('[CompleteProfile] Fetching pending invites for:', userEmail);
+      
+      try {
+        // Use RPC or direct query - the RLS policy should allow this
+        const { data: invites, error } = await supabase
+          .from("pending_invites")
+          .select(`
+            id,
+            team_id,
+            club_id,
+            role,
+            invited_label,
+            clubs:club_id(name),
+            teams:team_id(name)
+          `)
+          .ilike("invited_email", userEmail)
+          .eq("status", "pending");
+        
+        if (error) {
+          console.error('[CompleteProfile] Error fetching pending invites:', error);
+        } else if (invites && invites.length > 0) {
+          console.log('[CompleteProfile] Found pending invites:', invites);
+          const formattedInvites: PendingInvite[] = invites.map((inv: any) => ({
+            id: inv.id,
+            team_id: inv.team_id,
+            club_id: inv.club_id,
+            role: inv.role,
+            invited_label: inv.invited_label,
+            club_name: inv.clubs?.name,
+            team_name: inv.teams?.name,
+          }));
+          setPendingInvites(formattedInvites);
+        } else {
+          console.log('[CompleteProfile] No pending invites found');
+        }
+      } catch (err) {
+        console.error('[CompleteProfile] Exception fetching invites:', err);
+      } finally {
+        setInvitesLoading(false);
+      }
+    };
+    
+    fetchPendingInvites();
+  }, [user?.email, authLoading]);
+
   // Initialize form values once loading is complete, with pending invite prefill
   useEffect(() => {
     const initializeProfile = async () => {
@@ -68,23 +134,15 @@ export default function CompleteProfilePage() {
       let prefillName = profile?.display_name || "";
       const prefillAvatar = profile?.avatar_url || "";
       
-      // If no display name, check for pending invite with invited_label
-      if (!prefillName && user) {
-        // First try pending_invites table (for team invites with invited_label)
-        const { data: pendingInvite } = await supabase
-          .from("pending_invites")
-          .select("invited_label")
-          .eq("status", "pending")
-          .not("invited_label", "is", null)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        if (pendingInvite?.invited_label) {
-          prefillName = pendingInvite.invited_label;
+      // If no display name, use invite label or sessionStorage
+      if (!prefillName) {
+        // Check pending invites we already fetched
+        const inviteWithLabel = pendingInvites.find(inv => inv.invited_label);
+        if (inviteWithLabel?.invited_label) {
+          prefillName = inviteWithLabel.invited_label;
         }
         
-        // If still no name, check if there's a stored invite label from club/team join pages
+        // If still no name, check sessionStorage
         if (!prefillName) {
           const storedInviteLabel = sessionStorage.getItem("inviteLabel");
           if (storedInviteLabel) {
@@ -99,7 +157,7 @@ export default function CompleteProfilePage() {
     };
     
     initializeProfile();
-  }, [authLoading, profileLoading, profile, user, initialized]);
+  }, [authLoading, profileLoading, profile, initialized, pendingInvites]);
 
   // Show loading while auth, profile, or PWA detection is loading
   if (authLoading || profileLoading || !pwaReady) {
@@ -190,44 +248,8 @@ export default function CompleteProfilePage() {
         return;
       }
 
-      // After profile is created, check for pending invites and assign roles
-      // Match by email since invited_user_id may not be set correctly for new users
-      const userEmail = user.email?.toLowerCase();
-      console.log("[CompleteProfile] Checking for pending invites for email:", userEmail);
-      
-      let pendingInvites: any[] = [];
-      
-      if (userEmail) {
-        // First try matching by email
-        const { data: emailInvites, error: emailError } = await supabase
-          .from("pending_invites")
-          .select("id, team_id, club_id, role, invited_user_id, invited_email")
-          .eq("invited_email", userEmail)
-          .eq("status", "pending");
-        
-        if (emailError) {
-          console.error("[CompleteProfile] Error fetching invites by email:", emailError);
-        } else if (emailInvites && emailInvites.length > 0) {
-          pendingInvites = emailInvites;
-          console.log("[CompleteProfile] Found invites by email:", emailInvites.length);
-        }
-      }
-      
-      // Also check by user ID (in case invited_user_id was set correctly)
-      if (pendingInvites.length === 0) {
-        const { data: userIdInvites } = await supabase
-          .from("pending_invites")
-          .select("id, team_id, club_id, role, invited_user_id, invited_email")
-          .eq("invited_user_id", user.id)
-          .eq("status", "pending");
-        
-        if (userIdInvites && userIdInvites.length > 0) {
-          pendingInvites = userIdInvites;
-          console.log("[CompleteProfile] Found invites by user ID:", userIdInvites.length);
-        }
-      }
-
-      if (pendingInvites.length > 0) {
+      // Process pending invites if user opted in
+      if (acceptInvites && pendingInvites.length > 0) {
         console.log("[CompleteProfile] Processing pending invites:", pendingInvites.length);
         
         for (const invite of pendingInvites) {
@@ -249,7 +271,7 @@ export default function CompleteProfilePage() {
             .from("user_roles")
             .select("id")
             .eq("user_id", user.id)
-            .eq("role", invite.role);
+            .eq("role", invite.role as any);
           
           if (invite.team_id) {
             roleQuery.eq("team_id", invite.team_id);
@@ -266,13 +288,18 @@ export default function CompleteProfilePage() {
               .from("user_roles")
               .insert({
                 user_id: user.id,
-                role: invite.role,
+                role: invite.role as any,
                 team_id: invite.team_id || null,
                 club_id: clubId || null,
               });
 
             if (roleError) {
               console.error("[CompleteProfile] Failed to assign role from invite:", roleError);
+              toast({
+                title: "Role assignment failed",
+                description: `Could not assign ${invite.role} role. You may need to use the invite link again.`,
+                variant: "destructive",
+              });
             } else {
               console.log("[CompleteProfile] Successfully assigned role:", invite.role);
               
@@ -288,6 +315,12 @@ export default function CompleteProfilePage() {
               
               if (updateError) {
                 console.error("[CompleteProfile] Failed to update invite status:", updateError);
+              } else {
+                const entityName = invite.team_name || invite.club_name || "organization";
+                toast({
+                  title: "Invite accepted!",
+                  description: `You've joined ${entityName} as ${invite.role.replace("_", " ")}.`,
+                });
               }
             }
           } else {
@@ -303,8 +336,10 @@ export default function CompleteProfilePage() {
               .eq("id", invite.id);
           }
         }
+      } else if (pendingInvites.length > 0) {
+        console.log("[CompleteProfile] User opted out of accepting invites");
       } else {
-        console.log("[CompleteProfile] No pending invites found for user");
+        console.log("[CompleteProfile] No pending invites to process");
       }
 
       // If user opted in for push notifications, subscribe them
@@ -432,6 +467,48 @@ export default function CompleteProfilePage() {
                 maxLength={50}
               />
             </div>
+
+            {/* Pending Invites Section */}
+            {!invitesLoading && pendingInvites.length > 0 && (
+              <div className="p-4 rounded-lg border border-primary/30 bg-primary/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <UserPlus className="h-5 w-5 text-primary" />
+                    <div>
+                      <p className="font-medium text-sm">
+                        {pendingInvites.length === 1 ? "Pending Invitation" : `${pendingInvites.length} Pending Invitations`}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Accept invites to join organizations</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={acceptInvites}
+                    onCheckedChange={setAcceptInvites}
+                  />
+                </div>
+                
+                {/* List the invites */}
+                <div className="space-y-2 pt-2 border-t border-border/50">
+                  {pendingInvites.map((invite) => (
+                    <div key={invite.id} className="flex items-center gap-2 text-sm">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      <span className="flex-1 text-muted-foreground">
+                        {invite.team_name || invite.club_name || "Organization"}
+                      </span>
+                      <Badge variant="secondary" className="text-xs">
+                        {invite.role.replace("_", " ")}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+                
+                {!acceptInvites && (
+                  <p className="text-xs text-destructive">
+                    You can use the invite link later to join.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Push Notifications Toggle */}
             {pushSupported && (
