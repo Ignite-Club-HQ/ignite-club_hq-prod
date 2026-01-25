@@ -166,26 +166,27 @@ export default function JoinTeamPage() {
     enabled: !!user,
   });
 
-  // Validate name for pending invites - only allow new signups with matching name
+  // Validate name for pending invites - only block EXISTING users with a different name already set
+  // New signups (no display_name yet) are allowed - their name will be auto-set during join
   useEffect(() => {
-    if (isPendingInvite && pendingInviteData?.invited_label && userProfile !== undefined) {
+    if (isPendingInvite && pendingInviteData?.invited_label && user && userProfile !== undefined) {
       const expectedName = pendingInviteData.invited_label.toLowerCase().trim();
       const actualName = (userProfile?.display_name || "").toLowerCase().trim();
       
-      // If user already has a display_name set (existing account), block them
+      // Only block if user has an EXISTING display_name that doesn't match
+      // If display_name is empty, they're a new signup and we'll set their name during join
       if (actualName && actualName !== expectedName) {
         setNameValidationError(
-          `This invite link is only valid for new users signing up as "${pendingInviteData.invited_label}". You already have an account with a different name.`
+          `This invite was created for "${pendingInviteData.invited_label}". Your account name "${userProfile?.display_name}" doesn't match.`
         );
-      } else if (actualName && actualName === expectedName) {
-        // Existing user with matching name - this shouldn't happen normally but allow it
-        setNameValidationError(null);
       } else {
-        // No display_name yet - this is a new signup, will be set to invited_label
+        // Either name matches OR they have no display_name yet (new signup) - allow join
         setNameValidationError(null);
       }
+    } else {
+      setNameValidationError(null);
     }
-  }, [isPendingInvite, pendingInviteData, userProfile]);
+  }, [isPendingInvite, pendingInviteData, userProfile, user]);
 
   // Check if this is a fixed role invite (admin roles that don't allow additional selection)
   const isFixedRoleInvite = invite?.role && fixedRoles.includes(invite.role as AppRole);
@@ -734,9 +735,11 @@ export default function JoinTeamPage() {
               <p className="text-sm text-muted-foreground">
                 Invite for: <span className="font-medium text-foreground">{pendingInviteData.invited_label}</span>
               </p>
-              <p className="text-xs text-muted-foreground">
-                This link is only valid for new signups with this name
-              </p>
+              {!user && (
+                <p className="text-xs text-muted-foreground">
+                  Create an account to join as {pendingInviteData.invited_label}
+                </p>
+              )}
             </div>
           )}
         </CardHeader>
@@ -816,8 +819,8 @@ export default function JoinTeamPage() {
             {(joinMutation.isPending || authLoading) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {!user 
               ? (canPrompt && !isInstalled 
-                  ? "Install App & Sign in to Join"
-                  : "Sign in to Join")
+                  ? "Install App & Create Account"
+                  : "Create Account to Join")
               : nameValidationError 
                 ? "Cannot Join - Name Mismatch"
                 : isFixedRoleInvite
