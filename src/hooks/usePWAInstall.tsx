@@ -24,7 +24,13 @@ const MAX_INSTALLING_TIME = 10000;
 export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(globalDeferredPrompt);
   const [canPrompt, setCanPrompt] = useState(!!globalDeferredPrompt);
-  const [isInstalled, setIsInstalled] = useState(false);
+  // Check standalone mode immediately to prevent flash of install UI
+  const [isInstalled, setIsInstalled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.matchMedia("(display-mode: standalone)").matches;
+    }
+    return false;
+  });
   const [isInstalling, setIsInstalling] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isReady, setIsReady] = useState(false);
