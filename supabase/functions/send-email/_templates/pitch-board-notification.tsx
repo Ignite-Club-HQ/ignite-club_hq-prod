@@ -1,8 +1,10 @@
 import {
   Body,
+  Button,
   Container,
   Head,
   Heading,
+  Hr,
   Html,
   Img,
   Link,
@@ -23,11 +25,24 @@ interface PitchBoardNotificationEmailProps {
   position?: string;
   elapsedMinutes?: number;
   currentHalf?: number;
+  clubLogoUrl?: string;
+  primaryColor?: string;
 }
 
+// Production domain for all links
 const PRODUCTION_DOMAIN = 'https://igniteclubhq.app';
+
+// Ignite brand color - emerald green
 const IGNITE_BRAND_COLOR = '#10b981';
+
+// Ignite icon URL for footer (hosted on production domain)
 const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-email-icon.png`;
+
+// Check if a URL is a valid external URL (not base64)
+const isValidExternalUrl = (url?: string): boolean => {
+  if (!url) return false;
+  return url.startsWith('http://') || url.startsWith('https://');
+};
 
 const getNotificationTitle = (type: string): string => {
   switch (type) {
@@ -44,21 +59,6 @@ const getNotificationTitle = (type: string): string => {
   }
 };
 
-const getNotificationEmoji = (type: string): string => {
-  switch (type) {
-    case 'pending_sub':
-      return '🔄';
-    case 'half_time':
-      return '⏸️';
-    case 'full_time':
-      return '🏆';
-    case 'game_linked':
-      return '🔗';
-    default:
-      return '🏟️';
-  }
-};
-
 export const PitchBoardNotificationEmail = ({
   recipientName,
   teamName,
@@ -70,13 +70,14 @@ export const PitchBoardNotificationEmail = ({
   position,
   elapsedMinutes,
   currentHalf,
+  clubLogoUrl,
+  primaryColor = IGNITE_BRAND_COLOR,
 }: PitchBoardNotificationEmailProps) => {
   const title = getNotificationTitle(notificationType);
-  const emoji = getNotificationEmoji(notificationType);
   const previewText = `${title} - ${teamName}`;
-  
   const displayName = recipientName || 'Coach';
   const safeEventLink = eventLink?.startsWith('http') ? eventLink : `${PRODUCTION_DOMAIN}${eventLink || '/'}`;
+  const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
 
   return (
     <Html>
@@ -84,26 +85,33 @@ export const PitchBoardNotificationEmail = ({
       <Preview>{previewText}</Preview>
       <Body style={main}>
         <Container style={container}>
-          {/* Header */}
-          <Section style={header}>
-            <table width="100%" cellPadding="0" cellSpacing="0" style={{ margin: 0 }}>
-              <tr>
-                <td align="center">
-                  <Text style={headerTitle}>
-                    {emoji} Pitch Board
-                  </Text>
-                </td>
-              </tr>
-            </table>
+          {/* Header with Logo */}
+          <Section style={headerSection}>
+            {validClubLogoUrl ? (
+              <Img
+                src={validClubLogoUrl}
+                width="80"
+                height="80"
+                alt={teamName}
+                style={logoStyle}
+              />
+            ) : (
+              <div style={{ ...logoPlaceholder, backgroundColor: primaryColor }}>
+                <Text style={logoPlaceholderText}>
+                  {teamName.charAt(0).toUpperCase()}
+                </Text>
+              </div>
+            )}
+            <Text style={clubNameText}>{teamName}</Text>
           </Section>
 
+          <Hr style={divider} />
+
           {/* Main Content */}
-          <Section style={content}>
-            <Heading style={h1}>{title}</Heading>
+          <Section style={contentSection}>
+            <Heading style={heading}>{title}</Heading>
             
-            <Text style={teamNameStyle}>
-              {teamName}
-            </Text>
+            <Text style={contextLabel}>🏟️ Pitch Board</Text>
 
             {/* Notification Details Card */}
             <Section style={detailsCard}>
@@ -117,7 +125,7 @@ export const PitchBoardNotificationEmail = ({
                         <Text style={playerName}>{playerOutName}</Text>
                       </td>
                       <td style={arrowCell}>
-                        <Text style={arrowText}>→</Text>
+                        <Text style={{ ...arrowText, color: primaryColor }}>→</Text>
                       </td>
                       <td style={playerCell}>
                         <Text style={playerLabel}>On</Text>
@@ -173,43 +181,48 @@ export const PitchBoardNotificationEmail = ({
               )}
             </Section>
 
-            {/* CTA Button - Show different text for pending subs */}
+            {/* CTA Button */}
             {eventLink && (
-              <Section style={buttonContainer}>
-                <Link href={safeEventLink} style={button}>
+              <Section style={buttonSection}>
+                <Button style={{ ...button, backgroundColor: primaryColor }} href={safeEventLink}>
                   {notificationType === 'pending_sub' ? 'Open Pitch Board to Accept' : 'Open Pitch Board'}
-                </Link>
-                <Text style={linkFallback}>
-                  Or copy this link: {safeEventLink}
-                </Text>
+                </Button>
               </Section>
             )}
 
-            <Text style={footerText}>
-              You're receiving this because you have pitch board notifications enabled.
-              You can manage your notification preferences in the app settings.
+            <Text style={orText}>
+              Or copy and paste this link into your browser:
+            </Text>
+            <Text style={linkText}>
+              <Link href={safeEventLink} style={{ color: primaryColor }}>
+                {safeEventLink}
+              </Link>
             </Text>
           </Section>
 
+          <Hr style={divider} />
+
           {/* Footer */}
-          <Section style={footer}>
-            <table width="100%" cellPadding="0" cellSpacing="0">
+          <Section style={footerSection}>
+            <Text style={footerText}>
+              You're receiving this because you have pitch board notifications enabled.
+              <Link href={`${PRODUCTION_DOMAIN}/profile`} style={{ color: primaryColor }}> Manage notification preferences</Link>
+            </Text>
+            <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
               <tr>
-                <td align="center">
+                <td style={{ paddingRight: '8px', verticalAlign: 'middle' }}>
                   <Img
                     src={IGNITE_ICON_URL}
                     width="24"
                     height="24"
-                    alt="Ignite"
-                    style={{ display: 'inline-block', marginBottom: '8px' }}
+                    alt="Ignite Club HQ"
+                    style={igniteLogoStyle}
                   />
                 </td>
-              </tr>
-              <tr>
-                <td align="center">
-                  <Text style={footerBrand}>
+                <td style={{ verticalAlign: 'middle' }}>
+                  <Link href={PRODUCTION_DOMAIN} style={footerBrandTextLink}>
                     Powered by Ignite Club HQ
-                  </Text>
+                  </Link>
                 </td>
               </tr>
             </table>
@@ -225,56 +238,88 @@ export default PitchBoardNotificationEmail;
 // Styles
 const main = {
   backgroundColor: '#f6f9fc',
-  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, sans-serif',
+  fontFamily:
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, sans-serif',
 };
 
 const container = {
   backgroundColor: '#ffffff',
   margin: '0 auto',
   padding: '0',
-  marginBottom: '32px',
-  borderRadius: '8px',
-  overflow: 'hidden' as const,
-  maxWidth: '600px',
+  marginBottom: '40px',
+  borderRadius: '12px',
+  overflow: 'hidden',
+  maxWidth: '560px',
+  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.07)',
 };
 
-const header = {
-  backgroundColor: IGNITE_BRAND_COLOR,
-  padding: '24px 32px',
-};
-
-const headerTitle = {
-  color: '#ffffff',
-  fontSize: '18px',
-  fontWeight: 'bold' as const,
-  margin: '0',
+const headerSection = {
+  backgroundColor: '#fafafa',
+  padding: '32px 40px',
   textAlign: 'center' as const,
 };
 
-const content = {
-  padding: '32px',
+const logoStyle = {
+  margin: '0 auto',
+  borderRadius: '12px',
+  objectFit: 'cover' as const,
 };
 
-const h1 = {
-  color: '#1f2937',
-  fontSize: '24px',
-  fontWeight: 'bold' as const,
+const logoPlaceholder = {
+  width: '80px',
+  height: '80px',
+  borderRadius: '12px',
+  margin: '0 auto',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const logoPlaceholderText = {
+  color: '#ffffff',
+  fontSize: '36px',
+  fontWeight: 'bold',
+  margin: '0',
+  lineHeight: '80px',
+  textAlign: 'center' as const,
+};
+
+const clubNameText = {
+  color: '#1a1a1a',
+  fontSize: '18px',
+  fontWeight: '600',
+  margin: '16px 0 0 0',
+};
+
+const divider = {
+  borderColor: '#e6e6e6',
+  margin: '0',
+};
+
+const contentSection = {
+  padding: '32px 40px',
+};
+
+const heading = {
+  color: '#1a1a1a',
+  fontSize: '26px',
+  fontWeight: 'bold',
   margin: '0 0 8px 0',
   textAlign: 'center' as const,
 };
 
-const teamNameStyle = {
-  color: IGNITE_BRAND_COLOR,
-  fontSize: '16px',
-  fontWeight: '600' as const,
-  margin: '0 0 24px 0',
+const contextLabel = {
+  color: '#64748b',
+  fontSize: '14px',
   textAlign: 'center' as const,
+  margin: '0 0 24px 0',
+  fontWeight: '500',
 };
 
 const detailsCard = {
   backgroundColor: '#f8fafc',
-  borderRadius: '8px',
-  padding: '20px',
+  borderRadius: '12px',
+  padding: '20px 24px',
   marginBottom: '24px',
   border: '1px solid #e2e8f0',
 };
@@ -282,7 +327,7 @@ const detailsCard = {
 const subLabel = {
   color: '#64748b',
   fontSize: '12px',
-  fontWeight: '600' as const,
+  fontWeight: '600',
   textTransform: 'uppercase' as const,
   letterSpacing: '0.5px',
   margin: '0 0 8px 0',
@@ -301,7 +346,7 @@ const arrowCell = {
 const playerLabel = {
   color: '#94a3b8',
   fontSize: '11px',
-  fontWeight: '500' as const,
+  fontWeight: '500',
   textTransform: 'uppercase' as const,
   margin: '0 0 4px 0',
 };
@@ -309,14 +354,13 @@ const playerLabel = {
 const playerName = {
   color: '#1f2937',
   fontSize: '16px',
-  fontWeight: '600' as const,
+  fontWeight: '600',
   margin: '0',
 };
 
 const arrowText = {
-  color: IGNITE_BRAND_COLOR,
   fontSize: '24px',
-  fontWeight: 'bold' as const,
+  fontWeight: 'bold',
   margin: '0',
 };
 
@@ -345,20 +389,20 @@ const timeText = {
   display: 'inline-block' as const,
 };
 
-const buttonContainer = {
+const buttonSection = {
   textAlign: 'center' as const,
-  marginBottom: '24px',
+  margin: '32px 0',
 };
 
 const button = {
-  backgroundColor: IGNITE_BRAND_COLOR,
-  borderRadius: '6px',
+  borderRadius: '8px',
   color: '#ffffff',
-  display: 'inline-block',
   fontSize: '16px',
-  fontWeight: '600' as const,
-  padding: '14px 32px',
+  fontWeight: 'bold',
   textDecoration: 'none',
+  textAlign: 'center' as const,
+  display: 'inline-block',
+  padding: '14px 32px',
 };
 
 const acceptSubButton = {
@@ -367,35 +411,45 @@ const acceptSubButton = {
   color: '#ffffff',
   display: 'inline-block',
   fontSize: '14px',
-  fontWeight: '600' as const,
+  fontWeight: '600',
   padding: '10px 24px',
   textDecoration: 'none',
 };
 
-const linkFallback = {
-  color: '#9ca3af',
-  fontSize: '12px',
-  marginTop: '12px',
+const orText = {
+  color: '#8898aa',
+  fontSize: '13px',
+  textAlign: 'center' as const,
+  margin: '24px 0 8px 0',
+};
+
+const linkText = {
+  fontSize: '13px',
+  textAlign: 'center' as const,
+  margin: '0',
   wordBreak: 'break-all' as const,
 };
 
+const footerSection = {
+  backgroundColor: '#fafafa',
+  padding: '24px 40px',
+};
+
 const footerText = {
-  color: '#9ca3af',
+  color: '#8898aa',
   fontSize: '12px',
-  lineHeight: '1.5',
+  lineHeight: '20px',
+  margin: '0 0 12px 0',
   textAlign: 'center' as const,
-  margin: '0',
 };
 
-const footer = {
-  backgroundColor: '#f8fafc',
-  padding: '20px 32px',
-  borderTop: '1px solid #e2e8f0',
+const igniteLogoStyle = {
+  display: 'block',
+  borderRadius: '4px',
 };
 
-const footerBrand = {
-  color: '#9ca3af',
+const footerBrandTextLink = {
+  color: IGNITE_BRAND_COLOR,
   fontSize: '12px',
-  margin: '0',
-  textAlign: 'center' as const,
+  textDecoration: 'none',
 };

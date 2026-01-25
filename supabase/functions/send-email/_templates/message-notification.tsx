@@ -4,6 +4,7 @@ import {
   Container,
   Head,
   Heading,
+  Hr,
   Html,
   Img,
   Link,
@@ -18,12 +19,40 @@ interface MessageNotificationEmailProps {
   senderName: string;
   messagePreview: string;
   messageType: 'team' | 'club' | 'group' | 'direct' | 'broadcast';
-  contextName?: string; // team name, club name, group name, etc.
+  contextName?: string;
   messageLink: string;
   clubLogoUrl?: string;
   primaryColor?: string;
   hasImage?: boolean;
 }
+
+// Production domain for all links
+const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
+
+// Ignite brand color - emerald green
+const IGNITE_BRAND_COLOR = "#10b981";
+
+// Ignite icon URL for footer (hosted on production domain)
+const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-email-icon.png`;
+
+// Check if a URL is a valid external URL (not base64)
+const isValidExternalUrl = (url?: string): boolean => {
+  if (!url) return false;
+  return url.startsWith('http://') || url.startsWith('https://');
+};
+
+// Ensure link uses production domain
+const normalizeLink = (link: string): string => {
+  try {
+    const url = new URL(link);
+    return `${PRODUCTION_DOMAIN}${url.pathname}`;
+  } catch {
+    if (link.startsWith('/')) {
+      return `${PRODUCTION_DOMAIN}${link}`;
+    }
+    return link;
+  }
+};
 
 export const MessageNotificationEmail = ({
   recipientName,
@@ -33,15 +62,12 @@ export const MessageNotificationEmail = ({
   contextName,
   messageLink,
   clubLogoUrl,
-  primaryColor = '#10b981',
+  primaryColor = IGNITE_BRAND_COLOR,
   hasImage = false,
 }: MessageNotificationEmailProps) => {
   const previewText = `New message from ${senderName}${contextName ? ` in ${contextName}` : ''}`;
-  
-  // Ensure the link is absolute
-  const normalizedMessageLink = messageLink.startsWith('http') 
-    ? messageLink 
-    : `https://igniteclubhq.app${messageLink}`;
+  const normalizedMessageLink = normalizeLink(messageLink);
+  const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
 
   const getMessageTypeLabel = () => {
     switch (messageType) {
@@ -64,6 +90,8 @@ export const MessageNotificationEmail = ({
     ? messagePreview.substring(0, 150) + '...' 
     : messagePreview;
 
+  const displayContextName = contextName || 'Ignite Club HQ';
+
   return (
     <Html>
       <Head />
@@ -72,34 +100,29 @@ export const MessageNotificationEmail = ({
         <Container style={container}>
           {/* Header with Logo */}
           <Section style={headerSection}>
-            <table width="100%" cellPadding="0" cellSpacing="0" style={{ margin: 0 }}>
-              <tr>
-                <td align="center">
-                  {clubLogoUrl ? (
-                    <Img
-                      src={clubLogoUrl}
-                      width="60"
-                      height="60"
-                      alt="Club Logo"
-                      style={logoImage}
-                    />
-                  ) : (
-                    <Img
-                      src="https://igniteclubhq.app/ignite-email-icon.png"
-                      width="60"
-                      height="60"
-                      alt="Ignite Club HQ"
-                      style={logoImage}
-                    />
-                  )}
-                </td>
-              </tr>
-            </table>
+            {validClubLogoUrl ? (
+              <Img
+                src={validClubLogoUrl}
+                width="80"
+                height="80"
+                alt={displayContextName}
+                style={logoStyle}
+              />
+            ) : (
+              <div style={{ ...logoPlaceholder, backgroundColor: primaryColor }}>
+                <Text style={logoPlaceholderText}>
+                  {displayContextName.charAt(0).toUpperCase()}
+                </Text>
+              </div>
+            )}
+            <Text style={clubNameText}>{displayContextName}</Text>
           </Section>
+
+          <Hr style={divider} />
 
           {/* Main Content */}
           <Section style={contentSection}>
-            <Heading style={heading}>New Message</Heading>
+            <Heading style={heading}>💬 New Message</Heading>
             
             <Text style={contextLabel}>{getMessageTypeLabel()}</Text>
 
@@ -120,31 +143,42 @@ export const MessageNotificationEmail = ({
               </Button>
             </Section>
 
-            <Text style={promptText}>
-              Tap the button above to read the full message and reply!
+            <Text style={orText}>
+              Or copy and paste this link into your browser:
             </Text>
-            
-            <Text style={linkFallback}>
-              Or copy this link: <Link href={normalizedMessageLink} style={{ color: primaryColor }}>{normalizedMessageLink}</Link>
+            <Text style={linkText}>
+              <Link href={normalizedMessageLink} style={{ color: primaryColor }}>
+                {normalizedMessageLink}
+              </Link>
             </Text>
           </Section>
+
+          <Hr style={divider} />
 
           {/* Footer */}
           <Section style={footerSection}>
             <Text style={footerText}>
               You're receiving this because you have message notifications enabled.
+              <Link href={`${PRODUCTION_DOMAIN}/profile`} style={{ color: primaryColor }}> Manage notification preferences</Link>
             </Text>
-            <Text style={footerText}>
-              <Link href="https://igniteclubhq.app/profile" style={footerLink}>
-                Manage notification preferences
-              </Link>
-            </Text>
-            <Text style={footerBrand}>
-              Powered by{' '}
-              <Link href="https://igniteclubhq.app" style={{ ...footerLink, color: primaryColor }}>
-                Ignite Club HQ
-              </Link>
-            </Text>
+            <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
+              <tr>
+                <td style={{ paddingRight: '8px', verticalAlign: 'middle' }}>
+                  <Img
+                    src={IGNITE_ICON_URL}
+                    width="24"
+                    height="24"
+                    alt="Ignite Club HQ"
+                    style={igniteLogoStyle}
+                  />
+                </td>
+                <td style={{ verticalAlign: 'middle' }}>
+                  <Link href={PRODUCTION_DOMAIN} style={footerBrandTextLink}>
+                    Powered by Ignite Club HQ
+                  </Link>
+                </td>
+              </tr>
+            </table>
           </Section>
         </Container>
       </Body>
@@ -156,39 +190,75 @@ export default MessageNotificationEmail;
 
 // Styles
 const main = {
-  backgroundColor: '#f8fafc',
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif",
+  backgroundColor: '#f6f9fc',
+  fontFamily:
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, sans-serif',
 };
 
 const container = {
+  backgroundColor: '#ffffff',
   margin: '0 auto',
-  padding: '20px 0 48px',
-  maxWidth: '600px',
+  padding: '0',
+  marginBottom: '40px',
+  borderRadius: '12px',
+  overflow: 'hidden',
+  maxWidth: '560px',
+  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.07)',
 };
 
 const headerSection = {
-  padding: '32px 24px 24px',
+  backgroundColor: '#fafafa',
+  padding: '32px 40px',
   textAlign: 'center' as const,
 };
 
-const logoImage = {
+const logoStyle = {
+  margin: '0 auto',
   borderRadius: '12px',
+  objectFit: 'cover' as const,
+};
+
+const logoPlaceholder = {
+  width: '80px',
+  height: '80px',
+  borderRadius: '12px',
+  margin: '0 auto',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const logoPlaceholderText = {
+  color: '#ffffff',
+  fontSize: '36px',
+  fontWeight: 'bold',
+  margin: '0',
+  lineHeight: '80px',
+  textAlign: 'center' as const,
+};
+
+const clubNameText = {
+  color: '#1a1a1a',
+  fontSize: '18px',
+  fontWeight: '600',
+  margin: '16px 0 0 0',
+};
+
+const divider = {
+  borderColor: '#e6e6e6',
+  margin: '0',
 };
 
 const contentSection = {
-  backgroundColor: '#ffffff',
-  borderRadius: '16px',
-  padding: '32px 24px',
-  margin: '0 16px',
-  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+  padding: '32px 40px',
 };
 
 const heading = {
-  color: '#1e293b',
-  fontSize: '24px',
-  fontWeight: '700',
-  textAlign: 'center' as const,
+  color: '#1a1a1a',
+  fontSize: '28px',
+  fontWeight: 'bold',
   margin: '0 0 8px 0',
+  textAlign: 'center' as const,
 };
 
 const contextLabel = {
@@ -200,75 +270,77 @@ const contextLabel = {
 };
 
 const messageCard = {
-  backgroundColor: '#f1f5f9',
+  backgroundColor: '#f8fafc',
   borderRadius: '12px',
-  padding: '16px 20px',
+  padding: '20px 24px',
   margin: '0 0 24px 0',
+  border: '1px solid #e2e8f0',
 };
 
 const senderText = {
-  color: '#334155',
-  fontSize: '14px',
+  color: '#1e293b',
+  fontSize: '15px',
   margin: '0 0 8px 0',
 };
 
 const messageText = {
   color: '#475569',
   fontSize: '15px',
-  lineHeight: '22px',
+  lineHeight: '24px',
   margin: '0',
   fontStyle: 'italic' as const,
 };
 
 const buttonSection = {
   textAlign: 'center' as const,
-  margin: '24px 0 16px 0',
+  margin: '32px 0',
 };
 
 const button = {
   borderRadius: '8px',
   color: '#ffffff',
   fontSize: '16px',
-  fontWeight: '600',
+  fontWeight: 'bold',
   textDecoration: 'none',
   textAlign: 'center' as const,
   display: 'inline-block',
   padding: '14px 32px',
 };
 
-const promptText = {
-  color: '#64748b',
-  fontSize: '14px',
+const orText = {
+  color: '#8898aa',
+  fontSize: '13px',
   textAlign: 'center' as const,
-  margin: '0 0 8px 0',
+  margin: '24px 0 8px 0',
 };
 
-const linkFallback = {
-  color: '#94a3b8',
-  fontSize: '11px',
+const linkText = {
+  fontSize: '13px',
   textAlign: 'center' as const,
-  margin: '12px 0 0 0',
+  margin: '0',
   wordBreak: 'break-all' as const,
 };
 
 const footerSection = {
-  padding: '32px 24px',
-  textAlign: 'center' as const,
+  backgroundColor: '#fafafa',
+  padding: '24px 40px',
 };
 
 const footerText = {
-  color: '#94a3b8',
+  color: '#8898aa',
   fontSize: '12px',
-  margin: '0 0 8px 0',
+  lineHeight: '20px',
+  margin: '0 0 12px 0',
+  textAlign: 'center' as const,
 };
 
-const footerLink = {
-  color: '#64748b',
-  textDecoration: 'underline',
+const igniteLogoStyle = {
+  display: 'block',
+  borderRadius: '4px',
 };
 
-const footerBrand = {
-  color: '#cbd5e1',
-  fontSize: '11px',
-  margin: '16px 0 0 0',
+const footerBrandTextLink = {
+  color: IGNITE_BRAND_COLOR,
+  fontSize: '12px',
+  textDecoration: 'none',
 };
