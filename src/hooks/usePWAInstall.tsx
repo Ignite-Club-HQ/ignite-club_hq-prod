@@ -17,7 +17,9 @@ if (typeof window !== 'undefined') {
 }
 
 // Minimum time to show "Installing..." state (in ms)
-const MIN_INSTALLING_TIME = 3000;
+const MIN_INSTALLING_TIME = 6000;
+// Maximum time to wait for appinstalled event before auto-transitioning
+const MAX_INSTALLING_TIME = 20000;
 
 export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(globalDeferredPrompt);
@@ -142,6 +144,19 @@ export function usePWAInstall() {
         setIsInstalling(true);
         console.log("[PWA] User accepted install, isInstalling = true");
         
+        // Set a maximum timeout in case appinstalled event never fires
+        setTimeout(() => {
+          if (installAcceptedAt.current) {
+            console.log("[PWA] Max install time reached, completing anyway");
+            setIsInstalling(false);
+            setIsInstalled(true);
+            setCanPrompt(false);
+            setDeferredPrompt(null);
+            globalDeferredPrompt = null;
+            installAcceptedAt.current = null;
+          }
+        }, MAX_INSTALLING_TIME);
+        
         // If appinstalled already fired (rare), handle it now with minimum delay
         if (appInstalledEventFired.current) {
           console.log("[PWA] appinstalled already fired, waiting minimum time");
@@ -152,6 +167,7 @@ export function usePWAInstall() {
             setCanPrompt(false);
             setDeferredPrompt(null);
             globalDeferredPrompt = null;
+            installAcceptedAt.current = null;
           }, MIN_INSTALLING_TIME);
         }
       }
