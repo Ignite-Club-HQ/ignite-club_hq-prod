@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.send-points-notification-email]
 verify_jwt = false
+
+[functions.send-reward-redeemed-email]
+verify_jwt = false

@@ -509,6 +509,7 @@ export default function HomePage() {
   const redeemMutation = useMutation({
     mutationFn: async ({ reward, forChildId }: { reward: any; forChildId: string | null }) => {
       let pointsSource: { id: string; points: number; isChild: boolean };
+      let childName: string | null = null;
       
       if (forChildId) {
         const child = userChildren.find(c => c.id === forChildId);
@@ -517,6 +518,7 @@ export default function HomePage() {
           throw new Error(`${child.name} doesn't have enough points`);
         }
         pointsSource = { id: forChildId, points: child.ignite_points, isChild: true };
+        childName = child.name;
       } else {
         const currentPoints = profile?.ignite_points || 0;
         if (currentPoints < reward.points_required) {
@@ -537,21 +539,52 @@ export default function HomePage() {
 
       if (redemptionError) throw redemptionError;
 
+      const remainingPoints = pointsSource.points - reward.points_required;
+
       if (pointsSource.isChild) {
         const { error: updateError } = await supabase
           .from("children")
-          .update({ ignite_points: pointsSource.points - reward.points_required })
+          .update({ ignite_points: remainingPoints })
           .eq("id", pointsSource.id);
         if (updateError) throw updateError;
       } else {
         const { error: updateError } = await supabase
           .from("profiles")
           .update({
-            ignite_points: pointsSource.points - reward.points_required,
+            ignite_points: remainingPoints,
             has_sausage_reward: false,
           })
           .eq("id", user!.id);
         if (updateError) throw updateError;
+      }
+
+      // Get club details for email
+      const { data: club } = await supabase
+        .from("clubs")
+        .select("name, logo_url")
+        .eq("id", reward.club_id)
+        .single();
+
+      // Send email notification
+      try {
+        await supabase.functions.invoke('send-reward-redeemed-email', {
+          body: {
+            recipientUserId: user!.id,
+            rewardName: reward.name,
+            pointsSpent: reward.points_required,
+            remainingPoints,
+            clubName: club?.name || 'Your Club',
+            rewardDescription: reward.description,
+            sponsorName: reward.sponsors?.name,
+            showQrCode: reward.show_qr_code,
+            clubLogoUrl: club?.logo_url,
+            rewardLogoUrl: reward.logo_url,
+            redeemedForChildName: childName || undefined,
+          },
+        });
+      } catch (emailErr) {
+        console.error("Failed to send reward redeemed email:", emailErr);
+        // Don't throw - redemption was still successful
       }
     },
     onSuccess: () => {
