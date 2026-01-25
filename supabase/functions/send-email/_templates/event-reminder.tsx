@@ -155,12 +155,16 @@ export const EventReminderEmail = ({
 
             <Section style={buttonSection}>
               <Button style={{ ...button, backgroundColor: primaryColor }} href={normalizedEventLink}>
-                View Event Details
+                View Event & RSVP Now
               </Button>
             </Section>
 
-            <Text style={reminderNote}>
-              Please update your attendance if you haven't already!
+            <Text style={rsvpPrompt}>
+              <strong>Haven't responded yet?</strong> Tap the button above to RSVP and let your team know if you can make it!
+            </Text>
+            
+            <Text style={linkFallback}>
+              Or copy this link: <Link href={normalizedEventLink} style={{ color: primaryColor }}>{normalizedEventLink}</Link>
             </Text>
           </Section>
 
@@ -347,12 +351,20 @@ const button = {
   padding: '14px 32px',
 };
 
-const reminderNote = {
-  color: '#64748b',
-  fontSize: '14px',
+const rsvpPrompt = {
+  color: '#1e293b',
+  fontSize: '15px',
   textAlign: 'center' as const,
-  margin: '0',
-  fontStyle: 'italic',
+  margin: '16px 0 0 0',
+  lineHeight: '22px',
+};
+
+const linkFallback = {
+  color: '#64748b',
+  fontSize: '12px',
+  textAlign: 'center' as const,
+  margin: '12px 0 0 0',
+  wordBreak: 'break-all' as const,
 };
 
 const footerSection = {
