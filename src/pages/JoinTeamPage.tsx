@@ -447,15 +447,19 @@ export default function JoinTeamPage() {
 
   // Handle join action - redirect to auth if not logged in
   const handleJoinClick = async () => {
+    // Try to install PWA first - await the user's choice before proceeding
+    if (canPrompt && !isInstalled) {
+      await installApp();
+    }
+    
+    // If not logged in, redirect to auth
     if (!user) {
       sessionStorage.setItem("redirectAfterAuth", location.pathname);
       navigate("/auth");
       return;
     }
-    // Try to install PWA first (if possible), then join
-    if (canPrompt && !isInstalled) {
-      await installApp();
-    }
+    
+    // User is logged in - proceed with join (may need photo consent for parent role)
     joinMutation.mutate();
   };
 
@@ -726,8 +730,10 @@ export default function JoinTeamPage() {
           >
             {(joinMutation.isPending || authLoading) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {!user 
-              ? "Sign in to Join"
-              : nameValidationError
+              ? (canPrompt && !isInstalled 
+                  ? "Install App & Sign in to Join"
+                  : "Sign in to Join")
+              : nameValidationError 
                 ? "Cannot Join - Name Mismatch"
                 : isFixedRoleInvite
                   ? (canPrompt && !isInstalled 
