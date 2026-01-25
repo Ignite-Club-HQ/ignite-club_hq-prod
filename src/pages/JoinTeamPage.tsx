@@ -698,6 +698,41 @@ export default function JoinTeamPage() {
       </div>
     );
   }
+  // Show installing state while app is being installed
+  if (isInstalling && !isInstalled) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <InviteFlowProgress 
+          currentStep="install" 
+          isIOS={isIOS}
+          isExistingUser={false}
+          className="fixed top-0 left-0 right-0"
+        />
+        <div className="flex-1 flex items-center justify-center p-4 pt-16">
+          <Card className="w-full max-w-md">
+            <CardContent className="p-8 text-center space-y-6">
+              <div className="relative mx-auto w-24 h-24">
+                <img 
+                  src="/ignite-logo.png" 
+                  alt="Ignite" 
+                  className="w-full h-full object-contain"
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-28 h-28 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold">Installing App...</h2>
+                <p className="text-muted-foreground">
+                  Please wait while Ignite is added to your home screen.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   // Show installed guide if user just installed the PWA
   if (showInstalledGuide) {
