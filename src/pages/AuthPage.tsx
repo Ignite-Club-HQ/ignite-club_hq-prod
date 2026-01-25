@@ -74,8 +74,13 @@ export default function AuthPage() {
   }
 
   if (user) {
-    // Always go to home - AppLayout will handle redirecting to /complete-profile if needed
-    // The redirectAfterAuth is preserved in sessionStorage for CompleteProfilePage to use
+    // Check for pending redirect (e.g., from invite link) before going to default
+    const redirectPath = sessionStorage.getItem("redirectAfterAuth");
+    if (redirectPath) {
+      sessionStorage.removeItem("redirectAfterAuth");
+      return <Navigate to={redirectPath} replace />;
+    }
+    // Default to home - AppLayout will handle redirecting to /complete-profile if needed
     return <Navigate to="/" replace />;
   }
 
