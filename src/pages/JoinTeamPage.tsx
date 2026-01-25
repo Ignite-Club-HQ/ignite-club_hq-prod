@@ -712,7 +712,13 @@ export default function JoinTeamPage() {
           )}
 
           <Button 
-            onClick={() => joinMutation.mutate()} 
+            onClick={async () => {
+              // Try to install PWA first (if possible), then join
+              if (canPrompt && !isInstalled) {
+                await installApp();
+              }
+              joinMutation.mutate();
+            }} 
             disabled={joinMutation.isPending || selectedRoles.length === 0 || !!nameValidationError}
             className="w-full"
             size="lg"
@@ -721,10 +727,14 @@ export default function JoinTeamPage() {
             {nameValidationError 
               ? "Cannot Join - Name Mismatch"
               : isFixedRoleInvite
-                ? `Join as ${roleLabels[invite.role as AppRole]}`
+                ? (canPrompt && !isInstalled 
+                    ? `Install App & Join as ${roleLabels[invite.role as AppRole]}`
+                    : `Join as ${roleLabels[invite.role as AppRole]}`)
                 : selectedRoles.length === 0 
                   ? "Select at least one role" 
-                  : `Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`
+                  : (canPrompt && !isInstalled
+                      ? `Install App & Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`
+                      : `Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`)
             }
           </Button>
           <Button 
@@ -735,8 +745,8 @@ export default function JoinTeamPage() {
             Cancel
           </Button>
 
-          {/* App install instructions - show on join form if not installed */}
-          {!isInstalled && (
+          {/* iOS install instructions - show on join form if not installed (iOS can't prompt directly) */}
+          {!isInstalled && isIOS && (
             <div className="border-t border-border pt-4 mt-4 space-y-3">
               <div className="flex items-center justify-center gap-2">
                 <Smartphone className="h-4 w-4 text-primary" />
@@ -745,41 +755,27 @@ export default function JoinTeamPage() {
               <p className="text-xs text-muted-foreground text-center">
                 For the best experience with push notifications and offline access
               </p>
-
-              {isIOS ? (
-                <div className="space-y-2 bg-muted/50 rounded-lg p-3">
-                  <p className="text-xs font-medium text-center mb-2">Add to your home screen:</p>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-medium">1</span>
-                      <span className="flex items-center gap-1.5">
-                        Tap the <Share className="h-3.5 w-3.5 text-primary" /> Share button
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-medium">2</span>
-                      <span className="flex items-center gap-1.5">
-                        Tap <PlusSquare className="h-3.5 w-3.5 text-primary" /> "Add to Home Screen"
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-medium">3</span>
-                      <span>Tap "Add" to install</span>
-                    </div>
+              <div className="space-y-2 bg-muted/50 rounded-lg p-3">
+                <p className="text-xs font-medium text-center mb-2">Add to your home screen:</p>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-medium">1</span>
+                    <span className="flex items-center gap-1.5">
+                      Tap the <Share className="h-3.5 w-3.5 text-primary" /> Share button
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-medium">2</span>
+                    <span className="flex items-center gap-1.5">
+                      Tap <PlusSquare className="h-3.5 w-3.5 text-primary" /> "Add to Home Screen"
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-medium">3</span>
+                    <span>Tap "Add" to install</span>
                   </div>
                 </div>
-              ) : canPrompt ? (
-                <Button onClick={async () => await installApp()} className="w-full" variant="outline" size="sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  Install App
-                </Button>
-              ) : (
-                <div className="bg-muted/50 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground text-center">
-                    Look for "Add to Home Screen" or "Install App" in your browser menu.
-                  </p>
-                </div>
-              )}
+              </div>
             </div>
           )}
         </CardContent>
