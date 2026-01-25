@@ -91,9 +91,16 @@ Deno.serve(async (req) => {
 
     const recipientName = profile?.display_name || 'Coach';
 
-    // Build event link
+    // Build event link - for pending subs, link directly to pitch board with action param
     let eventLink = '/';
-    if (eventId) {
+    if (notificationType === 'pending_sub') {
+      // Direct link to team page with pitch board and pending sub action
+      if (teamId) {
+        eventLink = `/teams/${teamId}?tab=pitch-board&action=accept-sub`;
+      } else if (eventId) {
+        eventLink = `/events/${eventId}?action=accept-sub`;
+      }
+    } else if (eventId) {
       eventLink = `/events/${eventId}`;
     } else if (teamId) {
       eventLink = `/teams/${teamId}`;

@@ -128,6 +128,14 @@ export const PitchBoardNotificationEmail = ({
                   {position && (
                     <Text style={positionText}>Position: {position}</Text>
                   )}
+                  {/* Direct action button for pending subs */}
+                  {eventLink && (
+                    <Section style={{ textAlign: 'center' as const, marginTop: '16px' }}>
+                      <Link href={safeEventLink} style={acceptSubButton}>
+                        ✓ Accept Substitution
+                      </Link>
+                    </Section>
+                  )}
                 </>
               )}
 
@@ -165,11 +173,11 @@ export const PitchBoardNotificationEmail = ({
               )}
             </Section>
 
-            {/* CTA Button */}
+            {/* CTA Button - Show different text for pending subs */}
             {eventLink && (
               <Section style={buttonContainer}>
                 <Link href={safeEventLink} style={button}>
-                  Open Pitch Board
+                  {notificationType === 'pending_sub' ? 'Open Pitch Board to Accept' : 'Open Pitch Board'}
                 </Link>
                 <Text style={linkFallback}>
                   Or copy this link: {safeEventLink}
@@ -350,6 +358,17 @@ const button = {
   fontSize: '16px',
   fontWeight: '600' as const,
   padding: '14px 32px',
+  textDecoration: 'none',
+};
+
+const acceptSubButton = {
+  backgroundColor: '#059669',
+  borderRadius: '6px',
+  color: '#ffffff',
+  display: 'inline-block',
+  fontSize: '14px',
+  fontWeight: '600' as const,
+  padding: '10px 24px',
   textDecoration: 'none',
 };
 
