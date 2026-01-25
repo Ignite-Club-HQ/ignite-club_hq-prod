@@ -13,6 +13,7 @@ import { PWAInstallDialog } from "@/components/PWAInstallDialog";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { IOSInstallGuide } from "@/components/IOSInstallGuide";
 import { PWAInstalledGuide } from "@/components/PWAInstalledGuide";
+import { InviteFlowProgress, setInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -109,6 +110,28 @@ export default function JoinClubPage() {
 
   // Check if user needs to complete their profile first
   const needsProfileCompletion = user && userProfile !== undefined && !userProfile?.display_name;
+
+  // Set up invite flow context when invite is loaded (for progress tracking across pages)
+  useEffect(() => {
+    if (invite) {
+      setInviteFlowContext({
+        active: true,
+        clubName: invite.clubs?.name || undefined,
+        clubLogoUrl: invite.clubs?.logo_url || undefined,
+        teamName: undefined,
+        role: invite.role,
+        inviteToken: token,
+        isIOS: isIOS,
+      });
+    }
+  }, [invite, token, isIOS]);
+
+  // Clear invite flow context on successful join
+  useEffect(() => {
+    if (joined) {
+      clearInviteFlowContext();
+    }
+  }, [joined]);
 
   const joinMutation = useMutation({
     mutationFn: async () => {
@@ -343,7 +366,7 @@ export default function JoinClubPage() {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardContent className="p-6 text-center">
-            <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+            <CheckCircle className="h-12 w-12 text-primary mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Welcome to the Club!</h2>
             <p className="text-muted-foreground mb-4">
               You've successfully joined {invite.clubs?.name}.
@@ -362,7 +385,16 @@ export default function JoinClubPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Fixed progress indicator at top */}
+      <InviteFlowProgress 
+        currentStep={showInstalledGuide ? "install" : "view"} 
+        isIOS={isIOS}
+        isExistingUser={!!user}
+        className="fixed top-0 left-0 right-0"
+      />
+      
+      <div className="flex-1 flex items-center justify-center p-4 pt-16">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
@@ -423,6 +455,7 @@ export default function JoinClubPage() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
