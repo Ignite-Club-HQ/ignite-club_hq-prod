@@ -15,7 +15,7 @@ import { PhotoConsentDialog } from "@/components/PhotoConsentDialog";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { IOSInstallGuide } from "@/components/IOSInstallGuide";
 import { PWAInstalledGuide } from "@/components/PWAInstalledGuide";
-import { InviteFlowProgress, setInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
+import { InviteFlowProgress, setInviteFlowContext, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -55,8 +55,10 @@ export default function JoinTeamPage() {
   
   // Watch for installation completion - show guide only after app is actually installed
   useEffect(() => {
+    console.log("[JoinTeam] Install state check - isInstalling:", isInstalling, "isInstalled:", isInstalled);
     if (isInstalling && isInstalled) {
       // App finished installing - show the installed guide
+      console.log("[JoinTeam] Installation complete, showing guide");
       setIsInstalling(false);
       setShowInstalledGuide(true);
     }
@@ -210,6 +212,10 @@ export default function JoinTeamPage() {
   // Set up invite flow context when invite is loaded (for progress tracking across pages)
   useEffect(() => {
     if (invite) {
+      // Check if we're resuming from a stored context (e.g., after PWA install)
+      const existingContext = getInviteFlowContext();
+      const resumeStep = existingContext?.currentStep;
+      
       setInviteFlowContext({
         active: true,
         clubName: invite.teams?.clubs?.name || undefined,
@@ -218,6 +224,8 @@ export default function JoinTeamPage() {
         role: invite.role,
         inviteToken: token,
         isIOS: isIOS,
+        // Preserve current step if resuming, otherwise start at 'view'
+        currentStep: resumeStep || "view",
       });
     }
   }, [invite, token, isIOS]);
@@ -575,9 +583,17 @@ export default function JoinTeamPage() {
       // Try to install PWA first - await the user's choice before proceeding
       if (canPrompt && !isInstalled) {
         setIsInstalling(true);
-        // Store invite data now in case we need it after install completes
+        // Store invite data and update flow context for install step
         localStorage.setItem("pwa_pending_invite", location.pathname);
         sessionStorage.setItem("autoJoinAfterAuth", "true");
+        
+        // Update invite flow context to track we're at install step
+        const existingContext = getInviteFlowContext();
+        setInviteFlowContext({
+          ...existingContext,
+          active: true,
+          currentStep: "install",
+        });
         
         const accepted = await installApp();
         

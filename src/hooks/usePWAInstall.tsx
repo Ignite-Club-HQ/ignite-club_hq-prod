@@ -50,6 +50,7 @@ export function usePWAInstall() {
       };
 
       const handleAppInstalled = () => {
+        console.log("[PWA] appinstalled event fired - installation complete");
         setIsInstalled(true);
         setCanPrompt(false);
         setDeferredPrompt(null);
@@ -84,8 +85,10 @@ export function usePWAInstall() {
     }
 
     try {
+      console.log("[PWA] Showing install prompt...");
       await promptToUse.prompt();
       const { outcome } = await promptToUse.userChoice;
+      console.log("[PWA] User choice:", outcome);
       
       // NOTE: Don't set isInstalled here! The user has only ACCEPTED the prompt,
       // but installation is still in progress. The 'appinstalled' event handler
