@@ -117,7 +117,7 @@ function formatEventDate(dateStr: string) {
 }
 
 export default function HomePage() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -166,6 +166,11 @@ export default function HomePage() {
   const [eventToRemind, setEventToRemind] = useState<Event | null>(null);
   const [nonRsvpCount, setNonRsvpCount] = useState(0);
   const [loadingRemindCount, setLoadingRemindCount] = useState(false);
+  const [rewardsDialogOpen, setRewardsDialogOpen] = useState(false);
+  const [selectedRewardClubId, setSelectedRewardClubId] = useState<string | null>(null);
+  const [selectedReward, setSelectedReward] = useState<any>(null);
+  const [confirmRedeemDialogOpen, setConfirmRedeemDialogOpen] = useState(false);
+  const [selectedRedeemFor, setSelectedRedeemFor] = useState<string>("myself");
 
   const { data: allEvents, isLoading } = useQuery({
     queryKey: ["upcoming-events", user?.id],
@@ -386,6 +391,190 @@ export default function HomePage() {
       return false;
     },
     enabled: !!user && !!userRoles,
+  });
+
+  // Fetch clubs for rewards with Pro status
+  const { data: rewardClubs = [] } = useQuery({
+    queryKey: ["reward-clubs-home", user?.id, activeClubFilter],
+    queryFn: async () => {
+      // If active club filter, only return that club
+      if (activeClubFilter) {
+        const { data: club } = await supabase
+          .from("clubs")
+          .select("id, name, logo_url")
+          .eq("id", activeClubFilter)
+          .single();
+
+        if (!club) return [];
+
+        const { data: subscription } = await supabase
+          .from("club_subscriptions")
+          .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+          .eq("club_id", activeClubFilter)
+          .maybeSingle();
+
+        const hasPro = subscription?.is_pro || subscription?.is_pro_football || 
+                       subscription?.admin_pro_override || subscription?.admin_pro_football_override;
+        return [{ ...club, hasPro: !!hasPro }];
+      }
+
+      // Get all user's clubs
+      if (!userRoles) return [];
+      const clubIds = new Set<string>();
+      userRoles.forEach(role => {
+        if (role.club_id) clubIds.add(role.club_id);
+      });
+
+      const teamIds = userRoles.filter(r => r.team_id).map(r => r.team_id) as string[];
+      if (teamIds.length > 0) {
+        const { data: teamsData } = await supabase
+          .from("teams")
+          .select("club_id")
+          .in("id", teamIds);
+        teamsData?.forEach(t => {
+          if (t.club_id) clubIds.add(t.club_id);
+        });
+      }
+
+      if (clubIds.size === 0) return [];
+
+      const { data: clubs } = await supabase
+        .from("clubs")
+        .select("id, name, logo_url")
+        .in("id", Array.from(clubIds));
+
+      const { data: subscriptions } = await supabase
+        .from("club_subscriptions")
+        .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+        .in("club_id", Array.from(clubIds));
+
+      return (clubs || []).map(club => {
+        const sub = subscriptions?.find(s => s.club_id === club.id);
+        const hasPro = sub?.is_pro || sub?.is_pro_football || sub?.admin_pro_override || sub?.admin_pro_football_override;
+        return { ...club, hasPro: !!hasPro };
+      });
+    },
+    enabled: !!user,
+  });
+
+  // Fetch rewards for selected club
+  const { data: availableRewards = [], isLoading: rewardsLoading } = useQuery({
+    queryKey: ["home-available-rewards", selectedRewardClubId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("club_rewards")
+        .select("*, sponsors(id, name, logo_url)")
+        .eq("club_id", selectedRewardClubId!)
+        .eq("is_active", true)
+        .neq("reward_type", "player_of_match")
+        .order("points_required", { ascending: true });
+      return data || [];
+    },
+    enabled: !!selectedRewardClubId,
+  });
+
+  // Fetch user's children for reward redemption
+  const { data: userChildren = [] } = useQuery({
+    queryKey: ["user-children-home", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("children")
+        .select("id, name, ignite_points")
+        .eq("parent_id", user!.id)
+        .order("name");
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Handle opening rewards dialog
+  const handleBrowseRewards = () => {
+    const proClubs = rewardClubs.filter((club: any) => isAppAdmin || club.hasPro);
+    
+    // In club mode with single Pro club, auto-select it
+    if (activeClubFilter && proClubs.length === 1) {
+      setSelectedRewardClubId(proClubs[0].id);
+      setRewardsDialogOpen(true);
+    } else if (proClubs.length === 1) {
+      // Only one Pro club total
+      setSelectedRewardClubId(proClubs[0].id);
+      setRewardsDialogOpen(true);
+    } else if (proClubs.length > 1) {
+      // Multiple clubs - show club selection first
+      setRewardsDialogOpen(true);
+    }
+  };
+
+  // Redeem mutation
+  const redeemMutation = useMutation({
+    mutationFn: async ({ reward, forChildId }: { reward: any; forChildId: string | null }) => {
+      let pointsSource: { id: string; points: number; isChild: boolean };
+      
+      if (forChildId) {
+        const child = userChildren.find(c => c.id === forChildId);
+        if (!child) throw new Error("Child not found");
+        if (child.ignite_points < reward.points_required) {
+          throw new Error(`${child.name} doesn't have enough points`);
+        }
+        pointsSource = { id: forChildId, points: child.ignite_points, isChild: true };
+      } else {
+        const currentPoints = profile?.ignite_points || 0;
+        if (currentPoints < reward.points_required) {
+          throw new Error("Not enough points");
+        }
+        pointsSource = { id: user!.id, points: currentPoints, isChild: false };
+      }
+
+      const { error: redemptionError } = await supabase
+        .from("reward_redemptions")
+        .insert({
+          user_id: user!.id,
+          reward_id: reward.id,
+          club_id: reward.club_id,
+          points_spent: reward.points_required,
+          child_id: forChildId,
+        });
+
+      if (redemptionError) throw redemptionError;
+
+      if (pointsSource.isChild) {
+        const { error: updateError } = await supabase
+          .from("children")
+          .update({ ignite_points: pointsSource.points - reward.points_required })
+          .eq("id", pointsSource.id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update({
+            ignite_points: pointsSource.points - reward.points_required,
+            has_sausage_reward: false,
+          })
+          .eq("id", user!.id);
+        if (updateError) throw updateError;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pending-redemptions-home"] });
+      queryClient.invalidateQueries({ queryKey: ["user-children-home"] });
+      refreshProfile();
+      setConfirmRedeemDialogOpen(false);
+      setSelectedReward(null);
+      setSelectedRedeemFor("myself");
+      setRewardsDialogOpen(false);
+      setSelectedRewardClubId(null);
+      toast({
+        title: "Reward Redeemed!",
+        description: "Show this to a club admin to claim your reward.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to redeem reward",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    },
   });
 
   const handleUpgradeClick = () => {
@@ -1216,16 +1405,15 @@ export default function HomePage() {
                   Mark as Claimed
                 </Button>
               ) : (profile?.ignite_points || 0) >= 20 || profile?.has_sausage_reward ? (
-                <Link to="/profile">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="gap-1.5"
-                  >
-                    <Gift className="h-4 w-4" />
-                    View Rewards
-                  </Button>
-                </Link>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="gap-1.5"
+                  onClick={handleBrowseRewards}
+                >
+                  <Gift className="h-4 w-4" />
+                  View Rewards
+                </Button>
               ) : null}
             </div>
           </div>
@@ -1234,12 +1422,15 @@ export default function HomePage() {
               <p className="text-primary-foreground/70 text-sm">
                 💡 {20 - (profile?.ignite_points || 0)} more points to unlock rewards!
               </p>
-              <Link to="/profile">
-                <Button size="sm" variant="ghost" className="text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 h-7 px-2">
-                  <Gift className="h-3.5 w-3.5 mr-1" />
-                  Browse
-                </Button>
-              </Link>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className="text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 h-7 px-2"
+                onClick={handleBrowseRewards}
+              >
+                <Gift className="h-3.5 w-3.5 mr-1" />
+                Browse
+              </Button>
             </div>
           )}
           {latestPendingRedemption && (
@@ -1269,7 +1460,171 @@ export default function HomePage() {
         />
       )}
 
-      {/* Upgrade Banner for Free Users - only show when hasProAccess is explicitly false (not undefined/loading) */}
+      {/* Rewards Browse Dialog */}
+      <ResponsiveDialog 
+        open={rewardsDialogOpen} 
+        onOpenChange={(open) => {
+          setRewardsDialogOpen(open);
+          if (!open) {
+            setSelectedRewardClubId(null);
+          }
+        }}
+      >
+        <ResponsiveDialogContent className="max-w-md">
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle className="flex items-center gap-2">
+              <Gift className="h-5 w-5" />
+              {selectedRewardClubId ? "Available Rewards" : "Select Club"}
+            </ResponsiveDialogTitle>
+            <ResponsiveDialogDescription>
+              {selectedRewardClubId 
+                ? `You have ${profile?.ignite_points || 0} points${userChildren.length > 0 ? " (+ children's points)" : ""}`
+                : "Choose a club to view rewards"
+              }
+            </ResponsiveDialogDescription>
+          </ResponsiveDialogHeader>
+          
+          <div className="space-y-3 pt-2">
+            {!selectedRewardClubId ? (
+              // Club selection view
+              <div className="space-y-2">
+                {rewardClubs.filter((club: any) => isAppAdmin || club.hasPro).map((club: any) => (
+                  <button
+                    key={club.id}
+                    onClick={() => setSelectedRewardClubId(club.id)}
+                    className="flex items-center justify-between w-full p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-left"
+                  >
+                    <span className="font-medium">{club.name}</span>
+                    <Gift className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                ))}
+                {rewardClubs.filter((club: any) => isAppAdmin || club.hasPro).length === 0 && (
+                  <p className="text-center text-muted-foreground py-4">
+                    No clubs with Pro subscription found.
+                  </p>
+                )}
+              </div>
+            ) : rewardsLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : availableRewards.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                No rewards available yet. Check back later!
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+                {availableRewards.map((reward: any) => {
+                  const currentPoints = profile?.ignite_points || 0;
+                  const canAfford = currentPoints >= reward.points_required ||
+                    userChildren.some((c: any) => c.ignite_points >= reward.points_required);
+                  
+                  return (
+                    <button
+                      key={reward.id}
+                      onClick={() => {
+                        if (canAfford) {
+                          setSelectedReward(reward);
+                          setConfirmRedeemDialogOpen(true);
+                        }
+                      }}
+                      disabled={!canAfford}
+                      className={`flex items-center justify-between w-full p-3 rounded-lg text-left transition-colors ${
+                        canAfford
+                          ? "bg-muted/50 hover:bg-muted cursor-pointer"
+                          : "bg-muted/20 opacity-60 cursor-not-allowed"
+                      }`}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{reward.name}</span>
+                          {reward.sponsors?.name && (
+                            <Badge variant="outline" className="text-xs">
+                              {reward.sponsors.name}
+                            </Badge>
+                          )}
+                        </div>
+                        {reward.description && (
+                          <p className="text-sm text-muted-foreground mt-1">{reward.description}</p>
+                        )}
+                      </div>
+                      <Badge variant={canAfford ? "default" : "secondary"} className="ml-2 shrink-0">
+                        {reward.points_required} pts
+                      </Badge>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
+
+      {/* Confirm Redeem Dialog */}
+      <AlertDialog 
+        open={confirmRedeemDialogOpen} 
+        onOpenChange={(open) => {
+          if (!redeemMutation.isPending) {
+            setConfirmRedeemDialogOpen(open);
+            if (!open) {
+              setSelectedReward(null);
+              setSelectedRedeemFor("myself");
+            }
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Redeem Reward?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Confirm redemption of <strong>{selectedReward?.name}</strong> for{" "}
+              <strong>{selectedReward?.points_required} points</strong>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          {userChildren.length > 0 && (
+            <div className="space-y-2 py-2">
+              <Label>Redeem for</Label>
+              <Select value={selectedRedeemFor} onValueChange={setSelectedRedeemFor}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="myself">
+                    Myself ({profile?.ignite_points || 0} pts)
+                  </SelectItem>
+                  {userChildren.map((child: any) => (
+                    <SelectItem key={child.id} value={child.id}>
+                      {child.name} ({child.ignite_points} pts)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={redeemMutation.isPending}>Cancel</AlertDialogCancel>
+            <Button
+              onClick={() => {
+                if (selectedReward) {
+                  const forChildId = selectedRedeemFor === "myself" ? null : selectedRedeemFor;
+                  redeemMutation.mutate({ reward: selectedReward, forChildId });
+                }
+              }}
+              disabled={redeemMutation.isPending}
+            >
+              {redeemMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Gift className="h-4 w-4 mr-2" />
+              )}
+              {redeemMutation.isPending ? "Redeeming..." : "Confirm"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {hasProAccess === false && userRoles && userRoles.length > 0 && userClubs.length > 0 && (() => {
         const isAnyAdmin = userRoles.some(r => r.role === "club_admin" || r.role === "team_admin");
         return (

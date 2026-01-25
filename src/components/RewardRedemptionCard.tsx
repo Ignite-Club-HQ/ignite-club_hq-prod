@@ -426,17 +426,6 @@ export default function RewardRedemptionCard() {
   const hasClubs = userClubs.length > 0;
   const isLoadingClubsWithNoCache = isLoadingClubs && userClubs.length === 0;
 
-  // Auto-open rewards dialog in single club mode
-  const proClubs = userClubs.filter((club: any) => isAppAdmin || club.hasPro);
-  const isSingleClubMode = activeClubFilter && proClubs.length === 1;
-  const singleClubId = isSingleClubMode ? proClubs[0]?.id : null;
-
-  useEffect(() => {
-    // In single club mode with no pending redemptions, auto-set the selected club to show rewards immediately
-    if (singleClubId && !selectedClubId && pendingRedemptions.length === 0) {
-      setSelectedClubId(singleClubId);
-    }
-  }, [singleClubId, pendingRedemptions.length]);
 
   // If user has a pending redemption, show it prominently
   if (pendingRedemptions.length > 0) {
