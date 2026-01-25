@@ -746,8 +746,8 @@ export default function JoinTeamPage() {
             Cancel
           </Button>
 
-          {/* iOS/Android install instructions - always show if not installed, regardless of join eligibility */}
-          {!isInstalled && (
+          {/* iOS install instructions - show on join form if not installed (iOS can't prompt directly) */}
+          {!isInstalled && isIOS && (
             <div className="border-t border-border pt-4 mt-4 space-y-3">
               <div className="flex items-center justify-center gap-2">
                 <Smartphone className="h-4 w-4 text-primary" />
@@ -756,18 +756,7 @@ export default function JoinTeamPage() {
               <p className="text-xs text-muted-foreground text-center">
                 For the best experience with push notifications and offline access
               </p>
-              {isIOS ? (
-                <IOSInstallGuide compact />
-              ) : canPrompt ? (
-                <Button onClick={() => installApp()} variant="outline" className="w-full">
-                  <Download className="h-4 w-4 mr-2" />
-                  Install App
-                </Button>
-              ) : (
-                <p className="text-xs text-muted-foreground text-center">
-                  Look for "Add to Home Screen" or "Install App" in your browser menu.
-                </p>
-              )}
+              <IOSInstallGuide compact />
             </div>
           )}
         </CardContent>
