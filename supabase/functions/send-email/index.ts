@@ -10,6 +10,8 @@ import { MagicLinkEmail } from "./_templates/magic-link.tsx";
 import { RenewalReminderEmail } from "./_templates/renewal-reminder.tsx";
 import { MessageNotificationEmail } from "./_templates/message-notification.tsx";
 import { StorageWarningEmail } from "./_templates/storage-warning.tsx";
+import { SubscriptionRenewedEmail } from "./_templates/subscription-renewed.tsx";
+import { PaymentFailedEmail } from "./_templates/payment-failed.tsx";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -42,7 +44,9 @@ type TemplateType =
   | "magic-link"
   | "renewal-reminder"
   | "message-notification"
-  | "storage-warning";
+  | "storage-warning"
+  | "subscription-renewed"
+  | "payment-failed";
 
 interface EmailRequest {
   to: string | string[];
@@ -51,7 +55,7 @@ interface EmailRequest {
   from?: string;
   // Template-based email
   template?: TemplateType;
-  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData;
+  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData | SubscriptionRenewedTemplateData | PaymentFailedTemplateData;
 }
 
 interface TeamInviteTemplateData {
@@ -134,6 +138,29 @@ interface StorageWarningTemplateData {
   storageLimitGB: number;
   usagePercentage: number;
   upgradeLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+}
+
+interface SubscriptionRenewedTemplateData {
+  recipientName?: string;
+  entityName: string;
+  entityType: 'team' | 'club';
+  tierName: string;
+  renewalDate: string;
+  nextBillingDate: string;
+  manageLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+}
+
+interface PaymentFailedTemplateData {
+  recipientName?: string;
+  entityName: string;
+  entityType: 'team' | 'club';
+  tierName: string;
+  failureDate: string;
+  updatePaymentLink: string;
   clubLogoUrl?: string;
   primaryColor?: string;
 }
@@ -315,6 +342,35 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           storageLimitGB: data.storageLimitGB,
           usagePercentage: data.usagePercentage,
           upgradeLink: data.upgradeLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+        })
+      );
+    
+    case "subscription-renewed":
+      return await renderAsync(
+        React.createElement(SubscriptionRenewedEmail, {
+          recipientName: data.recipientName,
+          entityName: data.entityName,
+          entityType: data.entityType,
+          tierName: data.tierName,
+          renewalDate: data.renewalDate,
+          nextBillingDate: data.nextBillingDate,
+          manageLink: data.manageLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+        })
+      );
+    
+    case "payment-failed":
+      return await renderAsync(
+        React.createElement(PaymentFailedEmail, {
+          recipientName: data.recipientName,
+          entityName: data.entityName,
+          entityType: data.entityType,
+          tierName: data.tierName,
+          failureDate: data.failureDate,
+          updatePaymentLink: data.updatePaymentLink,
           clubLogoUrl: data.clubLogoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
         })
