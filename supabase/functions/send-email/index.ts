@@ -9,6 +9,7 @@ import { MembershipConfirmationEmail } from "./_templates/membership-confirmatio
 import { MagicLinkEmail } from "./_templates/magic-link.tsx";
 import { RenewalReminderEmail } from "./_templates/renewal-reminder.tsx";
 import { MessageNotificationEmail } from "./_templates/message-notification.tsx";
+import { StorageWarningEmail } from "./_templates/storage-warning.tsx";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -40,7 +41,8 @@ type TemplateType =
   | "membership-confirmation" 
   | "magic-link"
   | "renewal-reminder"
-  | "message-notification";
+  | "message-notification"
+  | "storage-warning";
 
 interface EmailRequest {
   to: string | string[];
@@ -49,7 +51,7 @@ interface EmailRequest {
   from?: string;
   // Template-based email
   template?: TemplateType;
-  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData;
+  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData;
 }
 
 interface TeamInviteTemplateData {
@@ -122,6 +124,18 @@ interface MessageNotificationTemplateData {
   clubLogoUrl?: string;
   primaryColor?: string;
   hasImage?: boolean;
+}
+
+interface StorageWarningTemplateData {
+  recipientName?: string;
+  entityName: string;
+  entityType: 'team' | 'club';
+  storageUsedGB: number;
+  storageLimitGB: number;
+  usagePercentage: number;
+  upgradeLink: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
 }
 
 // Sanitize error messages
@@ -288,6 +302,21 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           clubLogoUrl: data.clubLogoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
           hasImage: data.hasImage,
+        })
+      );
+    
+    case "storage-warning":
+      return await renderAsync(
+        React.createElement(StorageWarningEmail, {
+          recipientName: data.recipientName,
+          entityName: data.entityName,
+          entityType: data.entityType,
+          storageUsedGB: data.storageUsedGB,
+          storageLimitGB: data.storageLimitGB,
+          usagePercentage: data.usagePercentage,
+          upgradeLink: data.upgradeLink,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
         })
       );
     
