@@ -237,8 +237,10 @@ export default function JoinTeamPage() {
     }
   }, [joined]);
 
-  // Check if this is a fixed role invite (admin roles that don't allow additional selection)
-  const isFixedRoleInvite = invite?.role && fixedRoles.includes(invite.role as AppRole);
+  // Check if this is a fixed role invite:
+  // - Admin roles don't allow additional selection
+  // - Pending invites (email-based) always use the role chosen by the inviter
+  const isFixedRoleInvite = invite?.role && (fixedRoles.includes(invite.role as AppRole) || isPendingInvite);
 
   // Initialize selected roles with invite role if user doesn't have it yet
   useEffect(() => {
