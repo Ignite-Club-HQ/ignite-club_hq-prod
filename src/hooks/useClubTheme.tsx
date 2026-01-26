@@ -220,17 +220,14 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
               // Database has a club theme preference - use it (overrides localStorage for cross-device sync)
               setActiveClubThemeState(data.active_club_theme_id);
               safeSetItem(getStorageKey(user.id), data.active_club_theme_id);
-            } else {
-              // Database has null (user explicitly chose Ignite/default theme)
-              // This is a valid preference - clear any localStorage club theme
-              setActiveClubThemeState(null);
-              localStorage.removeItem(getStorageKey(user.id));
-              localStorage.removeItem(getStorageDataKey(user.id));
-              setCachedThemeData(null);
-              applyThemeCSS(null, isDarkMode);
+              // User has explicit preference - don't auto-set
+              setHasCheckedDefault(true);
             }
-            // Either way, user has made a choice (or we've synced) - don't auto-set
-            setHasCheckedDefault(true);
+            // If active_club_theme_id is null, it could mean:
+            // 1. User explicitly chose default (but we can't distinguish this easily)
+            // 2. New user who hasn't set any preference yet
+            // We'll let the auto-set logic handle new users by NOT setting hasCheckedDefault here
+            // The auto-set will run if availableClubThemes has items
           } else if (storedId) {
             // Have localStorage but failed to fetch DB - use localStorage, don't auto-set
             setHasCheckedDefault(true);
