@@ -404,42 +404,19 @@ export default function MessagesPage() {
 
 
   // Fetch teams with their latest messages in a single query for efficiency
-  // Also include teams from clubs where user is a club_admin
   const { data: teamsWithMessages, isLoading: teamsLoading } = useQuery({
     queryKey: ["my-teams-with-messages", user?.id],
     queryFn: async () => {
-      // Get team IDs from direct team roles
-      const { data: teamRoles, error: teamRolesError } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("team_id")
         .eq("user_id", user!.id)
         .not("team_id", "is", null);
 
-      if (teamRolesError) throw teamRolesError;
+      if (rolesError) throw rolesError;
 
-      const teamIds = new Set(teamRoles.map((r) => r.team_id).filter(Boolean) as string[]);
-      
-      // Get club IDs where user is club_admin
-      const { data: clubAdminRoles } = await supabase
-        .from("user_roles")
-        .select("club_id")
-        .eq("user_id", user!.id)
-        .eq("role", "club_admin")
-        .not("club_id", "is", null);
-      
-      const clubAdminIds = clubAdminRoles?.map(r => r.club_id).filter(Boolean) as string[] || [];
-      
-      // Get all teams from clubs where user is club_admin
-      if (clubAdminIds.length > 0) {
-        const { data: clubTeams } = await supabase
-          .from("teams")
-          .select("id")
-          .in("club_id", clubAdminIds);
-        
-        clubTeams?.forEach(t => teamIds.add(t.id));
-      }
-      
-      if (teamIds.size === 0) return { teams: [] as Team[], latestMessages: {} };
+      const teamIds = roles.map((r) => r.team_id).filter(Boolean);
+      if (teamIds.length === 0) return { teams: [] as Team[], latestMessages: {} };
 
       const { data, error } = await supabase
         .from("teams")
@@ -449,7 +426,7 @@ export default function MessagesPage() {
           logo_url,
           clubs (name, logo_url, sport)
         `)
-        .in("id", Array.from(teamIds));
+        .in("id", teamIds);
 
       if (error) throw error;
       const teams = data as Team[];
