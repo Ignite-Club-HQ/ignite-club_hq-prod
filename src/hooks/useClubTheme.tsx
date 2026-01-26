@@ -94,6 +94,7 @@ interface ClubThemeContextType {
   activeThemeData: ClubTheme | null;
   setActiveClubTheme: (clubId: string | null) => void;
   isLoading: boolean;
+  isThemeReady: boolean; // True when theme loading from DB is complete
   // Club filter helpers - when a theme is active, content is filtered to that club
   activeClubFilter: string | null; // Same as activeClubTheme - for semantic clarity
   activeClubTeamIds: string[]; // Team IDs belonging to the active club (for filtering)
@@ -105,6 +106,7 @@ const ClubThemeContext = createContext<ClubThemeContextType>({
   activeThemeData: null,
   setActiveClubTheme: () => {},
   isLoading: false,
+  isThemeReady: false,
   activeClubFilter: null,
   activeClubTeamIds: [],
 });
@@ -174,7 +176,22 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
 
   // Track if we've checked for default theme for this user session
   const [hasCheckedDefault, setHasCheckedDefault] = useState(false);
+  // Track if we're loading theme from database
   const [isLoadingFromDb, setIsLoadingFromDb] = useState(false);
+  // Track if we've ever started the DB load for this user session
+  const [hasStartedDbLoad, setHasStartedDbLoad] = useState(false);
+
+  // Ensure loading state is set when user becomes available (before effect runs)
+  useEffect(() => {
+    if (user?.id && !hasStartedDbLoad) {
+      setIsLoadingFromDb(true);
+      setHasStartedDbLoad(true);
+    }
+    // Reset when user logs out
+    if (!user?.id && hasStartedDbLoad) {
+      setHasStartedDbLoad(false);
+    }
+  }, [user?.id, hasStartedDbLoad]);
 
   // INSTANT THEME APPLICATION: Restore from localStorage immediately on mount
   // Then load from database for cross-device sync
@@ -618,6 +635,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       activeThemeData,
       setActiveClubTheme,
       isLoading,
+      isThemeReady: !isLoadingFromDb,
       activeClubFilter: activeClubTheme,
       activeClubTeamIds,
     }}>
