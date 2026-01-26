@@ -142,7 +142,7 @@ export const TeamInviteEmail = ({
           {/* Footer */}
           <Section style={footerSection}>
             <Text style={footerText}>
-              This invitation was sent by {clubName}. If you didn't expect this email, you can safely ignore it.
+              This invitation was sent by {clubName}. You can manage your notification preferences in the app settings.
             </Text>
             <Text style={photoConsentText}>
               📷 Photos may be shared within the app by team members. Photo consent is managed by your club, not Ignite Club HQ. 
