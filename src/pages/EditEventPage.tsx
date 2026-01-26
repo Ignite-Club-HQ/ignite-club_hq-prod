@@ -455,7 +455,7 @@ export default function EditEventPage() {
         description: description.trim() || null,
         reminder_hours_before: reminderEnabled ? reminderHours : null,
         reminder_sent: reminderEnabled ? (event?.reminder_hours_before === reminderHours ? event?.reminder_sent : false) : false,
-        price: type === "social" ? parsedPrice : null,
+        amount: type === "social" ? parsedPrice : null,
         club_id: selectedClubId,
         team_id: selectedTeamId || null,
         opponent: type === "game" ? opponent.trim() || null : null,

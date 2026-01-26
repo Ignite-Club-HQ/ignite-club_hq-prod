@@ -436,7 +436,7 @@ export default function CreateEventPage() {
       recurrence_end_date: isRecurring ? recurrenceEndDate : null,
       reminder_hours_before: reminderEnabled ? reminderHours : null,
       reminder_sent: false,
-      price: type === "social" ? parsedPrice : null,
+      amount: type === "social" ? parsedPrice : null,
       opponent: type === "game" ? opponent.trim() || null : null,
     };
 
