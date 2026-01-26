@@ -1140,15 +1140,42 @@ export default function EventDetailPage() {
               <Pencil className="h-5 w-5" />
             </Button>
             {canSendReminders ? (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="text-primary"
-                disabled={remindMutation.isPending}
-                onClick={() => remindMutation.mutate()}
-              >
-                <Bell className="h-5 w-5" />
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-primary"
+                    disabled={remindMutation.isPending}
+                  >
+                    <Bell className="h-5 w-5" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Send RSVP Reminders?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will send a notification to all team members who haven't responded to this event yet.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => remindMutation.mutate()}
+                      disabled={remindMutation.isPending}
+                    >
+                      {remindMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        "Send Reminders"
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             ) : !isLoadingHasTeamPro && (
               <div className="flex items-center gap-1 px-2">
                 <Bell className="h-5 w-5 text-muted-foreground" />
