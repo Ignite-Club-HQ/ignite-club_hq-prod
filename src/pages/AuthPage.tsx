@@ -71,6 +71,11 @@ export default function AuthPage() {
       clearInviteFlowContext();
       setInviteFlowContext(null);
     }
+    
+    // Also clear any stale PWA pending invite if user is just signing in normally
+    if (!redirectAfterAuth) {
+      localStorage.removeItem("pwa_pending_invite");
+    }
   }, [redirectAfterAuth]);
   
   const { toast } = useToast();
