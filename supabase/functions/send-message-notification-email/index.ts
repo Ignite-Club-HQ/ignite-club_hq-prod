@@ -104,11 +104,14 @@ serve(async (req: Request): Promise<Response> => {
     const recipientName = recipientProfile?.display_name || undefined;
 
     // Build the message link based on type
+    // Routes: team = /messages/:teamId, club = /messages/club/:clubId, 
+    // dm = /messages/dm/:conversationId, group = /groups/:groupId, broadcast = /messages/broadcast
     let messageLink = 'https://igniteclubhq.app/messages';
     
     switch (payload.messageType) {
       case 'team':
-        messageLink = `https://igniteclubhq.app/messages/team/${payload.contextId}`;
+        // Team chat route is /messages/:teamId (not /messages/team/:id)
+        messageLink = `https://igniteclubhq.app/messages/${payload.contextId}`;
         break;
       case 'club':
         messageLink = `https://igniteclubhq.app/messages/club/${payload.contextId}`;
@@ -120,7 +123,7 @@ serve(async (req: Request): Promise<Response> => {
         messageLink = `https://igniteclubhq.app/messages/dm/${payload.contextId}`;
         break;
       case 'broadcast':
-        messageLink = 'https://igniteclubhq.app/broadcast';
+        messageLink = 'https://igniteclubhq.app/messages/broadcast';
         break;
     }
 
