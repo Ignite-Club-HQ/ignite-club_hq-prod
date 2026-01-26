@@ -135,6 +135,11 @@ export const PhotoUploadedEmail = ({
               You're receiving this because you have media notifications enabled.
               <Link href={`${PRODUCTION_DOMAIN}/profile`} style={{ color: primaryColor }}> Manage notification preferences</Link>
             </Text>
+            <Text style={photoConsentText}>
+              📷 Photos of your child may be uploaded to the Ignite app by team members. 
+              Please review our <Link href={`${PRODUCTION_DOMAIN}/privacy-policy`} style={{ color: primaryColor }}>Privacy Policy</Link>. 
+              If you wish to opt out of photo uploads, please contact your club or team admin.
+            </Text>
             <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
               <tr>
                 <td style={{ paddingRight: '8px', verticalAlign: 'middle' }}>
@@ -305,6 +310,15 @@ const footerText = {
   lineHeight: '20px',
   margin: '0 0 12px 0',
   textAlign: 'center' as const,
+};
+
+const photoConsentText = {
+  color: '#94a3b8',
+  fontSize: '11px',
+  lineHeight: '18px',
+  margin: '0 0 16px 0',
+  textAlign: 'center' as const,
+  fontStyle: 'italic' as const,
 };
 
 const igniteLogoStyle = {
