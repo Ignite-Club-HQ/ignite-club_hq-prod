@@ -17,6 +17,7 @@ interface ParsedFixture {
   teamName?: string;
   teamId?: string;
   existingEventId?: string;
+  opponent?: string;
 }
 
 interface FixturePreviewEditorProps {
@@ -217,32 +218,41 @@ export function FixturePreviewEditor({ fixtures, onUpdate, isDuplicate = false }
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Input
+                placeholder="Opponent"
+                value={editForm.opponent || ''}
+                onChange={(e) => setEditForm({ ...editForm, opponent: e.target.value || undefined })}
+                className="text-sm h-8"
+              />
+              <Input
                 placeholder="Address"
                 value={editForm.address || ''}
                 onChange={(e) => setEditForm({ ...editForm, address: e.target.value || undefined })}
                 className="text-sm h-8"
               />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
               <Input
                 placeholder="Description"
                 value={editForm.description || ''}
                 onChange={(e) => setEditForm({ ...editForm, description: e.target.value || undefined })}
                 className="text-sm h-8"
               />
+              <div className="flex items-center gap-1">
+                <Input
+                  type="number"
+                  placeholder="Reminder"
+                  value={editForm.reminderHours || ''}
+                  onChange={(e) => setEditForm({ 
+                    ...editForm, 
+                    reminderHours: e.target.value ? parseInt(e.target.value, 10) : undefined 
+                  })}
+                  className="text-sm h-8 w-20"
+                  min={0}
+                />
+                <span className="text-xs text-muted-foreground">hrs before</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                placeholder="Reminder (hours)"
-                value={editForm.reminderHours || ''}
-                onChange={(e) => setEditForm({ 
-                  ...editForm, 
-                  reminderHours: e.target.value ? parseInt(e.target.value, 10) : undefined 
-                })}
-                className="text-sm h-8 w-32"
-                min={0}
-              />
-              <span className="text-xs text-muted-foreground">hours before</span>
-              <div className="flex-1" />
+            <div className="flex justify-end gap-2 pt-1">
               <Button variant="ghost" size="sm" onClick={handleCancel} className="h-7 px-2">
                 <X className="h-3 w-3" />
               </Button>
@@ -274,6 +284,7 @@ export function FixturePreviewEditor({ fixtures, onUpdate, isDuplicate = false }
               </div>
               <div className="text-xs text-muted-foreground mt-0.5">
                 {fixture.date} at {fixture.time}
+                {fixture.opponent && ` vs ${fixture.opponent}`}
                 {fixture.address && ` • ${fixture.address}`}
               </div>
               {fixture.description && (
