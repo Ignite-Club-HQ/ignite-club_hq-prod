@@ -222,6 +222,46 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
               safeSetItem(getStorageKey(user.id), data.active_club_theme_id);
               // User has explicit preference - don't auto-set
               setHasCheckedDefault(true);
+              
+              // CRITICAL FIX: If we have localStorage cached theme data for this club, apply it immediately
+              // This ensures theme applies even before availableClubThemes query completes
+              if (!storedData) {
+                // Try to fetch and cache the theme data right now
+                const { data: clubData } = await supabase
+                  .from('clubs')
+                  .select(`
+                    id, name, logo_url, show_logo_in_header, show_name_in_header, logo_only_mode, sport,
+                    theme_primary_h, theme_primary_s, theme_primary_l,
+                    theme_dark_primary_h, theme_dark_primary_s, theme_dark_primary_l,
+                    theme_secondary_h, theme_secondary_s, theme_secondary_l,
+                    theme_dark_secondary_h, theme_dark_secondary_s, theme_dark_secondary_l,
+                    theme_accent_h, theme_accent_s, theme_accent_l,
+                    theme_dark_accent_h, theme_dark_accent_s, theme_dark_accent_l
+                  `)
+                  .eq('id', data.active_club_theme_id)
+                  .single();
+                
+                if (clubData) {
+                  const themeData: ClubTheme = {
+                    clubId: clubData.id,
+                    clubName: clubData.name,
+                    logoUrl: clubData.logo_url,
+                    showLogoInHeader: clubData.show_logo_in_header ?? false,
+                    showNameInHeader: clubData.show_name_in_header ?? true,
+                    logoOnlyMode: clubData.logo_only_mode ?? false,
+                    sport: clubData.sport,
+                    primary: clubData.theme_primary_h !== null ? { h: clubData.theme_primary_h, s: clubData.theme_primary_s!, l: clubData.theme_primary_l! } : null,
+                    secondary: clubData.theme_secondary_h !== null ? { h: clubData.theme_secondary_h, s: clubData.theme_secondary_s!, l: clubData.theme_secondary_l! } : null,
+                    accent: clubData.theme_accent_h !== null ? { h: clubData.theme_accent_h, s: clubData.theme_accent_s!, l: clubData.theme_accent_l! } : null,
+                    darkPrimary: clubData.theme_dark_primary_h !== null ? { h: clubData.theme_dark_primary_h, s: clubData.theme_dark_primary_s!, l: clubData.theme_dark_primary_l! } : null,
+                    darkSecondary: clubData.theme_dark_secondary_h !== null ? { h: clubData.theme_dark_secondary_h, s: clubData.theme_dark_secondary_s!, l: clubData.theme_dark_secondary_l! } : null,
+                    darkAccent: clubData.theme_dark_accent_h !== null ? { h: clubData.theme_dark_accent_h, s: clubData.theme_dark_accent_s!, l: clubData.theme_dark_accent_l! } : null,
+                  };
+                  safeSetItem(getStorageDataKey(user.id), JSON.stringify(toCacheableTheme(themeData)));
+                  setCachedThemeData(themeData);
+                  applyThemeCSS(themeData, isDarkMode);
+                }
+              }
             }
             // If active_club_theme_id is null, it could mean:
             // 1. User explicitly chose default (but we can't distinguish this easily)
@@ -477,11 +517,20 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Try to find theme from server data first
     const theme = availableClubThemes.find(t => t.clubId === activeClubTheme);
-    if (!theme) return;
+    
+    // CRITICAL FIX: If server data not loaded yet, use cached theme data
+    // This ensures theme applies immediately for new users before query completes
+    const themeToApply = theme || cachedThemeData;
+    
+    if (!themeToApply) {
+      // No theme data available yet - will be applied when data loads
+      return;
+    }
 
     // Skip applying colors if logo-only mode is enabled
-    if (theme.logoOnlyMode) {
+    if (themeToApply.logoOnlyMode) {
       root.style.removeProperty("--primary");
       root.style.removeProperty("--primary-foreground");
       root.style.removeProperty("--secondary");
@@ -492,8 +541,8 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    applyThemeCSS(theme, isDarkMode);
-  }, [activeClubTheme, availableClubThemes, user, isDarkMode]);
+    applyThemeCSS(themeToApply, isDarkMode);
+  }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode]);
 
   // Validate stored theme exists and user is a member
   useEffect(() => {
