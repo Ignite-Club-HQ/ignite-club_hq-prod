@@ -333,6 +333,45 @@ export default function JoinTeamPage() {
           invited_user_id: user.id
         })
         .eq("id", pendingInviteData.id);
+
+      // Create children from invite metadata (if parent role with children)
+      const metadata = pendingInviteData.metadata as { children?: { name: string; yearOfBirth: number | null }[] } | null;
+      if (metadata?.children && metadata.children.length > 0 && pendingInviteData.role === "parent") {
+        console.log("[JoinTeam] Creating children from invite metadata:", metadata.children);
+        for (const childData of metadata.children) {
+          // Create the child record
+          const { data: newChild, error: childError } = await supabase
+            .from("children")
+            .insert({
+              parent_id: user.id,
+              name: childData.name,
+              year_of_birth: childData.yearOfBirth,
+            })
+            .select("id")
+            .single();
+          
+          if (childError) {
+            console.error("[JoinTeam] Failed to create child:", childError);
+            continue;
+          }
+          
+          // Assign child to the team
+          if (newChild?.id && pendingInviteData.team_id) {
+            const { error: assignError } = await supabase
+              .from("child_team_assignments")
+              .insert({
+                child_id: newChild.id,
+                team_id: pendingInviteData.team_id,
+              });
+            
+            if (assignError) {
+              console.error("[JoinTeam] Failed to assign child to team:", assignError);
+            } else {
+              console.log("[JoinTeam] Child created and assigned to team:", childData.name);
+            }
+          }
+        }
+      }
     } else if (!isPendingInvite) {
       // Regular team invite - check expiry and usage limits
       if (invite.expires_at && new Date(invite.expires_at) < new Date()) {

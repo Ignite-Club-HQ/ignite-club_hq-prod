@@ -188,8 +188,39 @@ export default function TeamDetailPage() {
     if (id) {
       // Invalidate the team-roles query to force a fresh fetch
       queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+      queryClient.invalidateQueries({ queryKey: ["team-children", id] });
     }
   }, [id, queryClient]);
+
+  // Fetch children assigned to the team
+  const { data: teamChildren = [], isLoading: isChildrenLoading, isFetching: isChildrenFetching, refetch: refetchChildren } = useQuery({
+    queryKey: ["team-children", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("child_team_assignments")
+        .select(`
+          id,
+          child_id,
+          children (
+            id,
+            name,
+            year_of_birth,
+            parent_id,
+            profiles:parent_id (
+              id,
+              display_name
+            )
+          )
+        `)
+        .eq("team_id", id!);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id,
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
+    refetchOnMount: 'always',
+  });
 
   // Fetch roles data with profiles - with caching for faster loads
   const { data: rawMembers = [], isLoading: isMembersLoading, isFetching: isMembersFetching, refetch: refetchMembers } = useQuery({
@@ -723,7 +754,9 @@ export default function TeamDetailPage() {
                 <Users className="h-5 w-5 text-primary" />
                 <span className="text-lg font-semibold">Members</span>
                 <Badge variant="secondary" className="ml-2">
-                  {isMembersLoading && rawMembers.length === 0 ? "..." : Object.keys(members).length}
+                  {(isMembersLoading && rawMembers.length === 0) || (isChildrenLoading && teamChildren.length === 0) 
+                    ? "..." 
+                    : Object.keys(members).length + teamChildren.length}
                 </Badge>
                 <Button
                   variant="ghost"
@@ -732,10 +765,11 @@ export default function TeamDetailPage() {
                   onClick={(e) => {
                     e.stopPropagation();
                     refetchMembers();
+                    refetchChildren();
                   }}
-                  disabled={isMembersFetching}
+                  disabled={isMembersFetching || isChildrenFetching}
                 >
-                  <RefreshCw className={`h-4 w-4 ${isMembersFetching ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`h-4 w-4 ${isMembersFetching || isChildrenFetching ? 'animate-spin' : ''}`} />
                 </Button>
               </div>
             </AccordionTrigger>
@@ -752,7 +786,7 @@ export default function TeamDetailPage() {
                     />
                   </div>
                 )}
-                {Object.keys(members).length === 0 && pendingInvites.length === 0 && !isMembersLoading ? (
+{Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading ? (
                   <p className="text-muted-foreground text-sm">No members yet</p>
                 ) : (
                   <div className="space-y-2">
@@ -901,6 +935,40 @@ export default function TeamDetailPage() {
                         </CardContent>
                       </Card>
                     ))}
+                    
+                    {/* Children Section */}
+                    {teamChildren.length > 0 && (
+                      <div className="mt-4 pt-4 border-t">
+                        <p className="text-sm font-medium text-muted-foreground mb-2">Players (Children)</p>
+                        <div className="space-y-2">
+                          {teamChildren.map((assignment: any) => {
+                            const child = assignment.children;
+                            if (!child) return null;
+                            const parent = child.profiles;
+                            return (
+                              <Card key={assignment.id}>
+                                <CardContent className="p-3 flex items-center gap-3">
+                                  <Avatar className="h-8 w-8">
+                                    <AvatarFallback className="bg-pink-500/20 text-pink-500 text-sm">
+                                      {child.name?.charAt(0)?.toUpperCase() || "?"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1">
+                                    <p className="font-medium text-sm">{child.name}</p>
+                                    {parent?.display_name && (
+                                      <p className="text-xs text-muted-foreground">Parent: {parent.display_name}</p>
+                                    )}
+                                  </div>
+                                  <Badge variant="outline" className="text-xs border bg-pink-500/20 text-pink-400 border-pink-500/30">
+                                    Child
+                                  </Badge>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

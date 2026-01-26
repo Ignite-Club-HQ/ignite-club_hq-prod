@@ -21,12 +21,17 @@ import { useToast } from "@/hooks/use-toast";
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
 
+interface ParsedChild {
+  name: string;
+  yearOfBirth: number | null;
+}
+
 interface ParsedMember {
   id: string;
   name: string;
   email: string;
   role: TeamRole;
-  children: string[];
+  children: ParsedChild[];
 }
 
 interface ValidationError {
@@ -144,9 +149,19 @@ export function MemberCSVImportDialog({
         }
       }
 
-      // Parse children (semicolon-separated list)
-      const children: string[] = childrenStr
-        ? childrenStr.split(';').map(c => c.trim()).filter(c => c.length > 0)
+      // Parse children (semicolon-separated list, optionally with year of birth in parentheses)
+      // Format: "ChildName (2015); ChildName2 (2018)" or just "ChildName; ChildName2"
+      const children: { name: string; yearOfBirth: number | null }[] = childrenStr
+        ? childrenStr.split(';').map(c => {
+            const trimmed = c.trim();
+            if (!trimmed) return null;
+            // Check for year of birth in parentheses, e.g., "Tommy (2015)"
+            const match = trimmed.match(/^(.+?)\s*\((\d{4})\)$/);
+            if (match) {
+              return { name: match[1].trim(), yearOfBirth: parseInt(match[2]) };
+            }
+            return { name: trimmed, yearOfBirth: null };
+          }).filter((c): c is { name: string; yearOfBirth: number | null } => c !== null && c.name.length > 0)
         : [];
 
       // Warn if children specified for non-parent role
@@ -268,10 +283,10 @@ export function MemberCSVImportDialog({
   const downloadTemplate = () => {
     const csvContent = `name,email,role,children
 John Smith,john@example.com,player,
-Jane Doe,jane@example.com,parent,Tommy Doe;Sally Doe
+Jane Doe,jane@example.com,parent,Tommy (2016);Sally (2018)
 Mike Coach,mike@example.com,coach,
 Sarah Admin,sarah@example.com,team_admin,
-Bob Parent,bob@example.com,parent,Jimmy Parent`;
+Bob Parent,bob@example.com,parent,Jimmy (2015)`;
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -336,7 +351,7 @@ Bob Parent,bob@example.com,parent,Jimmy Parent`;
                       <p><strong>name:</strong> Required</p>
                       <p><strong>email:</strong> Optional (for sending invites)</p>
                       <p><strong>role:</strong> Optional - player, parent, coach, or team_admin</p>
-                      <p><strong>children:</strong> For parents only - semicolon-separated names</p>
+                      <p><strong>children:</strong> For parents - semicolon-separated, e.g. "Tommy (2016);Sally (2018)"</p>
                     </div>
                   </div>
 
@@ -442,7 +457,7 @@ Bob Parent,bob@example.com,parent,Jimmy Parent`;
                             )}
                             {member.children.length > 0 && (
                               <p className="text-xs text-primary truncate">
-                                Children: {member.children.join(', ')}
+                                Children: {member.children.map(c => c.yearOfBirth ? `${c.name} (${c.yearOfBirth})` : c.name).join(', ')}
                               </p>
                             )}
                           </div>
