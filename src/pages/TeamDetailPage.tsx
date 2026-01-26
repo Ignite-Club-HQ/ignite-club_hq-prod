@@ -89,9 +89,10 @@ export default function TeamDetailPage() {
   const [isSavingPitchSettings, setIsSavingPitchSettings] = useState(false);
   
   // Handle admin invite dialog from team creation flow
-  const locationState = location.state as { showAdminInvite?: boolean; inviteLink?: string; teamName?: string } | null;
+  const locationState = location.state as { showAdminInvite?: boolean; inviteName?: string; inviteEmail?: string; teamName?: string } | null;
   const [showAdminInviteDialog, setShowAdminInviteDialog] = useState(!!locationState?.showAdminInvite);
-  const adminInviteLink = locationState?.inviteLink || "";
+  const adminInviteName = locationState?.inviteName || "";
+  const adminInviteEmail = locationState?.inviteEmail || "";
   const adminInviteTeamName = locationState?.teamName || "";
 
   const { data: team, isLoading } = useQuery({
@@ -1454,7 +1455,8 @@ export default function TeamDetailPage() {
           }
         }}
         teamName={adminInviteTeamName || team?.name || ""}
-        inviteLink={adminInviteLink}
+        inviteName={adminInviteName}
+        inviteEmail={adminInviteEmail}
         onDone={() => {
           setShowAdminInviteDialog(false);
           navigate(location.pathname, { replace: true, state: {} });

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Search, UserPlus, Link2, User } from "lucide-react";
+import { Search, UserPlus, Mail, User } from "lucide-react";
 
 interface AssignTeamAdminSectionProps {
   clubId: string;
@@ -18,10 +18,11 @@ interface AssignTeamAdminSectionProps {
 }
 
 export interface TeamAdminAssignment {
-  type: 'existing_user' | 'invite_link';
+  type: 'existing_user' | 'email_invite';
   userId?: string;
   userDisplayName?: string;
-  inviteToken?: string;
+  inviteEmail?: string;
+  inviteName?: string;
 }
 
 export function AssignTeamAdminSection({ 
@@ -33,7 +34,9 @@ export function AssignTeamAdminSection({
   const [assignOther, setAssignOther] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<{ id: string; display_name: string; avatar_url: string | null } | null>(null);
-  const [wantsInviteLink, setWantsInviteLink] = useState(false);
+  const [wantsEmailInvite, setWantsEmailInvite] = useState(false);
+  const [inviteName, setInviteName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
 
   // Fetch club members who could become team admins
   const { data: clubMembers = [] } = useQuery({
@@ -89,14 +92,16 @@ export function AssignTeamAdminSection({
     setAssignOther(checked);
     if (!checked) {
       setSelectedUser(null);
-      setWantsInviteLink(false);
+      setWantsEmailInvite(false);
+      setInviteName("");
+      setInviteEmail("");
       onAssignmentChange(null);
     }
   };
 
   const handleSelectUser = (user: { id: string; display_name: string; avatar_url: string | null }) => {
     setSelectedUser(user);
-    setWantsInviteLink(false);
+    setWantsEmailInvite(false);
     onAssignmentChange({
       type: 'existing_user',
       userId: user.id,
@@ -104,14 +109,26 @@ export function AssignTeamAdminSection({
     });
   };
 
-  const handleSelectInviteLink = () => {
-    // Just indicate that we want to create an invite link - don't generate token yet
-    setWantsInviteLink(true);
+  const handleSelectEmailInvite = () => {
+    setWantsEmailInvite(true);
     setSelectedUser(null);
-    onAssignmentChange({
-      type: 'invite_link'
-      // No token yet - will be generated after team creation
-    });
+    // Don't call onAssignmentChange yet - wait for email input
+  };
+
+  const handleEmailInputChange = (name: string, email: string) => {
+    setInviteName(name);
+    setInviteEmail(email);
+    
+    // Only set assignment if both name and email are valid
+    if (name.trim() && email.trim() && email.includes('@')) {
+      onAssignmentChange({
+        type: 'email_invite',
+        inviteEmail: email.trim(),
+        inviteName: name.trim()
+      });
+    } else {
+      onAssignmentChange(null);
+    }
   };
 
   if (!assignOther) {
@@ -175,31 +192,55 @@ export function AssignTeamAdminSection({
         </div>
       )}
 
-      {/* Invite link selected - show confirmation that link will be generated after team creation */}
-      {wantsInviteLink && !selectedUser && (
+      {/* Email invite form */}
+      {wantsEmailInvite && !selectedUser && (
         <div className="space-y-3 p-4 bg-primary/10 rounded-lg border border-primary/20">
           <div className="flex items-center gap-2">
-            <Link2 className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">Invite Link Selected</span>
+            <Mail className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Send Email Invite</span>
           </div>
+          
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Name *</Label>
+              <Input
+                placeholder="e.g., John Smith"
+                value={inviteName}
+                onChange={(e) => handleEmailInputChange(e.target.value, inviteEmail)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Email *</Label>
+              <Input
+                type="email"
+                placeholder="e.g., john@example.com"
+                value={inviteEmail}
+                onChange={(e) => handleEmailInputChange(inviteName, e.target.value)}
+              />
+            </div>
+          </div>
+          
           <p className="text-xs text-muted-foreground">
-            An invite link will be generated after the team is created. You'll be able to share it with the person who will manage this team.
+            An invite email will be sent after the team is created.
           </p>
+          
           <Button 
             variant="outline" 
             size="sm"
             onClick={() => {
-              setWantsInviteLink(false);
+              setWantsEmailInvite(false);
+              setInviteName("");
+              setInviteEmail("");
               onAssignmentChange(null);
             }}
           >
-            Change
+            Cancel
           </Button>
         </div>
       )}
 
       {/* Search or invite options */}
-      {!selectedUser && !wantsInviteLink && (
+      {!selectedUser && !wantsEmailInvite && (
         <>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -248,14 +289,14 @@ export function AssignTeamAdminSection({
           <Button 
             variant="outline" 
             className="w-full"
-            onClick={handleSelectInviteLink}
+            onClick={handleSelectEmailInvite}
           >
-            <User className="h-4 w-4 mr-2" />
-            Send Invite Link to New User
+            <Mail className="h-4 w-4 mr-2" />
+            Invite New Person via Email
           </Button>
 
           <p className="text-xs text-muted-foreground text-center">
-            If they're not yet on Ignite, generate an invite link they can use to sign up and become Team Admin.
+            If they're not yet on Ignite, send an email invite so they can sign up and become Team Admin.
           </p>
         </>
       )}

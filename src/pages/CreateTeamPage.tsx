@@ -117,14 +117,6 @@ export default function CreateTeamPage() {
     reader.readAsDataURL(file);
   };
 
-  const generateToken = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-    let token = '';
-    for (let i = 0; i < 8; i++) {
-      token += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return token;
-  };
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -240,41 +232,76 @@ export default function CreateTeamPage() {
         });
       }
       navigate(`/teams/${team.id}`);
-    } else if (adminAssignment?.type === 'invite_link') {
-      // Generate token NOW (after team is created) and create invite link
-      const token = generateToken();
-      const { error: inviteError } = await supabase.from("team_invites").insert({
-        team_id: team.id,
-        token: token,
-        role: "team_admin" as AppRole,
-        created_by: user!.id,
-        max_uses: 1,
-      });
-
-      setSaving(false);
+    } else if (adminAssignment?.type === 'email_invite' && adminAssignment.inviteEmail && adminAssignment.inviteName) {
+      // Create pending invite with email
+      const inviteToken = crypto.randomUUID();
+      const link = `${window.location.origin}/join/p/${inviteToken}`;
       
+      const { error: inviteError } = await supabase.from("pending_invites").insert({
+        team_id: team.id,
+        club_id: clubId,
+        role: "team_admin" as AppRole,
+        invited_user_id: null,
+        invited_by_user_id: user!.id,
+        invited_label: adminAssignment.inviteName,
+        invited_email: adminAssignment.inviteEmail.toLowerCase(),
+        invite_token: inviteToken,
+      } as any);
+
       if (inviteError) {
+        setSaving(false);
         toast({
           title: "Warning",
-          description: "Team created but couldn't create invite link.",
+          description: "Team created but couldn't create invite.",
           variant: "destructive",
         });
         navigate(`/teams/${team.id}`);
-      } else {
-        // Navigate immediately to team page with invite link in state
-        const inviteLink = `${window.location.origin}/join/${token}?install=true`;
-        toast({
-          title: "Team created!",
-          description: `${team.name} has been created successfully.`,
-        });
-        navigate(`/teams/${team.id}`, { 
-          state: { 
-            showAdminInvite: true, 
-            inviteLink,
-            teamName: team.name 
-          } 
-        });
+        return;
       }
+      
+      // Send email invite
+      try {
+        await supabase.functions.invoke("send-email", {
+          body: {
+            to: adminAssignment.inviteEmail,
+            subject: `You're invited to manage ${team.name}`,
+            template: "team-invite",
+            templateData: {
+              recipientName: adminAssignment.inviteName,
+              teamName: team.name,
+              clubName: club?.name || "The Club",
+              roleName: "Team Admin",
+              inviteLink: link,
+              clubLogoUrl: club?.logo_url || undefined,
+            },
+          },
+        });
+        
+        // Update pending invite with email sent status
+        await supabase
+          .from("pending_invites")
+          .update({
+            email_sent_at: new Date().toISOString(),
+          } as any)
+          .eq("invite_token", inviteToken);
+          
+      } catch (error) {
+        console.error("Failed to send email:", error);
+      }
+
+      setSaving(false);
+      toast({
+        title: "Team created!",
+        description: `${team.name} has been created successfully.`,
+      });
+      navigate(`/teams/${team.id}`, { 
+        state: { 
+          showAdminInvite: true, 
+          inviteName: adminAssignment.inviteName,
+          inviteEmail: adminAssignment.inviteEmail,
+          teamName: team.name 
+        } 
+      });
     } else {
       // Default: Assign creator as team_admin
       const { error: roleError } = await supabase.from("user_roles").insert({
