@@ -18,6 +18,18 @@ export function AppLayout() {
   const { resolvedTheme } = useTheme();
   const logo = resolvedTheme === "dark" ? igniteIcon : igniteIconLight;
 
+  // Debug logging for profile state - must be before any conditional returns
+  useEffect(() => {
+    console.log('[AppLayout] Profile state:', {
+      loading,
+      profileLoading,
+      profileError,
+      hasProfile: !!profile,
+      displayName: profile?.display_name,
+      userId: user?.id
+    });
+  }, [loading, profileLoading, profileError, profile, user]);
+
   // Auto-retry when profile error occurs
   useEffect(() => {
     if (profileError && !profile && user && !retrying) {
@@ -89,9 +101,11 @@ export function AppLayout() {
       // Profile is complete, allow rendering
     } else if (profile && !profile.display_name) {
       // Profile exists but no display_name - needs completion
+      console.log('[AppLayout] Redirecting to complete-profile: profile exists but no display_name');
       return <Navigate to="/complete-profile" replace />;
     } else if (!profile && !profileError) {
       // New user - profile doesn't exist yet, redirect to complete-profile to create it
+      console.log('[AppLayout] Redirecting to complete-profile: no profile found');
       return <Navigate to="/complete-profile" replace />;
     }
   }
