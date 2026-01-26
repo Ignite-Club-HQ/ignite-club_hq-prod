@@ -196,25 +196,49 @@ export default function TeamDetailPage() {
   const { data: teamChildren = [], isLoading: isChildrenLoading, isFetching: isChildrenFetching, refetch: refetchChildren } = useQuery({
     queryKey: ["team-children", id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // First get the child assignments
+      const { data: assignments, error: assignError } = await supabase
         .from("child_team_assignments")
-        .select(`
-          id,
-          child_id,
-          children (
-            id,
-            name,
-            year_of_birth,
-            parent_id,
-            profiles:parent_id (
-              id,
-              display_name
-            )
-          )
-        `)
+        .select("id, child_id")
         .eq("team_id", id!);
-      if (error) throw error;
-      return data || [];
+      if (assignError) throw assignError;
+      if (!assignments || assignments.length === 0) return [];
+      
+      const childIds = assignments.map(a => a.child_id);
+      
+      // Fetch children separately - this handles RLS better
+      const { data: childrenData, error: childError } = await supabase
+        .from("children")
+        .select("id, name, year_of_birth, parent_id")
+        .in("id", childIds);
+      if (childError) throw childError;
+      
+      // Fetch parent profiles
+      const parentIds = [...new Set((childrenData || []).map(c => c.parent_id).filter(Boolean))];
+      let parentProfiles: Record<string, { id: string; display_name: string | null }> = {};
+      if (parentIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", parentIds);
+        parentProfiles = (profiles || []).reduce((acc, p) => {
+          acc[p.id] = p;
+          return acc;
+        }, {} as Record<string, { id: string; display_name: string | null }>);
+      }
+      
+      // Combine the data
+      return assignments.map(assignment => {
+        const child = (childrenData || []).find(c => c.id === assignment.child_id);
+        return {
+          id: assignment.id,
+          child_id: assignment.child_id,
+          children: child ? {
+            ...child,
+            profiles: child.parent_id ? parentProfiles[child.parent_id] : null,
+          } : null,
+        };
+      }).filter(a => a.children !== null);
     },
     enabled: !!id,
     staleTime: 0,
