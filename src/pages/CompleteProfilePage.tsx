@@ -411,7 +411,19 @@ export default function CompleteProfilePage() {
             // Store full localStorage keys so useClubTheme picks it up immediately
             localStorage.setItem(`ignite-club-theme-${user.id}`, proClubWithTheme.id);
             
-            // Also cache the theme data for instant display on next page
+            // Build theme data for caching and immediate application
+            const primary = proClubWithTheme.theme_primary_h !== null ? {
+              h: proClubWithTheme.theme_primary_h,
+              s: proClubWithTheme.theme_primary_s,
+              l: proClubWithTheme.theme_primary_l,
+            } : null;
+            const darkPrimary = proClubWithTheme.theme_dark_primary_h !== null ? {
+              h: proClubWithTheme.theme_dark_primary_h,
+              s: proClubWithTheme.theme_dark_primary_s,
+              l: proClubWithTheme.theme_dark_primary_l,
+            } : null;
+            
+            // Cache the theme data for instant display on next page
             const cacheData = {
               clubId: proClubWithTheme.id,
               clubName: proClubWithTheme.name,
@@ -420,18 +432,10 @@ export default function CompleteProfilePage() {
               showNameInHeader: true,
               logoOnlyMode: false,
               sport: null,
-              primary: proClubWithTheme.theme_primary_h !== null ? {
-                h: proClubWithTheme.theme_primary_h,
-                s: proClubWithTheme.theme_primary_s,
-                l: proClubWithTheme.theme_primary_l,
-              } : null,
+              primary,
               secondary: null,
               accent: null,
-              darkPrimary: proClubWithTheme.theme_dark_primary_h !== null ? {
-                h: proClubWithTheme.theme_dark_primary_h,
-                s: proClubWithTheme.theme_dark_primary_s,
-                l: proClubWithTheme.theme_dark_primary_l,
-              } : null,
+              darkPrimary,
               darkSecondary: null,
               darkAccent: null,
             };
@@ -439,6 +443,17 @@ export default function CompleteProfilePage() {
               localStorage.setItem(`ignite-club-theme-data-${user.id}`, JSON.stringify(cacheData));
             } catch {
               // Ignore localStorage errors
+            }
+            
+            // IMMEDIATELY apply theme CSS so it's visible on navigation
+            const root = document.documentElement;
+            const isDarkMode = root.classList.contains('dark');
+            const activeColor = isDarkMode ? (darkPrimary || primary) : primary;
+            if (activeColor) {
+              root.style.setProperty("--primary", `${activeColor.h} ${activeColor.s}% ${activeColor.l}%`);
+              const fgL = activeColor.l > 50 ? 10 : 98;
+              root.style.setProperty("--primary-foreground", `${activeColor.h} 10% ${fgL}%`);
+              root.style.setProperty("--ring", `${activeColor.h} ${activeColor.s}% ${activeColor.l}%`);
             }
           }
         }
