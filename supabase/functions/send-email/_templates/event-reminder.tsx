@@ -177,9 +177,8 @@ export const EventReminderEmail = ({
               <Link href={normalizedEventLink} style={{ color: primaryColor }}> Manage your notification preferences</Link>
             </Text>
             <Text style={photoConsentText}>
-              📷 Photos of your child may be uploaded to the Ignite app by team members. 
-              Please review our <Link href={`${PRODUCTION_DOMAIN}/privacy-policy`} style={{ color: primaryColor }}>Privacy Policy</Link>. 
-              If you wish to opt out of photo uploads, please contact your club or team admin.
+              📷 Photos may be shared within the app by team members. Photo consent is managed by your club, not Ignite Club HQ. 
+              Please contact your club or team admin if you have concerns or wish to opt out.
             </Text>
             <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
               <tr>
