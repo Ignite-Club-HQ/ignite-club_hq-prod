@@ -13,9 +13,9 @@ import igniteIcon from "@/assets/ignite-icon.png";
 
 export function AppLayout() {
   const { user, profile, loading, profileLoading, profileError, refreshProfile } = useAuth();
-  // Theme loading happens asynchronously - we don't block on it
-  useClubTheme();
+  const { isThemeReady } = useClubTheme();
   const [retrying, setRetrying] = useState(false);
+  const [themeTimeout, setThemeTimeout] = useState(false);
   const { resolvedTheme } = useTheme();
   const logo = resolvedTheme === "dark" ? igniteIcon : igniteIconLight;
 
@@ -27,9 +27,27 @@ export function AppLayout() {
       profileError,
       hasProfile: !!profile,
       displayName: profile?.display_name,
-      userId: user?.id
+      userId: user?.id,
+      isThemeReady,
+      themeTimeout
     });
-  }, [loading, profileLoading, profileError, profile, user]);
+  }, [loading, profileLoading, profileError, profile, user, isThemeReady, themeTimeout]);
+
+  // Theme loading timeout - don't block forever waiting for theme
+  useEffect(() => {
+    if (profile && !isThemeReady && !themeTimeout) {
+      const timer = setTimeout(() => {
+        console.log('[AppLayout] Theme loading timeout - proceeding without waiting');
+        setThemeTimeout(true);
+      }, 3000); // 3 second timeout for theme loading
+      return () => clearTimeout(timer);
+    }
+  }, [profile, isThemeReady, themeTimeout]);
+
+  // Reset theme timeout when user changes
+  useEffect(() => {
+    setThemeTimeout(false);
+  }, [user?.id]);
 
   // Auto-retry when profile error occurs
   useEffect(() => {
@@ -45,8 +63,9 @@ export function AppLayout() {
 
   // Show loading only when we have no user and no profile (true initial load)
   // If we have a cached profile, skip loading screen entirely
-  // Don't block on theme ready - the theme will apply when ready without blocking UI
-  if (loading && !profile) {
+  // Wait for theme to be ready (with timeout) to prevent theme flash on first login
+  const shouldWaitForTheme = profile && !isThemeReady && !themeTimeout;
+  if ((loading && !profile) || shouldWaitForTheme) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <img src={logo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
