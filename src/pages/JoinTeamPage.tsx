@@ -50,6 +50,7 @@ export default function JoinTeamPage() {
   const [nameValidationError, setNameValidationError] = useState<string | null>(null);
   const [showInstalledGuide, setShowInstalledGuide] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
   const autoJoinAttempted = useRef(false);
   const { canPrompt, isInstalled, isIOS, installApp } = usePWAInstall();
   
@@ -71,18 +72,32 @@ export default function JoinTeamPage() {
   const isPendingInvite = location.pathname.startsWith("/join/p/");
 
   // Fetch pending invite details using RPC function (for name-restricted invites)
-  const { data: pendingInviteData, isLoading: pendingInviteLoading, error: pendingInviteError } = useQuery({
+  const { data: pendingInviteData, isLoading: pendingInviteLoading, error: pendingInviteError, isError: pendingInviteIsError } = useQuery({
     queryKey: ["pending-invite-token", token],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .rpc("get_pending_invite_by_token", { _token: token! });
-      if (error) throw error;
-      if (data && data.length > 0) {
-        return data[0];
+      console.log("[JoinTeam] Fetching pending invite for token:", token);
+      try {
+        const { data, error } = await supabase
+          .rpc("get_pending_invite_by_token", { _token: token! });
+        console.log("[JoinTeam] RPC response:", { data, error });
+        if (error) {
+          console.error("[JoinTeam] RPC error:", error);
+          throw error;
+        }
+        if (data && data.length > 0) {
+          return data[0];
+        }
+        console.log("[JoinTeam] No invite found for token");
+        return null;
+      } catch (err) {
+        console.error("[JoinTeam] Exception fetching invite:", err);
+        throw err;
       }
-      return null;
     },
     enabled: !!token && isPendingInvite,
+    retry: 2,
+    retryDelay: 1000,
+    staleTime: 0,
   });
 
   // Fetch team invite details using secure RPC function (for regular invites)
@@ -152,6 +167,20 @@ export default function JoinTeamPage() {
 
   const isLoading = isPendingInvite ? pendingInviteLoading : teamInviteLoading;
   const inviteError = isPendingInvite ? pendingInviteError : teamInviteError;
+
+  // Loading timeout - if loading takes more than 10 seconds, show error
+  useEffect(() => {
+    if (isLoading) {
+      console.log("[JoinTeam] Loading started, isPendingInvite:", isPendingInvite, "token:", token);
+      const timeout = setTimeout(() => {
+        console.log("[JoinTeam] Loading timeout reached");
+        setLoadingTimeout(true);
+      }, 10000);
+      return () => clearTimeout(timeout);
+    } else {
+      setLoadingTimeout(false);
+    }
+  }, [isLoading, isPendingInvite, token]);
 
   // Fetch user's existing roles in this team
   const { data: existingRoles } = useQuery({
@@ -741,11 +770,32 @@ export default function JoinTeamPage() {
     return <PWAInstalledGuide appName="Ignite" onDismiss={handleContinueInBrowser} />;
   }
 
-  if (isLoading) {
+  if (isLoading && !loadingTimeout) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-muted-foreground">Loading team invite...</p>
+      </div>
+    );
+  }
+
+  // Handle loading timeout - show error and retry option
+  if (loadingTimeout && isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <AlertTriangle className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Taking Too Long</h2>
+            <p className="text-muted-foreground mb-4">
+              We're having trouble loading this invite. This might be a network issue.
+            </p>
+            <div className="flex gap-2 justify-center">
+              <Button variant="outline" onClick={() => navigate("/")}>Go Home</Button>
+              <Button onClick={() => window.location.reload()}>Retry</Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
