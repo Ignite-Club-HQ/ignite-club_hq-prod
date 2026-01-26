@@ -303,26 +303,44 @@ export default function EventDetailPage() {
     enabled: !!event?.team_id,
   });
   
-  // Check if team has Pro subscription (for other features like RSVP reminders)
-  const { data: hasTeamPro } = useQuery({
-    queryKey: ["team-pro-status", event?.team_id],
+  // Check if team/club has Pro subscription (for other features like RSVP reminders)
+  const { data: hasTeamPro, isLoading: isLoadingHasTeamPro } = useQuery({
+    queryKey: ["team-pro-status", event?.team_id, event?.club_id],
     queryFn: async () => {
-      if (!event?.team_id) return false;
-      const { data } = await supabase
-        .from("team_subscriptions")
-        .select("is_pro, is_pro_football")
-        .eq("team_id", event.team_id)
-        .maybeSingle();
-      return data?.is_pro === true || data?.is_pro_football === true;
+      // First check team-level subscription
+      if (event?.team_id) {
+        const { data: teamSub } = await supabase
+          .from("team_subscriptions")
+          .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+          .eq("team_id", event.team_id)
+          .maybeSingle();
+        if (teamSub?.is_pro || teamSub?.is_pro_football || teamSub?.admin_pro_override || teamSub?.admin_pro_football_override) {
+          return true;
+        }
+      }
+      
+      // Then check club-level subscription
+      if (event?.club_id) {
+        const { data: clubSub } = await supabase
+          .from("club_subscriptions")
+          .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+          .eq("club_id", event.club_id)
+          .maybeSingle();
+        if (clubSub?.is_pro || clubSub?.is_pro_football || clubSub?.admin_pro_override || clubSub?.admin_pro_football_override) {
+          return true;
+        }
+      }
+      
+      return false;
     },
-    enabled: !!event?.team_id,
+    enabled: !!event?.team_id || !!event?.club_id,
   });
 
   // Pro feature check: duty points only for Pro clubs or app_admin
   const canAwardDutyPoints = isAppAdmin || event?.clubs?.is_pro;
   
-  // Pro feature check for RSVP reminders - strictly team-level Pro only
-  const canSendReminders = !isLoadingTeamPro && hasTeamPro === true;
+  // Pro feature check for RSVP reminders - check team OR club subscription
+  const canSendReminders = !isLoadingHasTeamPro && hasTeamPro === true;
 
   // Check if club is soccer/football for pitch board
   const isSoccerClub = event?.clubs?.sport?.toLowerCase().includes('soccer') || 
@@ -1109,7 +1127,7 @@ export default function EventDetailPage() {
               >
                 <Bell className="h-5 w-5" />
               </Button>
-            ) : !isLoadingTeamPro && (
+            ) : !isLoadingHasTeamPro && (
               <div className="flex items-center gap-1 px-2">
                 <Bell className="h-5 w-5 text-muted-foreground" />
                 <span className="text-xs font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">Pro</span>
