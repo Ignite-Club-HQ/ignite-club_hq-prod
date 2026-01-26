@@ -183,7 +183,52 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   // Track if we've ever started the DB load for this user session
   const [hasStartedDbLoad, setHasStartedDbLoad] = useState(false);
 
-  // Ensure loading state is set when user becomes available (before effect runs)
+  // Counter to force re-read from localStorage (incremented by custom event)
+  const [localStorageVersion, setLocalStorageVersion] = useState(0);
+
+  // Listen for theme-updated events from CompleteProfilePage
+  useEffect(() => {
+    const handleThemeUpdate = () => {
+      console.log('[ClubTheme] Received theme-updated event, forcing re-read');
+      setLocalStorageVersion(v => v + 1);
+    };
+    
+    window.addEventListener('club-theme-updated', handleThemeUpdate);
+    return () => window.removeEventListener('club-theme-updated', handleThemeUpdate);
+  }, []);
+
+  // Read from localStorage when user changes OR when localStorageVersion changes
+  // This ensures theme applies instantly after CompleteProfilePage sets it
+  useEffect(() => {
+    if (user?.id && typeof window !== "undefined") {
+      const storedId = localStorage.getItem(getStorageKey(user.id));
+      const storedData = localStorage.getItem(getStorageDataKey(user.id));
+      
+      // If localStorage has theme data, sync state
+      if (storedId) {
+        setActiveClubThemeState(storedId);
+        
+        if (storedData) {
+          try {
+            const parsedData = JSON.parse(storedData) as CachedThemeData;
+            if (parsedData.clubId === storedId) {
+              const themeFromCache: ClubTheme = { 
+                ...parsedData, 
+                logoUrl: parsedData.logoUrl ?? null, 
+                sport: parsedData.sport ?? null 
+              };
+              setCachedThemeData(themeFromCache);
+              applyThemeCSS(themeFromCache, isDarkMode);
+            }
+          } catch {
+            // Invalid cache
+          }
+        }
+      }
+    }
+  }, [user?.id, localStorageVersion, isDarkMode]);
+
+  // Ensure loading state is set when user becomes available (before DB fetch)
   useEffect(() => {
     if (user?.id && !hasStartedDbLoad) {
       setIsLoadingFromDb(true);
@@ -195,33 +240,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id, hasStartedDbLoad]);
 
-  // INSTANT THEME APPLICATION: Restore from localStorage immediately on mount
-  // Then load from database for cross-device sync
+  // Load theme preference from database for cross-device sync
+  // The localStorage read is handled by the effect above (triggered by localStorageVersion)
   useEffect(() => {
     if (user?.id && typeof window !== "undefined") {
       const storedId = localStorage.getItem(getStorageKey(user.id));
-      const storedData = localStorage.getItem(getStorageDataKey(user.id));
-      
-      if (storedId) {
-        setActiveClubThemeState(storedId);
-        
-        // Apply cached theme data INSTANTLY before fetch completes
-        if (storedData) {
-          try {
-            const parsedData = JSON.parse(storedData) as CachedThemeData;
-            // Create full theme from cache including logoUrl for instant display
-            const themeFromCache: ClubTheme = { 
-              ...parsedData, 
-              logoUrl: parsedData.logoUrl ?? null, 
-              sport: parsedData.sport ?? null 
-            };
-            setCachedThemeData(themeFromCache);
-            applyThemeCSS(themeFromCache, isDarkMode);
-          } catch {
-            // Invalid cache, will be refreshed from server
-          }
-        }
-      }
       
       // Load theme preference from database (cross-device sync)
       const loadThemeFromDb = async () => {
@@ -242,10 +265,6 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
               // User has explicit preference - don't auto-set
               setHasCheckedDefault(true);
               
-              // CRITICAL FIX: Always try to fetch and apply theme data when DB has a preference
-              // This ensures theme applies immediately for:
-              // 1. Cross-device sync (no localStorage data)
-              // 2. First login after invite (localStorage just set but might not be applied yet)
               // Check if we have FRESH localStorage data that matches the DB preference
               const freshStoredData = localStorage.getItem(getStorageDataKey(user.id));
               let themeApplied = false;
