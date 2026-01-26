@@ -43,22 +43,48 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 const PROFILE_CACHE_KEY = 'ignite_cached_profile';
 
-function getCachedProfile(): Profile | null {
+interface CachedProfileData {
+  profile: Profile;
+  userId: string;
+  cachedAt: number;
+}
+
+// Profile cache now includes userId to prevent cross-user cache collisions
+function getCachedProfile(userId?: string): Profile | null {
   try {
     const cached = localStorage.getItem(PROFILE_CACHE_KEY);
     if (cached) {
-      return JSON.parse(cached);
+      const data = JSON.parse(cached) as CachedProfileData;
+      // CRITICAL: Only return cache if userId matches
+      // This prevents stale cache from wrong user causing login issues
+      if (userId && data.userId !== userId) {
+        console.log('[Auth] Cached profile userId mismatch, clearing stale cache');
+        localStorage.removeItem(PROFILE_CACHE_KEY);
+        return null;
+      }
+      // Also validate cache structure has expected fields
+      if (data.profile && data.profile.id) {
+        return data.profile;
+      }
+      // Legacy format - clear it
+      localStorage.removeItem(PROFILE_CACHE_KEY);
     }
   } catch {
-    // Ignore parse errors
+    // Ignore parse errors, clear invalid cache
+    localStorage.removeItem(PROFILE_CACHE_KEY);
   }
   return null;
 }
 
-function setCachedProfile(profile: Profile | null) {
+function setCachedProfile(profile: Profile | null, userId?: string) {
   try {
-    if (profile) {
-      localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile));
+    if (profile && userId) {
+      const cacheData: CachedProfileData = {
+        profile,
+        userId,
+        cachedAt: Date.now(),
+      };
+      localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(cacheData));
     } else {
       localStorage.removeItem(PROFILE_CACHE_KEY);
     }
@@ -69,12 +95,13 @@ function setCachedProfile(profile: Profile | null) {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const cachedProfile = getCachedProfile();
+  // DON'T use cached profile on initial render - we don't know user ID yet
+  // The cache will be validated once we have the user from getSession
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(cachedProfile);
-  // If we have cached profile, don't block UI - start with loading=false
-  const [loading, setLoading] = useState(!cachedProfile);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  // Always start with loading=true until we check session
+  const [loading, setLoading] = useState(true);
   // Always start profileLoading as true - we need fresh data from server
   // before making decisions like redirecting to complete-profile
   // This prevents stale cached profiles from incorrectly gating users
@@ -118,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data) {
           const profileData = data as Profile;
           setProfile(profileData);
-          setCachedProfile(profileData);
+          setCachedProfile(profileData, userId);
           setProfileError(false);
           
           // HARD RULE: If profile has display_name, set the profileCompleted flag for this user
@@ -199,9 +226,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // This helps with RLS policies that check auth.uid()
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // If we have a cached profile, use it for display immediately
+      // If we have a cached profile for THIS USER, use it for display immediately
       // BUT we still need to fetch fresh data before making gating decisions
-      const cached = getCachedProfile();
+      const cached = getCachedProfile(userId);
       if (cached && cached.id === userId) {
         setProfile(cached);
         setLoading(false); // Allow UI to render with cached data
