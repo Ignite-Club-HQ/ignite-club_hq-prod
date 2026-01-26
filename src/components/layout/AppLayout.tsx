@@ -13,7 +13,8 @@ import igniteIcon from "@/assets/ignite-icon.png";
 
 export function AppLayout() {
   const { user, profile, loading, profileLoading, profileError, refreshProfile } = useAuth();
-  const { isThemeReady } = useClubTheme();
+  // Theme loading happens asynchronously - we don't block on it
+  useClubTheme();
   const [retrying, setRetrying] = useState(false);
   const { resolvedTheme } = useTheme();
   const logo = resolvedTheme === "dark" ? igniteIcon : igniteIconLight;
@@ -44,8 +45,8 @@ export function AppLayout() {
 
   // Show loading only when we have no user and no profile (true initial load)
   // If we have a cached profile, skip loading screen entirely
-  // Also wait for theme to be ready to prevent theme flash on first login
-  if ((loading && !profile) || (profile && !isThemeReady)) {
+  // Don't block on theme ready - the theme will apply when ready without blocking UI
+  if (loading && !profile) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <img src={logo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
