@@ -316,29 +316,17 @@ export default function EventsPage() {
             <CalendarDays className="h-4 w-4" />
           </Button>
           {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach"].includes(r.role))) && (
-            <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link to="/events/import">
-                    <Button size="icon" variant="outline">
-                      <Upload className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent>Import Fixtures</TooltipContent>
-              </Tooltip>
-              <Link to="/events/new">
-                <Button size="sm">
-                  <Plus className="h-4 w-4 mr-1" /> New
-                </Button>
-              </Link>
-            </>
+            <Link to="/events/new">
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-1" /> New
+              </Button>
+            </Link>
           )}
         </div>
       </div>
 
       {/* Club and Team Filters */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         {userClubs && userClubs.length > 1 && (
           <Select value={clubFilter || "all"} onValueChange={handleClubChange}>
             <SelectTrigger className="w-[180px]">
@@ -369,6 +357,19 @@ export default function EventsPage() {
               ))}
             </SelectContent>
           </Select>
+        )}
+
+        {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach"].includes(r.role))) && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link to="/events/import">
+                <Button size="icon" variant="outline">
+                  <Upload className="h-4 w-4" />
+                </Button>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>Import Fixtures</TooltipContent>
+          </Tooltip>
         )}
       </div>
 
