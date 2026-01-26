@@ -55,7 +55,16 @@ export default function AuthPage() {
   
   // Check if we're actively in an invite flow - only valid if there's a pending redirect
   const redirectAfterAuth = sessionStorage.getItem("redirectAfterAuth");
-  const [inviteFlowContext, setInviteFlowContext] = useState(() => getInviteFlowContext());
+  
+  // Initialize invite flow context - but immediately check if it's stale
+  const [inviteFlowContext, setInviteFlowContext] = useState(() => {
+    const context = getInviteFlowContext();
+    // If there's a context but no redirect, it's stale - don't use it
+    if (context?.active && !sessionStorage.getItem("redirectAfterAuth")) {
+      return null;
+    }
+    return context;
+  });
   
   // Only show invite flow progress if there's an active context AND a pending redirect
   // This prevents stale contexts from showing on normal sign-in
@@ -70,10 +79,7 @@ export default function AuthPage() {
     if (currentContext?.active && !redirectAfterAuth) {
       clearInviteFlowContext();
       setInviteFlowContext(null);
-    }
-    
-    // Also clear any stale PWA pending invite if user is just signing in normally
-    if (!redirectAfterAuth) {
+      // Also clear any stale PWA pending invite
       localStorage.removeItem("pwa_pending_invite");
     }
   }, [redirectAfterAuth]);
