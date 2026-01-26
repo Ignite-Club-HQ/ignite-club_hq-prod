@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
 import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
-import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
+import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext, hasCompletedProfile } from "@/components/InviteFlowProgress";
 
 import { z } from "zod";
 
@@ -57,7 +57,12 @@ export default function AuthPage() {
   const redirectAfterAuth = sessionStorage.getItem("redirectAfterAuth");
   
   // Initialize invite flow context - but immediately check if it's stale
+  // HARD RULE: If profile has been completed, never show progress dots again
   const [inviteFlowContext, setInviteFlowContext] = useState(() => {
+    // Hard rule: once profile is completed, never show invite flow progress
+    if (hasCompletedProfile()) {
+      return null;
+    }
     const context = getInviteFlowContext();
     // If there's a context but no redirect, it's stale - don't use it
     if (context?.active && !sessionStorage.getItem("redirectAfterAuth")) {
@@ -67,8 +72,8 @@ export default function AuthPage() {
   });
   
   // Only show invite flow progress if there's an active context AND a pending redirect
-  // This prevents stale contexts from showing on normal sign-in
-  const isInInviteFlow = inviteFlowContext?.active === true && !!redirectAfterAuth;
+  // AND the user hasn't completed their profile before (hard rule)
+  const isInInviteFlow = inviteFlowContext?.active === true && !!redirectAfterAuth && !hasCompletedProfile();
   
   // Clear stale invite flow context and session storage on mount
   useEffect(() => {

@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { subscribeToPushNotifications, checkPushSubscription } from "@/lib/pushNotifications";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
-import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
+import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext, hasCompletedProfile } from "@/components/InviteFlowProgress";
 
 interface PendingInvite {
   id: string;
@@ -49,8 +49,8 @@ export default function CompleteProfilePage() {
   const { canPrompt, isInstalled, installApp, isReady: pwaReady, isIOS } = usePWAInstall();
   const { registerPasskey } = usePasskey();
 
-  // Check if we're in an invite flow
-  const inviteFlowContext = getInviteFlowContext();
+  // Check if we're in an invite flow - but respect the hard rule
+  const inviteFlowContext = hasCompletedProfile() ? null : getInviteFlowContext();
 
   // Check if push notifications and biometrics are supported
   useEffect(() => {
