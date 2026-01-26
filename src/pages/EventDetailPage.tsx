@@ -1052,10 +1052,25 @@ export default function EventDetailPage() {
       const { error } = await supabase.from("notifications").insert(notifications);
       if (error) throw error;
       
+      // Send push notifications to all members being reminded
+      for (const userId of membersToNotify) {
+        supabase.functions.invoke("send-push-notification", {
+          body: {
+            userId,
+            title: "RSVP Reminder",
+            body: `Please RSVP for "${event?.title}"`,
+            url: `/events/${id}`,
+          },
+        }).catch(console.error);
+      }
+      
       return membersToNotify.length;
     },
-    onSuccess: () => {
-      // Silently succeed without toast
+    onSuccess: (count) => {
+      toast({ 
+        title: "Reminders sent", 
+        description: `${count} member${count !== 1 ? 's' : ''} have been reminded to RSVP` 
+      });
     },
     onError: (error: Error) => {
       toast({ title: error.message || "Failed to send reminders", variant: "destructive" });
