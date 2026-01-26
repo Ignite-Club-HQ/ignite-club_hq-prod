@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Copy, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar } from "lucide-react";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
 import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
 import { Button } from "@/components/ui/button";
@@ -88,7 +88,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const [customName, setCustomName] = useState("");
   const [customEmail, setCustomEmail] = useState("");
   const [selectedRole, setSelectedRole] = useState<TeamRole>(getDefaultRole());
-  const [copied, setCopied] = useState(false);
+  const [inviteSent, setInviteSent] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [isSendingNotification, setIsSendingNotification] = useState(false);
   const [mode, setMode] = useState<"single" | "bulk">("single");
@@ -428,28 +428,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     },
   });
 
-  const handleCopyLink = async () => {
-    if (!inviteLink) return;
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setCopied(true);
-      toast({ title: "Invite link copied!" });
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast({ title: "Failed to copy link", variant: "destructive" });
-    }
-  };
-
-  const handleCopyAllLinks = async () => {
-    const linksText = bulkResults.map(r => `${r.name}: ${r.link}`).join("\n");
-    try {
-      await navigator.clipboard.writeText(linksText);
-      toast({ title: "All invite links copied!" });
-    } catch {
-      toast({ title: "Failed to copy links", variant: "destructive" });
-    }
-  };
-
   const handleClose = () => {
     setOpen(false);
     setSearchQuery("");
@@ -458,7 +436,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setCustomEmail("");
     setSelectedRole(getDefaultRole());
     setInviteLink(null);
-    setCopied(false);
+    setInviteSent(false);
     setMode("single");
     setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [] }]);
     setBulkResults([]);
@@ -534,7 +512,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
           <div className="space-y-4 pb-6">
             {bulkResults.map((result, idx) => (
-              <div key={idx} className="p-3 rounded-lg border bg-muted/30 space-y-2">
+              <div key={idx} className="p-3 rounded-lg border bg-muted/30">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium text-sm">{result.name}</p>
@@ -547,37 +525,21 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       <Mail className="h-3 w-3 mr-1" />
                       Sent
                     </Badge>
-                  ) : result.email ? (
+                  ) : (
                     <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
                       Failed
                     </Badge>
-                  ) : (
-                    <Badge variant="outline" className="bg-muted text-muted-foreground">
-                      Link only
-                    </Badge>
                   )}
-                </div>
-                <div className="flex gap-2">
-                  <Input value={result.link} readOnly className="text-xs font-mono h-8" />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 px-2"
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(result.link);
-                      toast({ title: `Link copied for ${result.name}` });
-                    }}
-                  >
-                    <Copy className="h-3 w-3" />
-                  </Button>
                 </div>
               </div>
             ))}
 
             <div className="flex gap-2 pt-2">
-              <Button variant="outline" className="flex-1" onClick={handleCopyAllLinks}>
-                <Copy className="h-4 w-4 mr-2" />
-                Copy All Links
+              <Button variant="outline" className="flex-1" onClick={() => {
+                setBulkResults([]);
+                setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [] }]);
+              }}>
+                Add More
               </Button>
               <Button className="flex-1" onClick={handleDone}>
                 Done
@@ -610,27 +572,28 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           <div className="space-y-6 pb-6">
             <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
               <p className="font-medium mb-1">{customName}</p>
-              <p className="text-sm text-muted-foreground">
-                Added as pending {selectedRoleOption?.label}
+              <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <Mail className="h-3.5 w-3.5" />
+                Invite sent to {customEmail}
               </p>
             </div>
 
-            <div className="space-y-3">
-              <Label>Send them this invite link:</Label>
-              <div className="flex gap-2">
-                <Input value={inviteLink} readOnly className="text-sm font-mono" />
-                <Button onClick={handleCopyLink} variant="outline">
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                When they join, their name will be pre-filled as "{customName}"
-              </p>
-            </div>
+            <p className="text-sm text-muted-foreground text-center">
+              When they accept the invite, their name will be pre-filled as "{customName}"
+            </p>
 
-            <Button className="w-full" onClick={handleDone}>
-              Done
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => {
+                setInviteLink(null);
+                setCustomName("");
+                setCustomEmail("");
+              }}>
+                Add Another
+              </Button>
+              <Button className="flex-1" onClick={handleDone}>
+                Done
+              </Button>
+            </div>
           </div>
         </SheetContent>
       </Sheet>
@@ -835,7 +798,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
                 {customName.trim() && (
                   <div className="space-y-2">
-                    <Label>Email (optional - for sending invite)</Label>
+                    <Label>Email *</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -847,9 +810,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {customEmail.trim() 
-                        ? "An invite email will be sent automatically" 
-                        : "Add email to auto-send invite, or share the link manually"}
+                      An invite email will be sent to this address
                     </p>
                   </div>
                 )}
@@ -873,14 +834,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               <Button
                 className="w-full h-12 text-base font-semibold"
                 onClick={() => addPendingMemberMutation.mutate()}
-                disabled={!customName.trim() || addPendingMemberMutation.isPending}
+                disabled={!customName.trim() || !customEmail.trim() || addPendingMemberMutation.isPending}
               >
                 {addPendingMemberMutation.isPending ? (
                   <Loader2 className="h-5 w-5 animate-spin mr-2" />
                 ) : (
                   <Send className="h-5 w-5 mr-2" />
                 )}
-                {customName.trim() ? `Add ${customName} & Get Invite Link` : "Enter a name to continue"}
+                {customName.trim() && customEmail.trim() ? `Send Invite to ${customName}` : "Enter name and email to continue"}
               </Button>
             )}
           </TabsContent>
@@ -888,7 +849,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           <TabsContent value="bulk" className="space-y-4 mt-0">
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Add multiple members at once. Include emails to auto-send unique invite links.
+                Add multiple members at once. Email addresses are required to send invites.
               </p>
               
               {/* Parent role preview hint for bulk tab */}
@@ -964,7 +925,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       />
                       <Input
                         type="email"
-                        placeholder="Email (optional)"
+                        placeholder="Email (required)"
                         value={member.email}
                         onChange={(e) => updateBulkMember(member.id, "email", e.target.value)}
                       />
