@@ -120,6 +120,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setCachedProfile(profileData);
           setProfileError(false);
           
+          // HARD RULE: If profile has display_name, set the profileCompleted flag
+          // This ensures invite flow progress dots never appear for users with completed profiles
+          if (profileData.display_name) {
+            try {
+              localStorage.setItem("profileCompleted", "true");
+            } catch {
+              // localStorage not available
+            }
+          }
+          
           // Only apply theme preference on fresh login, not page refresh
           // On page refresh, localStorage (set by index.html) is the source of truth
           if (applyTheme && profileData.theme_preference) {
