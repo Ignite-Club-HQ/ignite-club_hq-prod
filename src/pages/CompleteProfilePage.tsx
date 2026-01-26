@@ -25,6 +25,7 @@ interface PendingInvite {
   invited_label: string | null;
   club_name?: string;
   team_name?: string;
+  metadata?: { children?: { name: string; yearOfBirth: number | null }[] } | null;
 }
 
 export default function CompleteProfilePage() {
@@ -98,6 +99,7 @@ export default function CompleteProfilePage() {
             club_id,
             role,
             invited_label,
+            metadata,
             clubs:club_id(name),
             teams:team_id(name)
           `)
@@ -116,6 +118,7 @@ export default function CompleteProfilePage() {
             invited_label: inv.invited_label,
             club_name: inv.clubs?.name,
             team_name: inv.teams?.name,
+            metadata: inv.metadata as PendingInvite['metadata'],
           }));
           setPendingInvites(formattedInvites);
         } else {
@@ -332,6 +335,48 @@ export default function CompleteProfilePage() {
                   title: "Invite accepted!",
                   description: `You've joined ${entityName} as ${invite.role.replace("_", " ")}.`,
                 });
+                
+                // Create children from invite metadata (if parent role with children)
+                if (invite.metadata?.children && invite.metadata.children.length > 0 && invite.role === "parent") {
+                  console.log("[CompleteProfile] Creating children from invite metadata:", invite.metadata.children);
+                  for (const childData of invite.metadata.children) {
+                    console.log("[CompleteProfile] Creating child:", childData.name, "YoB:", childData.yearOfBirth);
+                    // Create the child record
+                    const { data: newChild, error: childError } = await supabase
+                      .from("children")
+                      .insert({
+                        parent_id: user.id,
+                        name: childData.name,
+                        year_of_birth: childData.yearOfBirth,
+                      })
+                      .select("id")
+                      .single();
+                    
+                    if (childError) {
+                      console.error("[CompleteProfile] Failed to create child:", childError.message);
+                      continue;
+                    }
+                    
+                    console.log("[CompleteProfile] Child created with ID:", newChild?.id);
+                    
+                    // Assign child to the team
+                    if (newChild?.id && invite.team_id) {
+                      console.log("[CompleteProfile] Assigning child to team:", invite.team_id);
+                      const { error: assignError } = await supabase
+                        .from("child_team_assignments")
+                        .insert({
+                          child_id: newChild.id,
+                          team_id: invite.team_id,
+                        });
+                      
+                      if (assignError) {
+                        console.error("[CompleteProfile] Failed to assign child to team:", assignError.message);
+                      } else {
+                        console.log("[CompleteProfile] Child created and assigned to team:", childData.name);
+                      }
+                    }
+                  }
+                }
               }
             }
           } else {
@@ -345,6 +390,50 @@ export default function CompleteProfilePage() {
                 invited_user_id: user.id 
               })
               .eq("id", invite.id);
+            
+            // Still create children if this is a parent role, even if role already exists
+            if (invite.metadata?.children && invite.metadata.children.length > 0 && invite.role === "parent") {
+              console.log("[CompleteProfile] Role exists but creating children from metadata:", invite.metadata.children);
+              for (const childData of invite.metadata.children) {
+                // Check if child already exists for this parent with same name
+                const { data: existingChild } = await supabase
+                  .from("children")
+                  .select("id")
+                  .eq("parent_id", user.id)
+                  .ilike("name", childData.name)
+                  .maybeSingle();
+                
+                if (existingChild) {
+                  console.log("[CompleteProfile] Child already exists:", childData.name);
+                  continue;
+                }
+                
+                const { data: newChild, error: childError } = await supabase
+                  .from("children")
+                  .insert({
+                    parent_id: user.id,
+                    name: childData.name,
+                    year_of_birth: childData.yearOfBirth,
+                  })
+                  .select("id")
+                  .single();
+                
+                if (childError) {
+                  console.error("[CompleteProfile] Failed to create child:", childError.message);
+                  continue;
+                }
+                
+                if (newChild?.id && invite.team_id) {
+                  await supabase
+                    .from("child_team_assignments")
+                    .insert({
+                      child_id: newChild.id,
+                      team_id: invite.team_id,
+                    });
+                  console.log("[CompleteProfile] Child created and assigned to team:", childData.name);
+                }
+              }
+            }
           }
         }
       } else if (pendingInvites.length > 0) {
