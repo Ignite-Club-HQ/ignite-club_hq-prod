@@ -357,6 +357,7 @@ export default function CompleteProfilePage() {
 
       // Auto-apply club branding for new users joining Pro clubs
       // Find the first club with Pro subscription and theme enabled
+      let appliedClubId: string | null = null;
       if (acceptInvites && pendingInvites.length > 0) {
         const clubIdsToCheck = new Set<string>();
         
@@ -379,7 +380,15 @@ export default function CompleteProfilePage() {
             .from("clubs")
             .select(`
               id,
+              name,
+              logo_url,
               theme_enabled,
+              theme_primary_h,
+              theme_primary_s,
+              theme_primary_l,
+              theme_dark_primary_h,
+              theme_dark_primary_s,
+              theme_dark_primary_l,
               club_subscriptions!inner(is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at)
             `)
             .in("id", Array.from(clubIdsToCheck))
@@ -390,19 +399,51 @@ export default function CompleteProfilePage() {
             const sub = club.club_subscriptions;
             const hasPro = sub?.is_pro || sub?.is_pro_football || sub?.admin_pro_override || sub?.admin_pro_football_override;
             const notExpired = !sub?.expires_at || new Date(sub.expires_at) > new Date();
-            return hasPro && notExpired;
+            return hasPro && notExpired && club.theme_primary_h !== null;
           });
 
           if (proClubWithTheme) {
             console.log("[CompleteProfile] Auto-applying club theme for:", proClubWithTheme.id);
+            appliedClubId = proClubWithTheme.id;
+            
             // Update profile with active club theme
             await supabase
               .from("profiles")
               .update({ active_club_theme_id: proClubWithTheme.id })
               .eq("id", user.id);
             
-            // Also set localStorage so theme applies immediately on redirect
+            // Store full localStorage keys so useClubTheme picks it up immediately
             localStorage.setItem(`ignite-club-theme-${user.id}`, proClubWithTheme.id);
+            
+            // Also cache the theme data for instant display on next page
+            const cacheData = {
+              clubId: proClubWithTheme.id,
+              clubName: proClubWithTheme.name,
+              logoUrl: proClubWithTheme.logo_url,
+              showLogoInHeader: false,
+              showNameInHeader: true,
+              logoOnlyMode: false,
+              sport: null,
+              primary: proClubWithTheme.theme_primary_h !== null ? {
+                h: proClubWithTheme.theme_primary_h,
+                s: proClubWithTheme.theme_primary_s,
+                l: proClubWithTheme.theme_primary_l,
+              } : null,
+              secondary: null,
+              accent: null,
+              darkPrimary: proClubWithTheme.theme_dark_primary_h !== null ? {
+                h: proClubWithTheme.theme_dark_primary_h,
+                s: proClubWithTheme.theme_dark_primary_s,
+                l: proClubWithTheme.theme_dark_primary_l,
+              } : null,
+              darkSecondary: null,
+              darkAccent: null,
+            };
+            try {
+              localStorage.setItem(`ignite-club-theme-data-${user.id}`, JSON.stringify(cacheData));
+            } catch {
+              // Ignore localStorage errors
+            }
           }
         }
       }
@@ -448,29 +489,27 @@ export default function CompleteProfilePage() {
       // This ensures the progress dots never appear again for this user
       clearInviteFlowContext();
       localStorage.removeItem("pwa_pending_invite");
+      
+      // IMPORTANT: Clear ALL redirect-related session storage since invites were already processed
+      // This prevents the "Invite Already Used" error when returning to the app
+      sessionStorage.removeItem("redirectAfterAuth");
+      sessionStorage.removeItem("inviteLabel");
+      sessionStorage.removeItem("autoJoinAfterAuth");
+      sessionStorage.removeItem("authDefaultTab");
+      
+      // Set the profile completed flag (hard rule for invite flow dots)
+      localStorage.setItem("profileCompleted", "true");
 
       toast({
         title: "Profile completed!",
         description: "Welcome to Ignite Club HQ!",
       });
       
-      // Check if there's a pending redirect (e.g., from invite link)
-      const redirectPath = sessionStorage.getItem("redirectAfterAuth");
-      // Clean up stored invite label
-      sessionStorage.removeItem("inviteLabel");
-      sessionStorage.removeItem("autoJoinAfterAuth");
-      sessionStorage.removeItem("authDefaultTab");
+      // Force refresh profile in auth context so theme is picked up
+      await refreshProfile();
       
-      if (redirectPath) {
-        // Only remove redirectAfterAuth since we're using it now
-        sessionStorage.removeItem("redirectAfterAuth");
-        navigate(redirectPath, { replace: true });
-      } else {
-        navigate("/", { replace: true });
-      }
-      
-      // Refresh profile in background
-      refreshProfile();
+      // Navigate to home - all invites were already processed above
+      navigate("/", { replace: true });
     } catch (err) {
       console.error("Profile update failed:", err);
       toast({
