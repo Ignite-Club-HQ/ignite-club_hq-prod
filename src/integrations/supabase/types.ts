@@ -2288,6 +2288,7 @@ export type Database = {
           created_at: string
           display_name: string | null
           email_hash: string | null
+          events_view_mode: string | null
           has_sausage_reward: boolean | null
           id: string
           ignite_points: number
@@ -2305,6 +2306,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           email_hash?: string | null
+          events_view_mode?: string | null
           has_sausage_reward?: boolean | null
           id: string
           ignite_points?: number
@@ -2322,6 +2324,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           email_hash?: string | null
+          events_view_mode?: string | null
           has_sausage_reward?: boolean | null
           id?: string
           ignite_points?: number
