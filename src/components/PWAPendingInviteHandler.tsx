@@ -21,7 +21,7 @@ export function PWAPendingInviteHandler() {
     if (!pendingInvite) return;
 
     // Only redirect if we're on the home page or root
-    // Don't redirect if already on the invite page
+    // Don't redirect if already on the invite page or auth page
     if (location.pathname === "/" || location.pathname === "") {
       console.log("[PWA] Resuming pending invite:", pendingInvite);
       
@@ -30,6 +30,13 @@ export function PWAPendingInviteHandler() {
       
       // Clear the pending invite so we don't redirect again
       localStorage.removeItem("pwa_pending_invite");
+      
+      // Only proceed if the invite flow context is still active
+      // This prevents redirecting to stale/used invite links
+      if (!existingContext?.active) {
+        console.log("[PWA] Invite flow context is not active, skipping redirect");
+        return;
+      }
       
       // Set auto-join flag so after auth they join automatically
       sessionStorage.setItem("autoJoinAfterAuth", "true");
