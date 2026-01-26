@@ -30,6 +30,52 @@ serve(async (req: Request): Promise<Response> => {
     const payload: MessageNotificationPayload = await req.json();
     console.log("Processing message notification email:", payload.messageType, "for user:", payload.recipientUserId);
 
+    // Check if user is in any active club/team subscription
+    const { data: activeRoles } = await supabase
+      .from('user_roles')
+      .select(`
+        club_id,
+        team_id,
+        clubs:club_id(
+          club_subscriptions(is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at)
+        ),
+        teams:team_id(
+          club_id,
+          team_subscriptions(is_pro, is_pro_football, expires_at)
+        )
+      `)
+      .eq('user_id', payload.recipientUserId);
+
+    const hasActiveSubscription = activeRoles?.some(role => {
+      const clubSubs = (role.clubs as any)?.club_subscriptions;
+      if (clubSubs) {
+        const sub = Array.isArray(clubSubs) ? clubSubs[0] : clubSubs;
+        if (sub && (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override)) {
+          if (!sub.expires_at || new Date(sub.expires_at) > new Date()) {
+            return true;
+          }
+        }
+      }
+      const teamSubs = (role.teams as any)?.team_subscriptions;
+      if (teamSubs) {
+        const sub = Array.isArray(teamSubs) ? teamSubs[0] : teamSubs;
+        if (sub && (sub.is_pro || sub.is_pro_football)) {
+          if (!sub.expires_at || new Date(sub.expires_at) > new Date()) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }) ?? false;
+
+    if (!hasActiveSubscription) {
+      console.log("User is not in any active subscription, skipping email");
+      return new Response(JSON.stringify({ success: false, reason: "no_active_subscription" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Get recipient's email and notification preferences
     const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(payload.recipientUserId);
     if (authError || !authUser?.user?.email) {
