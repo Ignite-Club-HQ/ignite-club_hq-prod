@@ -161,9 +161,11 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
 export function ClubThemeProvider({ children }: { children: ReactNode }) {
   // Safely access auth context - may not be available during HMR or initial render
   let user = null;
+  let authLoading = true; // Assume loading until we know for sure
   try {
     const auth = useAuth();
     user = auth.user;
+    authLoading = auth.loading;
   } catch (e) {
     // AuthProvider not yet available (HMR or render order issue)
     console.warn('[ClubThemeProvider] AuthProvider not available yet');
@@ -629,10 +631,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   });
 
   // Theme is ready when:
-  // - No user (anonymous/logged out) - no theme to load
+  // - Auth is DONE loading AND there's no user (truly anonymous) - no theme to load
   // - OR user exists AND we've started AND finished loading from DB
   // This prevents flash of default theme on first login
-  const themeIsReady = !user?.id || (hasStartedDbLoad && !isLoadingFromDb);
+  // CRITICAL: We must wait for auth to finish loading before claiming "no user"
+  const themeIsReady = (!authLoading && !user?.id) || (hasStartedDbLoad && !isLoadingFromDb);
 
   return (
     <ClubThemeContext.Provider value={{
