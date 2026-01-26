@@ -55,21 +55,23 @@ export default function AuthPage() {
   
   // Check if we're actively in an invite flow - only valid if there's a pending redirect
   const redirectAfterAuth = sessionStorage.getItem("redirectAfterAuth");
-  const inviteFlowContext = getInviteFlowContext();
+  const [inviteFlowContext, setInviteFlowContext] = useState(() => getInviteFlowContext());
   
   // Only show invite flow progress if there's an active context AND a pending redirect
   // This prevents stale contexts from showing on normal sign-in
   const isInInviteFlow = inviteFlowContext?.active === true && !!redirectAfterAuth;
   
-  // Clear stale invite flow context and session storage
+  // Clear stale invite flow context and session storage on mount
   useEffect(() => {
     sessionStorage.removeItem("authDefaultTab");
     
     // If there's an invite flow context but no pending redirect, it's stale - clear it
-    if (inviteFlowContext?.active && !redirectAfterAuth) {
+    const currentContext = getInviteFlowContext();
+    if (currentContext?.active && !redirectAfterAuth) {
       clearInviteFlowContext();
+      setInviteFlowContext(null);
     }
-  }, []);
+  }, [redirectAfterAuth]);
   
   const { toast } = useToast();
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();

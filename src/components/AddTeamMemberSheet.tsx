@@ -252,7 +252,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       if (email) {
         setIsSendingNotification(true);
         try {
-          await supabase.functions.invoke("send-email", {
+          // Extract invite token from link for tracking
+          const inviteToken = link.split("/join/p/")[1];
+          
+          const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
             body: {
               to: email,
               subject: `You're invited to join ${teamName}`,
@@ -267,15 +270,41 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               },
             },
           });
-          toast({
-            title: "Invite sent!",
-            description: `Email notification sent to ${email}`,
-          });
+          
+          // Update pending invite with email status
+          const emailSent = !funcError && emailResult?.verified && emailResult?.success;
+          const emailId = emailResult?.emailId || null;
+          const emailError = funcError?.message || (!emailSent ? (emailResult?.error || "Email not verified") : null);
+          
+          await supabase
+            .from("pending_invites")
+            .update({
+              email_sent_at: emailSent ? new Date().toISOString() : null,
+              email_id: emailId,
+              email_error: emailError,
+            } as any)
+            .eq("invite_token", inviteToken);
+          
+          // Refresh the pending invites list to show updated status
+          queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
+          
+          if (emailSent) {
+            toast({
+              title: "Invite sent!",
+              description: `Email notification sent to ${email}`,
+            });
+          } else {
+            toast({
+              title: "Member added",
+              description: "Could not send email, but invite has been created",
+              variant: "default",
+            });
+          }
         } catch (error) {
           console.error("Failed to send email:", error);
           toast({
             title: "Member added",
-            description: "Could not send email, but invite link is ready to share",
+            description: "Could not send email, but invite has been created",
             variant: "default",
           });
         } finally {
