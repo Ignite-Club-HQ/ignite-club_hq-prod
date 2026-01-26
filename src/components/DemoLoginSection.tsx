@@ -95,19 +95,36 @@ export function DemoLoginSection({ open, onOpenChange }: DemoLoginSectionProps) 
     return demoUsers.some(user => !user.roles || user.roles.length === 0);
   }, [demoUsers]);
 
-  const handleLoginAs = async (user: DemoUser) => {
-    setLoggingInAs(user.id);
+  const handleLoginAs = async (demoUser: DemoUser) => {
+    setLoggingInAs(demoUser.id);
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: user.password,
+        email: demoUser.email,
+        password: demoUser.password,
       });
 
       if (error) {
         throw error;
       }
 
-      toast.success(`Logged in as ${user.name}`);
+      // Wait for session to be established before closing dialog
+      // This prevents auth redirect loops
+      await new Promise<void>((resolve) => {
+        const checkSession = async () => {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            resolve();
+          } else {
+            // Retry after a short delay
+            setTimeout(checkSession, 100);
+          }
+        };
+        checkSession();
+        // Timeout after 5 seconds
+        setTimeout(resolve, 5000);
+      });
+
+      toast.success(`Logged in as ${demoUser.name}`);
       onOpenChange(false);
     } catch (error) {
       console.error("Error logging in as demo user:", error);
