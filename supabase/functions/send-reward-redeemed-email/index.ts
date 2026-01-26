@@ -45,41 +45,63 @@ Deno.serve(async (req) => {
 
     console.log(`Processing reward redeemed email for user ${recipientUserId}`);
 
-    // Check if user is in any active club/team subscription
+    // First check if user profile still exists (not deleted)
+    const { data: profileExists } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', recipientUserId)
+      .single();
+
+    if (!profileExists) {
+      console.log('User profile does not exist (deleted user), skipping email');
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, reason: 'user_deleted' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if user still has roles in any club/team (hasn't left)
     const { data: userRoles } = await supabase
       .from('user_roles')
       .select('club_id, team_id')
       .eq('user_id', recipientUserId);
 
+    if (!userRoles || userRoles.length === 0) {
+      console.log('User has no active roles (left all clubs/teams), skipping email');
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, reason: 'no_active_roles' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if user is in any active club/team subscription
     let hasActiveSubscription = false;
     const now = new Date().toISOString();
 
-    if (userRoles && userRoles.length > 0) {
-      const clubIds = [...new Set(userRoles.map(r => r.club_id).filter(Boolean))];
-      const teamIds = [...new Set(userRoles.map(r => r.team_id).filter(Boolean))];
+    const clubIds = [...new Set(userRoles.map(r => r.club_id).filter(Boolean))];
+    const teamIds = [...new Set(userRoles.map(r => r.team_id).filter(Boolean))];
 
-      if (clubIds.length > 0) {
-        const { data: clubSubs } = await supabase
-          .from('club_subscriptions')
-          .select('club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at')
-          .in('club_id', clubIds);
+    if (clubIds.length > 0) {
+      const { data: clubSubs } = await supabase
+        .from('club_subscriptions')
+        .select('club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at')
+        .in('club_id', clubIds);
 
-        hasActiveSubscription = clubSubs?.some(sub => 
-          (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) &&
-          (!sub.expires_at || sub.expires_at > now)
-        ) ?? false;
-      }
+      hasActiveSubscription = clubSubs?.some(sub => 
+        (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) &&
+        (!sub.expires_at || sub.expires_at > now)
+      ) ?? false;
+    }
 
-      if (!hasActiveSubscription && teamIds.length > 0) {
-        const { data: teamSubs } = await supabase
-          .from('team_subscriptions')
-          .select('team_id, is_pro, is_pro_football, expires_at')
-          .in('team_id', teamIds);
+    if (!hasActiveSubscription && teamIds.length > 0) {
+      const { data: teamSubs } = await supabase
+        .from('team_subscriptions')
+        .select('team_id, is_pro, is_pro_football, expires_at')
+        .in('team_id', teamIds);
 
-        hasActiveSubscription = teamSubs?.some(sub => 
-          (sub.is_pro || sub.is_pro_football) && (!sub.expires_at || sub.expires_at > now)
-        ) ?? false;
-      }
+      hasActiveSubscription = teamSubs?.some(sub => 
+        (sub.is_pro || sub.is_pro_football) && (!sub.expires_at || sub.expires_at > now)
+      ) ?? false;
     }
 
     if (!hasActiveSubscription) {
