@@ -136,9 +136,8 @@ export const PhotoUploadedEmail = ({
               <Link href={`${PRODUCTION_DOMAIN}/profile`} style={{ color: primaryColor }}> Manage notification preferences</Link>
             </Text>
             <Text style={photoConsentText}>
-              📷 Photos of your child may be uploaded to the Ignite app by team members. 
-              Please review our <Link href={`${PRODUCTION_DOMAIN}/privacy-policy`} style={{ color: primaryColor }}>Privacy Policy</Link>. 
-              If you wish to opt out of photo uploads, please contact your club or team admin.
+              📷 Photo consent is managed by your club, not Ignite Club HQ. 
+              Please contact your club or team admin if you have concerns or wish to opt out.
             </Text>
             <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
               <tr>
