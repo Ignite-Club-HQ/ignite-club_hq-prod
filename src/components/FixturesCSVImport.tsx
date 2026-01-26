@@ -422,6 +422,7 @@ export function FixturesCSVImport({ clubId, teamId, teams = [], onImportComplete
             club_id: clubId,
             team_id: fixture.teamId || teamId || null,
             event_date: eventDateTime.toISOString(),
+            start_time: eventDateTime.toISOString(),
             address: fixture.address || null,
             description: fixture.description || null,
             created_by: user.id,
@@ -449,9 +450,11 @@ export function FixturesCSVImport({ clubId, teamId, teams = [], onImportComplete
             .from('events')
             .update({
               event_date: eventDateTime.toISOString(),
+              start_time: eventDateTime.toISOString(),
               address: fixture.address || null,
               description: fixture.description || null,
               reminder_hours_before: fixture.reminderHours || null,
+              opponent: fixture.opponent || null,
             })
             .eq('id', fixture.existingEventId);
 
