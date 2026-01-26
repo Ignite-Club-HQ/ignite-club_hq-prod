@@ -383,6 +383,11 @@ export default function CompleteProfilePage() {
         setBiometricsLoading(false);
       }
 
+      // CRITICAL: Clear the invite flow context now that profile is complete
+      // This ensures the progress dots never appear again for this user
+      clearInviteFlowContext();
+      localStorage.removeItem("pwa_pending_invite");
+
       toast({
         title: "Profile completed!",
         description: "Welcome to Ignite Club HQ!",
@@ -392,9 +397,10 @@ export default function CompleteProfilePage() {
       const redirectPath = sessionStorage.getItem("redirectAfterAuth");
       // Clean up stored invite label
       sessionStorage.removeItem("inviteLabel");
+      sessionStorage.removeItem("autoJoinAfterAuth");
+      sessionStorage.removeItem("authDefaultTab");
       
       if (redirectPath) {
-        // Keep autoJoinAfterAuth flag - it will be consumed by the join page
         // Only remove redirectAfterAuth since we're using it now
         sessionStorage.removeItem("redirectAfterAuth");
         navigate(redirectPath, { replace: true });
