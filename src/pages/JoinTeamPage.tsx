@@ -335,7 +335,9 @@ export default function JoinTeamPage() {
         .eq("id", pendingInviteData.id);
 
       // Create children from invite metadata (if parent role with children)
+      console.log("[JoinTeam] Checking for children in metadata. Role:", pendingInviteData.role, "Raw metadata:", pendingInviteData.metadata);
       const metadata = pendingInviteData.metadata as { children?: { name: string; yearOfBirth: number | null }[] } | null;
+      console.log("[JoinTeam] Parsed metadata:", metadata, "Children array:", metadata?.children);
       if (metadata?.children && metadata.children.length > 0 && pendingInviteData.role === "parent") {
         console.log("[JoinTeam] Creating children from invite metadata:", metadata.children);
         for (const childData of metadata.children) {
