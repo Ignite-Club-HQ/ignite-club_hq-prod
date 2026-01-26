@@ -335,11 +335,10 @@ export default function JoinTeamPage() {
         .eq("id", pendingInviteData.id);
 
       // Create children from invite metadata (if parent role with children)
-      console.log("[JoinTeam] Checking for children in metadata. Role:", pendingInviteData.role, "Raw metadata:", pendingInviteData.metadata);
       const metadata = pendingInviteData.metadata as { children?: { name: string; yearOfBirth: number | null }[] } | null;
-      console.log("[JoinTeam] Parsed metadata:", metadata, "Children array:", metadata?.children);
+      
       if (metadata?.children && metadata.children.length > 0 && pendingInviteData.role === "parent") {
-        console.log("[JoinTeam] Creating children from invite metadata:", metadata.children);
+        console.log("[JoinTeam] Creating children from invite metadata:", metadata.children.length);
         for (const childData of metadata.children) {
           // Create the child record
           const { data: newChild, error: childError } = await supabase
@@ -353,7 +352,7 @@ export default function JoinTeamPage() {
             .single();
           
           if (childError) {
-            console.error("[JoinTeam] Failed to create child:", childError);
+            console.error("[JoinTeam] Failed to create child:", childError.message);
             continue;
           }
           
@@ -367,7 +366,7 @@ export default function JoinTeamPage() {
               });
             
             if (assignError) {
-              console.error("[JoinTeam] Failed to assign child to team:", assignError);
+              console.error("[JoinTeam] Failed to assign child to team:", assignError.message);
             } else {
               console.log("[JoinTeam] Child created and assigned to team:", childData.name);
             }
