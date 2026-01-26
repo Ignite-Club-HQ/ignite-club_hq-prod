@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Copy, Check, Send, Users } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,7 +38,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
   } | null>(null);
   const [customName, setCustomName] = useState("");
   const [customEmail, setCustomEmail] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [inviteSent, setInviteSent] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [isSendingNotification, setIsSendingNotification] = useState(false);
   const [mode, setMode] = useState<"existing" | "invite">("invite");
@@ -240,18 +240,6 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
     },
   });
 
-  const handleCopyLink = async () => {
-    if (!inviteLink) return;
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setCopied(true);
-      toast({ title: "Invite link copied!" });
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast({ title: "Failed to copy link", variant: "destructive" });
-    }
-  };
-
   const handleClose = () => {
     setOpen(false);
     setSearchQuery("");
@@ -259,7 +247,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
     setCustomName("");
     setCustomEmail("");
     setInviteLink(null);
-    setCopied(false);
+    setInviteSent(false);
     setMode("invite");
   };
 
@@ -288,42 +276,25 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
           </div>
         </SheetHeader>
 
-        {/* Success State - Show invite link */}
+        {/* Success State - Email sent confirmation */}
         {inviteLink && (
           <div className="space-y-5 pt-6">
             <div className="text-center space-y-2">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-2">
                 <CheckCircle2 className="h-8 w-8 text-green-500" />
               </div>
-              <h3 className="font-semibold text-lg">Invite Created!</h3>
+              <h3 className="font-semibold text-lg">Invite Sent!</h3>
               <p className="text-sm text-muted-foreground">
-                Share this link with <span className="font-medium">{customName}</span>
+                Email invitation sent to <span className="font-medium">{customEmail}</span>
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs">Invite Link (unique to this person)</Label>
-              <div className="flex gap-2">
-                <Input 
-                  value={inviteLink} 
-                  readOnly 
-                  className="text-xs bg-muted"
-                />
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={handleCopyLink}
-                  className="shrink-0"
-                >
-                  {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                </Button>
-              </div>
-              {customEmail && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Mail className="h-3.5 w-3.5" />
-                  Email sent to {customEmail}
-                </p>
-              )}
+            <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
+              <p className="font-medium mb-1">{customName}</p>
+              <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <Mail className="h-3.5 w-3.5" />
+                Invited as Club Admin
+              </p>
             </div>
 
             <div className="flex gap-2 pt-4">
@@ -373,7 +344,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Email (optional)</Label>
+                  <Label className="text-sm font-medium">Email *</Label>
                   <Input
                     type="email"
                     placeholder="Enter email to send invite"
@@ -382,7 +353,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                     className="h-11"
                   />
                   <p className="text-xs text-muted-foreground">
-                    If provided, we'll send them an invite email automatically
+                    An invite email will be sent to this address
                   </p>
                 </div>
 
@@ -398,16 +369,14 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                 <Button
                   className="w-full h-12"
                   onClick={() => addPendingMemberMutation.mutate()}
-                  disabled={!customName.trim() || addPendingMemberMutation.isPending || isSendingNotification}
+                  disabled={!customName.trim() || !customEmail.trim() || addPendingMemberMutation.isPending || isSendingNotification}
                 >
                   {addPendingMemberMutation.isPending || isSendingNotification ? (
                     <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                  ) : customEmail ? (
-                    <Send className="h-5 w-5 mr-2" />
                   ) : (
-                    <UserPlus className="h-5 w-5 mr-2" />
+                    <Send className="h-5 w-5 mr-2" />
                   )}
-                  {customEmail ? "Send Invite" : "Create Invite Link"}
+                  Send Invite
                 </Button>
               </TabsContent>
 
