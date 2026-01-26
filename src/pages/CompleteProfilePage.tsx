@@ -187,7 +187,16 @@ export default function CompleteProfilePage() {
   }
 
   // If profile exists and already has display_name, redirect to home
+  // Also ensure the profileCompleted flag is set (hard rule for invite flow dots)
   if (profile?.display_name) {
+    // Set the hard rule flag - this user has completed their profile
+    try {
+      localStorage.setItem("profileCompleted", "true");
+      // Clear any stale invite flow context
+      clearInviteFlowContext();
+    } catch {
+      // localStorage not available
+    }
     return <Navigate to="/" replace />;
   }
 
