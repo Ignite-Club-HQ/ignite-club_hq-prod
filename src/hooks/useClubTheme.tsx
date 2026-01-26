@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useState, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -161,9 +161,11 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
 export function ClubThemeProvider({ children }: { children: ReactNode }) {
   // Safely access auth context - may not be available during HMR or initial render
   let user = null;
+  let authLoading = true; // Assume loading until we know for sure
   try {
     const auth = useAuth();
     user = auth.user;
+    authLoading = auth.loading;
   } catch (e) {
     // AuthProvider not yet available (HMR or render order issue)
     console.warn('[ClubThemeProvider] AuthProvider not available yet');
@@ -171,8 +173,49 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   
   const { resolvedTheme } = useTheme();
   const isDarkMode = resolvedTheme === "dark";
-  const [activeClubTheme, setActiveClubThemeState] = useState<string | null>(null);
-  const [cachedThemeData, setCachedThemeData] = useState<ClubTheme | null>(null);
+
+  // SYNCHRONOUS INITIALIZATION: Read from localStorage during initial state setup
+  // This ensures theme is available immediately on first render, not after an effect
+  const getInitialThemeState = (): { themeId: string | null; themeData: ClubTheme | null } => {
+    if (typeof window === 'undefined' || !user?.id) {
+      return { themeId: null, themeData: null };
+    }
+    
+    const storedId = localStorage.getItem(getStorageKey(user.id));
+    const storedData = localStorage.getItem(getStorageDataKey(user.id));
+    
+    if (storedId && storedData) {
+      try {
+        const parsedData = JSON.parse(storedData) as CachedThemeData;
+        if (parsedData.clubId === storedId) {
+          const themeFromCache: ClubTheme = { 
+            ...parsedData, 
+            logoUrl: parsedData.logoUrl ?? null, 
+            sport: parsedData.sport ?? null 
+          };
+          // Apply theme CSS immediately during initialization
+          applyThemeCSS(themeFromCache, resolvedTheme === "dark");
+          return { themeId: storedId, themeData: themeFromCache };
+        }
+      } catch {
+        // Invalid cache
+      }
+    }
+    
+    if (storedId) {
+      return { themeId: storedId, themeData: null };
+    }
+    
+    return { themeId: null, themeData: null };
+  };
+
+  // Use lazy initialization to read from localStorage synchronously
+  const [activeClubTheme, setActiveClubThemeState] = useState<string | null>(() => {
+    return getInitialThemeState().themeId;
+  });
+  const [cachedThemeData, setCachedThemeData] = useState<ClubTheme | null>(() => {
+    return getInitialThemeState().themeData;
+  });
 
   // Track if we've checked for default theme for this user session
   const [hasCheckedDefault, setHasCheckedDefault] = useState(false);
@@ -181,7 +224,53 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   // Track if we've ever started the DB load for this user session
   const [hasStartedDbLoad, setHasStartedDbLoad] = useState(false);
 
-  // Ensure loading state is set when user becomes available (before effect runs)
+  // Counter to force re-read from localStorage (incremented by custom event)
+  const [localStorageVersion, setLocalStorageVersion] = useState(0);
+
+  // Listen for theme-updated events from CompleteProfilePage
+  useEffect(() => {
+    const handleThemeUpdate = () => {
+      console.log('[ClubTheme] Received theme-updated event, forcing re-read');
+      setLocalStorageVersion(v => v + 1);
+    };
+    
+    window.addEventListener('club-theme-updated', handleThemeUpdate);
+    return () => window.removeEventListener('club-theme-updated', handleThemeUpdate);
+  }, []);
+
+  // Re-read from localStorage when user changes OR when localStorageVersion changes
+  // Use useLayoutEffect to ensure this runs synchronously before browser paint
+  // This handles subsequent updates after initial render
+  useLayoutEffect(() => {
+    if (user?.id && typeof window !== "undefined") {
+      const storedId = localStorage.getItem(getStorageKey(user.id));
+      const storedData = localStorage.getItem(getStorageDataKey(user.id));
+      
+      // If localStorage has theme data, sync state
+      if (storedId) {
+        setActiveClubThemeState(storedId);
+        
+        if (storedData) {
+          try {
+            const parsedData = JSON.parse(storedData) as CachedThemeData;
+            if (parsedData.clubId === storedId) {
+              const themeFromCache: ClubTheme = { 
+                ...parsedData, 
+                logoUrl: parsedData.logoUrl ?? null, 
+                sport: parsedData.sport ?? null 
+              };
+              setCachedThemeData(themeFromCache);
+              applyThemeCSS(themeFromCache, isDarkMode);
+            }
+          } catch {
+            // Invalid cache
+          }
+        }
+      }
+    }
+  }, [user?.id, localStorageVersion, isDarkMode]);
+
+  // Ensure loading state is set when user becomes available (before DB fetch)
   useEffect(() => {
     if (user?.id && !hasStartedDbLoad) {
       setIsLoadingFromDb(true);
@@ -193,33 +282,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id, hasStartedDbLoad]);
 
-  // INSTANT THEME APPLICATION: Restore from localStorage immediately on mount
-  // Then load from database for cross-device sync
+  // Load theme preference from database for cross-device sync
+  // The localStorage read is handled by the effect above (triggered by localStorageVersion)
   useEffect(() => {
     if (user?.id && typeof window !== "undefined") {
       const storedId = localStorage.getItem(getStorageKey(user.id));
-      const storedData = localStorage.getItem(getStorageDataKey(user.id));
-      
-      if (storedId) {
-        setActiveClubThemeState(storedId);
-        
-        // Apply cached theme data INSTANTLY before fetch completes
-        if (storedData) {
-          try {
-            const parsedData = JSON.parse(storedData) as CachedThemeData;
-            // Create full theme from cache including logoUrl for instant display
-            const themeFromCache: ClubTheme = { 
-              ...parsedData, 
-              logoUrl: parsedData.logoUrl ?? null, 
-              sport: parsedData.sport ?? null 
-            };
-            setCachedThemeData(themeFromCache);
-            applyThemeCSS(themeFromCache, isDarkMode);
-          } catch {
-            // Invalid cache, will be refreshed from server
-          }
-        }
-      }
       
       // Load theme preference from database (cross-device sync)
       const loadThemeFromDb = async () => {
@@ -240,10 +307,6 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
               // User has explicit preference - don't auto-set
               setHasCheckedDefault(true);
               
-              // CRITICAL FIX: Always try to fetch and apply theme data when DB has a preference
-              // This ensures theme applies immediately for:
-              // 1. Cross-device sync (no localStorage data)
-              // 2. First login after invite (localStorage just set but might not be applied yet)
               // Check if we have FRESH localStorage data that matches the DB preference
               const freshStoredData = localStorage.getItem(getStorageDataKey(user.id));
               let themeApplied = false;
@@ -547,8 +610,36 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // CRITICAL: Don't clear CSS if localStorage has theme data that React state hasn't caught up with yet
+    // This prevents race condition where CompleteProfilePage sets theme but state hasn't updated
     if (!activeClubTheme) {
-      // Remove club theme overrides
+      // Check localStorage before clearing - might have theme data that state hasn't synced yet
+      const storedId = localStorage.getItem(getStorageKey(user.id));
+      const storedData = localStorage.getItem(getStorageDataKey(user.id));
+      
+      if (storedId && storedData) {
+        // localStorage has theme data - apply it instead of clearing
+        try {
+          const parsedData = JSON.parse(storedData) as CachedThemeData;
+          if (parsedData.clubId === storedId && parsedData.primary) {
+            // Apply the cached theme instead of clearing
+            const themeFromCache: ClubTheme = { 
+              ...parsedData, 
+              logoUrl: parsedData.logoUrl ?? null, 
+              sport: parsedData.sport ?? null 
+            };
+            applyThemeCSS(themeFromCache, isDarkMode);
+            // Update state to sync with localStorage
+            setActiveClubThemeState(storedId);
+            setCachedThemeData(themeFromCache);
+            return;
+          }
+        } catch {
+          // Invalid cache, fall through to clear
+        }
+      }
+      
+      // No localStorage data - safe to clear theme overrides
       root.style.removeProperty("--primary");
       root.style.removeProperty("--primary-foreground");
       root.style.removeProperty("--secondary");
@@ -628,6 +719,15 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     staleTime: 300000, // Cache for 5 minutes
   });
 
+  // Theme is ready when:
+  // - Auth is DONE loading AND there's no user (truly anonymous) - no theme to load
+  // - OR user exists AND we have valid cached theme data in state (from localStorage)
+  // - OR user exists AND we've started AND finished loading from DB
+  // This prevents flash of default theme on first login
+  // CRITICAL: We must wait for auth to finish loading before claiming "no user"
+  const hasLocalThemeData = activeClubTheme !== null && cachedThemeData !== null;
+  const themeIsReady = (!authLoading && !user?.id) || hasLocalThemeData || (hasStartedDbLoad && !isLoadingFromDb);
+
   return (
     <ClubThemeContext.Provider value={{
       availableClubThemes,
@@ -635,7 +735,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       activeThemeData,
       setActiveClubTheme,
       isLoading,
-      isThemeReady: !isLoadingFromDb,
+      isThemeReady: themeIsReady,
       activeClubFilter: activeClubTheme,
       activeClubTeamIds,
     }}>

@@ -457,6 +457,9 @@ export default function CompleteProfilePage() {
               root.style.setProperty("--primary-foreground", `${activeColor.h} 10% ${fgL}%`);
               root.style.setProperty("--ring", `${activeColor.h} ${activeColor.s}% ${activeColor.l}%`);
             }
+            
+            // Dispatch event to notify ClubThemeProvider to re-read from localStorage
+            window.dispatchEvent(new CustomEvent('club-theme-updated'));
           }
         }
       }
@@ -525,6 +528,13 @@ export default function CompleteProfilePage() {
       
       // Force refresh profile in auth context so theme is picked up
       await refreshProfile();
+      
+      // Dispatch event AGAIN right before navigation to ensure ClubThemeProvider picks it up
+      // This handles the case where the earlier event was processed before localStorage was fully set
+      window.dispatchEvent(new CustomEvent('club-theme-updated'));
+      
+      // Small delay to allow React to process the event before navigation
+      await new Promise(resolve => setTimeout(resolve, 50));
       
       // Navigate to home - all invites were already processed above
       navigate("/", { replace: true });
