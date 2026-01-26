@@ -15,6 +15,7 @@ import { subscribeToPushNotifications, checkPushSubscription } from "@/lib/pushN
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
 import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext, markProfileCompleted } from "@/components/InviteFlowProgress";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface PendingInvite {
   id: string;
@@ -28,6 +29,7 @@ interface PendingInvite {
 
 export default function CompleteProfilePage() {
   const { user, profile, loading: authLoading, profileLoading, profileError, refreshProfile } = useAuth();
+  const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -516,6 +518,10 @@ export default function CompleteProfilePage() {
         title: "Profile completed!",
         description: "Welcome to Ignite Club HQ!",
       });
+      
+      // Invalidate club theme queries so they refetch with new user roles
+      await queryClient.invalidateQueries({ queryKey: ["club-themes"] });
+      await queryClient.invalidateQueries({ queryKey: ["all-user-clubs-for-theme-v2"] });
       
       // Force refresh profile in auth context so theme is picked up
       await refreshProfile();
