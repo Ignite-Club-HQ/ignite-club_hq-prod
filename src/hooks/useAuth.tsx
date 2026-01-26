@@ -10,6 +10,7 @@ import { clearRolesCache } from "@/lib/rolesCache";
 import { clearClubTeamCache } from "@/lib/clubTeamCache";
 import { syncPasskeyAccountsFromDatabase } from "@/hooks/usePasskey";
 import { MESSAGE_NOTIFICATION_TYPES } from "@/lib/notificationTypes";
+import { markProfileCompleted } from "@/components/InviteFlowProgress";
 
 interface Profile {
   id: string;
@@ -120,14 +121,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setCachedProfile(profileData);
           setProfileError(false);
           
-          // HARD RULE: If profile has display_name, set the profileCompleted flag
+          // HARD RULE: If profile has display_name, set the profileCompleted flag for this user
           // This ensures invite flow progress dots never appear for users with completed profiles
           if (profileData.display_name) {
-            try {
-              localStorage.setItem("profileCompleted", "true");
-            } catch {
-              // localStorage not available
-            }
+            markProfileCompleted(userId);
           }
           
           // Only apply theme preference on fresh login, not page refresh

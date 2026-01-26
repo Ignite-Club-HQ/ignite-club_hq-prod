@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
 import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
-import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext, hasCompletedProfile } from "@/components/InviteFlowProgress";
+import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 
 import { z } from "zod";
 
@@ -56,13 +56,8 @@ export default function AuthPage() {
   // Check if we're actively in an invite flow - only valid if there's a pending redirect
   const redirectAfterAuth = sessionStorage.getItem("redirectAfterAuth");
   
-  // Initialize invite flow context - but immediately check if it's stale
-  // HARD RULE: If profile has been completed, never show progress dots again
+  // Initialize invite flow context - check if it's stale (no redirect pending)
   const [inviteFlowContext, setInviteFlowContext] = useState(() => {
-    // Hard rule: once profile is completed, never show invite flow progress
-    if (hasCompletedProfile()) {
-      return null;
-    }
     const context = getInviteFlowContext();
     // If there's a context but no redirect, it's stale - don't use it
     if (context?.active && !sessionStorage.getItem("redirectAfterAuth")) {
@@ -71,9 +66,9 @@ export default function AuthPage() {
     return context;
   });
   
-  // Only show invite flow progress if there's an active context AND a pending redirect
-  // AND the user hasn't completed their profile before (hard rule)
-  const isInInviteFlow = inviteFlowContext?.active === true && !!redirectAfterAuth && !hasCompletedProfile();
+  // Show invite flow progress if there's an active context AND a pending redirect
+  // User is not logged in on AuthPage, so we can't check profile completion yet
+  const isInInviteFlow = inviteFlowContext?.active === true && !!redirectAfterAuth;
   
   // Clear stale invite flow context and session storage on mount
   useEffect(() => {

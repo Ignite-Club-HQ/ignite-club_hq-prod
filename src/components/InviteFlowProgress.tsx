@@ -67,17 +67,26 @@ export function getInviteFlowContext(): InviteFlowContext | null {
 export function clearInviteFlowContext() {
   try {
     localStorage.removeItem(INVITE_FLOW_KEY);
-    // Set a flag to indicate profile was completed - prevents dots from ever appearing again
-    localStorage.setItem("profileCompleted", "true");
   } catch {
     // localStorage not available
   }
 }
 
-// Check if profile has been completed (hard rule - dots should never show again)
-export function hasCompletedProfile(): boolean {
+// Mark a specific user's profile as completed
+export function markProfileCompleted(userId: string) {
   try {
-    return localStorage.getItem("profileCompleted") === "true";
+    localStorage.setItem(`profileCompleted_${userId}`, "true");
+  } catch {
+    // localStorage not available
+  }
+}
+
+// Check if profile has been completed for a specific user
+export function hasCompletedProfile(userId?: string): boolean {
+  // If no userId provided, can't check - assume not completed (show dots)
+  if (!userId) return false;
+  try {
+    return localStorage.getItem(`profileCompleted_${userId}`) === "true";
   } catch {
     return false;
   }
