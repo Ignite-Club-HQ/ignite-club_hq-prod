@@ -223,10 +223,35 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
               // User has explicit preference - don't auto-set
               setHasCheckedDefault(true);
               
-              // CRITICAL FIX: If we have localStorage cached theme data for this club, apply it immediately
-              // This ensures theme applies even before availableClubThemes query completes
-              if (!storedData) {
-                // Try to fetch and cache the theme data right now
+              // CRITICAL FIX: Always try to fetch and apply theme data when DB has a preference
+              // This ensures theme applies immediately for:
+              // 1. Cross-device sync (no localStorage data)
+              // 2. First login after invite (localStorage just set but might not be applied yet)
+              // Check if we have FRESH localStorage data that matches the DB preference
+              const freshStoredData = localStorage.getItem(getStorageDataKey(user.id));
+              let themeApplied = false;
+              
+              if (freshStoredData) {
+                try {
+                  const parsedData = JSON.parse(freshStoredData) as CachedThemeData;
+                  // Only use cached data if it matches the club ID from database
+                  if (parsedData.clubId === data.active_club_theme_id) {
+                    const themeFromCache: ClubTheme = { 
+                      ...parsedData, 
+                      logoUrl: parsedData.logoUrl ?? null, 
+                      sport: parsedData.sport ?? null 
+                    };
+                    setCachedThemeData(themeFromCache);
+                    applyThemeCSS(themeFromCache, isDarkMode);
+                    themeApplied = true;
+                  }
+                } catch {
+                  // Invalid cache, will fetch from server
+                }
+              }
+              
+              // If no valid cache or cache didn't match, fetch from server
+              if (!themeApplied) {
                 const { data: clubData } = await supabase
                   .from('clubs')
                   .select(`
