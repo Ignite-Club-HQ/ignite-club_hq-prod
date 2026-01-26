@@ -17,12 +17,36 @@ interface LinkPreviewProps {
   compact?: boolean;
 }
 
+// Skip link previews for app's own domains
+const isAppDomain = (url: string): boolean => {
+  try {
+    const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
+    const host = urlObj.hostname.toLowerCase();
+    return (
+      host.includes('lovable.app') ||
+      host.includes('lovableproject.com') ||
+      host.includes('igniteclubhq.app')
+    );
+  } catch {
+    return false;
+  }
+};
+
 export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps) {
   const [preview, setPreview] = useState<LinkPreviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
+  // Skip previews for app's own domains
+  const skipPreview = isAppDomain(url);
+
   useEffect(() => {
+    // Don't fetch previews for app domains
+    if (skipPreview) {
+      setLoading(false);
+      return;
+    }
+
     const fetchPreview = async () => {
       try {
         setLoading(true);
@@ -49,7 +73,7 @@ export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps
     };
 
     fetchPreview();
-  }, [url]);
+  }, [url, skipPreview]);
 
   if (loading) {
     return (
@@ -63,8 +87,8 @@ export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps
   // Check if preview has any meaningful content
   const hasContent = preview && (preview.title || preview.description || preview.image);
 
-  // If no preview content, don't render anything (link is shown inline)
-  if (error || !preview || !hasContent) {
+  // If no preview content or skipped, don't render anything (link is shown inline)
+  if (error || !preview || !hasContent || skipPreview) {
     return null;
   }
 
