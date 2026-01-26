@@ -473,9 +473,6 @@ export default function EditEventPage() {
             ...updateData,
             event_date: parsedDateTime.toISOString(),
             is_recurring: true,
-            recurrence_pattern: recurrencePattern,
-            recurrence_interval: recurrenceInterval,
-            recurrence_days: recurrenceDays.length > 0 ? recurrenceDays : null,
             recurrence_end_date: recurrenceEndDate,
           })
           .eq("id", id!);
@@ -494,9 +491,6 @@ export default function EditEventPage() {
               club_id: event!.club_id,
               team_id: event!.team_id,
               is_recurring: true,
-              recurrence_pattern: recurrencePattern,
-              recurrence_interval: recurrenceInterval,
-              recurrence_days: recurrenceDays.length > 0 ? recurrenceDays : null,
               recurrence_end_date: recurrenceEndDate,
               created_by: user!.id,
             };
