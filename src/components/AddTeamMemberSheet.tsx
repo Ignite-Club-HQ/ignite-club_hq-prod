@@ -1013,10 +1013,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 onImport={(members) => {
                   setBulkMembers(members.map(m => ({
                     ...m,
-                    children: m.children.map(childName => ({
+                    children: m.children.map(child => ({
                       id: crypto.randomUUID(),
-                      name: childName,
-                      yearOfBirth: "",
+                      name: child.name,
+                      yearOfBirth: child.yearOfBirth ? String(child.yearOfBirth) : "",
                     })),
                   })));
                 }}
