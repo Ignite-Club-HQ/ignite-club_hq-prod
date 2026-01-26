@@ -67,8 +67,19 @@ export function getInviteFlowContext(): InviteFlowContext | null {
 export function clearInviteFlowContext() {
   try {
     localStorage.removeItem(INVITE_FLOW_KEY);
+    // Set a flag to indicate profile was completed - prevents dots from ever appearing again
+    localStorage.setItem("profileCompleted", "true");
   } catch {
     // localStorage not available
+  }
+}
+
+// Check if profile has been completed (hard rule - dots should never show again)
+export function hasCompletedProfile(): boolean {
+  try {
+    return localStorage.getItem("profileCompleted") === "true";
+  } catch {
+    return false;
   }
 }
 

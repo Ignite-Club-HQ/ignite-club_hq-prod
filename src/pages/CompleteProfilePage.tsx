@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { subscribeToPushNotifications, checkPushSubscription } from "@/lib/pushNotifications";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
-import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
+import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext, hasCompletedProfile } from "@/components/InviteFlowProgress";
 
 interface PendingInvite {
   id: string;
@@ -49,8 +49,8 @@ export default function CompleteProfilePage() {
   const { canPrompt, isInstalled, installApp, isReady: pwaReady, isIOS } = usePWAInstall();
   const { registerPasskey } = usePasskey();
 
-  // Check if we're in an invite flow
-  const inviteFlowContext = getInviteFlowContext();
+  // Check if we're in an invite flow - but respect the hard rule
+  const inviteFlowContext = hasCompletedProfile() ? null : getInviteFlowContext();
 
   // Check if push notifications and biometrics are supported
   useEffect(() => {
@@ -187,7 +187,16 @@ export default function CompleteProfilePage() {
   }
 
   // If profile exists and already has display_name, redirect to home
+  // Also ensure the profileCompleted flag is set (hard rule for invite flow dots)
   if (profile?.display_name) {
+    // Set the hard rule flag - this user has completed their profile
+    try {
+      localStorage.setItem("profileCompleted", "true");
+      // Clear any stale invite flow context
+      clearInviteFlowContext();
+    } catch {
+      // localStorage not available
+    }
     return <Navigate to="/" replace />;
   }
 
@@ -344,6 +353,58 @@ export default function CompleteProfilePage() {
         console.log("[CompleteProfile] User opted out of accepting invites");
       } else {
         console.log("[CompleteProfile] No pending invites to process");
+      }
+
+      // Auto-apply club branding for new users joining Pro clubs
+      // Find the first club with Pro subscription and theme enabled
+      if (acceptInvites && pendingInvites.length > 0) {
+        const clubIdsToCheck = new Set<string>();
+        
+        for (const invite of pendingInvites) {
+          let clubId = invite.club_id;
+          if (invite.team_id && !clubId) {
+            const { data: team } = await supabase
+              .from("teams")
+              .select("club_id")
+              .eq("id", invite.team_id)
+              .single();
+            clubId = team?.club_id;
+          }
+          if (clubId) clubIdsToCheck.add(clubId);
+        }
+
+        if (clubIdsToCheck.size > 0) {
+          // Check which clubs have Pro subscription and theme enabled
+          const { data: proClubs } = await supabase
+            .from("clubs")
+            .select(`
+              id,
+              theme_enabled,
+              club_subscriptions!inner(is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at)
+            `)
+            .in("id", Array.from(clubIdsToCheck))
+            .eq("theme_enabled", true);
+
+          // Find first club with active Pro subscription
+          const proClubWithTheme = proClubs?.find((club: any) => {
+            const sub = club.club_subscriptions;
+            const hasPro = sub?.is_pro || sub?.is_pro_football || sub?.admin_pro_override || sub?.admin_pro_football_override;
+            const notExpired = !sub?.expires_at || new Date(sub.expires_at) > new Date();
+            return hasPro && notExpired;
+          });
+
+          if (proClubWithTheme) {
+            console.log("[CompleteProfile] Auto-applying club theme for:", proClubWithTheme.id);
+            // Update profile with active club theme
+            await supabase
+              .from("profiles")
+              .update({ active_club_theme_id: proClubWithTheme.id })
+              .eq("id", user.id);
+            
+            // Also set localStorage so theme applies immediately on redirect
+            localStorage.setItem(`ignite-club-theme-${user.id}`, proClubWithTheme.id);
+          }
+        }
       }
 
       // If user opted in for push notifications, subscribe them
