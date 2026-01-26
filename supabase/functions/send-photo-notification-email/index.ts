@@ -37,42 +37,41 @@ serve(async (req: Request): Promise<Response> => {
     console.log(`Processing photo notification email for recipient ${recipientUserId} from uploader ${uploaderUserId}`);
 
     // Check if user is in any active club/team subscription
-    const { data: activeRoles } = await supabase
+    const { data: userRoles } = await supabase
       .from('user_roles')
-      .select(`
-        club_id,
-        team_id,
-        clubs:club_id(
-          club_subscriptions(is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at)
-        ),
-        teams:team_id(
-          club_id,
-          team_subscriptions(is_pro, is_pro_football, expires_at)
-        )
-      `)
+      .select('club_id, team_id')
       .eq('user_id', recipientUserId);
 
-    const hasActiveSubscription = activeRoles?.some(role => {
-      const clubSubs = (role.clubs as any)?.club_subscriptions;
-      if (clubSubs) {
-        const sub = Array.isArray(clubSubs) ? clubSubs[0] : clubSubs;
-        if (sub && (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override)) {
-          if (!sub.expires_at || new Date(sub.expires_at) > new Date()) {
-            return true;
-          }
-        }
+    let hasActiveSubscription = false;
+    const now = new Date().toISOString();
+
+    if (userRoles && userRoles.length > 0) {
+      const clubIds = [...new Set(userRoles.map(r => r.club_id).filter(Boolean))];
+      const teamIds = [...new Set(userRoles.map(r => r.team_id).filter(Boolean))];
+
+      if (clubIds.length > 0) {
+        const { data: clubSubs } = await supabase
+          .from('club_subscriptions')
+          .select('club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at')
+          .in('club_id', clubIds);
+
+        hasActiveSubscription = clubSubs?.some(sub => 
+          (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) &&
+          (!sub.expires_at || sub.expires_at > now)
+        ) ?? false;
       }
-      const teamSubs = (role.teams as any)?.team_subscriptions;
-      if (teamSubs) {
-        const sub = Array.isArray(teamSubs) ? teamSubs[0] : teamSubs;
-        if (sub && (sub.is_pro || sub.is_pro_football)) {
-          if (!sub.expires_at || new Date(sub.expires_at) > new Date()) {
-            return true;
-          }
-        }
+
+      if (!hasActiveSubscription && teamIds.length > 0) {
+        const { data: teamSubs } = await supabase
+          .from('team_subscriptions')
+          .select('team_id, is_pro, is_pro_football, expires_at')
+          .in('team_id', teamIds);
+
+        hasActiveSubscription = teamSubs?.some(sub => 
+          (sub.is_pro || sub.is_pro_football) && (!sub.expires_at || sub.expires_at > now)
+        ) ?? false;
       }
-      return false;
-    }) ?? false;
+    }
 
     if (!hasActiveSubscription) {
       console.log(`User ${recipientUserId} is not in any active subscription, skipping email`);
