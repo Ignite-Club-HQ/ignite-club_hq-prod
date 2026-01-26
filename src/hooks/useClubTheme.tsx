@@ -628,6 +628,12 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     staleTime: 300000, // Cache for 5 minutes
   });
 
+  // Theme is ready when:
+  // - No user (anonymous/logged out) - no theme to load
+  // - OR user exists AND we've started AND finished loading from DB
+  // This prevents flash of default theme on first login
+  const themeIsReady = !user?.id || (hasStartedDbLoad && !isLoadingFromDb);
+
   return (
     <ClubThemeContext.Provider value={{
       availableClubThemes,
@@ -635,7 +641,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       activeThemeData,
       setActiveClubTheme,
       isLoading,
-      isThemeReady: !isLoadingFromDb,
+      isThemeReady: themeIsReady,
       activeClubFilter: activeClubTheme,
       activeClubTeamIds,
     }}>
