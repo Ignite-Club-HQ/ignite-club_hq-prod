@@ -64,15 +64,37 @@ const eventTypeColors: Record<EventType, string> = {
 };
 
 export default function EventsPage() {
-  const { user } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeClubFilter } = useClubTheme();
   const teamFilter = searchParams.get("team");
   // Use club theme filter if set, otherwise use URL param
   const clubFilter = activeClubFilter || searchParams.get("club");
   const [filter, setFilter] = useState<"all" | EventType>("all");
-  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  // Initialize from profile preference or default to list
+  const savedViewMode = (profile as any)?.events_view_mode as "list" | "calendar" | undefined;
+  const [viewMode, setViewMode] = useState<"list" | "calendar">(savedViewMode || "list");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+
+  // Update view mode when profile loads
+  useEffect(() => {
+    if (savedViewMode) {
+      setViewMode(savedViewMode);
+    }
+  }, [savedViewMode]);
+
+  // Persist view mode preference to profile
+  const handleViewModeChange = async (newMode: "list" | "calendar") => {
+    setViewMode(newMode);
+    if (user) {
+      await supabase
+        .from("profiles")
+        .update({ events_view_mode: newMode })
+        .eq("id", user.id);
+      // Refresh profile to sync the change
+      refreshProfile();
+    }
+  };
 
   // Sync URL params with theme filter - clear when theme is removed
   useEffect(() => {
@@ -300,45 +322,33 @@ export default function EventsPage() {
     <div className="py-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Events</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           <Button
             variant={viewMode === "list" ? "default" : "outline"}
             size="icon"
-            onClick={() => setViewMode("list")}
+            onClick={() => handleViewModeChange("list")}
           >
             <List className="h-4 w-4" />
           </Button>
           <Button
             variant={viewMode === "calendar" ? "default" : "outline"}
             size="icon"
-            onClick={() => setViewMode("calendar")}
+            onClick={() => handleViewModeChange("calendar")}
           >
             <CalendarDays className="h-4 w-4" />
           </Button>
           {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach"].includes(r.role))) && (
-            <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link to="/events/import">
-                    <Button size="icon" variant="outline">
-                      <Upload className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent>Import Fixtures</TooltipContent>
-              </Tooltip>
-              <Link to="/events/new">
-                <Button size="sm">
-                  <Plus className="h-4 w-4 mr-1" /> New
-                </Button>
-              </Link>
-            </>
+            <Link to="/events/new">
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-1" /> New
+              </Button>
+            </Link>
           )}
         </div>
       </div>
 
       {/* Club and Team Filters */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         {userClubs && userClubs.length > 1 && (
           <Select value={clubFilter || "all"} onValueChange={handleClubChange}>
             <SelectTrigger className="w-[180px]">
@@ -369,6 +379,19 @@ export default function EventsPage() {
               ))}
             </SelectContent>
           </Select>
+        )}
+
+        {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach"].includes(r.role))) && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link to="/events/import">
+                <Button size="icon" variant="outline">
+                  <Upload className="h-4 w-4" />
+                </Button>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>Import Fixtures</TooltipContent>
+          </Tooltip>
         )}
       </div>
 

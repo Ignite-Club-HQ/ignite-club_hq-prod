@@ -176,6 +176,10 @@ export const EventReminderEmail = ({
               This reminder was sent by {clubName}. 
               <Link href={normalizedEventLink} style={{ color: primaryColor }}> Manage your notification preferences</Link>
             </Text>
+            <Text style={photoConsentText}>
+              📷 Photos may be shared within the app by team members. Photo consent is managed by your club, not Ignite Club HQ. 
+              Please contact your club or team admin if you have concerns or wish to opt out.
+            </Text>
             <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
               <tr>
                 <td style={{ paddingRight: '8px', verticalAlign: 'middle' }}>
@@ -378,6 +382,15 @@ const footerText = {
   lineHeight: '20px',
   margin: '0 0 12px 0',
   textAlign: 'center' as const,
+};
+
+const photoConsentText = {
+  color: '#94a3b8',
+  fontSize: '11px',
+  lineHeight: '18px',
+  margin: '0 0 16px 0',
+  textAlign: 'center' as const,
+  fontStyle: 'italic' as const,
 };
 
 const igniteLogoStyle = {

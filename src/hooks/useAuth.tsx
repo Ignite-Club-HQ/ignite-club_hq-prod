@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         const fetchPromise = supabase
           .from("profiles")
-          .select("id, display_name, avatar_url, ignite_points, has_sausage_reward, theme_preference")
+          .select("id, display_name, avatar_url, ignite_points, has_sausage_reward, theme_preference, events_view_mode")
           .eq("id", userId)
           .maybeSingle();
         

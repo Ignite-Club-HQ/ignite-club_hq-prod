@@ -1011,8 +1011,8 @@ export default function MessagesPage() {
               <Card className={`hover:border-primary/50 transition-colors bg-primary/5 ${hasUnread ? 'border-primary/30' : ''}`}>
                 <CardContent className="p-4 flex items-center gap-4">
                   <div className="relative">
-                    <div className="p-1.5 rounded-lg bg-primary">
-                      <Flame className="h-5 w-5 text-primary-foreground" />
+                    <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
+                      <Flame className="h-5 w-5 text-white" />
                     </div>
                     {hasUnread && (
                       <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />

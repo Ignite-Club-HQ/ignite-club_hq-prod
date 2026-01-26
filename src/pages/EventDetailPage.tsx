@@ -303,26 +303,44 @@ export default function EventDetailPage() {
     enabled: !!event?.team_id,
   });
   
-  // Check if team has Pro subscription (for other features like RSVP reminders)
-  const { data: hasTeamPro } = useQuery({
-    queryKey: ["team-pro-status", event?.team_id],
+  // Check if team/club has Pro subscription (for other features like RSVP reminders)
+  const { data: hasTeamPro, isLoading: isLoadingHasTeamPro } = useQuery({
+    queryKey: ["team-pro-status", event?.team_id, event?.club_id],
     queryFn: async () => {
-      if (!event?.team_id) return false;
-      const { data } = await supabase
-        .from("team_subscriptions")
-        .select("is_pro, is_pro_football")
-        .eq("team_id", event.team_id)
-        .maybeSingle();
-      return data?.is_pro === true || data?.is_pro_football === true;
+      // First check team-level subscription
+      if (event?.team_id) {
+        const { data: teamSub } = await supabase
+          .from("team_subscriptions")
+          .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+          .eq("team_id", event.team_id)
+          .maybeSingle();
+        if (teamSub?.is_pro || teamSub?.is_pro_football || teamSub?.admin_pro_override || teamSub?.admin_pro_football_override) {
+          return true;
+        }
+      }
+      
+      // Then check club-level subscription
+      if (event?.club_id) {
+        const { data: clubSub } = await supabase
+          .from("club_subscriptions")
+          .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+          .eq("club_id", event.club_id)
+          .maybeSingle();
+        if (clubSub?.is_pro || clubSub?.is_pro_football || clubSub?.admin_pro_override || clubSub?.admin_pro_football_override) {
+          return true;
+        }
+      }
+      
+      return false;
     },
-    enabled: !!event?.team_id,
+    enabled: !!event?.team_id || !!event?.club_id,
   });
 
   // Pro feature check: duty points only for Pro clubs or app_admin
   const canAwardDutyPoints = isAppAdmin || event?.clubs?.is_pro;
   
-  // Pro feature check for RSVP reminders - strictly team-level Pro only
-  const canSendReminders = !isLoadingTeamPro && hasTeamPro === true;
+  // Pro feature check for RSVP reminders - check team OR club subscription
+  const canSendReminders = !isLoadingHasTeamPro && hasTeamPro === true;
 
   // Check if club is soccer/football for pitch board
   const isSoccerClub = event?.clubs?.sport?.toLowerCase().includes('soccer') || 
@@ -936,17 +954,23 @@ export default function EventDetailPage() {
           : `📢 Event Cancelled: "${event.title}"\n\nView event: ${eventUrl}`;
         
         if (event.team_id) {
-          await supabase.from("team_messages").insert({
+          const { error: msgError } = await supabase.from("team_messages").insert({
             team_id: event.team_id,
             author_id: user.id,
             text: cancellationMessage,
           });
+          if (msgError) {
+            console.error("Failed to post cancellation to team chat:", msgError);
+          }
         } else if (event.club_id) {
-          await supabase.from("club_messages").insert({
+          const { error: msgError } = await supabase.from("club_messages").insert({
             club_id: event.club_id,
             author_id: user.id,
             text: cancellationMessage,
           });
+          if (msgError) {
+            console.error("Failed to post cancellation to club chat:", msgError);
+          }
         }
       }
 
@@ -970,6 +994,7 @@ export default function EventDetailPage() {
     onSuccess: () => {
       setCancelDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["event", id] });
+      toast({ title: "Event cancelled", description: "A message has been posted to the chat" });
     },
   });
 
@@ -1027,10 +1052,25 @@ export default function EventDetailPage() {
       const { error } = await supabase.from("notifications").insert(notifications);
       if (error) throw error;
       
+      // Send push notifications to all members being reminded
+      for (const userId of membersToNotify) {
+        supabase.functions.invoke("send-push-notification", {
+          body: {
+            userId,
+            title: "RSVP Reminder",
+            body: `Please RSVP for "${event?.title}"`,
+            url: `/events/${id}`,
+          },
+        }).catch(console.error);
+      }
+      
       return membersToNotify.length;
     },
-    onSuccess: () => {
-      // Silently succeed without toast
+    onSuccess: (count) => {
+      toast({ 
+        title: "Reminders sent", 
+        description: `${count} member${count !== 1 ? 's' : ''} have been reminded to RSVP` 
+      });
     },
     onError: (error: Error) => {
       toast({ title: error.message || "Failed to send reminders", variant: "destructive" });
@@ -1100,16 +1140,43 @@ export default function EventDetailPage() {
               <Pencil className="h-5 w-5" />
             </Button>
             {canSendReminders ? (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="text-primary"
-                disabled={remindMutation.isPending}
-                onClick={() => remindMutation.mutate()}
-              >
-                <Bell className="h-5 w-5" />
-              </Button>
-            ) : !isLoadingTeamPro && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-primary"
+                    disabled={remindMutation.isPending}
+                  >
+                    <Bell className="h-5 w-5" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Send RSVP Reminders?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will send a notification to all team members who haven't responded to this event yet.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => remindMutation.mutate()}
+                      disabled={remindMutation.isPending}
+                    >
+                      {remindMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        "Send Reminders"
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : !isLoadingHasTeamPro && (
               <div className="flex items-center gap-1 px-2">
                 <Bell className="h-5 w-5 text-muted-foreground" />
                 <span className="text-xs font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">Pro</span>

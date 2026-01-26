@@ -430,13 +430,10 @@ export default function CreateEventPage() {
       description: description.trim() || null,
       created_by: user!.id,
       is_recurring: isRecurring,
-      recurrence_pattern: isRecurring ? recurrencePattern : null,
-      recurrence_interval: isRecurring ? recurrenceInterval : null,
-      recurrence_days: isRecurring && recurrenceDays.length > 0 ? recurrenceDays : null,
       recurrence_end_date: isRecurring ? recurrenceEndDate : null,
       reminder_hours_before: reminderEnabled ? reminderHours : null,
       reminder_sent: false,
-      price: type === "social" ? parsedPrice : null,
+      amount: type === "social" ? parsedPrice : null,
       opponent: type === "game" ? opponent.trim() || null : null,
     };
 
