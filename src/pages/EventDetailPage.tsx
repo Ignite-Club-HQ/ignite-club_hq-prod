@@ -954,17 +954,23 @@ export default function EventDetailPage() {
           : `📢 Event Cancelled: "${event.title}"\n\nView event: ${eventUrl}`;
         
         if (event.team_id) {
-          await supabase.from("team_messages").insert({
+          const { error: msgError } = await supabase.from("team_messages").insert({
             team_id: event.team_id,
             author_id: user.id,
             text: cancellationMessage,
           });
+          if (msgError) {
+            console.error("Failed to post cancellation to team chat:", msgError);
+          }
         } else if (event.club_id) {
-          await supabase.from("club_messages").insert({
+          const { error: msgError } = await supabase.from("club_messages").insert({
             club_id: event.club_id,
             author_id: user.id,
             text: cancellationMessage,
           });
+          if (msgError) {
+            console.error("Failed to post cancellation to club chat:", msgError);
+          }
         }
       }
 
@@ -988,6 +994,7 @@ export default function EventDetailPage() {
     onSuccess: () => {
       setCancelDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["event", id] });
+      toast({ title: "Event cancelled", description: "A message has been posted to the chat" });
     },
   });
 
