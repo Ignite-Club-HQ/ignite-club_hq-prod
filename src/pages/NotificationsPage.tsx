@@ -431,6 +431,10 @@ export default function NotificationsPage() {
       case "broadcast":
         navigate(`/messages/broadcast?message=${relatedId}`);
         break;
+      case "direct_message":
+        // related_id is the conversation_id
+        navigate(`/dm/${relatedId}`);
+        break;
       case "event_invite":
       case "event_cancelled":
       case "event_reminder":
