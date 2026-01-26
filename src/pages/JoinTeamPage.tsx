@@ -335,21 +335,11 @@ export default function JoinTeamPage() {
         .eq("id", pendingInviteData.id);
 
       // Create children from invite metadata (if parent role with children)
-      console.log("[JoinTeam] Checking for children in metadata.");
-      console.log("[JoinTeam] Role:", pendingInviteData.role, "Type:", typeof pendingInviteData.role);
-      console.log("[JoinTeam] Raw metadata:", JSON.stringify(pendingInviteData.metadata));
-      console.log("[JoinTeam] Metadata type:", typeof pendingInviteData.metadata);
-      
       const metadata = pendingInviteData.metadata as { children?: { name: string; yearOfBirth: number | null }[] } | null;
-      console.log("[JoinTeam] Parsed metadata:", JSON.stringify(metadata));
-      console.log("[JoinTeam] Children array:", JSON.stringify(metadata?.children));
-      console.log("[JoinTeam] Children length:", metadata?.children?.length);
-      console.log("[JoinTeam] Role check (parent):", pendingInviteData.role === "parent");
       
       if (metadata?.children && metadata.children.length > 0 && pendingInviteData.role === "parent") {
-        console.log("[JoinTeam] ✅ Entering child creation loop for:", metadata.children.length, "children");
+        console.log("[JoinTeam] Creating children from invite metadata:", metadata.children.length);
         for (const childData of metadata.children) {
-          console.log("[JoinTeam] Creating child:", childData.name, "YoB:", childData.yearOfBirth, "for parent:", user.id);
           // Create the child record
           const { data: newChild, error: childError } = await supabase
             .from("children")
@@ -362,15 +352,12 @@ export default function JoinTeamPage() {
             .single();
           
           if (childError) {
-            console.error("[JoinTeam] ❌ Failed to create child:", childError.message, childError.code, childError.details);
+            console.error("[JoinTeam] Failed to create child:", childError.message);
             continue;
           }
           
-          console.log("[JoinTeam] ✅ Child created with ID:", newChild?.id);
-          
           // Assign child to the team
           if (newChild?.id && pendingInviteData.team_id) {
-            console.log("[JoinTeam] Assigning child to team:", pendingInviteData.team_id);
             const { error: assignError } = await supabase
               .from("child_team_assignments")
               .insert({
@@ -379,17 +366,12 @@ export default function JoinTeamPage() {
               });
             
             if (assignError) {
-              console.error("[JoinTeam] ❌ Failed to assign child to team:", assignError.message, assignError.code);
+              console.error("[JoinTeam] Failed to assign child to team:", assignError.message);
             } else {
-              console.log("[JoinTeam] ✅ Child created and assigned to team:", childData.name);
+              console.log("[JoinTeam] Child created and assigned to team:", childData.name);
             }
           }
         }
-      } else {
-        console.log("[JoinTeam] ⚠️ Skipping child creation. Conditions not met:");
-        console.log("  - metadata?.children:", !!metadata?.children);
-        console.log("  - children.length > 0:", (metadata?.children?.length || 0) > 0);
-        console.log("  - role === 'parent':", pendingInviteData.role === "parent");
       }
     } else if (!isPendingInvite) {
       // Regular team invite - check expiry and usage limits
