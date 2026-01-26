@@ -457,6 +457,9 @@ export default function CompleteProfilePage() {
               root.style.setProperty("--primary-foreground", `${activeColor.h} 10% ${fgL}%`);
               root.style.setProperty("--ring", `${activeColor.h} ${activeColor.s}% ${activeColor.l}%`);
             }
+            
+            // Dispatch event to notify ClubThemeProvider to re-read from localStorage
+            window.dispatchEvent(new CustomEvent('club-theme-updated'));
           }
         }
       }
