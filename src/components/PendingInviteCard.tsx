@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, X, UserCheck, Copy, Send, MoreHorizontal, Trash2, Check, Pencil, Mail, MailX, AlertCircle, Loader2, RotateCw } from "lucide-react";
+import { Clock, X, UserCheck, Send, MoreHorizontal, Trash2, Check, Pencil, Mail, MailX, AlertCircle, Loader2, RotateCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -88,33 +88,9 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
   const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [editName, setEditName] = useState(invite.invited_label || "");
   const [editRole, setEditRole] = useState<AppRole>(invite.role as AppRole);
   const [isResending, setIsResending] = useState(false);
-
-  // Fetch existing invite link for this role
-  const { data: inviteLink } = useQuery({
-    queryKey: ["team-invite-link", teamId, invite.role],
-    queryFn: async () => {
-      if (!teamId) return null;
-      const { data } = await supabase
-        .from("team_invites")
-        .select("token")
-        .eq("team_id", teamId)
-        .eq("role", invite.role as any)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (data?.token) {
-        return `${window.location.origin}/join/${data.token}`;
-      }
-      return null;
-    },
-    enabled: !!teamId,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
 
   // Fetch team name and club branding for resend email
   const { data: teamData } = useQuery({
@@ -327,26 +303,6 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
     }
   };
 
-  const handleCopyLink = async () => {
-    if (!inviteLink) {
-      toast({ 
-        title: "No invite link available", 
-        description: "Generate a new invite link from the team page",
-        variant: "destructive" 
-      });
-      return;
-    }
-    
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setCopied(true);
-      toast({ title: "Invite link copied!" });
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast({ title: "Failed to copy link", variant: "destructive" });
-    }
-  };
-
   const handleOpenEdit = () => {
     setEditName(invite.invited_label || "");
     setEditRole(invite.role as AppRole);
@@ -463,25 +419,6 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
               </Button>
             )}
             
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-2 gap-1 text-xs hidden sm:flex"
-              onClick={handleCopyLink}
-              disabled={!inviteLink}
-            >
-              {copied ? (
-                <>
-                  <Check className="h-3 w-3 text-green-500" />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3 w-3" />
-                  Copy Link
-                </>
-              )}
-            </Button>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -493,10 +430,6 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
                 <DropdownMenuItem onClick={handleOpenEdit}>
                   <Pencil className="h-4 w-4 mr-2" />
                   Edit name/role
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleCopyLink} disabled={!inviteLink}>
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy invite link
                 </DropdownMenuItem>
                 {invite.invited_email && (
                   <DropdownMenuItem 
