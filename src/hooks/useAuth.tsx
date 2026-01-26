@@ -235,7 +235,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // ALWAYS fetch fresh profile - this updates the profile state with server truth
         // and sets profileLoading to false when complete
         fetchProfile(userId, 5, false)
-          .finally(() => {
+          .then((fetchedProfile) => {
+            if (mounted) {
+              // Ensure profile state is updated before setting loading to false
+              // The fetchProfile function already sets profile, but we add a microtask delay
+              // to ensure React has processed the state update
+              queueMicrotask(() => {
+                if (mounted) {
+                  setProfileLoading(false);
+                }
+              });
+            }
+          })
+          .catch(() => {
             if (mounted) {
               setProfileLoading(false);
             }
@@ -244,7 +256,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // No cache - fetch profile
         setProfileLoading(true);
         fetchProfile(userId, 5, applyTheme)
-          .finally(() => {
+          .then((fetchedProfile) => {
+            if (mounted) {
+              // Ensure profile state is updated before setting loading to false
+              queueMicrotask(() => {
+                if (mounted) {
+                  setProfileLoading(false);
+                  setLoading(false);
+                }
+              });
+            }
+          })
+          .catch(() => {
             if (mounted) {
               setProfileLoading(false);
               setLoading(false);

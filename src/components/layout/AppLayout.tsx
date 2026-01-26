@@ -82,12 +82,16 @@ export function AppLayout() {
   // 1. Profile exists but display_name is missing (existing user needs to complete)
   // 2. Profile is null after loading finished (new user needs to create profile)
   // Only gate when profileLoading is false (we have server truth, not stale cache)
-  if (!profileLoading) {
-    if (profile && !profile.display_name) {
+  // AND we have a stable profile state (not in transition)
+  if (!profileLoading && !loading) {
+    // If profile exists and has display_name, we're good - proceed to render
+    if (profile?.display_name) {
+      // Profile is complete, allow rendering
+    } else if (profile && !profile.display_name) {
+      // Profile exists but no display_name - needs completion
       return <Navigate to="/complete-profile" replace />;
-    }
-    // New user - profile doesn't exist yet, redirect to complete-profile to create it
-    if (!profile && !profileError) {
+    } else if (!profile && !profileError) {
+      // New user - profile doesn't exist yet, redirect to complete-profile to create it
       return <Navigate to="/complete-profile" replace />;
     }
   }
