@@ -252,7 +252,17 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       file_size: file.size,
     });
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      // Cleanup: remove the uploaded file from storage if database insert fails
+      // This prevents orphaned storage objects with tracked bytes but no photo record
+      console.error("Database insert failed, cleaning up storage:", insertError);
+      try {
+        await supabase.storage.from("photos").remove([storagePath]);
+      } catch (cleanupError) {
+        console.error("Failed to cleanup orphaned storage file:", cleanupError);
+      }
+      throw insertError;
+    }
     
     return storageUrl;
   };
