@@ -80,16 +80,8 @@ export function ClubThemeToggle() {
         const hasPro = club.is_pro === true || hasProFromSub === true;
         const hasTheme = club.theme_primary_h !== null;
         const themeEnabled = (club as any).theme_enabled !== false; // Default to true
-        
-        console.log('[ClubThemeToggle] Club:', club.name, { 
-          is_pro: club.is_pro, 
-          club_subscriptions: subs,
-          hasProFromSub, 
-          hasPro, 
-          hasTheme,
-          themeEnabled,
-          willBeFiltered: (hasPro && !hasTheme) || !themeEnabled
-        });
+        // Only selectable if Pro AND has theme AND theme is enabled
+        const isSelectable = hasPro && hasTheme && themeEnabled;
         
         return {
           clubId: club.id,
@@ -98,18 +90,16 @@ export function ClubThemeToggle() {
           hasPro,
           hasTheme,
           themeEnabled,
-          // Only selectable if Pro AND has theme AND theme is enabled
-          isSelectable: hasPro && hasTheme && themeEnabled,
+          isSelectable,
           primary: club.theme_primary_h !== null ? {
             h: club.theme_primary_h!,
             s: club.theme_primary_s!,
             l: club.theme_primary_l!,
           } : null,
         };
-      // Filter out Pro clubs that don't have a theme OR have theme disabled
-      }).filter(club => !((club.hasPro && !club.hasTheme) || (club.hasPro && !club.themeEnabled)));
+      // Keep only clubs that are selectable (Pro + has theme + theme enabled)
+      }).filter(club => club.isSelectable);
       
-      console.log('[ClubThemeToggle] Final clubs after filter:', result.map(c => ({ name: c.clubName, hasPro: c.hasPro })));
       return result;
     },
     enabled: !!user?.id,
