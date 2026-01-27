@@ -488,11 +488,11 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
                               <p className="text-xs text-muted-foreground">{result.parentEmail}</p>
                             )}
                           </div>
-                          {result.parentEmail && (
-                            <Badge variant={result.sent ? "default" : "secondary"}>
-                              {result.sent ? "Sent" : "Not sent"}
-                            </Badge>
-                          )}
+                          <Badge variant={result.parentEmail ? (result.sent ? "default" : "secondary") : "outline"}>
+                            {result.parentEmail 
+                              ? (result.sent ? "Email sent" : "Invite pending") 
+                              : "Added"}
+                          </Badge>
                         </div>
                       ))}
                     </div>
