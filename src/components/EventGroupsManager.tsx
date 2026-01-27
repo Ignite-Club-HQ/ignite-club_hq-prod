@@ -57,6 +57,7 @@ interface GroupPlayer {
   id: string;
   name: string;
   team: "a" | "b" | null;
+  ability_rating: number;
 }
 
 interface EventGroup {
@@ -109,11 +110,12 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
         if (playerIds.length > 0) {
           const { data: playersData } = await supabase
             .from("mini_league_players")
-            .select("id, name")
+            .select("id, name, ability_rating")
             .in("id", playerIds);
           
           players = (playersData || []).map(p => ({
             ...p,
+            ability_rating: p.ability_rating || 3,
             team: playerLinks?.find(pl => pl.player_id === p.id)?.team as "a" | "b" | null,
           }));
         }
@@ -544,10 +546,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
                           <Badge
                             key={player.id}
                             variant="secondary"
-                            className="text-xs"
+                            className="text-xs flex items-center gap-1"
                             style={{ backgroundColor: `${group.team_a_color}20`, borderColor: group.team_a_color }}
                           >
                             {player.name}
+                            <span className="opacity-60 text-[10px]">({player.ability_rating})</span>
                           </Badge>
                         ))}
                         {teamAPlayers.length === 0 && (
@@ -570,10 +573,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
                           <Badge
                             key={player.id}
                             variant="secondary"
-                            className="text-xs"
+                            className="text-xs flex items-center gap-1"
                             style={{ backgroundColor: `${group.team_b_color}20`, borderColor: group.team_b_color }}
                           >
                             {player.name}
+                            <span className="opacity-60 text-[10px]">({player.ability_rating})</span>
                           </Badge>
                         ))}
                         {teamBPlayers.length === 0 && (
