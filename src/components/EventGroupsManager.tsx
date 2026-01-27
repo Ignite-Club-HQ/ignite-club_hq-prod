@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Users, PlayCircle, Wand2, Loader2, X, ClipboardList, Copy, Shirt } from "lucide-react";
+import { Plus, Users, PlayCircle, Wand2, Loader2, X, ClipboardList, Copy, Shirt, RefreshCw, UserCheck, UserX } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +26,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { Switch } from "@/components/ui/switch";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Default bib color pairs when league has no custom colors
 const DEFAULT_BIB_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"];
@@ -95,6 +97,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
   const [useAutoMode, setUseAutoMode] = useState(true);
   const [abilityMode, setAbilityMode] = useState<"similar" | "mixed">("similar");
   const [selectedPreviousEventId, setSelectedPreviousEventId] = useState<string | null>(null);
+  const [playerAvailability, setPlayerAvailability] = useState<Record<string, boolean>>({});
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   // Fetch event groups
   const { data: groups, isLoading } = useQuery({
@@ -173,6 +177,20 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
     enabled: !!miniLeagueId,
   });
 
+  // Initialize player availability when players load (default all to available)
+  useEffect(() => {
+    if (allPlayers && Object.keys(playerAvailability).length === 0) {
+      const availability: Record<string, boolean> = {};
+      allPlayers.forEach(p => {
+        availability[p.id] = true;
+      });
+      setPlayerAvailability(availability);
+    }
+  }, [allPlayers]);
+
+  // Get available players only
+  const availablePlayers = allPlayers?.filter(p => playerAvailability[p.id] !== false) || [];
+
   // Fetch previous events for copy
   const { data: previousEvents } = useQuery({
     queryKey: ["previous-mini-league-events", miniLeagueId],
@@ -218,8 +236,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
   // Auto-generate groups mutation (now creates matches with 2 teams each)
   const autoGenMutation = useMutation({
     mutationFn: async () => {
-      if (!allPlayers || allPlayers.length === 0) {
-        throw new Error("No players in this mini league");
+      if (!availablePlayers || availablePlayers.length === 0) {
+        throw new Error("No available players for this session");
       }
 
       // Calculate number of groups based on mode
@@ -229,7 +247,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
         : playersPerTeam;
       const playersPerMatch = effectivePlayersPerTeam * 2;
       const effectiveNumMatches = useAutoMode 
-        ? Math.ceil(allPlayers.length / playersPerMatch)
+        ? Math.ceil(availablePlayers.length / playersPerMatch)
         : numGroups;
 
       if (effectiveNumMatches < 1) {
@@ -237,7 +255,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       }
 
       // Sort by ability rating (already sorted desc)
-      const sortedPlayers = [...allPlayers];
+      const sortedPlayers = [...availablePlayers];
       
       // Create matches with balanced ability using league's bib colors
       const leagueColors = miniLeague?.bib_colors || DEFAULT_BIB_COLORS;
@@ -476,6 +494,41 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
     onError: (error: Error) => toast.error(error.message),
   });
 
+  // Delete all groups mutation (for regeneration)
+  const deleteAllGroupsMutation = useMutation({
+    mutationFn: async () => {
+      const groupIds = groups?.map(g => g.id) || [];
+      for (const groupId of groupIds) {
+        await supabase.from("event_groups").delete().eq("id", groupId);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  // Regenerate handler
+  const handleRegenerate = async () => {
+    setIsRegenerating(true);
+    try {
+      await deleteAllGroupsMutation.mutateAsync();
+      setIsAutoGenOpen(true);
+    } catch (error) {
+      // Error handled by mutation
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  // Toggle player availability
+  const togglePlayerAvailability = (playerId: string) => {
+    setPlayerAvailability(prev => ({
+      ...prev,
+      [playerId]: !prev[playerId],
+    }));
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -488,10 +541,80 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
 
   return (
     <div className="space-y-4">
+      {/* Player Availability Section */}
+      {isAdmin && allPlayers && allPlayers.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Player Availability
+              </CardTitle>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <UserCheck className="h-3 w-3 text-green-500" />
+                  {availablePlayers.length}
+                </span>
+                <span className="flex items-center gap-1">
+                  <UserX className="h-3 w-3 text-red-500" />
+                  {(allPlayers?.length || 0) - availablePlayers.length}
+                </span>
+              </div>
+            </div>
+            <CardDescription>Toggle players who are available for this session</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ScrollArea className="max-h-48">
+              <div className="grid grid-cols-2 gap-2">
+                {allPlayers.map((player) => {
+                  const isAvailable = playerAvailability[player.id] !== false;
+                  return (
+                    <div
+                      key={player.id}
+                      className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-colors ${
+                        isAvailable 
+                          ? "bg-green-500/10 border-green-500/30" 
+                          : "bg-red-500/10 border-red-500/30 opacity-60"
+                      }`}
+                      onClick={() => togglePlayerAvailability(player.id)}
+                    >
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="text-sm font-medium truncate">{player.name}</span>
+                        <span className="text-[10px] text-muted-foreground">{getAbilityLabel(player.ability_rating)}</span>
+                      </div>
+                      <Switch
+                        checked={isAvailable}
+                        onCheckedChange={() => togglePlayerAvailability(player.id)}
+                        className="ml-2"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">Matches</h3>
         {isAdmin && (
           <div className="flex gap-2">
+            {groups && groups.length > 0 && (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={handleRegenerate}
+                disabled={isRegenerating}
+              >
+                {isRegenerating ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                )}
+                Regenerate
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={() => setIsCopyPreviousOpen(true)}>
               <Copy className="h-4 w-4 mr-1" />
               Copy
@@ -748,13 +871,26 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
               </p>
             </div>
 
+            {/* Available players count */}
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+              <UserCheck className="h-4 w-4 text-green-500" />
+              <span className="text-sm">
+                <span className="font-medium">{availablePlayers.length}</span> of {allPlayers?.length || 0} players available
+              </span>
+              {availablePlayers.length !== (allPlayers?.length || 0) && (
+                <span className="text-xs text-muted-foreground">
+                  ({(allPlayers?.length || 0) - availablePlayers.length} unavailable)
+                </span>
+              )}
+            </div>
+
             {useAutoMode ? (
               <div className="p-3 rounded-lg border bg-primary/5">
                 <p className="text-sm">
-                  <span className="font-medium">{allPlayers?.length || 0}</span> players ÷{" "}
+                  <span className="font-medium">{availablePlayers.length}</span> available players ÷{" "}
                   <span className="font-medium">{(miniLeague?.team_size || 6) * 2}</span> per match ={" "}
                   <span className="font-medium">
-                    {Math.ceil((allPlayers?.length || 0) / ((miniLeague?.team_size || 6) * 2))}
+                    {Math.ceil(availablePlayers.length / ((miniLeague?.team_size || 6) * 2))}
                   </span>{" "}
                   matches
                 </p>
@@ -797,8 +933,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
                 </div>
 
                 <p className="text-sm text-muted-foreground">
-                  {allPlayers?.length || 0} players will be distributed across {numGroups} matches
-                  (~{Math.ceil((allPlayers?.length || 0) / numGroups)} per match)
+                  {availablePlayers.length} available players will be distributed across {numGroups} matches
+                  (~{Math.ceil(availablePlayers.length / numGroups)} per match)
                 </p>
               </>
             )}
