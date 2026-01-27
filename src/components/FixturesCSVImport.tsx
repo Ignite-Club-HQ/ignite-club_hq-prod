@@ -605,10 +605,11 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
         </CollapsibleContent>
       </Collapsible>
 
+      {/* Using specific MIME types to prevent cloud picker defaults on mobile */}
       <input
         ref={fileInputRef}
         type="file"
-        accept={ACCEPTED_FILE_TYPES}
+        accept="text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.csv,.xlsx,.xls"
         onChange={handleFileSelect}
         className="hidden"
       />
