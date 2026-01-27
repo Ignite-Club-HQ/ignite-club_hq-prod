@@ -28,13 +28,14 @@ interface MiniLeaguePlayer {
   parent_user_id: string | null;
 }
 
-interface MiniLeagueSession {
+interface MiniLeagueEvent {
   id: string;
-  session_date: string;
-  start_time: string;
+  title: string;
+  event_date: string;
+  start_time: string | null;
   end_time: string | null;
   location_name: string | null;
-  status: "draft" | "locked";
+  is_cancelled: boolean;
 }
 
 export default function MiniLeagueDetailPage() {
@@ -76,17 +77,17 @@ export default function MiniLeagueDetailPage() {
     enabled: !!id,
   });
 
-  // Fetch sessions
-  const { data: sessions, isLoading: sessionsLoading } = useQuery({
-    queryKey: ["mini-league-sessions", id],
+  // Fetch events linked to mini league
+  const { data: events, isLoading: eventsLoading } = useQuery({
+    queryKey: ["mini-league-events", id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("mini_league_sessions")
-        .select("*")
+        .from("events")
+        .select("id, title, event_date, start_time, end_time, location_name, is_cancelled")
         .eq("mini_league_id", id!)
-        .order("session_date", { ascending: false });
+        .order("event_date", { ascending: false });
       if (error) throw error;
-      return data as MiniLeagueSession[];
+      return data as MiniLeagueEvent[];
     },
     enabled: !!id,
   });
@@ -169,9 +170,9 @@ export default function MiniLeagueDetailPage() {
     return acc;
   }, {} as Record<number, MiniLeaguePlayer[]>) || {};
 
-  // Separate upcoming and past sessions
-  const upcomingSessions = sessions?.filter(s => isFuture(parseISO(s.session_date)) || isToday(parseISO(s.session_date))) || [];
-  const pastSessions = sessions?.filter(s => !isFuture(parseISO(s.session_date)) && !isToday(parseISO(s.session_date))) || [];
+  // Separate upcoming and past events
+  const upcomingEvents = events?.filter(e => !e.is_cancelled && (isFuture(parseISO(e.event_date)) || isToday(parseISO(e.event_date)))) || [];
+  const pastEvents = events?.filter(e => !e.is_cancelled && !isFuture(parseISO(e.event_date)) && !isToday(parseISO(e.event_date))) || [];
 
   return (
     <div className="container max-w-4xl py-6 space-y-6">
@@ -211,7 +212,7 @@ export default function MiniLeagueDetailPage() {
             <div className="flex items-center gap-3">
               <Calendar className="h-8 w-8 text-primary" />
               <div>
-                <p className="text-2xl font-bold">{sessions?.length || 0}</p>
+                <p className="text-2xl font-bold">{events?.length || 0}</p>
                 <p className="text-sm text-muted-foreground">Sessions</p>
               </div>
             </div>
@@ -229,17 +230,17 @@ export default function MiniLeagueDetailPage() {
         <TabsContent value="sessions" className="space-y-4 mt-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold">Sessions</h2>
-            <Button size="sm" onClick={() => navigate(`/mini-leagues/${id}/sessions/new`)}>
+            <Button size="sm" onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}>
               <Plus className="h-4 w-4 mr-2" />
               New Session
             </Button>
           </div>
 
-          {sessionsLoading ? (
+          {eventsLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : sessions?.length === 0 ? (
+          ) : events?.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center">
                 <Calendar className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
@@ -248,41 +249,40 @@ export default function MiniLeagueDetailPage() {
             </Card>
           ) : (
             <div className="space-y-4">
-              {upcomingSessions.length > 0 && (
+              {upcomingEvents.length > 0 && (
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium text-muted-foreground">Upcoming</h3>
-                  {upcomingSessions.map((session) => (
+                  {upcomingEvents.map((event) => (
                     <Card
-                      key={session.id}
+                      key={event.id}
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => navigate(`/mini-leagues/${id}/sessions/${session.id}`)}
+                      onClick={() => navigate(`/events/${event.id}`)}
                     >
                       <CardContent className="py-4">
                         <div className="flex items-center justify-between">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">
-                                {isToday(parseISO(session.session_date)) 
+                                {event.title || (isToday(parseISO(event.event_date)) 
                                   ? "Today" 
-                                  : format(parseISO(session.session_date), "EEE, MMM d")}
+                                  : format(parseISO(event.event_date), "EEE, MMM d"))}
                               </span>
-                              {isToday(parseISO(session.session_date)) && (
+                              {isToday(parseISO(event.event_date)) && (
                                 <Badge variant="default">Today</Badge>
                               )}
-                              <Badge variant={session.status === "locked" ? "secondary" : "outline"}>
-                                {session.status}
-                              </Badge>
                             </div>
                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Clock className="h-3.5 w-3.5" />
-                                {session.start_time.slice(0, 5)}
-                                {session.end_time && ` - ${session.end_time.slice(0, 5)}`}
-                              </span>
-                              {session.location_name && (
+                              {event.start_time && (
+                                <span className="flex items-center gap-1">
+                                  <Clock className="h-3.5 w-3.5" />
+                                  {event.start_time.slice(0, 5)}
+                                  {event.end_time && ` - ${event.end_time.slice(0, 5)}`}
+                                </span>
+                              )}
+                              {event.location_name && (
                                 <span className="flex items-center gap-1">
                                   <MapPin className="h-3.5 w-3.5" />
-                                  {session.location_name}
+                                  {event.location_name}
                                 </span>
                               )}
                             </div>
@@ -295,22 +295,24 @@ export default function MiniLeagueDetailPage() {
                 </div>
               )}
               
-              {pastSessions.length > 0 && (
+              {pastEvents.length > 0 && (
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium text-muted-foreground">Past</h3>
-                  {pastSessions.slice(0, 5).map((session) => (
+                  {pastEvents.slice(0, 5).map((event) => (
                     <Card
-                      key={session.id}
+                      key={event.id}
                       className="cursor-pointer hover:bg-muted/50 transition-colors opacity-75"
-                      onClick={() => navigate(`/mini-leagues/${id}/sessions/${session.id}`)}
+                      onClick={() => navigate(`/events/${event.id}`)}
                     >
                       <CardContent className="py-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-4 text-sm">
-                            <span>{format(parseISO(session.session_date), "MMM d, yyyy")}</span>
-                            <span className="text-muted-foreground">
-                              {session.start_time.slice(0, 5)}
-                            </span>
+                            <span>{event.title || format(parseISO(event.event_date), "MMM d, yyyy")}</span>
+                            {event.start_time && (
+                              <span className="text-muted-foreground">
+                                {event.start_time.slice(0, 5)}
+                              </span>
+                            )}
                           </div>
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         </div>
