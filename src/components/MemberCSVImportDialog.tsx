@@ -66,16 +66,23 @@ export function MemberCSVImportDialog({
   const [isDragging, setIsDragging] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
 
-  // Update a member's email in the preview
-  const updateMemberEmail = (memberId: string, email: string) => {
+  // Update member fields in the preview
+  const updateMemberField = (memberId: string, field: keyof ParsedMember, value: string) => {
     setParsedMembers(prev => 
-      prev.map(m => m.id === memberId ? { ...m, email } : m)
+      prev.map(m => m.id === memberId ? { ...m, [field]: value } : m)
     );
   };
 
-  // Check if all members have valid emails
-  const allEmailsValid = parsedMembers.every(m => isValidEmail(m.email));
-  const missingEmailCount = parsedMembers.filter(m => !isValidEmail(m.email)).length;
+  // Validation helpers
+  const isMemberValid = (member: ParsedMember) => {
+    return member.name.trim().length > 0 && 
+           isValidEmail(member.email) && 
+           VALID_ROLES.includes(member.role);
+  };
+
+  // Check if all members have valid required fields
+  const allMembersValid = parsedMembers.every(isMemberValid);
+  const invalidCount = parsedMembers.filter(m => !isMemberValid(m)).length;
 
   const parseCSVLine = (line: string): string[] => {
     const values: string[] = [];
@@ -494,28 +501,48 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
                         {parsedMembers.length} member{parsedMembers.length !== 1 ? 's' : ''} found
                       </p>
                     </div>
-                    {missingEmailCount > 0 && (
+                    {invalidCount > 0 && (
                       <Badge variant="destructive" className="text-xs">
-                        {missingEmailCount} missing email{missingEmailCount !== 1 ? 's' : ''}
+                        {invalidCount} need{invalidCount === 1 ? 's' : ''} attention
                       </Badge>
                     )}
                   </div>
                   <ScrollArea className="flex-1 min-h-0 rounded-lg border">
                     <div className="p-2 space-y-2">
                       {parsedMembers.map((member) => {
+                        const nameMissing = !member.name.trim();
                         const emailMissing = !isValidEmail(member.email);
+                        const hasIssue = nameMissing || emailMissing;
+                        
                         return (
                           <div 
                             key={member.id} 
-                            className={`p-2 rounded-md text-sm ${emailMissing ? 'bg-destructive/10 border border-destructive/30' : 'bg-muted/50'}`}
+                            className={`p-2 rounded-md text-sm ${hasIssue ? 'bg-destructive/10 border border-destructive/30' : 'bg-muted/50'}`}
                           >
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="font-medium truncate flex-1">{member.name}</p>
-                              <Badge variant="outline" className={`shrink-0 text-xs ${getRoleBadgeClass(member.role)}`}>
-                                {member.role}
-                              </Badge>
-                            </div>
+                            {/* Name field */}
+                            {nameMissing ? (
+                              <div className="flex items-center gap-2 mb-2">
+                                <Input
+                                  type="text"
+                                  placeholder="Enter member name"
+                                  value={member.name}
+                                  onChange={(e) => updateMemberField(member.id, 'name', e.target.value)}
+                                  className="h-8 text-sm font-medium"
+                                />
+                                <Badge variant="outline" className={`shrink-0 text-xs ${getRoleBadgeClass(member.role)}`}>
+                                  {member.role}
+                                </Badge>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="font-medium truncate flex-1">{member.name}</p>
+                                <Badge variant="outline" className={`shrink-0 text-xs ${getRoleBadgeClass(member.role)}`}>
+                                  {member.role}
+                                </Badge>
+                              </div>
+                            )}
                             
+                            {/* Email field */}
                             {emailMissing ? (
                               <div className="mt-2">
                                 <div className="flex items-center gap-2">
@@ -524,7 +551,7 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
                                     type="email"
                                     placeholder="Enter email address"
                                     value={member.email}
-                                    onChange={(e) => updateMemberEmail(member.id, e.target.value)}
+                                    onChange={(e) => updateMemberField(member.id, 'email', e.target.value)}
                                     className="h-8 text-sm"
                                   />
                                 </div>
@@ -533,6 +560,7 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
                               <p className="text-xs text-muted-foreground truncate mt-1">{member.email}</p>
                             )}
                             
+                            {/* Children info */}
                             {member.children.length > 0 && (
                               <p className="text-xs text-primary truncate mt-1">
                                 Children: {member.children.map(c => c.yearOfBirth ? `${c.name} (${c.yearOfBirth})` : c.name).join(', ')}
@@ -559,9 +587,9 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
 
         {/* Actions */}
         <div className="flex flex-col gap-2 pt-4 border-t shrink-0">
-          {!allEmailsValid && parsedMembers.length > 0 && (
+          {!allMembersValid && parsedMembers.length > 0 && (
             <p className="text-xs text-destructive text-center">
-              Please enter valid email addresses for all members before sending invites
+              Please fill in all required fields (name, email) before sending invites
             </p>
           )}
           <div className="flex gap-2">
@@ -571,7 +599,7 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
             <Button 
               className="flex-1" 
               onClick={handleImport}
-              disabled={parsedMembers.length === 0 || hasBlockingErrors || !allEmailsValid}
+              disabled={parsedMembers.length === 0 || hasBlockingErrors || !allMembersValid}
             >
               <Send className="h-4 w-4 mr-2" />
               Send Invites {parsedMembers.length > 0 ? `(${parsedMembers.length})` : ''}
