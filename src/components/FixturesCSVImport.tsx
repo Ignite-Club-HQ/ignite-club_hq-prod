@@ -502,9 +502,18 @@ export function FixturesCSVImport({ clubId, teamId, teams = [], onImportComplete
   };
 
   const downloadTemplate = () => {
+    // Generate future dates for template
+    const today = new Date();
+    const nextSaturday = new Date(today);
+    nextSaturday.setDate(today.getDate() + ((6 - today.getDay() + 7) % 7 || 7));
+    const followingSaturday = new Date(nextSaturday);
+    followingSaturday.setDate(nextSaturday.getDate() + 7);
+    
+    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+    
     const csvContent = `title,date,time,opponent,address,description,reminder_hours
-Round 1 vs Eagles,2025-03-15,10:00,Eagles FC,123 Sports Ground Rd,Home game,24
-Round 2 vs Tigers,2025-03-22,14:30,Tigers United,456 Stadium Ave,Away game,48`;
+Round 1 vs Eagles,${formatDate(nextSaturday)},10:00,Eagles FC,123 Sports Ground Rd,Home game,24
+Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadium Ave,Away game,48`;
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -515,11 +524,20 @@ Round 2 vs Tigers,2025-03-22,14:30,Tigers United,456 Stadium Ave,Away game,48`;
   };
 
   const downloadExcelTemplate = () => {
+    // Generate future dates for template
+    const today = new Date();
+    const nextSaturday = new Date(today);
+    nextSaturday.setDate(today.getDate() + ((6 - today.getDay() + 7) % 7 || 7));
+    const followingSaturday = new Date(nextSaturday);
+    followingSaturday.setDate(nextSaturday.getDate() + 7);
+    
+    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+    
     const wb = XLSX.utils.book_new();
     const wsData = [
       ['title', 'date', 'time', 'opponent', 'address', 'description', 'reminder_hours'],
-      ['Round 1 vs Eagles', '2025-03-15', '10:00', 'Eagles FC', '123 Sports Ground Rd', 'Home game', 24],
-      ['Round 2 vs Tigers', '2025-03-22', '14:30', 'Tigers United', '456 Stadium Ave', 'Away game', 48],
+      ['Round 1 vs Eagles', formatDate(nextSaturday), '10:00', 'Eagles FC', '123 Sports Ground Rd', 'Home game', 24],
+      ['Round 2 vs Tigers', formatDate(followingSaturday), '14:30', 'Tigers United', '456 Stadium Ave', 'Away game', 48],
     ];
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     XLSX.utils.book_append_sheet(wb, ws, 'Fixtures');
