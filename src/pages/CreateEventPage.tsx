@@ -209,7 +209,6 @@ export default function CreateEventPage() {
       .from("mini_leagues")
       .select("id, name")
       .eq("club_id", clubId)
-      .eq("is_active", true)
       .order("name");
     if (error) throw error;
     return data || [];
