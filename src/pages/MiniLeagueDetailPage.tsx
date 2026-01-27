@@ -119,10 +119,28 @@ export default function MiniLeagueDetailPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  // Add session mutation
+  // Add session mutation - also creates a linked event
   const addSessionMutation = useMutation({
     mutationFn: async (data: typeof newSession) => {
-      const { error } = await supabase.from("mini_league_sessions").insert({
+      if (!league) throw new Error("League not loaded");
+      
+      // First create the event
+      const { data: eventData, error: eventError } = await supabase.from("events").insert({
+        title: `${league.name} Session`,
+        event_date: data.session_date,
+        start_time: data.start_time,
+        end_time: data.end_time || null,
+        location_name: data.location_name || null,
+        club_id: league.club_id,
+        created_by: user!.id,
+        type: "mini_league" as const,
+        description: `Mini League session for ${league.name}`,
+      }).select().single();
+      
+      if (eventError) throw eventError;
+      
+      // Then create the session with link to event
+      const { error: sessionError } = await supabase.from("mini_league_sessions").insert({
         mini_league_id: id!,
         session_date: data.session_date,
         start_time: data.start_time,
@@ -130,11 +148,18 @@ export default function MiniLeagueDetailPage() {
         location_name: data.location_name || null,
         team_size_override: data.team_size_override ? parseInt(data.team_size_override) : null,
         created_by: user!.id,
+        linked_event_id: eventData.id,
       });
-      if (error) throw error;
+      
+      if (sessionError) {
+        // Rollback: delete the event if session creation failed
+        await supabase.from("events").delete().eq("id", eventData.id);
+        throw sessionError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mini-league-sessions", id] });
+      queryClient.invalidateQueries({ queryKey: ["events"] });
       setIsAddSessionOpen(false);
       setNewSession({ session_date: "", start_time: "09:00", end_time: "10:00", location_name: "", team_size_override: "" });
       toast.success("Session created!");
