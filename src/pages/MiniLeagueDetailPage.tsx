@@ -43,6 +43,7 @@ interface MiniLeaguePlayer {
   ability_rating: number;
   notes: string | null;
   parent_user_id: string | null;
+  child_id: string | null;
 }
 
 interface MiniLeagueEvent {

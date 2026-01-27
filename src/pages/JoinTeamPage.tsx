@@ -335,10 +335,17 @@ export default function JoinTeamPage() {
         })
         .eq("id", pendingInviteData.id);
 
-      // Create children from invite metadata (if parent role with children)
-      const metadata = pendingInviteData.metadata as { children?: { name: string; yearOfBirth: number | null }[] } | null;
+      // Create children from invite metadata (if parent or league_parent role with children)
+      const metadata = pendingInviteData.metadata as { 
+        children?: { name: string; yearOfBirth: number | null }[];
+        mini_league_id?: string;
+        child_id?: string;
+        player_id?: string;
+      } | null;
       
-      if (metadata?.children && metadata.children.length > 0 && pendingInviteData.role === "parent") {
+      const isParentRole = pendingInviteData.role === "parent" || pendingInviteData.role === "league_parent";
+      
+      if (metadata?.children && metadata.children.length > 0 && isParentRole) {
         console.log("[JoinTeam] Creating children from invite metadata:", metadata.children.length);
         
         // Fetch existing children to avoid duplicates
@@ -393,22 +400,73 @@ export default function JoinTeamPage() {
             
             if (existingAssignment) {
               console.log("[JoinTeam] Child already assigned to team:", childData.name);
-              continue;
-            }
-            
-            const { error: assignError } = await supabase
-              .from("child_team_assignments")
-              .insert({
-                child_id: childId,
-                team_id: pendingInviteData.team_id,
-              });
-            
-            if (assignError) {
-              console.error("[JoinTeam] Failed to assign child to team:", assignError.message);
             } else {
-              console.log("[JoinTeam] Child assigned to team:", childData.name);
+              const { error: assignError } = await supabase
+                .from("child_team_assignments")
+                .insert({
+                  child_id: childId,
+                  team_id: pendingInviteData.team_id,
+                });
+              
+              if (assignError) {
+                console.error("[JoinTeam] Failed to assign child to team:", assignError.message);
+              } else {
+                console.log("[JoinTeam] Child assigned to team:", childData.name);
+              }
             }
           }
+          
+          // Assign child to mini league (for league_parent invites)
+          if (childId && metadata.mini_league_id) {
+            // Check if already assigned to this league
+            const { data: existingLeagueAssignment } = await supabase
+              .from("child_mini_league_assignments")
+              .select("id")
+              .eq("child_id", childId)
+              .eq("mini_league_id", metadata.mini_league_id)
+              .maybeSingle();
+            
+            if (existingLeagueAssignment) {
+              console.log("[JoinTeam] Child already assigned to league:", childData.name);
+            } else {
+              const { error: leagueAssignError } = await supabase
+                .from("child_mini_league_assignments")
+                .insert({
+                  child_id: childId,
+                  mini_league_id: metadata.mini_league_id,
+                  ability_rating: 3, // Default rating
+                });
+              
+              if (leagueAssignError) {
+                console.error("[JoinTeam] Failed to assign child to league:", leagueAssignError.message);
+              } else {
+                console.log("[JoinTeam] Child assigned to mini league:", childData.name);
+              }
+            }
+            
+            // Update legacy mini_league_players record
+            if (metadata.player_id) {
+              await supabase
+                .from("mini_league_players")
+                .update({ parent_user_id: user.id, child_id: childId })
+                .eq("id", metadata.player_id);
+            }
+          }
+        }
+      } else if (isParentRole && metadata?.child_id) {
+        // Link existing child to this parent (child was pre-created by admin)
+        console.log("[JoinTeam] Linking existing child to parent:", metadata.child_id);
+        await supabase
+          .from("children")
+          .update({ parent_id: user.id })
+          .eq("id", metadata.child_id);
+        
+        // Update legacy mini_league_players record
+        if (metadata.player_id) {
+          await supabase
+            .from("mini_league_players")
+            .update({ parent_user_id: user.id })
+            .eq("id", metadata.player_id);
         }
       }
     } else if (!isPendingInvite) {

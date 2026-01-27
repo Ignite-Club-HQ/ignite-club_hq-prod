@@ -94,26 +94,52 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
     setBulkResults([]);
   };
 
-  // Add single player
+  // Add single player - creates child record and league assignment
   const addPlayerMutation = useMutation({
     mutationFn: async () => {
       if (!playerName.trim()) throw new Error("Player name is required");
 
-      // Create player record
+      // Create child record in the central children table
+      const { data: child, error: childError } = await supabase
+        .from("children")
+        .insert({
+          parent_id: user!.id, // Initially set to the admin who added them
+          name: playerName.trim(),
+        })
+        .select()
+        .single();
+      
+      if (childError) throw childError;
+
+      // Create mini league assignment with ability rating
+      const { error: assignmentError } = await supabase
+        .from("child_mini_league_assignments")
+        .insert({
+          child_id: child.id,
+          mini_league_id: miniLeagueId,
+          ability_rating: parseInt(abilityRating),
+        });
+      
+      if (assignmentError) throw assignmentError;
+
+      // Also create legacy mini_league_players record for backward compatibility
       const { data: player, error: playerError } = await supabase
         .from("mini_league_players")
         .insert({
           mini_league_id: miniLeagueId,
           name: playerName.trim(),
           ability_rating: parseInt(abilityRating),
+          child_id: child.id,
           parent_user_id: null, // Will be linked when parent accepts invite
         })
         .select()
         .single();
       
-      if (playerError) throw playerError;
+      if (playerError) {
+        console.warn("Failed to create legacy player record:", playerError);
+      }
 
-      // If parent email provided, create pending invite
+      // If parent email provided, create pending invite with child info
       if (parentEmail.trim()) {
         const inviteToken = crypto.randomUUID();
         
@@ -127,17 +153,19 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
           invite_token: inviteToken,
           metadata: { 
             mini_league_id: miniLeagueId,
-            player_id: player.id,
+            child_id: child.id,
+            player_id: player?.id,
             player_name: playerName.trim(),
+            children: [{ name: playerName.trim(), yearOfBirth: null }],
           },
         } as any);
         
         if (inviteError) throw inviteError;
 
-        return { player, inviteToken, parentEmail: parentEmail.trim() };
+        return { child, player, inviteToken, parentEmail: parentEmail.trim() };
       }
 
-      return { player, inviteToken: null, parentEmail: null };
+      return { child, player, inviteToken: null, parentEmail: null };
     },
     onSuccess: async ({ player, inviteToken, parentEmail: email }) => {
       queryClient.invalidateQueries({ queryKey: ["mini-league-players", miniLeagueId] });
@@ -216,7 +244,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
     },
   });
 
-  // Bulk add players
+  // Bulk add players - creates child records and league assignments
   const addBulkPlayersMutation = useMutation({
     mutationFn: async (playersToAdd?: BulkPlayer[]) => {
       const playersSource = playersToAdd || bulkPlayers;
@@ -226,21 +254,49 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
       const results: { playerName: string; parentEmail: string; sent: boolean }[] = [];
 
       for (const player of validPlayers) {
-        // Create player record
+        // Create child record in the central children table
+        const { data: child, error: childError } = await supabase
+          .from("children")
+          .insert({
+            parent_id: user!.id,
+            name: player.name.trim(),
+          })
+          .select()
+          .single();
+
+        if (childError) {
+          console.error("Failed to create child:", player.name, childError);
+          continue;
+        }
+
+        // Create mini league assignment with ability rating
+        const { error: assignmentError } = await supabase
+          .from("child_mini_league_assignments")
+          .insert({
+            child_id: child.id,
+            mini_league_id: miniLeagueId,
+            ability_rating: parseInt(player.abilityRating),
+          });
+
+        if (assignmentError) {
+          console.error("Failed to create league assignment:", player.name, assignmentError);
+        }
+
+        // Also create legacy mini_league_players record for backward compatibility
         const { data: newPlayer, error: playerError } = await supabase
           .from("mini_league_players")
           .insert({
             mini_league_id: miniLeagueId,
             name: player.name.trim(),
             ability_rating: parseInt(player.abilityRating),
+            child_id: child.id,
             parent_user_id: null,
           })
           .select()
           .single();
 
         if (playerError) {
-          console.error("Failed to create player:", player.name, playerError);
-          continue;
+          console.warn("Failed to create legacy player record:", player.name, playerError);
         }
 
         let sent = false;
@@ -259,8 +315,10 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
             invite_token: inviteToken,
             metadata: { 
               mini_league_id: miniLeagueId,
-              player_id: newPlayer.id,
+              child_id: child.id,
+              player_id: newPlayer?.id,
               player_name: player.name.trim(),
+              children: [{ name: player.name.trim(), yearOfBirth: null }],
             },
           } as any);
 
