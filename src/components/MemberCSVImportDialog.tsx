@@ -395,10 +395,11 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
             </CollapsibleContent>
           </Collapsible>
 
+          {/* Using specific MIME types to prevent cloud picker defaults on mobile */}
           <input
             ref={fileInputRef}
             type="file"
-            accept=".csv"
+            accept="text/csv,.csv"
             onChange={handleFileSelect}
             className="hidden"
           />
