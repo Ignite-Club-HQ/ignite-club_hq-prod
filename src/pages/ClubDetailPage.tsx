@@ -1423,7 +1423,7 @@ export default function ClubDetailPage() {
               <div className="space-y-3 pt-2">
                 {isAdmin && (
                   <div className="flex justify-end">
-                    <Link to="/mini-leagues">
+                    <Link to={`/mini-leagues?clubId=${id}`}>
                       <Button size="sm">
                         <Plus className="h-4 w-4 mr-1" /> New Mini League
                       </Button>
