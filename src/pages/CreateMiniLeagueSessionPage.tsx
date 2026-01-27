@@ -54,8 +54,7 @@ export default function CreateMiniLeagueSessionPage() {
   const [openSections, setOpenSections] = useState({
     schedule: true,
     location: true,
-    duties: false,
-    options: false,
+    duties: true,
   });
 
   const toggleSection = (section: keyof typeof openSections) => {
@@ -87,10 +86,17 @@ export default function CreateMiniLeagueSessionPage() {
 
   const addDuty = () => {
     const trimmed = newDutyName.trim();
-    if (trimmed && !duties.includes(trimmed)) {
-      setDuties(prev => [...prev, trimmed]);
-      setNewDutyName("");
+    if (!trimmed) {
+      toast.error("Please enter a duty name");
+      return;
     }
+    if (duties.includes(trimmed)) {
+      toast.error("This duty already exists");
+      return;
+    }
+    setDuties(prev => [...prev, trimmed]);
+    setNewDutyName("");
+    toast.success(`Added duty: ${trimmed}`);
   };
 
   const removeDuty = (duty: string) => {
