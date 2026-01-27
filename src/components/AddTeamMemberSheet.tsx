@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, Download } from "lucide-react";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
 import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
 import { Button } from "@/components/ui/button";
@@ -992,6 +992,29 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               
               {/* CSV Import */}
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    const csvContent = `name,email,role,children
+John Smith,john@example.com,player,
+Jane Doe,jane@example.com,parent,Tommy (2016);Sally (2018)
+Mike Coach,mike@example.com,coach,
+Sarah Admin,sarah@example.com,team_admin,
+Bob Parent,bob@example.com,parent,Jimmy (2015)
+Lisa Guardian,,parent,Emma (2017)`;
+                    const blob = new Blob([csvContent], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'team_members_template.csv';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Template
+                </Button>
                 <Button
                   variant="outline"
                   className="flex-1"
