@@ -44,15 +44,7 @@ export default function MiniLeagueDetailPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("sessions");
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
-  const [isAddSessionOpen, setIsAddSessionOpen] = useState(false);
   const [newPlayer, setNewPlayer] = useState({ name: "", ability_rating: "3", notes: "" });
-  const [newSession, setNewSession] = useState({ 
-    session_date: "", 
-    start_time: "09:00", 
-    end_time: "10:00", 
-    location_name: "",
-    team_size_override: "" // Empty means use league default
-  });
 
   // Fetch mini league details
   const { data: league, isLoading: leagueLoading } = useQuery({
@@ -119,54 +111,6 @@ export default function MiniLeagueDetailPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  // Add session mutation - also creates a linked event
-  const addSessionMutation = useMutation({
-    mutationFn: async (data: typeof newSession) => {
-      if (!league) throw new Error("League not loaded");
-      
-      // First create the event
-      const { data: eventData, error: eventError } = await supabase.from("events").insert({
-        title: `${league.name} Session`,
-        event_date: data.session_date,
-        start_time: data.start_time,
-        end_time: data.end_time || null,
-        location_name: data.location_name || null,
-        club_id: league.club_id,
-        created_by: user!.id,
-        type: "mini_league" as const,
-        description: `Mini League session for ${league.name}`,
-      }).select().single();
-      
-      if (eventError) throw eventError;
-      
-      // Then create the session with link to event
-      const { error: sessionError } = await supabase.from("mini_league_sessions").insert({
-        mini_league_id: id!,
-        session_date: data.session_date,
-        start_time: data.start_time,
-        end_time: data.end_time || null,
-        location_name: data.location_name || null,
-        team_size_override: data.team_size_override ? parseInt(data.team_size_override) : null,
-        created_by: user!.id,
-        linked_event_id: eventData.id,
-      });
-      
-      if (sessionError) {
-        // Rollback: delete the event if session creation failed
-        await supabase.from("events").delete().eq("id", eventData.id);
-        throw sessionError;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["mini-league-sessions", id] });
-      queryClient.invalidateQueries({ queryKey: ["events"] });
-      setIsAddSessionOpen(false);
-      setNewSession({ session_date: "", start_time: "09:00", end_time: "10:00", location_name: "", team_size_override: "" });
-      toast.success("Session created!");
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
   // Delete player mutation
   const deletePlayerMutation = useMutation({
     mutationFn: async (playerId: string) => {
@@ -186,14 +130,6 @@ export default function MiniLeagueDetailPage() {
       return;
     }
     addPlayerMutation.mutate(newPlayer);
-  };
-
-  const handleAddSession = () => {
-    if (!newSession.session_date) {
-      toast.error("Session date is required");
-      return;
-    }
-    addSessionMutation.mutate(newSession);
   };
 
   const getAbilityLabel = (rating: number) => {
@@ -293,96 +229,10 @@ export default function MiniLeagueDetailPage() {
         <TabsContent value="sessions" className="space-y-4 mt-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold">Sessions</h2>
-            <Dialog open={isAddSessionOpen} onOpenChange={setIsAddSessionOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Session
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Create Session</DialogTitle>
-                  <DialogDescription>
-                    Schedule a new session for this mini league
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label>Date *</Label>
-                    <Input
-                      type="date"
-                      value={newSession.session_date}
-                      onChange={(e) => setNewSession({ ...newSession, session_date: e.target.value })}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>Start</Label>
-                      <Input
-                        type="time"
-                        value={newSession.start_time}
-                        onChange={(e) => setNewSession({ ...newSession, start_time: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>End</Label>
-                      <Input
-                        type="time"
-                        value={newSession.end_time}
-                        onChange={(e) => setNewSession({ ...newSession, end_time: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Location</Label>
-                    <Input
-                      placeholder="e.g. Main Sports Ground"
-                      value={newSession.location_name}
-                      onChange={(e) => setNewSession({ ...newSession, location_name: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Players per Side</Label>
-                    <div className="grid grid-cols-5 gap-2">
-                      <Button
-                        type="button"
-                        variant={!newSession.team_size_override ? "default" : "outline"}
-                        size="sm"
-                        className="h-10 text-xs"
-                        onClick={() => setNewSession({ ...newSession, team_size_override: "" })}
-                      >
-                        Default
-                      </Button>
-                      {["4", "5", "6", "7"].map((size) => (
-                        <Button
-                          key={size}
-                          type="button"
-                          variant={newSession.team_size_override === size ? "default" : "outline"}
-                          size="sm"
-                          className="h-10"
-                          onClick={() => setNewSession({ ...newSession, team_size_override: size })}
-                        >
-                          {size}v{size}
-                        </Button>
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Default: {league.team_size}v{league.team_size} from league settings
-                    </p>
-                  </div>
-                </div>
-                <DialogFooter className="gap-2 sm:gap-0">
-                  <Button variant="outline" onClick={() => setIsAddSessionOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddSession} disabled={addSessionMutation.isPending}>
-                    {addSessionMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Create
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button size="sm" onClick={() => navigate(`/mini-leagues/${id}/sessions/new`)}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Session
+            </Button>
           </div>
 
           {sessionsLoading ? (
