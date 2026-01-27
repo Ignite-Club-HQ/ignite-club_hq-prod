@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, isToday, isFuture, parseISO } from "date-fns";
 import { 
   ArrowLeft, Users, Calendar, Plus, Settings, Trash2, Loader2, 
-  ChevronRight, Clock, MapPin, Star, Pencil, Camera, ImageIcon, CheckSquare, Square, UsersRound
+  ChevronRight, Clock, MapPin, Star, Pencil, Camera, ImageIcon, CheckSquare, Square, UsersRound, Shirt, X
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -70,11 +70,27 @@ export default function MiniLeagueDetailPage() {
   const [editDescription, setEditDescription] = useState("");
   const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
   const [editTeamSize, setEditTeamSize] = useState<number>(4);
+  const [editBibColors, setEditBibColors] = useState<string[]>([]);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [newBibColor, setNewBibColor] = useState("#ef4444");
   const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // Available bib color presets
+  const BIB_COLOR_PRESETS = [
+    { name: "Red", value: "#ef4444" },
+    { name: "Blue", value: "#3b82f6" },
+    { name: "Green", value: "#22c55e" },
+    { name: "Yellow", value: "#eab308" },
+    { name: "Orange", value: "#f97316" },
+    { name: "Purple", value: "#a855f7" },
+    { name: "Pink", value: "#ec4899" },
+    { name: "Cyan", value: "#06b6d4" },
+    { name: "White", value: "#ffffff" },
+    { name: "Black", value: "#171717" },
+  ];
 
   // Fetch mini league details
   const { data: league, isLoading: leagueLoading } = useQuery({
@@ -187,7 +203,8 @@ export default function MiniLeagueDetailPage() {
           name: editName.trim(), 
           description: editDescription.trim() || null,
           logo_url: editLogoUrl,
-          team_size: editTeamSize
+          team_size: editTeamSize,
+          bib_colors: editBibColors.length > 0 ? editBibColors : null
         })
         .eq("id", id!);
       if (error) throw error;
@@ -291,8 +308,24 @@ export default function MiniLeagueDetailPage() {
       setEditDescription(league.description || "");
       setEditLogoUrl(league.logo_url || null);
       setEditTeamSize(league.team_size || 4);
+      setEditBibColors(league.bib_colors || ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"]);
       setSettingsOpen(true);
     }
+  };
+
+  const addBibColor = (color: string) => {
+    if (!editBibColors.includes(color)) {
+      setEditBibColors([...editBibColors, color]);
+    }
+  };
+
+  const removeBibColor = (color: string) => {
+    setEditBibColors(editBibColors.filter(c => c !== color));
+  };
+
+  const getColorName = (hex: string) => {
+    const preset = BIB_COLOR_PRESETS.find(p => p.value.toLowerCase() === hex.toLowerCase());
+    return preset?.name || hex;
   };
 
   if (leagueLoading) {
@@ -763,6 +796,60 @@ export default function MiniLeagueDetailPage() {
               <p className="text-xs text-muted-foreground">
                 Used for auto-generating balanced teams during sessions
               </p>
+            </div>
+
+            {/* Bib Colors Section */}
+            <div className="space-y-3">
+              <Label>Available Bib Colors</Label>
+              <p className="text-xs text-muted-foreground">
+                Select which bib colors are available for matches
+              </p>
+              
+              {/* Current colors */}
+              <div className="flex flex-wrap gap-2">
+                {editBibColors.map((color) => (
+                  <div
+                    key={color}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-full border"
+                    style={{ borderColor: color }}
+                  >
+                    <div
+                      className="w-4 h-4 rounded-full border border-border"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span className="text-xs">{getColorName(color)}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeBibColor(color)}
+                      className="ml-1 text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                {editBibColors.length === 0 && (
+                  <span className="text-xs text-muted-foreground">No colors selected</span>
+                )}
+              </div>
+
+              {/* Add color presets */}
+              <div className="flex flex-wrap gap-2">
+                {BIB_COLOR_PRESETS.filter(p => !editBibColors.includes(p.value)).map((preset) => (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => addBibColor(preset.value)}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-full border border-dashed hover:border-solid hover:bg-muted/50 transition-colors"
+                  >
+                    <div
+                      className="w-4 h-4 rounded-full border border-border"
+                      style={{ backgroundColor: preset.value }}
+                    />
+                    <span className="text-xs text-muted-foreground">{preset.name}</span>
+                    <Plus className="h-3 w-3 text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

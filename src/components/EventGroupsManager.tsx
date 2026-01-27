@@ -27,27 +27,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
-// Bib color options for teams
-const BIB_COLORS = [
-  { name: "Red", value: "#ef4444" },
-  { name: "Blue", value: "#3b82f6" },
-  { name: "Green", value: "#22c55e" },
-  { name: "Yellow", value: "#eab308" },
-  { name: "Orange", value: "#f97316" },
-  { name: "Purple", value: "#a855f7" },
-  { name: "Pink", value: "#ec4899" },
-  { name: "White", value: "#ffffff" },
-];
+// Default bib color pairs when league has no custom colors
+const DEFAULT_BIB_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"];
 
-// Get a pair of contrasting colors for a match
-const getMatchColors = (index: number): { teamA: string; teamB: string } => {
-  const pairs = [
-    { teamA: "#ef4444", teamB: "#3b82f6" }, // Red vs Blue
-    { teamA: "#22c55e", teamB: "#eab308" }, // Green vs Yellow
-    { teamA: "#f97316", teamB: "#a855f7" }, // Orange vs Purple
-    { teamA: "#ec4899", teamB: "#ffffff" }, // Pink vs White
-  ];
-  return pairs[index % pairs.length];
+// Get a pair of contrasting colors for a match from available colors
+const getMatchColors = (index: number, availableColors: string[]): { teamA: string; teamB: string } => {
+  const colors = availableColors.length >= 2 ? availableColors : DEFAULT_BIB_COLORS;
+  // Pick two different colors for each match, cycling through available colors
+  const colorIndex = (index * 2) % colors.length;
+  const teamAColor = colors[colorIndex];
+  const teamBColor = colors[(colorIndex + 1) % colors.length];
+  return { teamA: teamAColor, teamB: teamBColor };
 };
 
 interface EventGroupsManagerProps {
@@ -145,11 +135,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_leagues")
-        .select("id, name, team_size")
+        .select("id, name, team_size, bib_colors")
         .eq("id", miniLeagueId)
         .single();
       if (error) throw error;
-      return data as { id: string; name: string; team_size: number };
+      return data as { id: string; name: string; team_size: number; bib_colors: string[] | null };
     },
     enabled: !!miniLeagueId,
   });
@@ -189,7 +179,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
   // Create group mutation
   const createGroupMutation = useMutation({
     mutationFn: async () => {
-      const colors = getMatchColors(groups?.length || 0);
+      const leagueColors = miniLeague?.bib_colors || DEFAULT_BIB_COLORS;
+      const colors = getMatchColors(groups?.length || 0, leagueColors);
       const { error } = await supabase.from("event_groups").insert({
         event_id: eventId,
         name: newGroupName.trim(),
@@ -234,14 +225,15 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       // Sort by ability rating (already sorted)
       const sortedPlayers = [...allPlayers];
       
-      // Create matches with balanced ability
+      // Create matches with balanced ability using league's bib colors
+      const leagueColors = miniLeague?.bib_colors || DEFAULT_BIB_COLORS;
       const matchNames = ["Match 1", "Match 2", "Match 3", "Match 4", "Match 5", "Match 6", "Match 7", "Match 8"];
       const abilityBands = ["High", "Medium", "Low"];
       
       // Create the matches first
       const matchIds: string[] = [];
       for (let i = 0; i < effectiveNumMatches; i++) {
-        const colors = getMatchColors(i);
+        const colors = getMatchColors(i, leagueColors);
         const { data, error } = await supabase
           .from("event_groups")
           .insert({

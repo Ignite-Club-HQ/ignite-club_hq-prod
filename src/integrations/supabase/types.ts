@@ -2336,6 +2336,7 @@ export type Database = {
       }
       mini_leagues: {
         Row: {
+          bib_colors: string[] | null
           club_id: string
           created_at: string
           created_by: string
@@ -2347,6 +2348,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          bib_colors?: string[] | null
           club_id: string
           created_at?: string
           created_by: string
@@ -2358,6 +2360,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          bib_colors?: string[] | null
           club_id?: string
           created_at?: string
           created_by?: string
