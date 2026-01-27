@@ -1,12 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
-import { Plus, Users, Calendar, ChevronRight, Loader2 } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Plus, Users, Calendar, ChevronRight, Loader2, Trophy, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Drawer, 
+  DrawerContent, 
+  DrawerHeader, 
+  DrawerTitle, 
+  DrawerDescription,
+  DrawerFooter,
+  DrawerClose
+} from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,6 +43,9 @@ export default function MiniLeaguesPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const clubIdFromUrl = searchParams.get("clubId");
+  
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newLeague, setNewLeague] = useState({ name: "", description: "", team_size: "5", club_id: "" });
 
@@ -57,23 +69,34 @@ export default function MiniLeaguesPage() {
           uniqueClubs.set(r.clubs.id, r.clubs);
         }
       });
-      return Array.from(uniqueClubs.values());
+      return Array.from(uniqueClubs.values()) as { id: string; name: string }[];
     },
     enabled: !!user,
   });
 
-  // Fetch mini leagues
+  // Auto-select club if only one available or from URL
+  useEffect(() => {
+    if (adminClubs?.length === 1 && !newLeague.club_id) {
+      setNewLeague(prev => ({ ...prev, club_id: adminClubs[0].id }));
+    } else if (clubIdFromUrl && adminClubs?.some(c => c.id === clubIdFromUrl)) {
+      setNewLeague(prev => ({ ...prev, club_id: clubIdFromUrl }));
+    }
+  }, [adminClubs, clubIdFromUrl, newLeague.club_id]);
+
+  // Fetch mini leagues (filtered by club if specified)
   const { data: miniLeagues, isLoading } = useQuery({
-    queryKey: ["mini-leagues"],
+    queryKey: ["mini-leagues", clubIdFromUrl],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("mini_leagues")
-        .select(`
-          *,
-          club:clubs(id, name)
-        `)
+        .select(`*, club:clubs(id, name)`)
         .order("created_at", { ascending: false });
       
+      if (clubIdFromUrl) {
+        query = query.eq("club_id", clubIdFromUrl);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
 
       // Get counts for each league
@@ -98,6 +121,11 @@ export default function MiniLeaguesPage() {
     enabled: !!user,
   });
 
+  // Get current club name for display
+  const currentClub = clubIdFromUrl 
+    ? adminClubs?.find(c => c.id === clubIdFromUrl) || miniLeagues?.[0]?.club
+    : null;
+
   // Create mini league mutation
   const createMutation = useMutation({
     mutationFn: async (data: typeof newLeague) => {
@@ -113,7 +141,7 @@ export default function MiniLeaguesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mini-leagues"] });
       setIsCreateOpen(false);
-      setNewLeague({ name: "", description: "", team_size: "5", club_id: "" });
+      setNewLeague(prev => ({ name: "", description: "", team_size: "5", club_id: prev.club_id }));
       toast.success("Mini League created!");
     },
     onError: (error: Error) => {
@@ -122,153 +150,195 @@ export default function MiniLeaguesPage() {
   });
 
   const handleCreate = () => {
-    if (!newLeague.name.trim() || !newLeague.club_id) {
-      toast.error("Please fill in required fields");
+    if (!newLeague.name.trim()) {
+      toast.error("Please enter a league name");
+      return;
+    }
+    if (!newLeague.club_id) {
+      toast.error("Please select a club");
       return;
     }
     createMutation.mutate(newLeague);
   };
 
   const canCreate = (adminClubs?.length || 0) > 0;
+  const showClubSelector = (adminClubs?.length || 0) > 1 && !clubIdFromUrl;
+  const selectedClubName = adminClubs?.find(c => c.id === newLeague.club_id)?.name;
 
   return (
-    <div className="container max-w-4xl py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Mini Leagues</h1>
-          <p className="text-muted-foreground">Manage ability-based player groups</p>
-        </div>
-        {canCreate && (
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                New League
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create Mini League</DialogTitle>
-                <DialogDescription>
-                  Set up a new mini league with ability-based grouping
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="club">Club *</Label>
-                  <Select value={newLeague.club_id} onValueChange={(v) => setNewLeague({ ...newLeague, club_id: v })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select club" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {adminClubs?.map((club) => (
-                        <SelectItem key={club.id} value={club.id}>
-                          {club.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="name">League Name *</Label>
-                  <Input
-                    id="name"
-                    placeholder="e.g. Saturday Morning League"
-                    value={newLeague.name}
-                    onChange={(e) => setNewLeague({ ...newLeague, name: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Optional description..."
-                    value={newLeague.description}
-                    onChange={(e) => setNewLeague({ ...newLeague, description: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="team_size">Players per Group</Label>
-                  <Select value={newLeague.team_size} onValueChange={(v) => setNewLeague({ ...newLeague, team_size: v })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="4">4-a-side</SelectItem>
-                      <SelectItem value="5">5-a-side</SelectItem>
-                      <SelectItem value="6">6-a-side</SelectItem>
-                      <SelectItem value="7">7-a-side</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleCreate} disabled={createMutation.isPending}>
-                  {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Create
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+    <div className="container max-w-2xl px-4 py-6 space-y-6">
+      {/* Header */}
+      <div className="space-y-1">
+        {clubIdFromUrl && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="mb-2 -ml-2 text-muted-foreground"
+            onClick={() => navigate(`/clubs/${clubIdFromUrl}`)}
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back to Club
+          </Button>
         )}
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-bold tracking-tight">Mini Leagues</h1>
+            {currentClub && (
+              <p className="text-sm text-muted-foreground truncate">{currentClub.name}</p>
+            )}
+          </div>
+          {canCreate && (
+            <Button onClick={() => setIsCreateOpen(true)} size="sm" className="shrink-0">
+              <Plus className="h-4 w-4 mr-1.5" />
+              <span className="hidden sm:inline">New League</span>
+              <span className="sm:hidden">New</span>
+            </Button>
+          )}
+        </div>
       </div>
 
+      {/* Content */}
       {isLoading ? (
-        <div className="flex justify-center py-12">
+        <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : miniLeagues?.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">No Mini Leagues Yet</h3>
-            <p className="text-muted-foreground mb-4">
-              Create your first mini league to start grouping players by ability
-            </p>
-            {canCreate && (
-              <Button onClick={() => setIsCreateOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Mini League
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+          <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+            <Trophy className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold mb-1">No Mini Leagues Yet</h3>
+          <p className="text-muted-foreground text-sm max-w-xs mb-6">
+            Create your first mini league to start grouping players by ability
+          </p>
+          {canCreate && (
+            <Button onClick={() => setIsCreateOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Mini League
+            </Button>
+          )}
+        </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {miniLeagues?.map((league) => (
             <Card
               key={league.id}
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
+              className="cursor-pointer hover:bg-muted/50 transition-colors active:scale-[0.99]"
               onClick={() => navigate(`/mini-leagues/${league.id}`)}
             >
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{league.name}</CardTitle>
-                    <CardDescription>{league.club?.name}</CardDescription>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Trophy className="h-5 w-5 text-primary" />
                   </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <Users className="h-4 w-4" />
-                    {league._count?.players || 0} players
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate">{league.name}</p>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                      <span className="flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {league._count?.players || 0}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {league._count?.sessions || 0}
+                      </span>
+                      {!clubIdFromUrl && league.club?.name && (
+                        <Badge variant="outline" className="text-xs font-normal">
+                          {league.club.name}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Calendar className="h-4 w-4" />
-                    {league._count?.sessions || 0} sessions
-                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      {/* Create League Drawer (mobile-friendly) */}
+      <Drawer open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DrawerContent className="max-h-[90vh]">
+          <DrawerHeader className="text-left">
+            <DrawerTitle>Create Mini League</DrawerTitle>
+            <DrawerDescription>
+              {selectedClubName 
+                ? `Creating league for ${selectedClubName}`
+                : "Set up a new mini league with ability-based grouping"
+              }
+            </DrawerDescription>
+          </DrawerHeader>
+          
+          <div className="px-4 space-y-4 overflow-y-auto">
+            {/* Only show club selector if multiple clubs and no club context */}
+            {showClubSelector && (
+              <div className="space-y-2">
+                <Label>Club</Label>
+                <Select value={newLeague.club_id} onValueChange={(v) => setNewLeague({ ...newLeague, club_id: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select club" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {adminClubs?.map((club) => (
+                      <SelectItem key={club.id} value={club.id}>
+                        {club.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <Label htmlFor="name">League Name</Label>
+              <Input
+                id="name"
+                placeholder="e.g. Saturday Morning League"
+                value={newLeague.name}
+                onChange={(e) => setNewLeague({ ...newLeague, name: e.target.value })}
+                autoFocus={false}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="description">Description <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Textarea
+                id="description"
+                placeholder="Brief description of this league..."
+                value={newLeague.description}
+                onChange={(e) => setNewLeague({ ...newLeague, description: e.target.value })}
+                rows={2}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Players per Group</Label>
+              <Select value={newLeague.team_size} onValueChange={(v) => setNewLeague({ ...newLeague, team_size: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="4">4-a-side</SelectItem>
+                  <SelectItem value="5">5-a-side</SelectItem>
+                  <SelectItem value="6">6-a-side</SelectItem>
+                  <SelectItem value="7">7-a-side</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <DrawerFooter className="pt-4">
+            <Button onClick={handleCreate} disabled={createMutation.isPending} className="w-full">
+              {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Create League
+            </Button>
+            <DrawerClose asChild>
+              <Button variant="outline" className="w-full">Cancel</Button>
+            </DrawerClose>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }
