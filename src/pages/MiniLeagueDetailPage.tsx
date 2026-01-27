@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, isToday, isFuture, parseISO } from "date-fns";
 import { 
   ArrowLeft, Users, Calendar, Plus, Settings, Trash2, Loader2, 
-  ChevronRight, Clock, MapPin, Star, Pencil
+  ChevronRight, Clock, MapPin, Star, Pencil, Camera, ImageIcon
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,7 +15,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { compressImage } from "@/lib/imageCompression";
+import {
   AlertDialog, 
   AlertDialogAction, 
   AlertDialogCancel, 
@@ -65,6 +67,9 @@ export default function MiniLeagueDetailPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch mini league details
   const { data: league, isLoading: leagueLoading } = useQuery({
@@ -136,6 +141,38 @@ export default function MiniLeagueDetailPage() {
     enabled: !!league?.club_id && !!id,
   });
 
+  // Handle logo upload
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !league) return;
+
+    setUploadingLogo(true);
+    try {
+      const { file: compressedFile } = await compressImage(file);
+      const fileExt = "jpg";
+      const fileName = `mini-league-${id}-${Date.now()}.${fileExt}`;
+      const filePath = `${league.club_id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("club-logos")
+        .upload(filePath, compressedFile, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("club-logos")
+        .getPublicUrl(filePath);
+
+      setEditLogoUrl(urlData.publicUrl);
+      toast.success("Logo uploaded");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to upload logo");
+    } finally {
+      setUploadingLogo(false);
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  };
+
   // Update league mutation
   const updateLeagueMutation = useMutation({
     mutationFn: async () => {
@@ -143,7 +180,8 @@ export default function MiniLeagueDetailPage() {
         .from("mini_leagues")
         .update({ 
           name: editName.trim(), 
-          description: editDescription.trim() || null 
+          description: editDescription.trim() || null,
+          logo_url: editLogoUrl
         })
         .eq("id", id!);
       if (error) throw error;
@@ -202,6 +240,7 @@ export default function MiniLeagueDetailPage() {
     if (league) {
       setEditName(league.name);
       setEditDescription(league.description || "");
+      setEditLogoUrl(league.logo_url || null);
       setSettingsOpen(true);
     }
   };
@@ -244,6 +283,14 @@ export default function MiniLeagueDetailPage() {
         <Button variant="ghost" size="icon" className="shrink-0 mt-0.5" onClick={() => navigate("/mini-leagues")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
+        {league.logo_url && (
+          <Avatar className="h-12 w-12 shrink-0">
+            <AvatarImage src={league.logo_url} alt={league.name} />
+            <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+              {league.name.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        )}
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold truncate">{league.name}</h1>
           <p className="text-sm text-muted-foreground truncate">{league.club?.name}</p>
@@ -507,6 +554,45 @@ export default function MiniLeagueDetailPage() {
           </ResponsiveDialogHeader>
           
           <div className="space-y-4 py-4">
+            {/* Logo upload */}
+            <div className="space-y-2">
+              <Label>League Logo</Label>
+              <div className="flex items-center gap-4">
+                <div 
+                  className="relative cursor-pointer group"
+                  onClick={() => logoInputRef.current?.click()}
+                >
+                  <Avatar className="h-20 w-20 border-2 border-dashed border-muted-foreground/30 group-hover:border-primary transition-colors">
+                    {editLogoUrl ? (
+                      <AvatarImage src={editLogoUrl} alt="League logo" />
+                    ) : null}
+                    <AvatarFallback className="bg-muted">
+                      <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                    {uploadingLogo ? (
+                      <Loader2 className="h-5 w-5 text-white animate-spin" />
+                    ) : (
+                      <Camera className="h-5 w-5 text-white" />
+                    )}
+                  </div>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  <p>Click to upload a logo</p>
+                  <p className="text-xs">JPG, PNG up to 5MB</p>
+                </div>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleLogoUpload}
+                  disabled={uploadingLogo}
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="league-name">Name</Label>
               <Input
