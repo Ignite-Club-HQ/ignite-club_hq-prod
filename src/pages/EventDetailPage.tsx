@@ -51,6 +51,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { format, parseISO } from "date-fns";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { EventSponsorsSection } from "@/components/EventSponsorsSection";
+import { EventGroupsManager } from "@/components/EventGroupsManager";
 
 // Lazy load PitchBoard for game events
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
@@ -1674,6 +1675,20 @@ export default function EventDetailPage() {
           );
         })()}
       </section>
+
+      {/* Mini League Breakout Groups (only for mini league events) */}
+      {event.mini_league_id && (
+        <>
+          <Separator />
+          <section className="space-y-3">
+            <EventGroupsManager
+              eventId={id!}
+              miniLeagueId={event.mini_league_id}
+              isAdmin={isAdmin || isAppAdmin || false}
+            />
+          </section>
+        </>
+      )}
 
       {/* Player of Match Section (only for games) */}
       {event.type === "game" && event.team_id && (

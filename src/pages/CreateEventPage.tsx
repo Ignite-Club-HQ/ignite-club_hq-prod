@@ -37,7 +37,7 @@ import { DutyMemberSelect } from "@/components/DutyMemberSelect";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { cn } from "@/lib/utils";
 
-type EventType = "game" | "training" | "social";
+type EventType = "game" | "training" | "social" | "mini_league";
 type RecurrencePattern = "daily" | "weekly" | "biweekly" | "monthly";
 
 const DAYS_OF_WEEK = [
@@ -54,6 +54,7 @@ const EVENT_TYPES = [
   { value: "training", label: "Training", icon: "🏃" },
   { value: "game", label: "Game", icon: "⚽" },
   { value: "social", label: "Social", icon: "🎉" },
+  { value: "mini_league", label: "Mini League", icon: "🏆", proFootballOnly: true },
 ];
 
 export default function CreateEventPage() {
@@ -66,6 +67,7 @@ export default function CreateEventPage() {
   const [type, setType] = useState<EventType>("training");
   const [clubId, setClubId] = useState("");
   const [teamId, setTeamId] = useState("");
+  const [miniLeagueId, setMiniLeagueId] = useState("");
   const [eventDateTime, setEventDateTime] = useState("");
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
@@ -182,6 +184,40 @@ export default function CreateEventPage() {
       return !!data;
     },
     enabled: !!clubId && !!user,
+  });
+
+  // Check if club has Pro Football access
+  const { data: hasProFootball } = useQuery({
+    queryKey: ["club-pro-football", clubId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("club_subscriptions")
+        .select("is_pro_football, admin_pro_football_override, expires_at")
+        .eq("club_id", clubId)
+        .maybeSingle();
+      if (!data) return false;
+      const hasAccess = data.is_pro_football || data.admin_pro_football_override;
+      const notExpired = !data.expires_at || new Date(data.expires_at) > new Date();
+      return hasAccess && notExpired;
+    },
+    enabled: !!clubId,
+  });
+
+  // Fetch mini leagues for the selected club (Pro Football only)
+  const fetchMiniLeagues = async (): Promise<{ id: string; name: string }[]> => {
+    const { data, error } = await (supabase as any)
+      .from("mini_leagues")
+      .select("id, name")
+      .eq("club_id", clubId)
+      .order("name");
+    if (error) throw error;
+    return data || [];
+  };
+  
+  const { data: miniLeagues } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["club-mini-leagues", clubId],
+    queryFn: fetchMiniLeagues,
+    enabled: !!clubId && !!hasProFootball,
   });
 
   // Get teams user has direct membership in (team_admin, coach, or any team role)
@@ -405,6 +441,15 @@ export default function CreateEventPage() {
       return;
     }
 
+    // Require mini league selection for mini league events
+    if (type === "mini_league" && !miniLeagueId) {
+      toast({
+        title: "Mini League required",
+        description: "Please select a mini league for this event.",
+      });
+      return;
+    }
+
     if (isRecurring && !recurrenceEndDate) {
       toast({
         title: "Missing end date",
@@ -420,9 +465,10 @@ export default function CreateEventPage() {
     const parsedPrice = price ? parseFloat(price) : null;
     const baseEventData = {
       title: title.trim(),
-      type,
+      type: type === "mini_league" ? "game" : type, // Store mini_league as game type
       club_id: clubId,
-      team_id: teamId || null,
+      team_id: type === "mini_league" ? null : (teamId || null),
+      mini_league_id: type === "mini_league" ? miniLeagueId : null,
       address: address.trim() || null,
       suburb: null,
       state: null,
@@ -595,12 +641,22 @@ export default function CreateEventPage() {
       </div>
 
       {/* Event Type Selection */}
-      <div className="grid grid-cols-3 gap-2">
-        {EVENT_TYPES.map((eventType) => (
+      <div className="grid grid-cols-4 gap-2">
+        {EVENT_TYPES.filter(et => !et.proFootballOnly || hasProFootball).map((eventType) => (
           <button
             key={eventType.value}
             type="button"
-            onClick={() => setType(eventType.value as EventType)}
+            onClick={() => {
+              setType(eventType.value as EventType);
+              // Clear mini league if switching away
+              if (eventType.value !== "mini_league") {
+                setMiniLeagueId("");
+              }
+              // Clear team if switching to mini league
+              if (eventType.value === "mini_league") {
+                setTeamId("");
+              }
+            }}
             className={cn(
               "flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all",
               type === eventType.value
@@ -609,7 +665,7 @@ export default function CreateEventPage() {
             )}
           >
             <span className="text-2xl">{eventType.icon}</span>
-            <span className="text-sm font-medium">{eventType.label}</span>
+            <span className="text-xs font-medium">{eventType.label}</span>
           </button>
         ))}
       </div>
@@ -704,11 +760,15 @@ export default function CreateEventPage() {
                 </div>
               </div>
 
-              {/* Club & Team */}
+              {/* Club & Team/Mini League */}
               <div className="flex flex-col gap-3">
                 <MobileCardSelect
                   value={clubId}
-                  onValueChange={setClubId}
+                  onValueChange={(v) => {
+                    setClubId(v);
+                    setTeamId("");
+                    setMiniLeagueId("");
+                  }}
                   options={filteredClubs?.map((club) => ({ value: club.id, label: club.name })) || []}
                   placeholder="Select club"
                   label="Club"
@@ -716,18 +776,34 @@ export default function CreateEventPage() {
                   disabled={!!activeClubFilter}
                 />
                 
-                <MobileCardSelect
-                  value={teamId || (type === "social" ? "__all__" : "")}
-                  onValueChange={(v) => setTeamId(v === "__all__" ? "" : v)}
-                  options={[
-                    ...(type === "social" ? [{ value: "__all__", label: "All Club" }] : []),
-                    ...(teams?.map((team) => ({ value: team.id, label: team.name })) || []),
-                  ]}
-                  placeholder={type === "social" ? "All Club" : "Select team"}
-                  label="Team"
-                  disabled={!clubId}
-                  required={type !== "social"}
-                />
+                {/* Team selection - for non-mini-league events */}
+                {type !== "mini_league" && (
+                  <MobileCardSelect
+                    value={teamId || (type === "social" ? "__all__" : "")}
+                    onValueChange={(v) => setTeamId(v === "__all__" ? "" : v)}
+                    options={[
+                      ...(type === "social" ? [{ value: "__all__", label: "All Club" }] : []),
+                      ...(teams?.map((team) => ({ value: team.id, label: team.name })) || []),
+                    ]}
+                    placeholder={type === "social" ? "All Club" : "Select team"}
+                    label="Team"
+                    disabled={!clubId}
+                    required={type !== "social"}
+                  />
+                )}
+                
+                {/* Mini League selection - only for mini_league events */}
+                {type === "mini_league" && (
+                  <MobileCardSelect
+                    value={miniLeagueId}
+                    onValueChange={setMiniLeagueId}
+                    options={miniLeagues?.map((ml) => ({ value: ml.id, label: ml.name })) || []}
+                    placeholder="Select mini league"
+                    label="Mini League"
+                    disabled={!clubId}
+                    required
+                  />
+                )}
               </div>
 
               {/* Opponent - only for game events */}

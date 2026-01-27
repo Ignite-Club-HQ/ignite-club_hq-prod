@@ -111,28 +111,42 @@ export function MobileCardSelect({
     );
   }
 
-  // Desktop: Use standard Select
+  // Desktop: Use standard Select with label
   return (
-    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
-      <SelectTrigger className="w-full h-12 text-base">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent
-        className="max-h-[40vh] w-[var(--radix-select-trigger-width)] min-w-[200px]"
-        position="popper"
-        sideOffset={4}
-        align="start"
-      >
-        {options.map((option) => (
-          <SelectItem
-            key={option.value}
-            value={option.value}
-            className="py-3 text-base cursor-pointer"
-          >
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className="space-y-2">
+      {label && (
+        <label className="text-sm font-medium text-foreground">
+          {label}
+          {required && <span className="text-destructive ml-1">*</span>}
+        </label>
+      )}
+      <Select value={value} onValueChange={onValueChange} disabled={disabled || options.length === 0}>
+        <SelectTrigger className="w-full h-12 text-base">
+          <SelectValue placeholder={options.length === 0 ? "No options available" : placeholder} />
+        </SelectTrigger>
+        <SelectContent
+          className="max-h-[40vh] w-[var(--radix-select-trigger-width)] min-w-[200px] z-[100] bg-popover"
+          position="popper"
+          sideOffset={4}
+          align="start"
+        >
+          {options.length === 0 ? (
+            <div className="py-3 px-2 text-sm text-muted-foreground text-center">
+              No options available
+            </div>
+          ) : (
+            options.map((option) => (
+              <SelectItem
+                key={option.value}
+                value={option.value}
+                className="py-3 text-base cursor-pointer"
+              >
+                {option.label}
+              </SelectItem>
+            ))
+          )}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, MoreVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput } from "lucide-react";
+import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, MoreVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy } from "lucide-react";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -224,6 +224,21 @@ export default function ClubDetailPage() {
         .select("*")
         .eq("club_id", id!)
         .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  // Fetch mini leagues for this club
+  const { data: miniLeagues = [] } = useQuery({
+    queryKey: ["club-mini-leagues", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mini_leagues")
+        .select("*")
+        .eq("club_id", id!)
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -1393,7 +1408,62 @@ export default function ClubDetailPage() {
         </AccordionItem>
       </Accordion>
 
-      {/* Edit Folder Dialog */}
+      {/* Mini Leagues Section */}
+      {(isAdmin || miniLeagues.length > 0) && (
+        <Accordion type="multiple" defaultValue={miniLeagues.length > 0 ? ["mini-leagues"] : []} className="space-y-4">
+          <AccordionItem value="mini-leagues" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-primary" />
+                <span className="text-lg font-semibold">Mini Leagues</span>
+                {miniLeagues.length > 0 && <Badge variant="secondary" className="ml-2">{miniLeagues.length}</Badge>}
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-3 pt-2">
+                {isAdmin && (
+                  <div className="flex justify-end">
+                    <Link to={`/mini-leagues?clubId=${id}`}>
+                      <Button size="sm">
+                        <Plus className="h-4 w-4 mr-1" /> New Mini League
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+                {miniLeagues.length === 0 ? (
+                  <p className="text-muted-foreground text-sm text-center py-4">
+                    No mini leagues yet. Create one to organize ability-based sessions.
+                  </p>
+                ) : (
+                  miniLeagues.map((league) => (
+                    <Link key={league.id} to={`/mini-leagues/${league.id}`}>
+                      <Card className="hover:bg-muted/50 transition-colors">
+                        <CardContent className="p-3 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                              <Trophy className="h-5 w-5 text-primary" />
+                            </div>
+                            <div>
+                              <p className="font-medium">{league.name}</p>
+                              {league.description && (
+                                <p className="text-sm text-muted-foreground line-clamp-1">
+                                  {league.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  ))
+                )}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      )}
+
       <Dialog open={!!editingFolder} onOpenChange={(open) => !open && handleCloseEditFolder()}>
         <DialogContent>
           <DialogHeader>

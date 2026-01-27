@@ -72,6 +72,9 @@ const ManageAdsPage = lazy(() => import("./pages/ManageAdsPage"));
 const VideoGuideDownloadPage = lazy(() => import("./pages/VideoGuideDownloadPage"));
 const AttendanceStatsPage = lazy(() => import("./pages/AttendanceStatsPage"));
 const PushAnalyticsPage = lazy(() => import("./pages/PushAnalyticsPage"));
+const MiniLeaguesPage = lazy(() => import("./pages/MiniLeaguesPage"));
+const MiniLeagueDetailPage = lazy(() => import("./pages/MiniLeagueDetailPage"));
+const EventGroupPitchPage = lazy(() => import("./pages/EventGroupPitchPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -117,6 +120,8 @@ const App = () => (
                   <Route path="/events/import" element={<ImportFixturesPage />} />
                   <Route path="/events/:id" element={<EventDetailPage />} />
                   <Route path="/events/:id/edit" element={<EditEventPage />} />
+                  <Route path="/events/:id/groups/:groupId/pitch" element={<EventGroupPitchPage />} />
+                  <Route path="/events/:id/groups/:groupId/duties" element={<EventGroupPitchPage />} />
                   <Route path="/clubs" element={<ClubsPage />} />
                   <Route path="/clubs/new" element={<CreateClubPage />} />
                   <Route path="/clubs/:id" element={<ClubDetailPage />} />
@@ -155,6 +160,8 @@ const App = () => (
                   <Route path="/admin/sponsor-analytics" element={<SponsorAnalyticsPage />} />
                   <Route path="/admin/ads" element={<ManageAdsPage />} />
                   <Route path="/admin/push-analytics" element={<PushAnalyticsPage />} />
+                  <Route path="/mini-leagues" element={<MiniLeaguesPage />} />
+                  <Route path="/mini-leagues/:id" element={<MiniLeagueDetailPage />} />
                 </Route>
                 
                 <Route path="*" element={<NotFound />} />

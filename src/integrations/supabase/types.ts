@@ -1020,6 +1020,140 @@ export type Database = {
           },
         ]
       }
+      event_group_duties: {
+        Row: {
+          assigned_to: string | null
+          created_at: string
+          group_id: string
+          id: string
+          name: string
+          points: number | null
+          points_awarded: boolean | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string
+          group_id: string
+          id?: string
+          name: string
+          points?: number | null
+          points_awarded?: boolean | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string
+          group_id?: string
+          id?: string
+          name?: string
+          points?: number | null
+          points_awarded?: boolean | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_group_duties_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_group_duties_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_group_players: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          player_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          player_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          player_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_group_players_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_group_players_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "mini_league_players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_groups: {
+        Row: {
+          ability_band: string | null
+          created_at: string
+          display_order: number | null
+          event_id: string
+          id: string
+          name: string
+          pitch_name: string | null
+          pitch_state: Json | null
+          timer_state: Json | null
+          updated_at: string
+        }
+        Insert: {
+          ability_band?: string | null
+          created_at?: string
+          display_order?: number | null
+          event_id: string
+          id?: string
+          name: string
+          pitch_name?: string | null
+          pitch_state?: Json | null
+          timer_state?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          ability_band?: string | null
+          created_at?: string
+          display_order?: number | null
+          event_id?: string
+          id?: string
+          name?: string
+          pitch_name?: string | null
+          pitch_state?: Json | null
+          timer_state?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_groups_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_payments: {
         Row: {
           amount: number
@@ -1122,6 +1256,7 @@ export type Database = {
           location: string | null
           location_name: string | null
           meet_time: string | null
+          mini_league_id: string | null
           opponent: string | null
           parent_event_id: string | null
           player_of_match: string | null
@@ -1158,6 +1293,7 @@ export type Database = {
           location?: string | null
           location_name?: string | null
           meet_time?: string | null
+          mini_league_id?: string | null
           opponent?: string | null
           parent_event_id?: string | null
           player_of_match?: string | null
@@ -1194,6 +1330,7 @@ export type Database = {
           location?: string | null
           location_name?: string | null
           meet_time?: string | null
+          mini_league_id?: string | null
           opponent?: string | null
           parent_event_id?: string | null
           player_of_match?: string | null
@@ -1218,6 +1355,13 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_mini_league_id_fkey"
+            columns: ["mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
             referencedColumns: ["id"]
           },
           {
@@ -1823,6 +1967,359 @@ export type Database = {
             columns: ["team_message_id"]
             isOneToOne: false
             referencedRelation: "team_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mini_league_group_duties: {
+        Row: {
+          assigned_to: string | null
+          created_at: string
+          group_id: string
+          id: string
+          name: string
+          points: number | null
+          points_awarded: boolean | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string
+          group_id: string
+          id?: string
+          name: string
+          points?: number | null
+          points_awarded?: boolean | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string
+          group_id?: string
+          id?: string
+          name?: string
+          points?: number | null
+          points_awarded?: boolean | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mini_league_group_duties_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mini_league_group_duties_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "mini_league_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mini_league_group_players: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          jersey_number: number | null
+          player_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          jersey_number?: number | null
+          player_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          jersey_number?: number | null
+          player_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mini_league_group_players_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "mini_league_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mini_league_group_players_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "mini_league_players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mini_league_groups: {
+        Row: {
+          ability_band: string | null
+          created_at: string
+          display_order: number
+          id: string
+          linked_event_id: string | null
+          name: string
+          pitch_name: string | null
+          pitch_state: Json | null
+          session_id: string
+          target_size: number
+          timer_state: Json | null
+          updated_at: string
+        }
+        Insert: {
+          ability_band?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          linked_event_id?: string | null
+          name: string
+          pitch_name?: string | null
+          pitch_state?: Json | null
+          session_id: string
+          target_size?: number
+          timer_state?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          ability_band?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          linked_event_id?: string | null
+          name?: string
+          pitch_name?: string | null
+          pitch_state?: Json | null
+          session_id?: string
+          target_size?: number
+          timer_state?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mini_league_groups_linked_event_id_fkey"
+            columns: ["linked_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mini_league_groups_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "mini_league_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mini_league_players: {
+        Row: {
+          ability_rating: number
+          child_id: string | null
+          created_at: string
+          id: string
+          mini_league_id: string
+          name: string
+          notes: string | null
+          parent_user_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          ability_rating?: number
+          child_id?: string | null
+          created_at?: string
+          id?: string
+          mini_league_id: string
+          name: string
+          notes?: string | null
+          parent_user_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ability_rating?: number
+          child_id?: string | null
+          created_at?: string
+          id?: string
+          mini_league_id?: string
+          name?: string
+          notes?: string | null
+          parent_user_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mini_league_players_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mini_league_players_mini_league_id_fkey"
+            columns: ["mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mini_league_session_availability: {
+        Row: {
+          created_at: string
+          id: string
+          marked_by: string | null
+          player_id: string
+          session_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          marked_by?: string | null
+          player_id: string
+          session_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          marked_by?: string | null
+          player_id?: string
+          session_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mini_league_session_availability_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "mini_league_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mini_league_session_availability_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "mini_league_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mini_league_sessions: {
+        Row: {
+          address: string | null
+          created_at: string
+          created_by: string
+          end_time: string | null
+          id: string
+          linked_event_id: string | null
+          location_name: string | null
+          mini_league_id: string
+          postcode: string | null
+          session_date: string
+          start_time: string
+          status: string
+          team_size_override: number | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          created_by: string
+          end_time?: string | null
+          id?: string
+          linked_event_id?: string | null
+          location_name?: string | null
+          mini_league_id: string
+          postcode?: string | null
+          session_date: string
+          start_time: string
+          status?: string
+          team_size_override?: number | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          created_by?: string
+          end_time?: string | null
+          id?: string
+          linked_event_id?: string | null
+          location_name?: string | null
+          mini_league_id?: string
+          postcode?: string | null
+          session_date?: string
+          start_time?: string
+          status?: string
+          team_size_override?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mini_league_sessions_linked_event_id_fkey"
+            columns: ["linked_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mini_league_sessions_mini_league_id_fkey"
+            columns: ["mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mini_leagues: {
+        Row: {
+          club_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+          team_size: number
+          updated_at: string
+        }
+        Insert: {
+          club_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          name: string
+          team_size?: number
+          updated_at?: string
+        }
+        Update: {
+          club_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          name?: string
+          team_size?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mini_leagues_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
             referencedColumns: ["id"]
           },
         ]
@@ -3599,6 +4096,14 @@ export type Database = {
         Args: { _club_id: string; _user_id: string }
         Returns: boolean
       }
+      is_league_admin: {
+        Args: { p_mini_league_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_league_parent: {
+        Args: { p_mini_league_id: string; p_user_id: string }
+        Returns: boolean
+      }
       is_team_member: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
@@ -3705,9 +4210,10 @@ export type Database = {
         | "player"
         | "parent"
         | "app_admin"
+        | "league_admin"
       club_subscription_plan: "starter" | "standard" | "unlimited"
       duty_status: "open" | "completed"
-      event_type: "game" | "training" | "social"
+      event_type: "game" | "training" | "social" | "mini_league"
       feedback_status: "open" | "in_progress" | "resolved"
       role_request_status: "pending" | "approved" | "denied"
       rsvp_status: "going" | "maybe" | "not_going"
@@ -3846,10 +4352,11 @@ export const Constants = {
         "player",
         "parent",
         "app_admin",
+        "league_admin",
       ],
       club_subscription_plan: ["starter", "standard", "unlimited"],
       duty_status: ["open", "completed"],
-      event_type: ["game", "training", "social"],
+      event_type: ["game", "training", "social", "mini_league"],
       feedback_status: ["open", "in_progress", "resolved"],
       role_request_status: ["pending", "approved", "denied"],
       rsvp_status: ["going", "maybe", "not_going"],
