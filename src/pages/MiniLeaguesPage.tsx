@@ -169,22 +169,24 @@ export default function MiniLeaguesPage() {
     <div className="container max-w-2xl px-4 py-6 space-y-6">
       {/* Header */}
       <div className="space-y-1">
-        {clubIdFromUrl && (
-          <Button 
-            variant="ghost" 
-            size="icon"
-            className="mb-2 -ml-2"
-            onClick={() => navigate(`/clubs/${clubIdFromUrl}`)}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        )}
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold tracking-tight">Mini Leagues</h1>
-            {currentClub && (
-              <p className="text-sm text-muted-foreground truncate">{currentClub.name}</p>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {clubIdFromUrl && (
+              <Button 
+                variant="ghost" 
+                size="icon"
+                className="shrink-0 -ml-2"
+                onClick={() => navigate(`/clubs/${clubIdFromUrl}`)}
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
             )}
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl font-bold tracking-tight">Mini Leagues</h1>
+              {currentClub && (
+                <p className="text-sm text-muted-foreground truncate">{currentClub.name}</p>
+              )}
+            </div>
           </div>
           {canCreate && (
             <Button onClick={() => setIsCreateOpen(true)} size="sm" className="shrink-0">
