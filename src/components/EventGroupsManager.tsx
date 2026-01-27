@@ -255,16 +255,24 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       // Each match gets playersPerMatch players
       const matchPlayers: { playerId: string; team: "a" | "b" }[][] = Array(effectiveNumMatches).fill(null).map(() => []);
       
+      // First pass: assign players to matches
       sortedPlayers.forEach((player, index) => {
         const matchIndex = Math.floor(index / playersPerMatch);
         if (matchIndex >= effectiveNumMatches) return; // Extra players if any
+        matchPlayers[matchIndex].push({ playerId: player.id, team: "a" }); // Temporarily assign to team a
+      });
+      
+      // Second pass: balance teams within each match
+      // For the last match (or any match with shortfall), split players evenly
+      matchPlayers.forEach((players) => {
+        const totalPlayers = players.length;
+        // Split evenly: if 6 players, 3 each; if 7 players, 4 in A, 3 in B
+        const teamASize = Math.ceil(totalPlayers / 2);
         
-        const positionInMatch = index % playersPerMatch;
-        // First half go to team A, second half to team B
-        // But use snake draft within each team for balance
-        const team: "a" | "b" = positionInMatch < effectivePlayersPerTeam ? "a" : "b";
-        
-        matchPlayers[matchIndex].push({ playerId: player.id, team });
+        // Assign first half to team A, second half to team B
+        players.forEach((p, idx) => {
+          p.team = idx < teamASize ? "a" : "b";
+        });
       });
 
       // Insert player assignments with team
