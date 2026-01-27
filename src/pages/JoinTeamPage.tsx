@@ -28,6 +28,7 @@ const roleLabels: Record<AppRole, string> = {
   player: "Player",
   parent: "Parent",
   app_admin: "App Admin",
+  league_admin: "League Admin",
 };
 
 // Roles that users can request when joining a team
