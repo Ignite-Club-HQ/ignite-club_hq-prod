@@ -1119,18 +1119,21 @@ export type Database = {
           group_id: string
           id: string
           player_id: string
+          team: string | null
         }
         Insert: {
           created_at?: string
           group_id: string
           id?: string
           player_id: string
+          team?: string | null
         }
         Update: {
           created_at?: string
           group_id?: string
           id?: string
           player_id?: string
+          team?: string | null
         }
         Relationships: [
           {
@@ -1159,6 +1162,8 @@ export type Database = {
           name: string
           pitch_name: string | null
           pitch_state: Json | null
+          team_a_color: string | null
+          team_b_color: string | null
           timer_state: Json | null
           updated_at: string
         }
@@ -1171,6 +1176,8 @@ export type Database = {
           name: string
           pitch_name?: string | null
           pitch_state?: Json | null
+          team_a_color?: string | null
+          team_b_color?: string | null
           timer_state?: Json | null
           updated_at?: string
         }
@@ -1183,6 +1190,8 @@ export type Database = {
           name?: string
           pitch_name?: string | null
           pitch_state?: Json | null
+          team_a_color?: string | null
+          team_b_color?: string | null
           timer_state?: Json | null
           updated_at?: string
         }
