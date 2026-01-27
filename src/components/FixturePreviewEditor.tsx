@@ -1,4 +1,4 @@
-import { Pencil, Trash2, Check, X, Users, GripVertical, ArrowUpDown } from "lucide-react";
+import { Pencil, Trash2, Check, X, Users, GripVertical, ArrowUpDown, AlertCircle } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 interface ParsedFixture {
+  id: string;
   title: string;
   date: string;
   time: string;
@@ -31,6 +32,27 @@ interface GroupedFixtures {
   teamId?: string;
   fixtures: { fixture: ParsedFixture; originalIndex: number }[];
 }
+
+// Validation helpers
+const isValidDate = (date: string): boolean => {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const parsed = new Date(date);
+  return !isNaN(parsed.getTime());
+};
+
+const isValidTime = (time: string): boolean => {
+  if (!time) return false;
+  const normalized = time.substring(0, 5);
+  if (!/^\d{1,2}:\d{2}$/.test(normalized)) return false;
+  const [hours, minutes] = normalized.split(':').map(Number);
+  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+};
+
+const isFixtureValid = (fixture: ParsedFixture): boolean => {
+  return fixture.title.trim().length > 0 && 
+         isValidDate(fixture.date) && 
+         isValidTime(fixture.time);
+};
 
 export function FixturePreviewEditor({ fixtures, onUpdate, isDuplicate = false }: FixturePreviewEditorProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -167,13 +189,24 @@ export function FixturePreviewEditor({ fixtures, onUpdate, isDuplicate = false }
     onUpdate(sorted);
   }, [fixtures, onUpdate]);
 
+  const updateFixtureField = (fixtureId: string, field: keyof ParsedFixture, value: string) => {
+    const updated = fixtures.map(f => 
+      f.id === fixtureId ? { ...f, [field]: value } : f
+    );
+    onUpdate(updated);
+  };
+
   const renderFixtureItem = (fixture: ParsedFixture, index: number, showTeamBadge: boolean = true, enableDrag: boolean = true) => {
     const isBeingDragged = draggedIndex === index;
     const isDragOver = dragOverIndex === index;
+    const hasValidationErrors = !isFixtureValid(fixture);
+    const titleMissing = !fixture.title.trim();
+    const dateMissing = !isValidDate(fixture.date);
+    const timeMissing = !isValidTime(fixture.time);
     
     return (
       <div
-        key={index}
+        key={fixture.id}
         draggable={enableDrag && editingIndex !== index}
         onDragStart={(e) => handleDragStart(e, index)}
         onDragEnd={handleDragEnd}
@@ -181,9 +214,11 @@ export function FixturePreviewEditor({ fixtures, onUpdate, isDuplicate = false }
         onDragLeave={handleDragLeave}
         onDrop={(e) => handleDrop(e, index)}
         className={`p-3 rounded-lg border transition-all ${
-          isDuplicate 
-            ? 'bg-amber-500/5 border-amber-500/30' 
-            : 'bg-muted/50 border-border'
+          hasValidationErrors
+            ? 'bg-destructive/10 border-destructive/50'
+            : isDuplicate 
+              ? 'bg-amber-500/5 border-amber-500/30' 
+              : 'bg-muted/50 border-border'
         } ${
           isBeingDragged ? 'opacity-50 scale-95' : ''
         } ${
@@ -268,29 +303,81 @@ export function FixturePreviewEditor({ fixtures, onUpdate, isDuplicate = false }
                 <GripVertical className="h-4 w-4" />
               </div>
             )}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-medium text-sm truncate">{fixture.title}</span>
-                {showTeamBadge && fixture.teamName && (
-                  <Badge variant="secondary" className="text-xs">
-                    {fixture.teamName}
-                  </Badge>
-                )}
-                {isDuplicate && (
-                  <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30">
-                    Existing
-                  </Badge>
-                )}
-              </div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {fixture.date} at {fixture.time}
-                {fixture.opponent && ` vs ${fixture.opponent}`}
-                {fixture.address && ` • ${fixture.address}`}
-              </div>
-              {fixture.description && (
-                <div className="text-xs text-muted-foreground truncate mt-0.5">
-                  {fixture.description}
+            <div className="flex-1 min-w-0 space-y-2">
+              {/* Validation error banner */}
+              {hasValidationErrors && (
+                <div className="flex items-center gap-1.5 text-destructive">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span className="text-xs font-medium">Missing required fields</span>
                 </div>
+              )}
+              
+              {/* Inline editable fields for invalid fixtures */}
+              {hasValidationErrors ? (
+                <div className="space-y-2">
+                  {titleMissing ? (
+                    <Input
+                      placeholder="Enter title *"
+                      value={fixture.title}
+                      onChange={(e) => updateFixtureField(fixture.id, 'title', e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  ) : (
+                    <p className="font-medium text-sm truncate">{fixture.title}</p>
+                  )}
+                  
+                  <div className="flex gap-2">
+                    {dateMissing ? (
+                      <Input
+                        type="date"
+                        placeholder="Date *"
+                        value={fixture.date}
+                        onChange={(e) => updateFixtureField(fixture.id, 'date', e.target.value)}
+                        className="h-8 text-sm flex-1"
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">{fixture.date}</span>
+                    )}
+                    
+                    {timeMissing ? (
+                      <Input
+                        type="time"
+                        placeholder="Time *"
+                        value={fixture.time}
+                        onChange={(e) => updateFixtureField(fixture.id, 'time', e.target.value)}
+                        className="h-8 text-sm w-28"
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">at {fixture.time}</span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm truncate">{fixture.title}</span>
+                    {showTeamBadge && fixture.teamName && (
+                      <Badge variant="secondary" className="text-xs">
+                        {fixture.teamName}
+                      </Badge>
+                    )}
+                    {isDuplicate && (
+                      <Badge variant="outline" className="text-xs border-amber-500/30">
+                        Existing
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {fixture.date} at {fixture.time}
+                    {fixture.opponent && ` vs ${fixture.opponent}`}
+                    {fixture.address && ` • ${fixture.address}`}
+                  </div>
+                  {fixture.description && (
+                    <div className="text-xs text-muted-foreground truncate">
+                      {fixture.description}
+                    </div>
+                  )}
+                </>
               )}
             </div>
             <div className="flex items-center gap-1 shrink-0">
