@@ -34,6 +34,7 @@ import {
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
 import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
+import PendingInvitesList from "@/components/PendingInvitesList";
 import { toast } from "sonner";
 
 interface MiniLeaguePlayer {
@@ -107,6 +108,31 @@ export default function MiniLeagueDetailPage() {
       return data as MiniLeagueEvent[];
     },
     enabled: !!id,
+  });
+
+  // Fetch pending invites for this mini league
+  const { data: pendingInvites = [] } = useQuery({
+    queryKey: ["pending-invites", null, league?.club_id, id],
+    queryFn: async () => {
+      if (!league?.club_id) return [];
+      const { data, error } = await supabase
+        .from("pending_invites")
+        .select("id, role, invited_user_id, invited_label, invited_email, created_at, status, metadata")
+        .eq("club_id", league.club_id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      // Filter to only show invites for this mini league by checking metadata
+      const filtered = (data || []).filter((inv: any) => {
+        const metadata = inv.metadata as any;
+        return metadata?.mini_league_id === id;
+      });
+      return filtered.map((inv: any) => ({
+        ...inv,
+        profiles: null, // No profile for pending invites
+      }));
+    },
+    enabled: !!league?.club_id && !!id,
   });
 
   // Update league mutation
@@ -456,6 +482,17 @@ export default function MiniLeagueDetailPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* Pending Parent Invites */}
+          {pendingInvites.length > 0 && (
+            <div className="space-y-2 mt-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Pending Parent Invites</h3>
+              <PendingInvitesList
+                invites={pendingInvites}
+                clubId={league.club_id}
+              />
             </div>
           )}
         </TabsContent>
