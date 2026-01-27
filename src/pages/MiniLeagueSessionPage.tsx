@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { 
   ArrowLeft, Users, Check, X, Clock, Loader2, Wand2, 
-  LayoutGrid, ChevronRight, Star, AlertCircle
+  LayoutGrid, ChevronRight, Star, AlertCircle, Calendar, ExternalLink
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -47,7 +47,7 @@ export default function MiniLeagueSessionPage() {
   const [activeTab, setActiveTab] = useState("availability");
   const [isAutoGroupOpen, setIsAutoGroupOpen] = useState(false);
 
-  // Fetch session details
+  // Fetch session details with linked event
   const { data: session, isLoading: sessionLoading } = useQuery({
     queryKey: ["mini-league-session", sessionId],
     queryFn: async () => {
@@ -65,10 +65,31 @@ export default function MiniLeagueSessionPage() {
         location_name: string | null;
         status: string;
         team_size_override: number | null;
+        linked_event_id: string | null;
         mini_league: { id: string; name: string; team_size: number } | null;
       };
     },
     enabled: !!sessionId,
+  });
+
+  // Fetch linked event RSVP counts
+  const { data: linkedEventRsvps } = useQuery({
+    queryKey: ["session-linked-event-rsvps", session?.linked_event_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rsvps")
+        .select("status")
+        .eq("event_id", session!.linked_event_id!);
+      if (error) throw error;
+      const counts = { going: 0, maybe: 0, not_going: 0 };
+      data.forEach(r => {
+        if (r.status === "going") counts.going++;
+        else if (r.status === "maybe") counts.maybe++;
+        else if (r.status === "not_going") counts.not_going++;
+      });
+      return counts;
+    },
+    enabled: !!session?.linked_event_id,
   });
 
   // Fetch all players in the league
@@ -306,13 +327,45 @@ export default function MiniLeagueSessionPage() {
         </Badge>
       </div>
 
+      {/* RSVP Card - Link to Event */}
+      {session.linked_event_id && (
+        <Card 
+          className="cursor-pointer hover:bg-muted/50 transition-colors border-primary/20"
+          onClick={() => navigate(`/events/${session.linked_event_id}`)}
+        >
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Calendar className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium">Event RSVPs</p>
+                  <p className="text-sm text-muted-foreground">
+                    {linkedEventRsvps ? (
+                      <>
+                        <span className="text-green-600">{linkedEventRsvps.going} going</span>
+                        {linkedEventRsvps.maybe > 0 && <span> • {linkedEventRsvps.maybe} maybe</span>}
+                      </>
+                    ) : (
+                      "Manage attendance"
+                    )}
+                  </p>
+                </div>
+              </div>
+              <ExternalLink className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats */}
       <div className="flex gap-4">
         <Card className="flex-1">
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Available</span>
-              <span className="text-lg font-bold text-green-600">{availableCount}</span>
+              <span className="text-sm text-muted-foreground">Pool Available</span>
+              <span className="text-lg font-bold text-primary">{availableCount}</span>
             </div>
           </CardContent>
         </Card>
