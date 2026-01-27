@@ -511,14 +511,19 @@ export function FixturesCSVImport({ clubId, teamId, teams = [], onImportComplete
     
     const formatDate = (d: Date) => d.toISOString().split('T')[0];
     
-    const csvContent = `title,date,time,opponent,address,description,reminder_hours
+    // Include team column for club admins doing multi-team imports
+    const csvContent = isClubAdmin && !teamId
+      ? `title,date,time,team,opponent,address,description,reminder_hours
+Round 1 vs Eagles,${formatDate(nextSaturday)},10:00,${teams[0]?.name || 'U10 Blue'},Eagles FC,123 Sports Ground Rd,Home game,24
+Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,${teams[1]?.name || teams[0]?.name || 'U12 Red'},Tigers United,456 Stadium Ave,Away game,48`
+      : `title,date,time,opponent,address,description,reminder_hours
 Round 1 vs Eagles,${formatDate(nextSaturday)},10:00,Eagles FC,123 Sports Ground Rd,Home game,24
 Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadium Ave,Away game,48`;
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'fixtures_template.csv';
+    a.download = isClubAdmin && !teamId ? 'fixtures_multi_team_template.csv' : 'fixtures_template.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -534,14 +539,21 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
     const formatDate = (d: Date) => d.toISOString().split('T')[0];
     
     const wb = XLSX.utils.book_new();
-    const wsData = [
-      ['title', 'date', 'time', 'opponent', 'address', 'description', 'reminder_hours'],
-      ['Round 1 vs Eagles', formatDate(nextSaturday), '10:00', 'Eagles FC', '123 Sports Ground Rd', 'Home game', 24],
-      ['Round 2 vs Tigers', formatDate(followingSaturday), '14:30', 'Tigers United', '456 Stadium Ave', 'Away game', 48],
-    ];
+    // Include team column for club admins doing multi-team imports
+    const wsData = isClubAdmin && !teamId
+      ? [
+          ['title', 'date', 'time', 'team', 'opponent', 'address', 'description', 'reminder_hours'],
+          ['Round 1 vs Eagles', formatDate(nextSaturday), '10:00', teams[0]?.name || 'U10 Blue', 'Eagles FC', '123 Sports Ground Rd', 'Home game', 24],
+          ['Round 2 vs Tigers', formatDate(followingSaturday), '14:30', teams[1]?.name || teams[0]?.name || 'U12 Red', 'Tigers United', '456 Stadium Ave', 'Away game', 48],
+        ]
+      : [
+          ['title', 'date', 'time', 'opponent', 'address', 'description', 'reminder_hours'],
+          ['Round 1 vs Eagles', formatDate(nextSaturday), '10:00', 'Eagles FC', '123 Sports Ground Rd', 'Home game', 24],
+          ['Round 2 vs Tigers', formatDate(followingSaturday), '14:30', 'Tigers United', '456 Stadium Ave', 'Away game', 48],
+        ];
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     XLSX.utils.book_append_sheet(wb, ws, 'Fixtures');
-    XLSX.writeFile(wb, 'fixtures_template.xlsx');
+    XLSX.writeFile(wb, isClubAdmin && !teamId ? 'fixtures_multi_team_template.xlsx' : 'fixtures_template.xlsx');
   };
 
   const totalToImport = parsedFixtures.length + (updateDuplicates ? duplicateFixtures.length : 0);
@@ -576,6 +588,9 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-2">Optional columns</p>
                   <div className="flex flex-wrap gap-1.5">
+                    {isClubAdmin && !teamId && (
+                      <Badge className="text-xs bg-primary/20 text-primary border-primary/30">team</Badge>
+                    )}
                     <Badge variant="secondary" className="text-xs">opponent</Badge>
                     <Badge variant="secondary" className="text-xs">address</Badge>
                     <Badge variant="secondary" className="text-xs">description</Badge>
@@ -587,7 +602,13 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               <div className="text-xs text-muted-foreground space-y-1">
                 <p><strong>date:</strong> YYYY-MM-DD (e.g., 2025-03-15)</p>
                 <p><strong>time:</strong> 24-hour HH:MM (e.g., 14:30)</p>
-                <p className="text-primary/80">Fixtures will be assigned to the selected team automatically.</p>
+                {isClubAdmin && !teamId ? (
+                  <p className="text-primary/80">
+                    <strong>team:</strong> Exact team name to assign fixtures across multiple teams.
+                  </p>
+                ) : (
+                  <p className="text-primary/80">Fixtures will be assigned to the selected team automatically.</p>
+                )}
               </div>
 
               <div className="flex gap-2 pt-2">
