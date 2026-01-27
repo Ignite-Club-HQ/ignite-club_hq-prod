@@ -256,29 +256,67 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
         matchIds.push(data.id);
       }
 
+      // Calculate target sizes for each match - ensure even player counts per match
+      // This guarantees equal team sizes within each match
+      const totalPlayerCount = sortedPlayers.length;
+      const matchTargetSizes: number[] = [];
+      
+      // Start with base even count per match
+      const basePerMatch = Math.floor(totalPlayerCount / effectiveNumMatches);
+      const baseEven = basePerMatch % 2 === 0 ? basePerMatch : basePerMatch - 1;
+      let remaining = totalPlayerCount;
+      
+      for (let i = 0; i < effectiveNumMatches; i++) {
+        // Calculate how many players this match should get
+        // Prioritize filling matches to max capacity (even number) first
+        const matchesLeft = effectiveNumMatches - i;
+        const avgRemaining = remaining / matchesLeft;
+        
+        // Target: closest even number not exceeding playersPerMatch
+        let target = Math.min(playersPerMatch, Math.floor(avgRemaining));
+        // Make it even (round down)
+        if (target % 2 !== 0) target = target - 1;
+        // Ensure at least 2 players if we have them
+        if (target < 2 && remaining >= 2) target = 2;
+        // If this is the last match, take whatever is left
+        if (i === effectiveNumMatches - 1) target = remaining;
+        
+        matchTargetSizes.push(target);
+        remaining -= target;
+      }
+      
+      // If total players is odd, only one match will have odd count (last match)
+      // Redistribute to ensure most matches are balanced
+      // Sort targets so larger matches come first (helps with snake draft)
+      const sortedTargetIndices = matchTargetSizes
+        .map((size, idx) => ({ size, idx }))
+        .sort((a, b) => b.size - a.size)
+        .map(item => item.idx);
+      
       // Distribute players across matches based on ability mode
       const matchPlayers: { playerId: string; team: "a" | "b" }[][] = Array(effectiveNumMatches).fill(null).map(() => []);
       
       if (abilityMode === "similar") {
         // Similar ability mode: consecutive players (by rating) go to same match
-        // Players are already sorted by ability desc, so first N go to match 1, next N to match 2, etc.
-        sortedPlayers.forEach((player, index) => {
-          const matchIndex = Math.floor(index / playersPerMatch);
-          if (matchIndex >= effectiveNumMatches) return;
-          matchPlayers[matchIndex].push({ playerId: player.id, team: "a" });
-        });
+        // Players are already sorted by ability desc
+        let playerIdx = 0;
+        for (let matchIdx = 0; matchIdx < effectiveNumMatches && playerIdx < sortedPlayers.length; matchIdx++) {
+          const targetSize = matchTargetSizes[matchIdx];
+          for (let j = 0; j < targetSize && playerIdx < sortedPlayers.length; j++) {
+            matchPlayers[matchIdx].push({ playerId: sortedPlayers[playerIdx].id, team: "a" });
+            playerIdx++;
+          }
+        }
       } else {
-        // Mixed ability mode: snake draft across matches for even distribution
-        // Round 1: Match 0, 1, 2, 3...
-        // Round 2: Match 3, 2, 1, 0... (reverse)
-        // This ensures each match gets a mix of high, medium, low ability players
+        // Mixed ability mode: snake draft across matches for even ability distribution
+        // But respect the target sizes to ensure even player counts per match
         let forward = true;
         let matchIndex = 0;
         
         sortedPlayers.forEach((player) => {
-          // Find next match that has room
+          // Find next match that has room (under its target size)
           let attempts = 0;
-          while (matchPlayers[matchIndex].length >= playersPerMatch && attempts < effectiveNumMatches) {
+          while (matchPlayers[matchIndex].length >= matchTargetSizes[matchIndex] && attempts < effectiveNumMatches * 2) {
             if (forward) {
               matchIndex++;
               if (matchIndex >= effectiveNumMatches) {
@@ -295,8 +333,16 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
             attempts++;
           }
           
-          if (matchPlayers[matchIndex].length < playersPerMatch) {
+          if (matchPlayers[matchIndex].length < matchTargetSizes[matchIndex]) {
             matchPlayers[matchIndex].push({ playerId: player.id, team: "a" });
+          } else {
+            // Fallback: find any match with room
+            for (let i = 0; i < effectiveNumMatches; i++) {
+              if (matchPlayers[i].length < matchTargetSizes[i]) {
+                matchPlayers[i].push({ playerId: player.id, team: "a" });
+                break;
+              }
+            }
           }
           
           // Move to next match in snake pattern
@@ -317,10 +363,10 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       }
       
       // Balance teams within each match - split players evenly between Team A and B
-      // Use floor division so teams are equal; only have +1 in one team if odd total
       matchPlayers.forEach((players) => {
         const totalPlayers = players.length;
-        // Equal split: e.g., 6 players = 3v3, 7 players = 3v4 (Team B gets extra)
+        // Equal split: e.g., 6 players = 3v3, 8 players = 4v4
+        // If odd (only possible when total league is odd), Team B gets extra
         const teamASize = Math.floor(totalPlayers / 2);
         players.forEach((p, idx) => {
           p.team = idx < teamASize ? "a" : "b";
