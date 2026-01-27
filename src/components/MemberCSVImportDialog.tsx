@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback } from "react";
-import { Upload, FileText, X, AlertCircle, Download, Send, Users, Info, ChevronDown } from "lucide-react";
+import { Upload, FileText, X, AlertCircle, Download, Send, Users, Info, ChevronDown, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -48,6 +49,8 @@ interface MemberCSVImportDialogProps {
 
 const VALID_ROLES: TeamRole[] = ["player", "parent", "coach", "team_admin"];
 
+const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
 export function MemberCSVImportDialog({
   open,
   onOpenChange,
@@ -62,6 +65,24 @@ export function MemberCSVImportDialog({
   const [errors, setErrors] = useState<ValidationError[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
+
+  // Update member fields in the preview
+  const updateMemberField = (memberId: string, field: keyof ParsedMember, value: string) => {
+    setParsedMembers(prev => 
+      prev.map(m => m.id === memberId ? { ...m, [field]: value } : m)
+    );
+  };
+
+  // Validation helpers
+  const isMemberValid = (member: ParsedMember) => {
+    return member.name.trim().length > 0 && 
+           isValidEmail(member.email) && 
+           VALID_ROLES.includes(member.role);
+  };
+
+  // Check if all members have valid required fields
+  const allMembersValid = parsedMembers.every(isMemberValid);
+  const invalidCount = parsedMembers.filter(m => !isMemberValid(m)).length;
 
   const parseCSVLine = (line: string): string[] => {
     const values: string[] = [];
@@ -472,36 +493,82 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
 
               {/* Members preview */}
               {parsedMembers.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-primary" />
-                    <p className="text-sm font-medium">
-                      {parsedMembers.length} member{parsedMembers.length !== 1 ? 's' : ''} found
-                    </p>
+                <div className="flex-1 flex flex-col min-h-0 space-y-2">
+                  <div className="flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-medium">
+                        {parsedMembers.length} member{parsedMembers.length !== 1 ? 's' : ''} found
+                      </p>
+                    </div>
+                    {invalidCount > 0 && (
+                      <Badge variant="destructive" className="text-xs">
+                        {invalidCount} need{invalidCount === 1 ? 's' : ''} attention
+                      </Badge>
+                    )}
                   </div>
-                  <ScrollArea className="h-[200px] rounded-lg border">
-                    <div className="p-2 space-y-1">
-                      {parsedMembers.map((member) => (
-                        <div 
-                          key={member.id} 
-                          className="flex items-center justify-between p-2 rounded-md bg-muted/50 text-sm gap-2"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium truncate">{member.name}</p>
-                            {member.email && (
-                              <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                  <ScrollArea className="flex-1 min-h-0 rounded-lg border">
+                    <div className="p-2 space-y-2">
+                      {parsedMembers.map((member) => {
+                        const nameMissing = !member.name.trim();
+                        const emailMissing = !isValidEmail(member.email);
+                        const hasIssue = nameMissing || emailMissing;
+                        
+                        return (
+                          <div 
+                            key={member.id} 
+                            className={`p-2 rounded-md text-sm ${hasIssue ? 'bg-destructive/10 border border-destructive/30' : 'bg-muted/50'}`}
+                          >
+                            {/* Name field */}
+                            {nameMissing ? (
+                              <div className="flex items-center gap-2 mb-2">
+                                <Input
+                                  type="text"
+                                  placeholder="Enter member name"
+                                  value={member.name}
+                                  onChange={(e) => updateMemberField(member.id, 'name', e.target.value)}
+                                  className="h-8 text-sm font-medium"
+                                />
+                                <Badge variant="outline" className={`shrink-0 text-xs ${getRoleBadgeClass(member.role)}`}>
+                                  {member.role}
+                                </Badge>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="font-medium truncate flex-1">{member.name}</p>
+                                <Badge variant="outline" className={`shrink-0 text-xs ${getRoleBadgeClass(member.role)}`}>
+                                  {member.role}
+                                </Badge>
+                              </div>
                             )}
+                            
+                            {/* Email field */}
+                            {emailMissing ? (
+                              <div className="mt-2">
+                                <div className="flex items-center gap-2">
+                                  <Mail className="h-3.5 w-3.5 text-destructive shrink-0" />
+                                  <Input
+                                    type="email"
+                                    placeholder="Enter email address"
+                                    value={member.email}
+                                    onChange={(e) => updateMemberField(member.id, 'email', e.target.value)}
+                                    className="h-8 text-sm"
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground truncate mt-1">{member.email}</p>
+                            )}
+                            
+                            {/* Children info */}
                             {member.children.length > 0 && (
-                              <p className="text-xs text-primary truncate">
+                              <p className="text-xs text-primary truncate mt-1">
                                 Children: {member.children.map(c => c.yearOfBirth ? `${c.name} (${c.yearOfBirth})` : c.name).join(', ')}
                               </p>
                             )}
                           </div>
-                          <Badge variant="outline" className={`shrink-0 text-xs ${getRoleBadgeClass(member.role)}`}>
-                            {member.role}
-                          </Badge>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </ScrollArea>
                 </div>
@@ -519,18 +586,25 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 pt-4 border-t">
-          <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button 
-            className="flex-1" 
-            onClick={handleImport}
-            disabled={parsedMembers.length === 0 || hasBlockingErrors}
-          >
-            <Send className="h-4 w-4 mr-2" />
-            Send Invites {parsedMembers.length > 0 ? `(${parsedMembers.length})` : ''}
-          </Button>
+        <div className="flex flex-col gap-2 pt-4 border-t shrink-0">
+          {!allMembersValid && parsedMembers.length > 0 && (
+            <p className="text-xs text-destructive text-center">
+              Please fill in all required fields (name, email) before sending invites
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button 
+              className="flex-1" 
+              onClick={handleImport}
+              disabled={parsedMembers.length === 0 || hasBlockingErrors || !allMembersValid}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Send Invites {parsedMembers.length > 0 ? `(${parsedMembers.length})` : ''}
+            </Button>
+          </div>
         </div>
       </ResponsiveDialogContent>
     </ResponsiveDialog>
