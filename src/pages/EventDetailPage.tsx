@@ -948,11 +948,11 @@ export default function EventDetailPage() {
 
       // Always post cancellation message to team or club chat
       if (user && event) {
-        const eventUrl = `${window.location.origin}/events/${event.id}`;
+        const eventPath = `/events/${event.id}`;
         const cancellationMessage = customMessage 
-          ? `📢 Event Cancelled: "${event.title}"\n\n${customMessage}\n\nView event: ${eventUrl}`
-          : `📢 Event Cancelled: "${event.title}"\n\nView event: ${eventUrl}`;
-        
+          ? `📢 Event Cancelled: "${event.title}"\n\n${customMessage}\n\nView event: ${eventPath}`
+          : `📢 Event Cancelled: "${event.title}"\n\nView event: ${eventPath}`;
+
         if (event.team_id) {
           const { error: msgError } = await supabase.from("team_messages").insert({
             team_id: event.team_id,
