@@ -57,7 +57,16 @@ export default function MiniLeagueSessionPage() {
         .eq("id", sessionId!)
         .single();
       if (error) throw error;
-      return data;
+      return data as {
+        id: string;
+        session_date: string;
+        start_time: string;
+        end_time: string | null;
+        location_name: string | null;
+        status: string;
+        team_size_override: number | null;
+        mini_league: { id: string; name: string; team_size: number } | null;
+      };
     },
     enabled: !!sessionId,
   });
@@ -162,7 +171,7 @@ export default function MiniLeagueSessionPage() {
         throw new Error("No available players to group");
       }
 
-      const teamSize = session?.mini_league?.team_size || 5;
+      const teamSize = session?.team_size_override || session?.mini_league?.team_size || 5;
       
       // Group by ability rating
       const byAbility: Record<number, Player[]> = {};
@@ -474,12 +483,16 @@ export default function MiniLeagueSessionPage() {
                   Players with similar abilities will be grouped together.
                 </DialogDescription>
               </DialogHeader>
-              <div className="py-4">
+              <div className="py-4 space-y-2">
                 <p className="text-sm">
                   <strong>{availableCount}</strong> players marked as available or late
                 </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Target group size: {session.mini_league?.team_size * 2 || 10} players per pitch
+                <p className="text-sm text-muted-foreground">
+                  Players per side: <strong>{session?.team_size_override || session?.mini_league?.team_size || 5}v{session?.team_size_override || session?.mini_league?.team_size || 5}</strong>
+                  {session?.team_size_override && " (session override)"}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Target: {(session?.team_size_override || session?.mini_league?.team_size || 5) * 2} players per pitch
                 </p>
               </div>
               <DialogFooter>

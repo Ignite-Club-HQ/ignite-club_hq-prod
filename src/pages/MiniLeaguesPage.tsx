@@ -313,18 +313,21 @@ export default function MiniLeaguesPage() {
             </div>
             
             <div className="space-y-2">
-              <Label>Players per Group</Label>
-              <Select value={newLeague.team_size} onValueChange={(v) => setNewLeague({ ...newLeague, team_size: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="4">4-a-side</SelectItem>
-                  <SelectItem value="5">5-a-side</SelectItem>
-                  <SelectItem value="6">6-a-side</SelectItem>
-                  <SelectItem value="7">7-a-side</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Players per Side</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {["4", "5", "6", "7"].map((size) => (
+                  <Button
+                    key={size}
+                    type="button"
+                    variant={newLeague.team_size === size ? "default" : "outline"}
+                    className="h-12 text-base font-medium"
+                    onClick={() => setNewLeague({ ...newLeague, team_size: size })}
+                  >
+                    {size}v{size}
+                  </Button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">Can be overridden per session</p>
             </div>
           </div>
           
