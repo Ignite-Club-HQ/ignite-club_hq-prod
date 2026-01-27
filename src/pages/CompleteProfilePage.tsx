@@ -342,9 +342,9 @@ export default function CompleteProfilePage() {
                   description: `You've joined ${entityName} as ${invite.role.replace("_", " ")}.`,
                 });
                 
-                // Create children from invite metadata (if parent or league_parent role with children)
-                const isParentRole = invite.role === "parent" || invite.role === "league_parent";
-                if (invite.metadata?.children && invite.metadata.children.length > 0 && isParentRole) {
+                // Create children from invite metadata (if parent role with children)
+                if (invite.metadata?.children && invite.metadata.children.length > 0 && invite.role === "parent") {
+                  console.log("[CompleteProfile] Creating children from invite metadata:", invite.metadata.children);
                   console.log("[CompleteProfile] Creating children from invite metadata:", invite.metadata.children);
                   for (const childData of invite.metadata.children) {
                     console.log("[CompleteProfile] Creating child:", childData.name, "YoB:", childData.yearOfBirth);
@@ -383,7 +383,7 @@ export default function CompleteProfilePage() {
                       }
                     }
                     
-                    // Assign child to mini league if mini_league_id exists (for league_parent)
+                    // Assign child to mini league if mini_league_id exists in metadata
                     if (newChild?.id && invite.metadata?.mini_league_id) {
                       console.log("[CompleteProfile] Assigning child to mini league:", invite.metadata.mini_league_id);
                       const { error: leagueAssignError } = await supabase
@@ -412,7 +412,7 @@ export default function CompleteProfilePage() {
                       }
                     }
                   }
-                } else if (isParentRole && invite.metadata?.child_id) {
+                } else if (invite.role === "parent" && invite.metadata?.child_id) {
                   // If there's already a child_id in metadata, just link the existing child to this parent
                   console.log("[CompleteProfile] Linking existing child to parent:", invite.metadata.child_id);
                   await supabase
@@ -443,8 +443,7 @@ export default function CompleteProfilePage() {
               .eq("id", invite.id);
             
             // Still create/link children if this is a parent role, even if role already exists
-            const isParentRole = invite.role === "parent" || invite.role === "league_parent";
-            if (isParentRole && invite.metadata?.children && invite.metadata.children.length > 0) {
+            if (invite.role === "parent" && invite.metadata?.children && invite.metadata.children.length > 0) {
               console.log("[CompleteProfile] Role exists but creating children from metadata:", invite.metadata.children);
               for (const childData of invite.metadata.children) {
                 // Check if child already exists for this parent with same name
@@ -520,7 +519,7 @@ export default function CompleteProfilePage() {
                   console.log("[CompleteProfile] Child created and assigned to mini league:", childData.name);
                 }
               }
-            } else if (isParentRole && invite.metadata?.child_id) {
+            } else if (invite.role === "parent" && invite.metadata?.child_id) {
               // Link existing child to this parent
               await supabase
                 .from("children")

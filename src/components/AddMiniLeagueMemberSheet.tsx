@@ -145,7 +145,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
         
         const { error: inviteError } = await supabase.from("pending_invites").insert({
           club_id: clubId,
-          role: "league_parent" as any,
+          role: "parent" as any,
           invited_user_id: null,
           invited_by_user_id: user!.id,
           invited_label: parentName.trim() || parentEmail.trim(),
@@ -307,7 +307,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
           
           const { error: inviteError } = await supabase.from("pending_invites").insert({
             club_id: clubId,
-            role: "league_parent" as any,
+            role: "parent" as any,
             invited_user_id: null,
             invited_by_user_id: user!.id,
             invited_label: player.parentName.trim() || player.parentEmail.trim(),
