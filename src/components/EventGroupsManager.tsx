@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Users, PlayCircle, Wand2, Loader2, X, ClipboardList, Copy } from "lucide-react";
+import { Plus, Users, PlayCircle, Wand2, Loader2, X, ClipboardList, Copy, Shirt } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +27,29 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
+// Bib color options for teams
+const BIB_COLORS = [
+  { name: "Red", value: "#ef4444" },
+  { name: "Blue", value: "#3b82f6" },
+  { name: "Green", value: "#22c55e" },
+  { name: "Yellow", value: "#eab308" },
+  { name: "Orange", value: "#f97316" },
+  { name: "Purple", value: "#a855f7" },
+  { name: "Pink", value: "#ec4899" },
+  { name: "White", value: "#ffffff" },
+];
+
+// Get a pair of contrasting colors for a match
+const getMatchColors = (index: number): { teamA: string; teamB: string } => {
+  const pairs = [
+    { teamA: "#ef4444", teamB: "#3b82f6" }, // Red vs Blue
+    { teamA: "#22c55e", teamB: "#eab308" }, // Green vs Yellow
+    { teamA: "#f97316", teamB: "#a855f7" }, // Orange vs Purple
+    { teamA: "#ec4899", teamB: "#ffffff" }, // Pink vs White
+  ];
+  return pairs[index % pairs.length];
+};
+
 interface EventGroupsManagerProps {
   eventId: string;
   miniLeagueId: string;
@@ -40,13 +63,21 @@ interface MiniLeaguePlayer {
   parent_user_id: string | null;
 }
 
+interface GroupPlayer {
+  id: string;
+  name: string;
+  team: "a" | "b" | null;
+}
+
 interface EventGroup {
   id: string;
   name: string;
   ability_band: string | null;
   pitch_name: string | null;
   display_order: number;
-  players: { id: string; name: string }[];
+  team_a_color: string;
+  team_b_color: string;
+  players: GroupPlayer[];
 }
 
 export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGroupsManagerProps) {
@@ -73,27 +104,33 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
         .order("display_order");
       if (error) throw error;
 
-      // Fetch players for each group
+      // Fetch players for each group with team assignment
       const groupsWithPlayers: EventGroup[] = [];
       for (const group of groupsData || []) {
         const { data: playerLinks } = await supabase
           .from("event_group_players")
-          .select("player_id")
+          .select("player_id, team")
           .eq("group_id", group.id);
         
         const playerIds = playerLinks?.map(p => p.player_id) || [];
-        let players: { id: string; name: string }[] = [];
+        let players: GroupPlayer[] = [];
         
         if (playerIds.length > 0) {
           const { data: playersData } = await supabase
             .from("mini_league_players")
             .select("id, name")
             .in("id", playerIds);
-          players = (playersData || []) as { id: string; name: string }[];
+          
+          players = (playersData || []).map(p => ({
+            ...p,
+            team: playerLinks?.find(pl => pl.player_id === p.id)?.team as "a" | "b" | null,
+          }));
         }
 
         groupsWithPlayers.push({
           ...group,
+          team_a_color: group.team_a_color || "#ef4444",
+          team_b_color: group.team_b_color || "#3b82f6",
           players,
         });
       }
@@ -152,11 +189,14 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
   // Create group mutation
   const createGroupMutation = useMutation({
     mutationFn: async () => {
+      const colors = getMatchColors(groups?.length || 0);
       const { error } = await supabase.from("event_groups").insert({
         event_id: eventId,
         name: newGroupName.trim(),
         pitch_name: newPitchName.trim() || null,
         display_order: (groups?.length || 0) + 1,
+        team_a_color: colors.teamA,
+        team_b_color: colors.teamB,
       });
       if (error) throw error;
     },
@@ -165,12 +205,12 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       setIsCreateOpen(false);
       setNewGroupName("");
       setNewPitchName("");
-      toast.success("Group created");
+      toast.success("Match created");
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  // Auto-generate groups mutation
+  // Auto-generate groups mutation (now creates matches with 2 teams each)
   const autoGenMutation = useMutation({
     mutationFn: async () => {
       if (!allPlayers || allPlayers.length === 0) {
@@ -178,69 +218,81 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       }
 
       // Calculate number of groups based on mode
+      // For matches: each match has 2 teams, so total players per match = playersPerTeam * 2
       const effectivePlayersPerTeam = useAutoMode && miniLeague?.team_size 
         ? miniLeague.team_size 
         : playersPerTeam;
-      const effectiveNumGroups = useAutoMode 
-        ? Math.ceil(allPlayers.length / effectivePlayersPerTeam)
+      const playersPerMatch = effectivePlayersPerTeam * 2;
+      const effectiveNumMatches = useAutoMode 
+        ? Math.ceil(allPlayers.length / playersPerMatch)
         : numGroups;
 
-      if (effectiveNumGroups < 1) {
-        throw new Error("Not enough players for groups");
+      if (effectiveNumMatches < 1) {
+        throw new Error("Not enough players for matches");
       }
 
       // Sort by ability rating (already sorted)
       const sortedPlayers = [...allPlayers];
       
-      // Create groups with balanced ability
-      const groupNames = ["Group A", "Group B", "Group C", "Group D", "Group E", "Group F", "Group G", "Group H"];
+      // Create matches with balanced ability
+      const matchNames = ["Match 1", "Match 2", "Match 3", "Match 4", "Match 5", "Match 6", "Match 7", "Match 8"];
       const abilityBands = ["High", "Medium", "Low"];
       
-      // Create the groups first
-      const groupIds: string[] = [];
-      for (let i = 0; i < effectiveNumGroups; i++) {
+      // Create the matches first
+      const matchIds: string[] = [];
+      for (let i = 0; i < effectiveNumMatches; i++) {
+        const colors = getMatchColors(i);
         const { data, error } = await supabase
           .from("event_groups")
           .insert({
             event_id: eventId,
-            name: groupNames[i] || `Group ${i + 1}`,
-            ability_band: abilityBands[Math.floor(i / Math.ceil(effectiveNumGroups / 3))] || null,
+            name: matchNames[i] || `Match ${i + 1}`,
+            ability_band: abilityBands[Math.floor(i / Math.ceil(effectiveNumMatches / 3))] || null,
             pitch_name: `Pitch ${i + 1}`,
             display_order: i + 1,
+            team_a_color: colors.teamA,
+            team_b_color: colors.teamB,
           })
           .select()
           .single();
         if (error) throw error;
-        groupIds.push(data.id);
+        matchIds.push(data.id);
       }
 
-      // Distribute players across groups (snake draft for balance)
-      const playerGroups: string[][] = Array(effectiveNumGroups).fill(null).map(() => []);
+      // Distribute players across matches (snake draft for balance)
+      // Each match gets playersPerMatch players
+      const matchPlayers: { playerId: string; team: "a" | "b" }[][] = Array(effectiveNumMatches).fill(null).map(() => []);
+      
       sortedPlayers.forEach((player, index) => {
-        const round = Math.floor(index / effectiveNumGroups);
-        const groupIndex = round % 2 === 0 
-          ? index % effectiveNumGroups 
-          : effectiveNumGroups - 1 - (index % effectiveNumGroups);
-        playerGroups[groupIndex].push(player.id);
+        const matchIndex = Math.floor(index / playersPerMatch);
+        if (matchIndex >= effectiveNumMatches) return; // Extra players if any
+        
+        const positionInMatch = index % playersPerMatch;
+        // First half go to team A, second half to team B
+        // But use snake draft within each team for balance
+        const team: "a" | "b" = positionInMatch < effectivePlayersPerTeam ? "a" : "b";
+        
+        matchPlayers[matchIndex].push({ playerId: player.id, team });
       });
 
-      // Insert player assignments
-      for (let i = 0; i < effectiveNumGroups; i++) {
-        if (playerGroups[i].length > 0) {
-          const assignments = playerGroups[i].map(playerId => ({
-            group_id: groupIds[i],
-            player_id: playerId,
+      // Insert player assignments with team
+      for (let i = 0; i < effectiveNumMatches; i++) {
+        if (matchPlayers[i].length > 0) {
+          const assignments = matchPlayers[i].map(p => ({
+            group_id: matchIds[i],
+            player_id: p.playerId,
+            team: p.team,
           }));
           await supabase.from("event_group_players").insert(assignments);
         }
       }
 
-      return effectiveNumGroups;
+      return effectiveNumMatches;
     },
     onSuccess: (numCreated) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       setIsAutoGenOpen(false);
-      toast.success(`${numCreated} groups created with balanced players`);
+      toast.success(`${numCreated} matches created with balanced teams`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -259,7 +311,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       if (groupsError) throw groupsError;
 
       for (const prevGroup of prevGroups || []) {
-        // Create new group
+        // Create new group with team colors
         const { data: newGroup, error: createError } = await supabase
           .from("event_groups")
           .insert({
@@ -268,21 +320,24 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
             ability_band: prevGroup.ability_band,
             pitch_name: prevGroup.pitch_name,
             display_order: prevGroup.display_order,
+            team_a_color: prevGroup.team_a_color || "#ef4444",
+            team_b_color: prevGroup.team_b_color || "#3b82f6",
           })
           .select()
           .single();
         if (createError) throw createError;
 
-        // Copy player assignments
+        // Copy player assignments with team
         const { data: prevPlayers } = await supabase
           .from("event_group_players")
-          .select("player_id")
+          .select("player_id, team")
           .eq("group_id", prevGroup.id);
 
         if (prevPlayers && prevPlayers.length > 0) {
           const assignments = prevPlayers.map(p => ({
             group_id: newGroup.id,
             player_id: p.player_id,
+            team: p.team,
           }));
           await supabase.from("event_group_players").insert(assignments);
         }
@@ -292,7 +347,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       setIsCopyPreviousOpen(false);
       setSelectedPreviousEventId(null);
-      toast.success("Groups copied from previous event");
+      toast.success("Matches copied from previous event");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -323,7 +378,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold">Breakout Groups</h3>
+        <h3 className="font-semibold">Matches</h3>
         {isAdmin && (
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={() => setIsCopyPreviousOpen(true)}>
@@ -344,92 +399,155 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
 
       {groups && groups.length > 0 ? (
         <div className="grid gap-3">
-          {groups.map((group) => (
-            <Card key={group.id} className="relative">
-              {isAdmin && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive"
-                  onClick={() => deleteGroupMutation.mutate(group.id)}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              )}
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-base">{group.name}</CardTitle>
-                  {group.ability_band && (
-                    <Badge variant="outline" className="text-xs">
-                      {group.ability_band}
-                    </Badge>
-                  )}
-                </div>
-                {group.pitch_name && (
-                  <CardDescription>{group.pitch_name}</CardDescription>
+          {groups.map((group) => {
+            const teamAPlayers = group.players.filter(p => p.team === "a");
+            const teamBPlayers = group.players.filter(p => p.team === "b");
+            const unassignedPlayers = group.players.filter(p => !p.team);
+            
+            return (
+              <Card key={group.id} className="relative">
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive"
+                    onClick={() => deleteGroupMutation.mutate(group.id)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
                 )}
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex flex-wrap gap-1 mb-3">
-                  {group.players.map((player) => (
-                    <Badge key={player.id} variant="secondary" className="text-xs">
-                      {player.name}
-                    </Badge>
-                  ))}
-                  {group.players.length === 0 && (
-                    <span className="text-sm text-muted-foreground">No players assigned</span>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base">{group.name}</CardTitle>
+                    {group.ability_band && (
+                      <Badge variant="outline" className="text-xs">
+                        {group.ability_band}
+                      </Badge>
+                    )}
+                  </div>
+                  {group.pitch_name && (
+                    <CardDescription>{group.pitch_name}</CardDescription>
                   )}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => navigate(`/events/${eventId}/groups/${group.id}/pitch`)}
-                  >
-                    <PlayCircle className="h-4 w-4 mr-1" />
-                    Pitch Board
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => navigate(`/events/${eventId}/groups/${group.id}/duties`)}
-                  >
-                    <ClipboardList className="h-4 w-4 mr-1" />
-                    Duties
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardHeader>
+                <CardContent className="pt-0">
+                  {/* Two Teams Display */}
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    {/* Team A */}
+                    <div className="p-2 rounded-lg border" style={{ borderColor: group.team_a_color }}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Shirt className="h-4 w-4" style={{ color: group.team_a_color }} />
+                        <span className="text-xs font-medium" style={{ color: group.team_a_color }}>
+                          Team A
+                        </span>
+                        <span className="text-xs text-muted-foreground">({teamAPlayers.length})</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {teamAPlayers.map((player) => (
+                          <Badge
+                            key={player.id}
+                            variant="secondary"
+                            className="text-xs"
+                            style={{ backgroundColor: `${group.team_a_color}20`, borderColor: group.team_a_color }}
+                          >
+                            {player.name}
+                          </Badge>
+                        ))}
+                        {teamAPlayers.length === 0 && (
+                          <span className="text-xs text-muted-foreground">No players</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Team B */}
+                    <div className="p-2 rounded-lg border" style={{ borderColor: group.team_b_color }}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Shirt className="h-4 w-4" style={{ color: group.team_b_color }} />
+                        <span className="text-xs font-medium" style={{ color: group.team_b_color }}>
+                          Team B
+                        </span>
+                        <span className="text-xs text-muted-foreground">({teamBPlayers.length})</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {teamBPlayers.map((player) => (
+                          <Badge
+                            key={player.id}
+                            variant="secondary"
+                            className="text-xs"
+                            style={{ backgroundColor: `${group.team_b_color}20`, borderColor: group.team_b_color }}
+                          >
+                            {player.name}
+                          </Badge>
+                        ))}
+                        {teamBPlayers.length === 0 && (
+                          <span className="text-xs text-muted-foreground">No players</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Unassigned Players (if any) */}
+                  {unassignedPlayers.length > 0 && (
+                    <div className="mb-3 p-2 rounded-lg bg-muted/50">
+                      <span className="text-xs text-muted-foreground">Unassigned: </span>
+                      {unassignedPlayers.map((player) => (
+                        <Badge key={player.id} variant="outline" className="text-xs ml-1">
+                          {player.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => navigate(`/events/${eventId}/groups/${group.id}/pitch`)}
+                    >
+                      <PlayCircle className="h-4 w-4 mr-1" />
+                      Pitch Board
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => navigate(`/events/${eventId}/groups/${group.id}/duties`)}
+                    >
+                      <ClipboardList className="h-4 w-4 mr-1" />
+                      Duties
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       ) : (
         <Card>
           <CardContent className="py-8 text-center">
             <Users className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">No groups yet</p>
+            <p className="text-sm text-muted-foreground">No matches yet</p>
             {isAdmin && (
               <p className="text-xs text-muted-foreground mt-1">
-                Auto-generate balanced groups or create them manually
+                Auto-generate balanced matches or create them manually
               </p>
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* Create Group Sheet */}
+      {/* Create Match Sheet */}
       <Sheet open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <SheetContent side="bottom" className="h-auto">
           <SheetHeader>
-            <SheetTitle>Create Group</SheetTitle>
-            <SheetDescription>Add a new breakout group for this session</SheetDescription>
+            <SheetTitle>Create Match</SheetTitle>
+            <SheetDescription>Add a new match with two teams</SheetDescription>
           </SheetHeader>
           <div className="py-4 space-y-4">
             <div className="space-y-2">
-              <Label>Group Name</Label>
+              <Label>Match Name</Label>
               <Input
-                placeholder="e.g. Group A, U8 Tigers"
+                placeholder="e.g. Match 1, Finals"
                 value={newGroupName}
                 onChange={(e) => setNewGroupName(e.target.value)}
               />
@@ -450,7 +568,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
               disabled={!newGroupName.trim() || createGroupMutation.isPending}
             >
               {createGroupMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create Group
+              Create Match
             </Button>
           </SheetFooter>
         </SheetContent>
@@ -460,9 +578,9 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       <Dialog open={isAutoGenOpen} onOpenChange={setIsAutoGenOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Auto-Generate Groups</DialogTitle>
+            <DialogTitle>Auto-Generate Matches</DialogTitle>
             <DialogDescription>
-              Automatically create balanced groups based on player ability ratings
+              Automatically create balanced matches with two teams each based on player ability
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
@@ -471,7 +589,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
               <div>
                 <p className="font-medium text-sm">Use League Defaults</p>
                 <p className="text-xs text-muted-foreground">
-                  {miniLeague?.team_size || 6} players per team
+                  {miniLeague?.team_size || 6} players per side ({(miniLeague?.team_size || 6) * 2} per match)
                 </p>
               </div>
               <Button
@@ -487,17 +605,17 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
               <div className="p-3 rounded-lg border bg-primary/5">
                 <p className="text-sm">
                   <span className="font-medium">{allPlayers?.length || 0}</span> players ÷{" "}
-                  <span className="font-medium">{miniLeague?.team_size || 6}</span> per team ={" "}
+                  <span className="font-medium">{(miniLeague?.team_size || 6) * 2}</span> per match ={" "}
                   <span className="font-medium">
-                    {Math.ceil((allPlayers?.length || 0) / (miniLeague?.team_size || 6))}
+                    {Math.ceil((allPlayers?.length || 0) / ((miniLeague?.team_size || 6) * 2))}
                   </span>{" "}
-                  groups
+                  matches
                 </p>
               </div>
             ) : (
               <>
                 <div className="space-y-2">
-                  <Label>Players per Team</Label>
+                  <Label>Players per Side</Label>
                   <div className="flex gap-2">
                     {[4, 5, 6, 7, 8].map((n) => (
                       <Button
@@ -510,10 +628,13 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
                       </Button>
                     ))}
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Each match will have {playersPerTeam * 2} players total ({playersPerTeam} vs {playersPerTeam})
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Number of Groups</Label>
+                  <Label>Number of Matches</Label>
                   <div className="flex gap-2 flex-wrap">
                     {[2, 3, 4, 5, 6, 7, 8].map((n) => (
                       <Button
@@ -529,8 +650,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
                 </div>
 
                 <p className="text-sm text-muted-foreground">
-                  {allPlayers?.length || 0} players will be distributed across {numGroups} groups
-                  (~{Math.ceil((allPlayers?.length || 0) / numGroups)} per group)
+                  {allPlayers?.length || 0} players will be distributed across {numGroups} matches
+                  (~{Math.ceil((allPlayers?.length || 0) / numGroups)} per match)
                 </p>
               </>
             )}
@@ -556,7 +677,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
           <DialogHeader>
             <DialogTitle>Copy from Previous</DialogTitle>
             <DialogDescription>
-              Copy group assignments from a previous session
+              Copy match assignments from a previous session
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-2 max-h-60 overflow-y-auto">
@@ -594,7 +715,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
               disabled={!selectedPreviousEventId || copyFromPreviousMutation.isPending}
             >
               {copyFromPreviousMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Copy Groups
+              Copy Matches
             </Button>
           </DialogFooter>
         </DialogContent>
