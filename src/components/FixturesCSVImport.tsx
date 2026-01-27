@@ -609,18 +609,16 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
                 )}
               </div>
 
-              {file && (
-                <div className="flex gap-2 pt-2">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={downloadTemplate}>
-                    <Download className="h-3.5 w-3.5 mr-1.5" />
-                    CSV Template
-                  </Button>
-                  <Button variant="outline" size="sm" className="flex-1" onClick={downloadExcelTemplate}>
-                    <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />
-                    Excel Template
-                  </Button>
-                </div>
-              )}
+              <div className="flex gap-2 pt-2">
+                <Button variant="outline" size="sm" className="flex-1" onClick={downloadTemplate}>
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  CSV
+                </Button>
+                <Button variant="outline" size="sm" className="flex-1" onClick={downloadExcelTemplate}>
+                  <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />
+                  Excel
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </CollapsibleContent>
