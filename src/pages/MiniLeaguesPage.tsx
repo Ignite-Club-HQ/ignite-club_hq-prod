@@ -172,12 +172,11 @@ export default function MiniLeaguesPage() {
         {clubIdFromUrl && (
           <Button 
             variant="ghost" 
-            size="sm" 
-            className="mb-2 -ml-2 text-muted-foreground"
+            size="icon"
+            className="mb-2 -ml-2"
             onClick={() => navigate(`/clubs/${clubIdFromUrl}`)}
           >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Back to Club
+            <ArrowLeft className="h-5 w-5" />
           </Button>
         )}
         <div className="flex items-start justify-between gap-4">
