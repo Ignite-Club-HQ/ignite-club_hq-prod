@@ -1020,6 +1020,140 @@ export type Database = {
           },
         ]
       }
+      event_group_duties: {
+        Row: {
+          assigned_to: string | null
+          created_at: string
+          group_id: string
+          id: string
+          name: string
+          points: number | null
+          points_awarded: boolean | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string
+          group_id: string
+          id?: string
+          name: string
+          points?: number | null
+          points_awarded?: boolean | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string
+          group_id?: string
+          id?: string
+          name?: string
+          points?: number | null
+          points_awarded?: boolean | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_group_duties_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_group_duties_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_group_players: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          player_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          player_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          player_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_group_players_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_group_players_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "mini_league_players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_groups: {
+        Row: {
+          ability_band: string | null
+          created_at: string
+          display_order: number | null
+          event_id: string
+          id: string
+          name: string
+          pitch_name: string | null
+          pitch_state: Json | null
+          timer_state: Json | null
+          updated_at: string
+        }
+        Insert: {
+          ability_band?: string | null
+          created_at?: string
+          display_order?: number | null
+          event_id: string
+          id?: string
+          name: string
+          pitch_name?: string | null
+          pitch_state?: Json | null
+          timer_state?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          ability_band?: string | null
+          created_at?: string
+          display_order?: number | null
+          event_id?: string
+          id?: string
+          name?: string
+          pitch_name?: string | null
+          pitch_state?: Json | null
+          timer_state?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_groups_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_payments: {
         Row: {
           amount: number
@@ -1122,6 +1256,7 @@ export type Database = {
           location: string | null
           location_name: string | null
           meet_time: string | null
+          mini_league_id: string | null
           opponent: string | null
           parent_event_id: string | null
           player_of_match: string | null
@@ -1158,6 +1293,7 @@ export type Database = {
           location?: string | null
           location_name?: string | null
           meet_time?: string | null
+          mini_league_id?: string | null
           opponent?: string | null
           parent_event_id?: string | null
           player_of_match?: string | null
@@ -1194,6 +1330,7 @@ export type Database = {
           location?: string | null
           location_name?: string | null
           meet_time?: string | null
+          mini_league_id?: string | null
           opponent?: string | null
           parent_event_id?: string | null
           player_of_match?: string | null
@@ -1218,6 +1355,13 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_mini_league_id_fkey"
+            columns: ["mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
             referencedColumns: ["id"]
           },
           {
