@@ -53,6 +53,17 @@ interface MiniLeaguePlayer {
   parent_user_id: string | null;
 }
 
+const getAbilityLabel = (rating: number): string => {
+  switch (rating) {
+    case 1: return "Beginner";
+    case 2: return "Developing";
+    case 3: return "Intermediate";
+    case 4: return "Advanced";
+    case 5: return "Expert";
+    default: return "Unknown";
+  }
+};
+
 interface GroupPlayer {
   id: string;
   name: string;
@@ -550,7 +561,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
                             style={{ backgroundColor: `${group.team_a_color}20`, borderColor: group.team_a_color }}
                           >
                             {player.name}
-                            <span className="opacity-60 text-[10px]">({player.ability_rating})</span>
+                            <span className="opacity-60 text-[10px]">({getAbilityLabel(player.ability_rating)})</span>
                           </Badge>
                         ))}
                         {teamAPlayers.length === 0 && (
@@ -577,7 +588,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
                             style={{ backgroundColor: `${group.team_b_color}20`, borderColor: group.team_b_color }}
                           >
                             {player.name}
-                            <span className="opacity-60 text-[10px]">({player.ability_rating})</span>
+                            <span className="opacity-60 text-[10px]">({getAbilityLabel(player.ability_rating)})</span>
                           </Badge>
                         ))}
                         {teamBPlayers.length === 0 && (
