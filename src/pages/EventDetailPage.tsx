@@ -1676,6 +1676,20 @@ export default function EventDetailPage() {
         })()}
       </section>
 
+      {/* Mini League Breakout Groups (only for mini league events) */}
+      {event.mini_league_id && (
+        <>
+          <Separator />
+          <section className="space-y-3">
+            <EventGroupsManager
+              eventId={id!}
+              miniLeagueId={event.mini_league_id}
+              isAdmin={isAdmin || isAppAdmin || false}
+            />
+          </section>
+        </>
+      )}
+
       {/* Player of Match Section (only for games) */}
       {event.type === "game" && event.team_id && (
         <>
