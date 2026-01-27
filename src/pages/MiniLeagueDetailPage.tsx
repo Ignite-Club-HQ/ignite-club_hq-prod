@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, isToday, isFuture, parseISO } from "date-fns";
 import { 
   ArrowLeft, Users, Calendar, Plus, Settings, Trash2, Loader2, 
-  ChevronRight, Clock, MapPin, Star, Pencil, Camera, ImageIcon, CheckSquare, Square
+  ChevronRight, Clock, MapPin, Star, Pencil, Camera, ImageIcon, CheckSquare, Square, UsersRound
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -69,6 +69,7 @@ export default function MiniLeagueDetailPage() {
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
+  const [editTeamSize, setEditTeamSize] = useState<number>(4);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
@@ -185,7 +186,8 @@ export default function MiniLeagueDetailPage() {
         .update({ 
           name: editName.trim(), 
           description: editDescription.trim() || null,
-          logo_url: editLogoUrl
+          logo_url: editLogoUrl,
+          team_size: editTeamSize
         })
         .eq("id", id!);
       if (error) throw error;
@@ -288,6 +290,7 @@ export default function MiniLeagueDetailPage() {
       setEditName(league.name);
       setEditDescription(league.description || "");
       setEditLogoUrl(league.logo_url || null);
+      setEditTeamSize(league.team_size || 4);
       setSettingsOpen(true);
     }
   };
@@ -737,6 +740,29 @@ export default function MiniLeagueDetailPage() {
                 placeholder="Optional description"
                 rows={3}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="team-size">Default Players Per Side</Label>
+              <div className="flex items-center gap-3">
+                <UsersRound className="h-5 w-5 text-muted-foreground" />
+                <div className="flex items-center gap-2">
+                  {[4, 5, 6, 7, 8].map((size) => (
+                    <Button
+                      key={size}
+                      type="button"
+                      variant={editTeamSize === size ? "default" : "outline"}
+                      size="sm"
+                      className="w-10 h-10"
+                      onClick={() => setEditTeamSize(size)}
+                    >
+                      {size}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Used for auto-generating balanced teams during sessions
+              </p>
             </div>
           </div>
 
