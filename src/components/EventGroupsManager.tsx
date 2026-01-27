@@ -81,6 +81,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
   const [numGroups, setNumGroups] = useState(2);
   const [playersPerTeam, setPlayersPerTeam] = useState(6);
   const [useAutoMode, setUseAutoMode] = useState(true);
+  const [abilityMode, setAbilityMode] = useState<"similar" | "mixed">("similar");
   const [selectedPreviousEventId, setSelectedPreviousEventId] = useState<string | null>(null);
 
   // Fetch event groups
@@ -222,24 +223,28 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
         throw new Error("Not enough players for matches");
       }
 
-      // Sort by ability rating (already sorted)
+      // Sort by ability rating (already sorted desc)
       const sortedPlayers = [...allPlayers];
       
       // Create matches with balanced ability using league's bib colors
       const leagueColors = miniLeague?.bib_colors || DEFAULT_BIB_COLORS;
       const matchNames = ["Match 1", "Match 2", "Match 3", "Match 4", "Match 5", "Match 6", "Match 7", "Match 8"];
-      const abilityBands = ["High", "Medium", "Low"];
       
       // Create the matches first
       const matchIds: string[] = [];
       for (let i = 0; i < effectiveNumMatches; i++) {
         const colors = getMatchColors(i, leagueColors);
+        // For similar ability mode, assign ability bands; for mixed, leave null
+        const abilityBand = abilityMode === "similar" 
+          ? (["High", "Medium", "Low"][Math.floor(i / Math.ceil(effectiveNumMatches / 3))] || null)
+          : null;
+        
         const { data, error } = await supabase
           .from("event_groups")
           .insert({
             event_id: eventId,
             name: matchNames[i] || `Match ${i + 1}`,
-            ability_band: abilityBands[Math.floor(i / Math.ceil(effectiveNumMatches / 3))] || null,
+            ability_band: abilityBand,
             pitch_name: `Pitch ${i + 1}`,
             display_order: i + 1,
             team_a_color: colors.teamA,
@@ -251,25 +256,70 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
         matchIds.push(data.id);
       }
 
-      // Distribute players across matches (snake draft for balance)
-      // Each match gets playersPerMatch players
+      // Distribute players across matches based on ability mode
       const matchPlayers: { playerId: string; team: "a" | "b" }[][] = Array(effectiveNumMatches).fill(null).map(() => []);
       
-      // First pass: assign players to matches
-      sortedPlayers.forEach((player, index) => {
-        const matchIndex = Math.floor(index / playersPerMatch);
-        if (matchIndex >= effectiveNumMatches) return; // Extra players if any
-        matchPlayers[matchIndex].push({ playerId: player.id, team: "a" }); // Temporarily assign to team a
-      });
+      if (abilityMode === "similar") {
+        // Similar ability mode: consecutive players (by rating) go to same match
+        // Players are already sorted by ability desc, so first N go to match 1, next N to match 2, etc.
+        sortedPlayers.forEach((player, index) => {
+          const matchIndex = Math.floor(index / playersPerMatch);
+          if (matchIndex >= effectiveNumMatches) return;
+          matchPlayers[matchIndex].push({ playerId: player.id, team: "a" });
+        });
+      } else {
+        // Mixed ability mode: snake draft across matches for even distribution
+        // Round 1: Match 0, 1, 2, 3...
+        // Round 2: Match 3, 2, 1, 0... (reverse)
+        // This ensures each match gets a mix of high, medium, low ability players
+        let forward = true;
+        let matchIndex = 0;
+        
+        sortedPlayers.forEach((player) => {
+          // Find next match that has room
+          let attempts = 0;
+          while (matchPlayers[matchIndex].length >= playersPerMatch && attempts < effectiveNumMatches) {
+            if (forward) {
+              matchIndex++;
+              if (matchIndex >= effectiveNumMatches) {
+                matchIndex = effectiveNumMatches - 1;
+                forward = false;
+              }
+            } else {
+              matchIndex--;
+              if (matchIndex < 0) {
+                matchIndex = 0;
+                forward = true;
+              }
+            }
+            attempts++;
+          }
+          
+          if (matchPlayers[matchIndex].length < playersPerMatch) {
+            matchPlayers[matchIndex].push({ playerId: player.id, team: "a" });
+          }
+          
+          // Move to next match in snake pattern
+          if (forward) {
+            matchIndex++;
+            if (matchIndex >= effectiveNumMatches) {
+              matchIndex = effectiveNumMatches - 1;
+              forward = false;
+            }
+          } else {
+            matchIndex--;
+            if (matchIndex < 0) {
+              matchIndex = 0;
+              forward = true;
+            }
+          }
+        });
+      }
       
-      // Second pass: balance teams within each match
-      // For the last match (or any match with shortfall), split players evenly
+      // Balance teams within each match - split players evenly between Team A and B
       matchPlayers.forEach((players) => {
         const totalPlayers = players.length;
-        // Split evenly: if 6 players, 3 each; if 7 players, 4 in A, 3 in B
         const teamASize = Math.ceil(totalPlayers / 2);
-        
-        // Assign first half to team A, second half to team B
         players.forEach((p, idx) => {
           p.team = idx < teamASize ? "a" : "b";
         });
@@ -599,6 +649,40 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
               >
                 {useAutoMode ? "Auto" : "Manual"}
               </Button>
+            </div>
+
+            {/* Ability Assignment Mode */}
+            <div className="space-y-2">
+              <Label>Ability Assignment</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant={abilityMode === "similar" ? "default" : "outline"}
+                  size="sm"
+                  className="flex flex-col h-auto py-3"
+                  onClick={() => setAbilityMode("similar")}
+                >
+                  <span className="font-medium">Similar Ability</span>
+                  <span className="text-xs text-muted-foreground font-normal mt-0.5">
+                    Same levels together
+                  </span>
+                </Button>
+                <Button
+                  variant={abilityMode === "mixed" ? "default" : "outline"}
+                  size="sm"
+                  className="flex flex-col h-auto py-3"
+                  onClick={() => setAbilityMode("mixed")}
+                >
+                  <span className="font-medium">Mixed Ability</span>
+                  <span className="text-xs text-muted-foreground font-normal mt-0.5">
+                    Different levels mixed
+                  </span>
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {abilityMode === "similar" 
+                  ? "Players with similar ratings will be grouped in the same match"
+                  : "Players of different abilities will be evenly distributed across matches"}
+              </p>
             </div>
 
             {useAutoMode ? (
