@@ -389,6 +389,48 @@ export type Database = {
           },
         ]
       }
+      child_mini_league_assignments: {
+        Row: {
+          ability_rating: number
+          child_id: string
+          created_at: string
+          id: string
+          mini_league_id: string
+          notes: string | null
+        }
+        Insert: {
+          ability_rating?: number
+          child_id: string
+          created_at?: string
+          id?: string
+          mini_league_id: string
+          notes?: string | null
+        }
+        Update: {
+          ability_rating?: number
+          child_id?: string
+          created_at?: string
+          id?: string
+          mini_league_id?: string
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "child_mini_league_assignments_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "child_mini_league_assignments_mini_league_id_fkey"
+            columns: ["mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       child_team_assignments: {
         Row: {
           child_id: string
