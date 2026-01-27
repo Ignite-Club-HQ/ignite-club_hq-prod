@@ -1827,6 +1827,57 @@ export type Database = {
           },
         ]
       }
+      mini_league_group_duties: {
+        Row: {
+          assigned_to: string | null
+          created_at: string
+          group_id: string
+          id: string
+          name: string
+          points: number | null
+          points_awarded: boolean | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string
+          group_id: string
+          id?: string
+          name: string
+          points?: number | null
+          points_awarded?: boolean | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string
+          group_id?: string
+          id?: string
+          name?: string
+          points?: number | null
+          points_awarded?: boolean | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mini_league_group_duties_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mini_league_group_duties_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "mini_league_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mini_league_group_players: {
         Row: {
           created_at: string
@@ -1872,10 +1923,13 @@ export type Database = {
           created_at: string
           display_order: number
           id: string
+          linked_event_id: string | null
           name: string
           pitch_name: string | null
+          pitch_state: Json | null
           session_id: string
           target_size: number
+          timer_state: Json | null
           updated_at: string
         }
         Insert: {
@@ -1883,10 +1937,13 @@ export type Database = {
           created_at?: string
           display_order?: number
           id?: string
+          linked_event_id?: string | null
           name: string
           pitch_name?: string | null
+          pitch_state?: Json | null
           session_id: string
           target_size?: number
+          timer_state?: Json | null
           updated_at?: string
         }
         Update: {
@@ -1894,13 +1951,23 @@ export type Database = {
           created_at?: string
           display_order?: number
           id?: string
+          linked_event_id?: string | null
           name?: string
           pitch_name?: string | null
+          pitch_state?: Json | null
           session_id?: string
           target_size?: number
+          timer_state?: Json | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "mini_league_groups_linked_event_id_fkey"
+            columns: ["linked_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "mini_league_groups_session_id_fkey"
             columns: ["session_id"]
