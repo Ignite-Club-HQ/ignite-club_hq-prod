@@ -74,9 +74,6 @@ const AttendanceStatsPage = lazy(() => import("./pages/AttendanceStatsPage"));
 const PushAnalyticsPage = lazy(() => import("./pages/PushAnalyticsPage"));
 const MiniLeaguesPage = lazy(() => import("./pages/MiniLeaguesPage"));
 const MiniLeagueDetailPage = lazy(() => import("./pages/MiniLeagueDetailPage"));
-const MiniLeagueSessionPage = lazy(() => import("./pages/MiniLeagueSessionPage"));
-const CreateMiniLeagueSessionPage = lazy(() => import("./pages/CreateMiniLeagueSessionPage"));
-const MiniLeagueGroupPitchPage = lazy(() => import("./pages/MiniLeagueGroupPitchPage"));
 const EventGroupPitchPage = lazy(() => import("./pages/EventGroupPitchPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -165,9 +162,6 @@ const App = () => (
                   <Route path="/admin/push-analytics" element={<PushAnalyticsPage />} />
                   <Route path="/mini-leagues" element={<MiniLeaguesPage />} />
                   <Route path="/mini-leagues/:id" element={<MiniLeagueDetailPage />} />
-                  <Route path="/mini-leagues/:id/sessions/new" element={<CreateMiniLeagueSessionPage />} />
-                  <Route path="/mini-leagues/:id/sessions/:sessionId" element={<MiniLeagueSessionPage />} />
-                  <Route path="/mini-leagues/:id/sessions/:sessionId/groups/:groupId/pitch" element={<MiniLeagueGroupPitchPage />} />
                 </Route>
                 
                 <Route path="*" element={<NotFound />} />
