@@ -472,14 +472,14 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
 
               {/* Members preview */}
               {parsedMembers.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
+                <div className="flex-1 flex flex-col min-h-0 space-y-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <Users className="h-4 w-4 text-primary" />
                     <p className="text-sm font-medium">
                       {parsedMembers.length} member{parsedMembers.length !== 1 ? 's' : ''} found
                     </p>
                   </div>
-                  <ScrollArea className="h-[200px] rounded-lg border">
+                  <ScrollArea className="flex-1 min-h-0 rounded-lg border">
                     <div className="p-2 space-y-1">
                       {parsedMembers.map((member) => (
                         <div 
