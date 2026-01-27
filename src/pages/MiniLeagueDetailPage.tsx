@@ -12,12 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
 import { toast } from "sonner";
 
 interface MiniLeaguePlayer {
@@ -44,8 +40,6 @@ export default function MiniLeagueDetailPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("sessions");
-  const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
-  const [newPlayer, setNewPlayer] = useState({ name: "", ability_rating: "3", notes: "" });
 
   // Fetch mini league details
   const { data: league, isLoading: leagueLoading } = useQuery({
@@ -92,26 +86,6 @@ export default function MiniLeagueDetailPage() {
     enabled: !!id,
   });
 
-  // Add player mutation
-  const addPlayerMutation = useMutation({
-    mutationFn: async (data: typeof newPlayer) => {
-      const { error } = await supabase.from("mini_league_players").insert({
-        mini_league_id: id!,
-        name: data.name,
-        ability_rating: parseInt(data.ability_rating),
-        notes: data.notes || null,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["mini-league-players", id] });
-      setIsAddPlayerOpen(false);
-      setNewPlayer({ name: "", ability_rating: "3", notes: "" });
-      toast.success("Player added!");
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
   // Delete player mutation
   const deletePlayerMutation = useMutation({
     mutationFn: async (playerId: string) => {
@@ -124,14 +98,6 @@ export default function MiniLeagueDetailPage() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
-
-  const handleAddPlayer = () => {
-    if (!newPlayer.name.trim()) {
-      toast.error("Player name is required");
-      return;
-    }
-    addPlayerMutation.mutate(newPlayer);
-  };
 
   const getAbilityLabel = (rating: number) => {
     const labels = ["", "Beginner", "Developing", "Intermediate", "Advanced", "Expert"];
@@ -328,67 +294,11 @@ export default function MiniLeagueDetailPage() {
         <TabsContent value="players" className="space-y-4 mt-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold">Player Pool</h2>
-            <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Player
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add Player</DialogTitle>
-                  <DialogDescription>
-                    Add a new player to the pool
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label>Player Name *</Label>
-                    <Input
-                      placeholder="e.g. John Smith"
-                      value={newPlayer.name}
-                      onChange={(e) => setNewPlayer({ ...newPlayer, name: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Ability Rating</Label>
-                    <Select 
-                      value={newPlayer.ability_rating} 
-                      onValueChange={(v) => setNewPlayer({ ...newPlayer, ability_rating: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1 - Beginner</SelectItem>
-                        <SelectItem value="2">2 - Developing</SelectItem>
-                        <SelectItem value="3">3 - Intermediate</SelectItem>
-                        <SelectItem value="4">4 - Advanced</SelectItem>
-                        <SelectItem value="5">5 - Expert</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Notes</Label>
-                    <Textarea
-                      placeholder="Optional notes..."
-                      value={newPlayer.notes}
-                      onChange={(e) => setNewPlayer({ ...newPlayer, notes: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAddPlayerOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddPlayer} disabled={addPlayerMutation.isPending}>
-                    {addPlayerMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Add Player
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <AddMiniLeagueMemberSheet
+              miniLeagueId={id!}
+              miniLeagueName={league.name}
+              clubId={league.club_id}
+            />
           </div>
 
           {playersLoading ? (
