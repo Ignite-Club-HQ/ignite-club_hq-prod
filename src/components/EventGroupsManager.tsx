@@ -58,6 +58,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
   const [newGroupName, setNewGroupName] = useState("");
   const [newPitchName, setNewPitchName] = useState("");
   const [numGroups, setNumGroups] = useState(2);
+  const [playersPerTeam, setPlayersPerTeam] = useState(6);
+  const [useAutoMode, setUseAutoMode] = useState(true);
   const [selectedPreviousEventId, setSelectedPreviousEventId] = useState<string | null>(null);
 
   // Fetch event groups
@@ -98,6 +100,21 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       return groupsWithPlayers;
     },
     enabled: !!eventId,
+  });
+
+  // Fetch mini league settings
+  const { data: miniLeague } = useQuery({
+    queryKey: ["mini-league-settings", miniLeagueId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mini_leagues")
+        .select("id, name, team_size")
+        .eq("id", miniLeagueId)
+        .single();
+      if (error) throw error;
+      return data as { id: string; name: string; team_size: number };
+    },
+    enabled: !!miniLeagueId,
   });
 
   // Fetch mini league players for auto-generation
@@ -160,22 +177,34 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
         throw new Error("No players in this mini league");
       }
 
+      // Calculate number of groups based on mode
+      const effectivePlayersPerTeam = useAutoMode && miniLeague?.team_size 
+        ? miniLeague.team_size 
+        : playersPerTeam;
+      const effectiveNumGroups = useAutoMode 
+        ? Math.ceil(allPlayers.length / effectivePlayersPerTeam)
+        : numGroups;
+
+      if (effectiveNumGroups < 1) {
+        throw new Error("Not enough players for groups");
+      }
+
       // Sort by ability rating (already sorted)
       const sortedPlayers = [...allPlayers];
       
       // Create groups with balanced ability
-      const groupNames = ["Group A", "Group B", "Group C", "Group D", "Group E", "Group F"];
+      const groupNames = ["Group A", "Group B", "Group C", "Group D", "Group E", "Group F", "Group G", "Group H"];
       const abilityBands = ["High", "Medium", "Low"];
       
       // Create the groups first
       const groupIds: string[] = [];
-      for (let i = 0; i < numGroups; i++) {
+      for (let i = 0; i < effectiveNumGroups; i++) {
         const { data, error } = await supabase
           .from("event_groups")
           .insert({
             event_id: eventId,
             name: groupNames[i] || `Group ${i + 1}`,
-            ability_band: abilityBands[Math.floor(i / Math.ceil(numGroups / 3))] || null,
+            ability_band: abilityBands[Math.floor(i / Math.ceil(effectiveNumGroups / 3))] || null,
             pitch_name: `Pitch ${i + 1}`,
             display_order: i + 1,
           })
@@ -186,17 +215,17 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       }
 
       // Distribute players across groups (snake draft for balance)
-      const playerGroups: string[][] = Array(numGroups).fill(null).map(() => []);
+      const playerGroups: string[][] = Array(effectiveNumGroups).fill(null).map(() => []);
       sortedPlayers.forEach((player, index) => {
-        const round = Math.floor(index / numGroups);
+        const round = Math.floor(index / effectiveNumGroups);
         const groupIndex = round % 2 === 0 
-          ? index % numGroups 
-          : numGroups - 1 - (index % numGroups);
+          ? index % effectiveNumGroups 
+          : effectiveNumGroups - 1 - (index % effectiveNumGroups);
         playerGroups[groupIndex].push(player.id);
       });
 
       // Insert player assignments
-      for (let i = 0; i < numGroups; i++) {
+      for (let i = 0; i < effectiveNumGroups; i++) {
         if (playerGroups[i].length > 0) {
           const assignments = playerGroups[i].map(playerId => ({
             group_id: groupIds[i],
@@ -205,11 +234,13 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
           await supabase.from("event_group_players").insert(assignments);
         }
       }
+
+      return effectiveNumGroups;
     },
-    onSuccess: () => {
+    onSuccess: (numCreated) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       setIsAutoGenOpen(false);
-      toast.success(`${numGroups} groups created with balanced players`);
+      toast.success(`${numCreated} groups created with balanced players`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -435,25 +466,74 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
-            <div className="space-y-2">
-              <Label>Number of Groups</Label>
-              <div className="flex gap-2">
-                {[2, 3, 4, 5, 6].map((n) => (
-                  <Button
-                    key={n}
-                    variant={numGroups === n ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setNumGroups(n)}
-                  >
-                    {n}
-                  </Button>
-                ))}
+            {/* Auto Mode Toggle */}
+            <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+              <div>
+                <p className="font-medium text-sm">Use League Defaults</p>
+                <p className="text-xs text-muted-foreground">
+                  {miniLeague?.team_size || 6} players per team
+                </p>
               </div>
+              <Button
+                variant={useAutoMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => setUseAutoMode(!useAutoMode)}
+              >
+                {useAutoMode ? "Auto" : "Manual"}
+              </Button>
             </div>
-            <p className="text-sm text-muted-foreground">
-              {allPlayers?.length || 0} players will be distributed across {numGroups} groups
-              (~{Math.ceil((allPlayers?.length || 0) / numGroups)} per group)
-            </p>
+
+            {useAutoMode ? (
+              <div className="p-3 rounded-lg border bg-primary/5">
+                <p className="text-sm">
+                  <span className="font-medium">{allPlayers?.length || 0}</span> players ÷{" "}
+                  <span className="font-medium">{miniLeague?.team_size || 6}</span> per team ={" "}
+                  <span className="font-medium">
+                    {Math.ceil((allPlayers?.length || 0) / (miniLeague?.team_size || 6))}
+                  </span>{" "}
+                  groups
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>Players per Team</Label>
+                  <div className="flex gap-2">
+                    {[4, 5, 6, 7, 8].map((n) => (
+                      <Button
+                        key={n}
+                        variant={playersPerTeam === n ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setPlayersPerTeam(n)}
+                      >
+                        {n}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Number of Groups</Label>
+                  <div className="flex gap-2 flex-wrap">
+                    {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+                      <Button
+                        key={n}
+                        variant={numGroups === n ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setNumGroups(n)}
+                      >
+                        {n}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="text-sm text-muted-foreground">
+                  {allPlayers?.length || 0} players will be distributed across {numGroups} groups
+                  (~{Math.ceil((allPlayers?.length || 0) / numGroups)} per group)
+                </p>
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAutoGenOpen(false)}>
