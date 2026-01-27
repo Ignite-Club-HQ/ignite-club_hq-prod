@@ -120,7 +120,14 @@ export function MemberCSVImportDialog({
       const name = values[0]?.trim();
       const email = values[1]?.trim() || "";
       const roleFromCsv = values[2]?.trim().toLowerCase() || "";
-      const childrenStr = values[3]?.trim() || "";
+      
+      // Parse children from separate columns: child1_name, child1_yob, child2_name, child2_yob, child3_name, child3_yob
+      const child1Name = values[3]?.trim() || "";
+      const child1Yob = values[4]?.trim() || "";
+      const child2Name = values[5]?.trim() || "";
+      const child2Yob = values[6]?.trim() || "";
+      const child3Name = values[7]?.trim() || "";
+      const child3Yob = values[8]?.trim() || "";
 
       if (!name) {
         errors.push({ row: rowNum, message: "Name is required" });
@@ -149,20 +156,35 @@ export function MemberCSVImportDialog({
         }
       }
 
-      // Parse children (semicolon-separated list, optionally with year of birth in parentheses)
-      // Format: "ChildName (2015); ChildName2 (2018)" or just "ChildName; ChildName2"
-      const children: { name: string; yearOfBirth: number | null }[] = childrenStr
-        ? childrenStr.split(';').map(c => {
-            const trimmed = c.trim();
-            if (!trimmed) return null;
-            // Check for year of birth in parentheses, e.g., "Tommy (2015)"
-            const match = trimmed.match(/^(.+?)\s*\((\d{4})\)$/);
-            if (match) {
-              return { name: match[1].trim(), yearOfBirth: parseInt(match[2]) };
-            }
-            return { name: trimmed, yearOfBirth: null };
-          }).filter((c): c is { name: string; yearOfBirth: number | null } => c !== null && c.name.length > 0)
-        : [];
+      // Build children array from separate columns
+      const children: { name: string; yearOfBirth: number | null }[] = [];
+      
+      if (child1Name) {
+        const yob = child1Yob ? parseInt(child1Yob) : null;
+        if (child1Yob && (isNaN(yob!) || yob! < 1900 || yob! > new Date().getFullYear())) {
+          errors.push({ row: rowNum, message: `Invalid year of birth for child 1: "${child1Yob}"` });
+          continue;
+        }
+        children.push({ name: child1Name, yearOfBirth: yob });
+      }
+      
+      if (child2Name) {
+        const yob = child2Yob ? parseInt(child2Yob) : null;
+        if (child2Yob && (isNaN(yob!) || yob! < 1900 || yob! > new Date().getFullYear())) {
+          errors.push({ row: rowNum, message: `Invalid year of birth for child 2: "${child2Yob}"` });
+          continue;
+        }
+        children.push({ name: child2Name, yearOfBirth: yob });
+      }
+      
+      if (child3Name) {
+        const yob = child3Yob ? parseInt(child3Yob) : null;
+        if (child3Yob && (isNaN(yob!) || yob! < 1900 || yob! > new Date().getFullYear())) {
+          errors.push({ row: rowNum, message: `Invalid year of birth for child 3: "${child3Yob}"` });
+          continue;
+        }
+        children.push({ name: child3Name, yearOfBirth: yob });
+      }
 
       // Warn if children specified for non-parent role
       if (children.length > 0 && role !== 'parent') {
@@ -281,13 +303,13 @@ export function MemberCSVImportDialog({
   };
 
   const downloadTemplate = () => {
-    const csvContent = `name,email,role,children
-John Smith,john@example.com,player,
-Jane Doe,jane@example.com,parent,Tommy (2016);Sally (2018)
-Mike Coach,mike@example.com,coach,
-Sarah Admin,sarah@example.com,team_admin,
-Bob Parent,bob@example.com,parent,Jimmy (2015)
-Lisa Guardian,,parent,Emma (2017)`;
+    const csvContent = `name,email,role,child1_name,child1_yob,child2_name,child2_yob,child3_name,child3_yob
+John Smith,john@example.com,player,,,,,,
+Jane Doe,jane@example.com,parent,Tommy,2016,Sally,2018,,
+Mike Coach,mike@example.com,coach,,,,,,
+Bob Parent,bob@example.com,parent,Jimmy,2015,,,,
+Lisa Guardian,,parent,Emma,2017,Jack,2019,Lily,2020
+Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -344,16 +366,23 @@ Lisa Guardian,,parent,Emma (2017)`;
                         <Badge className="text-xs">name</Badge>
                         <Badge variant="secondary" className="text-xs">email</Badge>
                         <Badge variant="secondary" className="text-xs">role</Badge>
-                        <Badge variant="secondary" className="text-xs">children</Badge>
+                        <Badge variant="secondary" className="text-xs">child1_name</Badge>
+                        <Badge variant="secondary" className="text-xs">child1_yob</Badge>
+                        <Badge variant="secondary" className="text-xs">child2_name</Badge>
+                        <Badge variant="secondary" className="text-xs">child2_yob</Badge>
+                        <Badge variant="secondary" className="text-xs">child3_name</Badge>
+                        <Badge variant="secondary" className="text-xs">child3_yob</Badge>
                       </div>
                     </div>
                     
                     <div className="text-xs text-muted-foreground space-y-1">
-                      <p><strong>name:</strong> Required - member's full name</p>
+                      <p><strong>name:</strong> Required - parent/member's full name</p>
                       <p><strong>email:</strong> Optional - for sending invites</p>
                       <p><strong>role:</strong> Optional - player, parent, coach, or team_admin</p>
-                      <p><strong>children:</strong> For parents only - semicolon-separated list with optional birth year</p>
-                      <p className="text-primary/80 pl-2">Example: Tommy (2016);Sally (2018)</p>
+                      <p><strong>child1_name, child1_yob:</strong> First child's name and year of birth</p>
+                      <p><strong>child2_name, child2_yob:</strong> Second child (optional)</p>
+                      <p><strong>child3_name, child3_yob:</strong> Third child (optional)</p>
+                      <p className="text-primary/80 mt-1">💡 Multiple parents can reference the same child by using identical name + year of birth</p>
                     </div>
                   </div>
 

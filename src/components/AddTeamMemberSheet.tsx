@@ -996,13 +996,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   variant="outline"
                   className="flex-1"
                   onClick={() => {
-                    const csvContent = `name,email,role,children
-John Smith,john@example.com,player,
-Jane Doe,jane@example.com,parent,Tommy (2016);Sally (2018)
-Mike Coach,mike@example.com,coach,
-Sarah Admin,sarah@example.com,team_admin,
-Bob Parent,bob@example.com,parent,Jimmy (2015)
-Lisa Guardian,,parent,Emma (2017)`;
+                    const csvContent = `name,email,role,child1_name,child1_yob,child2_name,child2_yob,child3_name,child3_yob
+John Smith,john@example.com,player,,,,,,
+Jane Doe,jane@example.com,parent,Tommy,2016,Sally,2018,,
+Mike Coach,mike@example.com,coach,,,,,,
+Bob Parent,bob@example.com,parent,Jimmy,2015,,,,
+Lisa Guardian,,parent,Emma,2017,Jack,2019,Lily,2020
+Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
                     const blob = new Blob([csvContent], { type: 'text/csv' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
