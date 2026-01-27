@@ -51,6 +51,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { format, parseISO } from "date-fns";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { EventSponsorsSection } from "@/components/EventSponsorsSection";
+import { EventGroupsManager } from "@/components/EventGroupsManager";
 
 // Lazy load PitchBoard for game events
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));

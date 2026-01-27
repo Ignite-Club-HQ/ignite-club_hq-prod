@@ -77,6 +77,7 @@ const MiniLeagueDetailPage = lazy(() => import("./pages/MiniLeagueDetailPage"));
 const MiniLeagueSessionPage = lazy(() => import("./pages/MiniLeagueSessionPage"));
 const CreateMiniLeagueSessionPage = lazy(() => import("./pages/CreateMiniLeagueSessionPage"));
 const MiniLeagueGroupPitchPage = lazy(() => import("./pages/MiniLeagueGroupPitchPage"));
+const EventGroupPitchPage = lazy(() => import("./pages/EventGroupPitchPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -122,6 +123,8 @@ const App = () => (
                   <Route path="/events/import" element={<ImportFixturesPage />} />
                   <Route path="/events/:id" element={<EventDetailPage />} />
                   <Route path="/events/:id/edit" element={<EditEventPage />} />
+                  <Route path="/events/:id/groups/:groupId/pitch" element={<EventGroupPitchPage />} />
+                  <Route path="/events/:id/groups/:groupId/duties" element={<EventGroupPitchPage />} />
                   <Route path="/clubs" element={<ClubsPage />} />
                   <Route path="/clubs/new" element={<CreateClubPage />} />
                   <Route path="/clubs/:id" element={<ClubDetailPage />} />
