@@ -4,13 +4,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, isToday, isFuture, parseISO } from "date-fns";
 import { 
   ArrowLeft, Users, Calendar, Plus, Settings, Trash2, Loader2, 
-  ChevronRight, Clock, MapPin, Star, Pencil, Camera, ImageIcon
+  ChevronRight, Clock, MapPin, Star, Pencil, Camera, ImageIcon, CheckSquare, Square
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -69,6 +70,9 @@ export default function MiniLeagueDetailPage() {
   const [editDescription, setEditDescription] = useState("");
   const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch mini league details
@@ -219,6 +223,49 @@ export default function MiniLeagueDetailPage() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  // Bulk delete players mutation
+  const bulkDeletePlayersMutation = useMutation({
+    mutationFn: async (playerIds: string[]) => {
+      const { error } = await supabase
+        .from("mini_league_players")
+        .delete()
+        .in("id", playerIds);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mini-league-players", id] });
+      setSelectedPlayerIds(new Set());
+      setSelectionMode(false);
+      setBulkDeleteOpen(false);
+      toast.success("Players removed");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const togglePlayerSelection = (playerId: string) => {
+    const newSet = new Set(selectedPlayerIds);
+    if (newSet.has(playerId)) {
+      newSet.delete(playerId);
+    } else {
+      newSet.add(playerId);
+    }
+    setSelectedPlayerIds(newSet);
+  };
+
+  const toggleSelectAll = () => {
+    if (!players) return;
+    if (selectedPlayerIds.size === players.length) {
+      setSelectedPlayerIds(new Set());
+    } else {
+      setSelectedPlayerIds(new Set(players.map(p => p.id)));
+    }
+  };
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedPlayerIds(new Set());
+  };
 
   const getAbilityLabel = (rating: number) => {
     const labels = ["", "Beginner", "Developing", "Intermediate", "Advanced", "Expert"];
@@ -444,14 +491,54 @@ export default function MiniLeagueDetailPage() {
         </TabsContent>
 
         <TabsContent value="players" className="space-y-3 mt-3">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center gap-2">
             <h2 className="text-base font-semibold">Player Pool</h2>
-            <AddMiniLeagueMemberSheet
-              miniLeagueId={id!}
-              miniLeagueName={league.name}
-              clubId={league.club_id}
-            />
+            <div className="flex items-center gap-2">
+              {selectionMode ? (
+                <>
+                  <Button variant="ghost" size="sm" onClick={exitSelectionMode}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={selectedPlayerIds.size === 0}
+                    onClick={() => setBulkDeleteOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    Delete ({selectedPlayerIds.size})
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {(players?.length || 0) > 0 && (
+                    <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
+                      <CheckSquare className="h-4 w-4 mr-1.5" />
+                      Select
+                    </Button>
+                  )}
+                  <AddMiniLeagueMemberSheet
+                    miniLeagueId={id!}
+                    miniLeagueName={league.name}
+                    clubId={league.club_id}
+                  />
+                </>
+              )}
+            </div>
           </div>
+
+          {/* Select All when in selection mode */}
+          {selectionMode && players && players.length > 0 && (
+            <div className="flex items-center gap-2 py-2 px-1 border-b">
+              <Checkbox
+                checked={selectedPlayerIds.size === players.length}
+                onCheckedChange={toggleSelectAll}
+              />
+              <span className="text-sm text-muted-foreground">
+                Select all ({players.length} players)
+              </span>
+            </div>
+          )}
 
           {playersLoading ? (
             <div className="flex justify-center py-6">
@@ -482,10 +569,21 @@ export default function MiniLeagueDetailPage() {
                     </div>
                     <div className="space-y-1.5">
                       {abilityPlayers.map((player) => (
-                        <Card key={player.id} className="overflow-hidden">
+                        <Card 
+                          key={player.id} 
+                          className={`overflow-hidden ${selectionMode && selectedPlayerIds.has(player.id) ? 'ring-2 ring-primary' : ''}`}
+                          onClick={selectionMode ? () => togglePlayerSelection(player.id) : undefined}
+                        >
                           <CardContent className="py-2.5 px-3">
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0">
+                                {selectionMode && (
+                                  <Checkbox
+                                    checked={selectedPlayerIds.has(player.id)}
+                                    onCheckedChange={() => togglePlayerSelection(player.id)}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                )}
                                 <div className="flex items-center gap-0.5 shrink-0">
                                   {Array.from({ length: rating }).map((_, i) => (
                                     <Star key={i} className="h-2.5 w-2.5 fill-primary text-primary" />
@@ -493,33 +591,35 @@ export default function MiniLeagueDetailPage() {
                                 </div>
                                 <span className="text-sm font-medium truncate">{player.name}</span>
                               </div>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-                                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Remove Player?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      This will remove {player.name} from the player pool.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() => deletePlayerMutation.mutate(player.id)}
-                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                    >
-                                      Remove
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
+                              {!selectionMode && (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Remove Player?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This will remove {player.name} from the player pool.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => deletePlayerMutation.mutate(player.id)}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      >
+                                        Remove
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              )}
                             </div>
                             {player.notes && (
-                              <p className="text-xs text-muted-foreground mt-1 pl-[42px] truncate">
+                              <p className={`text-xs text-muted-foreground mt-1 truncate ${selectionMode ? 'pl-[66px]' : 'pl-[42px]'}`}>
                                 {player.notes}
                               </p>
                             )}
@@ -543,6 +643,32 @@ export default function MiniLeagueDetailPage() {
               />
             </div>
           )}
+
+          {/* Bulk Delete Confirmation Dialog */}
+          <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove {selectedPlayerIds.size} Players?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently remove {selectedPlayerIds.size} player{selectedPlayerIds.size !== 1 ? 's' : ''} from the player pool. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => bulkDeletePlayersMutation.mutate(Array.from(selectedPlayerIds))}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={bulkDeletePlayersMutation.isPending}
+                >
+                  {bulkDeletePlayersMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Remove All"
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </TabsContent>
       </Tabs>
 
