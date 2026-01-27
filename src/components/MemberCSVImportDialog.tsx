@@ -286,12 +286,13 @@ John Smith,john@example.com,player,
 Jane Doe,jane@example.com,parent,Tommy (2016);Sally (2018)
 Mike Coach,mike@example.com,coach,
 Sarah Admin,sarah@example.com,team_admin,
-Bob Parent,bob@example.com,parent,Jimmy (2015)`;
+Bob Parent,bob@example.com,parent,Jimmy (2015)
+Lisa Guardian,,parent,Emma (2017)`;
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'members_template.csv';
+    a.download = 'team_members_template.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -347,11 +348,12 @@ Bob Parent,bob@example.com,parent,Jimmy (2015)`;
                       </div>
                     </div>
                     
-                    <div className="text-xs text-muted-foreground">
-                      <p><strong>name:</strong> Required</p>
-                      <p><strong>email:</strong> Optional (for sending invites)</p>
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <p><strong>name:</strong> Required - member's full name</p>
+                      <p><strong>email:</strong> Optional - for sending invites</p>
                       <p><strong>role:</strong> Optional - player, parent, coach, or team_admin</p>
-                      <p><strong>children:</strong> For parents - semicolon-separated, e.g. "Tommy (2016);Sally (2018)"</p>
+                      <p><strong>children:</strong> For parents only - semicolon-separated list with optional birth year</p>
+                      <p className="text-primary/80 pl-2">Example: Tommy (2016);Sally (2018)</p>
                     </div>
                   </div>
 
@@ -373,37 +375,45 @@ Bob Parent,bob@example.com,parent,Jimmy (2015)`;
           />
 
           {!file ? (
-            <Card 
-              className={`border-2 border-dashed transition-all cursor-pointer ${
-                isDragging 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-muted-foreground/25 hover:border-primary/50'
-              }`}
-              onDragEnter={handleDragEnter}
-              onDragLeave={handleDragLeave}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <CardContent className="py-8">
-                <div className="flex flex-col items-center gap-3 text-center">
-                  <div className={`rounded-full p-3 transition-colors ${
-                    isDragging ? 'bg-primary/10' : 'bg-muted'
-                  }`}>
-                    <Upload className={`h-6 w-6 ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} />
+            <div className="space-y-3">
+              {/* Download template button - prominent */}
+              <Button variant="outline" className="w-full" onClick={downloadTemplate}>
+                <Download className="h-4 w-4 mr-2" />
+                Download CSV Template
+              </Button>
+
+              <Card 
+                className={`border-2 border-dashed transition-all cursor-pointer ${
+                  isDragging 
+                    ? 'border-primary bg-primary/5' 
+                    : 'border-muted-foreground/25 hover:border-primary/50'
+                }`}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <CardContent className="py-8">
+                  <div className="flex flex-col items-center gap-3 text-center">
+                    <div className={`rounded-full p-3 transition-colors ${
+                      isDragging ? 'bg-primary/10' : 'bg-muted'
+                    }`}>
+                      <Upload className={`h-6 w-6 ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">
+                        {isDragging ? 'Drop file here' : 'Tap to upload CSV'}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        or drag and drop
+                      </p>
+                    </div>
+                    <Badge variant="secondary">.csv</Badge>
                   </div>
-                  <div>
-                    <p className="font-medium text-sm">
-                      {isDragging ? 'Drop file here' : 'Tap to upload CSV'}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      or drag and drop
-                    </p>
-                  </div>
-                  <Badge variant="secondary">.csv</Badge>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             <div className="space-y-3">
               {/* File info */}
