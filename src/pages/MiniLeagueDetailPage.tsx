@@ -50,7 +50,8 @@ export default function MiniLeagueDetailPage() {
     session_date: "", 
     start_time: "09:00", 
     end_time: "10:00", 
-    location_name: "" 
+    location_name: "",
+    team_size_override: "" // Empty means use league default
   });
 
   // Fetch mini league details
@@ -127,6 +128,7 @@ export default function MiniLeagueDetailPage() {
         start_time: data.start_time,
         end_time: data.end_time || null,
         location_name: data.location_name || null,
+        team_size_override: data.team_size_override ? parseInt(data.team_size_override) : null,
         created_by: user!.id,
       });
       if (error) throw error;
@@ -134,7 +136,7 @@ export default function MiniLeagueDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mini-league-sessions", id] });
       setIsAddSessionOpen(false);
-      setNewSession({ session_date: "", start_time: "09:00", end_time: "10:00", location_name: "" });
+      setNewSession({ session_date: "", start_time: "09:00", end_time: "10:00", location_name: "", team_size_override: "" });
       toast.success("Session created!");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -273,7 +275,7 @@ export default function MiniLeagueDetailPage() {
                   New Session
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>Create Session</DialogTitle>
                   <DialogDescription>
@@ -289,9 +291,9 @@ export default function MiniLeagueDetailPage() {
                       onChange={(e) => setNewSession({ ...newSession, session_date: e.target.value })}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label>Start Time</Label>
+                      <Label>Start</Label>
                       <Input
                         type="time"
                         value={newSession.start_time}
@@ -299,7 +301,7 @@ export default function MiniLeagueDetailPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>End Time</Label>
+                      <Label>End</Label>
                       <Input
                         type="time"
                         value={newSession.end_time}
@@ -315,8 +317,37 @@ export default function MiniLeagueDetailPage() {
                       onChange={(e) => setNewSession({ ...newSession, location_name: e.target.value })}
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label>Players per Side</Label>
+                    <div className="grid grid-cols-5 gap-2">
+                      <Button
+                        type="button"
+                        variant={!newSession.team_size_override ? "default" : "outline"}
+                        size="sm"
+                        className="h-10 text-xs"
+                        onClick={() => setNewSession({ ...newSession, team_size_override: "" })}
+                      >
+                        Default
+                      </Button>
+                      {["4", "5", "6", "7"].map((size) => (
+                        <Button
+                          key={size}
+                          type="button"
+                          variant={newSession.team_size_override === size ? "default" : "outline"}
+                          size="sm"
+                          className="h-10"
+                          onClick={() => setNewSession({ ...newSession, team_size_override: size })}
+                        >
+                          {size}v{size}
+                        </Button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Default: {league.team_size}v{league.team_size} from league settings
+                    </p>
+                  </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="gap-2 sm:gap-0">
                   <Button variant="outline" onClick={() => setIsAddSessionOpen(false)}>
                     Cancel
                   </Button>

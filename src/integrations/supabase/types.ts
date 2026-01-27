@@ -2019,6 +2019,7 @@ export type Database = {
           session_date: string
           start_time: string
           status: string
+          team_size_override: number | null
           updated_at: string
         }
         Insert: {
@@ -2033,6 +2034,7 @@ export type Database = {
           session_date: string
           start_time: string
           status?: string
+          team_size_override?: number | null
           updated_at?: string
         }
         Update: {
@@ -2047,6 +2049,7 @@ export type Database = {
           session_date?: string
           start_time?: string
           status?: string
+          team_size_override?: number | null
           updated_at?: string
         }
         Relationships: [
