@@ -340,8 +340,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
   // Bulk add pending members with invites
   const addBulkMembersMutation = useMutation({
-    mutationFn: async () => {
-      const validMembers = bulkMembers.filter(m => m.name.trim());
+    mutationFn: async (membersToAdd?: BulkMember[]) => {
+      const membersSource = membersToAdd || bulkMembers;
+      const validMembers = membersSource.filter(m => m.name.trim());
       if (validMembers.length === 0) throw new Error("Please enter at least one name");
 
       const results: { name: string; email: string; link: string; sent: boolean; role: string; childrenCount: number }[] = [];
@@ -1034,14 +1035,17 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
                 onOpenChange={setCsvImportOpen}
                 defaultRole={selectedRole}
                 onImport={(members) => {
-                  setBulkMembers(members.map(m => ({
+                  // Convert members to the expected format and auto-trigger invites
+                  const formattedMembers: BulkMember[] = members.map(m => ({
                     ...m,
                     children: m.children.map(child => ({
                       id: crypto.randomUUID(),
                       name: child.name,
                       yearOfBirth: child.yearOfBirth ? String(child.yearOfBirth) : "",
                     })),
-                  })));
+                  }));
+                  // Pass members directly to mutation to avoid state timing issues
+                  addBulkMembersMutation.mutate(formattedMembers);
                 }}
               />
             </div>
@@ -1150,7 +1154,7 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
 
             <Button
               className="w-full h-12 text-base font-semibold"
-              onClick={() => addBulkMembersMutation.mutate()}
+              onClick={() => addBulkMembersMutation.mutate(undefined)}
               disabled={validBulkCount === 0 || addBulkMembersMutation.isPending}
             >
               {addBulkMembersMutation.isPending ? (
