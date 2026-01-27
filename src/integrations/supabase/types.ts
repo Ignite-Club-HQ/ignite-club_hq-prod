@@ -2013,6 +2013,7 @@ export type Database = {
           created_by: string
           end_time: string | null
           id: string
+          linked_event_id: string | null
           location_name: string | null
           mini_league_id: string
           postcode: string | null
@@ -2028,6 +2029,7 @@ export type Database = {
           created_by: string
           end_time?: string | null
           id?: string
+          linked_event_id?: string | null
           location_name?: string | null
           mini_league_id: string
           postcode?: string | null
@@ -2043,6 +2045,7 @@ export type Database = {
           created_by?: string
           end_time?: string | null
           id?: string
+          linked_event_id?: string | null
           location_name?: string | null
           mini_league_id?: string
           postcode?: string | null
@@ -2053,6 +2056,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "mini_league_sessions_linked_event_id_fkey"
+            columns: ["linked_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "mini_league_sessions_mini_league_id_fkey"
             columns: ["mini_league_id"]
@@ -3992,7 +4002,7 @@ export type Database = {
         | "league_admin"
       club_subscription_plan: "starter" | "standard" | "unlimited"
       duty_status: "open" | "completed"
-      event_type: "game" | "training" | "social"
+      event_type: "game" | "training" | "social" | "mini_league"
       feedback_status: "open" | "in_progress" | "resolved"
       role_request_status: "pending" | "approved" | "denied"
       rsvp_status: "going" | "maybe" | "not_going"
@@ -4135,7 +4145,7 @@ export const Constants = {
       ],
       club_subscription_plan: ["starter", "standard", "unlimited"],
       duty_status: ["open", "completed"],
-      event_type: ["game", "training", "social"],
+      event_type: ["game", "training", "social", "mini_league"],
       feedback_status: ["open", "in_progress", "resolved"],
       role_request_status: ["pending", "approved", "denied"],
       rsvp_status: ["going", "maybe", "not_going"],
