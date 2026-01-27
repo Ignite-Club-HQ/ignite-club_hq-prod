@@ -31,6 +31,7 @@ interface FixturesCSVImportProps {
 }
 
 interface ParsedFixture {
+  id: string; // Unique ID for tracking edits
   title: string;
   date: string;
   time: string;
@@ -47,6 +48,27 @@ interface ValidationError {
   row: number;
   message: string;
 }
+
+// Validation helpers
+const isValidDate = (date: string): boolean => {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const parsed = new Date(date);
+  return !isNaN(parsed.getTime());
+};
+
+const isValidTime = (time: string): boolean => {
+  if (!time) return false;
+  const normalized = time.substring(0, 5);
+  if (!/^\d{1,2}:\d{2}$/.test(normalized)) return false;
+  const [hours, minutes] = normalized.split(':').map(Number);
+  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+};
+
+const isFixtureValid = (fixture: ParsedFixture): boolean => {
+  return fixture.title.trim().length > 0 && 
+         isValidDate(fixture.date) && 
+         isValidTime(fixture.time);
+};
 
 const ACCEPTED_FILE_TYPES = ".csv,.xlsx,.xls";
 
@@ -102,46 +124,25 @@ export function FixturesCSVImport({ clubId, teamId, teams = [], onImportComplete
 
       if (!values || values.every(v => !v || v.toString().trim() === '')) continue;
 
-      const title = values[titleIdx]?.toString().trim();
-      let date = values[dateIdx]?.toString().trim();
-      let time = values[timeIdx]?.toString().trim();
+      const title = values[titleIdx]?.toString().trim() || '';
+      let date = values[dateIdx]?.toString().trim() || '';
+      let time = values[timeIdx]?.toString().trim() || '';
 
-      if (!title) {
-        errors.push({ row: rowNum, message: "Title is required" });
-        continue;
-      }
-
-      if (!date) {
-        errors.push({ row: rowNum, message: "Date is required" });
-        continue;
-      }
-
+      // Try to parse Excel date format
       if (typeof values[dateIdx] === 'number') {
         const excelDate = XLSX.SSF.parse_date_code(values[dateIdx]);
         date = `${excelDate.y}-${String(excelDate.m).padStart(2, '0')}-${String(excelDate.d).padStart(2, '0')}`;
       }
 
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      // Try to normalize date format
+      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         const parsedDate = new Date(date);
         if (!isNaN(parsedDate.getTime())) {
           date = parsedDate.toISOString().split('T')[0];
-        } else {
-          errors.push({ row: rowNum, message: `Invalid date format "${date}". Use YYYY-MM-DD` });
-          continue;
         }
       }
 
-      const parsedDate = new Date(date);
-      if (isNaN(parsedDate.getTime())) {
-        errors.push({ row: rowNum, message: `Invalid date "${date}"` });
-        continue;
-      }
-
-      if (!time) {
-        errors.push({ row: rowNum, message: "Time is required" });
-        continue;
-      }
-
+      // Try to parse Excel time format
       if (typeof values[timeIdx] === 'number') {
         const totalMinutes = Math.round(values[timeIdx] * 24 * 60);
         const hours = Math.floor(totalMinutes / 60);
@@ -149,28 +150,18 @@ export function FixturesCSVImport({ clubId, teamId, teams = [], onImportComplete
         time = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
       }
 
-      if (!/^\d{1,2}:\d{2}(:\d{2})?$/.test(time)) {
-        errors.push({ row: rowNum, message: `Invalid time format "${time}". Use HH:MM` });
-        continue;
-      }
-
-      time = time.substring(0, 5);
-
-      const [hours, minutes] = time.split(':').map(Number);
-      if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-        errors.push({ row: rowNum, message: `Invalid time "${time}"` });
-        continue;
+      // Normalize time format
+      if (time && /^\d{1,2}:\d{2}(:\d{2})?$/.test(time)) {
+        time = time.substring(0, 5);
       }
 
       const reminderHoursStr = reminderIdx >= 0 ? values[reminderIdx]?.toString().trim() : undefined;
       let reminderHours: number | undefined;
       if (reminderHoursStr) {
         const parsed = parseInt(reminderHoursStr, 10);
-        if (isNaN(parsed) || parsed < 0) {
-          errors.push({ row: rowNum, message: `Invalid reminder_hours "${reminderHoursStr}"` });
-          continue;
+        if (!isNaN(parsed) && parsed >= 0) {
+          reminderHours = parsed;
         }
-        reminderHours = parsed;
       }
 
       const teamNameFromFile = teamIdx >= 0 ? values[teamIdx]?.toString().trim() : undefined;
@@ -187,9 +178,10 @@ export function FixturesCSVImport({ clubId, teamId, teams = [], onImportComplete
       }
 
       fixtures.push({
+        id: crypto.randomUUID(),
         title,
         date,
-        time: time.padStart(5, '0'),
+        time: time ? time.padStart(5, '0') : '',
         address: addressIdx >= 0 ? values[addressIdx]?.toString().trim() : undefined,
         description: descriptionIdx >= 0 ? values[descriptionIdx]?.toString().trim() : undefined,
         reminderHours,
@@ -558,6 +550,12 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
 
   const totalToImport = parsedFixtures.length + (updateDuplicates ? duplicateFixtures.length : 0);
   const fileType = file?.name.endsWith('.csv') ? 'CSV' : 'Excel';
+  
+  // Check if all fixtures have valid mandatory fields
+  const allFixturesValid = parsedFixtures.every(isFixtureValid) && 
+    (!updateDuplicates || duplicateFixtures.every(isFixtureValid));
+  const invalidCount = parsedFixtures.filter(f => !isFixtureValid(f)).length + 
+    (updateDuplicates ? duplicateFixtures.filter(f => !isFixtureValid(f)).length : 0);
 
   return (
     <div className="space-y-4">
@@ -762,11 +760,16 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               <Button
                 className="flex-1 h-12"
                 onClick={handleImport}
-                disabled={totalToImport === 0 || importing}
+                disabled={totalToImport === 0 || importing || !allFixturesValid}
               >
                 {importing ? 'Importing...' : `Import ${totalToImport}`}
               </Button>
             </div>
+            {!allFixturesValid && invalidCount > 0 && (
+              <p className="text-xs text-destructive text-center">
+                {invalidCount} fixture{invalidCount !== 1 ? 's' : ''} missing required fields
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
