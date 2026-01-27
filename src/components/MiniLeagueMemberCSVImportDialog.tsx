@@ -445,8 +445,8 @@ Thomas Parker,1,Neil Parker,neil.parker@example.com`;
                     )}
                   </div>
 
-                  <ScrollArea className="flex-1 min-h-0">
-                    <div className="space-y-2 pr-4">
+                  <ScrollArea className="h-[50vh] max-h-[400px]">
+                    <div className="space-y-2 pr-4 pb-2">
                       {parsedPlayers.map((player, idx) => {
                         const isValid = isPlayerValid(player);
                         return (
