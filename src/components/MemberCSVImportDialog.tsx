@@ -6,12 +6,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 import {
   Collapsible,
   CollapsibleContent,
@@ -328,17 +328,17 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
   const hasBlockingErrors = errors.some(e => e.row > 0);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent fullScreen className="sm:max-w-md max-h-[90vh] flex flex-col">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5 text-primary" />
             Import Members
-          </DialogTitle>
-          <DialogDescription>
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
             Upload a CSV file to bulk import team members
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
 
         <div className="flex-1 overflow-hidden space-y-4">
           {/* Format Guide - Collapsible */}
@@ -532,7 +532,7 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
             Send Invites {parsedMembers.length > 0 ? `(${parsedMembers.length})` : ''}
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
