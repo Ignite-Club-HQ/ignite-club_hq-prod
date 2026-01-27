@@ -169,22 +169,66 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_league_players")
-        .select("id, name, ability_rating, parent_user_id")
+        .select("id, name, ability_rating, parent_user_id, child_id")
         .eq("mini_league_id", miniLeagueId)
         .order("ability_rating", { ascending: false });
       if (error) throw error;
-      return data as MiniLeaguePlayer[];
+      return data as (MiniLeaguePlayer & { child_id: string | null })[];
     },
     enabled: !!miniLeagueId,
   });
 
-  // Initialize player availability when dialog opens (default all to available)
+  // Fetch RSVPs for this event to determine who is attending
+  const { data: eventRsvps } = useQuery({
+    queryKey: ["event-rsvps-going", eventId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rsvps")
+        .select("user_id, child_id")
+        .eq("event_id", eventId)
+        .eq("status", "going");
+      if (error) throw error;
+      return data as { user_id: string; child_id: string | null }[];
+    },
+    enabled: !!eventId,
+  });
+
+  // Map RSVPs to mini league players
+  const rsvpPlayerIds = new Set<string>();
+  if (eventRsvps && allPlayers) {
+    allPlayers.forEach(player => {
+      // Check if player's child_id matches an RSVP child_id
+      if (player.child_id) {
+        const hasChildRsvp = eventRsvps.some(r => r.child_id === player.child_id);
+        if (hasChildRsvp) {
+          rsvpPlayerIds.add(player.id);
+        }
+      }
+      // Also check if player's parent has RSVP'd (for players without child_id)
+      if (player.parent_user_id) {
+        const hasParentRsvp = eventRsvps.some(r => r.user_id === player.parent_user_id && !r.child_id);
+        if (hasParentRsvp) {
+          rsvpPlayerIds.add(player.id);
+        }
+      }
+    });
+  }
+
+  // Players who RSVP'd going
+  const rsvpGoingPlayers = allPlayers?.filter(p => rsvpPlayerIds.has(p.id)) || [];
+
+  // Initialize player availability when dialog opens (default to RSVP status)
   const initializeAvailability = () => {
     if (allPlayers) {
       const availability: Record<string, boolean> = {};
       allPlayers.forEach(p => {
-        // Keep existing override if set, otherwise default to available
-        availability[p.id] = playerAvailability[p.id] ?? true;
+        // Default to RSVP status - only "going" players are available
+        // But allow admin override if they've already toggled
+        if (availabilityInitialized && playerAvailability[p.id] !== undefined) {
+          availability[p.id] = playerAvailability[p.id];
+        } else {
+          availability[p.id] = rsvpPlayerIds.has(p.id);
+        }
       });
       setPlayerAvailability(availability);
       setAvailabilityInitialized(true);
@@ -199,10 +243,10 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
     if (!isAutoGenOpen) {
       setAvailabilityInitialized(false);
     }
-  }, [isAutoGenOpen, allPlayers]);
+  }, [isAutoGenOpen, allPlayers, eventRsvps]);
 
-  // Get available players only
-  const availablePlayers = allPlayers?.filter(p => playerAvailability[p.id] !== false) || [];
+  // Get available players only (those selected for this session)
+  const availablePlayers = allPlayers?.filter(p => playerAvailability[p.id] === true) || [];
 
   // Toggle player availability
   const togglePlayerAvailability = (playerId: string) => {
@@ -831,15 +875,29 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
             {/* Player Availability Override */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Player Availability</Label>
+                <Label>Player Availability (RSVP Override)</Label>
                 <span className="text-xs text-muted-foreground">
                   {availablePlayers.length} of {allPlayers?.length || 0} playing
                 </span>
               </div>
+              {rsvpGoingPlayers.length === 0 ? (
+                <div className="p-4 rounded-lg border border-amber-500/30 bg-amber-500/10 text-center">
+                  <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">No players have RSVP'd "Going"</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Players need to respond to the event before teams can be generated.
+                    You can manually override below if needed.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {rsvpGoingPlayers.length} player{rsvpGoingPlayers.length !== 1 ? 's' : ''} RSVP'd going. Toggle to override.
+                </p>
+              )}
               <ScrollArea className="h-40 rounded-lg border p-2">
                 <div className="space-y-1">
                   {allPlayers?.map((player) => {
-                    const isAvailable = playerAvailability[player.id] !== false;
+                    const isAvailable = playerAvailability[player.id] === true;
+                    const hasRsvp = rsvpPlayerIds.has(player.id);
                     return (
                       <div
                         key={player.id}
@@ -859,6 +917,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
                           <span className="text-[10px] text-muted-foreground shrink-0">
                             ({getAbilityLabel(player.ability_rating)})
                           </span>
+                          {hasRsvp && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 shrink-0 border-green-500/50 text-green-600 dark:text-green-400">
+                              RSVP
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     );
@@ -928,10 +991,10 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
             </Button>
             <Button
               onClick={() => autoGenMutation.mutate()}
-              disabled={autoGenMutation.isPending}
+              disabled={autoGenMutation.isPending || availablePlayers.length === 0}
             >
               {autoGenMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Generate
+              Generate ({availablePlayers.length} players)
             </Button>
           </DialogFooter>
         </DialogContent>
