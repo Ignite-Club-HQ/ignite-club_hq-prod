@@ -99,6 +99,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
   const [selectedPreviousEventId, setSelectedPreviousEventId] = useState<string | null>(null);
   const [playerAvailability, setPlayerAvailability] = useState<Record<string, boolean>>({});
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [availabilityInitialized, setAvailabilityInitialized] = useState(false);
 
   // Fetch event groups
   const { data: groups, isLoading } = useQuery({
@@ -177,19 +178,39 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
     enabled: !!miniLeagueId,
   });
 
-  // Initialize player availability when players load (default all to available)
-  useEffect(() => {
-    if (allPlayers && Object.keys(playerAvailability).length === 0) {
+  // Initialize player availability when dialog opens (default all to available)
+  const initializeAvailability = () => {
+    if (allPlayers) {
       const availability: Record<string, boolean> = {};
       allPlayers.forEach(p => {
-        availability[p.id] = true;
+        // Keep existing override if set, otherwise default to available
+        availability[p.id] = playerAvailability[p.id] ?? true;
       });
       setPlayerAvailability(availability);
+      setAvailabilityInitialized(true);
     }
-  }, [allPlayers]);
+  };
+
+  // Reset availability when dialog opens
+  useEffect(() => {
+    if (isAutoGenOpen && allPlayers && !availabilityInitialized) {
+      initializeAvailability();
+    }
+    if (!isAutoGenOpen) {
+      setAvailabilityInitialized(false);
+    }
+  }, [isAutoGenOpen, allPlayers]);
 
   // Get available players only
   const availablePlayers = allPlayers?.filter(p => playerAvailability[p.id] !== false) || [];
+
+  // Toggle player availability
+  const togglePlayerAvailability = (playerId: string) => {
+    setPlayerAvailability(prev => ({
+      ...prev,
+      [playerId]: !prev[playerId],
+    }));
+  };
 
   // Fetch previous events for copy
   const { data: previousEvents } = useQuery({
@@ -520,15 +541,6 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       setIsRegenerating(false);
     }
   };
-
-  // Toggle player availability
-  const togglePlayerAvailability = (playerId: string) => {
-    setPlayerAvailability(prev => ({
-      ...prev,
-      [playerId]: !prev[playerId],
-    }));
-  };
-
   if (isLoading) {
     return (
       <Card>
@@ -541,61 +553,6 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
 
   return (
     <div className="space-y-4">
-      {/* Player Availability Section */}
-      {isAdmin && allPlayers && allPlayers.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Player Availability
-              </CardTitle>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <UserCheck className="h-3 w-3 text-green-500" />
-                  {availablePlayers.length}
-                </span>
-                <span className="flex items-center gap-1">
-                  <UserX className="h-3 w-3 text-red-500" />
-                  {(allPlayers?.length || 0) - availablePlayers.length}
-                </span>
-              </div>
-            </div>
-            <CardDescription>Toggle players who are available for this session</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <ScrollArea className="max-h-48">
-              <div className="grid grid-cols-2 gap-2">
-                {allPlayers.map((player) => {
-                  const isAvailable = playerAvailability[player.id] !== false;
-                  return (
-                    <div
-                      key={player.id}
-                      className={`flex items-center justify-between p-2 rounded-lg border cursor-pointer transition-colors ${
-                        isAvailable 
-                          ? "bg-green-500/10 border-green-500/30" 
-                          : "bg-red-500/10 border-red-500/30 opacity-60"
-                      }`}
-                      onClick={() => togglePlayerAvailability(player.id)}
-                    >
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-sm font-medium truncate">{player.name}</span>
-                        <span className="text-[10px] text-muted-foreground">{getAbilityLabel(player.ability_rating)}</span>
-                      </div>
-                      <Switch
-                        checked={isAvailable}
-                        onCheckedChange={() => togglePlayerAvailability(player.id)}
-                        className="ml-2"
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      )}
-
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">Matches</h3>
         {isAdmin && (
@@ -871,17 +828,43 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
               </p>
             </div>
 
-            {/* Available players count */}
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
-              <UserCheck className="h-4 w-4 text-green-500" />
-              <span className="text-sm">
-                <span className="font-medium">{availablePlayers.length}</span> of {allPlayers?.length || 0} players available
-              </span>
-              {availablePlayers.length !== (allPlayers?.length || 0) && (
+            {/* Player Availability Override */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Player Availability</Label>
                 <span className="text-xs text-muted-foreground">
-                  ({(allPlayers?.length || 0) - availablePlayers.length} unavailable)
+                  {availablePlayers.length} of {allPlayers?.length || 0} playing
                 </span>
-              )}
+              </div>
+              <ScrollArea className="h-40 rounded-lg border p-2">
+                <div className="space-y-1">
+                  {allPlayers?.map((player) => {
+                    const isAvailable = playerAvailability[player.id] !== false;
+                    return (
+                      <div
+                        key={player.id}
+                        className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
+                          isAvailable 
+                            ? "bg-primary/5 hover:bg-primary/10" 
+                            : "bg-muted/50 opacity-60"
+                        }`}
+                        onClick={() => togglePlayerAvailability(player.id)}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <Checkbox 
+                            checked={isAvailable} 
+                            onCheckedChange={() => togglePlayerAvailability(player.id)}
+                          />
+                          <span className="text-sm truncate">{player.name}</span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">
+                            ({getAbilityLabel(player.ability_rating)})
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
             </div>
 
             {useAutoMode ? (
