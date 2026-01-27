@@ -317,9 +317,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       }
       
       // Balance teams within each match - split players evenly between Team A and B
+      // Use floor division so teams are equal; only have +1 in one team if odd total
       matchPlayers.forEach((players) => {
         const totalPlayers = players.length;
-        const teamASize = Math.ceil(totalPlayers / 2);
+        // Equal split: e.g., 6 players = 3v3, 7 players = 3v4 (Team B gets extra)
+        const teamASize = Math.floor(totalPlayers / 2);
         players.forEach((p, idx) => {
           p.team = idx < teamASize ? "a" : "b";
         });
