@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserPlus, Loader2, Mail, X, Send, Users, Plus, Trash2, Upload, Baby, User, Star } from "lucide-react";
 import { MiniLeagueMemberCSVImportDialog } from "@/components/MiniLeagueMemberCSVImportDialog";
@@ -475,25 +476,27 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
 
             <TabsContent value="bulk" className="flex-1 overflow-auto space-y-4">
               {bulkResults.length > 0 ? (
-                <div className="space-y-3">
+                <div className="flex flex-col h-full space-y-3">
                   <h3 className="text-sm font-medium">Results</h3>
-                  <div className="space-y-2">
-                    {bulkResults.map((result, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                        <div>
-                          <p className="font-medium text-sm">{result.playerName}</p>
+                  <ScrollArea className="flex-1 h-[50vh]">
+                    <div className="space-y-2 pr-4">
+                      {bulkResults.map((result, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                          <div>
+                            <p className="font-medium text-sm">{result.playerName}</p>
+                            {result.parentEmail && (
+                              <p className="text-xs text-muted-foreground">{result.parentEmail}</p>
+                            )}
+                          </div>
                           {result.parentEmail && (
-                            <p className="text-xs text-muted-foreground">{result.parentEmail}</p>
+                            <Badge variant={result.sent ? "default" : "secondary"}>
+                              {result.sent ? "Sent" : "Not sent"}
+                            </Badge>
                           )}
                         </div>
-                        {result.parentEmail && (
-                          <Badge variant={result.sent ? "default" : "secondary"}>
-                            {result.sent ? "Sent" : "Not sent"}
-                          </Badge>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
                   <Button variant="outline" className="w-full" onClick={handleClose}>
                     Done
                   </Button>
