@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Plus, Users, Calendar, ChevronRight, Loader2, Trophy, ArrowLeft } from "lucide-react";
+import { Plus, Users, Calendar, ChevronRight, Loader2, Trophy, ArrowLeft, Crown, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -49,27 +49,48 @@ export default function MiniLeaguesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newLeague, setNewLeague] = useState({ name: "", description: "", team_size: "5", club_id: "" });
 
-  // Fetch clubs where user is admin
-  const { data: adminClubs } = useQuery({
-    queryKey: ["admin-clubs", user?.id],
+  // Fetch clubs where user is admin AND has Pro Football access
+  const { data: adminClubs, isLoading: clubsLoading } = useQuery({
+    queryKey: ["admin-pro-football-clubs", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // First get clubs where user is admin
+      const { data: rolesData, error: rolesError } = await supabase
         .from("user_roles")
         .select("club_id, clubs!inner(id, name)")
         .eq("user_id", user!.id)
         .in("role", ["club_admin", "league_admin", "app_admin"])
         .not("club_id", "is", null);
       
-      if (error) throw error;
+      if (rolesError) throw rolesError;
       
       // Dedupe by club_id
       const uniqueClubs = new Map();
-      data?.forEach((r: any) => {
+      rolesData?.forEach((r: any) => {
         if (r.clubs && !uniqueClubs.has(r.clubs.id)) {
           uniqueClubs.set(r.clubs.id, r.clubs);
         }
       });
-      return Array.from(uniqueClubs.values()) as { id: string; name: string }[];
+      const clubs = Array.from(uniqueClubs.values()) as { id: string; name: string }[];
+      
+      if (clubs.length === 0) return [];
+      
+      // Check which clubs have Pro Football access
+      const { data: subscriptions, error: subError } = await supabase
+        .from("club_subscriptions")
+        .select("club_id, is_pro_football, admin_pro_football_override, expires_at")
+        .in("club_id", clubs.map(c => c.id));
+      
+      if (subError) throw subError;
+      
+      // Filter to only Pro Football clubs
+      const proFootballClubIds = new Set(
+        subscriptions?.filter(s => 
+          (s.is_pro_football || s.admin_pro_football_override) && 
+          (!s.expires_at || new Date(s.expires_at) > new Date())
+        ).map(s => s.club_id) || []
+      );
+      
+      return clubs.filter(c => proFootballClubIds.has(c.id));
     },
     enabled: !!user,
   });
@@ -199,9 +220,26 @@ export default function MiniLeaguesPage() {
       </div>
 
       {/* Content */}
-      {isLoading ? (
+      {isLoading || clubsLoading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : !canCreate && miniLeagues?.length === 0 ? (
+        // No Pro Football access
+        <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+            <Crown className="h-8 w-8 text-primary" />
+          </div>
+          <h3 className="text-lg font-semibold mb-1">Pro Football Required</h3>
+          <p className="text-muted-foreground text-sm max-w-xs mb-6">
+            Mini Leagues is a Pro Football feature. Upgrade your club to access ability-based player grouping.
+          </p>
+          {clubIdFromUrl && (
+            <Button onClick={() => navigate(`/clubs/${clubIdFromUrl}/upgrade`)}>
+              <Crown className="h-4 w-4 mr-2" />
+              Upgrade to Pro Football
+            </Button>
+          )}
         </div>
       ) : miniLeagues?.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
