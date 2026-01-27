@@ -72,6 +72,9 @@ const ManageAdsPage = lazy(() => import("./pages/ManageAdsPage"));
 const VideoGuideDownloadPage = lazy(() => import("./pages/VideoGuideDownloadPage"));
 const AttendanceStatsPage = lazy(() => import("./pages/AttendanceStatsPage"));
 const PushAnalyticsPage = lazy(() => import("./pages/PushAnalyticsPage"));
+const MiniLeaguesPage = lazy(() => import("./pages/MiniLeaguesPage"));
+const MiniLeagueDetailPage = lazy(() => import("./pages/MiniLeagueDetailPage"));
+const MiniLeagueSessionPage = lazy(() => import("./pages/MiniLeagueSessionPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -155,6 +158,9 @@ const App = () => (
                   <Route path="/admin/sponsor-analytics" element={<SponsorAnalyticsPage />} />
                   <Route path="/admin/ads" element={<ManageAdsPage />} />
                   <Route path="/admin/push-analytics" element={<PushAnalyticsPage />} />
+                  <Route path="/mini-leagues" element={<MiniLeaguesPage />} />
+                  <Route path="/mini-leagues/:id" element={<MiniLeagueDetailPage />} />
+                  <Route path="/mini-leagues/:id/sessions/:sessionId" element={<MiniLeagueSessionPage />} />
                 </Route>
                 
                 <Route path="*" element={<NotFound />} />

@@ -26,6 +26,7 @@ const roleLabels: Record<AppRole, string> = {
   player: "Player",
   parent: "Parent",
   app_admin: "App Admin",
+  league_admin: "League Admin",
 };
 
 export default function JoinClubPage() {
