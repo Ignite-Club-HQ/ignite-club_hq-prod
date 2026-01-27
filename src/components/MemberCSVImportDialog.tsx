@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { Upload, FileText, X, AlertCircle, Download, Check, Users, Info, ChevronDown } from "lucide-react";
+import { Upload, FileText, X, AlertCircle, Download, Send, Users, Info, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -292,12 +292,8 @@ export function MemberCSVImportDialog({
     if (parsedMembers.length === 0) return;
     
     onImport(parsedMembers);
-    toast({
-      title: `${parsedMembers.length} member${parsedMembers.length > 1 ? 's' : ''} imported`,
-      description: "Review and edit before sending invites",
-    });
     
-    // Reset and close
+    // Reset and close - toast will be shown by parent after invites are sent
     handleClear();
     onOpenChange(false);
   };
@@ -532,8 +528,8 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
             onClick={handleImport}
             disabled={parsedMembers.length === 0 || hasBlockingErrors}
           >
-            <Check className="h-4 w-4 mr-2" />
-            Import {parsedMembers.length > 0 ? `(${parsedMembers.length})` : ''}
+            <Send className="h-4 w-4 mr-2" />
+            Send Invites {parsedMembers.length > 0 ? `(${parsedMembers.length})` : ''}
           </Button>
         </div>
       </DialogContent>
