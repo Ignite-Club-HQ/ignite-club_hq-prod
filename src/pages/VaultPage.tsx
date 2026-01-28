@@ -49,7 +49,8 @@ import {
 type FolderView = 
   | { type: "root" }
   | { type: "club"; clubId: string; clubName: string; folderId?: string; folderName?: string }
-  | { type: "team"; clubId: string; clubName: string; teamId: string; teamName: string; folderId?: string; folderName?: string };
+  | { type: "team"; clubId: string; clubName: string; teamId: string; teamName: string; folderId?: string; folderName?: string }
+  | { type: "mini-league"; clubId: string; clubName: string; miniLeagueId: string; miniLeagueName: string; folderId?: string; folderName?: string };
 
 export default function VaultPage() {
   const { user } = useAuth();
@@ -372,8 +373,53 @@ export default function VaultPage() {
     enabled: currentView.type === "club",
   });
 
+  // Fetch mini-leagues for the current club (Pro Football only)
+  const { data: clubMiniLeagues } = useQuery({
+    queryKey: ["vault-club-mini-leagues", currentView.type === "club" ? currentView.clubId : null, isClubAdmin, userRoles],
+    queryFn: async () => {
+      if (currentView.type !== "club") return [];
+      
+      // Check if club has Pro Football access
+      const { data: clubSub } = await supabase
+        .from("club_subscriptions")
+        .select("is_pro_football, admin_pro_football_override")
+        .eq("club_id", currentView.clubId)
+        .maybeSingle();
+      
+      const hasProFootball = clubSub?.is_pro_football || clubSub?.admin_pro_football_override;
+      if (!hasProFootball && !isAppAdmin) return [];
+      
+      const isLeagueAdmin = userRoles?.some(r => r.role === "league_admin" && r.club_id === currentView.clubId);
+      const isCoach = userRoles?.some(r => r.role === "coach" && r.club_id === currentView.clubId);
+      
+      if (isAppAdmin || isClubAdmin || isLeagueAdmin || isCoach) {
+        // Admins can see all mini-leagues
+        const { data } = await supabase
+          .from("mini_leagues")
+          .select("id, name")
+          .eq("club_id", currentView.clubId)
+          .order("name");
+        return data || [];
+      } else {
+        // Parents can only see leagues their children are in
+        const { data: playerLeagues } = await supabase
+          .from("mini_league_players")
+          .select("mini_league_id, mini_leagues!inner(id, name, club_id)")
+          .eq("parent_user_id", user!.id);
+        
+        if (playerLeagues) {
+          return playerLeagues
+            .filter((pl: any) => pl.mini_leagues?.club_id === currentView.clubId)
+            .map((pl: any) => ({ id: pl.mini_leagues.id, name: pl.mini_leagues.name }));
+        }
+        return [];
+      }
+    },
+    enabled: currentView.type === "club" && !!user,
+  });
+
   const getCurrentFolderId = () => {
-    if (currentView.type === "club" || currentView.type === "team") {
+    if (currentView.type === "club" || currentView.type === "team" || currentView.type === "mini-league") {
       return currentView.folderId || null;
     }
     return null;
@@ -382,11 +428,17 @@ export default function VaultPage() {
   const getCurrentClubId = () => {
     if (currentView.type === "club") return currentView.clubId;
     if (currentView.type === "team") return currentView.clubId;
+    if (currentView.type === "mini-league") return currentView.clubId;
     return null;
   };
 
   const getCurrentTeamId = () => {
     if (currentView.type === "team") return currentView.teamId;
+    return null;
+  };
+
+  const getCurrentMiniLeagueId = () => {
+    if (currentView.type === "mini-league") return currentView.miniLeagueId;
     return null;
   };
 
