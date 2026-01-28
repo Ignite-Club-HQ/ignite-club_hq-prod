@@ -1,21 +1,15 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Users, Play, Pause, RotateCcw, Clock, Loader2, Plus, X, Check } from "lucide-react";
+import { ArrowLeft, Users, Play, Pause, RotateCcw, Clock, Loader2, Plus, X, Check, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "sonner";
 import { AddDutySheet } from "@/components/AddDutySheet";
+import { AssignDutySheet } from "@/components/AssignDutySheet";
 
 interface GroupDuty {
   id: string;
@@ -41,6 +35,8 @@ export default function EventGroupPitchPage() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isDutySheetOpen, setIsDutySheetOpen] = useState(false);
+  const [assignDutyOpen, setAssignDutyOpen] = useState(false);
+  const [selectedDuty, setSelectedDuty] = useState<GroupDuty | null>(null);
 
   // Fetch group details
   const { data: group, isLoading: groupLoading } = useQuery({
@@ -385,25 +381,17 @@ export default function EventGroupPitchPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Select
-                      value={duty.assigned_to || "unassigned"}
-                      onValueChange={(value) => assignDutyMutation.mutate({
-                        dutyId: duty.id,
-                        assignedTo: value === "unassigned" ? null : value,
-                      })}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        setSelectedDuty(duty);
+                        setAssignDutyOpen(true);
+                      }}
                     >
-                      <SelectTrigger className="h-8 w-[140px] text-xs">
-                        <SelectValue placeholder="Assign" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unassigned">Unassigned</SelectItem>
-                        {leagueMembers?.map((member) => (
-                          <SelectItem key={member.id} value={member.id}>
-                            {member.display_name || "Unknown"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <UserPlus className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -429,6 +417,33 @@ export default function EventGroupPitchPage() {
         isMiniLeague={true}
         context="match"
       />
+
+      {/* Assign Duty Sheet */}
+      {selectedDuty && (
+        <AssignDutySheet
+          open={assignDutyOpen}
+          onOpenChange={(open) => {
+            setAssignDutyOpen(open);
+            if (!open) setSelectedDuty(null);
+          }}
+          dutyName={selectedDuty.name}
+          currentAssignee={selectedDuty.assigned_to}
+          members={(leagueMembers || []).map(m => ({
+            id: m.id,
+            display_name: m.display_name,
+            avatar_url: null,
+          }))}
+          onAssign={(userId) => {
+            assignDutyMutation.mutate({
+              dutyId: selectedDuty.id,
+              assignedTo: userId,
+            });
+            setAssignDutyOpen(false);
+            setSelectedDuty(null);
+          }}
+          isPending={assignDutyMutation.isPending}
+        />
+      )}
     </div>
   );
 }
