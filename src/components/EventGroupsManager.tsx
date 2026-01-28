@@ -181,18 +181,26 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     queryFn: async () => {
       const { data, error } = await supabase
         .from("rsvps")
-        .select("user_id, child_id")
+        .select("user_id, child_id, mini_league_player_id")
         .eq("event_id", eventId)
         .eq("status", "going");
       if (error) throw error;
-      return data as { user_id: string; child_id: string | null }[];
+      return data as { user_id: string | null; child_id: string | null; mini_league_player_id: string | null }[];
     },
     enabled: !!eventId,
   });
 
-  // Map RSVPs to mini league players
+  // Map RSVPs to mini league players - now includes direct mini_league_player_id matching
   const rsvpPlayerIds = new Set<string>();
   if (eventRsvps && allPlayers) {
+    eventRsvps.forEach(rsvp => {
+      // Direct mini league player RSVP (standalone players)
+      if (rsvp.mini_league_player_id) {
+        rsvpPlayerIds.add(rsvp.mini_league_player_id);
+      }
+    });
+    
+    // Also check via child_id or parent_user_id for linked players
     allPlayers.forEach(player => {
       // Check if player's child_id matches an RSVP child_id
       if (player.child_id) {
@@ -211,11 +219,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     });
   }
 
-  // Players who RSVP'd going
+  // Players who RSVP'd going - now the primary source for available players
   const rsvpGoingPlayers = allPlayers?.filter(p => rsvpPlayerIds.has(p.id)) || [];
 
-  // Get available players based on overrides from parent (those selected for this session)
-  const availablePlayers = allPlayers?.filter(p => playerOverrides[p.id] === true) || [];
+  // Available players = those who RSVP'd going (no longer relies on playerOverrides)
+  const availablePlayers = rsvpGoingPlayers;
 
   // Fetch previous events for copy
   const { data: previousEvents } = useQuery({
