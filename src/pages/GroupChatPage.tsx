@@ -61,6 +61,7 @@ interface ChatGroup {
   name: string;
   club_id: string | null;
   team_id: string | null;
+  mini_league_id: string | null;
   allowed_roles: string[];
   created_by: string;
 }
@@ -1081,8 +1082,8 @@ export default function GroupChatPage() {
         </Button>
         <div className="flex-1">
           <h1 className="font-semibold">{group.name}</h1>
-          {/* Only show roles for team/club groups, not personal groups */}
-          {(group.team_id || group.club_id) && (
+          {/* Only show roles for team/club groups, not personal or league groups */}
+          {(group.team_id || group.club_id) && !group.mini_league_id && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <Users className="h-3 w-3" />
               {getRoleBadge(group.allowed_roles)}
