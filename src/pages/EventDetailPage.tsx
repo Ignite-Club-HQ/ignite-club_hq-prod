@@ -98,9 +98,12 @@ const AttendeeCard = ({
   currentStatus?: RsvpStatus;
 }) => {
   const isChildRsvp = !!rsvp.child_id;
-  const displayName = isChildRsvp 
-    ? rsvp.children?.name 
-    : rsvp.profiles?.display_name;
+  const isMiniLeaguePlayerRsvp = !!rsvp.mini_league_player_id;
+  const displayName = isMiniLeaguePlayerRsvp 
+    ? rsvp.mini_league_players?.name 
+    : isChildRsvp 
+      ? rsvp.children?.name 
+      : rsvp.profiles?.display_name;
   const avatarInitial = displayName?.charAt(0)?.toUpperCase() || "?";
 
   return (
@@ -108,8 +111,8 @@ const AttendeeCard = ({
       <CardContent className="p-3">
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
-            {!isChildRsvp && <AvatarImage src={rsvp.profiles?.avatar_url || undefined} />}
-            <AvatarFallback className={`text-xs ${isChildRsvp ? 'bg-secondary' : ''}`}>
+            {!isChildRsvp && !isMiniLeaguePlayerRsvp && <AvatarImage src={rsvp.profiles?.avatar_url || undefined} />}
+            <AvatarFallback className={`text-xs ${(isChildRsvp || isMiniLeaguePlayerRsvp) ? 'bg-secondary' : ''}`}>
               {avatarInitial}
             </AvatarFallback>
           </Avatar>
@@ -222,7 +225,7 @@ export default function EventDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("rsvps")
-        .select(`*, profiles (display_name, avatar_url), children (id, name)`)
+        .select(`*, profiles (display_name, avatar_url), children (id, name), mini_league_players:mini_league_player_id (id, name)`)
         .eq("event_id", id!);
       if (error) throw error;
       return data;
@@ -737,7 +740,7 @@ export default function EventDetailPage() {
       status: RsvpStatus;
     }) => {
       // For mini-league players, we need to find or create an RSVP
-      // The RSVP is typically tied to the child_id if present, otherwise we need a parent user
+      // Priority: child_id > parent_user_id > mini_league_player_id (standalone)
       if (childId) {
         // Check for existing RSVP for this child
         const { data: existingRsvp } = await supabase
@@ -790,7 +793,29 @@ export default function EventDetailPage() {
           if (error) throw error;
         }
       } else {
-        throw new Error("Cannot create RSVP: player has no parent user or child linked");
+        // Standalone mini-league player without parent/child link
+        // Use mini_league_player_id for RSVP tracking
+        const { data: existingRsvp } = await supabase
+          .from("rsvps")
+          .select("id")
+          .eq("event_id", id!)
+          .eq("mini_league_player_id", playerId)
+          .maybeSingle();
+        
+        if (existingRsvp) {
+          const { error } = await supabase
+            .from("rsvps")
+            .update({ status })
+            .eq("id", existingRsvp.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("rsvps").insert({
+            event_id: id!,
+            mini_league_player_id: playerId,
+            status,
+          });
+          if (error) throw error;
+        }
       }
     },
     onSuccess: (_, variables) => {
@@ -1680,6 +1705,8 @@ export default function EventDetailPage() {
           // Filter RSVPs based on effectiveShowAll (social events always show all)
           const filterRsvp = (rsvp: any) => {
             if (effectiveShowAll) return true;
+            // Show mini-league player RSVPs 
+            if (rsvp.mini_league_player_id) return true;
             // Show child RSVPs (they are always players)
             if (rsvp.child_id) return true;
             // Only show if user has player role
@@ -1694,16 +1721,22 @@ export default function EventDetailPage() {
           // For mini-league events, use mini-league players instead of team members
           const respondedUserIds = new Set(rsvps?.filter(r => !r.child_id).map(r => r.user_id) || []);
           const respondedChildIds = new Set(rsvps?.filter(r => r.child_id).map(r => r.child_id) || []);
+          const respondedMiniLeaguePlayerIds = new Set(
+            rsvps?.filter(r => r.mini_league_player_id).map(r => r.mini_league_player_id) || []
+          );
           
           let notResponded: any[] = [];
           let notRespondedChildren: any[] = [];
           
           if (isMiniLeagueEvent && miniLeaguePlayers) {
-            // For mini-league events, show players who haven't had their parent/child respond
+            // For mini-league events, show players who haven't had a response
             notRespondedChildren = miniLeaguePlayers.filter((player: any) => {
+              // Check if this player has an RSVP via mini_league_player_id
+              if (respondedMiniLeaguePlayerIds.has(player.id)) return false;
               // Check if this player's child_id has an RSVP
               if (player.child_id && respondedChildIds.has(player.child_id)) return false;
-              // Check if parent has RSVP'd for this player (via child_id in rsvp)
+              // Check if parent has RSVP'd for this player
+              if (player.parent_user_id && respondedUserIds.has(player.parent_user_id)) return false;
               return true;
             });
           } else {
