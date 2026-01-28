@@ -1155,7 +1155,7 @@ export default function GroupChatPage() {
                     highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
                   }`}
                 >
-                  <div className={`flex gap-2 max-w-[85%] ${isOwnMessage ? "flex-row-reverse" : ""}`}>
+                  <div className={`flex gap-2 max-w-[85%] group ${isOwnMessage ? "flex-row-reverse" : ""}`}>
                     <Avatar className="h-8 w-8 shrink-0">
                       <AvatarImage src={msg.author?.avatar_url || undefined} />
                       <AvatarFallback>
