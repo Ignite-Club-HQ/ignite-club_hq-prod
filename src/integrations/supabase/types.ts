@@ -2343,6 +2343,7 @@ export type Database = {
           description: string | null
           id: string
           logo_url: string | null
+          min_players_per_side: number
           name: string
           team_size: number
           updated_at: string
@@ -2355,6 +2356,7 @@ export type Database = {
           description?: string | null
           id?: string
           logo_url?: string | null
+          min_players_per_side?: number
           name: string
           team_size?: number
           updated_at?: string
@@ -2367,6 +2369,7 @@ export type Database = {
           description?: string | null
           id?: string
           logo_url?: string | null
+          min_players_per_side?: number
           name?: string
           team_size?: number
           updated_at?: string

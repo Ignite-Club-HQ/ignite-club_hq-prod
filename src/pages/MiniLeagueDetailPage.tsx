@@ -70,6 +70,7 @@ export default function MiniLeagueDetailPage() {
   const [editDescription, setEditDescription] = useState("");
   const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
   const [editTeamSize, setEditTeamSize] = useState<number>(4);
+  const [editMinPlayersPerSide, setEditMinPlayersPerSide] = useState<number>(3);
   const [editBibColors, setEditBibColors] = useState<string[]>([]);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -204,6 +205,7 @@ export default function MiniLeagueDetailPage() {
           description: editDescription.trim() || null,
           logo_url: editLogoUrl,
           team_size: editTeamSize,
+          min_players_per_side: editMinPlayersPerSide,
           bib_colors: editBibColors.length > 0 ? editBibColors : null
         })
         .eq("id", id!);
@@ -308,6 +310,7 @@ export default function MiniLeagueDetailPage() {
       setEditDescription(league.description || "");
       setEditLogoUrl(league.logo_url || null);
       setEditTeamSize(league.team_size || 4);
+      setEditMinPlayersPerSide(league.min_players_per_side || 3);
       setEditBibColors(league.bib_colors || ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"]);
       setSettingsOpen(true);
     }
@@ -786,7 +789,13 @@ export default function MiniLeagueDetailPage() {
                       variant={editTeamSize === size ? "default" : "outline"}
                       size="sm"
                       className="w-10 h-10"
-                      onClick={() => setEditTeamSize(size)}
+                      onClick={() => {
+                        setEditTeamSize(size);
+                        // Ensure min doesn't exceed max
+                        if (editMinPlayersPerSide > size) {
+                          setEditMinPlayersPerSide(size);
+                        }
+                      }}
                     >
                       {size}
                     </Button>
@@ -794,7 +803,31 @@ export default function MiniLeagueDetailPage() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Used for auto-generating balanced teams during sessions
+                Target team size for auto-generating balanced teams
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="min-players">Minimum Players Per Side</Label>
+              <div className="flex items-center gap-3">
+                <Users className="h-5 w-5 text-muted-foreground" />
+                <div className="flex items-center gap-2">
+                  {[2, 3, 4, 5, 6, 7, 8].filter(n => n <= editTeamSize).map((size) => (
+                    <Button
+                      key={size}
+                      type="button"
+                      variant={editMinPlayersPerSide === size ? "default" : "outline"}
+                      size="sm"
+                      className="w-10 h-10"
+                      onClick={() => setEditMinPlayersPerSide(size)}
+                    >
+                      {size}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                No team can have fewer than this many players
               </p>
             </div>
 
