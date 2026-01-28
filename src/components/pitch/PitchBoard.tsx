@@ -39,6 +39,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { usePitchBoardNotifications } from "@/hooks/usePitchBoardNotifications";
 import { useIsLandscape } from "@/hooks/useIsLandscape";
+import { useEventGroupSync } from "@/hooks/useEventGroupSync";
 
 // Import types and utils from extracted files
 import { 
@@ -119,6 +120,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { isLandscape, isMobileLandscape, isTabletLandscape, isDesktopLandscape } = useIsLandscape();
+  
+  // Event group sync - syncs pitch board state to database for mini-league matches
+  const { forceSync: forceEventGroupSync, isEventGroup } = useEventGroupSync(teamId, null);
   
   // State initialization flag
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -1124,7 +1128,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       linkedEventId,
       goals,
     });
-  }, [hasInitialized, teamId, players, teamSize, selectedFormation, ballPosition, autoSubPlan, autoSubActive, autoSubPaused, mockMode, linkedEventId, goals]);
+    
+    // Also sync to database if this is an event group (mini-league match)
+    if (isEventGroup) {
+      forceEventGroupSync();
+    }
+  }, [hasInitialized, teamId, players, teamSize, selectedFormation, ballPosition, autoSubPlan, autoSubActive, autoSubPaused, mockMode, linkedEventId, goals, isEventGroup, forceEventGroupSync]);
 
   // Sync player position preferences from database when they change
   // This ensures updated preferences are reflected even when using saved state from localStorage
