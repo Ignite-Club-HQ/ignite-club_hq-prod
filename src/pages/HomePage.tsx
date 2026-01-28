@@ -80,6 +80,7 @@ interface Event {
   suburb: string | null;
   club_id: string;
   team_id: string | null;
+  mini_league_id: string | null;
   is_cancelled: boolean;
   is_recurring: boolean;
   parent_event_id: string | null;
@@ -790,16 +791,49 @@ export default function HomePage() {
       
       const rsvpUserIds = existingRsvps?.map(r => r.user_id) || [];
       
-      // Get all members who should RSVP (team or club members)
-      let memberQuery = supabase.from("user_roles").select("user_id");
-      if (eventToRemind.team_id) {
-        memberQuery = memberQuery.eq("team_id", eventToRemind.team_id);
-      } else {
-        memberQuery = memberQuery.eq("club_id", eventToRemind.club_id);
-      }
+      // Get all members who should RSVP - handle mini-league events differently
+      let allMemberIds: string[] = [];
       
-      const { data: allMembers } = await memberQuery;
-      const allMemberIds = [...new Set(allMembers?.map(m => m.user_id) || [])];
+      if (eventToRemind.mini_league_id) {
+        // Get mini league to find the club_id
+        const { data: league } = await supabase
+          .from("mini_leagues")
+          .select("club_id")
+          .eq("id", eventToRemind.mini_league_id)
+          .single();
+        
+        if (league) {
+          // Get all parent user IDs from mini league players
+          const { data: playersData } = await supabase
+            .from("mini_league_players")
+            .select("parent_user_id")
+            .eq("mini_league_id", eventToRemind.mini_league_id)
+            .not("parent_user_id", "is", null);
+          
+          const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
+          
+          // Get club admins, league admins, and coaches
+          const { data: adminRoles } = await supabase
+            .from("user_roles")
+            .select("user_id")
+            .eq("club_id", league.club_id)
+            .in("role", ["club_admin", "league_admin", "coach"]);
+          
+          const adminIds = adminRoles?.map(r => r.user_id) || [];
+          
+          allMemberIds = [...new Set([...parentIds, ...adminIds])];
+        }
+      } else {
+        let memberQuery = supabase.from("user_roles").select("user_id");
+        if (eventToRemind.team_id) {
+          memberQuery = memberQuery.eq("team_id", eventToRemind.team_id);
+        } else {
+          memberQuery = memberQuery.eq("club_id", eventToRemind.club_id);
+        }
+        
+        const { data: allMembers } = await memberQuery;
+        allMemberIds = [...new Set(allMembers?.map(m => m.user_id) || [])];
+      }
       
       // Find members who haven't RSVPed
       const nonRsvpMembers = allMemberIds.filter(memberId => !rsvpUserIds.includes(memberId));
@@ -2273,15 +2307,49 @@ export default function HomePage() {
                                   
                                   const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
                                   
-                                  let memberQuery = supabase.from("user_roles").select("user_id");
-                                  if (event.team_id) {
-                                    memberQuery = memberQuery.eq("team_id", event.team_id);
-                                  } else {
-                                    memberQuery = memberQuery.eq("club_id", event.club_id);
-                                  }
+                                  // Get all members - handle mini-league events differently
+                                  let allMemberIds: string[] = [];
                                   
-                                  const { data: members } = await memberQuery;
-                                  const allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
+                                  if (event.mini_league_id) {
+                                    // Get mini league to find the club_id
+                                    const { data: league } = await supabase
+                                      .from("mini_leagues")
+                                      .select("club_id")
+                                      .eq("id", event.mini_league_id)
+                                      .single();
+                                    
+                                    if (league) {
+                                      // Get all parent user IDs from mini league players
+                                      const { data: playersData } = await supabase
+                                        .from("mini_league_players")
+                                        .select("parent_user_id")
+                                        .eq("mini_league_id", event.mini_league_id)
+                                        .not("parent_user_id", "is", null);
+                                      
+                                      const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
+                                      
+                                      // Get club admins, league admins, and coaches
+                                      const { data: adminRoles } = await supabase
+                                        .from("user_roles")
+                                        .select("user_id")
+                                        .eq("club_id", league.club_id)
+                                        .in("role", ["club_admin", "league_admin", "coach"]);
+                                      
+                                      const adminIds = adminRoles?.map(r => r.user_id) || [];
+                                      
+                                      allMemberIds = [...new Set([...parentIds, ...adminIds])];
+                                    }
+                                  } else {
+                                    let memberQuery = supabase.from("user_roles").select("user_id");
+                                    if (event.team_id) {
+                                      memberQuery = memberQuery.eq("team_id", event.team_id);
+                                    } else {
+                                      memberQuery = memberQuery.eq("club_id", event.club_id);
+                                    }
+                                    
+                                    const { data: members } = await memberQuery;
+                                    allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
+                                  }
                                   const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
                                   
                                   setNonRsvpCount(count);
@@ -2447,6 +2515,7 @@ export default function HomePage() {
           eventTitle={eventToCancel?.title || ""}
           teamId={eventToCancel?.team_id}
           clubId={eventToCancel?.club_id}
+          miniLeagueId={eventToCancel?.mini_league_id}
           onSingleAction={(customMessage, sendPushNotification) => 
             cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
           }
@@ -2466,6 +2535,7 @@ export default function HomePage() {
           eventTitle={eventToCancel?.title || ""}
           teamId={eventToCancel?.team_id}
           clubId={eventToCancel?.club_id}
+          miniLeagueId={eventToCancel?.mini_league_id}
           onConfirm={(customMessage, sendPushNotification) => 
             cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
           }

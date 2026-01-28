@@ -21,6 +21,7 @@ interface CancelEventConfirmDialogProps {
   eventTitle: string;
   teamId: string | null;
   clubId: string;
+  miniLeagueId?: string | null;
   onConfirm: (customMessage?: string, sendPushNotification?: boolean) => void;
   isPending?: boolean;
 }
@@ -32,6 +33,7 @@ export function CancelEventConfirmDialog({
   eventTitle,
   teamId,
   clubId,
+  miniLeagueId,
   onConfirm,
   isPending,
 }: CancelEventConfirmDialogProps) {
@@ -46,21 +48,60 @@ export function CancelEventConfirmDialog({
       setSendPushNotification(true);
       fetchMemberCount();
     }
-  }, [open, teamId, clubId]);
+  }, [open, teamId, clubId, miniLeagueId]);
 
   const fetchMemberCount = async () => {
     setIsLoading(true);
     try {
-      let memberQuery = supabase.from("user_roles").select("user_id");
-      if (teamId) {
-        memberQuery = memberQuery.eq("team_id", teamId);
+      // For mini-league events, count parents + league/club admins
+      if (miniLeagueId) {
+        // Get mini league to find the club_id
+        const { data: league } = await supabase
+          .from("mini_leagues")
+          .select("club_id")
+          .eq("id", miniLeagueId)
+          .single();
+        
+        if (league) {
+          // Get all parent user IDs from mini league players
+          const { data: playersData } = await supabase
+            .from("mini_league_players")
+            .select("parent_user_id")
+            .eq("mini_league_id", miniLeagueId)
+            .not("parent_user_id", "is", null);
+          
+          const parentIds = [...new Set(
+            (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || []
+          )];
+          
+          // Get club admins, league admins, and coaches
+          const { data: adminRoles } = await supabase
+            .from("user_roles")
+            .select("user_id")
+            .eq("club_id", league.club_id)
+            .in("role", ["club_admin", "league_admin", "coach"]);
+          
+          const adminIds = adminRoles?.map(r => r.user_id) || [];
+          
+          // Combine all unique IDs
+          const allUserIds = [...new Set([...parentIds, ...adminIds])];
+          setMemberCount(allUserIds.length);
+        } else {
+          setMemberCount(null);
+        }
       } else {
-        memberQuery = memberQuery.eq("club_id", clubId);
-      }
+        // Standard team/club member count
+        let memberQuery = supabase.from("user_roles").select("user_id");
+        if (teamId) {
+          memberQuery = memberQuery.eq("team_id", teamId);
+        } else {
+          memberQuery = memberQuery.eq("club_id", clubId);
+        }
 
-      const { data: members } = await memberQuery;
-      const uniqueMembers = [...new Set(members?.map(m => m.user_id) || [])];
-      setMemberCount(uniqueMembers.length);
+        const { data: members } = await memberQuery;
+        const uniqueMembers = [...new Set(members?.map(m => m.user_id) || [])];
+        setMemberCount(uniqueMembers.length);
+      }
     } catch (error) {
       console.error("Failed to fetch member count:", error);
       setMemberCount(null);
@@ -81,7 +122,7 @@ export function CancelEventConfirmDialog({
     return `${baseMessage}\n\nView event: [link]`;
   };
 
-  const chatType = teamId ? "team" : "club";
+  const chatType = miniLeagueId ? "league" : (teamId ? "team" : "club");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
