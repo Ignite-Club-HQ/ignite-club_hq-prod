@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Users, PlayCircle, Wand2, Loader2, X, ClipboardList, Copy, Shirt, RefreshCw, UserCheck, UserX, List } from "lucide-react";
+import { Plus, Users, PlayCircle, Wand2, Loader2, X, ClipboardList, Copy, Shirt, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,8 +26,6 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { Switch } from "@/components/ui/switch";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Default bib color pairs when league has no custom colors
 const DEFAULT_BIB_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"];
@@ -46,6 +44,7 @@ interface EventGroupsManagerProps {
   eventId: string;
   miniLeagueId: string;
   isAdmin: boolean;
+  playerOverrides?: Record<string, boolean>;
 }
 
 interface MiniLeaguePlayer {
@@ -84,13 +83,12 @@ interface EventGroup {
   players: GroupPlayer[];
 }
 
-export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGroupsManagerProps) {
+export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverrides = {} }: EventGroupsManagerProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isAutoGenOpen, setIsAutoGenOpen] = useState(false);
   const [isCopyPreviousOpen, setIsCopyPreviousOpen] = useState(false);
-  const [isResponsesOpen, setIsResponsesOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [newPitchName, setNewPitchName] = useState("");
   const [numGroups, setNumGroups] = useState(2);
@@ -98,9 +96,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
   const [useAutoMode, setUseAutoMode] = useState(true);
   const [abilityMode, setAbilityMode] = useState<"similar" | "mixed">("similar");
   const [selectedPreviousEventId, setSelectedPreviousEventId] = useState<string | null>(null);
-  const [playerAvailability, setPlayerAvailability] = useState<Record<string, boolean>>({});
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const [availabilityInitialized, setAvailabilityInitialized] = useState(false);
 
   // Fetch event groups
   const { data: groups, isLoading } = useQuery({
@@ -218,44 +214,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
   // Players who RSVP'd going
   const rsvpGoingPlayers = allPlayers?.filter(p => rsvpPlayerIds.has(p.id)) || [];
 
-  // Initialize player availability when responses dialog opens (default to RSVP status)
-  const initializeAvailability = () => {
-    if (allPlayers) {
-      const availability: Record<string, boolean> = {};
-      allPlayers.forEach(p => {
-        // Default to RSVP status - only "going" players are available
-        // But allow admin override if they've already toggled
-        if (availabilityInitialized && playerAvailability[p.id] !== undefined) {
-          availability[p.id] = playerAvailability[p.id];
-        } else {
-          availability[p.id] = rsvpPlayerIds.has(p.id);
-        }
-      });
-      setPlayerAvailability(availability);
-      setAvailabilityInitialized(true);
-    }
-  };
-
-  // Reset availability when responses dialog opens
-  useEffect(() => {
-    if (isResponsesOpen && allPlayers && !availabilityInitialized) {
-      initializeAvailability();
-    }
-    if (!isResponsesOpen) {
-      setAvailabilityInitialized(false);
-    }
-  }, [isResponsesOpen, allPlayers, eventRsvps]);
-
-  // Get available players only (those selected for this session)
-  const availablePlayers = allPlayers?.filter(p => playerAvailability[p.id] === true) || [];
-
-  // Toggle player availability
-  const togglePlayerAvailability = (playerId: string) => {
-    setPlayerAvailability(prev => ({
-      ...prev,
-      [playerId]: !prev[playerId],
-    }));
-  };
+  // Get available players based on overrides from parent (those selected for this session)
+  const availablePlayers = allPlayers?.filter(p => playerOverrides[p.id] === true) || [];
 
   // Fetch previous events for copy
   const { data: previousEvents } = useQuery({
@@ -602,10 +562,6 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
         <h3 className="font-semibold">Matches</h3>
         {isAdmin && (
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setIsResponsesOpen(true)}>
-              <List className="h-4 w-4 mr-1" />
-              Responses ({availablePlayers.length})
-            </Button>
             {groups && groups.length > 0 && (
               <Button 
                 size="sm" 
@@ -1008,125 +964,6 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
             >
               {copyFromPreviousMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Copy Matches
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Responses Dialog - RSVP Override */}
-      <Dialog open={isResponsesOpen} onOpenChange={setIsResponsesOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Player Responses</DialogTitle>
-            <DialogDescription>
-              Manage player availability for match generation. Override RSVP status if needed.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
-            {/* Summary */}
-            <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-              <div>
-                <p className="font-medium text-sm">Available Players</p>
-                <p className="text-xs text-muted-foreground">
-                  {rsvpGoingPlayers.length} RSVP'd going
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-primary">{availablePlayers.length}</p>
-                <p className="text-xs text-muted-foreground">of {allPlayers?.length || 0}</p>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                onClick={() => {
-                  const newAvailability: Record<string, boolean> = {};
-                  allPlayers?.forEach(p => { newAvailability[p.id] = true; });
-                  setPlayerAvailability(newAvailability);
-                }}
-              >
-                <UserCheck className="h-4 w-4 mr-1" />
-                Select All
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                onClick={() => {
-                  const newAvailability: Record<string, boolean> = {};
-                  allPlayers?.forEach(p => { newAvailability[p.id] = rsvpPlayerIds.has(p.id); });
-                  setPlayerAvailability(newAvailability);
-                }}
-              >
-                Reset to RSVP
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                onClick={() => {
-                  const newAvailability: Record<string, boolean> = {};
-                  allPlayers?.forEach(p => { newAvailability[p.id] = false; });
-                  setPlayerAvailability(newAvailability);
-                }}
-              >
-                <UserX className="h-4 w-4 mr-1" />
-                Clear All
-              </Button>
-            </div>
-
-            {/* Player List */}
-            <ScrollArea className="h-64 rounded-lg border">
-              <div className="p-2 space-y-1">
-                {allPlayers?.map((player) => {
-                  const isAvailable = playerAvailability[player.id] === true;
-                  const hasRsvp = rsvpPlayerIds.has(player.id);
-                  return (
-                    <div
-                      key={player.id}
-                      className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
-                        isAvailable 
-                          ? "bg-primary/5 hover:bg-primary/10" 
-                          : "bg-muted/50 hover:bg-muted/70"
-                      }`}
-                      onClick={() => togglePlayerAvailability(player.id)}
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <Checkbox 
-                          checked={isAvailable} 
-                          onCheckedChange={() => togglePlayerAvailability(player.id)}
-                        />
-                        <span className={`text-sm truncate ${!isAvailable ? "opacity-60" : ""}`}>
-                          {player.name}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground shrink-0">
-                          ({getAbilityLabel(player.ability_rating)})
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {hasRsvp ? (
-                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-5 bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/30">
-                            ✓ Going
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-5 opacity-50">
-                            No RSVP
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </ScrollArea>
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setIsResponsesOpen(false)}>
-              Done
             </Button>
           </DialogFooter>
         </DialogContent>
