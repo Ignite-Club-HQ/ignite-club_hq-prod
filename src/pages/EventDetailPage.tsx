@@ -52,6 +52,7 @@ import { format, parseISO } from "date-fns";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { EventSponsorsSection } from "@/components/EventSponsorsSection";
 import { EventGroupsManager } from "@/components/EventGroupsManager";
+import { MiniLeaguePlayerOverrides } from "@/components/MiniLeaguePlayerOverrides";
 
 // Lazy load PitchBoard for game events
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
@@ -174,6 +175,9 @@ export default function EventDetailPage() {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [showPitchBoard, setShowPitchBoard] = useState(false);
+  
+  // Mini league player overrides for match generation
+  const [playerOverrides, setPlayerOverrides] = useState<Record<string, boolean>>({});
 
   const { data: event, isLoading } = useQuery({
     queryKey: ["event", id],
@@ -1674,6 +1678,16 @@ export default function EventDetailPage() {
             </>
           );
         })()}
+        
+        {/* Mini League Player Overrides (for mini league events) */}
+        {event.mini_league_id && (isAdmin || isAppAdmin) && (
+          <MiniLeaguePlayerOverrides
+            eventId={id!}
+            miniLeagueId={event.mini_league_id}
+            isAdmin={isAdmin || isAppAdmin || false}
+            onOverridesChange={setPlayerOverrides}
+          />
+        )}
       </section>
 
       {/* Mini League Breakout Groups (only for mini league events) */}
@@ -1685,6 +1699,7 @@ export default function EventDetailPage() {
               eventId={id!}
               miniLeagueId={event.mini_league_id}
               isAdmin={isAdmin || isAppAdmin || false}
+              playerOverrides={playerOverrides}
             />
           </section>
         </>
