@@ -1610,7 +1610,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     // For mini-league mode, re-place both teams with the new formation (reposition to formation)
     if (miniLeagueTeams) {
-      setPlayers(prev => autoPlaceMiniLeaguePlayers(prev, teamSize, true, index, true));
+      setPlayers(prev => {
+        // Ensure teamSide is set on all players before placement
+        const playersWithTeamSide = prev.map(p => {
+          if (p.teamSide) return p;
+          let teamSide: "a" | "b" | undefined;
+          if (miniLeagueTeams.teamAPlayerIds.includes(p.id)) {
+            teamSide = "a";
+          } else if (miniLeagueTeams.teamBPlayerIds.includes(p.id)) {
+            teamSide = "b";
+          }
+          return { ...p, teamSide };
+        });
+        return autoPlaceMiniLeaguePlayers(playersWithTeamSide, teamSize, true, index, true);
+      });
       toast({ title: "Formation applied", description: `${formation.name} formation set for both teams` });
       return;
     }
@@ -2444,9 +2457,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setTeamSize(newSize);
     setSelectedFormation(0);
     
-    // For mini-league mode, re-place both teams with the new size (preserve on-pitch status)
+    // For mini-league mode, re-place both teams with the new size
     if (miniLeagueTeams) {
-      const placedPlayers = autoPlaceMiniLeaguePlayers(players, newSize, true);
+      // Ensure teamSide is set on all players before placement
+      const playersWithTeamSide = players.map(p => {
+        if (p.teamSide) return p;
+        let teamSide: "a" | "b" | undefined;
+        if (miniLeagueTeams.teamAPlayerIds.includes(p.id)) {
+          teamSide = "a";
+        } else if (miniLeagueTeams.teamBPlayerIds.includes(p.id)) {
+          teamSide = "b";
+        }
+        return { ...p, teamSide };
+      });
+      const placedPlayers = autoPlaceMiniLeaguePlayers(playersWithTeamSide, newSize, true);
       setPlayers(placedPlayers);
     } else {
       // Re-place players using the new team size and first formation
