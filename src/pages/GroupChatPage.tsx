@@ -1057,16 +1057,6 @@ export default function GroupChatPage() {
     return map;
   }, [localMessages, reactions]);
 
-  const getRoleBadge = useCallback((roles: string[]) => {
-    const roleLabels: Record<string, string> = {
-      team_admin: "Team Admins",
-      coach: "Coaches",
-      parent: "Parents",
-      player: "Players",
-      club_admin: "Club Admins",
-    };
-    return roles.map((r) => roleLabels[r] || r).join(", ");
-  }, []);
 
   if (groupLoading) {
     return <PageLoading message="Loading group chat..." />;
@@ -1092,13 +1082,6 @@ export default function GroupChatPage() {
         </Button>
         <div className="flex-1">
           <h1 className="font-semibold">{group.name}</h1>
-          {/* Only show roles for team/club groups, not personal or league groups */}
-          {(group.team_id || group.club_id) && !group.mini_league_id && (
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Users className="h-3 w-3" />
-              {getRoleBadge(group.allowed_roles)}
-            </p>
-          )}
         </div>
         <ChatMuteButton chatType="group" chatId={groupId!} />
         <ChatMembersSheet
