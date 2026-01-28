@@ -789,9 +789,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const autoPlaceMiniLeaguePlayers = useCallback((
     playersToPlace: Player[],
     size: TeamSize,
-    preserveOnPitchStatus: boolean = false
+    preserveOnPitchStatus: boolean = false,
+    formationIndex: number = 0
   ): Player[] => {
-    const formation = FORMATIONS[size][0]; // Use first formation for each team
+    const formation = FORMATIONS[size][formationIndex] || FORMATIONS[size][0];
     if (!formation) return playersToPlace;
     
     const teamAPlayers = playersToPlace.filter(p => p.teamSide === "a");
@@ -1552,7 +1553,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     // For mini-league mode, re-place both teams with the new formation (preserve on-pitch status)
     if (miniLeagueTeams) {
-      setPlayers(prev => autoPlaceMiniLeaguePlayers(prev, teamSize, true));
+      setPlayers(prev => autoPlaceMiniLeaguePlayers(prev, teamSize, true, index));
       toast({ title: "Formation applied", description: `${formation.name} formation set for both teams` });
       return;
     }
