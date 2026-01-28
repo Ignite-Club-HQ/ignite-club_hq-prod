@@ -225,7 +225,7 @@ export default function EventDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("rsvps")
-        .select(`*, profiles (display_name, avatar_url), children (id, name), mini_league_players:mini_league_player_id (id, name)`)
+        .select(`*, profiles:user_id (display_name, avatar_url), children:child_id (id, name), mini_league_players:mini_league_player_id (id, name)`)
         .eq("event_id", id!);
       if (error) throw error;
       return data;
