@@ -17,11 +17,11 @@ export function MultiClubSponsorCarousel() {
   const { user } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Fetch only allocated sponsors (club primary sponsors + team sponsor allocations)
+  // Fetch ALL active sponsors for user's clubs
   const { data: allSponsors = [] } = useQuery({
-    queryKey: ["user-allocated-sponsors", user?.id],
+    queryKey: ["user-all-sponsors", user?.id],
     queryFn: async () => {
-      // Get all club IDs and team IDs the user is linked to
+      // Get all club IDs the user is linked to
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select(`
@@ -33,76 +33,37 @@ export function MultiClubSponsorCarousel() {
 
       if (rolesError) throw rolesError;
 
-      // Collect unique club IDs and team info with club names
+      // Collect unique club IDs
       const clubIds = new Set<string>();
-      const teamMap = new Map<string, { teamName: string; clubId: string }>(); // teamId -> { teamName, clubId }
-      
       roles?.forEach((role) => {
-        if (role.club_id) {
-          clubIds.add(role.club_id);
-        }
-        if (role.team_id && role.teams) {
-          teamMap.set(role.teams.id, { teamName: role.teams.name, clubId: role.teams.club_id });
-          if (role.teams.club_id) {
-            clubIds.add(role.teams.club_id);
-          }
-        }
+        if (role.club_id) clubIds.add(role.club_id);
+        if (role.teams?.club_id) clubIds.add(role.teams.club_id);
       });
 
       if (clubIds.size === 0) return [];
 
-      const sponsorItems: SponsorItem[] = [];
-      const seenSponsorIds = new Set<string>();
-
-      // 1. Fetch ALL clubs for name lookup (not just ones with sponsors)
-      const { data: allClubs } = await supabase
+      // Fetch all clubs for name lookup
+      const { data: clubs } = await supabase
         .from("clubs")
-        .select("id, name, primary_sponsor_id")
+        .select("id, name")
         .in("id", Array.from(clubIds));
 
-      // Build a club name lookup for team sponsors
       const clubNameMap = new Map<string, string>();
-      allClubs?.forEach((club) => {
-        clubNameMap.set(club.id, club.name);
-      });
+      clubs?.forEach((club) => clubNameMap.set(club.id, club.name));
 
-      // Add club primary sponsors
-      allClubs?.forEach((club) => {
-        if (club.primary_sponsor_id && !seenSponsorIds.has(club.primary_sponsor_id)) {
-          seenSponsorIds.add(club.primary_sponsor_id);
-          sponsorItems.push({
-            id: `club-${club.id}-${club.primary_sponsor_id}`,
-            sponsorId: club.primary_sponsor_id,
-            entityName: club.name,
-          });
-        }
-      });
+      // Fetch ALL active sponsors for these clubs
+      const { data: sponsors } = await supabase
+        .from("sponsors")
+        .select("id, name, club_id, is_active")
+        .in("club_id", Array.from(clubIds))
+        .eq("is_active", true)
+        .order("name");
 
-      // 2. Fetch team sponsor allocations
-      if (teamMap.size > 0) {
-        const { data: teamAllocations } = await supabase
-          .from("team_sponsor_allocations")
-          .select("team_id, sponsor_id, sponsors!inner(is_active)")
-          .in("team_id", Array.from(teamMap.keys()));
-
-        teamAllocations?.forEach((allocation: any) => {
-          if (allocation.sponsors?.is_active && !seenSponsorIds.has(allocation.sponsor_id)) {
-            seenSponsorIds.add(allocation.sponsor_id);
-            const teamInfo = teamMap.get(allocation.team_id);
-            if (teamInfo) {
-              const clubName = clubNameMap.get(teamInfo.clubId) || "";
-              const entityName = clubName ? `${clubName} ${teamInfo.teamName}` : teamInfo.teamName;
-              sponsorItems.push({
-                id: `team-${allocation.team_id}-${allocation.sponsor_id}`,
-                sponsorId: allocation.sponsor_id,
-                entityName,
-              });
-            }
-          }
-        });
-      }
-
-      return sponsorItems;
+      return (sponsors || []).map((sponsor) => ({
+        id: `sponsor-${sponsor.id}`,
+        sponsorId: sponsor.id,
+        entityName: clubNameMap.get(sponsor.club_id) || "",
+      }));
     },
     enabled: !!user?.id,
   });

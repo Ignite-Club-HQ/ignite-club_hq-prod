@@ -21,70 +21,34 @@ export function MessagesSponsorCarousel({ activeClubFilter }: MessagesSponsorCar
   const { user } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Fetch only allocated sponsors (club primary sponsors + team sponsor allocations)
+  // Fetch ALL active sponsors for user's clubs (filtered or all)
   const { data: sponsors = [] } = useQuery({
-    queryKey: ["messages-allocated-sponsors", user?.id, activeClubFilter],
+    queryKey: ["messages-all-sponsors", user?.id, activeClubFilter],
     queryFn: async () => {
-      const sponsorItems: SponsorItem[] = [];
-      const seenSponsorIds = new Set<string>();
-
       if (activeClubFilter) {
-        // Filtered mode: show sponsors allocated to this club and its teams
-        
-        // 1. Get club primary sponsor
+        // Filtered mode: show all active sponsors for this specific club
         const { data: club } = await supabase
           .from("clubs")
-          .select("id, name, primary_sponsor_id")
+          .select("id, name")
           .eq("id", activeClubFilter)
           .maybeSingle();
 
-        if (club?.primary_sponsor_id) {
-          seenSponsorIds.add(club.primary_sponsor_id);
-          sponsorItems.push({
-            id: `club-${club.id}-${club.primary_sponsor_id}`,
-            sponsorId: club.primary_sponsor_id,
-            entityName: club.name,
-          });
-        }
+        if (!club) return [];
 
-        // 2. Get teams in this club that the user belongs to
-        const { data: userTeamRoles } = await supabase
-          .from("user_roles")
-          .select("team_id, teams!user_roles_team_id_fkey(id, name, club_id)")
-          .eq("user_id", user!.id)
-          .not("team_id", "is", null);
+        const { data: sponsors } = await supabase
+          .from("sponsors")
+          .select("id, name, is_active")
+          .eq("club_id", activeClubFilter)
+          .eq("is_active", true)
+          .order("name");
 
-        const teamMap = new Map<string, { teamName: string; clubName: string }>();
-        userTeamRoles?.forEach((role) => {
-          if (role.teams?.club_id === activeClubFilter) {
-            teamMap.set(role.teams.id, { teamName: role.teams.name, clubName: club?.name || "" });
-          }
-        });
-
-        // 3. Get team sponsor allocations for these teams
-        if (teamMap.size > 0) {
-          const { data: teamAllocations } = await supabase
-            .from("team_sponsor_allocations")
-            .select("team_id, sponsor_id, sponsors!inner(is_active)")
-            .in("team_id", Array.from(teamMap.keys()));
-
-          teamAllocations?.forEach((allocation: any) => {
-            if (allocation.sponsors?.is_active && !seenSponsorIds.has(allocation.sponsor_id)) {
-              seenSponsorIds.add(allocation.sponsor_id);
-              const teamInfo = teamMap.get(allocation.team_id);
-              if (teamInfo) {
-                const entityName = teamInfo.clubName ? `${teamInfo.clubName} ${teamInfo.teamName}` : teamInfo.teamName;
-                sponsorItems.push({
-                  id: `team-${allocation.team_id}-${allocation.sponsor_id}`,
-                  sponsorId: allocation.sponsor_id,
-                  entityName,
-                });
-              }
-            }
-          });
-        }
+        return (sponsors || []).map((sponsor) => ({
+          id: `club-${club.id}-${sponsor.id}`,
+          sponsorId: sponsor.id,
+          entityName: club.name,
+        }));
       } else {
-        // No filter: show all allocated sponsors from user's clubs and teams
+        // No filter: show all active sponsors from all user's clubs
         const { data: roles } = await supabase
           .from("user_roles")
           .select(`
@@ -96,74 +60,38 @@ export function MessagesSponsorCarousel({ activeClubFilter }: MessagesSponsorCar
 
         if (!roles) return [];
 
-        // Collect unique club IDs and team info with club IDs
+        // Collect unique club IDs
         const clubIds = new Set<string>();
-        const teamMap = new Map<string, { teamName: string; clubId: string }>();
-
         roles.forEach((role) => {
-          if (role.club_id) {
-            clubIds.add(role.club_id);
-          }
-          if (role.team_id && role.teams) {
-            teamMap.set(role.teams.id, { teamName: role.teams.name, clubId: role.teams.club_id });
-            if (role.teams.club_id) {
-              clubIds.add(role.teams.club_id);
-            }
-          }
+          if (role.club_id) clubIds.add(role.club_id);
+          if (role.teams?.club_id) clubIds.add(role.teams.club_id);
         });
 
         if (clubIds.size === 0) return [];
 
-        // 1. Fetch ALL clubs for name lookup (not just ones with sponsors)
-        const { data: allClubs } = await supabase
+        // Fetch all clubs for name lookup
+        const { data: clubs } = await supabase
           .from("clubs")
-          .select("id, name, primary_sponsor_id")
+          .select("id, name")
           .in("id", Array.from(clubIds));
 
-        // Build a club name lookup for team sponsors
         const clubNameMap = new Map<string, string>();
-        allClubs?.forEach((club) => {
-          clubNameMap.set(club.id, club.name);
-        });
+        clubs?.forEach((club) => clubNameMap.set(club.id, club.name));
 
-        // Add club primary sponsors
-        allClubs?.forEach((club) => {
-          if (club.primary_sponsor_id && !seenSponsorIds.has(club.primary_sponsor_id)) {
-            seenSponsorIds.add(club.primary_sponsor_id);
-            sponsorItems.push({
-              id: `club-${club.id}-${club.primary_sponsor_id}`,
-              sponsorId: club.primary_sponsor_id,
-              entityName: club.name,
-            });
-          }
-        });
+        // Fetch ALL active sponsors for these clubs
+        const { data: allSponsors } = await supabase
+          .from("sponsors")
+          .select("id, name, club_id, is_active")
+          .in("club_id", Array.from(clubIds))
+          .eq("is_active", true)
+          .order("name");
 
-        // 2. Fetch team sponsor allocations
-        if (teamMap.size > 0) {
-          const { data: teamAllocations } = await supabase
-            .from("team_sponsor_allocations")
-            .select("team_id, sponsor_id, sponsors!inner(is_active)")
-            .in("team_id", Array.from(teamMap.keys()));
-
-          teamAllocations?.forEach((allocation: any) => {
-            if (allocation.sponsors?.is_active && !seenSponsorIds.has(allocation.sponsor_id)) {
-              seenSponsorIds.add(allocation.sponsor_id);
-              const teamInfo = teamMap.get(allocation.team_id);
-              if (teamInfo) {
-                const clubName = clubNameMap.get(teamInfo.clubId) || "";
-                const entityName = clubName ? `${clubName} ${teamInfo.teamName}` : teamInfo.teamName;
-                sponsorItems.push({
-                  id: `team-${allocation.team_id}-${allocation.sponsor_id}`,
-                  sponsorId: allocation.sponsor_id,
-                  entityName,
-                });
-              }
-            }
-          });
-        }
+        return (allSponsors || []).map((sponsor) => ({
+          id: `sponsor-${sponsor.id}`,
+          sponsorId: sponsor.id,
+          entityName: clubNameMap.get(sponsor.club_id) || "",
+        }));
       }
-
-      return sponsorItems;
     },
     enabled: !!user?.id,
     staleTime: 300000,
