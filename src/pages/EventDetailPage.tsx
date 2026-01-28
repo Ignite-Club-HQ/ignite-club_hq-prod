@@ -421,9 +421,24 @@ export default function EventDetailPage() {
     enabled: !!event,
   });
 
+  // Fetch mini-league players for mini-league events (for not responded list)
+  const { data: miniLeaguePlayers } = useQuery({
+    queryKey: ["mini-league-players-for-event", event?.mini_league_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mini_league_players")
+        .select("id, name, parent_user_id, child_id")
+        .eq("mini_league_id", event!.mini_league_id!);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!event?.mini_league_id,
+  });
+
   // For social events, always show all members; for training/games, use toggle
   const isSocialEvent = event?.type === "social";
   const effectiveShowAll = isSocialEvent ? true : showAllRoles;
+  const isMiniLeagueEvent = !!event?.mini_league_id;
 
   // Filter members based on showAllRoles toggle
   const members = membersWithRoles;
@@ -1545,13 +1560,32 @@ export default function EventDetailPage() {
           const notGoingRsvps = rsvps?.filter((r) => r.status === "not_going" && filterRsvp(r)) || [];
           
           // Not responded - filter members based on effectiveShowAll
+          // For mini-league events, use mini-league players instead of team members
           const respondedUserIds = new Set(rsvps?.filter(r => !r.child_id).map(r => r.user_id) || []);
           const respondedChildIds = new Set(rsvps?.filter(r => r.child_id).map(r => r.child_id) || []);
-          const membersToShow = effectiveShowAll ? members : playerMembers;
-          const notResponded = membersToShow?.filter((m: any) => !respondedUserIds.has(m.id)) || [];
           
-          // Get children who haven't responded (children are always treated as players)
-          const notRespondedChildren = allChildrenOnTeam?.filter((child: any) => !respondedChildIds.has(child.id)) || [];
+          let notResponded: any[] = [];
+          let notRespondedChildren: any[] = [];
+          
+          if (isMiniLeagueEvent && miniLeaguePlayers) {
+            // For mini-league events, show players who haven't had their parent/child respond
+            notRespondedChildren = miniLeaguePlayers.filter((player: any) => {
+              // Check if this player's child_id has an RSVP
+              if (player.child_id && respondedChildIds.has(player.child_id)) return false;
+              // Check if parent has RSVP'd for this player (via child_id in rsvp)
+              return true;
+            });
+          } else {
+            // For regular events, use team members
+            const membersToShow = effectiveShowAll ? members : playerMembers;
+            notResponded = membersToShow?.filter((m: any) => !respondedUserIds.has(m.id)) || [];
+            // Get children who haven't responded (children are always treated as players)
+            notRespondedChildren = allChildrenOnTeam?.filter((child: any) => !respondedChildIds.has(child.id)) || [];
+          }
+          
+          const totalNotResponded = isMiniLeagueEvent 
+            ? notRespondedChildren.length 
+            : notResponded.length + notRespondedChildren.length;
           
           return (
             <>
@@ -1632,15 +1666,15 @@ export default function EventDetailPage() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <span>⏳</span>
-                  <span>Not Responded ({notResponded.length + notRespondedChildren.length})</span>
+                  <span>Not Responded ({totalNotResponded})</span>
                 </div>
-                {notResponded.length === 0 && notRespondedChildren.length === 0 ? (
+                {totalNotResponded === 0 ? (
                   <p className="text-muted-foreground text-sm pl-6">
                     {(rsvps?.length || 0) > 0 ? "Everyone has responded" : "No members to respond"}
                   </p>
                 ) : (
                   <div className="space-y-1 pl-6">
-                    {/* Children (treated as players) */}
+                    {/* Mini-league players or Children (treated as players) */}
                     {notRespondedChildren.map((child: any) => (
                       <Card key={`child-${child.id}`}>
                         <CardContent className="p-3">
@@ -1652,14 +1686,14 @@ export default function EventDetailPage() {
                             </Avatar>
                             <div className="flex items-center gap-2">
                               <span className="font-medium">{child.name || "Unknown"}</span>
-                              <Badge variant="outline" className="text-xs">Child</Badge>
+                              {!isMiniLeagueEvent && <Badge variant="outline" className="text-xs">Child</Badge>}
                             </div>
                           </div>
                         </CardContent>
                       </Card>
                     ))}
-                    {/* Members */}
-                    {notResponded.map((member: any) => (
+                    {/* Members (for non-mini-league events) */}
+                    {!isMiniLeagueEvent && notResponded.map((member: any) => (
                       <Card key={member.id}>
                         <CardContent className="p-3">
                           <div className="flex items-center gap-3">
