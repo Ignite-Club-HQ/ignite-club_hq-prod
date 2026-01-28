@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubTheme } from "@/hooks/useClubTheme";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -47,6 +48,7 @@ interface TeamInfo {
 
 export function StartDMDialog() {
   const { user } = useAuth();
+  const { activeClubFilter } = useClubTheme();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -54,6 +56,13 @@ export function StartDMDialog() {
   const [selectedUsers, setSelectedUsers] = useState<DMableUser[]>([]);
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
+
+  // Auto-select club filter when in club mode
+  useEffect(() => {
+    if (activeClubFilter && open) {
+      setSelectedClubId(activeClubFilter);
+    }
+  }, [activeClubFilter, open]);
 
   // Check if user has Pro access for DMs
   const { data: hasProAccess, isLoading: checkingPro } = useQuery({
@@ -84,9 +93,9 @@ export function StartDMDialog() {
     enabled: !!user && open,
   });
 
-  // Fetch users that can be DMed (members of shared Pro clubs) along with club/team info
+  // Fetch users that can be DMed (members of shared Pro clubs + mini-league parents) excluding app admins
   const { data: dmData, isLoading: loadingUsers } = useQuery({
-    queryKey: ["dmable-users-with-filters", user?.id],
+    queryKey: ["dmable-users-with-filters", user?.id, activeClubFilter],
     queryFn: async () => {
       // Get Pro clubs user is a member of
       const { data: userRoles } = await supabase
@@ -97,7 +106,14 @@ export function StartDMDialog() {
 
       if (!userRoles?.length) return { users: [], clubs: [], teams: [] };
 
-      const clubIds = [...new Set(userRoles.map(r => r.club_id).filter(Boolean))] as string[];
+      let clubIds = [...new Set(userRoles.map(r => r.club_id).filter(Boolean))] as string[];
+
+      // If in club mode, filter to only the active club
+      if (activeClubFilter) {
+        clubIds = clubIds.filter(id => id === activeClubFilter);
+      }
+
+      if (clubIds.length === 0) return { users: [], clubs: [], teams: [] };
 
       // Filter to Pro clubs only
       const { data: proClubs } = await supabase
@@ -109,27 +125,48 @@ export function StartDMDialog() {
       const proClubIds = proClubs?.map(c => c.club_id) || [];
       if (proClubIds.length === 0) return { users: [], clubs: [], teams: [] };
 
-      // Fetch clubs and teams in parallel
-      const [clubsResult, teamsResult, clubMembersResult] = await Promise.all([
+      // Fetch clubs, teams, club members, mini-leagues, and app admins in parallel
+      const [clubsResult, teamsResult, clubMembersResult, miniLeaguesResult, appAdminsResult] = await Promise.all([
         supabase.from("clubs").select("id, name").in("id", proClubIds),
         supabase.from("teams").select("id, name, club_id").in("club_id", proClubIds),
-        supabase.from("user_roles").select("user_id, club_id, team_id").in("club_id", proClubIds).neq("user_id", user!.id),
+        supabase.from("user_roles").select("user_id, club_id, team_id, role").in("club_id", proClubIds).neq("user_id", user!.id),
+        supabase.from("mini_leagues").select("id, club_id").in("club_id", proClubIds),
+        supabase.from("user_roles").select("user_id").eq("role", "app_admin"),
       ]);
 
       const clubs = (clubsResult.data || []) as ClubInfo[];
       const teams = (teamsResult.data || []) as TeamInfo[];
       const clubMembers = clubMembersResult.data || [];
+      const miniLeagues = miniLeaguesResult.data || [];
+      const appAdminIds = new Set((appAdminsResult.data || []).map(a => a.user_id));
 
       const clubNameMap = new Map(clubs.map(c => [c.id, c.name]));
 
-      if (!clubMembers.length) return { users: [], clubs, teams };
+      // Get mini-league parents
+      let miniLeagueParents: { parent_user_id: string; mini_league_id: string }[] = [];
+      if (miniLeagues.length > 0) {
+        const miniLeagueIds = miniLeagues.map(ml => ml.id);
+        const { data: mlPlayers } = await supabase
+          .from("mini_league_players")
+          .select("parent_user_id, mini_league_id")
+          .in("mini_league_id", miniLeagueIds)
+          .not("parent_user_id", "is", null);
+        miniLeagueParents = (mlPlayers || []).filter(p => p.parent_user_id !== user!.id);
+      }
+
+      // Build a map of mini-league to club
+      const miniLeagueClubMap = new Map(miniLeagues.map(ml => [ml.id, ml.club_id]));
 
       // Group by user and collect their clubs and teams
       const userClubMap = new Map<string, Set<string>>();
       const userTeamMap = new Map<string, Set<string>>();
       const userClubNameMap = new Map<string, string[]>();
       
-      clubMembers.forEach((member: { user_id: string; club_id: string; team_id: string | null }) => {
+      // Process club members (excluding app_admin role users)
+      clubMembers.forEach((member: { user_id: string; club_id: string; team_id: string | null; role: string }) => {
+        // Skip app admins
+        if (appAdminIds.has(member.user_id)) return;
+
         if (!userClubMap.has(member.user_id)) {
           userClubMap.set(member.user_id, new Set());
           userTeamMap.set(member.user_id, new Set());
@@ -147,7 +184,29 @@ export function StartDMDialog() {
         }
       });
 
+      // Process mini-league parents (they might not have user_roles entries)
+      miniLeagueParents.forEach((mlParent) => {
+        // Skip app admins
+        if (appAdminIds.has(mlParent.parent_user_id)) return;
+
+        const clubId = miniLeagueClubMap.get(mlParent.mini_league_id);
+        if (!clubId) return;
+
+        if (!userClubMap.has(mlParent.parent_user_id)) {
+          userClubMap.set(mlParent.parent_user_id, new Set());
+          userTeamMap.set(mlParent.parent_user_id, new Set());
+          userClubNameMap.set(mlParent.parent_user_id, []);
+        }
+        userClubMap.get(mlParent.parent_user_id)!.add(clubId);
+        const clubName = clubNameMap.get(clubId);
+        if (clubName && !userClubNameMap.get(mlParent.parent_user_id)!.includes(clubName)) {
+          userClubNameMap.get(mlParent.parent_user_id)!.push(clubName);
+        }
+      });
+
       const uniqueUserIds = [...userClubMap.keys()];
+
+      if (uniqueUserIds.length === 0) return { users: [], clubs, teams };
 
       // Fetch profiles
       const { data: profiles } = await supabase
@@ -309,13 +368,16 @@ export function StartDMDialog() {
     setSelectedTeamId("all");
   };
 
+  // Check if club filter is locked (in club mode)
+  const isClubFilterLocked = !!activeClubFilter;
+
   return (
     <ResponsiveDialog open={open} onOpenChange={(isOpen) => {
       setOpen(isOpen);
       if (!isOpen) {
         setSelectedUsers([]);
         setSearchQuery("");
-        setSelectedClubId("all");
+        setSelectedClubId(activeClubFilter || "all");
         setSelectedTeamId("all");
       }
     }}>
@@ -378,12 +440,12 @@ export function StartDMDialog() {
 
               {/* Filters */}
               <div className="flex gap-2 mb-3">
-                <Select value={selectedClubId} onValueChange={handleClubChange}>
+                <Select value={selectedClubId} onValueChange={handleClubChange} disabled={isClubFilterLocked}>
                   <SelectTrigger className="flex-1">
                     <SelectValue placeholder="All Clubs" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Clubs</SelectItem>
+                    {!isClubFilterLocked && <SelectItem value="all">All Clubs</SelectItem>}
                     {availableClubs.map(club => (
                       <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
                     ))}
