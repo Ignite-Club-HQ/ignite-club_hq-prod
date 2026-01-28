@@ -3883,6 +3883,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           benchPlayers={playersOnBench}
           allPitchPlayers={playersOnPitch}
           onSelectOption={handleSubPreviewSelect}
+          miniLeagueTeams={miniLeagueTeams}
         />
 
         {/* Formation Change Dialog */}
@@ -4634,6 +4635,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         benchPlayers={playersOnBench}
         allPitchPlayers={playersOnPitch}
         onSelectOption={handleSubPreviewSelect}
+        miniLeagueTeams={miniLeagueTeams}
       />
 
       {/* Formation Change Dialog */}

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, ArrowLeftRight, Check, AlertCircle } from "lucide-react";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { cn } from "@/lib/utils";
+import { MiniLeagueTeams } from "./types";
 
 interface Player {
   id: string;
@@ -12,6 +13,7 @@ interface Player {
   assignedPositions?: PitchPosition[];
   currentPitchPosition?: PitchPosition;
   isInjured?: boolean;
+  teamSide?: "a" | "b";
 }
 
 interface SubstitutionOption {
@@ -28,6 +30,7 @@ interface SubstitutionPreviewDialogProps {
   benchPlayers: Player[];
   allPitchPlayers: Player[];
   onSelectOption: (benchPlayerId: string, swapPlayerId?: string) => void;
+  miniLeagueTeams?: MiniLeagueTeams;
 }
 
 export default function SubstitutionPreviewDialog({
@@ -37,6 +40,7 @@ export default function SubstitutionPreviewDialog({
   benchPlayers,
   allPitchPlayers,
   onSelectOption,
+  miniLeagueTeams,
 }: SubstitutionPreviewDialogProps) {
   if (!pitchPlayer?.currentPitchPosition) {
     return null;
@@ -44,6 +48,18 @@ export default function SubstitutionPreviewDialog({
 
   const requiredPos = pitchPlayer.currentPitchPosition;
   const posColors = POSITION_COLORS[requiredPos];
+
+  // In mini-league mode, filter to only show players from the same team
+  const pitchPlayerTeam = pitchPlayer.teamSide;
+  const isMiniLeague = !!miniLeagueTeams && !!pitchPlayerTeam;
+
+  const filteredBenchPlayers = isMiniLeague
+    ? benchPlayers.filter(p => p.teamSide === pitchPlayerTeam)
+    : benchPlayers;
+
+  const filteredPitchPlayers = isMiniLeague
+    ? allPitchPlayers.filter(p => p.teamSide === pitchPlayerTeam)
+    : allPitchPlayers;
 
   // Helper to check if a player can play a position
   const canPlayPosition = (player: Player, position: PitchPosition): boolean => {
@@ -56,7 +72,7 @@ export default function SubstitutionPreviewDialog({
   const substitutionOptions: SubstitutionOption[] = [];
 
   // Filter out injured bench players - they cannot be subbed on
-  const availableBenchPlayers = benchPlayers.filter(p => !p.isInjured);
+  const availableBenchPlayers = filteredBenchPlayers.filter(p => !p.isInjured);
 
   availableBenchPlayers.forEach(benchPlayer => {
     const canPlayDirectly = canPlayPosition(benchPlayer, requiredPos);
@@ -69,7 +85,7 @@ export default function SubstitutionPreviewDialog({
       });
     } else {
       // Check if position swap enables this bench player
-      const otherPitchPlayers = allPitchPlayers.filter(p => p.id !== pitchPlayer.id);
+      const otherPitchPlayers = filteredPitchPlayers.filter(p => p.id !== pitchPlayer.id);
       
       otherPitchPlayers.forEach(swapPlayer => {
         const swapPlayerCanCoverRequired = canPlayPosition(swapPlayer, requiredPos);
