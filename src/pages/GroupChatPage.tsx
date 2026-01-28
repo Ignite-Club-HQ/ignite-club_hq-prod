@@ -922,6 +922,8 @@ export default function GroupChatPage() {
       try {
         localStorage.removeItem('messages-page-cache');
       } catch {}
+      // Invalidate the messages page query so latest message preview updates
+      queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
       toast.success("Message deleted");
     },
     onError: (err, variables, context) => {
