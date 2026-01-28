@@ -1890,7 +1890,7 @@ export default function EventDetailPage() {
                         onChangeStatus={(status) => adminUpdateRsvpMutation.mutate({
                           rsvpId: rsvp.id,
                           status,
-                          playerName: rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name
+                          playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
                         })}
                       />
                     ))}
@@ -1925,7 +1925,7 @@ export default function EventDetailPage() {
                         onChangeStatus={(status) => adminUpdateRsvpMutation.mutate({
                           rsvpId: rsvp.id,
                           status,
-                          playerName: rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name
+                          playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
                         })}
                       />
                     ))}
@@ -1954,7 +1954,7 @@ export default function EventDetailPage() {
                         onChangeStatus={(status) => adminUpdateRsvpMutation.mutate({
                           rsvpId: rsvp.id,
                           status,
-                          playerName: rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name
+                          playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
                         })}
                       />
                     ))}
