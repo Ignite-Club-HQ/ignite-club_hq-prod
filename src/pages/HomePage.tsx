@@ -2170,42 +2170,6 @@ export default function HomePage() {
         </ResponsiveDialogContent>
       </ResponsiveDialog>
 
-      {/* My Soccer Teams - Pitch Board Access (last 2 used) */}
-      {displayedTeams.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Pitch Boards</h2>
-            {sortedTeams.length > 2 && (
-              <button 
-                onClick={() => setPitchBoardsExpanded(!pitchBoardsExpanded)}
-                className="text-sm text-primary hover:underline"
-              >
-                {pitchBoardsExpanded ? "Show less" : "View all"}
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {displayedTeams.map((team) => (
-              <Card 
-                key={team.id}
-                className="hover:border-primary/50 transition-colors cursor-pointer"
-                onClick={() => openPitchBoard(team.id, team.name, team.readOnly)}
-              >
-                <CardContent className="p-4 flex flex-col items-center gap-2 relative">
-                  {team.readOnly && (
-                    <Badge variant="secondary" className="absolute top-1 right-1 text-xs px-1 py-0">
-                      View
-                    </Badge>
-                  )}
-                  <LayoutGrid className="h-6 w-6 text-primary" />
-                  <span className="text-sm font-medium text-center truncate w-full">{team.name}</span>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* Upcoming Events */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
@@ -2405,6 +2369,42 @@ export default function HomePage() {
           </div>
         )}
       </section>
+
+      {/* My Soccer Teams - Pitch Board Access (last 2 used) */}
+      {displayedTeams.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Pitch Boards</h2>
+            {sortedTeams.length > 2 && (
+              <button 
+                onClick={() => setPitchBoardsExpanded(!pitchBoardsExpanded)}
+                className="text-sm text-primary hover:underline"
+              >
+                {pitchBoardsExpanded ? "Show less" : "View all"}
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {displayedTeams.map((team) => (
+              <Card 
+                key={team.id}
+                className="hover:border-primary/50 transition-colors cursor-pointer"
+                onClick={() => openPitchBoard(team.id, team.name, team.readOnly)}
+              >
+                <CardContent className="p-4 flex flex-col items-center gap-2 relative">
+                  {team.readOnly && (
+                    <Badge variant="secondary" className="absolute top-1 right-1 text-xs px-1 py-0">
+                      View
+                    </Badge>
+                  )}
+                  <LayoutGrid className="h-6 w-6 text-primary" />
+                  <span className="text-sm font-medium text-center truncate w-full">{team.name}</span>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Club Sponsor Section - shown when a club is selected, or carousel when no filter */}
       {activeClubFilter ? (
