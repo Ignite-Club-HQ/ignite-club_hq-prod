@@ -3794,13 +3794,16 @@ function VaultPhotoItem({
   const touchTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
+  // Use file_url or image_url (mini-league photos use image_url)
+  const photoUrl = photo.file_url || photo.image_url;
+  
   // Don't render anything until image is loaded
   if (!isLoaded) {
     return (
       <>
         {/* Hidden image to preload */}
         <img
-          src={photo.file_url}
+          src={photoUrl}
           alt=""
           className="sr-only"
           onLoad={() => setIsLoaded(true)}
@@ -3845,7 +3848,7 @@ function VaultPhotoItem({
   return (
     <div className="relative group">
       <img
-        src={photo.file_url}
+        src={photoUrl}
         alt={photo.title || "Photo"}
         className={`aspect-square object-cover rounded-lg cursor-pointer transition-opacity select-none ${
           selectionMode && isSelected 
@@ -3888,7 +3891,7 @@ function VaultPhotoItem({
               className="h-6 w-6"
               onClick={(e) => {
                 e.stopPropagation();
-                onDownload(photo.file_url, photo.title || `photo-${photo.id}.jpg`);
+                onDownload(photoUrl, photo.title || `photo-${photo.id}.jpg`);
               }}
             >
               <Download className="h-3 w-3" />
