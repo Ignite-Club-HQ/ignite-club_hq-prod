@@ -776,6 +776,7 @@ export default function EventDetailPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       toast({ title: "RSVP updated!" });
     },
   });
@@ -830,6 +831,7 @@ export default function EventDetailPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       toast({ title: "Child RSVP updated!" });
     },
   });
@@ -930,6 +932,7 @@ export default function EventDetailPage() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       toast({ title: `${variables.playerName}'s RSVP updated!` });
     },
     onError: (error) => {
@@ -952,6 +955,7 @@ export default function EventDetailPage() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       toast({ title: `${variables.playerName}'s RSVP updated!` });
     },
     onError: (error) => {
