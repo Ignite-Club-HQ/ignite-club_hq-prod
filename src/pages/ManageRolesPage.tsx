@@ -30,7 +30,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
-type AppRole = "basic_user" | "club_admin" | "team_admin" | "coach" | "player" | "parent" | "app_admin";
+type AppRole = "basic_user" | "club_admin" | "team_admin" | "coach" | "player" | "parent" | "app_admin" | "committee_member";
 
 const roleLabels: Record<AppRole, string> = {
   basic_user: "Member",
@@ -40,6 +40,7 @@ const roleLabels: Record<AppRole, string> = {
   player: "Player",
   parent: "Parent",
   app_admin: "App Admin",
+  committee_member: "Committee Member",
 };
 
 const roleColors: Record<AppRole, string> = {
@@ -50,6 +51,7 @@ const roleColors: Record<AppRole, string> = {
   player: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   parent: "bg-pink-500/20 text-pink-400 border-pink-500/30",
   basic_user: "bg-muted text-muted-foreground border-border",
+  committee_member: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
 };
 
 const MEMBERS_PER_PAGE = 10;

@@ -4328,6 +4328,7 @@ export type Database = {
         | "parent"
         | "app_admin"
         | "league_admin"
+        | "committee_member"
       club_subscription_plan: "starter" | "standard" | "unlimited"
       duty_status: "open" | "completed"
       event_type: "game" | "training" | "social" | "mini_league"
@@ -4470,6 +4471,7 @@ export const Constants = {
         "parent",
         "app_admin",
         "league_admin",
+        "committee_member",
       ],
       club_subscription_plan: ["starter", "standard", "unlimited"],
       duty_status: ["open", "completed"],
