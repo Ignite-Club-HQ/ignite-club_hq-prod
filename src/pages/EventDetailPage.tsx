@@ -135,8 +135,8 @@ const AttendeeCard = ({
               <p className="text-sm text-muted-foreground mt-1 truncate">{rsvp.notes}</p>
             )}
           </div>
-          {/* Admin RSVP status change buttons for mini-league events */}
-          {isAdmin && isMiniLeague && onChangeStatus && (
+          {/* Admin RSVP status change buttons - admins and coaches can override for all events */}
+          {isAdmin && onChangeStatus && (
             <div className="flex gap-1 shrink-0">
               {rsvpOptions.filter(opt => opt.value !== currentStatus).map(({ value, icon }) => (
                 <Button
@@ -306,7 +306,7 @@ export default function EventDetailPage() {
 
   // Check if user is admin for this event
   const { data: isAdmin } = useQuery({
-    queryKey: ["event-admin-check", id, user?.id, event?.club_id, event?.team_id],
+    queryKey: ["event-admin-check", id, user?.id, event?.club_id, event?.team_id, event?.mini_league_id],
     queryFn: async () => {
       if (!event) return false;
       
@@ -331,6 +331,18 @@ export default function EventDetailPage() {
           .in("role", ["team_admin", "coach"]);
         
         if (teamRoleData && teamRoleData.length > 0) return true;
+      }
+      
+      // For mini-league events, also check league_admin/coach roles
+      if (event.mini_league_id) {
+        const { data: leagueAdminData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user!.id)
+          .eq("club_id", event.club_id)
+          .in("role", ["league_admin", "coach"]);
+        
+        if (leagueAdminData && leagueAdminData.length > 0) return true;
       }
       
       return false;
@@ -971,6 +983,171 @@ export default function EventDetailPage() {
     },
   });
 
+  // Admin mutation to create RSVP for a member who hasn't responded (for team/club events)
+  const rsvpForMemberMutation = useMutation({
+    mutationFn: async ({ memberId, memberName, status }: { memberId: string; memberName: string; status: RsvpStatus }) => {
+      // Check if RSVP already exists
+      const { data: existingRsvp } = await supabase
+        .from("rsvps")
+        .select("id")
+        .eq("event_id", id!)
+        .eq("user_id", memberId)
+        .maybeSingle();
+      
+      if (existingRsvp) {
+        // Update existing RSVP
+        const { error } = await supabase
+          .from("rsvps")
+          .update({ status })
+          .eq("id", existingRsvp.id);
+        if (error) throw error;
+      } else {
+        // Create new RSVP
+        const { error } = await supabase
+          .from("rsvps")
+          .insert({ event_id: id!, user_id: memberId, status });
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
+      toast({ title: `${variables.memberName}'s RSVP set to ${variables.status}!` });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Failed to set RSVP", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Admin mutation to create RSVP for a child who hasn't responded (for team events)
+  const rsvpForChildMutation = useMutation({
+    mutationFn: async ({ childId, childName, parentUserId, status }: { childId: string; childName: string; parentUserId: string; status: RsvpStatus }) => {
+      // Check if RSVP already exists for this child
+      const { data: existingRsvp } = await supabase
+        .from("rsvps")
+        .select("id")
+        .eq("event_id", id!)
+        .eq("child_id", childId)
+        .maybeSingle();
+      
+      if (existingRsvp) {
+        // Update existing RSVP
+        const { error } = await supabase
+          .from("rsvps")
+          .update({ status })
+          .eq("id", existingRsvp.id);
+        if (error) throw error;
+      } else {
+        // Create new RSVP for child
+        const { error } = await supabase
+          .from("rsvps")
+          .insert({ event_id: id!, user_id: parentUserId, child_id: childId, status });
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
+      toast({ title: `${variables.childName}'s RSVP set to ${variables.status}!` });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Failed to set RSVP", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Toggle payment status mutation
+  const togglePaymentMutation = useMutation({
+    mutationFn: async ({ userId, isPaid }: { userId: string; isPaid: boolean }) => {
+      if (isPaid) {
+        // Remove payment record
+        const { error } = await supabase
+          .from("event_payments")
+          .delete()
+          .eq("event_id", id!)
+          .eq("user_id", userId);
+        if (error) throw error;
+      } else {
+        // Add payment record
+        const { error } = await supabase
+          .from("event_payments")
+          .insert({
+            event_id: id!,
+            user_id: userId,
+            amount: event?.amount || 0,
+            payment_status: "paid",
+            paid_at: new Date().toISOString(),
+          });
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["event-payments", id] });
+      toast({ title: variables.isPaid ? "Payment removed" : "Marked as paid" });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Failed to update payment", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Add duty mutation
+  const addDutyMutation = useMutation({
+    mutationFn: async (dutyName: string) => {
+      const { error } = await supabase
+        .from("duties")
+        .insert({ event_id: id!, name: dutyName });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
+      setNewDutyName("");
+      setSelectedPresetDuty("");
+      setAddDutyOpen(false);
+      toast({ title: "Duty added" });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Failed to add duty", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Claim duty mutation
+  const claimDutyMutation = useMutation({
+    mutationFn: async (dutyId: string) => {
+      const { error } = await supabase
+        .from("duties")
+        .update({ assigned_to: user?.id })
+        .eq("id", dutyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
+      toast({ title: "Duty claimed!" });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Failed to claim duty", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Complete duty mutation
   const completeDutyMutation = useMutation({
     mutationFn: async (dutyId: string) => {
       // Get duty details before updating
@@ -1013,96 +1190,14 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
       toast({ title: "Duty completed!" });
     },
-  });
-
-  const claimDutyMutation = useMutation({
-    mutationFn: async (dutyId: string) => {
-      const { error } = await supabase
-        .from("duties")
-        .update({ assigned_to: user!.id })
-        .eq("id", dutyId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
-      toast({ title: "Duty claimed!" });
-    },
-  });
-
-  const addDutyMutation = useMutation({
-    mutationFn: async (dutyName: string) => {
-      if (!dutyName) throw new Error("No duty name");
-      const { error } = await supabase.from("duties").insert({
-        event_id: id!,
-        name: dutyName,
+    onError: (error) => {
+      toast({ 
+        title: "Failed to complete duty", 
+        description: error.message,
+        variant: "destructive" 
       });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
-      setAddDutyOpen(false);
-      setNewDutyName("");
-      setSelectedPresetDuty("");
-      toast({ title: "Duty added" });
-    },
-    onError: () => {
-      toast({ title: "Failed to add duty", variant: "destructive" });
     },
   });
-
-  // Payment toggle mutation (for admins)
-  const togglePaymentMutation = useMutation({
-    mutationFn: async ({ userId, isPaid }: { userId: string; isPaid: boolean }) => {
-      if (isPaid) {
-        // Remove payment record
-        const { error } = await supabase
-          .from("event_payments")
-          .delete()
-          .eq("event_id", id!)
-          .eq("user_id", userId);
-        if (error) throw error;
-      } else {
-        // Add payment record
-        const { error } = await supabase
-          .from("event_payments")
-          .insert({
-            event_id: id!,
-            user_id: userId,
-            amount: event?.amount || 0,
-          } as any);
-        if (error) throw error;
-        
-        // Send notification to the user that their payment has been marked
-        if (event && userId !== user?.id) {
-          await supabase.from("notifications").insert({
-            user_id: userId,
-            type: "payment_confirmed",
-            message: `Your payment for ${event.title} has been confirmed`,
-            related_id: id,
-          });
-        }
-        
-        // If this is a parent, also mark their children on this team as paid
-        const { data: childrenData } = await supabase
-          .from("children")
-          .select(`id, child_team_assignments!inner(team_id)`)
-          .eq("parent_id", userId);
-        
-        if (childrenData && childrenData.length > 0 && event?.team_id) {
-          const childrenOnTeam = childrenData.filter(
-            (c: any) => c.child_team_assignments.some((a: any) => a.team_id === event.team_id)
-          );
-          
-          // For child payments, we mark them under their parent's user_id since children don't have user accounts
-          // The child RSVP is linked to the parent anyway, so marking parent as paid covers children
-        }
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["event-payments", id] });
-    },
-  });
-
 
   const deleteDutyMutation = useMutation({
     mutationFn: async (dutyId: string) => {
@@ -2084,8 +2179,8 @@ export default function EventDetailPage() {
                                 {!isMiniLeagueEvent && <Badge variant="outline" className="text-xs">Child</Badge>}
                               </div>
                             </div>
-                            {/* Admin RSVP controls for mini-league events */}
-                            {isMiniLeagueEvent && (isAdmin || isAppAdmin) && (
+                            {/* Admin RSVP controls for all events */}
+                            {(isAdmin || isAppAdmin) && (
                               <div className="flex gap-1">
                                 {rsvpOptions.map(({ value, icon }) => (
                                   <Button
@@ -2093,14 +2188,27 @@ export default function EventDetailPage() {
                                     variant="ghost"
                                     size="sm"
                                     className="h-8 w-8 p-0"
-                                    onClick={() => adminRsvpMutation.mutate({
-                                      playerId: child.id,
-                                      playerName: child.name,
-                                      childId: child.child_id,
-                                      parentUserId: child.parent_user_id,
-                                      status: value,
-                                    })}
-                                    disabled={adminRsvpMutation.isPending}
+                                    onClick={() => {
+                                      if (isMiniLeagueEvent) {
+                                        // For mini-league events, use adminRsvpMutation
+                                        adminRsvpMutation.mutate({
+                                          playerId: child.id,
+                                          playerName: child.name,
+                                          childId: child.child_id,
+                                          parentUserId: child.parent_user_id,
+                                          status: value,
+                                        });
+                                      } else {
+                                        // For team events, use rsvpForChildMutation
+                                        rsvpForChildMutation.mutate({
+                                          childId: child.id,
+                                          childName: child.name,
+                                          parentUserId: child.parent_id,
+                                          status: value,
+                                        });
+                                      }
+                                    }}
+                                    disabled={adminRsvpMutation.isPending || rsvpForChildMutation.isPending}
                                     title={`Set ${child.name} to ${value}`}
                                   >
                                     <span className="text-sm">{icon}</span>
@@ -2116,14 +2224,38 @@ export default function EventDetailPage() {
                     {!isMiniLeagueEvent && notResponded.map((member: any) => (
                       <Card key={member.id}>
                         <CardContent className="p-3">
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={member.avatar_url || undefined} />
-                              <AvatarFallback className="text-xs">
-                                {member.display_name?.charAt(0)?.toUpperCase() || "?"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="font-medium">{member.display_name || "Unknown"}</span>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={member.avatar_url || undefined} />
+                                <AvatarFallback className="text-xs">
+                                  {member.display_name?.charAt(0)?.toUpperCase() || "?"}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="font-medium">{member.display_name || "Unknown"}</span>
+                            </div>
+                            {/* Admin RSVP controls for team/club events */}
+                            {(isAdmin || isAppAdmin) && (
+                              <div className="flex gap-1">
+                                {rsvpOptions.map(({ value, icon }) => (
+                                  <Button
+                                    key={value}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => rsvpForMemberMutation.mutate({
+                                      memberId: member.id,
+                                      memberName: member.display_name,
+                                      status: value,
+                                    })}
+                                    disabled={rsvpForMemberMutation.isPending}
+                                    title={`Set ${member.display_name} to ${value}`}
+                                  >
+                                    <span className="text-sm">{icon}</span>
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
