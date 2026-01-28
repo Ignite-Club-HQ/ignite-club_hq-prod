@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import useEmblaCarousel from "embla-carousel-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface SponsorItem {
   id: string;
@@ -15,11 +17,11 @@ export function MultiClubSponsorCarousel() {
   const { user } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Fetch only allocated sponsors (club primary sponsors + team sponsor allocations)
+  // Fetch ALL active sponsors, showing team-allocated ones under team names
   const { data: allSponsors = [] } = useQuery({
-    queryKey: ["user-allocated-sponsors", user?.id],
+    queryKey: ["user-all-sponsors", user?.id],
     queryFn: async () => {
-      // Get all club IDs and team IDs the user is linked to
+      // Get all club IDs the user is linked to
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select(`
@@ -31,81 +33,85 @@ export function MultiClubSponsorCarousel() {
 
       if (rolesError) throw rolesError;
 
-      // Collect unique club IDs and team info with club names
+      // Collect unique club IDs
       const clubIds = new Set<string>();
-      const teamMap = new Map<string, { teamName: string; clubId: string }>(); // teamId -> { teamName, clubId }
-      
       roles?.forEach((role) => {
-        if (role.club_id) {
-          clubIds.add(role.club_id);
-        }
-        if (role.team_id && role.teams) {
-          teamMap.set(role.teams.id, { teamName: role.teams.name, clubId: role.teams.club_id });
-          if (role.teams.club_id) {
-            clubIds.add(role.teams.club_id);
-          }
-        }
+        if (role.club_id) clubIds.add(role.club_id);
+        if (role.teams?.club_id) clubIds.add(role.teams.club_id);
       });
 
       if (clubIds.size === 0) return [];
 
-      const sponsorItems: SponsorItem[] = [];
-      const seenSponsorIds = new Set<string>();
-
-      // 1. Fetch ALL clubs for name lookup (not just ones with sponsors)
-      const { data: allClubs } = await supabase
+      // Fetch all clubs for name lookup
+      const { data: clubs } = await supabase
         .from("clubs")
-        .select("id, name, primary_sponsor_id")
+        .select("id, name")
         .in("id", Array.from(clubIds));
 
-      // Build a club name lookup for team sponsors
       const clubNameMap = new Map<string, string>();
-      allClubs?.forEach((club) => {
-        clubNameMap.set(club.id, club.name);
+      clubs?.forEach((club) => clubNameMap.set(club.id, club.name));
+
+      // Fetch ALL active sponsors for these clubs
+      const { data: sponsors } = await supabase
+        .from("sponsors")
+        .select("id, name, club_id, is_active")
+        .in("club_id", Array.from(clubIds))
+        .eq("is_active", true)
+        .order("name");
+
+      if (!sponsors || sponsors.length === 0) return [];
+
+      // Fetch team allocations with team names
+      const { data: allocations } = await supabase
+        .from("team_sponsor_allocations")
+        .select("sponsor_id, team_id, teams!team_sponsor_allocations_team_id_fkey(id, name)")
+        .in("sponsor_id", sponsors.map(s => s.id));
+
+      // Build a map of sponsor_id -> team names (a sponsor can be allocated to multiple teams)
+      const sponsorTeamMap = new Map<string, string[]>();
+      allocations?.forEach((alloc) => {
+        if (alloc.teams?.name) {
+          const existing = sponsorTeamMap.get(alloc.sponsor_id) || [];
+          existing.push(alloc.teams.name);
+          sponsorTeamMap.set(alloc.sponsor_id, existing);
+        }
       });
 
-      // Add club primary sponsors
-      allClubs?.forEach((club) => {
-        if (club.primary_sponsor_id && !seenSponsorIds.has(club.primary_sponsor_id)) {
-          seenSponsorIds.add(club.primary_sponsor_id);
-          sponsorItems.push({
-            id: `club-${club.id}-${club.primary_sponsor_id}`,
-            sponsorId: club.primary_sponsor_id,
-            entityName: club.name,
+      // Map sponsors: if allocated to teams, show under each team; otherwise show under club
+      const result: SponsorItem[] = [];
+      sponsors.forEach((sponsor) => {
+        const teamNames = sponsorTeamMap.get(sponsor.id);
+        const clubName = clubNameMap.get(sponsor.club_id) || "";
+        
+        if (teamNames && teamNames.length > 0) {
+          // Show once per team allocation
+          teamNames.forEach((teamName) => {
+            result.push({
+              id: `sponsor-${sponsor.id}-team-${teamName}`,
+              sponsorId: sponsor.id,
+              entityName: teamName,
+            });
+          });
+        } else {
+          // Club-level sponsor
+          result.push({
+            id: `sponsor-${sponsor.id}`,
+            sponsorId: sponsor.id,
+            entityName: clubName,
           });
         }
       });
 
-      // 2. Fetch team sponsor allocations
-      if (teamMap.size > 0) {
-        const { data: teamAllocations } = await supabase
-          .from("team_sponsor_allocations")
-          .select("team_id, sponsor_id, sponsors!inner(is_active)")
-          .in("team_id", Array.from(teamMap.keys()));
-
-        teamAllocations?.forEach((allocation: any) => {
-          if (allocation.sponsors?.is_active && !seenSponsorIds.has(allocation.sponsor_id)) {
-            seenSponsorIds.add(allocation.sponsor_id);
-            const teamInfo = teamMap.get(allocation.team_id);
-            if (teamInfo) {
-              const clubName = clubNameMap.get(teamInfo.clubId) || "";
-              const entityName = clubName ? `${clubName} ${teamInfo.teamName}` : teamInfo.teamName;
-              sponsorItems.push({
-                id: `team-${allocation.team_id}-${allocation.sponsor_id}`,
-                sponsorId: allocation.sponsor_id,
-                entityName,
-              });
-            }
-          }
-        });
-      }
-
-      return sponsorItems;
+      return result;
     },
     enabled: !!user?.id,
   });
 
-  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
+  const [emblaRef, emblaApi] = useEmblaCarousel({ 
+    loop: true,
+    dragFree: false,
+    watchDrag: true,
+  });
 
   const onSelect = useCallback(() => {
     if (!emblaApi) return;
@@ -135,38 +141,69 @@ export function MultiClubSponsorCarousel() {
     return null;
   }
 
+  // Single sponsor - no navigation needed
+  if (allSponsors.length === 1) {
+    return (
+      <section className="space-y-3">
+        <PrimarySponsorDisplay
+          sponsorId={allSponsors[0].sponsorId}
+          variant="full"
+          context="home_page"
+          entityName={allSponsors[0].entityName}
+        />
+      </section>
+    );
+  }
+
   return (
     <section className="space-y-3">
-      <div className="overflow-hidden cursor-grab active:cursor-grabbing" ref={emblaRef}>
-        <div className="flex">
-          {allSponsors.map((sponsor) => (
-            <div key={sponsor.id} className="flex-[0_0_100%] min-w-0">
-              <PrimarySponsorDisplay
-                sponsorId={sponsor.sponsorId}
-                variant="full"
-                context="home_page"
-                entityName={sponsor.entityName}
-              />
-            </div>
-          ))}
+      <div className="relative group">
+        <div className="overflow-hidden cursor-grab active:cursor-grabbing touch-pan-y" ref={emblaRef}>
+          <div className="flex">
+            {allSponsors.map((sponsor) => (
+              <div key={sponsor.id} className="flex-[0_0_100%] min-w-0">
+                <PrimarySponsorDisplay
+                  sponsorId={sponsor.sponsorId}
+                  variant="full"
+                  context="home_page"
+                  entityName={sponsor.entityName}
+                />
+              </div>
+            ))}
+          </div>
         </div>
+        {/* Navigation arrows */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute left-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => emblaApi?.scrollPrev()}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => emblaApi?.scrollNext()}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
       </div>
-      {allSponsors.length > 1 && (
-        <div className="flex justify-center gap-1.5">
-          {allSponsors.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => emblaApi?.scrollTo(index)}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                index === currentIndex
-                  ? "w-4 bg-primary"
-                  : "w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/50"
-              }`}
-              aria-label={`View sponsor ${index + 1}`}
-            />
-          ))}
-        </div>
-      )}
+      <div className="flex justify-center gap-1.5">
+        {allSponsors.map((_, index) => (
+          <button
+            key={index}
+            onClick={() => emblaApi?.scrollTo(index)}
+            className={`h-1.5 rounded-full transition-all duration-300 ${
+              index === currentIndex
+                ? "w-4 bg-primary"
+                : "w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/50"
+            }`}
+            aria-label={`View sponsor ${index + 1}`}
+          />
+        ))}
+      </div>
     </section>
   );
 }

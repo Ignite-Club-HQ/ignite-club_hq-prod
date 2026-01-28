@@ -62,17 +62,6 @@ export default function ChatGroupsList({ clubId, teamId, canManage = false }: Ch
     },
   });
 
-  const getRoleBadges = (roles: string[]) => {
-    const roleLabels: Record<string, string> = {
-      team_admin: "Team Admins",
-      coach: "Coaches",
-      parent: "Parents",
-      player: "Players",
-      club_admin: "Club Admins",
-    };
-    return roles.map((r) => roleLabels[r] || r);
-  };
-
   if (isLoading) {
     return <p className="text-muted-foreground text-sm">Loading groups...</p>;
   }
@@ -101,14 +90,6 @@ export default function ChatGroupsList({ clubId, teamId, canManage = false }: Ch
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-medium truncate">{group.name}</h3>
-                  <div className="flex items-center gap-1 mt-1 flex-wrap">
-                    <Users className="h-3 w-3 text-muted-foreground" />
-                    {getRoleBadges(group.allowed_roles).map((label) => (
-                      <Badge key={label} variant="secondary" className="text-xs">
-                        {label}
-                      </Badge>
-                    ))}
-                  </div>
                 </div>
               </div>
               {canManage && (user?.id === group.created_by || canManage) && (
