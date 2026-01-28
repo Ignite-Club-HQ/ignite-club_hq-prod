@@ -3221,10 +3221,11 @@ export type Database = {
           event_id: string
           has_paid: boolean | null
           id: string
+          mini_league_player_id: string | null
           notes: string | null
           status: Database["public"]["Enums"]["rsvp_status"]
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           child_id?: string | null
@@ -3232,10 +3233,11 @@ export type Database = {
           event_id: string
           has_paid?: boolean | null
           id?: string
+          mini_league_player_id?: string | null
           notes?: string | null
           status: Database["public"]["Enums"]["rsvp_status"]
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           child_id?: string | null
@@ -3243,10 +3245,11 @@ export type Database = {
           event_id?: string
           has_paid?: boolean | null
           id?: string
+          mini_league_player_id?: string | null
           notes?: string | null
           status?: Database["public"]["Enums"]["rsvp_status"]
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -3261,6 +3264,13 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rsvps_mini_league_player_id_fkey"
+            columns: ["mini_league_player_id"]
+            isOneToOne: false
+            referencedRelation: "mini_league_players"
             referencedColumns: ["id"]
           },
         ]
