@@ -52,10 +52,31 @@ function detectLinkType(url: string): { type: string; icon: string; color: strin
   }
   
   // Microsoft
-  if (lowerUrl.includes('onedrive.live.com') || lowerUrl.includes('sharepoint.com')) {
+  if (lowerUrl.includes('onedrive.live.com') || lowerUrl.includes('1drv.ms')) {
     return { type: 'OneDrive', icon: '☁️', color: 'text-blue-600' };
   }
-  if (lowerUrl.includes('office.com') || lowerUrl.includes('office365.com')) {
+  if (lowerUrl.includes('sharepoint.com') && lowerUrl.includes('word')) {
+    return { type: 'Word Online', icon: '📄', color: 'text-blue-700' };
+  }
+  if (lowerUrl.includes('sharepoint.com') && lowerUrl.includes('excel')) {
+    return { type: 'Excel Online', icon: '📊', color: 'text-green-700' };
+  }
+  if (lowerUrl.includes('sharepoint.com') && lowerUrl.includes('powerpoint')) {
+    return { type: 'PowerPoint Online', icon: '📽️', color: 'text-orange-600' };
+  }
+  if (lowerUrl.includes('sharepoint.com')) {
+    return { type: 'SharePoint', icon: '📁', color: 'text-teal-600' };
+  }
+  if (lowerUrl.includes('live.com') && lowerUrl.includes('word')) {
+    return { type: 'Word Online', icon: '📄', color: 'text-blue-700' };
+  }
+  if (lowerUrl.includes('live.com') && lowerUrl.includes('excel')) {
+    return { type: 'Excel Online', icon: '📊', color: 'text-green-700' };
+  }
+  if (lowerUrl.includes('live.com') && lowerUrl.includes('powerpoint')) {
+    return { type: 'PowerPoint Online', icon: '📽️', color: 'text-orange-600' };
+  }
+  if (lowerUrl.includes('office.com') || lowerUrl.includes('office365.com') || lowerUrl.includes('officeppe.com')) {
     return { type: 'Microsoft 365', icon: '📄', color: 'text-orange-600' };
   }
   
