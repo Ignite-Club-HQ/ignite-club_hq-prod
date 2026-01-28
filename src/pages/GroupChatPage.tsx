@@ -15,6 +15,7 @@ import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator
 const MESSAGES_PER_PAGE = 15;
 import { toast } from "sonner";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
+import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { ChatSearch } from "@/components/chat/ChatSearch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -1306,6 +1307,10 @@ export default function GroupChatPage() {
             imageUrl={imageUrl} 
             clubId={group?.club_id || undefined}
             teamId={group?.team_id || undefined}
+          />
+          <EmojiPicker 
+            onEmojiSelect={(emoji) => setMessage((prev) => prev + emoji)} 
+            disabled={sendMessageMutation.isPending}
           />
           <Input
             ref={inputRef}
