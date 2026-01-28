@@ -30,7 +30,7 @@ import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { MessageReadIndicator } from "@/components/chat/MessageReadIndicator";
 import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCache } from "@/lib/profileCache";
-import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
+import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages, removeMessageFromCache } from "@/lib/messageCache";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 
@@ -893,12 +893,12 @@ export default function GroupChatPage() {
     },
   });
 
-  // Delete message mutation (soft delete)
+  // Delete message mutation (hard delete)
   const deleteMessageMutation = useMutation({
     mutationFn: async (messageId: string) => {
       const { error } = await supabase
         .from("group_messages")
-        .update({ deleted_at: new Date().toISOString() })
+        .delete()
         .eq("id", messageId);
       if (error) throw error;
     },
@@ -913,9 +913,15 @@ export default function GroupChatPage() {
         return { ...old, messages: existingMessages.filter(m => m.id !== messageId) };
       });
       
-      return { previousData };
+      return { previousData, messageId };
     },
-    onSuccess: () => {
+    onSuccess: (_, messageId) => {
+      // Remove from localStorage cache to prevent reappearing
+      removeMessageFromCache("group", groupId!, messageId);
+      // Clear the messagesPage cache
+      try {
+        localStorage.removeItem('messages-page-cache');
+      } catch {}
       toast.success("Message deleted");
     },
     onError: (err, variables, context) => {
