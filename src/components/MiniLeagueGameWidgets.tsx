@@ -70,12 +70,12 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
         .select("mini_league_id")
         .eq("parent_user_id", user!.id);
 
-      // Get leagues where user is admin via club_admin or league_admin role
+      // Get leagues where user is admin via club_admin, league_admin, or coach role
       const { data: adminRoles } = await supabase
         .from("user_roles")
         .select("club_id, role")
         .eq("user_id", user!.id)
-        .in("role", ["club_admin", "league_admin", "app_admin"]);
+        .in("role", ["club_admin", "league_admin", "coach", "app_admin"]);
 
       const isAppAdmin = adminRoles?.some(r => r.role === "app_admin");
       const adminClubIds = adminRoles?.filter(r => r.club_id).map(r => r.club_id) as string[] || [];

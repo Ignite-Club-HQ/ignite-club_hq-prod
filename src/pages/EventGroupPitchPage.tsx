@@ -108,13 +108,38 @@ export default function EventGroupPitchPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_leagues")
-        .select("minutes_per_half")
+        .select("minutes_per_half, club_id")
         .eq("id", group!.event!.mini_league_id!)
         .single();
       if (error) throw error;
-      return data as { minutes_per_half: number };
+      return data as { minutes_per_half: number; club_id: string };
     },
     enabled: !!group?.event?.mini_league_id,
+  });
+
+  // Check if user can edit pitch board (club_admin, league_admin, coach, app_admin)
+  const { data: userCanEdit } = useQuery({
+    queryKey: ["mini-league-edit-permission", user?.id, leagueSettings?.club_id],
+    queryFn: async () => {
+      if (!user || !leagueSettings?.club_id) return false;
+      
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("club_id", leagueSettings.club_id)
+        .in("role", ["club_admin", "league_admin", "coach", "app_admin"]);
+      
+      // Also check for app_admin without club_id
+      const { data: appAdminRoles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "app_admin");
+      
+      return (roles && roles.length > 0) || (appAdminRoles && appAdminRoles.length > 0);
+    },
+    enabled: !!user && !!leagueSettings?.club_id,
   });
 
   // Fetch league members for duty assignment (parents, admins, coaches - not players)
@@ -141,12 +166,12 @@ export default function EventGroupPitchPage() {
       
       const parentIds = [...new Set(playersData?.map(p => p.parent_user_id).filter(Boolean) as string[])];
       
-      // Get club admins and league admins (coaches) from user_roles
+      // Get club admins, league admins, and coaches from user_roles
       const { data: adminRoles, error: rolesError } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("club_id", league.club_id)
-        .in("role", ["club_admin", "league_admin"]);
+        .in("role", ["club_admin", "league_admin", "coach"]);
       if (rolesError) throw rolesError;
       
       const adminIds = adminRoles?.map(r => r.user_id) || [];
@@ -499,7 +524,7 @@ export default function EventGroupPitchPage() {
             initialDisableBatchSubs={false}
             initialMinutesPerHalf={leagueSettings?.minutes_per_half || 10}
             initialTeamSize={initialTeamSize}
-            readOnly={false}
+            readOnly={!userCanEdit}
             initialLinkedEventId={null}
             initialShowMatchHeader={false}
             miniLeagueTeams={miniLeagueTeams}
