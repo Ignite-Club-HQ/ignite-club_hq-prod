@@ -3962,6 +3962,7 @@ export type Database = {
           file_url: string
           folder_id: string | null
           id: string
+          mini_league_id: string | null
           name: string
           team_id: string | null
           updated_at: string
@@ -3976,6 +3977,7 @@ export type Database = {
           file_url: string
           folder_id?: string | null
           id?: string
+          mini_league_id?: string | null
           name: string
           team_id?: string | null
           updated_at?: string
@@ -3990,6 +3992,7 @@ export type Database = {
           file_url?: string
           folder_id?: string | null
           id?: string
+          mini_league_id?: string | null
           name?: string
           team_id?: string | null
           updated_at?: string
@@ -4008,6 +4011,13 @@ export type Database = {
             columns: ["folder_id"]
             isOneToOne: false
             referencedRelation: "vault_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vault_files_mini_league_id_fkey"
+            columns: ["mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
             referencedColumns: ["id"]
           },
           {
