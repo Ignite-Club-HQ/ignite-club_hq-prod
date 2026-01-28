@@ -223,12 +223,46 @@ export default function EventDetailPage() {
   const { data: rsvps } = useQuery({
     queryKey: ["event-rsvps", id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch rsvps first
+      const { data: rsvpData, error: rsvpError } = await supabase
         .from("rsvps")
-        .select(`*, profiles:user_id (display_name, avatar_url), children:child_id (id, name), mini_league_players:mini_league_player_id (id, name)`)
+        .select(`*, mini_league_players (id, name)`)
         .eq("event_id", id!);
-      if (error) throw error;
-      return data;
+      if (rsvpError) throw rsvpError;
+      
+      // Now fetch related profiles and children separately to avoid FK detection issues
+      const userIds = rsvpData.filter(r => r.user_id).map(r => r.user_id);
+      const childIds = rsvpData.filter(r => r.child_id).map(r => r.child_id);
+      
+      let profilesMap: Record<string, { display_name: string | null; avatar_url: string | null }> = {};
+      let childrenMap: Record<string, { id: string; name: string }> = {};
+      
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", userIds);
+        if (profiles) {
+          profilesMap = Object.fromEntries(profiles.map(p => [p.id, { display_name: p.display_name, avatar_url: p.avatar_url }]));
+        }
+      }
+      
+      if (childIds.length > 0) {
+        const { data: children } = await supabase
+          .from("children")
+          .select("id, name")
+          .in("id", childIds);
+        if (children) {
+          childrenMap = Object.fromEntries(children.map(c => [c.id, { id: c.id, name: c.name }]));
+        }
+      }
+      
+      // Combine the data
+      return rsvpData.map(rsvp => ({
+        ...rsvp,
+        profiles: rsvp.user_id ? profilesMap[rsvp.user_id] || null : null,
+        children: rsvp.child_id ? childrenMap[rsvp.child_id] || null : null,
+      }));
     },
     enabled: !!id,
   });
