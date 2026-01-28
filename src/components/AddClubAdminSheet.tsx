@@ -14,11 +14,33 @@ import {
   SheetDescription,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/useDebounce";
+
+type ClubRole = "club_admin" | "committee_member";
+
+const roleConfig: Record<ClubRole, { label: string; description: string; colorClass: string }> = {
+  club_admin: {
+    label: "Club Admin",
+    description: "Full club management access",
+    colorClass: "bg-purple-500/20 text-purple-600 border-purple-500/30",
+  },
+  committee_member: {
+    label: "Committee Member",
+    description: "Club governance participation",
+    colorClass: "bg-cyan-500/20 text-cyan-600 border-cyan-500/30",
+  },
+};
 
 interface AddClubAdminSheetProps {
   clubId: string;
@@ -42,6 +64,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [isSendingNotification, setIsSendingNotification] = useState(false);
   const [mode, setMode] = useState<"existing" | "invite">("invite");
+  const [selectedRole, setSelectedRole] = useState<ClubRole>("club_admin");
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -101,7 +124,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
       const { error } = await supabase.from("user_roles").insert({
         user_id: selectedUser.id,
         club_id: clubId,
-        role: "club_admin",
+        role: selectedRole,
       });
       if (error) throw error;
 
@@ -109,7 +132,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
       await supabase.from("notifications").insert({
         user_id: selectedUser.id,
         type: "membership",
-        message: `You have been added to ${clubName} as Club Admin`,
+        message: `You have been added to ${clubName} as ${roleConfig[selectedRole].label}`,
         related_id: clubId,
       });
     },
@@ -117,14 +140,14 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
       queryClient.invalidateQueries({ queryKey: ["club-roles", clubId] });
       queryClient.invalidateQueries({ queryKey: ["club-members-roles", clubId] });
       toast({
-        title: "Admin added",
-        description: `${selectedUser?.display_name} has been added as a club admin`,
+        title: "Member added",
+        description: `${selectedUser?.display_name} has been added as ${roleConfig[selectedRole].label}`,
       });
       handleClose();
     },
     onError: (error: Error) => {
       toast({
-        title: "Failed to add admin",
+        title: "Failed to add member",
         description: error.message,
         variant: "destructive",
       });
@@ -143,7 +166,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
       const { error: inviteError } = await supabase.from("pending_invites").insert({
         club_id: clubId,
         team_id: null,
-        role: "club_admin" as any,
+        role: selectedRole as any,
         invited_user_id: null, // Will be set when user accepts invite
         invited_by_user_id: user!.id,
         invited_label: customName.trim(),
@@ -171,13 +194,13 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
           const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
             body: {
               to: email,
-              subject: `You're invited to join ${clubName} as an Admin`,
+              subject: `You're invited to join ${clubName} as ${roleConfig[selectedRole].label}`,
               template: "team-invite",
               templateData: {
                 recipientName: customName.trim(),
                 teamName: clubName, // Using teamName field for club name
                 clubName: clubName,
-                roleName: "Club Admin",
+                roleName: roleConfig[selectedRole].label,
                 inviteLink: link,
                 clubLogoUrl: clubBranding?.logo_url || undefined,
               },
@@ -226,7 +249,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
         }
       } else {
         toast({
-          title: "Admin added as pending",
+          title: "Member added as pending",
           description: `${customName} has been added. Share the invite link with them.`,
         });
       }
@@ -249,6 +272,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
     setInviteLink(null);
     setInviteSent(false);
     setMode("invite");
+    setSelectedRole("club_admin");
   };
 
   const handleDone = () => {
@@ -260,17 +284,17 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
       <SheetTrigger asChild>
         <Button size="sm">
           <UserPlus className="h-4 w-4 mr-2" />
-          Add Admin
+          Add Member
         </Button>
       </SheetTrigger>
       <SheetContent className="w-full sm:max-w-md overflow-y-auto">
         <SheetHeader className="space-y-1 pb-4 border-b">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-full bg-purple-500/10">
-              <Users className="h-5 w-5 text-purple-500" />
+            <div className={`p-2.5 rounded-full ${selectedRole === "club_admin" ? "bg-purple-500/10" : "bg-cyan-500/10"}`}>
+              <Users className={`h-5 w-5 ${selectedRole === "club_admin" ? "text-purple-500" : "text-cyan-500"}`} />
             </div>
             <div>
-              <SheetTitle>Add Club Admin</SheetTitle>
+              <SheetTitle>Add Club Member</SheetTitle>
               <SheetDescription className="text-sm">{clubName}</SheetDescription>
             </div>
           </div>
@@ -289,11 +313,11 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
               </p>
             </div>
 
-            <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
+            <div className={`p-4 rounded-xl bg-gradient-to-br ${selectedRole === "club_admin" ? "from-purple-500/5 to-purple-500/10 border-purple-500/20" : "from-cyan-500/5 to-cyan-500/10 border-cyan-500/20"} border`}>
               <p className="font-medium mb-1">{customName}</p>
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                 <Mail className="h-3.5 w-3.5" />
-                Invited as Club Admin
+                Invited as {roleConfig[selectedRole].label}
               </p>
             </div>
 
@@ -357,12 +381,25 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                   </p>
                 </div>
 
-                <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Role *</Label>
+                  <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as ClubRole)}>
+                    <SelectTrigger className="h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="club_admin">Club Admin</SelectItem>
+                      <SelectItem value="committee_member">Committee Member</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className={`p-3 rounded-lg ${selectedRole === "club_admin" ? "bg-purple-500/10 border-purple-500/20" : "bg-cyan-500/10 border-cyan-500/20"} border`}>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="bg-purple-500/20 text-purple-600 border-purple-500/30">
-                      Club Admin
+                    <Badge variant="outline" className={roleConfig[selectedRole].colorClass}>
+                      {roleConfig[selectedRole].label}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">Full club management access</span>
+                    <span className="text-xs text-muted-foreground">{roleConfig[selectedRole].description}</span>
                   </div>
                 </div>
 
@@ -448,12 +485,12 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
 
                 {/* Selected User Preview */}
                 {selectedUser && (
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-purple-500/5 to-purple-500/10 border border-purple-500/20">
+                  <div className={`p-4 rounded-xl bg-gradient-to-br ${selectedRole === "club_admin" ? "from-purple-500/5 to-purple-500/10 border-purple-500/20" : "from-cyan-500/5 to-cyan-500/10 border-cyan-500/20"} border`}>
                     <p className="text-xs font-medium text-muted-foreground mb-2">Selected User</p>
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 border-2 border-purple-500/20">
+                      <Avatar className={`h-10 w-10 border-2 ${selectedRole === "club_admin" ? "border-purple-500/20" : "border-cyan-500/20"}`}>
                         <AvatarImage src={selectedUser.avatar_url || undefined} />
-                        <AvatarFallback className="bg-purple-500/20 text-purple-600 font-semibold">
+                        <AvatarFallback className={selectedRole === "club_admin" ? "bg-purple-500/20 text-purple-600 font-semibold" : "bg-cyan-500/20 text-cyan-600 font-semibold"}>
                           {selectedUser.display_name?.charAt(0) || "?"}
                         </AvatarFallback>
                       </Avatar>
@@ -462,12 +499,25 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                   </div>
                 )}
 
-                <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Role *</Label>
+                  <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as ClubRole)}>
+                    <SelectTrigger className="h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="club_admin">Club Admin</SelectItem>
+                      <SelectItem value="committee_member">Committee Member</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className={`p-3 rounded-lg ${selectedRole === "club_admin" ? "bg-purple-500/10 border-purple-500/20" : "bg-cyan-500/10 border-cyan-500/20"} border`}>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="bg-purple-500/20 text-purple-600 border-purple-500/30">
-                      Club Admin
+                    <Badge variant="outline" className={roleConfig[selectedRole].colorClass}>
+                      {roleConfig[selectedRole].label}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">Full club management access</span>
+                    <span className="text-xs text-muted-foreground">{roleConfig[selectedRole].description}</span>
                   </div>
                 </div>
 
@@ -481,7 +531,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                   ) : (
                     <UserPlus className="h-5 w-5 mr-2" />
                   )}
-                  Add as Club Admin
+                  Add as {roleConfig[selectedRole].label}
                 </Button>
               </TabsContent>
             </Tabs>
