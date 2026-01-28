@@ -558,13 +558,21 @@ export default function EventDetailPage() {
       
       // Combine all unique IDs
       const allUserIds = [...new Set([...parentIds, ...adminIds])];
-      if (!allUserIds.length) return [];
+      
+      // Exclude app admins from the list
+      const { data: appAdmins } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "app_admin");
+      const appAdminIds = new Set(appAdmins?.map(r => r.user_id) || []);
+      const filteredUserIds = allUserIds.filter(id => !appAdminIds.has(id));
+      if (!filteredUserIds.length) return [];
       
       // Fetch profiles for all these users
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("id, display_name, avatar_url")
-        .in("id", allUserIds)
+        .in("id", filteredUserIds)
         .order("display_name");
       if (profilesError) throw profilesError;
       
