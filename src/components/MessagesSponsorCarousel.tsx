@@ -169,7 +169,11 @@ export function MessagesSponsorCarousel({ activeClubFilter }: MessagesSponsorCar
     staleTime: 300000,
   });
 
-  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
+  const [emblaRef, emblaApi] = useEmblaCarousel({ 
+    loop: true,
+    dragFree: false,
+    watchDrag: true,
+  });
 
   const onSelect = useCallback(() => {
     if (!emblaApi) return;
@@ -216,7 +220,7 @@ export function MessagesSponsorCarousel({ activeClubFilter }: MessagesSponsorCar
   return (
     <section className="space-y-3 mt-6">
       <div className="relative group">
-        <div className="overflow-hidden cursor-grab active:cursor-grabbing" ref={emblaRef}>
+        <div className="overflow-hidden cursor-grab active:cursor-grabbing touch-pan-y" ref={emblaRef}>
           <div className="flex">
             {sponsors.map((sponsor) => (
               <div key={sponsor.id} className="flex-[0_0_100%] min-w-0">
