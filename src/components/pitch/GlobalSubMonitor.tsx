@@ -371,6 +371,14 @@ export default function GlobalSubMonitor() {
 
     // Get team ID from pitch state if not in timer state
     const teamId = timerState.teamId || pitchState.teamId || null;
+    
+    // Skip syncing to active_games for event-group based games
+    // Those are synced via useEventGroupSync to the event_groups table
+    const isEventGroup = typeof teamId === 'string' && teamId.startsWith("event-group-");
+    if (isEventGroup) {
+      setSyncStatus({ status: "idle", lastSyncTime: null });
+      return;
+    }
 
     const gameData = {
       user_id: user.id,

@@ -76,8 +76,12 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
         .eq("user_id", user!.id)
         .in("role", ["club_admin", "league_admin", "app_admin"]);
 
+      console.log("[MiniLeagueWidgets] User roles:", adminRoles);
+
       const isAppAdmin = adminRoles?.some(r => r.role === "app_admin");
       const adminClubIds = adminRoles?.filter(r => r.club_id).map(r => r.club_id) as string[] || [];
+
+      console.log("[MiniLeagueWidgets] Admin club IDs:", adminClubIds, "isAppAdmin:", isAppAdmin);
 
       let adminLeagueIds: string[] = [];
       if (adminClubIds.length > 0 || isAppAdmin) {
@@ -87,10 +91,13 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
         }
         const { data: adminLeagues } = await query;
         adminLeagueIds = adminLeagues?.map(l => l.id) || [];
+        console.log("[MiniLeagueWidgets] Admin league IDs:", adminLeagueIds);
       }
 
       const parentLeagueIds = playerLeagues?.map(p => p.mini_league_id) || [];
       const allLeagueIds = [...new Set([...parentLeagueIds, ...adminLeagueIds])];
+
+      console.log("[MiniLeagueWidgets] All league IDs:", allLeagueIds);
 
       return {
         parentLeagueIds,
@@ -107,7 +114,12 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
   const { data: activeMatches = [], refetch } = useQuery({
     queryKey: ["active-mini-league-matches", userLeagueMemberships?.allLeagueIds, activeClubFilter],
     queryFn: async () => {
-      if (!userLeagueMemberships?.allLeagueIds?.length) return [];
+      console.log("[MiniLeagueWidgets] Fetching active matches, allLeagueIds:", userLeagueMemberships?.allLeagueIds);
+      
+      if (!userLeagueMemberships?.allLeagueIds?.length) {
+        console.log("[MiniLeagueWidgets] No league IDs found");
+        return [];
+      }
 
       // Get events from user's leagues that have active matches
       const { data: events, error: eventsError } = await supabase
@@ -116,12 +128,16 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
         .in("mini_league_id", userLeagueMemberships.allLeagueIds)
         .not("mini_league_id", "is", null);
 
+      console.log("[MiniLeagueWidgets] Events found:", events?.length, "error:", eventsError);
+
       if (eventsError || !events?.length) return [];
 
       // Filter by club if active filter is set
       const filteredEvents = activeClubFilter
         ? events.filter(e => e.club_id === activeClubFilter)
         : events;
+
+      console.log("[MiniLeagueWidgets] Filtered events:", filteredEvents.length, "activeClubFilter:", activeClubFilter);
 
       if (!filteredEvents.length) return [];
 
@@ -131,6 +147,8 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
         .select("*")
         .in("event_id", filteredEvents.map(e => e.id))
         .not("timer_state", "is", null);
+
+      console.log("[MiniLeagueWidgets] Groups with timer_state:", groups?.length, "error:", groupsError);
 
       if (groupsError || !groups?.length) return [];
 
@@ -248,6 +266,8 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
   // Limit displayed matches
   const displayedMatches = expanded ? activeMatches : activeMatches.slice(0, 2);
   const hasMoreMatches = activeMatches.length > 2;
+
+  console.log("[MiniLeagueWidgets] Rendering, activeMatches:", activeMatches.length, "userLeagueMemberships:", userLeagueMemberships);
 
   if (!activeMatches.length) return null;
 
