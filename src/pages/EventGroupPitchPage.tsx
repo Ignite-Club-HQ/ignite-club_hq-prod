@@ -7,16 +7,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { 
-  Sheet, 
-  SheetContent, 
-  SheetHeader, 
-  SheetTitle, 
-  SheetDescription,
-  SheetFooter
-} from "@/components/ui/sheet";
 import {
   Select,
   SelectContent,
@@ -25,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { AddDutySheet } from "@/components/AddDutySheet";
 
 interface GroupDuty {
   id: string;
@@ -50,7 +41,6 @@ export default function EventGroupPitchPage() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isDutySheetOpen, setIsDutySheetOpen] = useState(false);
-  const [newDutyName, setNewDutyName] = useState("");
 
   // Fetch group details
   const { data: group, isLoading: groupLoading } = useQuery({
@@ -177,7 +167,6 @@ export default function EventGroupPitchPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-group-duties", groupId] });
-      setNewDutyName("");
       setIsDutySheetOpen(false);
       toast.success("Duty added");
     },
@@ -228,15 +217,6 @@ export default function EventGroupPitchPage() {
     setIsTimerRunning(false);
     setElapsedTime(0);
     setTimeout(() => saveTimerMutation.mutate(), 100);
-  };
-
-  const handleAddDuty = () => {
-    const trimmed = newDutyName.trim();
-    if (!trimmed) {
-      toast.error("Please enter a duty name");
-      return;
-    }
-    addDutyMutation.mutate(trimmed);
   };
 
   if (groupLoading) {
@@ -414,34 +394,15 @@ export default function EventGroupPitchPage() {
         </CardContent>
       </Card>
 
-      {/* Add Duty Sheet */}
-      <Sheet open={isDutySheetOpen} onOpenChange={setIsDutySheetOpen}>
-        <SheetContent side="bottom" className="h-auto">
-          <SheetHeader>
-            <SheetTitle>Add Duty</SheetTitle>
-            <SheetDescription>
-              Create a duty for this group
-            </SheetDescription>
-          </SheetHeader>
-          <div className="py-4 space-y-4">
-            <div className="space-y-2">
-              <Label>Duty Name</Label>
-              <Input
-                placeholder="e.g. Referee, First Aid, Setup"
-                value={newDutyName}
-                onChange={(e) => setNewDutyName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddDuty()}
-              />
-            </div>
-          </div>
-          <SheetFooter>
-            <Button onClick={handleAddDuty} disabled={addDutyMutation.isPending} className="w-full">
-              {addDutyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Add Duty
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+      {/* Add Duty Sheet - uses match context for mini league */}
+      <AddDutySheet
+        open={isDutySheetOpen}
+        onOpenChange={setIsDutySheetOpen}
+        onAddDuty={(dutyName) => addDutyMutation.mutate(dutyName)}
+        isPending={addDutyMutation.isPending}
+        isMiniLeague={true}
+        context="match"
+      />
     </div>
   );
 }
