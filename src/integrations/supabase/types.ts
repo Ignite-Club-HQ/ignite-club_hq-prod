@@ -2344,6 +2344,7 @@ export type Database = {
           id: string
           logo_url: string | null
           min_players_per_side: number
+          minutes_per_half: number
           name: string
           team_size: number
           updated_at: string
@@ -2357,6 +2358,7 @@ export type Database = {
           id?: string
           logo_url?: string | null
           min_players_per_side?: number
+          minutes_per_half?: number
           name: string
           team_size?: number
           updated_at?: string
@@ -2370,6 +2372,7 @@ export type Database = {
           id?: string
           logo_url?: string | null
           min_players_per_side?: number
+          minutes_per_half?: number
           name?: string
           team_size?: number
           updated_at?: string

@@ -71,6 +71,7 @@ export default function MiniLeagueDetailPage() {
   const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
   const [editTeamSize, setEditTeamSize] = useState<number>(4);
   const [editMinPlayersPerSide, setEditMinPlayersPerSide] = useState<number>(3);
+  const [editMinutesPerHalf, setEditMinutesPerHalf] = useState<number>(10);
   const [editBibColors, setEditBibColors] = useState<string[]>([]);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -206,6 +207,7 @@ export default function MiniLeagueDetailPage() {
           logo_url: editLogoUrl,
           team_size: editTeamSize,
           min_players_per_side: editMinPlayersPerSide,
+          minutes_per_half: editMinutesPerHalf,
           bib_colors: editBibColors.length > 0 ? editBibColors : null
         })
         .eq("id", id!);
@@ -311,6 +313,7 @@ export default function MiniLeagueDetailPage() {
       setEditLogoUrl(league.logo_url || null);
       setEditTeamSize(league.team_size || 4);
       setEditMinPlayersPerSide(league.min_players_per_side || 3);
+      setEditMinutesPerHalf(league.minutes_per_half || 10);
       setEditBibColors(league.bib_colors || ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"]);
       setSettingsOpen(true);
     }
@@ -828,6 +831,31 @@ export default function MiniLeagueDetailPage() {
               </div>
               <p className="text-xs text-muted-foreground">
                 No team can have fewer than this many players
+              </p>
+            </div>
+
+            {/* Minutes Per Half */}
+            <div className="space-y-2">
+              <Label htmlFor="minutes-per-half">Minutes Per Half</Label>
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-muted-foreground" />
+                <div className="flex items-center gap-2">
+                  {[5, 7, 10, 12, 15, 20].map((mins) => (
+                    <Button
+                      key={mins}
+                      type="button"
+                      variant={editMinutesPerHalf === mins ? "default" : "outline"}
+                      size="sm"
+                      className="w-10 h-10"
+                      onClick={() => setEditMinutesPerHalf(mins)}
+                    >
+                      {mins}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Default game timer duration per half
               </p>
             </div>
 

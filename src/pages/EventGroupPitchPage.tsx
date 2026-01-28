@@ -102,6 +102,21 @@ export default function EventGroupPitchPage() {
     enabled: !!groupId,
   });
 
+  // Fetch league settings for pitch board defaults
+  const { data: leagueSettings } = useQuery({
+    queryKey: ["mini-league-pitch-settings", group?.event?.mini_league_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mini_leagues")
+        .select("minutes_per_half")
+        .eq("id", group!.event!.mini_league_id!)
+        .single();
+      if (error) throw error;
+      return data as { minutes_per_half: number };
+    },
+    enabled: !!group?.event?.mini_league_id,
+  });
+
   // Fetch league members for duty assignment (parents, admins, coaches - not players)
   const { data: leagueMembers } = useQuery({
     queryKey: ["mini-league-duty-assignees", group?.event?.mini_league_id],
@@ -482,7 +497,7 @@ export default function EventGroupPitchPage() {
             initialRotationSpeed={2}
             initialDisablePositionSwaps={false}
             initialDisableBatchSubs={false}
-            initialMinutesPerHalf={10}
+            initialMinutesPerHalf={leagueSettings?.minutes_per_half || 10}
             initialTeamSize={initialTeamSize}
             readOnly={false}
             initialLinkedEventId={null}

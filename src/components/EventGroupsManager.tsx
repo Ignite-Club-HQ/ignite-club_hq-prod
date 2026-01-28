@@ -160,11 +160,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_leagues")
-        .select("id, name, team_size, min_players_per_side, bib_colors")
+        .select("id, name, team_size, min_players_per_side, minutes_per_half, bib_colors")
         .eq("id", miniLeagueId)
         .single();
       if (error) throw error;
-      return data as { id: string; name: string; team_size: number; min_players_per_side: number; bib_colors: string[] | null };
+      return data as { id: string; name: string; team_size: number; min_players_per_side: number; minutes_per_half: number; bib_colors: string[] | null };
     },
     enabled: !!miniLeagueId,
   });
@@ -1080,7 +1080,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
             initialRotationSpeed={2}
             initialDisablePositionSwaps={false}
             initialDisableBatchSubs={false}
-            initialMinutesPerHalf={10}
+            initialMinutesPerHalf={miniLeague?.minutes_per_half || 10}
             initialTeamSize={(() => {
               const teamACount = activePitchBoardGroup.players.filter(p => p.team === "a").length;
               const teamBCount = activePitchBoardGroup.players.filter(p => p.team === "b").length;
