@@ -3962,6 +3962,7 @@ export type Database = {
           file_url: string
           folder_id: string | null
           id: string
+          is_external_link: boolean | null
           mini_league_id: string | null
           name: string
           team_id: string | null
@@ -3977,6 +3978,7 @@ export type Database = {
           file_url: string
           folder_id?: string | null
           id?: string
+          is_external_link?: boolean | null
           mini_league_id?: string | null
           name: string
           team_id?: string | null
@@ -3992,6 +3994,7 @@ export type Database = {
           file_url?: string
           folder_id?: string | null
           id?: string
+          is_external_link?: boolean | null
           mini_league_id?: string | null
           name?: string
           team_id?: string | null
