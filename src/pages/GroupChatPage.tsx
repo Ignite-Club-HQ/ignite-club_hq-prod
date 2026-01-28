@@ -868,7 +868,8 @@ export default function GroupChatPage() {
       toast.error("Failed to send message");
     },
     onSettled: () => {
-      // Don't invalidate here; realtime will sync messages
+      // Invalidate messages page preview so latest message shows
+      queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
     },
    });
 
