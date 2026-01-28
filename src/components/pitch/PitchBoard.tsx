@@ -802,6 +802,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     const result: Player[] = [];
     
+    // Helper to scale formation position to bottom half (for Team A: y 50-95)
+    const scaleToBottomHalf = (pos: { x: number; y: number }) => {
+      // Formation y typically ranges from ~15 (forwards) to ~90 (GK)
+      // Scale to bottom half: y 50 (center) to 95 (near goal)
+      const scaledY = 50 + (pos.y / 100) * 45; // Map 0-100 -> 50-95
+      return { x: pos.x, y: scaledY };
+    };
+    
+    // Helper to scale formation position to top half (for Team B: y 5-50)
+    const scaleToTopHalf = (pos: { x: number; y: number }) => {
+      // Mirror and scale to top half: y 5 (near goal) to 50 (center)
+      const scaledY = 50 - (pos.y / 100) * 45; // Map 0-100 -> 50-5 (inverted)
+      const mirroredX = 100 - pos.x; // Mirror X for Team B
+      return { x: mirroredX, y: scaledY };
+    };
+    
     if (preserveOnPitchStatus && applyFormationPositions) {
       // Formation change: reposition on-pitch players to new formation, keep bench players on bench
       const teamAOnPitch = teamAPlayers.filter(p => p.position !== null);
@@ -809,14 +825,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const teamAOnBench = teamAPlayers.filter(p => p.position === null);
       const teamBOnBench = teamBPlayers.filter(p => p.position === null);
       
-      // Place Team A on-pitch players to new formation positions
+      // Place Team A on-pitch players to new formation positions (bottom half)
       teamAOnPitch.forEach((player, index) => {
         if (index < formation.positions.length) {
-          const pos = formation.positions[index];
+          const pos = scaleToBottomHalf(formation.positions[index]);
           result.push({
             ...player,
-            position: { x: pos.x, y: pos.y },
-            currentPitchPosition: getPositionFromCoords(pos.y, size),
+            position: pos,
+            currentPitchPosition: getPositionFromCoords(formation.positions[index].y, size),
           });
         } else {
           // More players than positions - keep on pitch at current spot
@@ -832,23 +848,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         result.push({ ...player });
       });
       
-      // Place Team B on-pitch players to new formation positions (mirrored)
+      // Place Team B on-pitch players to new formation positions (top half)
       teamBOnPitch.forEach((player, index) => {
         if (index < formation.positions.length) {
-          const pos = formation.positions[index];
-          const mirroredY = 100 - pos.y;
-          const mirroredX = 100 - pos.x;
+          const pos = scaleToTopHalf(formation.positions[index]);
           result.push({
             ...player,
-            position: { x: mirroredX, y: mirroredY },
-            currentPitchPosition: getPositionFromCoords(pos.y, size),
+            position: pos,
+            currentPitchPosition: getPositionFromCoords(formation.positions[index].y, size),
           });
         } else {
           // More players than positions - keep on pitch at current spot
-          const originalY = 100 - player.position!.y;
           result.push({
             ...player,
-            currentPitchPosition: getPositionFromCoords(originalY, size),
+            currentPitchPosition: getPositionFromCoords(100 - player.position!.y, size),
           });
         }
       });
@@ -859,7 +872,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       });
     } else if (preserveOnPitchStatus && !applyFormationPositions) {
       // Team size change: adjust player count per team to match new size
-      // Keep existing on-pitch players at their positions (up to new limit), bench extras, or pull from bench
       const teamAOnPitch = teamAPlayers.filter(p => p.position !== null);
       const teamBOnPitch = teamBPlayers.filter(p => p.position !== null);
       const teamAOnBench = teamAPlayers.filter(p => p.position === null);
@@ -867,17 +879,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       
       const targetSize = parseInt(size);
       
-      // Team A: adjust to target size
+      // Team A: adjust to target size (bottom half)
       const teamAToPlace = [...teamAOnPitch, ...teamAOnBench].slice(0, targetSize);
       const teamATooBench = [...teamAOnPitch, ...teamAOnBench].slice(targetSize);
       
       teamAToPlace.forEach((player, index) => {
         if (index < formation.positions.length) {
-          const pos = formation.positions[index];
+          const pos = scaleToBottomHalf(formation.positions[index]);
           result.push({
             ...player,
-            position: { x: pos.x, y: pos.y },
-            currentPitchPosition: getPositionFromCoords(pos.y, size),
+            position: pos,
+            currentPitchPosition: getPositionFromCoords(formation.positions[index].y, size),
           });
         } else {
           result.push({ ...player, position: null, currentPitchPosition: undefined });
@@ -887,19 +899,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         result.push({ ...player, position: null, currentPitchPosition: undefined });
       });
       
-      // Team B: adjust to target size
+      // Team B: adjust to target size (top half)
       const teamBToPlace = [...teamBOnPitch, ...teamBOnBench].slice(0, targetSize);
       const teamBTooBench = [...teamBOnPitch, ...teamBOnBench].slice(targetSize);
       
       teamBToPlace.forEach((player, index) => {
         if (index < formation.positions.length) {
-          const pos = formation.positions[index];
-          const mirroredY = 100 - pos.y;
-          const mirroredX = 100 - pos.x;
+          const pos = scaleToTopHalf(formation.positions[index]);
           result.push({
             ...player,
-            position: { x: mirroredX, y: mirroredY },
-            currentPitchPosition: getPositionFromCoords(pos.y, size),
+            position: pos,
+            currentPitchPosition: getPositionFromCoords(formation.positions[index].y, size),
           });
         } else {
           result.push({ ...player, position: null, currentPitchPosition: undefined });
@@ -912,11 +922,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       // Initial placement - place all players on pitch (up to formation size)
       teamAPlayers.forEach((player, index) => {
         if (index < formation.positions.length) {
-          const pos = formation.positions[index];
+          const pos = scaleToBottomHalf(formation.positions[index]);
           result.push({
             ...player,
-            position: { x: pos.x, y: pos.y },
-            currentPitchPosition: getPositionFromCoords(pos.y, size),
+            position: pos,
+            currentPitchPosition: getPositionFromCoords(formation.positions[index].y, size),
           });
         } else {
           result.push({ ...player, position: null, currentPitchPosition: undefined });
@@ -925,13 +935,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       
       teamBPlayers.forEach((player, index) => {
         if (index < formation.positions.length) {
-          const pos = formation.positions[index];
-          const mirroredY = 100 - pos.y;
-          const mirroredX = 100 - pos.x;
+          const pos = scaleToTopHalf(formation.positions[index]);
           result.push({
             ...player,
-            position: { x: mirroredX, y: mirroredY },
-            currentPitchPosition: getPositionFromCoords(pos.y, size),
+            position: pos,
+            currentPitchPosition: getPositionFromCoords(formation.positions[index].y, size),
           });
         } else {
           result.push({ ...player, position: null, currentPitchPosition: undefined });
@@ -969,14 +977,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           return { ...p, teamSide };
         });
         
-        // Check if Team B players are correctly positioned on the top half
-        const teamBPlayers = playersWithTeamSide.filter(p => p.teamSide === "b" && p.position);
-        const teamBCorrectlyPositioned = teamBPlayers.length > 0 && teamBPlayers.every(p => p.position!.y < 50);
+        // Check if teams are correctly positioned (Team A bottom half, Team B top half)
+        const teamAOnPitch = playersWithTeamSide.filter(p => p.teamSide === "a" && p.position);
+        const teamBOnPitch = playersWithTeamSide.filter(p => p.teamSide === "b" && p.position);
+        const teamACorrectlyPositioned = teamAOnPitch.length === 0 || teamAOnPitch.every(p => p.position!.y >= 50);
+        const teamBCorrectlyPositioned = teamBOnPitch.length === 0 || teamBOnPitch.every(p => p.position!.y < 50);
         
-        if (!teamBCorrectlyPositioned && teamBPlayers.length > 0) {
-          console.log("[PitchState] Re-placing players for proper two-team layout");
+        if ((!teamACorrectlyPositioned || !teamBCorrectlyPositioned) && (teamAOnPitch.length > 0 || teamBOnPitch.length > 0)) {
+          console.log("[PitchState] Re-placing players for proper two-team half-pitch layout");
           // Saved state doesn't have correct two-team layout - re-place all players
-          return autoPlaceMiniLeaguePlayers(realPlayers, getInitialTeamSize());
+          return autoPlaceMiniLeaguePlayers(playersWithTeamSide, getInitialTeamSize());
         }
         
         return playersWithTeamSide;
