@@ -34,6 +34,7 @@ interface CreateGroupDialogProps {
 
 const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "league_admin", label: "League Admins" },
+  { value: "committee_member", label: "Committee Members" },
   { value: "team_admin", label: "Team Admins" },
   { value: "coach", label: "Coaches" },
   { value: "parent", label: "Parents" },
