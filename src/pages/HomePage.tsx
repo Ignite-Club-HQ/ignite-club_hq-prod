@@ -189,9 +189,47 @@ export default function HomePage() {
   const [confirmRedeemDialogOpen, setConfirmRedeemDialogOpen] = useState(false);
   const [selectedRedeemFor, setSelectedRedeemFor] = useState<string>("myself");
 
-  const { data: allEvents, isLoading } = useQuery({
-    queryKey: ["upcoming-events", user?.id],
+  // Get user's accessible team and club IDs for event filtering
+  const { data: userMemberships } = useQuery({
+    queryKey: ["user-memberships-for-events", user?.id],
     queryFn: async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("club_id, team_id")
+        .eq("user_id", user!.id);
+      
+      if (!roles) return { teamIds: [], clubIds: [] };
+      
+      const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
+      const clubIds = new Set<string>();
+      
+      // Direct club roles
+      roles.forEach(r => {
+        if (r.club_id) clubIds.add(r.club_id);
+      });
+      
+      // Get club IDs from team memberships
+      if (teamIds.length > 0) {
+        const { data: teams } = await supabase
+          .from("teams")
+          .select("club_id")
+          .in("id", teamIds);
+        teams?.forEach(t => clubIds.add(t.club_id));
+      }
+      
+      return { teamIds, clubIds: Array.from(clubIds) };
+    },
+    enabled: !!user,
+  });
+
+  const { data: allEvents, isLoading } = useQuery({
+    queryKey: ["upcoming-events", user?.id, userMemberships?.teamIds, userMemberships?.clubIds],
+    queryFn: async () => {
+      if (!userMemberships) return [];
+      
+      const { teamIds, clubIds } = userMemberships;
+      if (teamIds.length === 0 && clubIds.length === 0) return [];
+      
       const now = new Date();
       const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
       
@@ -216,12 +254,26 @@ export default function HomePage() {
         .gte("event_date", now.toISOString())
         .lte("event_date", fourteenDaysFromNow.toISOString())
         .order("event_date", { ascending: true })
-        .limit(20);
+        .limit(50);
 
       if (error) throw error;
-      return data as Event[];
+      
+      // Filter to only show events user is invited to:
+      // - Team events: user must be a member of that team
+      // - Club-wide events (no team_id): user must be a member of that club
+      const filtered = (data as Event[]).filter(event => {
+        if (event.team_id) {
+          // Team event - user must be a member of this team
+          return teamIds.includes(event.team_id);
+        } else {
+          // Club-wide event - user must be a member of this club
+          return clubIds.includes(event.club_id);
+        }
+      });
+      
+      return filtered;
     },
-    enabled: !!user,
+    enabled: !!user && !!userMemberships,
   });
 
   // Filter events by active club theme
