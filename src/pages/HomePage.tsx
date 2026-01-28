@@ -445,7 +445,7 @@ export default function HomePage() {
 
   // Check if user has Pro access (via club or team subscription)
   // Logic: Club Pro → all teams inherit; Free club → check team subscription
-  const { data: hasProAccess } = useQuery({
+  const { data: hasProAccess, isLoading: isLoadingProAccess } = useQuery({
     queryKey: ["user-has-pro-access", user?.id, userRoles?.map(r => r.club_id).filter(Boolean).join(","), userRoles?.map(r => r.team_id).filter(Boolean).join(",")],
     queryFn: async () => {
       if (!userRoles || userRoles.length === 0) return false;
@@ -501,6 +501,9 @@ export default function HomePage() {
     },
     enabled: !!user && !!userRoles,
   });
+  
+  // Show PRO badge only after we've confirmed they don't have Pro access
+  const showProBadge = !isLoadingProAccess && !hasProAccess && !isAppAdmin;
 
   // Fetch clubs for rewards with Pro status
   const { data: rewardClubs = [] } = useQuery({
@@ -1962,13 +1965,13 @@ export default function HomePage() {
           >
             <div className="flex items-center gap-1">
               <FolderOpen className="h-5 w-5 text-primary" />
-              {!hasProAccess && !isAppAdmin && (
+              {showProBadge && (
                 <Lock className="h-3 w-3 text-muted-foreground" />
               )}
             </div>
             <span className="text-sm flex items-center gap-1">
               Access Vault
-              {!hasProAccess && !isAppAdmin && (
+              {showProBadge && (
                 <Badge variant="secondary" className="text-[8px] px-1 py-0">PRO</Badge>
               )}
             </span>
