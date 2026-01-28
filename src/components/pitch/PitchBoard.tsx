@@ -850,6 +850,32 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     console.log("[PitchState] useState init - savedState:", savedState ? "exists" : "null", "realPlayers count:", realPlayers.length);
     if (savedState?.players && savedState.players.length > 0) {
       console.log("[PitchState] useState init - using saved players");
+      // For mini-league mode, we need to check if saved state has proper two-team layout
+      // If Team B players are not on the top half (y < 50), re-place all players
+      if (miniLeagueTeams) {
+        // Apply teamSide to saved players first
+        const playersWithTeamSide = savedState.players.map(p => {
+          let teamSide: "a" | "b" | undefined;
+          if (miniLeagueTeams.teamAPlayerIds.includes(p.id)) {
+            teamSide = "a";
+          } else if (miniLeagueTeams.teamBPlayerIds.includes(p.id)) {
+            teamSide = "b";
+          }
+          return { ...p, teamSide };
+        });
+        
+        // Check if Team B players are correctly positioned on the top half
+        const teamBPlayers = playersWithTeamSide.filter(p => p.teamSide === "b" && p.position);
+        const teamBCorrectlyPositioned = teamBPlayers.length > 0 && teamBPlayers.every(p => p.position!.y < 50);
+        
+        if (!teamBCorrectlyPositioned && teamBPlayers.length > 0) {
+          console.log("[PitchState] Re-placing players for proper two-team layout");
+          // Saved state doesn't have correct two-team layout - re-place all players
+          return autoPlaceMiniLeaguePlayers(realPlayers, getInitialTeamSize());
+        }
+        
+        return playersWithTeamSide;
+      }
       return savedState.players;
     }
     // For mini-league mode, auto-place players on both halves
@@ -954,13 +980,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       hasLoadedRef.current = true;
       setHasInitialized(true);
     } else if (realPlayers.length > 0) {
-      // No saved state, but we have real players - auto-place them using default formation
-      setPlayers(autoPlacePlayersOnPitch(realPlayers, teamSize, selectedFormation));
+      // No saved state, but we have real players - auto-place them
+      // Use mini-league two-team mode if configured, otherwise single team mode
+      if (miniLeagueTeams) {
+        setPlayers(autoPlaceMiniLeaguePlayers(realPlayers, teamSize));
+      } else {
+        setPlayers(autoPlacePlayersOnPitch(realPlayers, teamSize, selectedFormation));
+      }
       hasLoadedRef.current = true;
       setHasInitialized(true);
     }
     // If no saved state and no realPlayers yet, wait for realPlayers to load
-  }, [savedState, realPlayers, autoPlacePlayersOnPitch, teamSize, selectedFormation]);
+  }, [savedState, realPlayers, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, teamSize, selectedFormation]);
 
   // Save pitch state to localStorage whenever it changes (only after initialization)
   useEffect(() => {
