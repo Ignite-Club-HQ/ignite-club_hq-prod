@@ -36,7 +36,7 @@ export interface SubstitutionEvent {
   executed?: boolean;
 }
 
-export type TeamSize = "3" | "4" | "7" | "9" | "11";
+export type TeamSize = "3" | "4" | "5" | "7" | "9" | "11";
 export type DrawingTool = "none" | "pen" | "arrow";
 
 // Formation definitions
@@ -50,6 +50,12 @@ export const FORMATIONS: Record<TeamSize, { name: string; positions: { x: number
     { name: "1-2-1", positions: [{ x: 50, y: 85 }, { x: 25, y: 55 }, { x: 75, y: 55 }, { x: 50, y: 25 }] },
     { name: "2-1-1", positions: [{ x: 35, y: 85 }, { x: 65, y: 85 }, { x: 50, y: 55 }, { x: 50, y: 25 }] },
     { name: "1-1-2", positions: [{ x: 50, y: 85 }, { x: 50, y: 55 }, { x: 35, y: 25 }, { x: 65, y: 25 }] },
+  ],
+  "5": [
+    { name: "1-2-1-1", positions: [{ x: 50, y: 88 }, { x: 30, y: 68 }, { x: 70, y: 68 }, { x: 50, y: 45 }, { x: 50, y: 22 }] },
+    { name: "2-1-2", positions: [{ x: 35, y: 85 }, { x: 65, y: 85 }, { x: 50, y: 50 }, { x: 35, y: 22 }, { x: 65, y: 22 }] },
+    { name: "1-3-1", positions: [{ x: 50, y: 88 }, { x: 25, y: 55 }, { x: 50, y: 55 }, { x: 75, y: 55 }, { x: 50, y: 22 }] },
+    { name: "2-2-1", positions: [{ x: 35, y: 85 }, { x: 65, y: 85 }, { x: 35, y: 50 }, { x: 65, y: 50 }, { x: 50, y: 22 }] },
   ],
   "7": [
     { name: "2-3-1", positions: [{ x: 50, y: 90 }, { x: 30, y: 70 }, { x: 70, y: 70 }, { x: 20, y: 45 }, { x: 50, y: 45 }, { x: 80, y: 45 }, { x: 50, y: 20 }] },
@@ -71,8 +77,8 @@ export const FORMATIONS: Record<TeamSize, { name: string; positions: { x: number
 
 // Map formation positions to pitch positions based on Y coordinate
 export const getPositionFromCoords = (y: number, teamSize: TeamSize): PitchPosition => {
-  // 3-a-side and 4-a-side have no goalkeeper - all outfield positions
-  if (teamSize === "3" || teamSize === "4") {
+  // 3-a-side, 4-a-side, and 5-a-side have no goalkeeper - all outfield positions
+  if (teamSize === "3" || teamSize === "4" || teamSize === "5") {
     if (y > 70) return "DEF";
     if (y > 40) return "MID";
     return "FWD";

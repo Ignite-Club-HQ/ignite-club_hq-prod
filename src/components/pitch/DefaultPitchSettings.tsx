@@ -16,6 +16,12 @@ const FORMATIONS: Record<TeamSize, { name: string }[]> = {
     { name: "2-1-1" },
     { name: "1-1-2" },
   ],
+  "5": [
+    { name: "1-2-1-1" },
+    { name: "2-1-2" },
+    { name: "1-3-1" },
+    { name: "2-2-1" },
+  ],
   "7": [
     { name: "2-3-1" },
     { name: "3-2-1" },
@@ -34,7 +40,7 @@ const FORMATIONS: Record<TeamSize, { name: string }[]> = {
   ],
 };
 
-const TEAM_SIZES: TeamSize[] = ["3", "4", "7", "9", "11"];
+const TEAM_SIZES: TeamSize[] = ["3", "4", "5", "7", "9", "11"];
 const MINUTES_OPTIONS = [5, 7, 10, 12, 15, 20, 25, 30, 35, 40, 45];
 const ROTATION_SPEEDS = [
   { value: "1", label: "Slow (fewer subs)" },
