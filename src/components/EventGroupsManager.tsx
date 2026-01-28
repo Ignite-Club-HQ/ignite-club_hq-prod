@@ -99,7 +99,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
   const [isRegenerating, setIsRegenerating] = useState(false);
 
   // Fetch event groups
-  const { data: groups, isLoading } = useQuery({
+  const { data: groups, isLoading, refetch: refetchGroups } = useQuery({
     queryKey: ["event-groups", eventId],
     queryFn: async () => {
       const { data: groupsData, error } = await supabase
@@ -143,6 +143,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       return groupsWithPlayers;
     },
     enabled: !!eventId,
+    staleTime: 0, // Always consider stale
+    refetchOnMount: "always",
   });
 
   // Fetch mini league settings
@@ -189,6 +191,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     },
     enabled: !!eventId,
     staleTime: 0, // Always consider stale to get fresh data
+    refetchOnMount: "always", // Always refetch when component mounts
   });
 
   // Map RSVPs to mini league players - now includes direct mini_league_player_id matching
