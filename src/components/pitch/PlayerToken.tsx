@@ -12,6 +12,7 @@ interface Player {
   minutesPlayed?: number;
   isInjured?: boolean;
   isFillIn?: boolean;
+  teamSide?: "a" | "b"; // For mini-league two-team mode
 }
 
 interface PlayerTokenProps {
@@ -33,6 +34,8 @@ interface PlayerTokenProps {
   variant?: "pitch" | "bench";
   style?: CSSProperties;
   readOnly?: boolean;
+  // Mini-league team colors
+  teamColor?: string;
 }
 
 const PlayerToken = memo(function PlayerToken({
@@ -53,7 +56,8 @@ const PlayerToken = memo(function PlayerToken({
   subAnimation = null,
   variant = "pitch",
   style,
-  readOnly = false
+  readOnly = false,
+  teamColor
 }: PlayerTokenProps) {
   const initials = player.name
     .split(" ")
@@ -76,6 +80,11 @@ const PlayerToken = memo(function PlayerToken({
   const minutesDisplay = formatMinutesPlayed(player.minutesPlayed);
 
   if (variant === "bench") {
+    // Build dynamic border style for team color
+    const benchBorderStyle = teamColor && !isSelected && !isSubTarget && !isInvalidTarget && !subAnimation 
+      ? { borderColor: teamColor, borderLeftWidth: '4px' } 
+      : undefined;
+
     return (
       <div
         draggable={!onClick && !readOnly && !player.isInjured}
@@ -95,19 +104,35 @@ const PlayerToken = memo(function PlayerToken({
           subAnimation === "out" && "animate-fade-in ring-2 ring-orange-500 bg-orange-500/20",
           onClick && !player.isInjured && "cursor-pointer"
         )}
-        style={style}
+        style={{ ...style, ...benchBorderStyle }}
       >
-        <div className={cn(
-          "w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary relative",
-          player.isInjured && "bg-destructive/20 text-destructive",
-          isSelected && "bg-yellow-400 text-yellow-900",
-          isSubTarget && !isSelected && "bg-emerald-400/30 text-emerald-300",
-          subAnimation === "in" && "bg-emerald-500 text-white",
-          subAnimation === "out" && "bg-orange-500 text-white"
-        )}>
+        <div 
+          className={cn(
+            "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold relative",
+            !teamColor && "bg-primary/20 text-primary",
+            player.isInjured && "bg-destructive/20 text-destructive",
+            isSelected && "bg-yellow-400 text-yellow-900",
+            isSubTarget && !isSelected && "bg-emerald-400/30 text-emerald-300",
+            subAnimation === "in" && "bg-emerald-500 text-white",
+            subAnimation === "out" && "bg-orange-500 text-white"
+          )}
+          style={teamColor && !isSelected && !isSubTarget && !subAnimation && !player.isInjured ? {
+            backgroundColor: `${teamColor}30`,
+            color: teamColor,
+          } : undefined}
+        >
           {player.number || initials}
           {player.isInjured && (
             <span className="absolute -top-1 -right-1 text-[8px]">🏥</span>
+          )}
+          {/* Team badge for mini-league */}
+          {player.teamSide && !player.isInjured && (
+            <span 
+              className="absolute -top-1 -right-1 text-[8px] font-bold px-0.5 rounded text-white"
+              style={{ backgroundColor: teamColor }}
+            >
+              {player.teamSide === "a" ? "A" : "B"}
+            </span>
           )}
         </div>
         <div className="flex flex-col flex-1 min-w-0">
@@ -186,6 +211,13 @@ const PlayerToken = memo(function PlayerToken({
     );
   }
 
+  // Build dynamic inline style for team color when in mini-league mode
+  // Only apply color-related styles to the token circle, NOT position/transform styles
+  const tokenCircleStyle: CSSProperties = teamColor && !isSelected && !isSubTarget && !isInvalidTarget && !isMovable && !isPreviewHighlight && !subAnimation ? {
+    borderColor: teamColor,
+    backgroundColor: `${teamColor}20`, // 20% opacity
+  } : {};
+
   return (
     <div
       draggable={!onClick && !readOnly}
@@ -206,18 +238,23 @@ const PlayerToken = memo(function PlayerToken({
       )}
       style={style}
     >
-      <div className={cn(
-        "w-10 h-10 rounded-full bg-background border-2 shadow-lg flex items-center justify-center text-sm font-bold relative transition-all duration-200",
-        currentPosColors ? `${currentPosColors.border} ${currentPosColors.text}` : "border-primary text-primary",
-        !currentPosColors && "text-foreground",
-        isSelected && "border-yellow-400 ring-2 ring-yellow-400 bg-yellow-100 text-yellow-900",
-        isSubTarget && !isSelected && !isInvalidTarget && "border-emerald-400 ring-2 ring-emerald-400 bg-emerald-400/20 text-emerald-700 dark:text-emerald-300",
-        isInvalidTarget && !isSelected && "opacity-40 border-muted-foreground/30",
-        isMovable && !isSelected && "border-amber-400 ring-2 ring-amber-400 bg-amber-400/20 text-amber-700 dark:text-amber-300",
-        isPreviewHighlight && previewHighlightType === "source" && "border-orange-400 ring-4 ring-orange-400/60 bg-orange-400/30 scale-110 text-orange-700 dark:text-orange-300",
-        isPreviewHighlight && previewHighlightType === "target" && "border-cyan-400 ring-4 ring-cyan-400/60 bg-cyan-400/30 scale-110 text-cyan-700 dark:text-cyan-300",
-        subAnimation === "in" && "border-emerald-500 ring-4 ring-emerald-500/50 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
-      )}>
+      <div 
+        className={cn(
+          "w-10 h-10 rounded-full bg-background border-2 shadow-lg flex items-center justify-center text-sm font-bold relative transition-all duration-200",
+          // Only apply position-based colors if NOT in mini-league team color mode
+          !teamColor && currentPosColors ? `${currentPosColors.border} ${currentPosColors.text}` : "",
+          !teamColor && !currentPosColors && "border-primary text-primary",
+          !teamColor && !currentPosColors && "text-foreground",
+          isSelected && "border-yellow-400 ring-2 ring-yellow-400 bg-yellow-100 text-yellow-900",
+          isSubTarget && !isSelected && !isInvalidTarget && "border-emerald-400 ring-2 ring-emerald-400 bg-emerald-400/20 text-emerald-700 dark:text-emerald-300",
+          isInvalidTarget && !isSelected && "opacity-40 border-muted-foreground/30",
+          isMovable && !isSelected && "border-amber-400 ring-2 ring-amber-400 bg-amber-400/20 text-amber-700 dark:text-amber-300",
+          isPreviewHighlight && previewHighlightType === "source" && "border-orange-400 ring-4 ring-orange-400/60 bg-orange-400/30 scale-110 text-orange-700 dark:text-orange-300",
+          isPreviewHighlight && previewHighlightType === "target" && "border-cyan-400 ring-4 ring-cyan-400/60 bg-cyan-400/30 scale-110 text-cyan-700 dark:text-cyan-300",
+          subAnimation === "in" && "border-emerald-500 ring-4 ring-emerald-500/50 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+        )}
+        style={tokenCircleStyle}
+      >
         {player.number || initials}
         {subAnimation === "in" && (
           <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-[8px] font-bold px-1 rounded">ON</span>
@@ -229,14 +266,20 @@ const PlayerToken = memo(function PlayerToken({
           <span className="absolute -top-1 -right-1 bg-cyan-500 text-white text-[8px] font-bold px-1 rounded animate-pulse">MOVE</span>
         )}
         {player.currentPitchPosition && !subAnimation && !isPreviewHighlight && (
-          <span className={cn(
-            "absolute -top-1 -right-1 text-[8px] font-bold px-1 rounded",
-            currentPosColors?.bg,
-            currentPosColors?.text,
-            "border",
-            currentPosColors?.border
-          )}>
-            {player.currentPitchPosition}
+          <span 
+            className={cn(
+              "absolute -top-1 -right-1 text-[8px] font-bold px-1 rounded border",
+              !teamColor && currentPosColors?.bg,
+              !teamColor && currentPosColors?.text,
+              !teamColor && currentPosColors?.border
+            )}
+            style={teamColor ? { 
+              backgroundColor: teamColor, 
+              borderColor: teamColor,
+              color: 'white' 
+            } : undefined}
+          >
+            {player.teamSide ? (player.teamSide === "a" ? "A" : "B") : player.currentPitchPosition}
           </span>
         )}
       </div>

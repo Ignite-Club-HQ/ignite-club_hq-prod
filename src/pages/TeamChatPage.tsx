@@ -860,7 +860,8 @@ export default function TeamChatPage() {
       toast.error("Failed to send message");
     },
     onSettled: () => {
-      // Don't invalidate here; realtime will sync messages
+      // Invalidate messages page preview so latest message shows
+      queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages"] });
     },
   });
 

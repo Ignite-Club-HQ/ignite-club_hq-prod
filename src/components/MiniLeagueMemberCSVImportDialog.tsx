@@ -255,10 +255,36 @@ export function MiniLeagueMemberCSVImportDialog({
 
   const downloadTemplate = () => {
     const csvContent = `player_name,ability_rating,parent_name,parent_email
-Tommy Smith,3,John Smith,john@example.com
-Emma Jones,4,Sarah Jones,sarah@example.com
-Jack Wilson,2,Mike Wilson,
-Lucy Brown,5,Kate Brown,kate@example.com`;
+Oliver Smith,5,James Smith,james.smith@example.com
+Jack Williams,5,David Williams,david.williams@example.com
+Sophie Taylor,5,Michael Taylor,michael.taylor@example.com
+Charlie Brown,5,Robert Brown,robert.brown@example.com
+Emily Davies,4,John Davies,john.davies@example.com
+Noah Wilson,4,Chris Wilson,chris.wilson@example.com
+Amelia Evans,4,Paul Evans,paul.evans@example.com
+George Thomas,4,Mark Thomas,mark.thomas@example.com
+Isla Roberts,4,Steve Roberts,steve.roberts@example.com
+Harry Johnson,3,Andy Johnson,andy.johnson@example.com
+Mia Walker,3,Dan Walker,dan.walker@example.com
+Leo White,3,Tom White,tom.white@example.com
+Ava Harris,3,Matt Harris,matt.harris@example.com
+Oscar Clark,3,Ben Clark,ben.clark@example.com
+Lily Lewis,3,Sam Lewis,sam.lewis@example.com
+Freddie Hall,3,Nick Hall,nick.hall@example.com
+Ella Young,2,Peter Young,peter.young@example.com
+Alfie King,2,Gary King,gary.king@example.com
+Grace Wright,2,Ian Wright,ian.wright@example.com
+Archie Green,2,Simon Green,simon.green@example.com
+Poppy Adams,2,Tim Adams,tim.adams@example.com
+Henry Baker,2,Alan Baker,alan.baker@example.com
+Rosie Hill,2,Phil Hill,phil.hill@example.com
+Max Scott,1,Brian Scott,brian.scott@example.com
+Evie Turner,1,Colin Turner,colin.turner@example.com
+Jacob Campbell,1,Keith Campbell,keith.campbell@example.com
+Chloe Mitchell,1,Graham Mitchell,graham.mitchell@example.com
+Finley Carter,1,Wayne Carter,wayne.carter@example.com
+Hannah Phillips,1,Derek Phillips,derek.phillips@example.com
+Thomas Parker,1,Neil Parker,neil.parker@example.com`;
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -419,8 +445,8 @@ Lucy Brown,5,Kate Brown,kate@example.com`;
                     )}
                   </div>
 
-                  <ScrollArea className="flex-1 min-h-0">
-                    <div className="space-y-2 pr-4">
+                  <ScrollArea className="h-[50vh] max-h-[400px]">
+                    <div className="space-y-2 pr-4 pb-2">
                       {parsedPlayers.map((player, idx) => {
                         const isValid = isPlayerValid(player);
                         return (

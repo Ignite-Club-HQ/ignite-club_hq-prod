@@ -595,7 +595,7 @@ export default function MessagesPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chat_groups")
-        .select("*, teams(name), clubs(name)")
+        .select("*, teams(name), clubs(name), mini_leagues:mini_league_id(name)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       
@@ -833,8 +833,40 @@ export default function MessagesPage() {
   // Filter all items based on search query and active club filter
   const query = searchQuery.toLowerCase().trim();
 
+  // Separate league chats from regular chat groups
+  const { leagueChats, regularChatGroups } = useMemo(() => {
+    const leagues: any[] = [];
+    const regular: any[] = [];
+    
+    displayChatGroups.forEach((group: any) => {
+      if (group.mini_league_id) {
+        leagues.push(group);
+      } else {
+        regular.push(group);
+      }
+    });
+    
+    return { leagueChats: leagues, regularChatGroups: regular };
+  }, [displayChatGroups]);
+
+  const filteredLeagueChats = useMemo(() => {
+    let groups = leagueChats;
+    
+    // Apply club filter if active
+    if (activeClubFilter) {
+      groups = groups.filter((group: any) => group.club_id === activeClubFilter);
+    }
+    
+    if (!query) return groups;
+    return groups.filter((group: any) => {
+      const groupName = group.name?.toLowerCase() || "";
+      const clubName = group.clubs?.name?.toLowerCase() || "";
+      return groupName.includes(query) || clubName.includes(query);
+    });
+  }, [leagueChats, query, activeClubFilter]);
+
   const filteredChatGroups = useMemo(() => {
-    let groups = displayChatGroups;
+    let groups = regularChatGroups;
     
     // Apply club filter if active
     if (activeClubFilter) {
@@ -851,7 +883,7 @@ export default function MessagesPage() {
       const clubName = group.clubs?.name?.toLowerCase() || "";
       return groupName.includes(query) || teamName.includes(query) || clubName.includes(query);
     });
-  }, [displayChatGroups, query, activeClubFilter, activeClubTeamIds]);
+  }, [regularChatGroups, query, activeClubFilter, activeClubTeamIds]);
 
   const filteredTeams = useMemo(() => {
     let teamsToFilter = displayTeams || [];
@@ -887,6 +919,7 @@ export default function MessagesPage() {
 
   const hasNoResults = query && 
     filteredChatGroups.length === 0 && 
+    filteredLeagueChats.length === 0 &&
     filteredTeams.length === 0 && 
     filteredClubs.length === 0 && 
     !showBroadcast;
@@ -1221,6 +1254,36 @@ export default function MessagesPage() {
             );
           })
         }
+
+        {/* League Chats Section */}
+        {!showSkeletonLoading && filteredLeagueChats.length > 0 && (
+          <div className="flex items-center gap-2 pt-4 pb-1 border-t mt-2">
+            <span className="text-sm font-medium text-muted-foreground">League Chats</span>
+          </div>
+        )}
+        {!showSkeletonLoading && filteredLeagueChats.map((group: any) => {
+          const canManage =
+            isAppAdmin ||
+            group.created_by === user?.id ||
+            (group.club_id && adminClubs?.some((c) => c.id === group.club_id));
+
+          const lastMessage = displayLatestGroupMessages?.[group.id];
+          const unreadCount = unreadCounts?.groups[group.id] || 0;
+          const isMuted = mutedChats?.groups.has(group.id) || false;
+
+          return (
+            <ChatGroupCard
+              key={`league-${group.id}`}
+              group={group}
+              lastMessage={lastMessage}
+              unreadCount={unreadCount}
+              isMuted={isMuted}
+              canManage={!!canManage}
+              onDelete={(groupId) => deleteGroupMutation.mutate(groupId)}
+              MessagePreviewComponent={MessagePreview}
+            />
+          );
+        })}
 
         {/* Chat Groups Section */}
         {!showSkeletonLoading && filteredChatGroups.length > 0 && (

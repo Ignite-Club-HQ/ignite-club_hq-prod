@@ -282,6 +282,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          mini_league_id: string | null
           name: string
           team_id: string | null
           updated_at: string
@@ -292,6 +293,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          mini_league_id?: string | null
           name: string
           team_id?: string | null
           updated_at?: string
@@ -302,6 +304,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          mini_league_id?: string | null
           name?: string
           team_id?: string | null
           updated_at?: string
@@ -312,6 +315,13 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_groups_mini_league_id_fkey"
+            columns: ["mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
             referencedColumns: ["id"]
           },
           {
@@ -385,6 +395,48 @@ export type Database = {
             columns: ["guardian_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      child_mini_league_assignments: {
+        Row: {
+          ability_rating: number
+          child_id: string
+          created_at: string
+          id: string
+          mini_league_id: string
+          notes: string | null
+        }
+        Insert: {
+          ability_rating?: number
+          child_id: string
+          created_at?: string
+          id?: string
+          mini_league_id: string
+          notes?: string | null
+        }
+        Update: {
+          ability_rating?: number
+          child_id?: string
+          created_at?: string
+          id?: string
+          mini_league_id?: string
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "child_mini_league_assignments_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "child_mini_league_assignments_mini_league_id_fkey"
+            columns: ["mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
             referencedColumns: ["id"]
           },
         ]
@@ -1077,18 +1129,21 @@ export type Database = {
           group_id: string
           id: string
           player_id: string
+          team: string | null
         }
         Insert: {
           created_at?: string
           group_id: string
           id?: string
           player_id: string
+          team?: string | null
         }
         Update: {
           created_at?: string
           group_id?: string
           id?: string
           player_id?: string
+          team?: string | null
         }
         Relationships: [
           {
@@ -1117,6 +1172,8 @@ export type Database = {
           name: string
           pitch_name: string | null
           pitch_state: Json | null
+          team_a_color: string | null
+          team_b_color: string | null
           timer_state: Json | null
           updated_at: string
         }
@@ -1129,6 +1186,8 @@ export type Database = {
           name: string
           pitch_name?: string | null
           pitch_state?: Json | null
+          team_a_color?: string | null
+          team_b_color?: string | null
           timer_state?: Json | null
           updated_at?: string
         }
@@ -1141,6 +1200,8 @@ export type Database = {
           name?: string
           pitch_name?: string | null
           pitch_state?: Json | null
+          team_a_color?: string | null
+          team_b_color?: string | null
           timer_state?: Json | null
           updated_at?: string
         }
@@ -2285,31 +2346,43 @@ export type Database = {
       }
       mini_leagues: {
         Row: {
+          bib_colors: string[] | null
           club_id: string
           created_at: string
           created_by: string
           description: string | null
           id: string
+          logo_url: string | null
+          min_players_per_side: number
+          minutes_per_half: number
           name: string
           team_size: number
           updated_at: string
         }
         Insert: {
+          bib_colors?: string[] | null
           club_id: string
           created_at?: string
           created_by: string
           description?: string | null
           id?: string
+          logo_url?: string | null
+          min_players_per_side?: number
+          minutes_per_half?: number
           name: string
           team_size?: number
           updated_at?: string
         }
         Update: {
+          bib_colors?: string[] | null
           club_id?: string
           created_at?: string
           created_by?: string
           description?: string | null
           id?: string
+          logo_url?: string | null
+          min_players_per_side?: number
+          minutes_per_half?: number
           name?: string
           team_size?: number
           updated_at?: string
@@ -2618,6 +2691,7 @@ export type Database = {
           folder_id: string | null
           id: string
           image_url: string
+          mini_league_id: string | null
           show_in_feed: boolean | null
           team_id: string | null
           title: string | null
@@ -2634,6 +2708,7 @@ export type Database = {
           folder_id?: string | null
           id?: string
           image_url: string
+          mini_league_id?: string | null
           show_in_feed?: boolean | null
           team_id?: string | null
           title?: string | null
@@ -2650,6 +2725,7 @@ export type Database = {
           folder_id?: string | null
           id?: string
           image_url?: string
+          mini_league_id?: string | null
           show_in_feed?: boolean | null
           team_id?: string | null
           title?: string | null
@@ -2675,6 +2751,13 @@ export type Database = {
             columns: ["folder_id"]
             isOneToOne: false
             referencedRelation: "vault_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "photos_mini_league_id_fkey"
+            columns: ["mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
             referencedColumns: ["id"]
           },
           {
@@ -3094,6 +3177,7 @@ export type Database = {
           club_id: string | null
           created_at: string
           id: string
+          mini_league_id: string | null
           processed_by: string | null
           role: Database["public"]["Enums"]["app_role"]
           status: Database["public"]["Enums"]["role_request_status"]
@@ -3105,6 +3189,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           id?: string
+          mini_league_id?: string | null
           processed_by?: string | null
           role: Database["public"]["Enums"]["app_role"]
           status?: Database["public"]["Enums"]["role_request_status"]
@@ -3116,6 +3201,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           id?: string
+          mini_league_id?: string | null
           processed_by?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           status?: Database["public"]["Enums"]["role_request_status"]
@@ -3129,6 +3215,13 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_requests_mini_league_id_fkey"
+            columns: ["mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
             referencedColumns: ["id"]
           },
           {
@@ -3154,10 +3247,11 @@ export type Database = {
           event_id: string
           has_paid: boolean | null
           id: string
+          mini_league_player_id: string | null
           notes: string | null
           status: Database["public"]["Enums"]["rsvp_status"]
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           child_id?: string | null
@@ -3165,10 +3259,11 @@ export type Database = {
           event_id: string
           has_paid?: boolean | null
           id?: string
+          mini_league_player_id?: string | null
           notes?: string | null
           status: Database["public"]["Enums"]["rsvp_status"]
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           child_id?: string | null
@@ -3176,10 +3271,11 @@ export type Database = {
           event_id?: string
           has_paid?: boolean | null
           id?: string
+          mini_league_player_id?: string | null
           notes?: string | null
           status?: Database["public"]["Enums"]["rsvp_status"]
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -3194,6 +3290,13 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rsvps_mini_league_player_id_fkey"
+            columns: ["mini_league_player_id"]
+            isOneToOne: false
+            referencedRelation: "mini_league_players"
             referencedColumns: ["id"]
           },
         ]
@@ -3978,6 +4081,10 @@ export type Database = {
     Functions: {
       can_access_chat_group: {
         Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_access_mini_league_chat: {
+        Args: { _mini_league_id: string; _user_id: string }
         Returns: boolean
       }
       can_admin_view_child: {

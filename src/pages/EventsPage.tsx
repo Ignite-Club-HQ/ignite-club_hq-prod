@@ -187,9 +187,80 @@ export default function EventsPage() {
     enabled: !!user,
   });
 
-  const { data: events, isLoading } = useQuery({
-    queryKey: ["events", user?.id, filter, teamFilter, clubFilter],
+  // Get user's accessible team, club, and mini league IDs for event filtering
+  const { data: userMemberships } = useQuery({
+    queryKey: ["user-memberships-for-events", user?.id],
     queryFn: async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("club_id, team_id, role")
+        .eq("user_id", user!.id);
+      
+      if (!roles) return { teamIds: [], clubIds: [], leagueAdminClubIds: [], miniLeagueIds: [] };
+      
+      const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
+      const clubIds = new Set<string>();
+      const leagueAdminClubIds = new Set<string>();
+      
+      // Direct club roles
+      roles.forEach(r => {
+        if (r.club_id) {
+          clubIds.add(r.club_id);
+          // Track club admin roles for league access
+          if (r.role === 'club_admin' || r.role === 'league_admin' || r.role === 'app_admin') {
+            leagueAdminClubIds.add(r.club_id);
+          }
+        }
+      });
+      
+      // Get club IDs from team memberships
+      if (teamIds.length > 0) {
+        const { data: teams } = await supabase
+          .from("teams")
+          .select("club_id")
+          .in("id", teamIds);
+        teams?.forEach(t => clubIds.add(t.club_id));
+      }
+      
+      // Get mini league IDs where user is a parent (has a player)
+      const { data: playerLeagues } = await supabase
+        .from("mini_league_players")
+        .select("mini_league_id")
+        .eq("parent_user_id", user!.id);
+      
+      const miniLeagueIds = playerLeagues?.map(p => p.mini_league_id) || [];
+      
+      // Also get mini leagues where user is league admin via club_admin role
+      const { data: adminLeagues } = await supabase
+        .from("mini_leagues")
+        .select("id")
+        .in("club_id", Array.from(leagueAdminClubIds));
+      
+      // Add leagues where user is admin
+      adminLeagues?.forEach(l => {
+        if (!miniLeagueIds.includes(l.id)) {
+          miniLeagueIds.push(l.id);
+        }
+      });
+      
+      return { 
+        teamIds, 
+        clubIds: Array.from(clubIds), 
+        leagueAdminClubIds: Array.from(leagueAdminClubIds),
+        miniLeagueIds 
+      };
+    },
+    enabled: !!user,
+  });
+
+  const { data: events, isLoading } = useQuery({
+    queryKey: ["events", user?.id, filter, teamFilter, clubFilter, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
+    queryFn: async () => {
+      if (!userMemberships) return [];
+      
+      const { teamIds, clubIds, miniLeagueIds } = userMemberships;
+      if (teamIds.length === 0 && clubIds.length === 0) return [];
+      
       let query = supabase
         .from("events")
         .select(`
@@ -201,6 +272,7 @@ export default function EventsPage() {
           suburb,
           club_id,
           team_id,
+          mini_league_id,
           is_cancelled,
           is_recurring,
           parent_event_id,
@@ -228,16 +300,33 @@ export default function EventsPage() {
       
       // Filter out cancelled events older than 48 hours
       const cutoffTime = subHours(new Date(), 48);
-      const filteredData = (data as (Event & { updated_at: string })[]).filter(event => {
+      let filteredData = (data as (Event & { updated_at: string; mini_league_id: string | null })[]).filter(event => {
         if (!event.is_cancelled) return true;
         // Keep cancelled events if they were cancelled within the last 48 hours
         const updatedAt = new Date(event.updated_at);
         return updatedAt > cutoffTime;
       });
       
+      // Filter to only show events user is invited to:
+      // - Team events: user must be a member of that team
+      // - Mini League events: user must be a league admin or have a player in that league
+      // - Club-wide events (no team_id, no mini_league_id): user must be a member of that club
+      filteredData = filteredData.filter(event => {
+        if (event.mini_league_id) {
+          // Mini League event - user must be league admin or have a player in this league
+          return miniLeagueIds.includes(event.mini_league_id);
+        } else if (event.team_id) {
+          // Team event - user must be a member of this team
+          return teamIds.includes(event.team_id);
+        } else {
+          // Club-wide event - user must be a member of this club
+          return clubIds.includes(event.club_id);
+        }
+      });
+      
       return filteredData as Event[];
     },
-    enabled: !!user,
+    enabled: !!user && !!userMemberships,
   });
 
   // Check if user is app admin

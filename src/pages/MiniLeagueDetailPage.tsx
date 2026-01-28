@@ -1,21 +1,24 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, isToday, isFuture, parseISO } from "date-fns";
 import { 
   ArrowLeft, Users, Calendar, Plus, Settings, Trash2, Loader2, 
-  ChevronRight, Clock, MapPin, Star, Pencil
+  ChevronRight, Clock, MapPin, Star, Pencil, Camera, ImageIcon, CheckSquare, Square, UsersRound, Shirt, X
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { compressImage } from "@/lib/imageCompression";
+import {
   AlertDialog, 
   AlertDialogAction, 
   AlertDialogCancel, 
@@ -34,6 +37,7 @@ import {
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
 import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
+import PendingInvitesList from "@/components/PendingInvitesList";
 import { toast } from "sonner";
 
 interface MiniLeaguePlayer {
@@ -42,6 +46,7 @@ interface MiniLeaguePlayer {
   ability_rating: number;
   notes: string | null;
   parent_user_id: string | null;
+  child_id: string | null;
 }
 
 interface MiniLeagueEvent {
@@ -63,6 +68,31 @@ export default function MiniLeagueDetailPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
+  const [editTeamSize, setEditTeamSize] = useState<number>(4);
+  const [editMinPlayersPerSide, setEditMinPlayersPerSide] = useState<number>(3);
+  const [editMinutesPerHalf, setEditMinutesPerHalf] = useState<number>(10);
+  const [editBibColors, setEditBibColors] = useState<string[]>([]);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [newBibColor, setNewBibColor] = useState("#ef4444");
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // Available bib color presets
+  const BIB_COLOR_PRESETS = [
+    { name: "Red", value: "#ef4444" },
+    { name: "Blue", value: "#3b82f6" },
+    { name: "Green", value: "#22c55e" },
+    { name: "Yellow", value: "#eab308" },
+    { name: "Orange", value: "#f97316" },
+    { name: "Purple", value: "#a855f7" },
+    { name: "Pink", value: "#ec4899" },
+    { name: "Cyan", value: "#06b6d4" },
+    { name: "White", value: "#ffffff" },
+    { name: "Black", value: "#171717" },
+  ];
 
   // Fetch mini league details
   const { data: league, isLoading: leagueLoading } = useQuery({
@@ -109,6 +139,63 @@ export default function MiniLeagueDetailPage() {
     enabled: !!id,
   });
 
+  // Fetch pending invites for this mini league
+  const { data: pendingInvites = [] } = useQuery({
+    queryKey: ["pending-invites", null, league?.club_id, id],
+    queryFn: async () => {
+      if (!league?.club_id) return [];
+      const { data, error } = await supabase
+        .from("pending_invites")
+        .select("id, role, invited_user_id, invited_label, invited_email, created_at, status, metadata")
+        .eq("club_id", league.club_id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      // Filter to only show invites for this mini league by checking metadata
+      const filtered = (data || []).filter((inv: any) => {
+        const metadata = inv.metadata as any;
+        return metadata?.mini_league_id === id;
+      });
+      return filtered.map((inv: any) => ({
+        ...inv,
+        profiles: null, // No profile for pending invites
+      }));
+    },
+    enabled: !!league?.club_id && !!id,
+  });
+
+  // Handle logo upload
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !league) return;
+
+    setUploadingLogo(true);
+    try {
+      const { file: compressedFile } = await compressImage(file);
+      const fileExt = "jpg";
+      const fileName = `mini-league-${id}-${Date.now()}.${fileExt}`;
+      const filePath = `${league.club_id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("club-logos")
+        .upload(filePath, compressedFile, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("club-logos")
+        .getPublicUrl(filePath);
+
+      setEditLogoUrl(urlData.publicUrl);
+      toast.success("Logo uploaded");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to upload logo");
+    } finally {
+      setUploadingLogo(false);
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  };
+
   // Update league mutation
   const updateLeagueMutation = useMutation({
     mutationFn: async () => {
@@ -116,7 +203,12 @@ export default function MiniLeagueDetailPage() {
         .from("mini_leagues")
         .update({ 
           name: editName.trim(), 
-          description: editDescription.trim() || null 
+          description: editDescription.trim() || null,
+          logo_url: editLogoUrl,
+          team_size: editTeamSize,
+          min_players_per_side: editMinPlayersPerSide,
+          minutes_per_half: editMinutesPerHalf,
+          bib_colors: editBibColors.length > 0 ? editBibColors : null
         })
         .eq("id", id!);
       if (error) throw error;
@@ -155,6 +247,49 @@ export default function MiniLeagueDetailPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  // Bulk delete players mutation
+  const bulkDeletePlayersMutation = useMutation({
+    mutationFn: async (playerIds: string[]) => {
+      const { error } = await supabase
+        .from("mini_league_players")
+        .delete()
+        .in("id", playerIds);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mini-league-players", id] });
+      setSelectedPlayerIds(new Set());
+      setSelectionMode(false);
+      setBulkDeleteOpen(false);
+      toast.success("Players removed");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const togglePlayerSelection = (playerId: string) => {
+    const newSet = new Set(selectedPlayerIds);
+    if (newSet.has(playerId)) {
+      newSet.delete(playerId);
+    } else {
+      newSet.add(playerId);
+    }
+    setSelectedPlayerIds(newSet);
+  };
+
+  const toggleSelectAll = () => {
+    if (!players) return;
+    if (selectedPlayerIds.size === players.length) {
+      setSelectedPlayerIds(new Set());
+    } else {
+      setSelectedPlayerIds(new Set(players.map(p => p.id)));
+    }
+  };
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedPlayerIds(new Set());
+  };
+
   const getAbilityLabel = (rating: number) => {
     const labels = ["", "Beginner", "Developing", "Intermediate", "Advanced", "Expert"];
     return labels[rating] || "";
@@ -175,8 +310,28 @@ export default function MiniLeagueDetailPage() {
     if (league) {
       setEditName(league.name);
       setEditDescription(league.description || "");
+      setEditLogoUrl(league.logo_url || null);
+      setEditTeamSize(league.team_size || 4);
+      setEditMinPlayersPerSide(league.min_players_per_side || 3);
+      setEditMinutesPerHalf(league.minutes_per_half || 10);
+      setEditBibColors(league.bib_colors || ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"]);
       setSettingsOpen(true);
     }
+  };
+
+  const addBibColor = (color: string) => {
+    if (!editBibColors.includes(color)) {
+      setEditBibColors([...editBibColors, color]);
+    }
+  };
+
+  const removeBibColor = (color: string) => {
+    setEditBibColors(editBibColors.filter(c => c !== color));
+  };
+
+  const getColorName = (hex: string) => {
+    const preset = BIB_COLOR_PRESETS.find(p => p.value.toLowerCase() === hex.toLowerCase());
+    return preset?.name || hex;
   };
 
   if (leagueLoading) {
@@ -217,6 +372,14 @@ export default function MiniLeagueDetailPage() {
         <Button variant="ghost" size="icon" className="shrink-0 mt-0.5" onClick={() => navigate("/mini-leagues")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
+        {league.logo_url && (
+          <Avatar className="h-12 w-12 shrink-0">
+            <AvatarImage src={league.logo_url} alt={league.name} />
+            <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+              {league.name.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        )}
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold truncate">{league.name}</h1>
           <p className="text-sm text-muted-foreground truncate">{league.club?.name}</p>
@@ -370,14 +533,54 @@ export default function MiniLeagueDetailPage() {
         </TabsContent>
 
         <TabsContent value="players" className="space-y-3 mt-3">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center gap-2">
             <h2 className="text-base font-semibold">Player Pool</h2>
-            <AddMiniLeagueMemberSheet
-              miniLeagueId={id!}
-              miniLeagueName={league.name}
-              clubId={league.club_id}
-            />
+            <div className="flex items-center gap-2">
+              {selectionMode ? (
+                <>
+                  <Button variant="ghost" size="sm" onClick={exitSelectionMode}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={selectedPlayerIds.size === 0}
+                    onClick={() => setBulkDeleteOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    Delete ({selectedPlayerIds.size})
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {(players?.length || 0) > 0 && (
+                    <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
+                      <CheckSquare className="h-4 w-4 mr-1.5" />
+                      Select
+                    </Button>
+                  )}
+                  <AddMiniLeagueMemberSheet
+                    miniLeagueId={id!}
+                    miniLeagueName={league.name}
+                    clubId={league.club_id}
+                  />
+                </>
+              )}
+            </div>
           </div>
+
+          {/* Select All when in selection mode */}
+          {selectionMode && players && players.length > 0 && (
+            <div className="flex items-center gap-2 py-2 px-1 border-b">
+              <Checkbox
+                checked={selectedPlayerIds.size === players.length}
+                onCheckedChange={toggleSelectAll}
+              />
+              <span className="text-sm text-muted-foreground">
+                Select all ({players.length} players)
+              </span>
+            </div>
+          )}
 
           {playersLoading ? (
             <div className="flex justify-center py-6">
@@ -408,10 +611,21 @@ export default function MiniLeagueDetailPage() {
                     </div>
                     <div className="space-y-1.5">
                       {abilityPlayers.map((player) => (
-                        <Card key={player.id} className="overflow-hidden">
+                        <Card 
+                          key={player.id} 
+                          className={`overflow-hidden ${selectionMode && selectedPlayerIds.has(player.id) ? 'ring-2 ring-primary' : ''}`}
+                          onClick={selectionMode ? () => togglePlayerSelection(player.id) : undefined}
+                        >
                           <CardContent className="py-2.5 px-3">
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0">
+                                {selectionMode && (
+                                  <Checkbox
+                                    checked={selectedPlayerIds.has(player.id)}
+                                    onCheckedChange={() => togglePlayerSelection(player.id)}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                )}
                                 <div className="flex items-center gap-0.5 shrink-0">
                                   {Array.from({ length: rating }).map((_, i) => (
                                     <Star key={i} className="h-2.5 w-2.5 fill-primary text-primary" />
@@ -419,33 +633,35 @@ export default function MiniLeagueDetailPage() {
                                 </div>
                                 <span className="text-sm font-medium truncate">{player.name}</span>
                               </div>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-                                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Remove Player?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      This will remove {player.name} from the player pool.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() => deletePlayerMutation.mutate(player.id)}
-                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                    >
-                                      Remove
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
+                              {!selectionMode && (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Remove Player?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This will remove {player.name} from the player pool.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => deletePlayerMutation.mutate(player.id)}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      >
+                                        Remove
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              )}
                             </div>
                             {player.notes && (
-                              <p className="text-xs text-muted-foreground mt-1 pl-[42px] truncate">
+                              <p className={`text-xs text-muted-foreground mt-1 truncate ${selectionMode ? 'pl-[66px]' : 'pl-[42px]'}`}>
                                 {player.notes}
                               </p>
                             )}
@@ -458,6 +674,43 @@ export default function MiniLeagueDetailPage() {
               })}
             </div>
           )}
+
+          {/* Pending Parent Invites */}
+          {pendingInvites.length > 0 && (
+            <div className="space-y-2 mt-4">
+              <h3 className="text-sm font-medium text-muted-foreground">Pending Parent Invites</h3>
+              <PendingInvitesList
+                invites={pendingInvites}
+                clubId={league.club_id}
+              />
+            </div>
+          )}
+
+          {/* Bulk Delete Confirmation Dialog */}
+          <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove {selectedPlayerIds.size} Players?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently remove {selectedPlayerIds.size} player{selectedPlayerIds.size !== 1 ? 's' : ''} from the player pool. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => bulkDeletePlayersMutation.mutate(Array.from(selectedPlayerIds))}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={bulkDeletePlayersMutation.isPending}
+                >
+                  {bulkDeletePlayersMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Remove All"
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </TabsContent>
       </Tabs>
 
@@ -469,6 +722,45 @@ export default function MiniLeagueDetailPage() {
           </ResponsiveDialogHeader>
           
           <div className="space-y-4 py-4">
+            {/* Logo upload */}
+            <div className="space-y-2">
+              <Label>League Logo</Label>
+              <div className="flex items-center gap-4">
+                <div 
+                  className="relative cursor-pointer group"
+                  onClick={() => logoInputRef.current?.click()}
+                >
+                  <Avatar className="h-20 w-20 border-2 border-dashed border-muted-foreground/30 group-hover:border-primary transition-colors">
+                    {editLogoUrl ? (
+                      <AvatarImage src={editLogoUrl} alt="League logo" />
+                    ) : null}
+                    <AvatarFallback className="bg-muted">
+                      <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                    {uploadingLogo ? (
+                      <Loader2 className="h-5 w-5 text-white animate-spin" />
+                    ) : (
+                      <Camera className="h-5 w-5 text-white" />
+                    )}
+                  </div>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  <p>Click to upload a logo</p>
+                  <p className="text-xs">JPG, PNG up to 5MB</p>
+                </div>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleLogoUpload}
+                  disabled={uploadingLogo}
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="league-name">Name</Label>
               <Input
@@ -487,6 +779,138 @@ export default function MiniLeagueDetailPage() {
                 placeholder="Optional description"
                 rows={3}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="team-size">Default Players Per Side</Label>
+              <div className="flex items-center gap-3">
+                <UsersRound className="h-5 w-5 text-muted-foreground" />
+                <div className="flex items-center gap-2">
+                  {[4, 5, 6, 7, 8].map((size) => (
+                    <Button
+                      key={size}
+                      type="button"
+                      variant={editTeamSize === size ? "default" : "outline"}
+                      size="sm"
+                      className="w-10 h-10"
+                      onClick={() => {
+                        setEditTeamSize(size);
+                        // Ensure min doesn't exceed max
+                        if (editMinPlayersPerSide > size) {
+                          setEditMinPlayersPerSide(size);
+                        }
+                      }}
+                    >
+                      {size}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Target team size for auto-generating balanced teams
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="min-players">Minimum Players Per Side</Label>
+              <div className="flex items-center gap-3">
+                <Users className="h-5 w-5 text-muted-foreground" />
+                <div className="flex items-center gap-2">
+                  {[2, 3, 4, 5, 6, 7, 8].filter(n => n <= editTeamSize).map((size) => (
+                    <Button
+                      key={size}
+                      type="button"
+                      variant={editMinPlayersPerSide === size ? "default" : "outline"}
+                      size="sm"
+                      className="w-10 h-10"
+                      onClick={() => setEditMinPlayersPerSide(size)}
+                    >
+                      {size}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                No team can have fewer than this many players
+              </p>
+            </div>
+
+            {/* Minutes Per Half */}
+            <div className="space-y-2">
+              <Label htmlFor="minutes-per-half">Minutes Per Half</Label>
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-muted-foreground" />
+                <div className="flex items-center gap-2">
+                  {[5, 7, 10, 12, 15, 20].map((mins) => (
+                    <Button
+                      key={mins}
+                      type="button"
+                      variant={editMinutesPerHalf === mins ? "default" : "outline"}
+                      size="sm"
+                      className="w-10 h-10"
+                      onClick={() => setEditMinutesPerHalf(mins)}
+                    >
+                      {mins}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Default game timer duration per half
+              </p>
+            </div>
+
+            {/* Bib Colors Section */}
+            <div className="space-y-3">
+              <Label>Available Bib Colors</Label>
+              <p className="text-xs text-muted-foreground">
+                Select which bib colors are available for matches
+              </p>
+              
+              {/* Current colors */}
+              <div className="flex flex-wrap gap-2">
+                {editBibColors.map((color) => (
+                  <div
+                    key={color}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-full border"
+                    style={{ borderColor: color }}
+                  >
+                    <div
+                      className="w-4 h-4 rounded-full border border-border"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span className="text-xs">{getColorName(color)}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeBibColor(color)}
+                      className="ml-1 text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                {editBibColors.length === 0 && (
+                  <span className="text-xs text-muted-foreground">No colors selected</span>
+                )}
+              </div>
+
+              {/* Add color presets */}
+              <div className="flex flex-wrap gap-2">
+                {BIB_COLOR_PRESETS.filter(p => !editBibColors.includes(p.value)).map((preset) => (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => addBibColor(preset.value)}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-full border border-dashed hover:border-solid hover:bg-muted/50 transition-colors"
+                  >
+                    <div
+                      className="w-4 h-4 rounded-full border border-border"
+                      style={{ backgroundColor: preset.value }}
+                    />
+                    <span className="text-xs text-muted-foreground">{preset.name}</span>
+                    <Plus className="h-3 w-3 text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserPlus, Loader2, Mail, X, Send, Users, Plus, Trash2, Upload, Baby, User, Star } from "lucide-react";
 import { MiniLeagueMemberCSVImportDialog } from "@/components/MiniLeagueMemberCSVImportDialog";
@@ -93,32 +94,58 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
     setBulkResults([]);
   };
 
-  // Add single player
+  // Add single player - creates child record and league assignment
   const addPlayerMutation = useMutation({
     mutationFn: async () => {
       if (!playerName.trim()) throw new Error("Player name is required");
 
-      // Create player record
+      // Create child record in the central children table
+      const { data: child, error: childError } = await supabase
+        .from("children")
+        .insert({
+          parent_id: user!.id, // Initially set to the admin who added them
+          name: playerName.trim(),
+        })
+        .select()
+        .single();
+      
+      if (childError) throw childError;
+
+      // Create mini league assignment with ability rating
+      const { error: assignmentError } = await supabase
+        .from("child_mini_league_assignments")
+        .insert({
+          child_id: child.id,
+          mini_league_id: miniLeagueId,
+          ability_rating: parseInt(abilityRating),
+        });
+      
+      if (assignmentError) throw assignmentError;
+
+      // Also create legacy mini_league_players record for backward compatibility
       const { data: player, error: playerError } = await supabase
         .from("mini_league_players")
         .insert({
           mini_league_id: miniLeagueId,
           name: playerName.trim(),
           ability_rating: parseInt(abilityRating),
+          child_id: child.id,
           parent_user_id: null, // Will be linked when parent accepts invite
         })
         .select()
         .single();
       
-      if (playerError) throw playerError;
+      if (playerError) {
+        console.warn("Failed to create legacy player record:", playerError);
+      }
 
-      // If parent email provided, create pending invite
+      // If parent email provided, create pending invite with child info
       if (parentEmail.trim()) {
         const inviteToken = crypto.randomUUID();
         
         const { error: inviteError } = await supabase.from("pending_invites").insert({
           club_id: clubId,
-          role: "league_parent" as any,
+          role: "parent" as any,
           invited_user_id: null,
           invited_by_user_id: user!.id,
           invited_label: parentName.trim() || parentEmail.trim(),
@@ -126,17 +153,19 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
           invite_token: inviteToken,
           metadata: { 
             mini_league_id: miniLeagueId,
-            player_id: player.id,
+            child_id: child.id,
+            player_id: player?.id,
             player_name: playerName.trim(),
+            children: [{ name: playerName.trim(), yearOfBirth: null }],
           },
         } as any);
         
         if (inviteError) throw inviteError;
 
-        return { player, inviteToken, parentEmail: parentEmail.trim() };
+        return { child, player, inviteToken, parentEmail: parentEmail.trim() };
       }
 
-      return { player, inviteToken: null, parentEmail: null };
+      return { child, player, inviteToken: null, parentEmail: null };
     },
     onSuccess: async ({ player, inviteToken, parentEmail: email }) => {
       queryClient.invalidateQueries({ queryKey: ["mini-league-players", miniLeagueId] });
@@ -215,7 +244,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
     },
   });
 
-  // Bulk add players
+  // Bulk add players - creates child records and league assignments
   const addBulkPlayersMutation = useMutation({
     mutationFn: async (playersToAdd?: BulkPlayer[]) => {
       const playersSource = playersToAdd || bulkPlayers;
@@ -225,21 +254,49 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
       const results: { playerName: string; parentEmail: string; sent: boolean }[] = [];
 
       for (const player of validPlayers) {
-        // Create player record
+        // Create child record in the central children table
+        const { data: child, error: childError } = await supabase
+          .from("children")
+          .insert({
+            parent_id: user!.id,
+            name: player.name.trim(),
+          })
+          .select()
+          .single();
+
+        if (childError) {
+          console.error("Failed to create child:", player.name, childError);
+          continue;
+        }
+
+        // Create mini league assignment with ability rating
+        const { error: assignmentError } = await supabase
+          .from("child_mini_league_assignments")
+          .insert({
+            child_id: child.id,
+            mini_league_id: miniLeagueId,
+            ability_rating: parseInt(player.abilityRating),
+          });
+
+        if (assignmentError) {
+          console.error("Failed to create league assignment:", player.name, assignmentError);
+        }
+
+        // Also create legacy mini_league_players record for backward compatibility
         const { data: newPlayer, error: playerError } = await supabase
           .from("mini_league_players")
           .insert({
             mini_league_id: miniLeagueId,
             name: player.name.trim(),
             ability_rating: parseInt(player.abilityRating),
+            child_id: child.id,
             parent_user_id: null,
           })
           .select()
           .single();
 
         if (playerError) {
-          console.error("Failed to create player:", player.name, playerError);
-          continue;
+          console.warn("Failed to create legacy player record:", player.name, playerError);
         }
 
         let sent = false;
@@ -250,7 +307,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
           
           const { error: inviteError } = await supabase.from("pending_invites").insert({
             club_id: clubId,
-            role: "league_parent" as any,
+            role: "parent" as any,
             invited_user_id: null,
             invited_by_user_id: user!.id,
             invited_label: player.parentName.trim() || player.parentEmail.trim(),
@@ -258,8 +315,10 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
             invite_token: inviteToken,
             metadata: { 
               mini_league_id: miniLeagueId,
-              player_id: newPlayer.id,
+              child_id: child.id,
+              player_id: newPlayer?.id,
               player_name: player.name.trim(),
+              children: [{ name: player.name.trim(), yearOfBirth: null }],
             },
           } as any);
 
@@ -475,25 +534,27 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
 
             <TabsContent value="bulk" className="flex-1 overflow-auto space-y-4">
               {bulkResults.length > 0 ? (
-                <div className="space-y-3">
+                <div className="flex flex-col h-full space-y-3">
                   <h3 className="text-sm font-medium">Results</h3>
-                  <div className="space-y-2">
-                    {bulkResults.map((result, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                        <div>
-                          <p className="font-medium text-sm">{result.playerName}</p>
-                          {result.parentEmail && (
-                            <p className="text-xs text-muted-foreground">{result.parentEmail}</p>
-                          )}
-                        </div>
-                        {result.parentEmail && (
-                          <Badge variant={result.sent ? "default" : "secondary"}>
-                            {result.sent ? "Sent" : "Not sent"}
+                  <ScrollArea className="flex-1 h-[50vh]">
+                    <div className="space-y-2 pr-4">
+                      {bulkResults.map((result, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                          <div>
+                            <p className="font-medium text-sm">{result.playerName}</p>
+                            {result.parentEmail && (
+                              <p className="text-xs text-muted-foreground">{result.parentEmail}</p>
+                            )}
+                          </div>
+                          <Badge variant={result.parentEmail ? (result.sent ? "default" : "secondary") : "outline"}>
+                            {result.parentEmail 
+                              ? (result.sent ? "Email sent" : "Invite pending") 
+                              : "Added"}
                           </Badge>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
                   <Button variant="outline" className="w-full" onClick={handleClose}>
                     Done
                   </Button>

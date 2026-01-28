@@ -15,6 +15,7 @@ import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator
 const MESSAGES_PER_PAGE = 15;
 import { toast } from "sonner";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
+import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { ChatSearch } from "@/components/chat/ChatSearch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -29,7 +30,7 @@ import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { MessageReadIndicator } from "@/components/chat/MessageReadIndicator";
 import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCache } from "@/lib/profileCache";
-import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
+import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages, removeMessageFromCache } from "@/lib/messageCache";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 
@@ -61,6 +62,7 @@ interface ChatGroup {
   name: string;
   club_id: string | null;
   team_id: string | null;
+  mini_league_id: string | null;
   allowed_roles: string[];
   created_by: string;
 }
@@ -866,7 +868,8 @@ export default function GroupChatPage() {
       toast.error("Failed to send message");
     },
     onSettled: () => {
-      // Don't invalidate here; realtime will sync messages
+      // Invalidate messages page preview so latest message shows
+      queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
     },
    });
 
@@ -891,12 +894,12 @@ export default function GroupChatPage() {
     },
   });
 
-  // Delete message mutation (soft delete)
+  // Delete message mutation (hard delete)
   const deleteMessageMutation = useMutation({
     mutationFn: async (messageId: string) => {
       const { error } = await supabase
         .from("group_messages")
-        .update({ deleted_at: new Date().toISOString() })
+        .delete()
         .eq("id", messageId);
       if (error) throw error;
     },
@@ -911,9 +914,17 @@ export default function GroupChatPage() {
         return { ...old, messages: existingMessages.filter(m => m.id !== messageId) };
       });
       
-      return { previousData };
+      return { previousData, messageId };
     },
-    onSuccess: () => {
+    onSuccess: (_, messageId) => {
+      // Remove from localStorage cache to prevent reappearing
+      removeMessageFromCache("group", groupId!, messageId);
+      // Clear the messagesPage cache
+      try {
+        localStorage.removeItem('messages-page-cache');
+      } catch {}
+      // Invalidate the messages page query so latest message preview updates
+      queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
       toast.success("Message deleted");
     },
     onError: (err, variables, context) => {
@@ -1081,8 +1092,8 @@ export default function GroupChatPage() {
         </Button>
         <div className="flex-1">
           <h1 className="font-semibold">{group.name}</h1>
-          {/* Only show roles for team/club groups, not personal groups */}
-          {(group.team_id || group.club_id) && (
+          {/* Only show roles for team/club groups, not personal or league groups */}
+          {(group.team_id || group.club_id) && !group.mini_league_id && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <Users className="h-3 w-3" />
               {getRoleBadge(group.allowed_roles)}
@@ -1153,7 +1164,7 @@ export default function GroupChatPage() {
                     highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
                   }`}
                 >
-                  <div className={`flex gap-2 max-w-[85%] ${isOwnMessage ? "flex-row-reverse" : ""}`}>
+                  <div className={`flex gap-2 max-w-[85%] group ${isOwnMessage ? "flex-row-reverse" : ""}`}>
                     <Avatar className="h-8 w-8 shrink-0">
                       <AvatarImage src={msg.author?.avatar_url || undefined} />
                       <AvatarFallback>
@@ -1305,6 +1316,10 @@ export default function GroupChatPage() {
             imageUrl={imageUrl} 
             clubId={group?.club_id || undefined}
             teamId={group?.team_id || undefined}
+          />
+          <EmojiPicker 
+            onEmojiSelect={(emoji) => setMessage((prev) => prev + emoji)} 
+            disabled={sendMessageMutation.isPending}
           />
           <Input
             ref={inputRef}

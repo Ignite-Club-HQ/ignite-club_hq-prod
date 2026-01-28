@@ -1,0 +1,167 @@
+import { useCallback, useRef, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
+
+const SYNC_INTERVAL = 5000; // Sync every 5 seconds
+const PITCH_STATE_KEY = "ignite-pitch-board-state";
+const TIMER_STORAGE_KEY_BASE = "pitch-board-timer-state-team";
+
+const getTeamTimerStorageKey = (teamId: string) => {
+  return `${TIMER_STORAGE_KEY_BASE}-${teamId}`;
+};
+
+/**
+ * Hook to sync event group pitch board state to the database.
+ * This enables real-time game state sharing across all users viewing the match.
+ */
+export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
+  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSyncedStateRef = useRef<string | null>(null);
+
+  // Extract the actual event group ID from teamId (format: "event-group-{uuid}")
+  const actualGroupId = teamId.startsWith("event-group-") 
+    ? teamId.replace("event-group-", "") 
+    : eventGroupId;
+
+  const loadLocalState = useCallback(() => {
+    try {
+      const pitchStateRaw = localStorage.getItem(PITCH_STATE_KEY);
+      const timerStateRaw = localStorage.getItem(getTeamTimerStorageKey(teamId));
+      
+      return {
+        pitchState: pitchStateRaw ? JSON.parse(pitchStateRaw) : null,
+        timerState: timerStateRaw ? JSON.parse(timerStateRaw) : null,
+      };
+    } catch {
+      return { pitchState: null, timerState: null };
+    }
+  }, [teamId]);
+
+  const syncToDatabase = useCallback(async () => {
+    if (!actualGroupId) return;
+
+    const { pitchState, timerState } = loadLocalState();
+    
+    // Only sync if we have state to sync
+    if (!pitchState && !timerState) return;
+
+    // Check if state has changed since last sync
+    const stateHash = JSON.stringify({ pitchState, timerState });
+    if (stateHash === lastSyncedStateRef.current) return;
+
+    try {
+      const { error } = await supabase
+        .from("event_groups")
+        .update({
+          pitch_state: (pitchState || {}) as unknown as Json,
+          timer_state: (timerState || {}) as unknown as Json,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", actualGroupId);
+
+      if (error) {
+        console.error("[EventGroupSync] Failed to sync:", error);
+      } else {
+        lastSyncedStateRef.current = stateHash;
+        console.log("[EventGroupSync] Synced state to database");
+      }
+    } catch (err) {
+      console.error("[EventGroupSync] Sync error:", err);
+    }
+  }, [actualGroupId, loadLocalState]);
+
+  const loadFromDatabase = useCallback(async () => {
+    if (!actualGroupId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("event_groups")
+        .select("pitch_state, timer_state")
+        .eq("id", actualGroupId)
+        .single();
+
+      if (error) {
+        console.error("[EventGroupSync] Failed to load:", error);
+        return;
+      }
+
+      // Only load if database has state and local storage is empty
+      const { pitchState: localPitch, timerState: localTimer } = loadLocalState();
+      
+      if (data.pitch_state && !localPitch) {
+        const dbPitchState = data.pitch_state as Record<string, unknown>;
+        // Update teamId in the loaded state to match current session
+        if (typeof dbPitchState === 'object' && dbPitchState !== null) {
+          dbPitchState.teamId = teamId;
+        }
+        localStorage.setItem(PITCH_STATE_KEY, JSON.stringify(dbPitchState));
+        console.log("[EventGroupSync] Loaded pitch state from database");
+      }
+
+      if (data.timer_state && !localTimer) {
+        const dbTimerState = data.timer_state as Record<string, unknown>;
+        // Update teamId in the loaded state to match current session
+        if (typeof dbTimerState === 'object' && dbTimerState !== null) {
+          dbTimerState.teamId = teamId;
+        }
+        localStorage.setItem(getTeamTimerStorageKey(teamId), JSON.stringify(dbTimerState));
+        // Also set the active timer key for widgets
+        localStorage.setItem("pitch-board-timer-state", JSON.stringify(dbTimerState));
+        console.log("[EventGroupSync] Loaded timer state from database");
+      }
+    } catch (err) {
+      console.error("[EventGroupSync] Load error:", err);
+    }
+  }, [actualGroupId, loadLocalState, teamId]);
+
+  const startSync = useCallback(() => {
+    if (syncIntervalRef.current || !actualGroupId) return;
+
+    // Load from database first (in case another user started the game)
+    loadFromDatabase();
+
+    // Then start periodic sync
+    syncIntervalRef.current = setInterval(syncToDatabase, SYNC_INTERVAL);
+    console.log("[EventGroupSync] Started sync for event group:", actualGroupId);
+  }, [actualGroupId, loadFromDatabase, syncToDatabase]);
+
+  const stopSync = useCallback(async () => {
+    if (syncIntervalRef.current) {
+      clearInterval(syncIntervalRef.current);
+      syncIntervalRef.current = null;
+    }
+
+    // Final sync before stopping
+    await syncToDatabase();
+    console.log("[EventGroupSync] Stopped sync");
+  }, [syncToDatabase]);
+
+  // Force sync on demand
+  const forceSync = useCallback(() => {
+    syncToDatabase();
+  }, [syncToDatabase]);
+
+  // Auto-start sync when component mounts with an event group
+  useEffect(() => {
+    if (actualGroupId) {
+      startSync();
+    }
+
+    return () => {
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+        syncIntervalRef.current = null;
+      }
+      // Don't await in cleanup - just fire and forget
+      syncToDatabase();
+    };
+  }, [actualGroupId, startSync, syncToDatabase]);
+
+  return {
+    startSync,
+    stopSync,
+    forceSync,
+    loadFromDatabase,
+    isEventGroup: !!actualGroupId,
+  };
+}

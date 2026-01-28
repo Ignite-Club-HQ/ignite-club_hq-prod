@@ -81,6 +81,13 @@ export function useActiveGameSync() {
       return;
     }
 
+    // Skip syncing to active_games for event-group based games
+    // Those are synced via useEventGroupSync to the event_groups table
+    const isEventGroup = timerState.teamId?.startsWith("event-group-");
+    if (isEventGroup) {
+      return;
+    }
+
     const gameData = {
       user_id: user.id,
       team_id: timerState.teamId || null,

@@ -25,6 +25,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 import GameTimerWidget from "@/components/pitch/GameTimerWidget";
 import PendingSubWidget from "@/components/pitch/PendingSubWidget";
+import { MiniLeagueGameWidgets } from "@/components/MiniLeagueGameWidgets";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,14 @@ import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
 type ClubRole = "club_admin";
+type LeagueRole = "league_admin" | "parent";
+
+interface MiniLeague {
+  id: string;
+  name: string;
+  club_id: string;
+  clubs: { name: string; sport: string | null };
+}
 
 interface Event {
   id: string;
@@ -109,6 +118,11 @@ const clubRoleOptions: { value: ClubRole; label: string }[] = [
   { value: "club_admin", label: "Club Admin" },
 ];
 
+const leagueRoleOptions: { value: LeagueRole; label: string }[] = [
+  { value: "league_admin", label: "League Admin" },
+  { value: "parent", label: "Parent" },
+];
+
 function formatEventDate(dateStr: string) {
   const date = parseISO(dateStr);
   if (isToday(date)) return `Today at ${format(date, "h:mm a")}`;
@@ -150,6 +164,10 @@ export default function HomePage() {
   const [selectedClubForTeam, setSelectedClubForTeam] = useState<string>("");
   const [selectedClubRole, setSelectedClubRole] = useState<ClubRole>("club_admin");
   const [selectedTeamRole, setSelectedTeamRole] = useState<TeamRole>("player");
+  const [selectedLeagueRole, setSelectedLeagueRole] = useState<LeagueRole>("league_admin");
+  // Track if user selected a league (prefixed with "league_") or team in the unified dropdown
+  const isLeagueSelected = selectedTeam.startsWith("league_");
+  const actualLeagueId = isLeagueSelected ? selectedTeam.replace("league_", "") : null;
   const [pitchBoardTeam, setPitchBoardTeam] = useState<{ id: string; name: string; members: any[]; readOnly: boolean; linkedEventId?: string | null } | null>(null);
   const [pitchBoardLoading, setPitchBoardLoading] = useState(false);
   const [pitchBoardsExpanded, setPitchBoardsExpanded] = useState(false);
@@ -172,9 +190,80 @@ export default function HomePage() {
   const [confirmRedeemDialogOpen, setConfirmRedeemDialogOpen] = useState(false);
   const [selectedRedeemFor, setSelectedRedeemFor] = useState<string>("myself");
 
-  const { data: allEvents, isLoading } = useQuery({
-    queryKey: ["upcoming-events", user?.id],
+  // Get user's accessible team, club, and mini league IDs for event filtering
+  const { data: userMemberships } = useQuery({
+    queryKey: ["user-memberships-for-events", user?.id],
     queryFn: async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("club_id, team_id, role")
+        .eq("user_id", user!.id);
+      
+      if (!roles) return { teamIds: [], clubIds: [], leagueAdminClubIds: [], miniLeagueIds: [] };
+      
+      const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
+      const clubIds = new Set<string>();
+      const leagueAdminClubIds = new Set<string>();
+      
+      // Direct club roles
+      roles.forEach(r => {
+        if (r.club_id) {
+          clubIds.add(r.club_id);
+          // Track club admin roles for league access
+          if (r.role === 'club_admin' || r.role === 'league_admin' || r.role === 'app_admin') {
+            leagueAdminClubIds.add(r.club_id);
+          }
+        }
+      });
+      
+      // Get club IDs from team memberships
+      if (teamIds.length > 0) {
+        const { data: teams } = await supabase
+          .from("teams")
+          .select("club_id")
+          .in("id", teamIds);
+        teams?.forEach(t => clubIds.add(t.club_id));
+      }
+      
+      // Get mini league IDs where user is a parent (has a player)
+      const { data: playerLeagues } = await supabase
+        .from("mini_league_players")
+        .select("mini_league_id")
+        .eq("parent_user_id", user!.id);
+      
+      const miniLeagueIds = playerLeagues?.map(p => p.mini_league_id) || [];
+      
+      // Also get mini leagues where user is league admin via club_admin role
+      const { data: adminLeagues } = await supabase
+        .from("mini_leagues")
+        .select("id")
+        .in("club_id", Array.from(leagueAdminClubIds));
+      
+      // Add leagues where user is admin
+      adminLeagues?.forEach(l => {
+        if (!miniLeagueIds.includes(l.id)) {
+          miniLeagueIds.push(l.id);
+        }
+      });
+      
+      return { 
+        teamIds, 
+        clubIds: Array.from(clubIds), 
+        leagueAdminClubIds: Array.from(leagueAdminClubIds),
+        miniLeagueIds 
+      };
+    },
+    enabled: !!user,
+  });
+
+  const { data: allEvents, isLoading } = useQuery({
+    queryKey: ["upcoming-events", user?.id, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
+    queryFn: async () => {
+      if (!userMemberships) return [];
+      
+      const { teamIds, clubIds, miniLeagueIds } = userMemberships;
+      if (teamIds.length === 0 && clubIds.length === 0) return [];
+      
       const now = new Date();
       const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
       
@@ -189,6 +278,7 @@ export default function HomePage() {
           suburb,
           club_id,
           team_id,
+          mini_league_id,
           is_cancelled,
           is_recurring,
           parent_event_id,
@@ -199,12 +289,30 @@ export default function HomePage() {
         .gte("event_date", now.toISOString())
         .lte("event_date", fourteenDaysFromNow.toISOString())
         .order("event_date", { ascending: true })
-        .limit(20);
+        .limit(50);
 
       if (error) throw error;
-      return data as Event[];
+      
+      // Filter to only show events user is invited to:
+      // - Team events: user must be a member of that team
+      // - Mini League events: user must be a league admin or have a player in that league
+      // - Club-wide events (no team_id, no mini_league_id): user must be a member of that club
+      const filtered = (data as (Event & { mini_league_id: string | null })[]).filter(event => {
+        if (event.mini_league_id) {
+          // Mini League event - user must be league admin or have a player in this league
+          return miniLeagueIds.includes(event.mini_league_id);
+        } else if (event.team_id) {
+          // Team event - user must be a member of this team
+          return teamIds.includes(event.team_id);
+        } else {
+          // Club-wide event - user must be a member of this club
+          return clubIds.includes(event.club_id);
+        }
+      });
+      
+      return filtered as Event[];
     },
-    enabled: !!user,
+    enabled: !!user && !!userMemberships,
   });
 
   // Filter events by active club theme
@@ -847,6 +955,20 @@ export default function HomePage() {
     enabled: !!user,
   });
 
+  // Fetch all mini leagues for join request dropdown
+  const { data: miniLeagues } = useQuery({
+    queryKey: ["all-mini-leagues"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mini_leagues")
+        .select("id, name, club_id, clubs (name, sport)")
+        .order("name");
+      if (error) throw error;
+      return data as MiniLeague[];
+    },
+    enabled: !!user,
+  });
+
   // Fetch user's soccer teams with Pro Football subscription where user is direct team member (coach/team_admin)
   // Club admins who are not explicit team members get read-only access (handled separately)
   const { data: mySoccerTeams } = useQuery({
@@ -1037,10 +1159,10 @@ export default function HomePage() {
     t => !mySoccerTeams?.some(mt => mt.id === t.id)
   ) || [];
 
-  // Combine all available teams and limit to last 2 used
+  // Only show teams where user has EDIT access (coach/team_admin) - not read-only teams
+  // View-only users can still access pitch boards via event detail page or timer widget
   const allAvailableTeams = [
     ...(mySoccerTeams || []).map(t => ({ ...t, readOnly: false })),
-    ...readOnlyTeamsFiltered.map(t => ({ ...t, readOnly: true }))
   ];
 
   // Filter by active club theme if set
@@ -1158,29 +1280,56 @@ export default function HomePage() {
     },
   });
 
-  // Check if user already has the SPECIFIC role they're requesting in the selected team
-  const hasExistingTeamRole = selectedTeam && selectedTeamRole && userRoles?.some(r => r.team_id === selectedTeam && r.role === selectedTeamRole);
+  // Check if user already has the SPECIFIC role they're requesting in the selected team/league
+  const hasExistingTeamRole = !isLeagueSelected && selectedTeam && selectedTeamRole && userRoles?.some(r => r.team_id === selectedTeam && r.role === selectedTeamRole);
+  
+  // Check if user already has the league role (league roles are stored with club_id)
+  const selectedLeagueData = actualLeagueId ? miniLeagues?.find(l => l.id === actualLeagueId) : null;
+  const hasExistingLeagueRole = isLeagueSelected && actualLeagueId && selectedLeagueRole && userRoles?.some(r => r.club_id === selectedLeagueData?.club_id && r.role === selectedLeagueRole);
 
   const teamRequestMutation = useMutation({
     mutationFn: async () => {
-      // Double-check on submit - only block if they already have this specific role
-      if (userRoles?.some(r => r.team_id === selectedTeam && r.role === selectedTeamRole)) {
-        throw new Error("You already have this role in this team");
+      if (isLeagueSelected && actualLeagueId) {
+        // Handle league join request
+        const league = miniLeagues?.find((l) => l.id === actualLeagueId);
+        if (!league) throw new Error("League not found");
+        
+        // Check for existing role
+        if (userRoles?.some(r => r.club_id === league.club_id && r.role === selectedLeagueRole)) {
+          throw new Error("You already have this role in this league");
+        }
+        
+        const { error } = await supabase.from("role_requests").insert({
+          user_id: user!.id,
+          mini_league_id: actualLeagueId,
+          club_id: league.club_id,
+          role: selectedLeagueRole,
+          status: "pending",
+        });
+        if (error) throw error;
+      } else {
+        // Handle team join request
+        // Double-check on submit - only block if they already have this specific role
+        if (userRoles?.some(r => r.team_id === selectedTeam && r.role === selectedTeamRole)) {
+          throw new Error("You already have this role in this team");
+        }
+        const team = teams?.find((t) => t.id === selectedTeam);
+        const { error } = await supabase.from("role_requests").insert({
+          user_id: user!.id,
+          team_id: selectedTeam,
+          club_id: team?.club_id,
+          role: selectedTeamRole,
+          status: "pending",
+        });
+        if (error) throw error;
       }
-      const team = teams?.find((t) => t.id === selectedTeam);
-      const { error } = await supabase.from("role_requests").insert({
-        user_id: user!.id,
-        team_id: selectedTeam,
-        club_id: team?.club_id,
-        role: selectedTeamRole,
-        status: "pending",
-      });
-      if (error) throw error;
     },
     onSuccess: () => {
       toast({
         title: "Request Submitted",
-        description: "Your team join request has been submitted for review.",
+        description: isLeagueSelected 
+          ? "Your league join request has been submitted for review."
+          : "Your team join request has been submitted for review.",
       });
       setTeamDialogOpen(false);
       setSelectedTeam("");
@@ -1287,6 +1436,9 @@ export default function HomePage() {
           </>
         );
       })()}
+
+      {/* Mini League Live Matches Widget */}
+      <MiniLeagueGameWidgets activeClubFilter={activeClubFilter} />
 
       {/* Account Recovery Banner */}
       {user && (
@@ -1885,7 +2037,7 @@ export default function HomePage() {
                   value={selectedClubForTeam || "all"}
                   onValueChange={(v) => {
                     setSelectedClubForTeam(v);
-                    setSelectedTeam(""); // Reset team when club changes
+                    setSelectedTeam(""); // Reset selection when club changes
                   }}
                   placeholder="All clubs..."
                   searchPlaceholder="Search clubs..."
@@ -1896,20 +2048,36 @@ export default function HomePage() {
             <div className="space-y-2">
               <Label>Select Team</Label>
               <SearchableSelect
-                options={teams
-                  ?.filter(team => {
-                    // In club mode, only show teams from the active club
-                    if (activeClubFilter) {
-                      return team.club_id === activeClubFilter;
-                    }
-                    // Otherwise, filter by selected club if any
-                    return !selectedClubForTeam || selectedClubForTeam === "all" || team.club_id === selectedClubForTeam;
-                  })
-                  .map((team) => ({
-                    value: team.id,
-                    label: activeClubFilter ? team.name : `${team.name} (${team.clubs?.name})`,
-                    icon: <span>{getSportEmoji(team.clubs?.sport)}</span>,
-                  })) || []}
+                options={[
+                  // Teams section
+                  ...(teams
+                    ?.filter(team => {
+                      if (activeClubFilter) {
+                        return team.club_id === activeClubFilter;
+                      }
+                      return !selectedClubForTeam || selectedClubForTeam === "all" || team.club_id === selectedClubForTeam;
+                    })
+                    .map((team) => ({
+                      value: team.id,
+                      label: activeClubFilter ? team.name : `${team.name} (${team.clubs?.name})`,
+                      icon: <span>{getSportEmoji(team.clubs?.sport)}</span>,
+                    })) || []),
+                  // Mini Leagues section - prefixed with "league_" to distinguish from teams
+                  ...(miniLeagues
+                    ?.filter(league => {
+                      if (activeClubFilter) {
+                        return league.club_id === activeClubFilter;
+                      }
+                      return !selectedClubForTeam || selectedClubForTeam === "all" || league.club_id === selectedClubForTeam;
+                    })
+                    .map((league) => ({
+                      value: `league_${league.id}`,
+                      label: activeClubFilter 
+                        ? `⭐ ${league.name} (League)` 
+                        : `⭐ ${league.name} (${league.clubs?.name}) - League`,
+                      icon: <span>⭐</span>,
+                    })) || []),
+                ]}
                 value={selectedTeam}
                 onValueChange={setSelectedTeam}
                 placeholder="Choose a team..."
@@ -1919,28 +2087,45 @@ export default function HomePage() {
             </div>
             <div className="space-y-2">
               <Label>Select Role</Label>
-              <Select value={selectedTeamRole} onValueChange={(v) => setSelectedTeamRole(v as TeamRole)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {teamRoleOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {isLeagueSelected ? (
+                <Select value={selectedLeagueRole} onValueChange={(v) => setSelectedLeagueRole(v as LeagueRole)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {leagueRoleOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Select value={selectedTeamRole} onValueChange={(v) => setSelectedTeamRole(v as TeamRole)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teamRoleOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
           <ResponsiveDialogFooter>
-            {hasExistingTeamRole && (
-              <p className="text-sm text-destructive mb-2">You already have this role in this team</p>
+            {(hasExistingTeamRole || hasExistingLeagueRole) && (
+              <p className="text-sm text-destructive mb-2">
+                You already have this role in this {isLeagueSelected ? "league" : "team"}
+              </p>
             )}
             <Button
               className="w-full sm:w-auto"
               onClick={() => teamRequestMutation.mutate()}
-              disabled={!selectedTeam || teamRequestMutation.isPending || hasExistingTeamRole}
+              disabled={!selectedTeam || teamRequestMutation.isPending || hasExistingTeamRole || hasExistingLeagueRole}
             >
               {teamRequestMutation.isPending ? "Submitting..." : "Submit Request"}
             </Button>
@@ -1952,7 +2137,7 @@ export default function HomePage() {
       {displayedTeams.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Pitch Board</h2>
+            <h2 className="text-lg font-semibold">Pitch Boards</h2>
             {sortedTeams.length > 2 && (
               <button 
                 onClick={() => setPitchBoardsExpanded(!pitchBoardsExpanded)}
@@ -2008,10 +2193,14 @@ export default function HomePage() {
         ) : (
           <div className="space-y-3">
             {events?.map((event) => (
-              <Card key={event.id} className={`hover:border-primary/50 transition-colors ${event.is_cancelled ? 'opacity-60' : ''}`}>
+              <Card 
+                key={event.id} 
+                className={`hover:border-primary/50 transition-colors cursor-pointer ${event.is_cancelled ? 'opacity-60' : ''}`}
+                onClick={() => navigate(`/events/${event.id}`)}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-2">
-                    <Link to={`/events/${event.id}`} className="space-y-1 flex-1 min-w-0">
+                    <div className="space-y-1 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge className={eventTypeColors[event.type]} variant="secondary">
                           {event.type}
@@ -2039,7 +2228,7 @@ export default function HomePage() {
                           {event.suburb}
                         </span>
                       )}
-                    </Link>
+                    </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {/* Quick RSVP Button - only for non-cancelled events */}
                       {!event.is_cancelled && (

@@ -175,6 +175,8 @@ serve(async (req: Request): Promise<Response> => {
     // dm = /messages/dm/:conversationId, group = /groups/:groupId, broadcast = /messages/broadcast
     let messageLink = 'https://igniteclubhq.app/messages';
     
+    console.log("Building message link for type:", payload.messageType, "contextId:", payload.contextId);
+    
     switch (payload.messageType) {
       case 'team':
         // Team chat route is /messages/:teamId (not /messages/team/:id)
@@ -193,6 +195,8 @@ serve(async (req: Request): Promise<Response> => {
         messageLink = 'https://igniteclubhq.app/messages/broadcast';
         break;
     }
+    
+    console.log("Generated message link:", messageLink);
 
     // Build email subject
     let subject = `New message from ${senderName}`;
@@ -206,15 +210,16 @@ serve(async (req: Request): Promise<Response> => {
       subject = 'New announcement from Ignite Support';
     }
 
-    // Get club logo if applicable
+    // Get club logo if applicable - for teams, groups (including league chats), and club chats
     let clubLogoUrl: string | undefined;
     if (payload.messageType === 'team' && payload.contextId) {
       const { data: team } = await supabase
         .from('teams')
-        .select('club_id, clubs(logo_url)')
+        .select('logo_url, club_id, clubs(logo_url)')
         .eq('id', payload.contextId)
         .single();
-      clubLogoUrl = (team?.clubs as any)?.logo_url;
+      // Prefer team logo, fall back to club logo
+      clubLogoUrl = team?.logo_url || (team?.clubs as any)?.logo_url;
     } else if (payload.messageType === 'club' && payload.contextId) {
       const { data: club } = await supabase
         .from('clubs')
@@ -222,6 +227,42 @@ serve(async (req: Request): Promise<Response> => {
         .eq('id', payload.contextId)
         .single();
       clubLogoUrl = club?.logo_url;
+    } else if (payload.messageType === 'group' && payload.contextId) {
+      // For group chats (including league chats), get the logo from mini_league or club
+      const { data: chatGroup } = await supabase
+        .from('chat_groups')
+        .select('mini_league_id, club_id, team_id')
+        .eq('id', payload.contextId)
+        .single();
+      
+      if (chatGroup) {
+        // Check for mini league logo first
+        if (chatGroup.mini_league_id) {
+          const { data: miniLeague } = await supabase
+            .from('mini_leagues')
+            .select('logo_url, club_id, clubs(logo_url)')
+            .eq('id', chatGroup.mini_league_id)
+            .single();
+          // Prefer league logo, fall back to club logo
+          clubLogoUrl = miniLeague?.logo_url || (miniLeague?.clubs as any)?.logo_url;
+        } else if (chatGroup.team_id) {
+          // Team-based group chat
+          const { data: team } = await supabase
+            .from('teams')
+            .select('logo_url, clubs(logo_url)')
+            .eq('id', chatGroup.team_id)
+            .single();
+          clubLogoUrl = team?.logo_url || (team?.clubs as any)?.logo_url;
+        } else if (chatGroup.club_id) {
+          // Club-based group chat
+          const { data: club } = await supabase
+            .from('clubs')
+            .select('logo_url')
+            .eq('id', chatGroup.club_id)
+            .single();
+          clubLogoUrl = club?.logo_url;
+        }
+      }
     }
 
     // Call the send-email function

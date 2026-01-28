@@ -39,6 +39,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { usePitchBoardNotifications } from "@/hooks/usePitchBoardNotifications";
 import { useIsLandscape } from "@/hooks/useIsLandscape";
+import { useEventGroupSync } from "@/hooks/useEventGroupSync";
 
 // Import types and utils from extracted files
 import { 
@@ -53,7 +54,8 @@ import {
   PITCH_BOARD_OPEN_KEY,
   TIMER_STORAGE_KEY,
   PitchBoardState,
-  TimerState
+  TimerState,
+  MiniLeagueTeams
 } from "./types";
 import ScoreTracker from "./ScoreTracker";
 import {
@@ -85,6 +87,8 @@ interface PitchBoardProps {
   readOnly?: boolean;
   initialLinkedEventId?: string | null;
   initialShowMatchHeader?: boolean;
+  // Mini-league two-team mode configuration
+  miniLeagueTeams?: MiniLeagueTeams;
 }
 
 // Loading fallback for lazy-loaded dialogs
@@ -108,7 +112,7 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
   </div>
 );
 
-export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, initialLinkedEventId, initialShowMatchHeader = true }: PitchBoardProps) {
+export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, initialLinkedEventId, initialShowMatchHeader = true, miniLeagueTeams }: PitchBoardProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
@@ -116,6 +120,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { isLandscape, isMobileLandscape, isTabletLandscape, isDesktopLandscape } = useIsLandscape();
+  
+  // Event group sync - syncs pitch board state to database for mini-league matches
+  const { forceSync: forceEventGroupSync, isEventGroup } = useEventGroupSync(teamId, null);
   
   // State initialization flag
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -658,10 +665,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, []);
 
   // Get real players from team members with preferred positions from database
+  // For mini-league mode, also assign team sides based on miniLeagueTeams config
   const realPlayers = useMemo(() => members
     .filter(m => m.role === "player")
     .map((m, index) => {
       const savedPos = teamPlayerPositions?.find(p => p.user_id === m.user_id);
+      // Determine team side for mini-league mode
+      let teamSide: "a" | "b" | undefined;
+      if (miniLeagueTeams) {
+        if (miniLeagueTeams.teamAPlayerIds.includes(m.user_id)) {
+          teamSide = "a";
+        } else if (miniLeagueTeams.teamBPlayerIds.includes(m.user_id)) {
+          teamSide = "b";
+        }
+      }
       return {
         id: m.user_id,
         name: m.profiles?.display_name || `Player ${index + 1}`,
@@ -670,8 +687,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         assignedPositions: (savedPos?.preferred_positions || []) as PitchPosition[],
         currentPitchPosition: undefined as PitchPosition | undefined,
         minutesPlayed: 0,
+        teamSide,
       };
-    }), [members, teamPlayerPositions]);
+    }), [members, teamPlayerPositions, miniLeagueTeams]);
 
   // Helper to auto-place players on pitch using formation
   // Only places players in positions they're eligible for based on assignedPositions
@@ -768,14 +786,221 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return result;
   }, []);
 
+  // Auto-place players for mini-league two-team mode
+  // Places Team A on the bottom half (defending goal) and Team B on the top half (attacking goal)
+  // When preserveOnPitchStatus=true, only repositions players already on pitch (for team size/formation changes)
+  // When preserveOnPitchStatus=false (default for initial placement), places all players on pitch
+  const autoPlaceMiniLeaguePlayers = useCallback((
+    playersToPlace: Player[],
+    size: TeamSize,
+    preserveOnPitchStatus: boolean = false,
+    formationIndex: number = 0,
+    applyFormationPositions: boolean = false
+  ): Player[] => {
+    const formation = FORMATIONS[size][formationIndex] || FORMATIONS[size][0];
+    if (!formation) return playersToPlace;
+    
+    const teamAPlayers = playersToPlace.filter(p => p.teamSide === "a");
+    const teamBPlayers = playersToPlace.filter(p => p.teamSide === "b");
+    const unassignedPlayers = playersToPlace.filter(p => !p.teamSide);
+    
+    const result: Player[] = [];
+    
+    // Helper to scale formation position to bottom half (for Team A: y 50-95)
+    const scaleToBottomHalf = (pos: { x: number; y: number }) => {
+      // Formation y typically ranges from ~15 (forwards) to ~90 (GK)
+      // Scale to bottom half: y 50 (center) to 95 (near goal)
+      const scaledY = 50 + (pos.y / 100) * 45; // Map 0-100 -> 50-95
+      return { x: pos.x, y: scaledY };
+    };
+    
+    // Helper to scale formation position to top half (for Team B: y 5-50)
+    const scaleToTopHalf = (pos: { x: number; y: number }) => {
+      // Mirror and scale to top half: y 5 (near goal) to 50 (center)
+      const scaledY = 50 - (pos.y / 100) * 45; // Map 0-100 -> 50-5 (inverted)
+      const mirroredX = 100 - pos.x; // Mirror X for Team B
+      return { x: mirroredX, y: scaledY };
+    };
+    
+    if (preserveOnPitchStatus && applyFormationPositions) {
+      // Formation change: reposition on-pitch players to new formation, keep bench players on bench
+      const teamAOnPitch = teamAPlayers.filter(p => p.position !== null);
+      const teamBOnPitch = teamBPlayers.filter(p => p.position !== null);
+      const teamAOnBench = teamAPlayers.filter(p => p.position === null);
+      const teamBOnBench = teamBPlayers.filter(p => p.position === null);
+      
+      // Place Team A on-pitch players to new formation positions (bottom half)
+      teamAOnPitch.forEach((player, index) => {
+        if (index < formation.positions.length) {
+          const pos = scaleToBottomHalf(formation.positions[index]);
+          result.push({
+            ...player,
+            position: pos,
+            currentPitchPosition: getPositionFromCoords(formation.positions[index].y, size),
+          });
+        } else {
+          // More players than positions - keep on pitch at current spot
+          result.push({
+            ...player,
+            currentPitchPosition: getPositionFromCoords(player.position!.y, size),
+          });
+        }
+      });
+      
+      // Team A bench stays on bench
+      teamAOnBench.forEach(player => {
+        result.push({ ...player });
+      });
+      
+      // Place Team B on-pitch players to new formation positions (top half)
+      teamBOnPitch.forEach((player, index) => {
+        if (index < formation.positions.length) {
+          const pos = scaleToTopHalf(formation.positions[index]);
+          result.push({
+            ...player,
+            position: pos,
+            currentPitchPosition: getPositionFromCoords(formation.positions[index].y, size),
+          });
+        } else {
+          // More players than positions - keep on pitch at current spot
+          result.push({
+            ...player,
+            currentPitchPosition: getPositionFromCoords(100 - player.position!.y, size),
+          });
+        }
+      });
+      
+      // Team B bench stays on bench
+      teamBOnBench.forEach(player => {
+        result.push({ ...player });
+      });
+    } else if (preserveOnPitchStatus && !applyFormationPositions) {
+      // Team size change: adjust player count per team to match new size
+      const teamAOnPitch = teamAPlayers.filter(p => p.position !== null);
+      const teamBOnPitch = teamBPlayers.filter(p => p.position !== null);
+      const teamAOnBench = teamAPlayers.filter(p => p.position === null);
+      const teamBOnBench = teamBPlayers.filter(p => p.position === null);
+      
+      const targetSize = parseInt(size);
+      
+      // Team A: adjust to target size (bottom half)
+      const teamAToPlace = [...teamAOnPitch, ...teamAOnBench].slice(0, targetSize);
+      const teamATooBench = [...teamAOnPitch, ...teamAOnBench].slice(targetSize);
+      
+      teamAToPlace.forEach((player, index) => {
+        if (index < formation.positions.length) {
+          const pos = scaleToBottomHalf(formation.positions[index]);
+          result.push({
+            ...player,
+            position: pos,
+            currentPitchPosition: getPositionFromCoords(formation.positions[index].y, size),
+          });
+        } else {
+          result.push({ ...player, position: null, currentPitchPosition: undefined });
+        }
+      });
+      teamATooBench.forEach(player => {
+        result.push({ ...player, position: null, currentPitchPosition: undefined });
+      });
+      
+      // Team B: adjust to target size (top half)
+      const teamBToPlace = [...teamBOnPitch, ...teamBOnBench].slice(0, targetSize);
+      const teamBTooBench = [...teamBOnPitch, ...teamBOnBench].slice(targetSize);
+      
+      teamBToPlace.forEach((player, index) => {
+        if (index < formation.positions.length) {
+          const pos = scaleToTopHalf(formation.positions[index]);
+          result.push({
+            ...player,
+            position: pos,
+            currentPitchPosition: getPositionFromCoords(formation.positions[index].y, size),
+          });
+        } else {
+          result.push({ ...player, position: null, currentPitchPosition: undefined });
+        }
+      });
+      teamBTooBench.forEach(player => {
+        result.push({ ...player, position: null, currentPitchPosition: undefined });
+      });
+    } else {
+      // Initial placement - place all players on pitch (up to formation size)
+      teamAPlayers.forEach((player, index) => {
+        if (index < formation.positions.length) {
+          const pos = scaleToBottomHalf(formation.positions[index]);
+          result.push({
+            ...player,
+            position: pos,
+            currentPitchPosition: getPositionFromCoords(formation.positions[index].y, size),
+          });
+        } else {
+          result.push({ ...player, position: null, currentPitchPosition: undefined });
+        }
+      });
+      
+      teamBPlayers.forEach((player, index) => {
+        if (index < formation.positions.length) {
+          const pos = scaleToTopHalf(formation.positions[index]);
+          result.push({
+            ...player,
+            position: pos,
+            currentPitchPosition: getPositionFromCoords(formation.positions[index].y, size),
+          });
+        } else {
+          result.push({ ...player, position: null, currentPitchPosition: undefined });
+        }
+      });
+    }
+    
+    // Any unassigned players go to bench
+    unassignedPlayers.forEach(player => {
+      result.push({ ...player, position: null, currentPitchPosition: undefined });
+    });
+    
+    return result;
+  }, []);
+
   // Initialize players - check localStorage first to preserve positions across navigation
   // IMPORTANT: Always prefer saved state when it exists, regardless of whether players have positions
   // This ensures players stay where they were placed even if game is not running
+  // For mini-league mode, auto-place both teams on the pitch
   const [players, setPlayers] = useState<Player[]>(() => {
     console.log("[PitchState] useState init - savedState:", savedState ? "exists" : "null", "realPlayers count:", realPlayers.length);
     if (savedState?.players && savedState.players.length > 0) {
       console.log("[PitchState] useState init - using saved players");
+      // For mini-league mode, we need to check if saved state has proper two-team layout
+      // If Team B players are not on the top half (y < 50), re-place all players
+      if (miniLeagueTeams) {
+        // Apply teamSide to saved players first
+        const playersWithTeamSide = savedState.players.map(p => {
+          let teamSide: "a" | "b" | undefined;
+          if (miniLeagueTeams.teamAPlayerIds.includes(p.id)) {
+            teamSide = "a";
+          } else if (miniLeagueTeams.teamBPlayerIds.includes(p.id)) {
+            teamSide = "b";
+          }
+          return { ...p, teamSide };
+        });
+        
+        // Check if teams are correctly positioned (Team A bottom half, Team B top half)
+        const teamAOnPitch = playersWithTeamSide.filter(p => p.teamSide === "a" && p.position);
+        const teamBOnPitch = playersWithTeamSide.filter(p => p.teamSide === "b" && p.position);
+        const teamACorrectlyPositioned = teamAOnPitch.length === 0 || teamAOnPitch.every(p => p.position!.y >= 50);
+        const teamBCorrectlyPositioned = teamBOnPitch.length === 0 || teamBOnPitch.every(p => p.position!.y < 50);
+        
+        if ((!teamACorrectlyPositioned || !teamBCorrectlyPositioned) && (teamAOnPitch.length > 0 || teamBOnPitch.length > 0)) {
+          console.log("[PitchState] Re-placing players for proper two-team half-pitch layout");
+          // Saved state doesn't have correct two-team layout - re-place all players
+          return autoPlaceMiniLeaguePlayers(playersWithTeamSide, getInitialTeamSize());
+        }
+        
+        return playersWithTeamSide;
+      }
       return savedState.players;
+    }
+    // For mini-league mode, auto-place players on both halves
+    if (miniLeagueTeams) {
+      console.log("[PitchState] useState init - using miniLeagueTeams mode");
+      return autoPlaceMiniLeaguePlayers(realPlayers, getInitialTeamSize());
     }
     console.log("[PitchState] useState init - using realPlayers as fallback");
     return realPlayers;
@@ -795,6 +1020,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Ball position state
   const [ballPosition, setBallPosition] = useState<{ x: number; y: number }>(() => savedState?.ballPosition || { x: 50, y: 50 });
   const [isDraggingBall, setIsDraggingBall] = useState(false);
+
+  // Helper to get team color for a player in mini-league mode
+  const getPlayerTeamColor = useCallback((player: Player): string | undefined => {
+    if (!miniLeagueTeams || !player.teamSide) return undefined;
+    return player.teamSide === "a" ? miniLeagueTeams.teamAColor : miniLeagueTeams.teamBColor;
+  }, [miniLeagueTeams]);
 
   // Substitution mode state
   const [subMode, setSubMode] = useState(false);
@@ -868,13 +1099,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       hasLoadedRef.current = true;
       setHasInitialized(true);
     } else if (realPlayers.length > 0) {
-      // No saved state, but we have real players - auto-place them using default formation
-      setPlayers(autoPlacePlayersOnPitch(realPlayers, teamSize, selectedFormation));
+      // No saved state, but we have real players - auto-place them
+      // Use mini-league two-team mode if configured, otherwise single team mode
+      if (miniLeagueTeams) {
+        setPlayers(autoPlaceMiniLeaguePlayers(realPlayers, teamSize));
+      } else {
+        setPlayers(autoPlacePlayersOnPitch(realPlayers, teamSize, selectedFormation));
+      }
       hasLoadedRef.current = true;
       setHasInitialized(true);
     }
     // If no saved state and no realPlayers yet, wait for realPlayers to load
-  }, [savedState, realPlayers, autoPlacePlayersOnPitch, teamSize, selectedFormation]);
+  }, [savedState, realPlayers, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, teamSize, selectedFormation]);
 
   // Save pitch state to localStorage whenever it changes (only after initialization)
   useEffect(() => {
@@ -892,7 +1128,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       linkedEventId,
       goals,
     });
-  }, [hasInitialized, teamId, players, teamSize, selectedFormation, ballPosition, autoSubPlan, autoSubActive, autoSubPaused, mockMode, linkedEventId, goals]);
+    
+    // Also sync to database if this is an event group (mini-league match)
+    if (isEventGroup) {
+      forceEventGroupSync();
+    }
+  }, [hasInitialized, teamId, players, teamSize, selectedFormation, ballPosition, autoSubPlan, autoSubActive, autoSubPaused, mockMode, linkedEventId, goals, isEventGroup, forceEventGroupSync]);
 
   // Sync player position preferences from database when they change
   // This ensures updated preferences are reflected even when using saved state from localStorage
@@ -1386,6 +1627,26 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Persist to database
     persistFormationToDb(formation.name);
 
+    // For mini-league mode, re-place both teams with the new formation (reposition to formation)
+    if (miniLeagueTeams) {
+      setPlayers(prev => {
+        // Ensure teamSide is set on all players before placement
+        const playersWithTeamSide = prev.map(p => {
+          if (p.teamSide) return p;
+          let teamSide: "a" | "b" | undefined;
+          if (miniLeagueTeams.teamAPlayerIds.includes(p.id)) {
+            teamSide = "a";
+          } else if (miniLeagueTeams.teamBPlayerIds.includes(p.id)) {
+            teamSide = "b";
+          }
+          return { ...p, teamSide };
+        });
+        return autoPlaceMiniLeaguePlayers(playersWithTeamSide, teamSize, true, index, true);
+      });
+      toast({ title: "Formation applied", description: `${formation.name} formation set for both teams` });
+      return;
+    }
+
     const numPositions = parseInt(teamSize);
     
     setPlayers(prev => {
@@ -1408,7 +1669,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     });
 
     toast({ title: "Formation applied", description: `${formation.name} formation set` });
-  }, [teamSize, persistFormationToDb, toast]);
+  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers]);
 
   // Handle formation change dialog confirm
   const handleFormationChangeConfirm = useCallback(() => {
@@ -2214,11 +2475,29 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
     setTeamSize(newSize);
     setSelectedFormation(0);
-    // Re-place players using the new team size and first formation
-    const placedPlayers = autoPlacePlayersOnPitch(players, newSize, 0);
-    setPlayers(placedPlayers);
+    
+    // For mini-league mode, re-place both teams with the new size
+    if (miniLeagueTeams) {
+      // Ensure teamSide is set on all players before placement
+      const playersWithTeamSide = players.map(p => {
+        if (p.teamSide) return p;
+        let teamSide: "a" | "b" | undefined;
+        if (miniLeagueTeams.teamAPlayerIds.includes(p.id)) {
+          teamSide = "a";
+        } else if (miniLeagueTeams.teamBPlayerIds.includes(p.id)) {
+          teamSide = "b";
+        }
+        return { ...p, teamSide };
+      });
+      const placedPlayers = autoPlaceMiniLeaguePlayers(playersWithTeamSide, newSize, true);
+      setPlayers(placedPlayers);
+    } else {
+      // Re-place players using the new team size and first formation
+      const placedPlayers = autoPlacePlayersOnPitch(players, newSize, 0);
+      setPlayers(placedPlayers);
+    }
     persistTeamSizeToDb(newSize);
-  }, [players, autoPlacePlayersOnPitch, persistTeamSizeToDb]);
+  }, [players, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, persistTeamSizeToDb]);
 
   const getPinchDistance = (touches: React.TouchList) => {
     if (touches.length < 2) return null;
@@ -2863,6 +3142,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 opponentName={opponentName}
                 readOnly={readOnly}
                 isGameFinished={gameTimerRef.current?.isGameFinished() || false}
+                miniLeagueTeams={miniLeagueTeams}
                 mini
               />
             </div>
@@ -3083,6 +3363,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   previewHighlightType={previewSwapPlayers.sourceId === player.id ? "source" : previewSwapPlayers.targetId === player.id ? "target" : null}
                   subAnimation={subAnimationPlayers.in === player.id ? "in" : null}
                   readOnly={readOnly}
+                  teamColor={getPlayerTeamColor(player)}
                   style={{
                     position: "absolute",
                     left: `${player.position!.x}%`,
@@ -3328,6 +3609,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             subAnimation={subAnimationPlayers.out === player.id ? "out" : null}
                             variant="bench"
                             readOnly={readOnly}
+                            teamColor={getPlayerTeamColor(player)}
                           />
                         ))}
                     </div>
@@ -3610,6 +3892,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           benchPlayers={playersOnBench}
           allPitchPlayers={playersOnPitch}
           onSelectOption={handleSubPreviewSelect}
+          miniLeagueTeams={miniLeagueTeams}
         />
 
         {/* Formation Change Dialog */}
@@ -3768,6 +4051,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             opponentName={opponentName}
             readOnly={readOnly}
             isGameFinished={gameTimerRef.current?.isGameFinished() || false}
+            miniLeagueTeams={miniLeagueTeams}
           />
         </div>
       )}
@@ -3988,6 +4272,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   subAnimation={subAnimationPlayers.out === player.id ? "out" : null}
                   variant="bench"
                   readOnly={readOnly}
+                  teamColor={getPlayerTeamColor(player)}
                 />
               ))}
           </CardContent>
@@ -4214,6 +4499,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   previewHighlightType={previewSwapPlayers.sourceId === player.id ? "source" : previewSwapPlayers.targetId === player.id ? "target" : null}
                   subAnimation={subAnimationPlayers.in === player.id ? "in" : null}
                   readOnly={readOnly}
+                  teamColor={getPlayerTeamColor(player)}
                   style={{
                     position: "absolute",
                     left: `${player.position!.x}%`,
@@ -4358,6 +4644,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         benchPlayers={playersOnBench}
         allPitchPlayers={playersOnPitch}
         onSelectOption={handleSubPreviewSelect}
+        miniLeagueTeams={miniLeagueTeams}
       />
 
       {/* Formation Change Dialog */}

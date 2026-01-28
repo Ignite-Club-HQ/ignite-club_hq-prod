@@ -53,6 +53,7 @@ import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { EventSponsorsSection } from "@/components/EventSponsorsSection";
 import { EventGroupsManager } from "@/components/EventGroupsManager";
 
+
 // Lazy load PitchBoard for game events
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 
@@ -74,14 +75,17 @@ const rsvpOptions: { value: RsvpStatus; label: string; icon: string }[] = [
   { value: "not_going", label: "Can't Go", icon: "❌" },
 ];
 
-// Helper component for attendee display with payment status
+// Helper component for attendee display with payment status and admin RSVP controls
 const AttendeeCard = ({ 
   rsvp, 
   hasPaid, 
   isAdmin, 
   showPrice, 
   onTogglePayment,
-  isPending
+  isPending,
+  isMiniLeague,
+  onChangeStatus,
+  currentStatus,
 }: { 
   rsvp: any; 
   hasPaid?: boolean;
@@ -89,11 +93,17 @@ const AttendeeCard = ({
   showPrice?: boolean;
   onTogglePayment?: () => void;
   isPending?: boolean;
+  isMiniLeague?: boolean;
+  onChangeStatus?: (status: RsvpStatus) => void;
+  currentStatus?: RsvpStatus;
 }) => {
   const isChildRsvp = !!rsvp.child_id;
-  const displayName = isChildRsvp 
-    ? rsvp.children?.name 
-    : rsvp.profiles?.display_name;
+  const isMiniLeaguePlayerRsvp = !!rsvp.mini_league_player_id;
+  const displayName = isMiniLeaguePlayerRsvp 
+    ? rsvp.mini_league_players?.name 
+    : isChildRsvp 
+      ? rsvp.children?.name 
+      : rsvp.profiles?.display_name;
   const avatarInitial = displayName?.charAt(0)?.toUpperCase() || "?";
 
   return (
@@ -101,30 +111,48 @@ const AttendeeCard = ({
       <CardContent className="p-3">
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
-            {!isChildRsvp && <AvatarImage src={rsvp.profiles?.avatar_url || undefined} />}
-            <AvatarFallback className={`text-xs ${isChildRsvp ? 'bg-secondary' : ''}`}>
+            {!isChildRsvp && !isMiniLeaguePlayerRsvp && <AvatarImage src={rsvp.profiles?.avatar_url || undefined} />}
+            <AvatarFallback className={`text-xs ${(isChildRsvp || isMiniLeaguePlayerRsvp) ? 'bg-secondary' : ''}`}>
               {avatarInitial}
             </AvatarFallback>
           </Avatar>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-medium">{displayName}</span>
-              {isChildRsvp && (
-                <Badge variant="outline" className="text-xs">
+              <span className="font-medium truncate">{displayName}</span>
+              {isChildRsvp && !isMiniLeague && (
+                <Badge variant="outline" className="text-xs shrink-0">
                   Child
                 </Badge>
               )}
               {showPrice && hasPaid && (
-                <Badge variant="default" className="text-xs bg-primary">
+                <Badge variant="default" className="text-xs bg-primary shrink-0">
                   <Check className="h-3 w-3 mr-1" />
                   Paid
                 </Badge>
               )}
             </div>
             {rsvp.notes && (
-              <p className="text-sm text-muted-foreground mt-1">{rsvp.notes}</p>
+              <p className="text-sm text-muted-foreground mt-1 truncate">{rsvp.notes}</p>
             )}
           </div>
+          {/* Admin RSVP status change buttons for mini-league events */}
+          {isAdmin && isMiniLeague && onChangeStatus && (
+            <div className="flex gap-1 shrink-0">
+              {rsvpOptions.filter(opt => opt.value !== currentStatus).map(({ value, icon }) => (
+                <Button
+                  key={value}
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => onChangeStatus(value)}
+                  disabled={isPending}
+                  title={`Change to ${value}`}
+                >
+                  <span className="text-sm">{icon}</span>
+                </Button>
+              ))}
+            </div>
+          )}
           {/* Admin-only payment toggle */}
           {isAdmin && showPrice && onTogglePayment && (
             <Button
@@ -174,6 +202,9 @@ export default function EventDetailPage() {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [showPitchBoard, setShowPitchBoard] = useState(false);
+  
+  // Mini league player overrides for match generation
+  const [playerOverrides, setPlayerOverrides] = useState<Record<string, boolean>>({});
 
   const { data: event, isLoading } = useQuery({
     queryKey: ["event", id],
@@ -192,12 +223,46 @@ export default function EventDetailPage() {
   const { data: rsvps } = useQuery({
     queryKey: ["event-rsvps", id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch rsvps first
+      const { data: rsvpData, error: rsvpError } = await supabase
         .from("rsvps")
-        .select(`*, profiles (display_name, avatar_url), children (id, name)`)
+        .select(`*, mini_league_players (id, name)`)
         .eq("event_id", id!);
-      if (error) throw error;
-      return data;
+      if (rsvpError) throw rsvpError;
+      
+      // Now fetch related profiles and children separately to avoid FK detection issues
+      const userIds = rsvpData.filter(r => r.user_id).map(r => r.user_id);
+      const childIds = rsvpData.filter(r => r.child_id).map(r => r.child_id);
+      
+      let profilesMap: Record<string, { display_name: string | null; avatar_url: string | null }> = {};
+      let childrenMap: Record<string, { id: string; name: string }> = {};
+      
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", userIds);
+        if (profiles) {
+          profilesMap = Object.fromEntries(profiles.map(p => [p.id, { display_name: p.display_name, avatar_url: p.avatar_url }]));
+        }
+      }
+      
+      if (childIds.length > 0) {
+        const { data: children } = await supabase
+          .from("children")
+          .select("id, name")
+          .in("id", childIds);
+        if (children) {
+          childrenMap = Object.fromEntries(children.map(c => [c.id, { id: c.id, name: c.name }]));
+        }
+      }
+      
+      // Combine the data
+      return rsvpData.map(rsvp => ({
+        ...rsvp,
+        profiles: rsvp.user_id ? profilesMap[rsvp.user_id] || null : null,
+        children: rsvp.child_id ? childrenMap[rsvp.child_id] || null : null,
+      }));
     },
     enabled: !!id,
   });
@@ -417,13 +482,104 @@ export default function EventDetailPage() {
     enabled: !!event,
   });
 
+  // Fetch mini-league players for mini-league events (for not responded list)
+  const { data: miniLeaguePlayers } = useQuery({
+    queryKey: ["mini-league-players-for-event", event?.mini_league_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mini_league_players")
+        .select("id, name, parent_user_id, child_id")
+        .eq("mini_league_id", event!.mini_league_id!);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!event?.mini_league_id,
+  });
+
   // For social events, always show all members; for training/games, use toggle
   const isSocialEvent = event?.type === "social";
   const effectiveShowAll = isSocialEvent ? true : showAllRoles;
+  const isMiniLeagueEvent = !!event?.mini_league_id;
 
   // Filter members based on showAllRoles toggle
   const members = membersWithRoles;
   const playerMembers = membersWithRoles?.filter((m: any) => m.roles?.includes("player")) || [];
+
+  // Fetch mini league duty assignees (RSVP'd parents + club admins + league admins, excluding players)
+  const { data: miniLeagueDutyAssignees } = useQuery({
+    queryKey: ["mini-league-duty-assignees-session", event?.mini_league_id, id],
+    queryFn: async () => {
+      const miniLeagueId = event!.mini_league_id!;
+      
+      // Get mini league to find the club_id
+      const { data: league, error: leagueError } = await supabase
+        .from("mini_leagues")
+        .select("club_id")
+        .eq("id", miniLeagueId)
+        .single();
+      if (leagueError) throw leagueError;
+      
+      // Get RSVPs for this event (only user RSVPs, not children/players)
+      const { data: eventRsvps, error: rsvpError } = await supabase
+        .from("rsvps")
+        .select("user_id")
+        .eq("event_id", id!)
+        .eq("status", "going")
+        .not("user_id", "is", null);
+      if (rsvpError) throw rsvpError;
+      
+      const rsvpUserIds = new Set(eventRsvps?.map(r => r.user_id).filter(Boolean) as string[]);
+      
+      // Get all parent user IDs from mini league players who RSVP'd
+      const { data: playersData, error: playersError } = await supabase
+        .from("mini_league_players")
+        .select("parent_user_id")
+        .eq("mini_league_id", miniLeagueId)
+        .not("parent_user_id", "is", null);
+      if (playersError) throw playersError;
+      
+      // Only include parents who RSVP'd going
+      const parentIds = [...new Set(
+        (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[])
+          .filter(parentId => rsvpUserIds.has(parentId))
+      )];
+      
+      // Get club admins and league admins who RSVP'd
+      const { data: adminRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", league.club_id)
+        .in("role", ["club_admin", "league_admin"]);
+      if (rolesError) throw rolesError;
+      
+      // Only include admins who RSVP'd going
+      const adminIds = (adminRoles?.map(r => r.user_id) || [])
+        .filter(adminId => rsvpUserIds.has(adminId));
+      
+      // Combine all unique IDs
+      const allUserIds = [...new Set([...parentIds, ...adminIds])];
+      
+      // Exclude app admins from the list
+      const { data: appAdmins } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "app_admin");
+      const appAdminIds = new Set(appAdmins?.map(r => r.user_id) || []);
+      const filteredUserIds = allUserIds.filter(id => !appAdminIds.has(id));
+      if (!filteredUserIds.length) return [];
+      
+      // Fetch profiles for all these users
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", filteredUserIds)
+        .order("display_name");
+      if (profilesError) throw profilesError;
+      
+      return profiles || [];
+    },
+    enabled: !!event?.mini_league_id && !!id,
+  });
 
   // Fetch children assigned to this event's team (for parent RSVP)
   const { data: childrenOnTeam } = useQuery({
@@ -620,6 +776,8 @@ export default function EventDetailPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
       toast({ title: "RSVP updated!" });
     },
   });
@@ -674,7 +832,142 @@ export default function EventDetailPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
       toast({ title: "Child RSVP updated!" });
+    },
+  });
+
+  // Admin RSVP mutation for mini-league players (club/league admins can change player RSVPs)
+  const adminRsvpMutation = useMutation({
+    mutationFn: async ({ 
+      playerId, 
+      playerName, 
+      childId, 
+      parentUserId,
+      status 
+    }: { 
+      playerId: string; 
+      playerName: string;
+      childId: string | null;
+      parentUserId: string | null;
+      status: RsvpStatus;
+    }) => {
+      // For mini-league players, we need to find or create an RSVP
+      // Priority: child_id > parent_user_id > mini_league_player_id (standalone)
+      if (childId) {
+        // Check for existing RSVP for this child
+        const { data: existingRsvp } = await supabase
+          .from("rsvps")
+          .select("id")
+          .eq("event_id", id!)
+          .eq("child_id", childId)
+          .maybeSingle();
+        
+        if (existingRsvp) {
+          const { error } = await supabase
+            .from("rsvps")
+            .update({ status })
+            .eq("id", existingRsvp.id);
+          if (error) throw error;
+        } else if (parentUserId) {
+          // Create new RSVP for this child
+          const { error } = await supabase.from("rsvps").insert({
+            event_id: id!,
+            user_id: parentUserId,
+            child_id: childId,
+            status,
+          });
+          if (error) throw error;
+        } else {
+          throw new Error("Cannot create RSVP: no parent user linked to this player");
+        }
+      } else if (parentUserId) {
+        // Player without child_id - RSVP is on the parent user directly
+        const { data: existingRsvp } = await supabase
+          .from("rsvps")
+          .select("id")
+          .eq("event_id", id!)
+          .eq("user_id", parentUserId)
+          .is("child_id", null)
+          .maybeSingle();
+        
+        if (existingRsvp) {
+          const { error } = await supabase
+            .from("rsvps")
+            .update({ status })
+            .eq("id", existingRsvp.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("rsvps").insert({
+            event_id: id!,
+            user_id: parentUserId,
+            status,
+          });
+          if (error) throw error;
+        }
+      } else {
+        // Standalone mini-league player without parent/child link
+        // Use mini_league_player_id for RSVP tracking
+        const { data: existingRsvp } = await supabase
+          .from("rsvps")
+          .select("id")
+          .eq("event_id", id!)
+          .eq("mini_league_player_id", playerId)
+          .maybeSingle();
+        
+        if (existingRsvp) {
+          const { error } = await supabase
+            .from("rsvps")
+            .update({ status })
+            .eq("id", existingRsvp.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("rsvps").insert({
+            event_id: id!,
+            mini_league_player_id: playerId,
+            status,
+          });
+          if (error) throw error;
+        }
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
+      toast({ title: `${variables.playerName}'s RSVP updated!` });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Failed to update RSVP", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Admin mutation to update existing RSVP status by RSVP ID
+  const adminUpdateRsvpMutation = useMutation({
+    mutationFn: async ({ rsvpId, status, playerName }: { rsvpId: string; status: RsvpStatus; playerName: string }) => {
+      const { error } = await supabase
+        .from("rsvps")
+        .update({ status })
+        .eq("id", rsvpId);
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
+      toast({ title: `${variables.playerName}'s RSVP updated!` });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Failed to update RSVP", 
+        description: error.message,
+        variant: "destructive" 
+      });
     },
   });
 
@@ -1530,6 +1823,8 @@ export default function EventDetailPage() {
           // Filter RSVPs based on effectiveShowAll (social events always show all)
           const filterRsvp = (rsvp: any) => {
             if (effectiveShowAll) return true;
+            // Show mini-league player RSVPs 
+            if (rsvp.mini_league_player_id) return true;
             // Show child RSVPs (they are always players)
             if (rsvp.child_id) return true;
             // Only show if user has player role
@@ -1541,13 +1836,38 @@ export default function EventDetailPage() {
           const notGoingRsvps = rsvps?.filter((r) => r.status === "not_going" && filterRsvp(r)) || [];
           
           // Not responded - filter members based on effectiveShowAll
+          // For mini-league events, use mini-league players instead of team members
           const respondedUserIds = new Set(rsvps?.filter(r => !r.child_id).map(r => r.user_id) || []);
           const respondedChildIds = new Set(rsvps?.filter(r => r.child_id).map(r => r.child_id) || []);
-          const membersToShow = effectiveShowAll ? members : playerMembers;
-          const notResponded = membersToShow?.filter((m: any) => !respondedUserIds.has(m.id)) || [];
+          const respondedMiniLeaguePlayerIds = new Set(
+            rsvps?.filter(r => r.mini_league_player_id).map(r => r.mini_league_player_id) || []
+          );
           
-          // Get children who haven't responded (children are always treated as players)
-          const notRespondedChildren = allChildrenOnTeam?.filter((child: any) => !respondedChildIds.has(child.id)) || [];
+          let notResponded: any[] = [];
+          let notRespondedChildren: any[] = [];
+          
+          if (isMiniLeagueEvent && miniLeaguePlayers) {
+            // For mini-league events, show players who haven't had a response
+            notRespondedChildren = miniLeaguePlayers.filter((player: any) => {
+              // Check if this player has an RSVP via mini_league_player_id
+              if (respondedMiniLeaguePlayerIds.has(player.id)) return false;
+              // Check if this player's child_id has an RSVP
+              if (player.child_id && respondedChildIds.has(player.child_id)) return false;
+              // Check if parent has RSVP'd for this player
+              if (player.parent_user_id && respondedUserIds.has(player.parent_user_id)) return false;
+              return true;
+            });
+          } else {
+            // For regular events, use team members
+            const membersToShow = effectiveShowAll ? members : playerMembers;
+            notResponded = membersToShow?.filter((m: any) => !respondedUserIds.has(m.id)) || [];
+            // Get children who haven't responded (children are always treated as players)
+            notRespondedChildren = allChildrenOnTeam?.filter((child: any) => !respondedChildIds.has(child.id)) || [];
+          }
+          
+          const totalNotResponded = isMiniLeagueEvent 
+            ? notRespondedChildren.length 
+            : notResponded.length + notRespondedChildren.length;
           
           return (
             <>
@@ -1572,7 +1892,14 @@ export default function EventDetailPage() {
                           userId: rsvp.user_id, 
                           isPaid: paidUserIds.has(rsvp.user_id) 
                         })}
-                        isPending={togglePaymentMutation.isPending}
+                        isPending={togglePaymentMutation.isPending || adminUpdateRsvpMutation.isPending}
+                        isMiniLeague={isMiniLeagueEvent}
+                        currentStatus="going"
+                        onChangeStatus={(status) => adminUpdateRsvpMutation.mutate({
+                          rsvpId: rsvp.id,
+                          status,
+                          playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
+                        })}
                       />
                     ))}
                   </div>
@@ -1600,7 +1927,14 @@ export default function EventDetailPage() {
                           userId: rsvp.user_id, 
                           isPaid: paidUserIds.has(rsvp.user_id) 
                         })}
-                        isPending={togglePaymentMutation.isPending}
+                        isPending={togglePaymentMutation.isPending || adminUpdateRsvpMutation.isPending}
+                        isMiniLeague={isMiniLeagueEvent}
+                        currentStatus="maybe"
+                        onChangeStatus={(status) => adminUpdateRsvpMutation.mutate({
+                          rsvpId: rsvp.id,
+                          status,
+                          playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
+                        })}
                       />
                     ))}
                   </div>
@@ -1618,7 +1952,19 @@ export default function EventDetailPage() {
                 ) : (
                   <div className="space-y-1 pl-6">
                     {notGoingRsvps.map((rsvp: any) => (
-                      <AttendeeCard key={rsvp.id} rsvp={rsvp} />
+                      <AttendeeCard 
+                        key={rsvp.id} 
+                        rsvp={rsvp}
+                        isAdmin={isAdmin || isAppAdmin}
+                        isPending={adminUpdateRsvpMutation.isPending}
+                        isMiniLeague={isMiniLeagueEvent}
+                        currentStatus="not_going"
+                        onChangeStatus={(status) => adminUpdateRsvpMutation.mutate({
+                          rsvpId: rsvp.id,
+                          status,
+                          playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
+                        })}
+                      />
                     ))}
                   </div>
                 )}
@@ -1628,32 +1974,60 @@ export default function EventDetailPage() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <span>⏳</span>
-                  <span>Not Responded ({notResponded.length + notRespondedChildren.length})</span>
+                  <span>Not Responded ({totalNotResponded})</span>
                 </div>
-                {notResponded.length === 0 && notRespondedChildren.length === 0 ? (
-                  <p className="text-muted-foreground text-sm pl-6">Everyone has responded</p>
+                {totalNotResponded === 0 ? (
+                  <p className="text-muted-foreground text-sm pl-6">
+                    {(rsvps?.length || 0) > 0 ? "Everyone has responded" : "No members to respond"}
+                  </p>
                 ) : (
                   <div className="space-y-1 pl-6">
-                    {/* Children (treated as players) */}
+                    {/* Mini-league players or Children (treated as players) */}
                     {notRespondedChildren.map((child: any) => (
                       <Card key={`child-${child.id}`}>
                         <CardContent className="p-3">
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-8 w-8">
-                              <AvatarFallback className="text-xs bg-secondary">
-                                {child.name?.charAt(0)?.toUpperCase() || "?"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{child.name || "Unknown"}</span>
-                              <Badge variant="outline" className="text-xs">Child</Badge>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-8 w-8">
+                                <AvatarFallback className="text-xs bg-secondary">
+                                  {child.name?.charAt(0)?.toUpperCase() || "?"}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{child.name || "Unknown"}</span>
+                                {!isMiniLeagueEvent && <Badge variant="outline" className="text-xs">Child</Badge>}
+                              </div>
                             </div>
+                            {/* Admin RSVP controls for mini-league events */}
+                            {isMiniLeagueEvent && (isAdmin || isAppAdmin) && (
+                              <div className="flex gap-1">
+                                {rsvpOptions.map(({ value, icon }) => (
+                                  <Button
+                                    key={value}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => adminRsvpMutation.mutate({
+                                      playerId: child.id,
+                                      playerName: child.name,
+                                      childId: child.child_id,
+                                      parentUserId: child.parent_user_id,
+                                      status: value,
+                                    })}
+                                    disabled={adminRsvpMutation.isPending}
+                                    title={`Set ${child.name} to ${value}`}
+                                  >
+                                    <span className="text-sm">{icon}</span>
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
                     ))}
-                    {/* Members */}
-                    {notResponded.map((member: any) => (
+                    {/* Members (for non-mini-league events) */}
+                    {!isMiniLeagueEvent && notResponded.map((member: any) => (
                       <Card key={member.id}>
                         <CardContent className="p-3">
                           <div className="flex items-center gap-3">
@@ -1674,6 +2048,7 @@ export default function EventDetailPage() {
             </>
           );
         })()}
+        
       </section>
 
       {/* Mini League Breakout Groups (only for mini league events) */}
@@ -1685,6 +2060,7 @@ export default function EventDetailPage() {
               eventId={id!}
               miniLeagueId={event.mini_league_id}
               isAdmin={isAdmin || isAppAdmin || false}
+              playerOverrides={playerOverrides}
             />
           </section>
         </>
@@ -1724,6 +2100,8 @@ export default function EventDetailPage() {
               onOpenChange={setAddDutyOpen}
               onAddDuty={(dutyName) => addDutyMutation.mutate(dutyName)}
               isPending={addDutyMutation.isPending}
+              isMiniLeague={!!event?.mini_league_id}
+              context="session"
             />
             {duties?.length === 0 ? (
               <p className="text-muted-foreground text-sm">No duties assigned for this event</p>
@@ -1816,11 +2194,19 @@ export default function EventDetailPage() {
         onOpenChange={setAssignDialogOpen}
         dutyName={duties?.find(d => d.id === selectedDutyId)?.name || "Duty"}
         currentAssignee={selectedUserId || null}
-        members={members?.map((m: any) => ({
-          id: m.id,
-          display_name: m.display_name,
-          avatar_url: m.avatar_url,
-        })) || []}
+        members={
+          isMiniLeagueEvent
+            ? (miniLeagueDutyAssignees?.map((m: any) => ({
+                id: m.id,
+                display_name: m.display_name,
+                avatar_url: m.avatar_url,
+              })) || [])
+            : (members?.map((m: any) => ({
+                id: m.id,
+                display_name: m.display_name,
+                avatar_url: m.avatar_url,
+              })) || [])
+        }
         onAssign={(userId) => assignDutyMutation.mutate(userId)}
         isPending={assignDutyMutation.isPending}
       />

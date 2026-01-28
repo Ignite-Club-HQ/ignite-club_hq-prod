@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Users, PlayCircle, Wand2, Loader2, X, ClipboardList, Copy } from "lucide-react";
+import { Plus, Users, PlayCircle, Wand2, Loader2, X, ClipboardList, Copy, Shirt, RefreshCw, Flame } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,12 +26,29 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { MatchDutiesDialog } from "@/components/MatchDutiesDialog";
+
+// Lazy load PitchBoard for performance
+const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
+
+// Default bib color pairs when league has no custom colors
+const DEFAULT_BIB_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"];
+
+// Get a pair of contrasting colors for a match from available colors
+const getMatchColors = (index: number, availableColors: string[]): { teamA: string; teamB: string } => {
+  const colors = availableColors.length >= 2 ? availableColors : DEFAULT_BIB_COLORS;
+  // Pick two different colors for each match, cycling through available colors
+  const colorIndex = (index * 2) % colors.length;
+  const teamAColor = colors[colorIndex];
+  const teamBColor = colors[(colorIndex + 1) % colors.length];
+  return { teamA: teamAColor, teamB: teamBColor };
+};
 
 interface EventGroupsManagerProps {
   eventId: string;
   miniLeagueId: string;
   isAdmin: boolean;
+  playerOverrides?: Record<string, boolean>;
 }
 
 interface MiniLeaguePlayer {
@@ -40,17 +58,36 @@ interface MiniLeaguePlayer {
   parent_user_id: string | null;
 }
 
+const getAbilityLabel = (rating: number): string => {
+  switch (rating) {
+    case 1: return "Beginner";
+    case 2: return "Developing";
+    case 3: return "Intermediate";
+    case 4: return "Advanced";
+    case 5: return "Expert";
+    default: return "Unknown";
+  }
+};
+
+interface GroupPlayer {
+  id: string;
+  name: string;
+  team: "a" | "b" | null;
+  ability_rating: number;
+}
+
 interface EventGroup {
   id: string;
   name: string;
   ability_band: string | null;
   pitch_name: string | null;
   display_order: number;
-  players: { id: string; name: string }[];
+  team_a_color: string;
+  team_b_color: string;
+  players: GroupPlayer[];
 }
 
-export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGroupsManagerProps) {
-  const navigate = useNavigate();
+export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverrides = {} }: EventGroupsManagerProps) {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isAutoGenOpen, setIsAutoGenOpen] = useState(false);
@@ -60,10 +97,16 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
   const [numGroups, setNumGroups] = useState(2);
   const [playersPerTeam, setPlayersPerTeam] = useState(6);
   const [useAutoMode, setUseAutoMode] = useState(true);
+  const [abilityMode, setAbilityMode] = useState<"similar" | "mixed">("similar");
   const [selectedPreviousEventId, setSelectedPreviousEventId] = useState<string | null>(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  
+  // State for direct pitch board and duties opening
+  const [activePitchBoardGroup, setActivePitchBoardGroup] = useState<EventGroup | null>(null);
+  const [activeDutiesGroup, setActiveDutiesGroup] = useState<EventGroup | null>(null);
 
   // Fetch event groups
-  const { data: groups, isLoading } = useQuery({
+  const { data: groups, isLoading, refetch: refetchGroups } = useQuery({
     queryKey: ["event-groups", eventId],
     queryFn: async () => {
       const { data: groupsData, error } = await supabase
@@ -73,33 +116,42 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
         .order("display_order");
       if (error) throw error;
 
-      // Fetch players for each group
+      // Fetch players for each group with team assignment
       const groupsWithPlayers: EventGroup[] = [];
       for (const group of groupsData || []) {
         const { data: playerLinks } = await supabase
           .from("event_group_players")
-          .select("player_id")
+          .select("player_id, team")
           .eq("group_id", group.id);
         
         const playerIds = playerLinks?.map(p => p.player_id) || [];
-        let players: { id: string; name: string }[] = [];
+        let players: GroupPlayer[] = [];
         
         if (playerIds.length > 0) {
           const { data: playersData } = await supabase
             .from("mini_league_players")
-            .select("id, name")
+            .select("id, name, ability_rating")
             .in("id", playerIds);
-          players = (playersData || []) as { id: string; name: string }[];
+          
+          players = (playersData || []).map(p => ({
+            ...p,
+            ability_rating: p.ability_rating || 3,
+            team: playerLinks?.find(pl => pl.player_id === p.id)?.team as "a" | "b" | null,
+          }));
         }
 
         groupsWithPlayers.push({
           ...group,
+          team_a_color: group.team_a_color || "#ef4444",
+          team_b_color: group.team_b_color || "#3b82f6",
           players,
         });
       }
       return groupsWithPlayers;
     },
     enabled: !!eventId,
+    staleTime: 0, // Always consider stale
+    refetchOnMount: "always",
   });
 
   // Fetch mini league settings
@@ -108,11 +160,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_leagues")
-        .select("id, name, team_size")
+        .select("id, name, team_size, min_players_per_side, minutes_per_half, bib_colors")
         .eq("id", miniLeagueId)
         .single();
       if (error) throw error;
-      return data as { id: string; name: string; team_size: number };
+      return data as { id: string; name: string; team_size: number; min_players_per_side: number; minutes_per_half: number; bib_colors: string[] | null };
     },
     enabled: !!miniLeagueId,
   });
@@ -123,14 +175,66 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_league_players")
-        .select("id, name, ability_rating, parent_user_id")
+        .select("id, name, ability_rating, parent_user_id, child_id")
         .eq("mini_league_id", miniLeagueId)
         .order("ability_rating", { ascending: false });
       if (error) throw error;
-      return data as MiniLeaguePlayer[];
+      return data as (MiniLeaguePlayer & { child_id: string | null })[];
     },
     enabled: !!miniLeagueId,
   });
+
+  // Fetch RSVPs for this event to determine who is attending
+  const { data: eventRsvps, refetch: refetchRsvps } = useQuery({
+    queryKey: ["event-rsvps-going", eventId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rsvps")
+        .select("user_id, child_id, mini_league_player_id")
+        .eq("event_id", eventId)
+        .eq("status", "going");
+      if (error) throw error;
+      return data as { user_id: string | null; child_id: string | null; mini_league_player_id: string | null }[];
+    },
+    enabled: !!eventId,
+    staleTime: 0, // Always consider stale to get fresh data
+    refetchOnMount: "always", // Always refetch when component mounts
+  });
+
+  // Map RSVPs to mini league players - now includes direct mini_league_player_id matching
+  const rsvpPlayerIds = new Set<string>();
+  if (eventRsvps && allPlayers) {
+    eventRsvps.forEach(rsvp => {
+      // Direct mini league player RSVP (standalone players)
+      if (rsvp.mini_league_player_id) {
+        rsvpPlayerIds.add(rsvp.mini_league_player_id);
+      }
+    });
+    
+    // Also check via child_id or parent_user_id for linked players
+    allPlayers.forEach(player => {
+      // Check if player's child_id matches an RSVP child_id
+      if (player.child_id) {
+        const hasChildRsvp = eventRsvps.some(r => r.child_id === player.child_id);
+        if (hasChildRsvp) {
+          rsvpPlayerIds.add(player.id);
+        }
+      }
+      // Also check if player's parent has RSVP'd (for players without child_id)
+      if (player.parent_user_id) {
+        const hasParentRsvp = eventRsvps.some(r => r.user_id === player.parent_user_id && !r.child_id);
+        if (hasParentRsvp) {
+          rsvpPlayerIds.add(player.id);
+        }
+      }
+    });
+  }
+
+  // Players who RSVP'd going - now the primary source for available players
+  const rsvpGoingPlayers = allPlayers?.filter(p => rsvpPlayerIds.has(p.id)) || [];
+
+  // Available players = those who RSVP'd going (no longer relies on playerOverrides)
+  const availablePlayers = rsvpGoingPlayers;
 
   // Fetch previous events for copy
   const { data: previousEvents } = useQuery({
@@ -152,11 +256,15 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
   // Create group mutation
   const createGroupMutation = useMutation({
     mutationFn: async () => {
+      const leagueColors = miniLeague?.bib_colors || DEFAULT_BIB_COLORS;
+      const colors = getMatchColors(groups?.length || 0, leagueColors);
       const { error } = await supabase.from("event_groups").insert({
         event_id: eventId,
         name: newGroupName.trim(),
         pitch_name: newPitchName.trim() || null,
         display_order: (groups?.length || 0) + 1,
+        team_a_color: colors.teamA,
+        team_b_color: colors.teamB,
       });
       if (error) throw error;
     },
@@ -165,82 +273,227 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       setIsCreateOpen(false);
       setNewGroupName("");
       setNewPitchName("");
-      toast.success("Group created");
+      toast.success("Match created");
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  // Auto-generate groups mutation
+  // Auto-generate groups mutation (now creates matches with 2 teams each)
   const autoGenMutation = useMutation({
     mutationFn: async () => {
-      if (!allPlayers || allPlayers.length === 0) {
-        throw new Error("No players in this mini league");
+      if (!availablePlayers || availablePlayers.length === 0) {
+        throw new Error("No available players for this session");
+      }
+
+      // Get min players per side from league settings (default 2)
+      const minPlayersPerSide = miniLeague?.min_players_per_side || 2;
+      const minPlayersPerMatch = minPlayersPerSide * 2;
+
+      // Validate we have enough players for at least one match
+      if (availablePlayers.length < minPlayersPerMatch) {
+        throw new Error(`Need at least ${minPlayersPerMatch} players (${minPlayersPerSide}v${minPlayersPerSide}) to create a match`);
       }
 
       // Calculate number of groups based on mode
+      // For matches: each match has 2 teams, so total players per match = playersPerTeam * 2
       const effectivePlayersPerTeam = useAutoMode && miniLeague?.team_size 
         ? miniLeague.team_size 
         : playersPerTeam;
-      const effectiveNumGroups = useAutoMode 
-        ? Math.ceil(allPlayers.length / effectivePlayersPerTeam)
+      const playersPerMatch = effectivePlayersPerTeam * 2;
+      
+      // Calculate max possible matches ensuring each has at least minPlayersPerMatch
+      const maxMatchesForMinPlayers = Math.floor(availablePlayers.length / minPlayersPerMatch);
+      let effectiveNumMatches = useAutoMode 
+        ? Math.ceil(availablePlayers.length / playersPerMatch)
         : numGroups;
+      
+      // Ensure we don't create more matches than we can fill with minimum players
+      effectiveNumMatches = Math.min(effectiveNumMatches, maxMatchesForMinPlayers);
 
-      if (effectiveNumGroups < 1) {
-        throw new Error("Not enough players for groups");
+      if (effectiveNumMatches < 1) {
+        throw new Error(`Need at least ${minPlayersPerMatch} players (${minPlayersPerSide}v${minPlayersPerSide}) to create a match`);
       }
 
-      // Sort by ability rating (already sorted)
-      const sortedPlayers = [...allPlayers];
+      // Sort by ability rating (already sorted desc)
+      const sortedPlayers = [...availablePlayers];
       
-      // Create groups with balanced ability
-      const groupNames = ["Group A", "Group B", "Group C", "Group D", "Group E", "Group F", "Group G", "Group H"];
-      const abilityBands = ["High", "Medium", "Low"];
+      // Create matches with balanced ability using league's bib colors
+      const leagueColors = miniLeague?.bib_colors || DEFAULT_BIB_COLORS;
+      const matchNames = ["Match 1", "Match 2", "Match 3", "Match 4", "Match 5", "Match 6", "Match 7", "Match 8"];
       
-      // Create the groups first
-      const groupIds: string[] = [];
-      for (let i = 0; i < effectiveNumGroups; i++) {
+      // Create the matches first
+      const matchIds: string[] = [];
+      for (let i = 0; i < effectiveNumMatches; i++) {
+        const colors = getMatchColors(i, leagueColors);
+        // For similar ability mode, assign ability bands; for mixed, leave null
+        const abilityBand = abilityMode === "similar" 
+          ? (["High", "Medium", "Low"][Math.floor(i / Math.ceil(effectiveNumMatches / 3))] || null)
+          : null;
+        
         const { data, error } = await supabase
           .from("event_groups")
           .insert({
             event_id: eventId,
-            name: groupNames[i] || `Group ${i + 1}`,
-            ability_band: abilityBands[Math.floor(i / Math.ceil(effectiveNumGroups / 3))] || null,
+            name: matchNames[i] || `Match ${i + 1}`,
+            ability_band: abilityBand,
             pitch_name: `Pitch ${i + 1}`,
             display_order: i + 1,
+            team_a_color: colors.teamA,
+            team_b_color: colors.teamB,
           })
           .select()
           .single();
         if (error) throw error;
-        groupIds.push(data.id);
+        matchIds.push(data.id);
       }
 
-      // Distribute players across groups (snake draft for balance)
-      const playerGroups: string[][] = Array(effectiveNumGroups).fill(null).map(() => []);
-      sortedPlayers.forEach((player, index) => {
-        const round = Math.floor(index / effectiveNumGroups);
-        const groupIndex = round % 2 === 0 
-          ? index % effectiveNumGroups 
-          : effectiveNumGroups - 1 - (index % effectiveNumGroups);
-        playerGroups[groupIndex].push(player.id);
+      // Calculate target sizes for each match - ensure even player counts per match
+      // This guarantees equal team sizes within each match
+      // Also enforce minimum players per match
+      const totalPlayerCount = sortedPlayers.length;
+      const matchTargetSizes: number[] = [];
+      
+      // Start with base even count per match
+      const basePerMatch = Math.floor(totalPlayerCount / effectiveNumMatches);
+      const baseEven = basePerMatch % 2 === 0 ? basePerMatch : basePerMatch - 1;
+      let remaining = totalPlayerCount;
+      
+      for (let i = 0; i < effectiveNumMatches; i++) {
+        // Calculate how many players this match should get
+        // Prioritize filling matches to max capacity (even number) first
+        const matchesLeft = effectiveNumMatches - i;
+        const avgRemaining = remaining / matchesLeft;
+        
+        // Target: closest even number not exceeding playersPerMatch
+        let target = Math.min(playersPerMatch, Math.floor(avgRemaining));
+        // Make it even (round down)
+        if (target % 2 !== 0) target = target - 1;
+        // Ensure at least minPlayersPerMatch (e.g., 6 for 3v3)
+        if (target < minPlayersPerMatch && remaining >= minPlayersPerMatch) {
+          target = minPlayersPerMatch;
+        }
+        // If this is the last match, take whatever is left
+        if (i === effectiveNumMatches - 1) target = remaining;
+        
+        matchTargetSizes.push(target);
+        remaining -= target;
+      }
+      
+      // Validate all matches meet minimum - redistribute if needed
+      // If any match would have fewer than minPlayersPerMatch players, reduce match count
+      const validTargets = matchTargetSizes.filter(size => size >= minPlayersPerMatch || size === 0);
+      if (validTargets.length < effectiveNumMatches) {
+        // Some matches don't have enough players - we should have caught this earlier
+        // but as a safety check, throw an error
+        throw new Error(`Cannot create ${effectiveNumMatches} matches with minimum ${minPlayersPerSide}v${minPlayersPerSide}. Try fewer matches.`);
+      }
+      
+      // If total players is odd, only one match will have odd count (last match)
+      // Redistribute to ensure most matches are balanced
+      // Sort targets so larger matches come first (helps with snake draft)
+      const sortedTargetIndices = matchTargetSizes
+        .map((size, idx) => ({ size, idx }))
+        .sort((a, b) => b.size - a.size)
+        .map(item => item.idx);
+      
+      // Distribute players across matches based on ability mode
+      const matchPlayers: { playerId: string; team: "a" | "b" }[][] = Array(effectiveNumMatches).fill(null).map(() => []);
+      
+      if (abilityMode === "similar") {
+        // Similar ability mode: consecutive players (by rating) go to same match
+        // Players are already sorted by ability desc
+        let playerIdx = 0;
+        for (let matchIdx = 0; matchIdx < effectiveNumMatches && playerIdx < sortedPlayers.length; matchIdx++) {
+          const targetSize = matchTargetSizes[matchIdx];
+          for (let j = 0; j < targetSize && playerIdx < sortedPlayers.length; j++) {
+            matchPlayers[matchIdx].push({ playerId: sortedPlayers[playerIdx].id, team: "a" });
+            playerIdx++;
+          }
+        }
+      } else {
+        // Mixed ability mode: snake draft across matches for even ability distribution
+        // But respect the target sizes to ensure even player counts per match
+        let forward = true;
+        let matchIndex = 0;
+        
+        sortedPlayers.forEach((player) => {
+          // Find next match that has room (under its target size)
+          let attempts = 0;
+          while (matchPlayers[matchIndex].length >= matchTargetSizes[matchIndex] && attempts < effectiveNumMatches * 2) {
+            if (forward) {
+              matchIndex++;
+              if (matchIndex >= effectiveNumMatches) {
+                matchIndex = effectiveNumMatches - 1;
+                forward = false;
+              }
+            } else {
+              matchIndex--;
+              if (matchIndex < 0) {
+                matchIndex = 0;
+                forward = true;
+              }
+            }
+            attempts++;
+          }
+          
+          if (matchPlayers[matchIndex].length < matchTargetSizes[matchIndex]) {
+            matchPlayers[matchIndex].push({ playerId: player.id, team: "a" });
+          } else {
+            // Fallback: find any match with room
+            for (let i = 0; i < effectiveNumMatches; i++) {
+              if (matchPlayers[i].length < matchTargetSizes[i]) {
+                matchPlayers[i].push({ playerId: player.id, team: "a" });
+                break;
+              }
+            }
+          }
+          
+          // Move to next match in snake pattern
+          if (forward) {
+            matchIndex++;
+            if (matchIndex >= effectiveNumMatches) {
+              matchIndex = effectiveNumMatches - 1;
+              forward = false;
+            }
+          } else {
+            matchIndex--;
+            if (matchIndex < 0) {
+              matchIndex = 0;
+              forward = true;
+            }
+          }
+        });
+      }
+      
+      // Balance teams within each match - split players evenly between Team A and B
+      matchPlayers.forEach((players) => {
+        const totalPlayers = players.length;
+        // Equal split: e.g., 6 players = 3v3, 8 players = 4v4
+        // If odd (only possible when total league is odd), Team B gets extra
+        const teamASize = Math.floor(totalPlayers / 2);
+        players.forEach((p, idx) => {
+          p.team = idx < teamASize ? "a" : "b";
+        });
       });
 
-      // Insert player assignments
-      for (let i = 0; i < effectiveNumGroups; i++) {
-        if (playerGroups[i].length > 0) {
-          const assignments = playerGroups[i].map(playerId => ({
-            group_id: groupIds[i],
-            player_id: playerId,
+      // Insert player assignments with team
+      for (let i = 0; i < effectiveNumMatches; i++) {
+        if (matchPlayers[i].length > 0) {
+          const assignments = matchPlayers[i].map(p => ({
+            group_id: matchIds[i],
+            player_id: p.playerId,
+            team: p.team,
           }));
           await supabase.from("event_group_players").insert(assignments);
         }
       }
 
-      return effectiveNumGroups;
+      return effectiveNumMatches;
     },
     onSuccess: (numCreated) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       setIsAutoGenOpen(false);
-      toast.success(`${numCreated} groups created with balanced players`);
+      toast.success(`${numCreated} matches created with balanced teams`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -259,7 +512,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       if (groupsError) throw groupsError;
 
       for (const prevGroup of prevGroups || []) {
-        // Create new group
+        // Create new group with team colors
         const { data: newGroup, error: createError } = await supabase
           .from("event_groups")
           .insert({
@@ -268,21 +521,24 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
             ability_band: prevGroup.ability_band,
             pitch_name: prevGroup.pitch_name,
             display_order: prevGroup.display_order,
+            team_a_color: prevGroup.team_a_color || "#ef4444",
+            team_b_color: prevGroup.team_b_color || "#3b82f6",
           })
           .select()
           .single();
         if (createError) throw createError;
 
-        // Copy player assignments
+        // Copy player assignments with team
         const { data: prevPlayers } = await supabase
           .from("event_group_players")
-          .select("player_id")
+          .select("player_id, team")
           .eq("group_id", prevGroup.id);
 
         if (prevPlayers && prevPlayers.length > 0) {
           const assignments = prevPlayers.map(p => ({
             group_id: newGroup.id,
             player_id: p.player_id,
+            team: p.team,
           }));
           await supabase.from("event_group_players").insert(assignments);
         }
@@ -292,7 +548,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       setIsCopyPreviousOpen(false);
       setSelectedPreviousEventId(null);
-      toast.success("Groups copied from previous event");
+      toast.success("Matches copied from previous event");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -310,6 +566,34 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
     onError: (error: Error) => toast.error(error.message),
   });
 
+  // Delete all groups mutation (for regeneration)
+  const deleteAllGroupsMutation = useMutation({
+    mutationFn: async () => {
+      const groupIds = groups?.map(g => g.id) || [];
+      for (const groupId of groupIds) {
+        await supabase.from("event_groups").delete().eq("id", groupId);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  // Regenerate handler
+  const handleRegenerate = async () => {
+    setIsRegenerating(true);
+    try {
+      // Refetch RSVPs to get latest data before regenerating
+      await refetchRsvps();
+      await deleteAllGroupsMutation.mutateAsync();
+      setIsAutoGenOpen(true);
+    } catch (error) {
+      // Error handled by mutation
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
   if (isLoading) {
     return (
       <Card>
@@ -323,14 +607,29 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold">Breakout Groups</h3>
+        <h3 className="font-semibold">Matches</h3>
         {isAdmin && (
           <div className="flex gap-2">
+            {groups && groups.length > 0 && (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={handleRegenerate}
+                disabled={isRegenerating}
+              >
+                {isRegenerating ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                )}
+                Regenerate
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={() => setIsCopyPreviousOpen(true)}>
               <Copy className="h-4 w-4 mr-1" />
               Copy
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setIsAutoGenOpen(true)}>
+            <Button size="sm" variant="outline" onClick={() => { refetchRsvps(); setIsAutoGenOpen(true); }}>
               <Wand2 className="h-4 w-4 mr-1" />
               Auto
             </Button>
@@ -344,92 +643,157 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
 
       {groups && groups.length > 0 ? (
         <div className="grid gap-3">
-          {groups.map((group) => (
-            <Card key={group.id} className="relative">
-              {isAdmin && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive"
-                  onClick={() => deleteGroupMutation.mutate(group.id)}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              )}
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-base">{group.name}</CardTitle>
-                  {group.ability_band && (
-                    <Badge variant="outline" className="text-xs">
-                      {group.ability_band}
-                    </Badge>
-                  )}
-                </div>
-                {group.pitch_name && (
-                  <CardDescription>{group.pitch_name}</CardDescription>
+          {groups.map((group) => {
+            const teamAPlayers = group.players.filter(p => p.team === "a");
+            const teamBPlayers = group.players.filter(p => p.team === "b");
+            const unassignedPlayers = group.players.filter(p => !p.team);
+            
+            return (
+              <Card key={group.id} className="relative">
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive"
+                    onClick={() => deleteGroupMutation.mutate(group.id)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
                 )}
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex flex-wrap gap-1 mb-3">
-                  {group.players.map((player) => (
-                    <Badge key={player.id} variant="secondary" className="text-xs">
-                      {player.name}
-                    </Badge>
-                  ))}
-                  {group.players.length === 0 && (
-                    <span className="text-sm text-muted-foreground">No players assigned</span>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base">{group.name}</CardTitle>
+                    {group.ability_band && (
+                      <Badge variant="outline" className="text-xs">
+                        {group.ability_band}
+                      </Badge>
+                    )}
+                  </div>
+                  {group.pitch_name && (
+                    <CardDescription>{group.pitch_name}</CardDescription>
                   )}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => navigate(`/events/${eventId}/groups/${group.id}/pitch`)}
-                  >
-                    <PlayCircle className="h-4 w-4 mr-1" />
-                    Pitch Board
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => navigate(`/events/${eventId}/groups/${group.id}/duties`)}
-                  >
-                    <ClipboardList className="h-4 w-4 mr-1" />
-                    Duties
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardHeader>
+                <CardContent className="pt-0">
+                  {/* Two Teams Display */}
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    {/* Team A */}
+                    <div className="p-2 rounded-lg border" style={{ borderColor: group.team_a_color }}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Shirt className="h-4 w-4" style={{ color: group.team_a_color }} />
+                        <span className="text-xs font-medium" style={{ color: group.team_a_color }}>
+                          Team A
+                        </span>
+                        <span className="text-xs text-muted-foreground">({teamAPlayers.length})</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {teamAPlayers.map((player) => (
+                          <Badge
+                            key={player.id}
+                            variant="secondary"
+                            className="text-xs flex items-center gap-1"
+                            style={{ backgroundColor: `${group.team_a_color}20`, borderColor: group.team_a_color }}
+                          >
+                            {player.name}
+                            <span className="opacity-60 text-[10px]">({getAbilityLabel(player.ability_rating)})</span>
+                          </Badge>
+                        ))}
+                        {teamAPlayers.length === 0 && (
+                          <span className="text-xs text-muted-foreground">No players</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Team B */}
+                    <div className="p-2 rounded-lg border" style={{ borderColor: group.team_b_color }}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Shirt className="h-4 w-4" style={{ color: group.team_b_color }} />
+                        <span className="text-xs font-medium" style={{ color: group.team_b_color }}>
+                          Team B
+                        </span>
+                        <span className="text-xs text-muted-foreground">({teamBPlayers.length})</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {teamBPlayers.map((player) => (
+                          <Badge
+                            key={player.id}
+                            variant="secondary"
+                            className="text-xs flex items-center gap-1"
+                            style={{ backgroundColor: `${group.team_b_color}20`, borderColor: group.team_b_color }}
+                          >
+                            {player.name}
+                            <span className="opacity-60 text-[10px]">({getAbilityLabel(player.ability_rating)})</span>
+                          </Badge>
+                        ))}
+                        {teamBPlayers.length === 0 && (
+                          <span className="text-xs text-muted-foreground">No players</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Unassigned Players (if any) */}
+                  {unassignedPlayers.length > 0 && (
+                    <div className="mb-3 p-2 rounded-lg bg-muted/50">
+                      <span className="text-xs text-muted-foreground">Unassigned: </span>
+                      {unassignedPlayers.map((player) => (
+                        <Badge key={player.id} variant="outline" className="text-xs ml-1">
+                          {player.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setActivePitchBoardGroup(group)}
+                    >
+                      <PlayCircle className="h-4 w-4 mr-1" />
+                      Pitch Board
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setActiveDutiesGroup(group)}
+                    >
+                      <ClipboardList className="h-4 w-4 mr-1" />
+                      Duties
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       ) : (
         <Card>
           <CardContent className="py-8 text-center">
             <Users className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">No groups yet</p>
+            <p className="text-sm text-muted-foreground">No matches yet</p>
             {isAdmin && (
               <p className="text-xs text-muted-foreground mt-1">
-                Auto-generate balanced groups or create them manually
+                Auto-generate balanced matches or create them manually
               </p>
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* Create Group Sheet */}
+      {/* Create Match Sheet */}
       <Sheet open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <SheetContent side="bottom" className="h-auto">
           <SheetHeader>
-            <SheetTitle>Create Group</SheetTitle>
-            <SheetDescription>Add a new breakout group for this session</SheetDescription>
+            <SheetTitle>Create Match</SheetTitle>
+            <SheetDescription>Add a new match with two teams</SheetDescription>
           </SheetHeader>
           <div className="py-4 space-y-4">
             <div className="space-y-2">
-              <Label>Group Name</Label>
+              <Label>Match Name</Label>
               <Input
-                placeholder="e.g. Group A, U8 Tigers"
+                placeholder="e.g. Match 1, Finals"
                 value={newGroupName}
                 onChange={(e) => setNewGroupName(e.target.value)}
               />
@@ -450,7 +814,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
               disabled={!newGroupName.trim() || createGroupMutation.isPending}
             >
               {createGroupMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create Group
+              Create Match
             </Button>
           </SheetFooter>
         </SheetContent>
@@ -460,9 +824,9 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
       <Dialog open={isAutoGenOpen} onOpenChange={setIsAutoGenOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Auto-Generate Groups</DialogTitle>
+            <DialogTitle>Auto-Generate Matches</DialogTitle>
             <DialogDescription>
-              Automatically create balanced groups based on player ability ratings
+              Automatically create balanced matches with two teams each based on player ability
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
@@ -471,7 +835,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
               <div>
                 <p className="font-medium text-sm">Use League Defaults</p>
                 <p className="text-xs text-muted-foreground">
-                  {miniLeague?.team_size || 6} players per team
+                  {miniLeague?.team_size || 6} players per side ({(miniLeague?.team_size || 6) * 2} per match)
                 </p>
               </div>
               <Button
@@ -483,21 +847,92 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
               </Button>
             </div>
 
-            {useAutoMode ? (
-              <div className="p-3 rounded-lg border bg-primary/5">
-                <p className="text-sm">
-                  <span className="font-medium">{allPlayers?.length || 0}</span> players ÷{" "}
-                  <span className="font-medium">{miniLeague?.team_size || 6}</span> per team ={" "}
-                  <span className="font-medium">
-                    {Math.ceil((allPlayers?.length || 0) / (miniLeague?.team_size || 6))}
-                  </span>{" "}
-                  groups
+            {/* Ability Assignment Mode */}
+            <div className="space-y-2">
+              <Label>Ability Assignment</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant={abilityMode === "similar" ? "default" : "outline"}
+                  size="sm"
+                  className="flex flex-col h-auto py-3"
+                  onClick={() => setAbilityMode("similar")}
+                >
+                  <span className="font-medium">Similar Ability</span>
+                  <span className="text-xs text-muted-foreground font-normal mt-0.5">
+                    Same levels together
+                  </span>
+                </Button>
+                <Button
+                  variant={abilityMode === "mixed" ? "default" : "outline"}
+                  size="sm"
+                  className="flex flex-col h-auto py-3"
+                  onClick={() => setAbilityMode("mixed")}
+                >
+                  <span className="font-medium">Mixed Ability</span>
+                  <span className="text-xs text-muted-foreground font-normal mt-0.5">
+                    Different levels mixed
+                  </span>
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {abilityMode === "similar" 
+                  ? "Players with similar ratings will be grouped in the same match"
+                  : "Players of different abilities will be evenly distributed across matches"}
+              </p>
+            </div>
+
+            {/* Player Count Summary */}
+            <div className="p-3 rounded-lg border bg-muted/30">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Available Players</span>
+                <span className="text-sm">
+                  <span className="font-bold text-primary">{availablePlayers.length}</span>
+                  <span className="text-muted-foreground"> / {allPlayers?.length || 0}</span>
+                </span>
+              </div>
+              {availablePlayers.length === 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                  No players available. Use the Responses button to manage player availability.
                 </p>
+              )}
+            </div>
+
+            {useAutoMode ? (
+              <div className="p-3 rounded-lg border bg-primary/5 space-y-1">
+                {(() => {
+                  const teamSize = miniLeague?.team_size || 4;
+                  const minPerSide = miniLeague?.min_players_per_side || 3;
+                  const playersPerMatch = teamSize * 2;
+                  const minPlayersPerMatch = minPerSide * 2;
+                  
+                  // Max matches based on target team size
+                  const idealMatches = Math.ceil(availablePlayers.length / playersPerMatch);
+                  // Max matches ensuring each has minimum players
+                  const maxMatchesForMin = Math.floor(availablePlayers.length / minPlayersPerMatch);
+                  // Actual matches is the lesser of the two
+                  const actualMatches = Math.min(idealMatches, maxMatchesForMin);
+                  
+                  return (
+                    <>
+                      <p className="text-sm">
+                        <span className="font-medium">{availablePlayers.length}</span> available players ÷{" "}
+                        <span className="font-medium">{playersPerMatch}</span> per match ={" "}
+                        <span className="font-medium">{actualMatches}</span>{" "}
+                        {actualMatches === 1 ? "match" : "matches"}
+                      </p>
+                      {maxMatchesForMin < idealMatches && (
+                        <p className="text-xs text-muted-foreground">
+                          Limited to {actualMatches} {actualMatches === 1 ? "match" : "matches"} (min {minPerSide}v{minPerSide} required)
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             ) : (
               <>
                 <div className="space-y-2">
-                  <Label>Players per Team</Label>
+                  <Label>Players per Side</Label>
                   <div className="flex gap-2">
                     {[4, 5, 6, 7, 8].map((n) => (
                       <Button
@@ -510,10 +945,13 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
                       </Button>
                     ))}
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Each match will have {playersPerTeam * 2} players total ({playersPerTeam} vs {playersPerTeam})
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Number of Groups</Label>
+                  <Label>Number of Matches</Label>
                   <div className="flex gap-2 flex-wrap">
                     {[2, 3, 4, 5, 6, 7, 8].map((n) => (
                       <Button
@@ -529,8 +967,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
                 </div>
 
                 <p className="text-sm text-muted-foreground">
-                  {allPlayers?.length || 0} players will be distributed across {numGroups} groups
-                  (~{Math.ceil((allPlayers?.length || 0) / numGroups)} per group)
+                  {availablePlayers.length} available players will be distributed across {numGroups} matches
+                  (~{Math.ceil(availablePlayers.length / numGroups)} per match)
                 </p>
               </>
             )}
@@ -541,10 +979,10 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
             </Button>
             <Button
               onClick={() => autoGenMutation.mutate()}
-              disabled={autoGenMutation.isPending}
+              disabled={autoGenMutation.isPending || availablePlayers.length === 0}
             >
               {autoGenMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Generate
+              Generate ({availablePlayers.length} players)
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -556,7 +994,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
           <DialogHeader>
             <DialogTitle>Copy from Previous</DialogTitle>
             <DialogDescription>
-              Copy group assignments from a previous session
+              Copy match assignments from a previous session
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-2 max-h-60 overflow-y-auto">
@@ -594,11 +1032,76 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin }: EventGrou
               disabled={!selectedPreviousEventId || copyFromPreviousMutation.isPending}
             >
               {copyFromPreviousMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Copy Groups
+              Copy Matches
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Match Duties Dialog */}
+      <MatchDutiesDialog
+        open={!!activeDutiesGroup}
+        onOpenChange={(open) => !open && setActiveDutiesGroup(null)}
+        groupId={activeDutiesGroup?.id || ""}
+        groupName={activeDutiesGroup?.name || ""}
+        miniLeagueId={miniLeagueId}
+      />
+
+      {/* Pitch Board Portal */}
+      {activePitchBoardGroup && activePitchBoardGroup.players.length > 0 && createPortal(
+        <Suspense fallback={
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-primary">
+                  <Flame className="h-8 w-8 text-primary-foreground" />
+                </div>
+                <span className="text-4xl" role="img" aria-label="soccer ball">⚽</span>
+              </div>
+              <Loader2 className="h-6 w-6 animate-spin text-white" />
+              <p className="text-sm text-white/80">Loading Pitch Board...</p>
+            </div>
+          </div>
+        }>
+          <PitchBoard
+            teamId={`event-group-${activePitchBoardGroup.id}`}
+            teamName={activePitchBoardGroup.name}
+            members={activePitchBoardGroup.players.map((player, index) => ({
+              id: `player-${index}`,
+              user_id: player.id,
+              role: "player",
+              profiles: {
+                display_name: player.name,
+                avatar_url: null,
+              },
+            }))}
+            onClose={() => setActivePitchBoardGroup(null)}
+            disableAutoSubs={false}
+            initialRotationSpeed={2}
+            initialDisablePositionSwaps={false}
+            initialDisableBatchSubs={false}
+            initialMinutesPerHalf={miniLeague?.minutes_per_half || 10}
+            initialTeamSize={(() => {
+              const teamACount = activePitchBoardGroup.players.filter(p => p.team === "a").length;
+              const teamBCount = activePitchBoardGroup.players.filter(p => p.team === "b").length;
+              const avgTeamSize = Math.max(Math.ceil((teamACount + teamBCount) / 2), 4);
+              return avgTeamSize <= 4 ? 4 : avgTeamSize <= 7 ? 7 : avgTeamSize <= 9 ? 9 : 11;
+            })()}
+            readOnly={false}
+            initialLinkedEventId={null}
+            initialShowMatchHeader={false}
+            miniLeagueTeams={{
+              teamAPlayerIds: activePitchBoardGroup.players.filter(p => p.team === "a").map(p => p.id),
+              teamBPlayerIds: activePitchBoardGroup.players.filter(p => p.team === "b").map(p => p.id),
+              teamAColor: activePitchBoardGroup.team_a_color || "#ef4444",
+              teamBColor: activePitchBoardGroup.team_b_color || "#3b82f6",
+              teamAName: "Team A",
+              teamBName: "Team B",
+            }}
+          />
+        </Suspense>,
+        document.body
+      )}
     </div>
   );
 }
