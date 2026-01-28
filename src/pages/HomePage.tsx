@@ -2015,9 +2015,9 @@ export default function HomePage() {
       <ResponsiveDialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader>
-            <ResponsiveDialogTitle>Request to Join Team or League</ResponsiveDialogTitle>
+            <ResponsiveDialogTitle>Request to Join Team</ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
-              Select a team or league and role to request membership.
+              Select a team and role to request membership.
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
           <div className="space-y-4 pt-4">
@@ -2046,7 +2046,7 @@ export default function HomePage() {
               </div>
             )}
             <div className="space-y-2">
-              <Label>Select Team or League</Label>
+              <Label>Select Team</Label>
               <SearchableSelect
                 options={[
                   // Teams section
@@ -2080,9 +2080,9 @@ export default function HomePage() {
                 ]}
                 value={selectedTeam}
                 onValueChange={setSelectedTeam}
-                placeholder="Choose a team or league..."
-                searchPlaceholder="Search teams & leagues..."
-                emptyMessage="No teams or leagues found."
+                placeholder="Choose a team..."
+                searchPlaceholder="Search teams..."
+                emptyMessage="No teams found."
               />
             </div>
             <div className="space-y-2">
