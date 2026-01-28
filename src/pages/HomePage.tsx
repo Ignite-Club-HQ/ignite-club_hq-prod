@@ -189,23 +189,30 @@ export default function HomePage() {
   const [confirmRedeemDialogOpen, setConfirmRedeemDialogOpen] = useState(false);
   const [selectedRedeemFor, setSelectedRedeemFor] = useState<string>("myself");
 
-  // Get user's accessible team and club IDs for event filtering
+  // Get user's accessible team, club, and mini league IDs for event filtering
   const { data: userMemberships } = useQuery({
     queryKey: ["user-memberships-for-events", user?.id],
     queryFn: async () => {
       const { data: roles } = await supabase
         .from("user_roles")
-        .select("club_id, team_id")
+        .select("club_id, team_id, role")
         .eq("user_id", user!.id);
       
-      if (!roles) return { teamIds: [], clubIds: [] };
+      if (!roles) return { teamIds: [], clubIds: [], leagueAdminClubIds: [], miniLeagueIds: [] };
       
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
       const clubIds = new Set<string>();
+      const leagueAdminClubIds = new Set<string>();
       
       // Direct club roles
       roles.forEach(r => {
-        if (r.club_id) clubIds.add(r.club_id);
+        if (r.club_id) {
+          clubIds.add(r.club_id);
+          // Track club admin roles for league access
+          if (r.role === 'club_admin' || r.role === 'league_admin' || r.role === 'app_admin') {
+            leagueAdminClubIds.add(r.club_id);
+          }
+        }
       });
       
       // Get club IDs from team memberships
@@ -217,17 +224,43 @@ export default function HomePage() {
         teams?.forEach(t => clubIds.add(t.club_id));
       }
       
-      return { teamIds, clubIds: Array.from(clubIds) };
+      // Get mini league IDs where user is a parent (has a player)
+      const { data: playerLeagues } = await supabase
+        .from("mini_league_players")
+        .select("mini_league_id")
+        .eq("parent_user_id", user!.id);
+      
+      const miniLeagueIds = playerLeagues?.map(p => p.mini_league_id) || [];
+      
+      // Also get mini leagues where user is league admin via club_admin role
+      const { data: adminLeagues } = await supabase
+        .from("mini_leagues")
+        .select("id")
+        .in("club_id", Array.from(leagueAdminClubIds));
+      
+      // Add leagues where user is admin
+      adminLeagues?.forEach(l => {
+        if (!miniLeagueIds.includes(l.id)) {
+          miniLeagueIds.push(l.id);
+        }
+      });
+      
+      return { 
+        teamIds, 
+        clubIds: Array.from(clubIds), 
+        leagueAdminClubIds: Array.from(leagueAdminClubIds),
+        miniLeagueIds 
+      };
     },
     enabled: !!user,
   });
 
   const { data: allEvents, isLoading } = useQuery({
-    queryKey: ["upcoming-events", user?.id, userMemberships?.teamIds, userMemberships?.clubIds],
+    queryKey: ["upcoming-events", user?.id, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
     queryFn: async () => {
       if (!userMemberships) return [];
       
-      const { teamIds, clubIds } = userMemberships;
+      const { teamIds, clubIds, miniLeagueIds } = userMemberships;
       if (teamIds.length === 0 && clubIds.length === 0) return [];
       
       const now = new Date();
@@ -244,6 +277,7 @@ export default function HomePage() {
           suburb,
           club_id,
           team_id,
+          mini_league_id,
           is_cancelled,
           is_recurring,
           parent_event_id,
@@ -260,9 +294,13 @@ export default function HomePage() {
       
       // Filter to only show events user is invited to:
       // - Team events: user must be a member of that team
-      // - Club-wide events (no team_id): user must be a member of that club
-      const filtered = (data as Event[]).filter(event => {
-        if (event.team_id) {
+      // - Mini League events: user must be a league admin or have a player in that league
+      // - Club-wide events (no team_id, no mini_league_id): user must be a member of that club
+      const filtered = (data as (Event & { mini_league_id: string | null })[]).filter(event => {
+        if (event.mini_league_id) {
+          // Mini League event - user must be league admin or have a player in this league
+          return miniLeagueIds.includes(event.mini_league_id);
+        } else if (event.team_id) {
           // Team event - user must be a member of this team
           return teamIds.includes(event.team_id);
         } else {
@@ -271,7 +309,7 @@ export default function HomePage() {
         }
       });
       
-      return filtered;
+      return filtered as Event[];
     },
     enabled: !!user && !!userMemberships,
   });
