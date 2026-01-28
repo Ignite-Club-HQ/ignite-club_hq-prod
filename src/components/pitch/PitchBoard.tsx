@@ -790,7 +790,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     playersToPlace: Player[],
     size: TeamSize,
     preserveOnPitchStatus: boolean = false,
-    formationIndex: number = 0
+    formationIndex: number = 0,
+    applyFormationPositions: boolean = false
   ): Player[] => {
     const formation = FORMATIONS[size][formationIndex] || FORMATIONS[size][0];
     if (!formation) return playersToPlace;
@@ -801,33 +802,82 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     const result: Player[] = [];
     
-    if (preserveOnPitchStatus) {
-      // Keep players exactly where they are - don't move them at all
-      // Just update their pitch position label based on the new team size
+    if (preserveOnPitchStatus && applyFormationPositions) {
+      // Formation change: reposition on-pitch players to new formation, keep bench players on bench
+      const teamAOnPitch = teamAPlayers.filter(p => p.position !== null);
+      const teamBOnPitch = teamBPlayers.filter(p => p.position !== null);
+      const teamAOnBench = teamAPlayers.filter(p => p.position === null);
+      const teamBOnBench = teamBPlayers.filter(p => p.position === null);
+      
+      // Place Team A on-pitch players to new formation positions
+      teamAOnPitch.forEach((player, index) => {
+        if (index < formation.positions.length) {
+          const pos = formation.positions[index];
+          result.push({
+            ...player,
+            position: { x: pos.x, y: pos.y },
+            currentPitchPosition: getPositionFromCoords(pos.y, size),
+          });
+        } else {
+          // More players than positions - keep on pitch at current spot
+          result.push({
+            ...player,
+            currentPitchPosition: getPositionFromCoords(player.position!.y, size),
+          });
+        }
+      });
+      
+      // Team A bench stays on bench
+      teamAOnBench.forEach(player => {
+        result.push({ ...player });
+      });
+      
+      // Place Team B on-pitch players to new formation positions (mirrored)
+      teamBOnPitch.forEach((player, index) => {
+        if (index < formation.positions.length) {
+          const pos = formation.positions[index];
+          const mirroredY = 100 - pos.y;
+          const mirroredX = 100 - pos.x;
+          result.push({
+            ...player,
+            position: { x: mirroredX, y: mirroredY },
+            currentPitchPosition: getPositionFromCoords(pos.y, size),
+          });
+        } else {
+          // More players than positions - keep on pitch at current spot
+          const originalY = 100 - player.position!.y;
+          result.push({
+            ...player,
+            currentPitchPosition: getPositionFromCoords(originalY, size),
+          });
+        }
+      });
+      
+      // Team B bench stays on bench
+      teamBOnBench.forEach(player => {
+        result.push({ ...player });
+      });
+    } else if (preserveOnPitchStatus) {
+      // Team size change: keep players exactly where they are, just update position labels
       teamAPlayers.forEach(player => {
         if (player.position !== null) {
-          // Player is on pitch - keep their exact position, just update the position label
           result.push({
             ...player,
             currentPitchPosition: getPositionFromCoords(player.position.y, size),
           });
         } else {
-          // Player is on bench - keep them there
           result.push({ ...player });
         }
       });
       
       teamBPlayers.forEach(player => {
         if (player.position !== null) {
-          // Player is on pitch - keep their exact position, just update the position label
-          // For Team B, use mirrored y for position calculation
           const originalY = 100 - player.position.y;
           result.push({
             ...player,
             currentPitchPosition: getPositionFromCoords(originalY, size),
           });
         } else {
-          // Player is on bench - keep them there
           result.push({ ...player });
         }
       });
@@ -1531,9 +1581,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Persist to database
     persistFormationToDb(formation.name);
 
-    // For mini-league mode, re-place both teams with the new formation (preserve on-pitch status)
+    // For mini-league mode, re-place both teams with the new formation (reposition to formation)
     if (miniLeagueTeams) {
-      setPlayers(prev => autoPlaceMiniLeaguePlayers(prev, teamSize, true, index));
+      setPlayers(prev => autoPlaceMiniLeaguePlayers(prev, teamSize, true, index, true));
       toast({ title: "Formation applied", description: `${formation.name} formation set for both teams` });
       return;
     }
