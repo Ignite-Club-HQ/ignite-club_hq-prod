@@ -24,8 +24,8 @@ const ALL_DUTY_OPTIONS = [
 // For mini league session level: only Canteen, Linemarker, Other
 const MINI_LEAGUE_SESSION_DUTIES = ["Canteen", "Linemarker", "custom"];
 
-// For mini league match level: all duties including Referee and Linesperson
-const MINI_LEAGUE_MATCH_DUTIES = ["Canteen", "Linesperson", "Linemarker", "Referee", "custom"];
+// For mini league match level: only Referee and Linesperson
+const MINI_LEAGUE_MATCH_DUTIES = ["Linesperson", "Referee"];
 
 export type DutyContext = "session" | "match";
 
