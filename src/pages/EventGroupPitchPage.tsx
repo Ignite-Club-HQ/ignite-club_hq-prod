@@ -98,24 +98,50 @@ export default function EventGroupPitchPage() {
     enabled: !!groupId,
   });
 
-  // Fetch league parents for duty assignment
-  const { data: leagueParents } = useQuery({
-    queryKey: ["mini-league-parents-event", group?.event?.mini_league_id],
+  // Fetch league members for duty assignment (parents, admins, coaches - not players)
+  const { data: leagueMembers } = useQuery({
+    queryKey: ["mini-league-duty-assignees", group?.event?.mini_league_id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const miniLeagueId = group!.event!.mini_league_id!;
+      
+      // Get mini league to find the club_id
+      const { data: league, error: leagueError } = await supabase
+        .from("mini_leagues")
+        .select("club_id")
+        .eq("id", miniLeagueId)
+        .single();
+      if (leagueError) throw leagueError;
+      
+      // Get all parent user IDs from mini league players
+      const { data: playersData, error: playersError } = await supabase
         .from("mini_league_players")
         .select("parent_user_id")
-        .eq("mini_league_id", group!.event!.mini_league_id!)
+        .eq("mini_league_id", miniLeagueId)
         .not("parent_user_id", "is", null);
-      if (error) throw error;
+      if (playersError) throw playersError;
       
-      const parentIds = [...new Set(data?.map(p => p.parent_user_id).filter(Boolean))];
-      if (!parentIds.length) return [];
+      const parentIds = [...new Set(playersData?.map(p => p.parent_user_id).filter(Boolean) as string[])];
       
+      // Get club admins and league admins (coaches) from user_roles
+      const { data: adminRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", league.club_id)
+        .in("role", ["club_admin", "league_admin"]);
+      if (rolesError) throw rolesError;
+      
+      const adminIds = adminRoles?.map(r => r.user_id) || [];
+      
+      // Combine all unique IDs
+      const allUserIds = [...new Set([...parentIds, ...adminIds])];
+      if (!allUserIds.length) return [];
+      
+      // Fetch profiles for all these users
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("id, display_name")
-        .in("id", parentIds);
+        .in("id", allUserIds)
+        .order("display_name");
       if (profilesError) throw profilesError;
       
       return profiles || [];
@@ -371,9 +397,9 @@ export default function EventGroupPitchPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="unassigned">Unassigned</SelectItem>
-                        {leagueParents?.map((parent) => (
-                          <SelectItem key={parent.id} value={parent.id}>
-                            {parent.display_name || "Unknown"}
+                        {leagueMembers?.map((member) => (
+                          <SelectItem key={member.id} value={member.id}>
+                            {member.display_name || "Unknown"}
                           </SelectItem>
                         ))}
                       </SelectContent>
