@@ -282,6 +282,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          mini_league_id: string | null
           name: string
           team_id: string | null
           updated_at: string
@@ -292,6 +293,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          mini_league_id?: string | null
           name: string
           team_id?: string | null
           updated_at?: string
@@ -302,6 +304,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          mini_league_id?: string | null
           name?: string
           team_id?: string | null
           updated_at?: string
@@ -312,6 +315,13 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_groups_mini_league_id_fkey"
+            columns: ["mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
             referencedColumns: ["id"]
           },
           {
@@ -4061,6 +4071,10 @@ export type Database = {
     Functions: {
       can_access_chat_group: {
         Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_access_mini_league_chat: {
+        Args: { _mini_league_id: string; _user_id: string }
         Returns: boolean
       }
       can_admin_view_child: {
