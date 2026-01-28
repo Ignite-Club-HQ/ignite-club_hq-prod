@@ -1635,7 +1635,9 @@ export default function EventDetailPage() {
                   <span>Not Responded ({notResponded.length + notRespondedChildren.length})</span>
                 </div>
                 {notResponded.length === 0 && notRespondedChildren.length === 0 ? (
-                  <p className="text-muted-foreground text-sm pl-6">Everyone has responded</p>
+                  <p className="text-muted-foreground text-sm pl-6">
+                    {(rsvps?.length || 0) > 0 ? "Everyone has responded" : "No members to respond"}
+                  </p>
                 ) : (
                   <div className="space-y-1 pl-6">
                     {/* Children (treated as players) */}
