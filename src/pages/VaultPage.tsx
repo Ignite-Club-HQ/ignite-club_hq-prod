@@ -265,10 +265,10 @@ export default function VaultPage() {
 
   // Check if the current club has Pro
   const { data: currentClubHasPro } = useQuery({
-    queryKey: ["vault-club-has-pro", currentView.type === "club" || currentView.type === "team" ? (currentView.type === "club" ? currentView.clubId : currentView.clubId) : null],
+    queryKey: ["vault-club-has-pro", (currentView.type === "club" || currentView.type === "team" || currentView.type === "mini-league") ? currentView.clubId : null],
     queryFn: async () => {
-      if (currentView.type !== "club" && currentView.type !== "team") return false;
-      const clubId = currentView.type === "club" ? currentView.clubId : currentView.clubId;
+      if (currentView.type !== "club" && currentView.type !== "team" && currentView.type !== "mini-league") return false;
+      const clubId = currentView.clubId;
       const { data } = await supabase
         .from("club_subscriptions")
         .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
@@ -276,7 +276,7 @@ export default function VaultPage() {
         .maybeSingle();
       return !!(data?.is_pro || data?.is_pro_football || data?.admin_pro_override || data?.admin_pro_football_override);
     },
-    enabled: currentView.type === "club" || currentView.type === "team",
+    enabled: currentView.type === "club" || currentView.type === "team" || currentView.type === "mini-league",
   });
 
   // Check if the current team has Pro (for teams in non-Pro clubs)
@@ -302,6 +302,10 @@ export default function VaultPage() {
     if (currentView.type === "team") {
       // Team inherits Pro if club has Pro, or team has individual Pro
       return currentClubHasPro || currentTeamHasPro || false;
+    }
+    if (currentView.type === "mini-league") {
+      // Mini-leagues are only available for Pro Football clubs
+      return currentClubHasPro || false;
     }
     return false;
   }, [currentView.type, currentClubHasPro, currentTeamHasPro]);
@@ -482,9 +486,11 @@ export default function VaultPage() {
       if (currentView.type === "club") {
         // Club-level content only accessible to club admins
         if (!isClubAdmin) return [];
-        query = query.eq("club_id", currentView.clubId).is("team_id", null);
+        query = query.eq("club_id", currentView.clubId).is("team_id", null).is("mini_league_id", null);
       } else if (currentView.type === "team") {
         query = query.eq("team_id", currentView.teamId);
+      } else if (currentView.type === "mini-league") {
+        query = query.eq("mini_league_id", currentView.miniLeagueId);
       }
       
       if (folderId) {
@@ -511,6 +517,9 @@ export default function VaultPage() {
         query = query.eq("club_id", currentView.clubId).is("team_id", null);
       } else if (currentView.type === "team") {
         query = query.eq("team_id", currentView.teamId);
+      } else if (currentView.type === "mini-league") {
+        // For now, mini-leagues don't have vault_files, just photos
+        return [];
       }
       
       if (folderId) {
@@ -1006,13 +1015,21 @@ export default function VaultPage() {
     
     const clubId = getCurrentClubId();
     const teamId = getCurrentTeamId();
+    const miniLeagueId = getCurrentMiniLeagueId();
     
-    // Club admins can upload to any club or team vault within their club
+    // Club admins can upload to any club, team, or mini-league vault within their club
     if (userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId)) return true;
     
     // Team admins can only upload to their own team vault
     if (currentView.type === "team") {
       return userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId);
+    }
+    
+    // Mini-league: league admins and coaches can upload
+    if (currentView.type === "mini-league") {
+      return userRoles?.some(r => 
+        (r.role === "league_admin" || r.role === "coach") && r.club_id === clubId
+      );
     }
     
     // For club-level view, only club admins can upload (handled above)
@@ -1022,10 +1039,12 @@ export default function VaultPage() {
   const canDeletePhoto = useCallback((photo: any) => {
     if (isAppAdmin) return true;
     if (photo.uploader_id === user?.id) return true;
-    const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : null;
+    const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : currentView.type === "mini-league" ? currentView.clubId : null;
     const teamId = currentView.type === "team" ? currentView.teamId : null;
     if (userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId)) return true;
     if (teamId && userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId)) return true;
+    // Mini-league: league admins and coaches can delete
+    if (currentView.type === "mini-league" && userRoles?.some(r => (r.role === "league_admin" || r.role === "coach") && r.club_id === clubId)) return true;
     return false;
   }, [isAppAdmin, user?.id, currentView, userRoles]);
 
@@ -1052,10 +1071,12 @@ export default function VaultPage() {
   const canRenamePhoto = useCallback((photo: any) => {
     if (isAppAdmin) return true;
     if (photo.uploader_id === user?.id) return true;
-    const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : null;
+    const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : currentView.type === "mini-league" ? currentView.clubId : null;
     const teamId = currentView.type === "team" ? currentView.teamId : null;
     if (userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId)) return true;
     if (teamId && userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId)) return true;
+    // Mini-league: league admins and coaches can rename
+    if (currentView.type === "mini-league" && userRoles?.some(r => (r.role === "league_admin" || r.role === "coach") && r.club_id === clubId)) return true;
     return false;
   }, [isAppAdmin, user?.id, currentView, userRoles]);
 
@@ -1689,8 +1710,16 @@ export default function VaultPage() {
           folderId: parentFolder?.id,
           folderName: parentFolder?.name,
         });
+      } else if (currentView.type === "mini-league") {
+        setCurrentView({
+          ...currentView,
+          folderId: parentFolder?.id,
+          folderName: parentFolder?.name,
+        });
       }
     } else if (currentView.type === "team") {
+      setCurrentView({ type: "club", clubId: currentView.clubId, clubName: currentView.clubName });
+    } else if (currentView.type === "mini-league") {
       setCurrentView({ type: "club", clubId: currentView.clubId, clubName: currentView.clubName });
     } else {
       setCurrentView({ type: "root" });
@@ -1703,12 +1732,25 @@ export default function VaultPage() {
   };
 
   const navigateToClub = () => {
-    if (currentView.type === "club" || currentView.type === "team") {
+    if (currentView.type === "club" || currentView.type === "team" || currentView.type === "mini-league") {
       setFolderPath([]);
       setCurrentView({ 
         type: "club", 
         clubId: currentView.clubId, 
         clubName: currentView.clubName 
+      });
+    }
+  };
+
+  const navigateToMiniLeague = () => {
+    if (currentView.type === "mini-league") {
+      setFolderPath([]);
+      setCurrentView({
+        type: "mini-league",
+        clubId: currentView.clubId,
+        clubName: currentView.clubName,
+        miniLeagueId: currentView.miniLeagueId,
+        miniLeagueName: currentView.miniLeagueName,
       });
     }
   };
@@ -1803,6 +1845,26 @@ export default function VaultPage() {
               onClick={navigateToTeam}
             >
               {currentView.teamName}
+            </BreadcrumbLink>
+          )}
+        </BreadcrumbItem>
+      );
+    }
+    
+    if (currentView.type === "mini-league") {
+      items.push(<BreadcrumbSeparator key="sep-mini-league" />);
+      
+      const isMiniLeagueCurrent = !currentView.folderId;
+      items.push(
+        <BreadcrumbItem key="mini-league">
+          {isMiniLeagueCurrent ? (
+            <BreadcrumbPage>{currentView.miniLeagueName}</BreadcrumbPage>
+          ) : (
+            <BreadcrumbLink 
+              className="cursor-pointer hover:text-foreground"
+              onClick={navigateToMiniLeague}
+            >
+              {currentView.miniLeagueName}
             </BreadcrumbLink>
           )}
         </BreadcrumbItem>
@@ -2929,6 +2991,39 @@ export default function VaultPage() {
             </div>
           )}
 
+          {/* Mini-Leagues - only show at root of club and not in trash view */}
+          {!showTrash && !currentView.folderId && clubMiniLeagues && clubMiniLeagues.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="text-sm font-medium text-muted-foreground">Mini-Leagues</h2>
+              <div className="space-y-2">
+                {clubMiniLeagues.map((league) => (
+                  <Card
+                    key={league.id}
+                    className="cursor-pointer hover:bg-accent/50 transition-colors"
+                    onClick={() => {
+                      setFolderPath([]);
+                      setCurrentView({ 
+                        type: "mini-league", 
+                        clubId: currentView.clubId, 
+                        clubName: currentView.clubName,
+                        miniLeagueId: league.id, 
+                        miniLeagueName: league.name 
+                      });
+                    }}
+                  >
+                    <CardContent className="p-3 flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-accent">
+                        <FolderOpen className="h-4 w-4 text-accent-foreground" />
+                      </div>
+                      <p className="font-medium flex-1 text-sm">{league.name}</p>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Subfolders - hide when in trash view */}
           {!showTrash && subfolders && subfolders.length > 0 && (
             <div className="space-y-3">
@@ -3060,6 +3155,35 @@ export default function VaultPage() {
               onPermanentDeleteFile={isClubAdmin ? setDeleteFileId : undefined}
             />
           )}
+        </div>
+      )}
+
+      {currentView.type === "mini-league" && (
+        <div className="space-y-6">
+          {/* Mini-league content - photos only for now */}
+          <ContentSection 
+            photos={photos || []} 
+            files={[]} 
+            onPhotoClick={openLightbox}
+            canDeletePhoto={canDeletePhoto}
+            canDeleteFile={() => false}
+            canRenamePhoto={canRenamePhoto}
+            canRenameFile={() => false}
+            onDeletePhoto={setDeletePhotoId}
+            onDeleteFile={() => {}}
+            onRenamePhoto={(photo) => {
+              setRenamePhotoId(photo.id);
+              setRenamePhotoName(photo.title || "");
+            }}
+            onRenameFile={() => {}}
+            onDownloadPhoto={downloadFile}
+            selectionMode={selectionMode}
+            selectedPhotos={selectedPhotos}
+            selectedFiles={new Set()}
+            onTogglePhotoSelection={togglePhotoSelection}
+            onToggleFileSelection={() => {}}
+            onEnterSelectionMode={() => setSelectionMode(true)}
+          />
         </div>
       )}
 
