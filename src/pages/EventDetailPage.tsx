@@ -2016,6 +2016,8 @@ export default function EventDetailPage() {
               onOpenChange={setAddDutyOpen}
               onAddDuty={(dutyName) => addDutyMutation.mutate(dutyName)}
               isPending={addDutyMutation.isPending}
+              isMiniLeague={!!event?.mini_league_id}
+              context="session"
             />
             {duties?.length === 0 ? (
               <p className="text-muted-foreground text-sm">No duties assigned for this event</p>

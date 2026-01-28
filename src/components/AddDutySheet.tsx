@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Loader2, Utensils, Flag, PaintBucket, Megaphone, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/responsive-dialog";
 import { cn } from "@/lib/utils";
 
-const DUTY_OPTIONS = [
+// All duty options with their metadata
+const ALL_DUTY_OPTIONS = [
   { id: "Canteen", label: "Canteen", icon: Utensils, description: "Food & drinks" },
   { id: "Linesperson", label: "Linesperson", icon: Flag, description: "Line calls" },
   { id: "Linemarker", label: "Linemarker", icon: PaintBucket, description: "Mark the pitch" },
@@ -20,16 +21,50 @@ const DUTY_OPTIONS = [
   { id: "custom", label: "Other", icon: FileText, description: "Custom duty" },
 ];
 
+// For mini league session level: only Canteen, Linemarker, Other
+const MINI_LEAGUE_SESSION_DUTIES = ["Canteen", "Linemarker", "custom"];
+
+// For mini league match level: all duties including Referee and Linesperson
+const MINI_LEAGUE_MATCH_DUTIES = ["Canteen", "Linesperson", "Linemarker", "Referee", "custom"];
+
+export type DutyContext = "session" | "match";
+
 interface AddDutySheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddDuty: (dutyName: string) => void;
   isPending: boolean;
+  /** Whether this is for a mini league event */
+  isMiniLeague?: boolean;
+  /** Context: session (event level) or match (group level) */
+  context?: DutyContext;
 }
 
-export function AddDutySheet({ open, onOpenChange, onAddDuty, isPending }: AddDutySheetProps) {
+export function AddDutySheet({ 
+  open, 
+  onOpenChange, 
+  onAddDuty, 
+  isPending,
+  isMiniLeague = false,
+  context = "session",
+}: AddDutySheetProps) {
   const [selectedDuty, setSelectedDuty] = useState<string>("");
   const [customDutyName, setCustomDutyName] = useState("");
+
+  // Determine which duties to show based on context
+  const dutyOptions = useMemo(() => {
+    if (!isMiniLeague) {
+      // Non-mini league events: show all duties
+      return ALL_DUTY_OPTIONS;
+    }
+    
+    // Mini league events: filter based on context
+    const allowedIds = context === "match" 
+      ? MINI_LEAGUE_MATCH_DUTIES 
+      : MINI_LEAGUE_SESSION_DUTIES;
+    
+    return ALL_DUTY_OPTIONS.filter(duty => allowedIds.includes(duty.id));
+  }, [isMiniLeague, context]);
 
   const handleSubmit = () => {
     if (selectedDuty === "custom") {
@@ -61,7 +96,7 @@ export function AddDutySheet({ open, onOpenChange, onAddDuty, isPending }: AddDu
         
         <div className="space-y-4 py-4">
           <div className="grid grid-cols-2 gap-3">
-            {DUTY_OPTIONS.map((duty) => {
+            {dutyOptions.map((duty) => {
               const Icon = duty.icon;
               const isSelected = selectedDuty === duty.id;
               
