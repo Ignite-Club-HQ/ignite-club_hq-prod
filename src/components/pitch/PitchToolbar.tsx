@@ -23,8 +23,7 @@ import GameTimer, { GameTimerRef } from "./GameTimer";
 import { SyncStatusIndicator } from "./SyncStatusIndicator";
 import { PitchSettingsDialog } from "./PitchSettingsDialog";
 
-type TeamSize = "4" | "7" | "9" | "11";
-type DrawingTool = "none" | "pen" | "arrow";
+import { TeamSize, DrawingTool } from "./types";
 
 interface SubstitutionEvent {
   time: number;
@@ -626,6 +625,7 @@ function PitchToolbar({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="z-[99999] bg-popover">
+                  <SelectItem value="3">3-a-side</SelectItem>
                   <SelectItem value="4">4-a-side</SelectItem>
                   <SelectItem value="7">7-a-side</SelectItem>
                   <SelectItem value="9">9-a-side</SelectItem>

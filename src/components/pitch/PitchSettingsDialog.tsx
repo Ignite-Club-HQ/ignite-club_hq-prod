@@ -13,8 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Settings, Volume2, VolumeX, Settings2, Users, Trash2, BarChart3, ArrowLeftRight, Save, X, Clock, ChevronDown, Timer, LayoutGrid, RotateCcw, CalendarCheck, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-type TeamSize = "4" | "7" | "9" | "11";
+import { TeamSize } from "./types";
 
 interface Formation {
   name: string;
@@ -269,6 +268,7 @@ export function PitchSettingsDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="z-[99999] bg-popover">
+                    <SelectItem value="3">3-a-side</SelectItem>
                     <SelectItem value="4">4-a-side</SelectItem>
                     <SelectItem value="7">7-a-side</SelectItem>
                     <SelectItem value="9">9-a-side</SelectItem>

@@ -36,11 +36,16 @@ export interface SubstitutionEvent {
   executed?: boolean;
 }
 
-export type TeamSize = "4" | "7" | "9" | "11";
+export type TeamSize = "3" | "4" | "7" | "9" | "11";
 export type DrawingTool = "none" | "pen" | "arrow";
 
 // Formation definitions
 export const FORMATIONS: Record<TeamSize, { name: string; positions: { x: number; y: number }[] }[]> = {
+  "3": [
+    { name: "1-1-1", positions: [{ x: 50, y: 85 }, { x: 50, y: 55 }, { x: 50, y: 25 }] },
+    { name: "2-1", positions: [{ x: 35, y: 80 }, { x: 65, y: 80 }, { x: 50, y: 30 }] },
+    { name: "1-2", positions: [{ x: 50, y: 85 }, { x: 35, y: 30 }, { x: 65, y: 30 }] },
+  ],
   "4": [
     { name: "1-2-1", positions: [{ x: 50, y: 85 }, { x: 25, y: 55 }, { x: 75, y: 55 }, { x: 50, y: 25 }] },
     { name: "2-1-1", positions: [{ x: 35, y: 85 }, { x: 65, y: 85 }, { x: 50, y: 55 }, { x: 50, y: 25 }] },
@@ -66,8 +71,8 @@ export const FORMATIONS: Record<TeamSize, { name: string; positions: { x: number
 
 // Map formation positions to pitch positions based on Y coordinate
 export const getPositionFromCoords = (y: number, teamSize: TeamSize): PitchPosition => {
-  // 4-a-side has no goalkeeper - all outfield positions
-  if (teamSize === "4") {
+  // 3-a-side and 4-a-side have no goalkeeper - all outfield positions
+  if (teamSize === "3" || teamSize === "4") {
     if (y > 70) return "DEF";
     if (y > 40) return "MID";
     return "FWD";
