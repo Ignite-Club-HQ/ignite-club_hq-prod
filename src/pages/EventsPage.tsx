@@ -187,9 +187,47 @@ export default function EventsPage() {
     enabled: !!user,
   });
 
-  const { data: events, isLoading } = useQuery({
-    queryKey: ["events", user?.id, filter, teamFilter, clubFilter],
+  // Get user's accessible team and club IDs for event filtering
+  const { data: userMemberships } = useQuery({
+    queryKey: ["user-memberships-for-events", user?.id],
     queryFn: async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("club_id, team_id")
+        .eq("user_id", user!.id);
+      
+      if (!roles) return { teamIds: [], clubIds: [] };
+      
+      const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
+      const clubIds = new Set<string>();
+      
+      // Direct club roles
+      roles.forEach(r => {
+        if (r.club_id) clubIds.add(r.club_id);
+      });
+      
+      // Get club IDs from team memberships
+      if (teamIds.length > 0) {
+        const { data: teams } = await supabase
+          .from("teams")
+          .select("club_id")
+          .in("id", teamIds);
+        teams?.forEach(t => clubIds.add(t.club_id));
+      }
+      
+      return { teamIds, clubIds: Array.from(clubIds) };
+    },
+    enabled: !!user,
+  });
+
+  const { data: events, isLoading } = useQuery({
+    queryKey: ["events", user?.id, filter, teamFilter, clubFilter, userMemberships?.teamIds, userMemberships?.clubIds],
+    queryFn: async () => {
+      if (!userMemberships) return [];
+      
+      const { teamIds, clubIds } = userMemberships;
+      if (teamIds.length === 0 && clubIds.length === 0) return [];
+      
       let query = supabase
         .from("events")
         .select(`
@@ -228,16 +266,29 @@ export default function EventsPage() {
       
       // Filter out cancelled events older than 48 hours
       const cutoffTime = subHours(new Date(), 48);
-      const filteredData = (data as (Event & { updated_at: string })[]).filter(event => {
+      let filteredData = (data as (Event & { updated_at: string })[]).filter(event => {
         if (!event.is_cancelled) return true;
         // Keep cancelled events if they were cancelled within the last 48 hours
         const updatedAt = new Date(event.updated_at);
         return updatedAt > cutoffTime;
       });
       
+      // Filter to only show events user is invited to:
+      // - Team events: user must be a member of that team
+      // - Club-wide events (no team_id): user must be a member of that club
+      filteredData = filteredData.filter(event => {
+        if (event.team_id) {
+          // Team event - user must be a member of this team
+          return teamIds.includes(event.team_id);
+        } else {
+          // Club-wide event - user must be a member of this club
+          return clubIds.includes(event.club_id);
+        }
+      });
+      
       return filteredData as Event[];
     },
-    enabled: !!user,
+    enabled: !!user && !!userMemberships,
   });
 
   // Check if user is app admin
