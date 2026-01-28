@@ -14,13 +14,7 @@ import {
   SheetDescription,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { MobileCardSelect } from "@/components/MobileCardSelect";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -381,18 +375,16 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Role *</Label>
-                  <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as ClubRole)}>
-                    <SelectTrigger className="h-11">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="club_admin">Club Admin</SelectItem>
-                      <SelectItem value="committee_member">Committee Member</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <MobileCardSelect
+                  value={selectedRole}
+                  onValueChange={(v) => setSelectedRole(v as ClubRole)}
+                  options={[
+                    { value: "club_admin", label: "Club Admin" },
+                    { value: "committee_member", label: "Committee Member" },
+                  ]}
+                  label="Role"
+                  required
+                />
 
                 <div className={`p-3 rounded-lg ${selectedRole === "club_admin" ? "bg-purple-500/10 border-purple-500/20" : "bg-cyan-500/10 border-cyan-500/20"} border`}>
                   <div className="flex items-center gap-2">
@@ -499,18 +491,16 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Role *</Label>
-                  <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as ClubRole)}>
-                    <SelectTrigger className="h-11">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="club_admin">Club Admin</SelectItem>
-                      <SelectItem value="committee_member">Committee Member</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <MobileCardSelect
+                  value={selectedRole}
+                  onValueChange={(v) => setSelectedRole(v as ClubRole)}
+                  options={[
+                    { value: "club_admin", label: "Club Admin" },
+                    { value: "committee_member", label: "Committee Member" },
+                  ]}
+                  label="Role"
+                  required
+                />
 
                 <div className={`p-3 rounded-lg ${selectedRole === "club_admin" ? "bg-purple-500/10 border-purple-500/20" : "bg-cyan-500/10 border-cyan-500/20"} border`}>
                   <div className="flex items-center gap-2">
