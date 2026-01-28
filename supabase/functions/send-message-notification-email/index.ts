@@ -175,6 +175,8 @@ serve(async (req: Request): Promise<Response> => {
     // dm = /messages/dm/:conversationId, group = /groups/:groupId, broadcast = /messages/broadcast
     let messageLink = 'https://igniteclubhq.app/messages';
     
+    console.log("Building message link for type:", payload.messageType, "contextId:", payload.contextId);
+    
     switch (payload.messageType) {
       case 'team':
         // Team chat route is /messages/:teamId (not /messages/team/:id)
@@ -193,6 +195,8 @@ serve(async (req: Request): Promise<Response> => {
         messageLink = 'https://igniteclubhq.app/messages/broadcast';
         break;
     }
+    
+    console.log("Generated message link:", messageLink);
 
     // Build email subject
     let subject = `New message from ${senderName}`;
