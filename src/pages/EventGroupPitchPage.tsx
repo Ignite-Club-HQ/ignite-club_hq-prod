@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Users, Play, Pause, RotateCcw, Clock, Loader2, Plus, X, Check, UserPlus } from "lucide-react";
+import { ArrowLeft, Users, Play, Pause, RotateCcw, Clock, Loader2, Plus, X, Check, UserPlus, Flame } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { AddDutySheet } from "@/components/AddDutySheet";
 import { AssignDutySheet } from "@/components/AssignDutySheet";
+
+// Lazy load PitchBoard for performance
+const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 
 interface GroupDuty {
   id: string;
@@ -24,6 +28,7 @@ interface GroupPlayer {
   id: string;
   name: string;
   ability_rating: number;
+  team: "a" | "b" | null;
 }
 
 export default function EventGroupPitchPage() {
@@ -32,8 +37,7 @@ export default function EventGroupPitchPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [elapsedTime, setElapsedTime] = useState(0);
+  const [showPitchBoard, setShowPitchBoard] = useState(false);
   const [isDutySheetOpen, setIsDutySheetOpen] = useState(false);
   const [assignDutyOpen, setAssignDutyOpen] = useState(false);
   const [selectedDuty, setSelectedDuty] = useState<GroupDuty | null>(null);
@@ -56,13 +60,13 @@ export default function EventGroupPitchPage() {
     enabled: !!groupId,
   });
 
-  // Fetch group players
+  // Fetch group players with team assignment
   const { data: players } = useQuery({
-    queryKey: ["event-group-players", groupId],
+    queryKey: ["event-group-players-with-teams", groupId],
     queryFn: async () => {
       const { data: groupPlayers, error: gpError } = await supabase
         .from("event_group_players")
-        .select("player_id")
+        .select("player_id, team")
         .eq("group_id", groupId!);
       if (gpError) throw gpError;
       
@@ -74,7 +78,11 @@ export default function EventGroupPitchPage() {
         .in("id", groupPlayers.map(gp => gp.player_id));
       if (playersError) throw playersError;
       
-      return playersData as GroupPlayer[];
+      return (playersData || []).map(p => ({
+        ...p,
+        ability_rating: p.ability_rating || 3,
+        team: groupPlayers.find(gp => gp.player_id === p.id)?.team as "a" | "b" | null,
+      })) as GroupPlayer[];
     },
     enabled: !!groupId,
   });
@@ -135,7 +143,7 @@ export default function EventGroupPitchPage() {
       // Fetch profiles for all these users
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, display_name")
+        .select("id, display_name, avatar_url")
         .in("id", allUserIds)
         .order("display_name");
       if (profilesError) throw profilesError;
@@ -143,39 +151,6 @@ export default function EventGroupPitchPage() {
       return profiles || [];
     },
     enabled: !!group?.event?.mini_league_id,
-  });
-
-  // Timer effect
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isTimerRunning) {
-      interval = setInterval(() => {
-        setElapsedTime(prev => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isTimerRunning]);
-
-  // Load saved timer state
-  useEffect(() => {
-    if (group?.timer_state && typeof group.timer_state === 'object') {
-      const timerState = group.timer_state as { elapsed?: number; running?: boolean };
-      if (timerState.elapsed) setElapsedTime(timerState.elapsed);
-      if (timerState.running) setIsTimerRunning(timerState.running);
-    }
-  }, [group?.timer_state]);
-
-  // Save timer state
-  const saveTimerMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase
-        .from("event_groups")
-        .update({ 
-          timer_state: { elapsed: elapsedTime, running: isTimerRunning } 
-        })
-        .eq("id", groupId!);
-      if (error) throw error;
-    },
   });
 
   // Add duty mutation
@@ -224,23 +199,6 @@ export default function EventGroupPitchPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleTimerToggle = () => {
-    setIsTimerRunning(!isTimerRunning);
-    setTimeout(() => saveTimerMutation.mutate(), 100);
-  };
-
-  const handleTimerReset = () => {
-    setIsTimerRunning(false);
-    setElapsedTime(0);
-    setTimeout(() => saveTimerMutation.mutate(), 100);
-  };
-
   if (groupLoading) {
     return (
       <div className="flex justify-center py-12">
@@ -256,6 +214,24 @@ export default function EventGroupPitchPage() {
       </div>
     );
   }
+
+  // Convert mini league players to the format expected by PitchBoard
+  // PitchBoard expects members in this format for initialization
+  const pitchBoardMembers = (players || []).map((player, index) => ({
+    id: `player-${index}`, // Synthetic ID for the member row
+    user_id: player.id, // Use player ID as user_id (PitchBoard will use this)
+    role: "player",
+    profiles: {
+      display_name: player.name,
+      avatar_url: null,
+    },
+  }));
+
+  // Determine team size based on players per team
+  const teamACount = players?.filter(p => p.team === "a").length || 0;
+  const teamBCount = players?.filter(p => p.team === "b").length || 0;
+  const avgTeamSize = Math.max(Math.ceil((teamACount + teamBCount) / 2), 4);
+  const initialTeamSize = avgTeamSize <= 4 ? 4 : avgTeamSize <= 7 ? 7 : avgTeamSize <= 9 ? 9 : 11;
 
   return (
     <div className="container max-w-4xl py-6 space-y-6">
@@ -281,34 +257,20 @@ export default function EventGroupPitchPage() {
         </Badge>
       </div>
 
-      {/* Timer */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Game Timer</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div className="text-4xl font-mono font-bold tabular-nums">
-              {formatTime(elapsedTime)}
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant={isTimerRunning ? "secondary" : "default"}
-                size="icon"
-                onClick={handleTimerToggle}
-              >
-                {isTimerRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleTimerReset}
-                disabled={elapsedTime === 0}
-              >
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+      {/* Open Pitch Board Button */}
+      <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+        <CardContent className="p-6">
+          <Button
+            size="lg"
+            className="w-full"
+            onClick={() => setShowPitchBoard(true)}
+          >
+            <Flame className="h-5 w-5 mr-2" />
+            Open Pitch Board
+          </Button>
+          <p className="text-center text-sm text-muted-foreground mt-3">
+            Manage players, track game time, and record substitutions
+          </p>
         </CardContent>
       </Card>
 
@@ -317,20 +279,60 @@ export default function EventGroupPitchPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Players</CardTitle>
           <CardDescription>
-            {players?.length || 0} players in this group
+            {players?.length || 0} players in this match
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {players?.map((player) => (
-              <Badge key={player.id} variant="secondary" className="py-1.5 px-3">
-                {player.name}
-              </Badge>
-            ))}
-            {(!players || players.length === 0) && (
-              <p className="text-sm text-muted-foreground">No players assigned</p>
-            )}
-          </div>
+          {/* Two Teams Display */}
+          {players && players.length > 0 ? (
+            <div className="grid grid-cols-2 gap-2">
+              {/* Team A */}
+              <div className="p-2 rounded-lg border" style={{ borderColor: group.team_a_color || "#ef4444" }}>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="text-xs font-medium" style={{ color: group.team_a_color || "#ef4444" }}>
+                    Team A
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    ({players.filter(p => p.team === "a").length})
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {players.filter(p => p.team === "a").map((player) => (
+                    <Badge key={player.id} variant="secondary" className="text-xs py-1">
+                      {player.name}
+                    </Badge>
+                  ))}
+                  {players.filter(p => p.team === "a").length === 0 && (
+                    <span className="text-xs text-muted-foreground">No players</span>
+                  )}
+                </div>
+              </div>
+              
+              {/* Team B */}
+              <div className="p-2 rounded-lg border" style={{ borderColor: group.team_b_color || "#3b82f6" }}>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="text-xs font-medium" style={{ color: group.team_b_color || "#3b82f6" }}>
+                    Team B
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    ({players.filter(p => p.team === "b").length})
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {players.filter(p => p.team === "b").map((player) => (
+                    <Badge key={player.id} variant="secondary" className="text-xs py-1">
+                      {player.name}
+                    </Badge>
+                  ))}
+                  {players.filter(p => p.team === "b").length === 0 && (
+                    <span className="text-xs text-muted-foreground">No players</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No players assigned</p>
+          )}
         </CardContent>
       </Card>
 
@@ -341,7 +343,7 @@ export default function EventGroupPitchPage() {
             <div>
               <CardTitle className="text-base">Duties</CardTitle>
               <CardDescription>
-                {duties?.length || 0} duties for this group
+                {duties?.length || 0} duties for this match
               </CardDescription>
             </div>
             <Button size="sm" variant="outline" onClick={() => setIsDutySheetOpen(true)}>
@@ -431,7 +433,7 @@ export default function EventGroupPitchPage() {
           members={(leagueMembers || []).map(m => ({
             id: m.id,
             display_name: m.display_name,
-            avatar_url: null,
+            avatar_url: m.avatar_url,
           }))}
           onAssign={(userId) => {
             assignDutyMutation.mutate({
@@ -443,6 +445,41 @@ export default function EventGroupPitchPage() {
           }}
           isPending={assignDutyMutation.isPending}
         />
+      )}
+
+      {/* Pitch Board Modal */}
+      {showPitchBoard && pitchBoardMembers.length > 0 && createPortal(
+        <Suspense fallback={
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-primary">
+                  <Flame className="h-8 w-8 text-primary-foreground" />
+                </div>
+                <span className="text-4xl" role="img" aria-label="soccer ball">⚽</span>
+              </div>
+              <Loader2 className="h-6 w-6 animate-spin text-white" />
+              <p className="text-sm text-white/80">Loading Pitch Board...</p>
+            </div>
+          </div>
+        }>
+          <PitchBoard
+            teamId={`event-group-${groupId}`}
+            teamName={group.name}
+            members={pitchBoardMembers}
+            onClose={() => setShowPitchBoard(false)}
+            disableAutoSubs={false}
+            initialRotationSpeed={2}
+            initialDisablePositionSwaps={false}
+            initialDisableBatchSubs={false}
+            initialMinutesPerHalf={10}
+            initialTeamSize={initialTeamSize}
+            readOnly={false}
+            initialLinkedEventId={null}
+            initialShowMatchHeader={false}
+          />
+        </Suspense>,
+        document.body
       )}
     </div>
   );
