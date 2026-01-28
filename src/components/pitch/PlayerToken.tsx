@@ -212,11 +212,11 @@ const PlayerToken = memo(function PlayerToken({
   }
 
   // Build dynamic inline style for team color when in mini-league mode
-  const tokenStyle: CSSProperties = teamColor ? {
-    ...style,
+  // Only apply color-related styles to the token circle, NOT position/transform styles
+  const tokenCircleStyle: CSSProperties = teamColor && !isSelected && !isSubTarget && !isInvalidTarget && !isMovable && !isPreviewHighlight && !subAnimation ? {
     borderColor: teamColor,
     backgroundColor: `${teamColor}20`, // 20% opacity
-  } : style || {};
+  } : {};
 
   return (
     <div
@@ -253,7 +253,7 @@ const PlayerToken = memo(function PlayerToken({
           isPreviewHighlight && previewHighlightType === "target" && "border-cyan-400 ring-4 ring-cyan-400/60 bg-cyan-400/30 scale-110 text-cyan-700 dark:text-cyan-300",
           subAnimation === "in" && "border-emerald-500 ring-4 ring-emerald-500/50 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
         )}
-        style={teamColor && !isSelected && !isSubTarget && !isInvalidTarget && !isMovable && !isPreviewHighlight && !subAnimation ? tokenStyle : undefined}
+        style={tokenCircleStyle}
       >
         {player.number || initials}
         {subAnimation === "in" && (
