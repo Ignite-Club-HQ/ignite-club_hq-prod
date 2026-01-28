@@ -61,6 +61,14 @@ import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
 type ClubRole = "club_admin";
+type LeagueRole = "league_admin" | "parent";
+
+interface MiniLeague {
+  id: string;
+  name: string;
+  club_id: string;
+  clubs: { name: string; sport: string | null };
+}
 
 interface Event {
   id: string;
@@ -109,6 +117,11 @@ const clubRoleOptions: { value: ClubRole; label: string }[] = [
   { value: "club_admin", label: "Club Admin" },
 ];
 
+const leagueRoleOptions: { value: LeagueRole; label: string }[] = [
+  { value: "league_admin", label: "League Admin" },
+  { value: "parent", label: "Parent" },
+];
+
 function formatEventDate(dateStr: string) {
   const date = parseISO(dateStr);
   if (isToday(date)) return `Today at ${format(date, "h:mm a")}`;
@@ -150,6 +163,10 @@ export default function HomePage() {
   const [selectedClubForTeam, setSelectedClubForTeam] = useState<string>("");
   const [selectedClubRole, setSelectedClubRole] = useState<ClubRole>("club_admin");
   const [selectedTeamRole, setSelectedTeamRole] = useState<TeamRole>("player");
+  const [selectedLeagueRole, setSelectedLeagueRole] = useState<LeagueRole>("league_admin");
+  // Track if user selected a league (prefixed with "league_") or team in the unified dropdown
+  const isLeagueSelected = selectedTeam.startsWith("league_");
+  const actualLeagueId = isLeagueSelected ? selectedTeam.replace("league_", "") : null;
   const [pitchBoardTeam, setPitchBoardTeam] = useState<{ id: string; name: string; members: any[]; readOnly: boolean; linkedEventId?: string | null } | null>(null);
   const [pitchBoardLoading, setPitchBoardLoading] = useState(false);
   const [pitchBoardsExpanded, setPitchBoardsExpanded] = useState(false);
@@ -847,6 +864,20 @@ export default function HomePage() {
     enabled: !!user,
   });
 
+  // Fetch all mini leagues for join request dropdown
+  const { data: miniLeagues } = useQuery({
+    queryKey: ["all-mini-leagues"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mini_leagues")
+        .select("id, name, club_id, clubs (name, sport)")
+        .order("name");
+      if (error) throw error;
+      return data as MiniLeague[];
+    },
+    enabled: !!user,
+  });
+
   // Fetch user's soccer teams with Pro Football subscription where user is direct team member (coach/team_admin)
   // Club admins who are not explicit team members get read-only access (handled separately)
   const { data: mySoccerTeams } = useQuery({
@@ -1158,29 +1189,56 @@ export default function HomePage() {
     },
   });
 
-  // Check if user already has the SPECIFIC role they're requesting in the selected team
-  const hasExistingTeamRole = selectedTeam && selectedTeamRole && userRoles?.some(r => r.team_id === selectedTeam && r.role === selectedTeamRole);
+  // Check if user already has the SPECIFIC role they're requesting in the selected team/league
+  const hasExistingTeamRole = !isLeagueSelected && selectedTeam && selectedTeamRole && userRoles?.some(r => r.team_id === selectedTeam && r.role === selectedTeamRole);
+  
+  // Check if user already has the league role (league roles are stored with club_id)
+  const selectedLeagueData = actualLeagueId ? miniLeagues?.find(l => l.id === actualLeagueId) : null;
+  const hasExistingLeagueRole = isLeagueSelected && actualLeagueId && selectedLeagueRole && userRoles?.some(r => r.club_id === selectedLeagueData?.club_id && r.role === selectedLeagueRole);
 
   const teamRequestMutation = useMutation({
     mutationFn: async () => {
-      // Double-check on submit - only block if they already have this specific role
-      if (userRoles?.some(r => r.team_id === selectedTeam && r.role === selectedTeamRole)) {
-        throw new Error("You already have this role in this team");
+      if (isLeagueSelected && actualLeagueId) {
+        // Handle league join request
+        const league = miniLeagues?.find((l) => l.id === actualLeagueId);
+        if (!league) throw new Error("League not found");
+        
+        // Check for existing role
+        if (userRoles?.some(r => r.club_id === league.club_id && r.role === selectedLeagueRole)) {
+          throw new Error("You already have this role in this league");
+        }
+        
+        const { error } = await supabase.from("role_requests").insert({
+          user_id: user!.id,
+          mini_league_id: actualLeagueId,
+          club_id: league.club_id,
+          role: selectedLeagueRole,
+          status: "pending",
+        });
+        if (error) throw error;
+      } else {
+        // Handle team join request
+        // Double-check on submit - only block if they already have this specific role
+        if (userRoles?.some(r => r.team_id === selectedTeam && r.role === selectedTeamRole)) {
+          throw new Error("You already have this role in this team");
+        }
+        const team = teams?.find((t) => t.id === selectedTeam);
+        const { error } = await supabase.from("role_requests").insert({
+          user_id: user!.id,
+          team_id: selectedTeam,
+          club_id: team?.club_id,
+          role: selectedTeamRole,
+          status: "pending",
+        });
+        if (error) throw error;
       }
-      const team = teams?.find((t) => t.id === selectedTeam);
-      const { error } = await supabase.from("role_requests").insert({
-        user_id: user!.id,
-        team_id: selectedTeam,
-        club_id: team?.club_id,
-        role: selectedTeamRole,
-        status: "pending",
-      });
-      if (error) throw error;
     },
     onSuccess: () => {
       toast({
         title: "Request Submitted",
-        description: "Your team join request has been submitted for review.",
+        description: isLeagueSelected 
+          ? "Your league join request has been submitted for review."
+          : "Your team join request has been submitted for review.",
       });
       setTeamDialogOpen(false);
       setSelectedTeam("");
@@ -1863,9 +1921,9 @@ export default function HomePage() {
       <ResponsiveDialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader>
-            <ResponsiveDialogTitle>Request to Join Team</ResponsiveDialogTitle>
+            <ResponsiveDialogTitle>Request to Join Team or League</ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
-              Select a team and role to request membership.
+              Select a team or league and role to request membership.
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
           <div className="space-y-4 pt-4">
@@ -1885,7 +1943,7 @@ export default function HomePage() {
                   value={selectedClubForTeam || "all"}
                   onValueChange={(v) => {
                     setSelectedClubForTeam(v);
-                    setSelectedTeam(""); // Reset team when club changes
+                    setSelectedTeam(""); // Reset selection when club changes
                   }}
                   placeholder="All clubs..."
                   searchPlaceholder="Search clubs..."
@@ -1894,53 +1952,86 @@ export default function HomePage() {
               </div>
             )}
             <div className="space-y-2">
-              <Label>Select Team</Label>
+              <Label>Select Team or League</Label>
               <SearchableSelect
-                options={teams
-                  ?.filter(team => {
-                    // In club mode, only show teams from the active club
-                    if (activeClubFilter) {
-                      return team.club_id === activeClubFilter;
-                    }
-                    // Otherwise, filter by selected club if any
-                    return !selectedClubForTeam || selectedClubForTeam === "all" || team.club_id === selectedClubForTeam;
-                  })
-                  .map((team) => ({
-                    value: team.id,
-                    label: activeClubFilter ? team.name : `${team.name} (${team.clubs?.name})`,
-                    icon: <span>{getSportEmoji(team.clubs?.sport)}</span>,
-                  })) || []}
+                options={[
+                  // Teams section
+                  ...(teams
+                    ?.filter(team => {
+                      if (activeClubFilter) {
+                        return team.club_id === activeClubFilter;
+                      }
+                      return !selectedClubForTeam || selectedClubForTeam === "all" || team.club_id === selectedClubForTeam;
+                    })
+                    .map((team) => ({
+                      value: team.id,
+                      label: activeClubFilter ? team.name : `${team.name} (${team.clubs?.name})`,
+                      icon: <span>{getSportEmoji(team.clubs?.sport)}</span>,
+                    })) || []),
+                  // Mini Leagues section - prefixed with "league_" to distinguish from teams
+                  ...(miniLeagues
+                    ?.filter(league => {
+                      if (activeClubFilter) {
+                        return league.club_id === activeClubFilter;
+                      }
+                      return !selectedClubForTeam || selectedClubForTeam === "all" || league.club_id === selectedClubForTeam;
+                    })
+                    .map((league) => ({
+                      value: `league_${league.id}`,
+                      label: activeClubFilter 
+                        ? `⭐ ${league.name} (League)` 
+                        : `⭐ ${league.name} (${league.clubs?.name}) - League`,
+                      icon: <span>⭐</span>,
+                    })) || []),
+                ]}
                 value={selectedTeam}
                 onValueChange={setSelectedTeam}
-                placeholder="Choose a team..."
-                searchPlaceholder="Search teams..."
-                emptyMessage="No teams found."
+                placeholder="Choose a team or league..."
+                searchPlaceholder="Search teams & leagues..."
+                emptyMessage="No teams or leagues found."
               />
             </div>
             <div className="space-y-2">
               <Label>Select Role</Label>
-              <Select value={selectedTeamRole} onValueChange={(v) => setSelectedTeamRole(v as TeamRole)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {teamRoleOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {isLeagueSelected ? (
+                <Select value={selectedLeagueRole} onValueChange={(v) => setSelectedLeagueRole(v as LeagueRole)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {leagueRoleOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Select value={selectedTeamRole} onValueChange={(v) => setSelectedTeamRole(v as TeamRole)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teamRoleOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
           <ResponsiveDialogFooter>
-            {hasExistingTeamRole && (
-              <p className="text-sm text-destructive mb-2">You already have this role in this team</p>
+            {(hasExistingTeamRole || hasExistingLeagueRole) && (
+              <p className="text-sm text-destructive mb-2">
+                You already have this role in this {isLeagueSelected ? "league" : "team"}
+              </p>
             )}
             <Button
               className="w-full sm:w-auto"
               onClick={() => teamRequestMutation.mutate()}
-              disabled={!selectedTeam || teamRequestMutation.isPending || hasExistingTeamRole}
+              disabled={!selectedTeam || teamRequestMutation.isPending || hasExistingTeamRole || hasExistingLeagueRole}
             >
               {teamRequestMutation.isPending ? "Submitting..." : "Submit Request"}
             </Button>
