@@ -802,54 +802,34 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const result: Player[] = [];
     
     if (preserveOnPitchStatus) {
-      // Only reposition players that are already on pitch - don't bench/unbench
-      const teamAOnPitch = teamAPlayers.filter(p => p.position !== null);
-      const teamBOnPitch = teamBPlayers.filter(p => p.position !== null);
-      const teamAOnBench = teamAPlayers.filter(p => p.position === null);
-      const teamBOnBench = teamBPlayers.filter(p => p.position === null);
-      
-      // Use the actual on-pitch count (capped at formation size) for positioning
-      const teamAPositionCount = Math.min(teamAOnPitch.length, formation.positions.length);
-      const teamBPositionCount = Math.min(teamBOnPitch.length, formation.positions.length);
-      
-      // Place Team A on-pitch players
-      teamAOnPitch.forEach((player, index) => {
-        if (index < teamAPositionCount) {
-          const pos = formation.positions[index];
+      // Keep players exactly where they are - don't move them at all
+      // Just update their pitch position label based on the new team size
+      teamAPlayers.forEach(player => {
+        if (player.position !== null) {
+          // Player is on pitch - keep their exact position, just update the position label
           result.push({
             ...player,
-            position: { x: pos.x, y: pos.y },
-            currentPitchPosition: getPositionFromCoords(pos.y, size),
+            currentPitchPosition: getPositionFromCoords(player.position.y, size),
           });
         } else {
-          result.push({ ...player, position: null, currentPitchPosition: undefined });
+          // Player is on bench - keep them there
+          result.push({ ...player });
         }
       });
       
-      // Team A bench stays on bench
-      teamAOnBench.forEach(player => {
-        result.push({ ...player, position: null, currentPitchPosition: undefined });
-      });
-      
-      // Place Team B on-pitch players (mirrored)
-      teamBOnPitch.forEach((player, index) => {
-        if (index < teamBPositionCount) {
-          const pos = formation.positions[index];
-          const mirroredY = 100 - pos.y;
-          const mirroredX = 100 - pos.x;
+      teamBPlayers.forEach(player => {
+        if (player.position !== null) {
+          // Player is on pitch - keep their exact position, just update the position label
+          // For Team B, use mirrored y for position calculation
+          const originalY = 100 - player.position.y;
           result.push({
             ...player,
-            position: { x: mirroredX, y: mirroredY },
-            currentPitchPosition: getPositionFromCoords(pos.y, size),
+            currentPitchPosition: getPositionFromCoords(originalY, size),
           });
         } else {
-          result.push({ ...player, position: null, currentPitchPosition: undefined });
+          // Player is on bench - keep them there
+          result.push({ ...player });
         }
-      });
-      
-      // Team B bench stays on bench
-      teamBOnBench.forEach(player => {
-        result.push({ ...player, position: null, currentPitchPosition: undefined });
       });
     } else {
       // Initial placement - place all players on pitch (up to formation size)
