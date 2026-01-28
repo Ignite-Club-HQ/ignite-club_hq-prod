@@ -2691,6 +2691,7 @@ export type Database = {
           folder_id: string | null
           id: string
           image_url: string
+          mini_league_id: string | null
           show_in_feed: boolean | null
           team_id: string | null
           title: string | null
@@ -2707,6 +2708,7 @@ export type Database = {
           folder_id?: string | null
           id?: string
           image_url: string
+          mini_league_id?: string | null
           show_in_feed?: boolean | null
           team_id?: string | null
           title?: string | null
@@ -2723,6 +2725,7 @@ export type Database = {
           folder_id?: string | null
           id?: string
           image_url?: string
+          mini_league_id?: string | null
           show_in_feed?: boolean | null
           team_id?: string | null
           title?: string | null
@@ -2748,6 +2751,13 @@ export type Database = {
             columns: ["folder_id"]
             isOneToOne: false
             referencedRelation: "vault_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "photos_mini_league_id_fkey"
+            columns: ["mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
             referencedColumns: ["id"]
           },
           {

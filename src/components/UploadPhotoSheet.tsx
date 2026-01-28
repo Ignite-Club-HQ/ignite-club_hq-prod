@@ -32,6 +32,11 @@ interface Team {
   is_pro?: boolean;
 }
 
+interface MiniLeague {
+  id: string;
+  name: string;
+}
+
 interface SelectedPhoto {
   id: string;
   file: File;
@@ -50,6 +55,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   
   const [selectedClubId, setSelectedClubId] = useState<string>("");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
+  const [selectedMiniLeagueId, setSelectedMiniLeagueId] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -199,6 +205,55 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     enabled: !!user && !!selectedClubId && userRoles !== undefined,
   });
 
+  // Fetch mini-leagues for selected club (Pro Football only)
+  const { data: userMiniLeagues } = useQuery({
+    queryKey: ["user-mini-leagues-upload-sheet", user?.id, selectedClubId, isAppAdmin, JSON.stringify(userRoles)],
+    queryFn: async () => {
+      if (!selectedClubId) return [];
+      
+      const isClubAdmin = userRoles?.some(r => r.role === "club_admin" && r.club_id === selectedClubId);
+      const isLeagueAdmin = userRoles?.some(r => r.role === "league_admin" && r.club_id === selectedClubId);
+      const isCoach = userRoles?.some(r => r.role === "coach" && r.club_id === selectedClubId);
+      
+      // Check if club has Pro Football access
+      const { data: clubSub } = await supabase
+        .from("club_subscriptions")
+        .select("is_pro_football, admin_pro_football_override")
+        .eq("club_id", selectedClubId)
+        .maybeSingle();
+      
+      const hasProFootball = clubSub?.is_pro_football || clubSub?.admin_pro_football_override;
+      if (!hasProFootball && !isAppAdmin) return [];
+      
+      let miniLeagues: MiniLeague[] = [];
+      
+      if (isAppAdmin || isClubAdmin || isLeagueAdmin || isCoach) {
+        // Admins and coaches can upload to any mini-league in the club
+        const { data } = await supabase
+          .from("mini_leagues")
+          .select("id, name")
+          .eq("club_id", selectedClubId)
+          .order("name");
+        miniLeagues = data || [];
+      } else {
+        // Parents can only upload to leagues their children are in
+        const { data: playerLeagues } = await supabase
+          .from("mini_league_players")
+          .select("mini_league_id, mini_leagues!inner(id, name, club_id)")
+          .eq("parent_user_id", user!.id);
+        
+        if (playerLeagues) {
+          miniLeagues = playerLeagues
+            .filter((pl: any) => pl.mini_leagues?.club_id === selectedClubId)
+            .map((pl: any) => ({ id: pl.mini_leagues.id, name: pl.mini_leagues.name }));
+        }
+      }
+      
+      return miniLeagues;
+    },
+    enabled: !!user && !!selectedClubId && userRoles !== undefined,
+  });
+
   // Filter to show only clubs with Pro access (unless app admin)
   // Also filter by activeClubFilter when in filtered mode
   const availableClubs = (() => {
@@ -216,16 +271,16 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     }
   }, [activeClubFilter, availableClubs, selectedClubId]);
 
-  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string): Promise<string> => {
+  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string): Promise<string> => {
     const fileExt = file.name.split(".").pop();
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(7);
     
-    // Structure path with club/team context for easier backup identification
-    // Format: clubs/{clubId}/teams/{teamId}/{userId}/{timestamp}-{random}.{ext}
-    // Or: clubs/{clubId}/{userId}/{timestamp}-{random}.{ext} if no team
+    // Structure path with club/team/mini-league context for easier backup identification
     let storagePath: string;
-    if (teamId) {
+    if (miniLeagueId) {
+      storagePath = `clubs/${clubId}/mini-leagues/${miniLeagueId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
+    } else if (teamId) {
       storagePath = `clubs/${clubId}/teams/${teamId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
     } else if (clubId) {
       storagePath = `clubs/${clubId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
@@ -249,6 +304,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       uploader_id: user!.id,
       club_id: clubId || null,
       team_id: teamId || null,
+      mini_league_id: miniLeagueId || null,
       file_size: file.size,
     });
 
@@ -272,6 +328,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     selectedPhotos.forEach(photo => URL.revokeObjectURL(photo.previewUrl));
     setSelectedClubId("");
     setSelectedTeamId("");
+    setSelectedMiniLeagueId("");
     setSelectedPhotos([]);
     setUploading(false);
     setUploadProgress(0);
@@ -336,6 +393,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     const photosToUpload = [...selectedPhotos]; // Copy the array before closing
     const clubId = selectedClubId;
     const teamId = selectedTeamId;
+    const miniLeagueId = selectedMiniLeagueId;
     
     // Notify parent about uploading count for skeleton display BEFORE closing
     onUploadingCountChange?.(totalPhotos);
@@ -363,7 +421,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       );
       
       try {
-        const url = await uploadSinglePhoto(photo.file, clubId, teamId);
+        const url = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId);
         uploadedUrls.push(url);
         successCount++;
       } catch (error: any) {
@@ -406,6 +464,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     selectedPhotos.forEach(photo => URL.revokeObjectURL(photo.previewUrl));
     setSelectedClubId("");
     setSelectedTeamId("");
+    setSelectedMiniLeagueId("");
     setSelectedPhotos([]);
     setUploading(false);
     setUploadProgress(0);
@@ -624,6 +683,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                         onClick={() => {
                           setSelectedClubId(club.id);
                           setSelectedTeamId("");
+                          setSelectedMiniLeagueId("");
                         }}
                         className={cn(
                           "flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left w-full",
@@ -663,7 +723,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
               </div>
 
               {/* Team Selection */}
-              {selectedClubId && userTeams && userTeams.length > 0 && (
+              {selectedClubId && userTeams && userTeams.length > 0 && !selectedMiniLeagueId && (
                 <div className="space-y-3">
                   <Label className="text-sm font-medium">Team (optional)</Label>
                   <div className="grid gap-2">
@@ -702,6 +762,56 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                       >
                         <span>{team.name}</span>
                         {selectedTeamId === team.id && (
+                          <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                            <Check className="h-3 w-3 text-primary-foreground" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Mini-League Selection */}
+              {selectedClubId && userMiniLeagues && userMiniLeagues.length > 0 && !selectedTeamId && (
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">Mini League (optional)</Label>
+                  <div className="grid gap-2">
+                    <button
+                      type="button"
+                      disabled={uploading}
+                      onClick={() => setSelectedMiniLeagueId("")}
+                      className={cn(
+                        "flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left w-full",
+                        selectedMiniLeagueId === ""
+                          ? "border-primary bg-primary/5"
+                          : "border-border bg-card hover:border-muted-foreground/50",
+                        uploading && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      <span className="text-muted-foreground">No specific league</span>
+                      {selectedMiniLeagueId === "" && (
+                        <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                          <Check className="h-3 w-3 text-primary-foreground" />
+                        </div>
+                      )}
+                    </button>
+                    {userMiniLeagues.map((league) => (
+                      <button
+                        key={league.id}
+                        type="button"
+                        disabled={uploading}
+                        onClick={() => setSelectedMiniLeagueId(league.id)}
+                        className={cn(
+                          "flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left w-full",
+                          selectedMiniLeagueId === league.id
+                            ? "border-primary bg-primary/5"
+                            : "border-border bg-card hover:border-muted-foreground/50",
+                          uploading && "opacity-50 cursor-not-allowed"
+                        )}
+                      >
+                        <span>{league.name}</span>
+                        {selectedMiniLeagueId === league.id && (
                           <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
                             <Check className="h-3 w-3 text-primary-foreground" />
                           </div>
