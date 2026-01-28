@@ -294,7 +294,7 @@ export default function MediaPage() {
     queryFn: async ({ pageParam = 0 }) => {
       const { data, error } = await supabase
         .from("photos")
-        .select("id, file_url, image_url, title, created_at, club_id, team_id, uploader_id, clubs(name, is_pro), teams(name)")
+        .select("id, file_url, image_url, title, created_at, club_id, team_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name), mini_leagues(name)")
         .eq("show_in_feed", true)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -353,8 +353,10 @@ export default function MediaPage() {
       return cachedPhotosData.map(p => ({
         ...p,
         image_url: p.file_url, // Cached data uses file_url
+        mini_league_id: null,
         clubs: null,
         teams: null,
+        mini_leagues: null,
         profiles: null,
       }));
     }
@@ -965,7 +967,7 @@ export default function MediaPage() {
                   <div className="flex-1">
                     <p className="text-sm font-medium">{displayName || <Skeleton className="h-3 w-20 inline-block" />}</p>
                     <p className="text-xs text-muted-foreground">
-                      {photo.clubs?.name} {photo.teams?.name && `• ${photo.teams.name}`}
+                      {photo.mini_leagues?.name || photo.teams?.name || photo.clubs?.name}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
