@@ -10,6 +10,17 @@ export interface Player {
   minutesPlayed?: number; // Total seconds played (displayed as minutes)
   isInjured?: boolean; // Player is injured and cannot be subbed on
   isFillIn?: boolean; // Temporary fill-in player (not part of regular team roster)
+  teamSide?: "a" | "b"; // For mini-league two-team mode
+}
+
+// Mini-league two-team configuration
+export interface MiniLeagueTeams {
+  teamAPlayerIds: string[];
+  teamBPlayerIds: string[];
+  teamAColor: string;
+  teamBColor: string;
+  teamAName?: string;
+  teamBName?: string;
 }
 
 export interface SubstitutionEvent {

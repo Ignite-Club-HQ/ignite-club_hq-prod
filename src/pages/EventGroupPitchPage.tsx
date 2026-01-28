@@ -233,6 +233,16 @@ export default function EventGroupPitchPage() {
   const avgTeamSize = Math.max(Math.ceil((teamACount + teamBCount) / 2), 4);
   const initialTeamSize = avgTeamSize <= 4 ? 4 : avgTeamSize <= 7 ? 7 : avgTeamSize <= 9 ? 9 : 11;
 
+  // Build mini-league two-team configuration
+  const miniLeagueTeams = {
+    teamAPlayerIds: (players || []).filter(p => p.team === "a").map(p => p.id),
+    teamBPlayerIds: (players || []).filter(p => p.team === "b").map(p => p.id),
+    teamAColor: group.team_a_color || "#ef4444",
+    teamBColor: group.team_b_color || "#3b82f6",
+    teamAName: "Team A",
+    teamBName: "Team B",
+  };
+
   return (
     <div className="container max-w-4xl py-6 space-y-6">
       {/* Header */}
@@ -477,6 +487,7 @@ export default function EventGroupPitchPage() {
             readOnly={false}
             initialLinkedEventId={null}
             initialShowMatchHeader={false}
+            miniLeagueTeams={miniLeagueTeams}
           />
         </Suspense>,
         document.body
