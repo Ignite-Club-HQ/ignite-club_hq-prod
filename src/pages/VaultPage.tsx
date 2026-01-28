@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw } from "lucide-react";
+import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw, ExternalLink, Sheet, FileSpreadsheet } from "lucide-react";
 import { CreateFolderDialog } from "@/components/vault/CreateFolderDialog";
 import { UploadFilesDialog } from "@/components/vault/UploadFilesDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -3972,6 +3972,32 @@ function formatFileSize(bytes: number | null | undefined): string {
   return `${bytes} B`;
 }
 
+// Helper function to check if a file is a spreadsheet
+function isSpreadsheetFile(fileName: string): boolean {
+  const spreadsheetExtensions = ['.xlsx', '.xls', '.csv', '.ods', '.tsv'];
+  const lowerName = fileName.toLowerCase();
+  return spreadsheetExtensions.some(ext => lowerName.endsWith(ext));
+}
+
+// Helper function to open a file in Google Sheets
+function openInGoogleSheets(fileUrl: string, fileName: string, showToast: (msg: string, opts?: { description?: string }) => void): void {
+  // Download the file first
+  const link = document.createElement('a');
+  link.href = fileUrl;
+  link.download = fileName;
+  link.click();
+  
+  // Show toast with instructions
+  showToast("File downloaded!", {
+    description: "Opening Google Sheets... Use File > Import to open your downloaded file."
+  });
+  
+  // Open Google Sheets after a brief delay
+  setTimeout(() => {
+    window.open("https://docs.google.com/spreadsheets/create", "_blank");
+  }, 500);
+}
+
 interface ContentSectionProps {
   photos: any[];
   files: any[];
@@ -4118,8 +4144,12 @@ function ContentSection({
                       }}
                     />
                   </div>
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <FileText className="h-4 w-4 text-primary" />
+                  <div className={`p-2 rounded-lg ${isSpreadsheetFile(file.name || '') ? 'bg-green-500/10' : 'bg-primary/10'}`}>
+                    {isSpreadsheetFile(file.name || '') ? (
+                      <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <FileText className="h-4 w-4 text-primary" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{file.name}</p>
@@ -4161,6 +4191,28 @@ function ContentSection({
                         </>
                       ) : (
                         <>
+                          {isSpreadsheetFile(file.name || '') && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openInGoogleSheets(file.file_url, file.name || 'spreadsheet', toast);
+                                    }}
+                                  >
+                                    <Sheet className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Open in Google Sheets</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
