@@ -505,6 +505,74 @@ export default function EventDetailPage() {
   const members = membersWithRoles;
   const playerMembers = membersWithRoles?.filter((m: any) => m.roles?.includes("player")) || [];
 
+  // Fetch mini league duty assignees (RSVP'd parents + club admins + league admins, excluding players)
+  const { data: miniLeagueDutyAssignees } = useQuery({
+    queryKey: ["mini-league-duty-assignees-session", event?.mini_league_id, id],
+    queryFn: async () => {
+      const miniLeagueId = event!.mini_league_id!;
+      
+      // Get mini league to find the club_id
+      const { data: league, error: leagueError } = await supabase
+        .from("mini_leagues")
+        .select("club_id")
+        .eq("id", miniLeagueId)
+        .single();
+      if (leagueError) throw leagueError;
+      
+      // Get RSVPs for this event (only user RSVPs, not children/players)
+      const { data: eventRsvps, error: rsvpError } = await supabase
+        .from("rsvps")
+        .select("user_id")
+        .eq("event_id", id!)
+        .eq("status", "going")
+        .not("user_id", "is", null);
+      if (rsvpError) throw rsvpError;
+      
+      const rsvpUserIds = new Set(eventRsvps?.map(r => r.user_id).filter(Boolean) as string[]);
+      
+      // Get all parent user IDs from mini league players who RSVP'd
+      const { data: playersData, error: playersError } = await supabase
+        .from("mini_league_players")
+        .select("parent_user_id")
+        .eq("mini_league_id", miniLeagueId)
+        .not("parent_user_id", "is", null);
+      if (playersError) throw playersError;
+      
+      // Only include parents who RSVP'd going
+      const parentIds = [...new Set(
+        (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[])
+          .filter(parentId => rsvpUserIds.has(parentId))
+      )];
+      
+      // Get club admins and league admins who RSVP'd
+      const { data: adminRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", league.club_id)
+        .in("role", ["club_admin", "league_admin"]);
+      if (rolesError) throw rolesError;
+      
+      // Only include admins who RSVP'd going
+      const adminIds = (adminRoles?.map(r => r.user_id) || [])
+        .filter(adminId => rsvpUserIds.has(adminId));
+      
+      // Combine all unique IDs
+      const allUserIds = [...new Set([...parentIds, ...adminIds])];
+      if (!allUserIds.length) return [];
+      
+      // Fetch profiles for all these users
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", allUserIds)
+        .order("display_name");
+      if (profilesError) throw profilesError;
+      
+      return profiles || [];
+    },
+    enabled: !!event?.mini_league_id && !!id,
+  });
+
   // Fetch children assigned to this event's team (for parent RSVP)
   const { data: childrenOnTeam } = useQuery({
     queryKey: ["children-on-team", event?.team_id, user?.id],
@@ -2110,11 +2178,19 @@ export default function EventDetailPage() {
         onOpenChange={setAssignDialogOpen}
         dutyName={duties?.find(d => d.id === selectedDutyId)?.name || "Duty"}
         currentAssignee={selectedUserId || null}
-        members={members?.map((m: any) => ({
-          id: m.id,
-          display_name: m.display_name,
-          avatar_url: m.avatar_url,
-        })) || []}
+        members={
+          isMiniLeagueEvent
+            ? (miniLeagueDutyAssignees?.map((m: any) => ({
+                id: m.id,
+                display_name: m.display_name,
+                avatar_url: m.avatar_url,
+              })) || [])
+            : (members?.map((m: any) => ({
+                id: m.id,
+                display_name: m.display_name,
+                avatar_url: m.avatar_url,
+              })) || [])
+        }
         onAssign={(userId) => assignDutyMutation.mutate(userId)}
         isPending={assignDutyMutation.isPending}
       />
