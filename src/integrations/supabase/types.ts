@@ -3151,6 +3151,7 @@ export type Database = {
           club_id: string | null
           created_at: string
           id: string
+          mini_league_id: string | null
           processed_by: string | null
           role: Database["public"]["Enums"]["app_role"]
           status: Database["public"]["Enums"]["role_request_status"]
@@ -3162,6 +3163,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           id?: string
+          mini_league_id?: string | null
           processed_by?: string | null
           role: Database["public"]["Enums"]["app_role"]
           status?: Database["public"]["Enums"]["role_request_status"]
@@ -3173,6 +3175,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           id?: string
+          mini_league_id?: string | null
           processed_by?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           status?: Database["public"]["Enums"]["role_request_status"]
@@ -3186,6 +3189,13 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_requests_mini_league_id_fkey"
+            columns: ["mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
             referencedColumns: ["id"]
           },
           {
