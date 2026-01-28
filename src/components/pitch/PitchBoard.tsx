@@ -784,9 +784,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Auto-place players for mini-league two-team mode
   // Places Team A on the bottom half (defending goal) and Team B on the top half (attacking goal)
+  // When preserveOnPitchStatus=true, only repositions players already on pitch (for team size/formation changes)
+  // When preserveOnPitchStatus=false (default for initial placement), places all players on pitch
   const autoPlaceMiniLeaguePlayers = useCallback((
     playersToPlace: Player[],
-    size: TeamSize
+    size: TeamSize,
+    preserveOnPitchStatus: boolean = false
   ): Player[] => {
     const formation = FORMATIONS[size][0]; // Use first formation for each team
     if (!formation) return playersToPlace;
@@ -797,42 +800,86 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     const result: Player[] = [];
     
-    // Place Team A on bottom half (y > 50)
-    // Flip y-coordinates to be on bottom half
-    teamAPlayers.forEach((player, index) => {
-      if (index < formation.positions.length) {
-        const pos = formation.positions[index];
-        // Team A gets positions as-is (bottom half - defending goal)
-        result.push({
-          ...player,
-          position: { x: pos.x, y: pos.y },
-          currentPitchPosition: getPositionFromCoords(pos.y, size),
-        });
-      } else {
-        // Bench - no position
+    if (preserveOnPitchStatus) {
+      // Only reposition players that are already on pitch - don't bench/unbench
+      const teamAOnPitch = teamAPlayers.filter(p => p.position !== null);
+      const teamBOnPitch = teamBPlayers.filter(p => p.position !== null);
+      const teamAOnBench = teamAPlayers.filter(p => p.position === null);
+      const teamBOnBench = teamBPlayers.filter(p => p.position === null);
+      
+      // Use the actual on-pitch count (capped at formation size) for positioning
+      const teamAPositionCount = Math.min(teamAOnPitch.length, formation.positions.length);
+      const teamBPositionCount = Math.min(teamBOnPitch.length, formation.positions.length);
+      
+      // Place Team A on-pitch players
+      teamAOnPitch.forEach((player, index) => {
+        if (index < teamAPositionCount) {
+          const pos = formation.positions[index];
+          result.push({
+            ...player,
+            position: { x: pos.x, y: pos.y },
+            currentPitchPosition: getPositionFromCoords(pos.y, size),
+          });
+        } else {
+          result.push({ ...player, position: null, currentPitchPosition: undefined });
+        }
+      });
+      
+      // Team A bench stays on bench
+      teamAOnBench.forEach(player => {
         result.push({ ...player, position: null, currentPitchPosition: undefined });
-      }
-    });
-    
-    // Place Team B on top half (y < 50)
-    // Mirror y-coordinates to be on top half and flip x for proper orientation
-    teamBPlayers.forEach((player, index) => {
-      if (index < formation.positions.length) {
-        const pos = formation.positions[index];
-        // Team B gets mirrored positions (top half - attacking the bottom goal)
-        // Flip both x and y to mirror the formation
-        const mirroredY = 100 - pos.y;
-        const mirroredX = 100 - pos.x;
-        result.push({
-          ...player,
-          position: { x: mirroredX, y: mirroredY },
-          currentPitchPosition: getPositionFromCoords(pos.y, size), // Use original for position type
-        });
-      } else {
-        // Bench - no position
+      });
+      
+      // Place Team B on-pitch players (mirrored)
+      teamBOnPitch.forEach((player, index) => {
+        if (index < teamBPositionCount) {
+          const pos = formation.positions[index];
+          const mirroredY = 100 - pos.y;
+          const mirroredX = 100 - pos.x;
+          result.push({
+            ...player,
+            position: { x: mirroredX, y: mirroredY },
+            currentPitchPosition: getPositionFromCoords(pos.y, size),
+          });
+        } else {
+          result.push({ ...player, position: null, currentPitchPosition: undefined });
+        }
+      });
+      
+      // Team B bench stays on bench
+      teamBOnBench.forEach(player => {
         result.push({ ...player, position: null, currentPitchPosition: undefined });
-      }
-    });
+      });
+    } else {
+      // Initial placement - place all players on pitch (up to formation size)
+      teamAPlayers.forEach((player, index) => {
+        if (index < formation.positions.length) {
+          const pos = formation.positions[index];
+          result.push({
+            ...player,
+            position: { x: pos.x, y: pos.y },
+            currentPitchPosition: getPositionFromCoords(pos.y, size),
+          });
+        } else {
+          result.push({ ...player, position: null, currentPitchPosition: undefined });
+        }
+      });
+      
+      teamBPlayers.forEach((player, index) => {
+        if (index < formation.positions.length) {
+          const pos = formation.positions[index];
+          const mirroredY = 100 - pos.y;
+          const mirroredX = 100 - pos.x;
+          result.push({
+            ...player,
+            position: { x: mirroredX, y: mirroredY },
+            currentPitchPosition: getPositionFromCoords(pos.y, size),
+          });
+        } else {
+          result.push({ ...player, position: null, currentPitchPosition: undefined });
+        }
+      });
+    }
     
     // Any unassigned players go to bench
     unassignedPlayers.forEach(player => {
@@ -1503,9 +1550,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Persist to database
     persistFormationToDb(formation.name);
 
-    // For mini-league mode, re-place both teams with the new formation
+    // For mini-league mode, re-place both teams with the new formation (preserve on-pitch status)
     if (miniLeagueTeams) {
-      setPlayers(prev => autoPlaceMiniLeaguePlayers(prev, teamSize));
+      setPlayers(prev => autoPlaceMiniLeaguePlayers(prev, teamSize, true));
       toast({ title: "Formation applied", description: `${formation.name} formation set for both teams` });
       return;
     }
@@ -2339,9 +2386,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setTeamSize(newSize);
     setSelectedFormation(0);
     
-    // For mini-league mode, re-place both teams with the new size
+    // For mini-league mode, re-place both teams with the new size (preserve on-pitch status)
     if (miniLeagueTeams) {
-      const placedPlayers = autoPlaceMiniLeaguePlayers(players, newSize);
+      const placedPlayers = autoPlaceMiniLeaguePlayers(players, newSize, true);
       setPlayers(placedPlayers);
     } else {
       // Re-place players using the new team size and first formation

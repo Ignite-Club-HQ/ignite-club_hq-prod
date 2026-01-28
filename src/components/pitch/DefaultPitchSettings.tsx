@@ -3,10 +3,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
-
-type TeamSize = "4" | "7" | "9" | "11";
+import { TeamSize } from "./types";
 
 const FORMATIONS: Record<TeamSize, { name: string }[]> = {
+  "3": [
+    { name: "1-1-1" },
+    { name: "2-1" },
+    { name: "1-2" },
+  ],
   "4": [
     { name: "1-2-1" },
     { name: "2-1-1" },
@@ -30,7 +34,7 @@ const FORMATIONS: Record<TeamSize, { name: string }[]> = {
   ],
 };
 
-const TEAM_SIZES: TeamSize[] = ["4", "7", "9", "11"];
+const TEAM_SIZES: TeamSize[] = ["3", "4", "7", "9", "11"];
 const MINUTES_OPTIONS = [5, 7, 10, 12, 15, 20, 25, 30, 35, 40, 45];
 const ROTATION_SPEEDS = [
   { value: "1", label: "Slow (fewer subs)" },
