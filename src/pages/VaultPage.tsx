@@ -3791,26 +3791,49 @@ function VaultPhotoItem({
   onRename?: (photo: any) => void;
 }) {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const touchTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Use file_url or image_url (mini-league photos use image_url)
   const photoUrl = photo.file_url || photo.image_url;
   
+  // If no URL is available, show error state
+  if (!photoUrl) {
+    return (
+      <div className="aspect-square rounded-lg bg-muted flex items-center justify-center">
+        <span className="text-xs text-muted-foreground">No image</span>
+      </div>
+    );
+  }
+  
   // Don't render anything until image is loaded
-  if (!isLoaded) {
+  if (!isLoaded && !hasError) {
     return (
       <>
-        {/* Hidden image to preload */}
+        {/* Hidden image to preload - use offscreen positioning instead of sr-only */}
         <img
           src={photoUrl}
           alt=""
-          className="sr-only"
+          style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }}
           onLoad={() => setIsLoaded(true)}
+          onError={() => {
+            console.error('[VaultPhotoItem] Failed to load image:', photoUrl);
+            setHasError(true);
+          }}
         />
         {/* Placeholder skeleton while loading */}
         <div className="aspect-square rounded-lg bg-muted animate-pulse" />
       </>
+    );
+  }
+  
+  // Show error state if image failed to load
+  if (hasError) {
+    return (
+      <div className="aspect-square rounded-lg bg-muted flex items-center justify-center">
+        <span className="text-xs text-muted-foreground text-center px-2">Failed to load</span>
+      </div>
     );
   }
 
