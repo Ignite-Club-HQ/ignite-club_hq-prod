@@ -270,6 +270,7 @@ export function PitchSettingsDialog({
                   <SelectContent className="z-[99999] bg-popover">
                     <SelectItem value="3">3-a-side</SelectItem>
                     <SelectItem value="4">4-a-side</SelectItem>
+                    <SelectItem value="5">5-a-side</SelectItem>
                     <SelectItem value="7">7-a-side</SelectItem>
                     <SelectItem value="9">9-a-side</SelectItem>
                     <SelectItem value="11">11-a-side</SelectItem>
