@@ -1503,6 +1503,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Persist to database
     persistFormationToDb(formation.name);
 
+    // For mini-league mode, re-place both teams with the new formation
+    if (miniLeagueTeams) {
+      setPlayers(prev => autoPlaceMiniLeaguePlayers(prev, teamSize));
+      toast({ title: "Formation applied", description: `${formation.name} formation set for both teams` });
+      return;
+    }
+
     const numPositions = parseInt(teamSize);
     
     setPlayers(prev => {
@@ -1525,7 +1532,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     });
 
     toast({ title: "Formation applied", description: `${formation.name} formation set` });
-  }, [teamSize, persistFormationToDb, toast]);
+  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers]);
 
   // Handle formation change dialog confirm
   const handleFormationChangeConfirm = useCallback(() => {
@@ -2331,11 +2338,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
     setTeamSize(newSize);
     setSelectedFormation(0);
-    // Re-place players using the new team size and first formation
-    const placedPlayers = autoPlacePlayersOnPitch(players, newSize, 0);
-    setPlayers(placedPlayers);
+    
+    // For mini-league mode, re-place both teams with the new size
+    if (miniLeagueTeams) {
+      const placedPlayers = autoPlaceMiniLeaguePlayers(players, newSize);
+      setPlayers(placedPlayers);
+    } else {
+      // Re-place players using the new team size and first formation
+      const placedPlayers = autoPlacePlayersOnPitch(players, newSize, 0);
+      setPlayers(placedPlayers);
+    }
     persistTeamSizeToDb(newSize);
-  }, [players, autoPlacePlayersOnPitch, persistTeamSizeToDb]);
+  }, [players, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, persistTeamSizeToDb]);
 
   const getPinchDistance = (touches: React.TouchList) => {
     if (touches.length < 2) return null;
