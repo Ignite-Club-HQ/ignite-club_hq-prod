@@ -75,14 +75,17 @@ const rsvpOptions: { value: RsvpStatus; label: string; icon: string }[] = [
   { value: "not_going", label: "Can't Go", icon: "❌" },
 ];
 
-// Helper component for attendee display with payment status
+// Helper component for attendee display with payment status and admin RSVP controls
 const AttendeeCard = ({ 
   rsvp, 
   hasPaid, 
   isAdmin, 
   showPrice, 
   onTogglePayment,
-  isPending
+  isPending,
+  isMiniLeague,
+  onChangeStatus,
+  currentStatus,
 }: { 
   rsvp: any; 
   hasPaid?: boolean;
@@ -90,6 +93,9 @@ const AttendeeCard = ({
   showPrice?: boolean;
   onTogglePayment?: () => void;
   isPending?: boolean;
+  isMiniLeague?: boolean;
+  onChangeStatus?: (status: RsvpStatus) => void;
+  currentStatus?: RsvpStatus;
 }) => {
   const isChildRsvp = !!rsvp.child_id;
   const displayName = isChildRsvp 
@@ -107,25 +113,43 @@ const AttendeeCard = ({
               {avatarInitial}
             </AvatarFallback>
           </Avatar>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-medium">{displayName}</span>
-              {isChildRsvp && (
-                <Badge variant="outline" className="text-xs">
+              <span className="font-medium truncate">{displayName}</span>
+              {isChildRsvp && !isMiniLeague && (
+                <Badge variant="outline" className="text-xs shrink-0">
                   Child
                 </Badge>
               )}
               {showPrice && hasPaid && (
-                <Badge variant="default" className="text-xs bg-primary">
+                <Badge variant="default" className="text-xs bg-primary shrink-0">
                   <Check className="h-3 w-3 mr-1" />
                   Paid
                 </Badge>
               )}
             </div>
             {rsvp.notes && (
-              <p className="text-sm text-muted-foreground mt-1">{rsvp.notes}</p>
+              <p className="text-sm text-muted-foreground mt-1 truncate">{rsvp.notes}</p>
             )}
           </div>
+          {/* Admin RSVP status change buttons for mini-league events */}
+          {isAdmin && isMiniLeague && onChangeStatus && (
+            <div className="flex gap-1 shrink-0">
+              {rsvpOptions.filter(opt => opt.value !== currentStatus).map(({ value, icon }) => (
+                <Button
+                  key={value}
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => onChangeStatus(value)}
+                  disabled={isPending}
+                  title={`Change to ${value}`}
+                >
+                  <span className="text-sm">{icon}</span>
+                </Button>
+              ))}
+            </div>
+          )}
           {/* Admin-only payment toggle */}
           {isAdmin && showPrice && onTogglePayment && (
             <Button
@@ -694,6 +718,113 @@ export default function EventDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       toast({ title: "Child RSVP updated!" });
+    },
+  });
+
+  // Admin RSVP mutation for mini-league players (club/league admins can change player RSVPs)
+  const adminRsvpMutation = useMutation({
+    mutationFn: async ({ 
+      playerId, 
+      playerName, 
+      childId, 
+      parentUserId,
+      status 
+    }: { 
+      playerId: string; 
+      playerName: string;
+      childId: string | null;
+      parentUserId: string | null;
+      status: RsvpStatus;
+    }) => {
+      // For mini-league players, we need to find or create an RSVP
+      // The RSVP is typically tied to the child_id if present, otherwise we need a parent user
+      if (childId) {
+        // Check for existing RSVP for this child
+        const { data: existingRsvp } = await supabase
+          .from("rsvps")
+          .select("id")
+          .eq("event_id", id!)
+          .eq("child_id", childId)
+          .maybeSingle();
+        
+        if (existingRsvp) {
+          const { error } = await supabase
+            .from("rsvps")
+            .update({ status })
+            .eq("id", existingRsvp.id);
+          if (error) throw error;
+        } else if (parentUserId) {
+          // Create new RSVP for this child
+          const { error } = await supabase.from("rsvps").insert({
+            event_id: id!,
+            user_id: parentUserId,
+            child_id: childId,
+            status,
+          });
+          if (error) throw error;
+        } else {
+          throw new Error("Cannot create RSVP: no parent user linked to this player");
+        }
+      } else if (parentUserId) {
+        // Player without child_id - RSVP is on the parent user directly
+        const { data: existingRsvp } = await supabase
+          .from("rsvps")
+          .select("id")
+          .eq("event_id", id!)
+          .eq("user_id", parentUserId)
+          .is("child_id", null)
+          .maybeSingle();
+        
+        if (existingRsvp) {
+          const { error } = await supabase
+            .from("rsvps")
+            .update({ status })
+            .eq("id", existingRsvp.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("rsvps").insert({
+            event_id: id!,
+            user_id: parentUserId,
+            status,
+          });
+          if (error) throw error;
+        }
+      } else {
+        throw new Error("Cannot create RSVP: player has no parent user or child linked");
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+      toast({ title: `${variables.playerName}'s RSVP updated!` });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Failed to update RSVP", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Admin mutation to update existing RSVP status by RSVP ID
+  const adminUpdateRsvpMutation = useMutation({
+    mutationFn: async ({ rsvpId, status, playerName }: { rsvpId: string; status: RsvpStatus; playerName: string }) => {
+      const { error } = await supabase
+        .from("rsvps")
+        .update({ status })
+        .eq("id", rsvpId);
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+      toast({ title: `${variables.playerName}'s RSVP updated!` });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Failed to update RSVP", 
+        description: error.message,
+        variant: "destructive" 
+      });
     },
   });
 
@@ -1610,7 +1741,14 @@ export default function EventDetailPage() {
                           userId: rsvp.user_id, 
                           isPaid: paidUserIds.has(rsvp.user_id) 
                         })}
-                        isPending={togglePaymentMutation.isPending}
+                        isPending={togglePaymentMutation.isPending || adminUpdateRsvpMutation.isPending}
+                        isMiniLeague={isMiniLeagueEvent}
+                        currentStatus="going"
+                        onChangeStatus={(status) => adminUpdateRsvpMutation.mutate({
+                          rsvpId: rsvp.id,
+                          status,
+                          playerName: rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name
+                        })}
                       />
                     ))}
                   </div>
@@ -1638,7 +1776,14 @@ export default function EventDetailPage() {
                           userId: rsvp.user_id, 
                           isPaid: paidUserIds.has(rsvp.user_id) 
                         })}
-                        isPending={togglePaymentMutation.isPending}
+                        isPending={togglePaymentMutation.isPending || adminUpdateRsvpMutation.isPending}
+                        isMiniLeague={isMiniLeagueEvent}
+                        currentStatus="maybe"
+                        onChangeStatus={(status) => adminUpdateRsvpMutation.mutate({
+                          rsvpId: rsvp.id,
+                          status,
+                          playerName: rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name
+                        })}
                       />
                     ))}
                   </div>
@@ -1656,7 +1801,19 @@ export default function EventDetailPage() {
                 ) : (
                   <div className="space-y-1 pl-6">
                     {notGoingRsvps.map((rsvp: any) => (
-                      <AttendeeCard key={rsvp.id} rsvp={rsvp} />
+                      <AttendeeCard 
+                        key={rsvp.id} 
+                        rsvp={rsvp}
+                        isAdmin={isAdmin || isAppAdmin}
+                        isPending={adminUpdateRsvpMutation.isPending}
+                        isMiniLeague={isMiniLeagueEvent}
+                        currentStatus="not_going"
+                        onChangeStatus={(status) => adminUpdateRsvpMutation.mutate({
+                          rsvpId: rsvp.id,
+                          status,
+                          playerName: rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name
+                        })}
+                      />
                     ))}
                   </div>
                 )}
@@ -1678,16 +1835,42 @@ export default function EventDetailPage() {
                     {notRespondedChildren.map((child: any) => (
                       <Card key={`child-${child.id}`}>
                         <CardContent className="p-3">
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-8 w-8">
-                              <AvatarFallback className="text-xs bg-secondary">
-                                {child.name?.charAt(0)?.toUpperCase() || "?"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{child.name || "Unknown"}</span>
-                              {!isMiniLeagueEvent && <Badge variant="outline" className="text-xs">Child</Badge>}
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-8 w-8">
+                                <AvatarFallback className="text-xs bg-secondary">
+                                  {child.name?.charAt(0)?.toUpperCase() || "?"}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{child.name || "Unknown"}</span>
+                                {!isMiniLeagueEvent && <Badge variant="outline" className="text-xs">Child</Badge>}
+                              </div>
                             </div>
+                            {/* Admin RSVP controls for mini-league events */}
+                            {isMiniLeagueEvent && (isAdmin || isAppAdmin) && (
+                              <div className="flex gap-1">
+                                {rsvpOptions.map(({ value, icon }) => (
+                                  <Button
+                                    key={value}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => adminRsvpMutation.mutate({
+                                      playerId: child.id,
+                                      playerName: child.name,
+                                      childId: child.child_id,
+                                      parentUserId: child.parent_user_id,
+                                      status: value,
+                                    })}
+                                    disabled={adminRsvpMutation.isPending}
+                                    title={`Set ${child.name} to ${value}`}
+                                  >
+                                    <span className="text-sm">{icon}</span>
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
