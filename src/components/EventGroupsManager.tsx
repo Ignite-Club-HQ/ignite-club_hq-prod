@@ -891,15 +891,36 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
             </div>
 
             {useAutoMode ? (
-              <div className="p-3 rounded-lg border bg-primary/5">
-                <p className="text-sm">
-                  <span className="font-medium">{availablePlayers.length}</span> available players ÷{" "}
-                  <span className="font-medium">{(miniLeague?.team_size || 6) * 2}</span> per match ={" "}
-                  <span className="font-medium">
-                    {Math.ceil(availablePlayers.length / ((miniLeague?.team_size || 6) * 2))}
-                  </span>{" "}
-                  matches
-                </p>
+              <div className="p-3 rounded-lg border bg-primary/5 space-y-1">
+                {(() => {
+                  const teamSize = miniLeague?.team_size || 4;
+                  const minPerSide = miniLeague?.min_players_per_side || 3;
+                  const playersPerMatch = teamSize * 2;
+                  const minPlayersPerMatch = minPerSide * 2;
+                  
+                  // Max matches based on target team size
+                  const idealMatches = Math.ceil(availablePlayers.length / playersPerMatch);
+                  // Max matches ensuring each has minimum players
+                  const maxMatchesForMin = Math.floor(availablePlayers.length / minPlayersPerMatch);
+                  // Actual matches is the lesser of the two
+                  const actualMatches = Math.min(idealMatches, maxMatchesForMin);
+                  
+                  return (
+                    <>
+                      <p className="text-sm">
+                        <span className="font-medium">{availablePlayers.length}</span> available players ÷{" "}
+                        <span className="font-medium">{playersPerMatch}</span> per match ={" "}
+                        <span className="font-medium">{actualMatches}</span>{" "}
+                        {actualMatches === 1 ? "match" : "matches"}
+                      </p>
+                      {maxMatchesForMin < idealMatches && (
+                        <p className="text-xs text-muted-foreground">
+                          Limited to {actualMatches} {actualMatches === 1 ? "match" : "matches"} (min {minPerSide}v{minPerSide} required)
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             ) : (
               <>
