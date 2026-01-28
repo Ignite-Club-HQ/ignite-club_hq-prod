@@ -49,6 +49,7 @@ interface Event {
   suburb: string | null;
   club_id: string;
   team_id: string | null;
+  mini_league_id: string | null;
   is_cancelled: boolean;
   is_recurring: boolean;
   parent_event_id: string | null;
@@ -682,24 +683,72 @@ function EventCard({ event, isAdmin }: { event: Event; isAdmin: boolean }) {
         if (error) throw error;
       }
 
-      // Get member count for toast feedback
-      let memberQuery = supabase.from("user_roles").select("user_id");
-      if (event.team_id) {
-        memberQuery = memberQuery.eq("team_id", event.team_id);
+      // Get member count for toast feedback - handle mini-league events differently
+      let uniqueMembers: string[] = [];
+      
+      if (event.mini_league_id) {
+        // Get mini league to find the club_id
+        const { data: league } = await supabase
+          .from("mini_leagues")
+          .select("club_id")
+          .eq("id", event.mini_league_id)
+          .single();
+        
+        if (league) {
+          // Get all parent user IDs from mini league players
+          const { data: playersData } = await supabase
+            .from("mini_league_players")
+            .select("parent_user_id")
+            .eq("mini_league_id", event.mini_league_id)
+            .not("parent_user_id", "is", null);
+          
+          const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
+          
+          // Get club admins, league admins, and coaches
+          const { data: adminRoles } = await supabase
+            .from("user_roles")
+            .select("user_id")
+            .eq("club_id", league.club_id)
+            .in("role", ["club_admin", "league_admin", "coach"]);
+          
+          const adminIds = adminRoles?.map(r => r.user_id) || [];
+          
+          uniqueMembers = [...new Set([...parentIds, ...adminIds])];
+        }
       } else {
-        memberQuery = memberQuery.eq("club_id", event.club_id);
+        let memberQuery = supabase.from("user_roles").select("user_id");
+        if (event.team_id) {
+          memberQuery = memberQuery.eq("team_id", event.team_id);
+        } else {
+          memberQuery = memberQuery.eq("club_id", event.club_id);
+        }
+        const { data: members } = await memberQuery;
+        uniqueMembers = [...new Set(members?.map(m => m.user_id) || [])];
       }
-      const { data: members } = await memberQuery;
-      const uniqueMembers = [...new Set(members?.map(m => m.user_id) || [])];
 
-      // Always post cancellation message to team or club chat
+      // Always post cancellation message to team, club, or mini-league chat
       if (user) {
         const eventUrl = `${window.location.origin}/events/${event.id}`;
         const cancellationMessage = customMessage 
           ? `📢 Event Cancelled: "${event.title}"\n\n${customMessage}\n\nView event: ${eventUrl}`
           : `📢 Event Cancelled: "${event.title}"\n\nView event: ${eventUrl}`;
         
-        if (event.team_id) {
+        if (event.mini_league_id) {
+          // Post to mini-league chat group
+          const { data: chatGroup } = await supabase
+            .from("chat_groups")
+            .select("id")
+            .eq("mini_league_id", event.mini_league_id)
+            .maybeSingle();
+          
+          if (chatGroup) {
+            await supabase.from("group_messages").insert({
+              group_id: chatGroup.id,
+              author_id: user.id,
+              text: cancellationMessage,
+            });
+          }
+        } else if (event.team_id) {
           await supabase.from("team_messages").insert({
             team_id: event.team_id,
             author_id: user.id,
@@ -902,6 +951,7 @@ function EventCard({ event, isAdmin }: { event: Event; isAdmin: boolean }) {
                     eventTitle={event.title}
                     teamId={event.team_id}
                     clubId={event.club_id}
+                    miniLeagueId={event.mini_league_id}
                     onSingleAction={(customMessage, sendPushNotification) => cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })}
                     onSeriesAction={(customMessage, sendPushNotification) => cancelEventMutation.mutate({ cancelType: 'series', customMessage, sendPushNotification })}
                     isPending={cancelEventMutation.isPending}
@@ -914,6 +964,7 @@ function EventCard({ event, isAdmin }: { event: Event; isAdmin: boolean }) {
                     eventTitle={event.title}
                     teamId={event.team_id}
                     clubId={event.club_id}
+                    miniLeagueId={event.mini_league_id}
                     onConfirm={(customMessage, sendPushNotification) => cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })}
                     isPending={cancelEventMutation.isPending}
                   />
