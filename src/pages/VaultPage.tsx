@@ -3979,8 +3979,22 @@ function isSpreadsheetFile(fileName: string): boolean {
   return spreadsheetExtensions.some(ext => lowerName.endsWith(ext));
 }
 
-// Helper function to open a file in Google Sheets
-function openInGoogleSheets(fileUrl: string, fileName: string, showToast: (msg: string, opts?: { description?: string }) => void): void {
+// Helper function to check if a file is a document (Word, PDF, etc.)
+function isDocumentFile(fileName: string): boolean {
+  const documentExtensions = ['.doc', '.docx', '.pdf', '.txt', '.rtf', '.odt', '.ppt', '.pptx', '.odp'];
+  const lowerName = fileName.toLowerCase();
+  return documentExtensions.some(ext => lowerName.endsWith(ext));
+}
+
+// Helper function to download and open in external service
+function downloadAndOpenExternal(
+  fileUrl: string, 
+  fileName: string, 
+  serviceUrl: string,
+  serviceName: string,
+  instructions: string,
+  showToast: (msg: string, opts?: { description?: string }) => void
+): void {
   // Download the file first
   const link = document.createElement('a');
   link.href = fileUrl;
@@ -3989,13 +4003,49 @@ function openInGoogleSheets(fileUrl: string, fileName: string, showToast: (msg: 
   
   // Show toast with instructions
   showToast("File downloaded!", {
-    description: "Opening Google Sheets... Use File > Import to open your downloaded file."
+    description: `Opening ${serviceName}... ${instructions}`
   });
   
-  // Open Google Sheets after a brief delay
+  // Open the service after a brief delay
   setTimeout(() => {
-    window.open("https://docs.google.com/spreadsheets/create", "_blank");
+    window.open(serviceUrl, "_blank");
   }, 500);
+}
+
+// Helper function to open a file in Google Sheets
+function openInGoogleSheets(fileUrl: string, fileName: string, showToast: (msg: string, opts?: { description?: string }) => void): void {
+  downloadAndOpenExternal(
+    fileUrl, 
+    fileName, 
+    "https://docs.google.com/spreadsheets/create",
+    "Google Sheets",
+    "Use File > Import to open your downloaded file.",
+    showToast
+  );
+}
+
+// Helper function to open a file in Google Drive
+function openInGoogleDrive(fileUrl: string, fileName: string, showToast: (msg: string, opts?: { description?: string }) => void): void {
+  downloadAndOpenExternal(
+    fileUrl, 
+    fileName, 
+    "https://drive.google.com/drive/my-drive",
+    "Google Drive",
+    "Click 'New' > 'File upload' to upload your downloaded file.",
+    showToast
+  );
+}
+
+// Helper function to open a file in Dropbox
+function openInDropbox(fileUrl: string, fileName: string, showToast: (msg: string, opts?: { description?: string }) => void): void {
+  downloadAndOpenExternal(
+    fileUrl, 
+    fileName, 
+    "https://www.dropbox.com/home",
+    "Dropbox",
+    "Click 'Upload' to add your downloaded file.",
+    showToast
+  );
 }
 
 interface ContentSectionProps {
@@ -4213,6 +4263,50 @@ function ContentSection({
                               </Tooltip>
                             </TooltipProvider>
                           )}
+                          {/* Google Drive button for documents */}
+                          {isDocumentFile(file.name || '') && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openInGoogleDrive(file.file_url, file.name || 'document', toast);
+                                    }}
+                                  >
+                                    <HardDrive className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Open in Google Drive</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {/* Dropbox button for all files */}
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openInDropbox(file.file_url, file.name || 'file', toast);
+                                  }}
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Open in Dropbox</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           <Button
                             variant="ghost"
                             size="icon"
