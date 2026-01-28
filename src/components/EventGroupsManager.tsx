@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Users, PlayCircle, Wand2, Loader2, X, ClipboardList, Copy, Shirt, RefreshCw } from "lucide-react";
+import { Plus, Users, PlayCircle, Wand2, Loader2, X, ClipboardList, Copy, Shirt, RefreshCw, Flame } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +26,10 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { MatchDutiesDialog } from "@/components/MatchDutiesDialog";
+
+// Lazy load PitchBoard for performance
+const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 
 // Default bib color pairs when league has no custom colors
 const DEFAULT_BIB_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"];
@@ -84,7 +88,6 @@ interface EventGroup {
 }
 
 export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverrides = {} }: EventGroupsManagerProps) {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isAutoGenOpen, setIsAutoGenOpen] = useState(false);
@@ -97,6 +100,10 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
   const [abilityMode, setAbilityMode] = useState<"similar" | "mixed">("similar");
   const [selectedPreviousEventId, setSelectedPreviousEventId] = useState<string | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  
+  // State for direct pitch board and duties opening
+  const [activePitchBoardGroup, setActivePitchBoardGroup] = useState<EventGroup | null>(null);
+  const [activeDutiesGroup, setActiveDutiesGroup] = useState<EventGroup | null>(null);
 
   // Fetch event groups
   const { data: groups, isLoading, refetch: refetchGroups } = useQuery({
@@ -741,7 +748,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                       size="sm"
                       variant="outline"
                       className="flex-1"
-                      onClick={() => navigate(`/events/${eventId}/groups/${group.id}/pitch`)}
+                      onClick={() => setActivePitchBoardGroup(group)}
                     >
                       <PlayCircle className="h-4 w-4 mr-1" />
                       Pitch Board
@@ -750,7 +757,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                       size="sm"
                       variant="outline"
                       className="flex-1"
-                      onClick={() => navigate(`/events/${eventId}/groups/${group.id}/duties`)}
+                      onClick={() => setActiveDutiesGroup(group)}
                     >
                       <ClipboardList className="h-4 w-4 mr-1" />
                       Duties
@@ -1030,6 +1037,71 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Match Duties Dialog */}
+      <MatchDutiesDialog
+        open={!!activeDutiesGroup}
+        onOpenChange={(open) => !open && setActiveDutiesGroup(null)}
+        groupId={activeDutiesGroup?.id || ""}
+        groupName={activeDutiesGroup?.name || ""}
+        miniLeagueId={miniLeagueId}
+      />
+
+      {/* Pitch Board Portal */}
+      {activePitchBoardGroup && activePitchBoardGroup.players.length > 0 && createPortal(
+        <Suspense fallback={
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
+            <div className="flex flex-col items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-primary">
+                  <Flame className="h-8 w-8 text-primary-foreground" />
+                </div>
+                <span className="text-4xl" role="img" aria-label="soccer ball">⚽</span>
+              </div>
+              <Loader2 className="h-6 w-6 animate-spin text-white" />
+              <p className="text-sm text-white/80">Loading Pitch Board...</p>
+            </div>
+          </div>
+        }>
+          <PitchBoard
+            teamId={`event-group-${activePitchBoardGroup.id}`}
+            teamName={activePitchBoardGroup.name}
+            members={activePitchBoardGroup.players.map((player, index) => ({
+              id: `player-${index}`,
+              user_id: player.id,
+              role: "player",
+              profiles: {
+                display_name: player.name,
+                avatar_url: null,
+              },
+            }))}
+            onClose={() => setActivePitchBoardGroup(null)}
+            disableAutoSubs={false}
+            initialRotationSpeed={2}
+            initialDisablePositionSwaps={false}
+            initialDisableBatchSubs={false}
+            initialMinutesPerHalf={10}
+            initialTeamSize={(() => {
+              const teamACount = activePitchBoardGroup.players.filter(p => p.team === "a").length;
+              const teamBCount = activePitchBoardGroup.players.filter(p => p.team === "b").length;
+              const avgTeamSize = Math.max(Math.ceil((teamACount + teamBCount) / 2), 4);
+              return avgTeamSize <= 4 ? 4 : avgTeamSize <= 7 ? 7 : avgTeamSize <= 9 ? 9 : 11;
+            })()}
+            readOnly={false}
+            initialLinkedEventId={null}
+            initialShowMatchHeader={false}
+            miniLeagueTeams={{
+              teamAPlayerIds: activePitchBoardGroup.players.filter(p => p.team === "a").map(p => p.id),
+              teamBPlayerIds: activePitchBoardGroup.players.filter(p => p.team === "b").map(p => p.id),
+              teamAColor: activePitchBoardGroup.team_a_color || "#ef4444",
+              teamBColor: activePitchBoardGroup.team_b_color || "#3b82f6",
+              teamAName: "Team A",
+              teamBName: "Team B",
+            }}
+          />
+        </Suspense>,
+        document.body
+      )}
     </div>
   );
 }
