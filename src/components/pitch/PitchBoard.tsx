@@ -857,29 +857,56 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       teamBOnBench.forEach(player => {
         result.push({ ...player });
       });
-    } else if (preserveOnPitchStatus) {
-      // Team size change: keep players exactly where they are, just update position labels
-      teamAPlayers.forEach(player => {
-        if (player.position !== null) {
+    } else if (preserveOnPitchStatus && !applyFormationPositions) {
+      // Team size change: adjust player count per team to match new size
+      // Keep existing on-pitch players at their positions (up to new limit), bench extras, or pull from bench
+      const teamAOnPitch = teamAPlayers.filter(p => p.position !== null);
+      const teamBOnPitch = teamBPlayers.filter(p => p.position !== null);
+      const teamAOnBench = teamAPlayers.filter(p => p.position === null);
+      const teamBOnBench = teamBPlayers.filter(p => p.position === null);
+      
+      const targetSize = parseInt(size);
+      
+      // Team A: adjust to target size
+      const teamAToPlace = [...teamAOnPitch, ...teamAOnBench].slice(0, targetSize);
+      const teamATooBench = [...teamAOnPitch, ...teamAOnBench].slice(targetSize);
+      
+      teamAToPlace.forEach((player, index) => {
+        if (index < formation.positions.length) {
+          const pos = formation.positions[index];
           result.push({
             ...player,
-            currentPitchPosition: getPositionFromCoords(player.position.y, size),
+            position: { x: pos.x, y: pos.y },
+            currentPitchPosition: getPositionFromCoords(pos.y, size),
           });
         } else {
-          result.push({ ...player });
+          result.push({ ...player, position: null, currentPitchPosition: undefined });
         }
       });
+      teamATooBench.forEach(player => {
+        result.push({ ...player, position: null, currentPitchPosition: undefined });
+      });
       
-      teamBPlayers.forEach(player => {
-        if (player.position !== null) {
-          const originalY = 100 - player.position.y;
+      // Team B: adjust to target size
+      const teamBToPlace = [...teamBOnPitch, ...teamBOnBench].slice(0, targetSize);
+      const teamBTooBench = [...teamBOnPitch, ...teamBOnBench].slice(targetSize);
+      
+      teamBToPlace.forEach((player, index) => {
+        if (index < formation.positions.length) {
+          const pos = formation.positions[index];
+          const mirroredY = 100 - pos.y;
+          const mirroredX = 100 - pos.x;
           result.push({
             ...player,
-            currentPitchPosition: getPositionFromCoords(originalY, size),
+            position: { x: mirroredX, y: mirroredY },
+            currentPitchPosition: getPositionFromCoords(pos.y, size),
           });
         } else {
-          result.push({ ...player });
+          result.push({ ...player, position: null, currentPitchPosition: undefined });
         }
+      });
+      teamBTooBench.forEach(player => {
+        result.push({ ...player, position: null, currentPitchPosition: undefined });
       });
     } else {
       // Initial placement - place all players on pitch (up to formation size)
