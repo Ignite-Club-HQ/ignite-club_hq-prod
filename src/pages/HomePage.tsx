@@ -1159,10 +1159,10 @@ export default function HomePage() {
     t => !mySoccerTeams?.some(mt => mt.id === t.id)
   ) || [];
 
-  // Combine all available teams and limit to last 2 used
+  // Only show teams where user has EDIT access (coach/team_admin) - not read-only teams
+  // View-only users can still access pitch boards via event detail page or timer widget
   const allAvailableTeams = [
     ...(mySoccerTeams || []).map(t => ({ ...t, readOnly: false })),
-    ...readOnlyTeamsFiltered.map(t => ({ ...t, readOnly: true }))
   ];
 
   // Filter by active club theme if set
