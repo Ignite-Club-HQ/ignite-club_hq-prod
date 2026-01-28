@@ -62,16 +62,7 @@ export default function ChatGroupCard({
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const hasUnread = unreadCount > 0;
 
-  const roleLabels: Record<string, string> = {
-    team_admin: "Team Admins",
-    coach: "Coaches",
-    parent: "Parents",
-    player: "Players",
-    club_admin: "Club Admins",
-  };
-  const rolesText = group.allowed_roles
-    .map((r) => roleLabels[r] || r)
-    .join(", ");
+  const contextName = group.teams?.name || group.clubs?.name || "";
 
   const handleTouchStart = useCallback(() => {
     if (!canManage) return;
@@ -127,7 +118,7 @@ export default function ChatGroupCard({
                 imageUrl={lastMessage?.image_url}
                 author={lastMessage?.author}
                 hasUnread={hasUnread}
-                fallback={`${group.teams?.name || group.clubs?.name} • ${rolesText}`}
+                fallback={contextName}
               />
             </p>
           </div>
