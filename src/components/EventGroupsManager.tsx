@@ -153,11 +153,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_leagues")
-        .select("id, name, team_size, bib_colors")
+        .select("id, name, team_size, min_players_per_side, bib_colors")
         .eq("id", miniLeagueId)
         .single();
       if (error) throw error;
-      return data as { id: string; name: string; team_size: number; bib_colors: string[] | null };
+      return data as { id: string; name: string; team_size: number; min_players_per_side: number; bib_colors: string[] | null };
     },
     enabled: !!miniLeagueId,
   });
@@ -278,18 +278,33 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         throw new Error("No available players for this session");
       }
 
+      // Get min players per side from league settings (default 2)
+      const minPlayersPerSide = miniLeague?.min_players_per_side || 2;
+      const minPlayersPerMatch = minPlayersPerSide * 2;
+
+      // Validate we have enough players for at least one match
+      if (availablePlayers.length < minPlayersPerMatch) {
+        throw new Error(`Need at least ${minPlayersPerMatch} players (${minPlayersPerSide}v${minPlayersPerSide}) to create a match`);
+      }
+
       // Calculate number of groups based on mode
       // For matches: each match has 2 teams, so total players per match = playersPerTeam * 2
       const effectivePlayersPerTeam = useAutoMode && miniLeague?.team_size 
         ? miniLeague.team_size 
         : playersPerTeam;
       const playersPerMatch = effectivePlayersPerTeam * 2;
-      const effectiveNumMatches = useAutoMode 
+      
+      // Calculate max possible matches ensuring each has at least minPlayersPerMatch
+      const maxMatchesForMinPlayers = Math.floor(availablePlayers.length / minPlayersPerMatch);
+      let effectiveNumMatches = useAutoMode 
         ? Math.ceil(availablePlayers.length / playersPerMatch)
         : numGroups;
+      
+      // Ensure we don't create more matches than we can fill with minimum players
+      effectiveNumMatches = Math.min(effectiveNumMatches, maxMatchesForMinPlayers);
 
       if (effectiveNumMatches < 1) {
-        throw new Error("Not enough players for matches");
+        throw new Error(`Need at least ${minPlayersPerMatch} players (${minPlayersPerSide}v${minPlayersPerSide}) to create a match`);
       }
 
       // Sort by ability rating (already sorted desc)
@@ -327,6 +342,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
 
       // Calculate target sizes for each match - ensure even player counts per match
       // This guarantees equal team sizes within each match
+      // Also enforce minimum players per match
       const totalPlayerCount = sortedPlayers.length;
       const matchTargetSizes: number[] = [];
       
@@ -345,13 +361,24 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         let target = Math.min(playersPerMatch, Math.floor(avgRemaining));
         // Make it even (round down)
         if (target % 2 !== 0) target = target - 1;
-        // Ensure at least 2 players if we have them
-        if (target < 2 && remaining >= 2) target = 2;
+        // Ensure at least minPlayersPerMatch (e.g., 6 for 3v3)
+        if (target < minPlayersPerMatch && remaining >= minPlayersPerMatch) {
+          target = minPlayersPerMatch;
+        }
         // If this is the last match, take whatever is left
         if (i === effectiveNumMatches - 1) target = remaining;
         
         matchTargetSizes.push(target);
         remaining -= target;
+      }
+      
+      // Validate all matches meet minimum - redistribute if needed
+      // If any match would have fewer than minPlayersPerMatch players, reduce match count
+      const validTargets = matchTargetSizes.filter(size => size >= minPlayersPerMatch || size === 0);
+      if (validTargets.length < effectiveNumMatches) {
+        // Some matches don't have enough players - we should have caught this earlier
+        // but as a safety check, throw an error
+        throw new Error(`Cannot create ${effectiveNumMatches} matches with minimum ${minPlayersPerSide}v${minPlayersPerSide}. Try fewer matches.`);
       }
       
       // If total players is odd, only one match will have odd count (last match)
