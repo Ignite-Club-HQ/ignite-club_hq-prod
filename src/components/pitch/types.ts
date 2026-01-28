@@ -106,6 +106,7 @@ export interface Goal {
   time: number; // Game seconds when scored
   half: 1 | 2;
   isOpponentGoal: boolean;
+  teamSide?: "a" | "b"; // For mini-league mode: which team scored
 }
 
 // Pitch board state persistence interface

@@ -10,7 +10,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, Minus, Target, X, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Goal, Player } from "./types";
+import { Goal, Player, MiniLeagueTeams } from "./types";
 
 interface ScoreTrackerProps {
   goals: Goal[];
@@ -25,6 +25,7 @@ interface ScoreTrackerProps {
   compact?: boolean;
   mini?: boolean;
   isGameFinished?: boolean;
+  miniLeagueTeams?: MiniLeagueTeams | null;
 }
 
 export default function ScoreTracker({
@@ -40,12 +41,23 @@ export default function ScoreTracker({
   compact = false,
   mini = false,
   isGameFinished = false,
+  miniLeagueTeams,
 }: ScoreTrackerProps) {
   const [showGoalSheet, setShowGoalSheet] = useState(false);
-  const [selectedGoalType, setSelectedGoalType] = useState<"team" | "opponent" | null>(null);
+  const [selectedGoalType, setSelectedGoalType] = useState<"team" | "opponent" | "teamA" | "teamB" | null>(null);
 
-  const teamGoals = goals.filter((g) => !g.isOpponentGoal);
-  const opponentGoals = goals.filter((g) => g.isOpponentGoal);
+  // Mini-league mode: count goals by teamSide
+  const isMiniLeague = !!miniLeagueTeams;
+  const teamAGoals = isMiniLeague ? goals.filter((g) => g.teamSide === "a") : goals.filter((g) => !g.isOpponentGoal);
+  const teamBGoals = isMiniLeague ? goals.filter((g) => g.teamSide === "b") : goals.filter((g) => g.isOpponentGoal);
+  
+  // For regular mode compatibility
+  const teamGoals = teamAGoals;
+  const opponentGoals = teamBGoals;
+
+  // Get team names for mini-league
+  const teamAName = miniLeagueTeams?.teamAName || "Team A";
+  const teamBName = miniLeagueTeams?.teamBName || "Team B";
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -53,28 +65,45 @@ export default function ScoreTracker({
   };
 
   const handleAddTeamGoal = () => {
-    setSelectedGoalType("team");
+    if (isMiniLeague) {
+      setSelectedGoalType("teamA");
+    } else {
+      setSelectedGoalType("team");
+    }
+    setShowGoalSheet(true);
+  };
+
+  const handleAddTeamBGoal = () => {
+    setSelectedGoalType("teamB");
     setShowGoalSheet(true);
   };
 
   const handleAddOpponentGoal = () => {
-    const newGoal: Goal = {
-      id: `goal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      time: elapsedSeconds,
-      half: currentHalf,
-      isOpponentGoal: true,
-    };
-    onAddGoal(newGoal);
+    if (isMiniLeague) {
+      // For mini-league, open sheet to select Team B scorer
+      setSelectedGoalType("teamB");
+      setShowGoalSheet(true);
+    } else {
+      const newGoal: Goal = {
+        id: `goal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        time: elapsedSeconds,
+        half: currentHalf,
+        isOpponentGoal: true,
+      };
+      onAddGoal(newGoal);
+    }
   };
 
-  const handleSelectScorer = (player: Player | null) => {
+  const handleSelectScorer = (player: Player | null, forTeamSide?: "a" | "b") => {
+    const teamSide = forTeamSide || (selectedGoalType === "teamA" ? "a" : selectedGoalType === "teamB" ? "b" : undefined);
     const newGoal: Goal = {
       id: `goal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       scorerId: player?.id,
       scorerName: player?.name,
       time: elapsedSeconds,
       half: currentHalf,
-      isOpponentGoal: false,
+      isOpponentGoal: isMiniLeague ? false : (selectedGoalType === "opponent"),
+      teamSide: isMiniLeague ? teamSide : undefined,
     };
     onAddGoal(newGoal);
     setShowGoalSheet(false);
@@ -99,6 +128,10 @@ export default function ScoreTracker({
   // Combine readOnly and isGameFinished for score locking
   const isLocked = readOnly || isGameFinished;
 
+  // Get players by team for mini-league mode
+  const teamAPlayersOnPitch = isMiniLeague ? players.filter(p => p.position !== null && p.teamSide === "a") : [];
+  const teamBPlayersOnPitch = isMiniLeague ? players.filter(p => p.position !== null && p.teamSide === "b") : [];
+
   // Mini mode - just score display, click to add goals
   if (mini) {
     return (
@@ -106,7 +139,11 @@ export default function ScoreTracker({
         <button
           onClick={() => {
             if (!isLocked) {
-              setSelectedGoalType("team");
+              if (isMiniLeague) {
+                setSelectedGoalType("teamA");
+              } else {
+                setSelectedGoalType("team");
+              }
               setShowGoalSheet(true);
             }
           }}
@@ -116,12 +153,20 @@ export default function ScoreTracker({
             isGameFinished && "ring-2 ring-primary/30"
           )}
         >
-          <Badge variant="default" className="text-sm font-bold px-1.5 min-w-[20px] justify-center h-5">
-            {teamGoals.length}
+          <Badge 
+            variant="default" 
+            className="text-sm font-bold px-1.5 min-w-[20px] justify-center h-5"
+            style={isMiniLeague ? { backgroundColor: miniLeagueTeams?.teamAColor } : undefined}
+          >
+            {teamAGoals.length}
           </Badge>
           <span className="text-muted-foreground text-xs">-</span>
-          <Badge variant="secondary" className="text-sm font-bold px-1.5 min-w-[20px] justify-center h-5">
-            {opponentGoals.length}
+          <Badge 
+            variant="secondary" 
+            className="text-sm font-bold px-1.5 min-w-[20px] justify-center h-5"
+            style={isMiniLeague ? { backgroundColor: miniLeagueTeams?.teamBColor, color: 'white' } : undefined}
+          >
+            {teamBGoals.length}
           </Badge>
         </button>
 
@@ -140,49 +185,119 @@ export default function ScoreTracker({
             </SheetHeader>
             <ScrollArea className="h-[calc(85vh-4rem)]">
               <div className="space-y-3 pr-4">
-                {/* Team goal section */}
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-muted-foreground">{teamName} Goal</p>
-                  <button
-                    className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-                    onClick={() => handleSelectScorer(null)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium text-sm">Unknown / Own Goal</span>
+                {isMiniLeague ? (
+                  <>
+                    {/* Team A goal section */}
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium" style={{ color: miniLeagueTeams?.teamAColor }}>{teamAName} Goal</p>
+                      <button
+                        className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                        style={{ borderColor: miniLeagueTeams?.teamAColor }}
+                        onClick={() => handleSelectScorer(null, "a")}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium text-sm">Unknown / Own Goal</span>
+                        </div>
+                      </button>
+                      {teamAPlayersOnPitch.map((player) => (
+                        <button
+                          key={player.id}
+                          className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                          style={{ borderColor: miniLeagueTeams?.teamAColor }}
+                          onClick={() => handleSelectScorer(player, "a")}
+                        >
+                          <div className="flex items-center gap-2">
+                            {player.number && (
+                              <Badge variant="outline" className="text-xs">
+                                #{player.number}
+                              </Badge>
+                            )}
+                            <span className="font-medium text-sm">{player.name}</span>
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                  </button>
-                  {playersOnPitch.map((player) => (
-                    <button
-                      key={player.id}
-                      className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-                      onClick={() => handleSelectScorer(player)}
-                    >
-                      <div className="flex items-center gap-2">
-                        {player.number && (
-                          <Badge variant="outline" className="text-xs">
-                            #{player.number}
-                          </Badge>
-                        )}
-                        <span className="font-medium text-sm">{player.name}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
 
-                {/* Opponent goal section */}
-                <div className="space-y-2 pt-2 border-t border-border">
-                  <p className="text-sm font-medium text-muted-foreground">{opponentName} Goal</p>
-                  <button
-                    className="w-full text-left p-3 rounded-lg border border-border hover:bg-secondary/30 transition-colors"
-                    onClick={handleAddOpponentGoal}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Target className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium text-sm">Add {opponentName} Goal</span>
+                    {/* Team B goal section */}
+                    <div className="space-y-2 pt-2 border-t border-border">
+                      <p className="text-sm font-medium" style={{ color: miniLeagueTeams?.teamBColor }}>{teamBName} Goal</p>
+                      <button
+                        className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                        style={{ borderColor: miniLeagueTeams?.teamBColor }}
+                        onClick={() => handleSelectScorer(null, "b")}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium text-sm">Unknown / Own Goal</span>
+                        </div>
+                      </button>
+                      {teamBPlayersOnPitch.map((player) => (
+                        <button
+                          key={player.id}
+                          className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                          style={{ borderColor: miniLeagueTeams?.teamBColor }}
+                          onClick={() => handleSelectScorer(player, "b")}
+                        >
+                          <div className="flex items-center gap-2">
+                            {player.number && (
+                              <Badge variant="outline" className="text-xs">
+                                #{player.number}
+                              </Badge>
+                            )}
+                            <span className="font-medium text-sm">{player.name}</span>
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                  </button>
-                </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Regular mode: Team goal section */}
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-muted-foreground">{teamName} Goal</p>
+                      <button
+                        className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                        onClick={() => handleSelectScorer(null)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium text-sm">Unknown / Own Goal</span>
+                        </div>
+                      </button>
+                      {playersOnPitch.map((player) => (
+                        <button
+                          key={player.id}
+                          className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                          onClick={() => handleSelectScorer(player)}
+                        >
+                          <div className="flex items-center gap-2">
+                            {player.number && (
+                              <Badge variant="outline" className="text-xs">
+                                #{player.number}
+                              </Badge>
+                            )}
+                            <span className="font-medium text-sm">{player.name}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Opponent goal section */}
+                    <div className="space-y-2 pt-2 border-t border-border">
+                      <p className="text-sm font-medium text-muted-foreground">{opponentName} Goal</p>
+                      <button
+                        className="w-full text-left p-3 rounded-lg border border-border hover:bg-secondary/30 transition-colors"
+                        onClick={handleAddOpponentGoal}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Target className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium text-sm">Add {opponentName} Goal</span>
+                        </div>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </ScrollArea>
           </SheetContent>
@@ -305,6 +420,10 @@ export default function ScoreTracker({
     );
   }
 
+  // Determine display names based on mode
+  const displayTeamAName = isMiniLeague ? teamAName : teamName;
+  const displayTeamBName = isMiniLeague ? teamBName : opponentName;
+
   return (
     <div className={cn(
       "bg-background/95 backdrop-blur-sm rounded-xl p-3 shadow-md border border-border",
@@ -313,8 +432,11 @@ export default function ScoreTracker({
       {/* Score display */}
       <div className="flex items-center justify-center gap-4 mb-3">
         <div className="flex flex-col items-center gap-1 flex-1">
-          <span className="text-xs font-medium text-muted-foreground truncate max-w-full">
-            {teamName}
+          <span 
+            className="text-xs font-medium truncate max-w-full"
+            style={isMiniLeague ? { color: miniLeagueTeams?.teamAColor } : undefined}
+          >
+            {displayTeamAName}
           </span>
           <div className="flex items-center gap-2">
             {!isLocked && (
@@ -323,7 +445,7 @@ export default function ScoreTracker({
                 size="icon"
                 className="h-8 w-8"
                 onClick={handleRemoveLastTeamGoal}
-                disabled={teamGoals.length === 0}
+                disabled={teamAGoals.length === 0}
               >
                 <Minus className="h-4 w-4" />
               </Button>
@@ -331,8 +453,9 @@ export default function ScoreTracker({
             <Badge
               variant="default"
               className="text-2xl font-bold px-4 py-1 min-w-[48px] justify-center"
+              style={isMiniLeague ? { backgroundColor: miniLeagueTeams?.teamAColor } : undefined}
             >
-              {teamGoals.length}
+              {teamAGoals.length}
             </Badge>
             {!isLocked && (
               <Button
@@ -350,8 +473,11 @@ export default function ScoreTracker({
         <span className="text-2xl font-bold text-muted-foreground">-</span>
 
         <div className="flex flex-col items-center gap-1 flex-1">
-          <span className="text-xs font-medium text-muted-foreground truncate max-w-full">
-            {opponentName}
+          <span 
+            className="text-xs font-medium truncate max-w-full"
+            style={isMiniLeague ? { color: miniLeagueTeams?.teamBColor } : undefined}
+          >
+            {displayTeamBName}
           </span>
           <div className="flex items-center gap-2">
             {!isLocked && (
@@ -360,7 +486,7 @@ export default function ScoreTracker({
                 size="icon"
                 className="h-8 w-8"
                 onClick={handleRemoveLastOpponentGoal}
-                disabled={opponentGoals.length === 0}
+                disabled={teamBGoals.length === 0}
               >
                 <Minus className="h-4 w-4" />
               </Button>
@@ -368,15 +494,16 @@ export default function ScoreTracker({
             <Badge
               variant="secondary"
               className="text-2xl font-bold px-4 py-1 min-w-[48px] justify-center"
+              style={isMiniLeague ? { backgroundColor: miniLeagueTeams?.teamBColor, color: 'white' } : undefined}
             >
-              {opponentGoals.length}
+              {teamBGoals.length}
             </Badge>
             {!isLocked && (
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8"
-                onClick={handleAddOpponentGoal}
+                onClick={handleAddTeamBGoal}
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -394,33 +521,46 @@ export default function ScoreTracker({
           <div className="flex flex-wrap gap-1">
             {goals
               .sort((a, b) => a.time - b.time)
-              .map((goal) => (
-                <div
-                  key={goal.id}
-                  className={cn(
-                    "flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full",
-                    goal.isOpponentGoal
-                      ? "bg-secondary text-secondary-foreground"
-                      : "bg-primary/20 text-primary"
-                  )}
-                >
-                  <span>{formatTime(goal.time)}</span>
-                  {goal.scorerName && (
-                    <span className="font-medium truncate max-w-[80px]">
-                      {goal.scorerName}
-                    </span>
-                  )}
-                  {goal.isOpponentGoal && <span>Opp</span>}
-                  {!isLocked && (
-                    <button
-                      onClick={() => onRemoveGoal(goal.id)}
-                      className="hover:bg-background/50 rounded-full p-0.5"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-              ))}
+              .map((goal) => {
+                const isTeamB = isMiniLeague ? goal.teamSide === "b" : goal.isOpponentGoal;
+                const teamColor = isMiniLeague 
+                  ? (goal.teamSide === "a" ? miniLeagueTeams?.teamAColor : miniLeagueTeams?.teamBColor)
+                  : undefined;
+                return (
+                  <div
+                    key={goal.id}
+                    className={cn(
+                      "flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full",
+                      !isMiniLeague && (goal.isOpponentGoal
+                        ? "bg-secondary text-secondary-foreground"
+                        : "bg-primary/20 text-primary")
+                    )}
+                    style={isMiniLeague ? { 
+                      backgroundColor: teamColor ? `${teamColor}30` : undefined,
+                      color: teamColor 
+                    } : undefined}
+                  >
+                    <span>{formatTime(goal.time)}</span>
+                    {goal.scorerName && (
+                      <span className="font-medium truncate max-w-[80px]">
+                        {goal.scorerName}
+                      </span>
+                    )}
+                    {!isMiniLeague && goal.isOpponentGoal && <span>Opp</span>}
+                    {isMiniLeague && !goal.scorerName && (
+                      <span>{goal.teamSide === "a" ? teamAName : teamBName}</span>
+                    )}
+                    {!isLocked && (
+                      <button
+                        onClick={() => onRemoveGoal(goal.id)}
+                        className="hover:bg-background/50 rounded-full p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}
@@ -435,65 +575,107 @@ export default function ScoreTracker({
           <SheetHeader className="pb-2">
             <SheetTitle className="flex items-center gap-2">
               <Target className="h-5 w-5 text-primary" />
-              Who Scored?
+              {isMiniLeague 
+                ? (selectedGoalType === "teamA" ? `${teamAName} Goal` : `${teamBName} Goal`)
+                : "Who Scored?"}
             </SheetTitle>
           </SheetHeader>
           <ScrollArea className="h-[calc(85vh-4rem)]">
             <div className="space-y-2 pr-4">
-              {/* Unknown scorer option */}
-              <button
-                className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-                onClick={() => handleSelectScorer(null)}
-              >
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium text-sm">Unknown / Own Goal</span>
-                </div>
-              </button>
-
-              {/* Players on pitch */}
-              {playersOnPitch.map((player) => (
-                <button
-                  key={player.id}
-                  className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-                  onClick={() => handleSelectScorer(player)}
-                >
-                  <div className="flex items-center gap-2">
-                    {player.number && (
-                      <Badge variant="outline" className="text-xs">
-                        #{player.number}
-                      </Badge>
-                    )}
-                    <span className="font-medium text-sm">{player.name}</span>
-                    {player.currentPitchPosition && (
-                      <span className="text-xs text-muted-foreground">
-                        ({player.currentPitchPosition})
-                      </span>
-                    )}
-                  </div>
-                </button>
-              ))}
-
-              {/* Players on bench (less prominent) */}
-              {players
-                .filter((p) => p.position === null)
-                .map((player) => (
+              {isMiniLeague ? (
+                <>
+                  {/* Show players from the selected team */}
                   <button
-                    key={player.id}
-                    className="w-full text-left p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors opacity-60"
-                    onClick={() => handleSelectScorer(player)}
+                    className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                    style={{ borderColor: selectedGoalType === "teamA" ? miniLeagueTeams?.teamAColor : miniLeagueTeams?.teamBColor }}
+                    onClick={() => handleSelectScorer(null, selectedGoalType === "teamA" ? "a" : "b")}
                   >
                     <div className="flex items-center gap-2">
-                      {player.number && (
-                        <Badge variant="outline" className="text-xs">
-                          #{player.number}
-                        </Badge>
-                      )}
-                      <span className="font-medium text-sm">{player.name}</span>
-                      <span className="text-xs text-muted-foreground">(Bench)</span>
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-sm">Unknown / Own Goal</span>
                     </div>
                   </button>
-                ))}
+                  {(selectedGoalType === "teamA" ? teamAPlayersOnPitch : teamBPlayersOnPitch).map((player) => (
+                    <button
+                      key={player.id}
+                      className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                      style={{ borderColor: selectedGoalType === "teamA" ? miniLeagueTeams?.teamAColor : miniLeagueTeams?.teamBColor }}
+                      onClick={() => handleSelectScorer(player, selectedGoalType === "teamA" ? "a" : "b")}
+                    >
+                      <div className="flex items-center gap-2">
+                        {player.number && (
+                          <Badge variant="outline" className="text-xs">
+                            #{player.number}
+                          </Badge>
+                        )}
+                        <span className="font-medium text-sm">{player.name}</span>
+                        {player.currentPitchPosition && (
+                          <span className="text-xs text-muted-foreground">
+                            ({player.currentPitchPosition})
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </>
+              ) : (
+                <>
+                  {/* Regular mode: Unknown scorer option */}
+                  <button
+                    className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                    onClick={() => handleSelectScorer(null)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-sm">Unknown / Own Goal</span>
+                    </div>
+                  </button>
+
+                  {/* Players on pitch */}
+                  {playersOnPitch.map((player) => (
+                    <button
+                      key={player.id}
+                      className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                      onClick={() => handleSelectScorer(player)}
+                    >
+                      <div className="flex items-center gap-2">
+                        {player.number && (
+                          <Badge variant="outline" className="text-xs">
+                            #{player.number}
+                          </Badge>
+                        )}
+                        <span className="font-medium text-sm">{player.name}</span>
+                        {player.currentPitchPosition && (
+                          <span className="text-xs text-muted-foreground">
+                            ({player.currentPitchPosition})
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+
+                  {/* Players on bench (less prominent) */}
+                  {players
+                    .filter((p) => p.position === null)
+                    .map((player) => (
+                      <button
+                        key={player.id}
+                        className="w-full text-left p-3 rounded-lg border border-border/50 hover:bg-muted/30 transition-colors opacity-60"
+                        onClick={() => handleSelectScorer(player)}
+                      >
+                        <div className="flex items-center gap-2">
+                          {player.number && (
+                            <Badge variant="outline" className="text-xs">
+                              #{player.number}
+                            </Badge>
+                          )}
+                          <span className="font-medium text-sm">{player.name}</span>
+                          <span className="text-xs text-muted-foreground">(Bench)</span>
+                        </div>
+                      </button>
+                    ))}
+                </>
+              )}
             </div>
           </ScrollArea>
         </SheetContent>

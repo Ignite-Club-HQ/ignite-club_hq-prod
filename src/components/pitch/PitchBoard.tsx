@@ -3133,6 +3133,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 opponentName={opponentName}
                 readOnly={readOnly}
                 isGameFinished={gameTimerRef.current?.isGameFinished() || false}
+                miniLeagueTeams={miniLeagueTeams}
                 mini
               />
             </div>
@@ -4040,6 +4041,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             opponentName={opponentName}
             readOnly={readOnly}
             isGameFinished={gameTimerRef.current?.isGameFinished() || false}
+            miniLeagueTeams={miniLeagueTeams}
           />
         </div>
       )}
