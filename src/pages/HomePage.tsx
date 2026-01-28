@@ -2189,10 +2189,14 @@ export default function HomePage() {
         ) : (
           <div className="space-y-3">
             {events?.map((event) => (
-              <Card key={event.id} className={`hover:border-primary/50 transition-colors ${event.is_cancelled ? 'opacity-60' : ''}`}>
+              <Card 
+                key={event.id} 
+                className={`hover:border-primary/50 transition-colors cursor-pointer ${event.is_cancelled ? 'opacity-60' : ''}`}
+                onClick={() => navigate(`/events/${event.id}`)}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-2">
-                    <Link to={`/events/${event.id}`} className="space-y-1 flex-1 min-w-0">
+                    <div className="space-y-1 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge className={eventTypeColors[event.type]} variant="secondary">
                           {event.type}
@@ -2220,7 +2224,7 @@ export default function HomePage() {
                           {event.suburb}
                         </span>
                       )}
-                    </Link>
+                    </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {/* Quick RSVP Button - only for non-cancelled events */}
                       {!event.is_cancelled && (
