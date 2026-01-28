@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw, ExternalLink, Sheet, FileSpreadsheet } from "lucide-react";
+import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw, ExternalLink, Sheet, FileSpreadsheet, Link2 } from "lucide-react";
 import { CreateFolderDialog } from "@/components/vault/CreateFolderDialog";
 import { UploadFilesDialog } from "@/components/vault/UploadFilesDialog";
+import { AddLinkDialog } from "@/components/vault/AddLinkDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 import JSZip from "jszip";
@@ -108,6 +109,8 @@ export default function VaultPage() {
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [isDeletingSelected, setIsDeletingSelected] = useState(false);
   const [storagePurchaseDialogOpen, setStoragePurchaseDialogOpen] = useState(false);
+  const [addLinkDialogOpen, setAddLinkDialogOpen] = useState(false);
+  const [addingLink, setAddingLink] = useState(false);
 
   const togglePhotoSelection = (photoId: string) => {
     setSelectedPhotos(prev => {
@@ -1377,6 +1380,37 @@ export default function VaultPage() {
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to upload file");
+    },
+  });
+
+  const addLinkMutation = useMutation({
+    mutationFn: async ({ url, name }: { url: string; name: string }) => {
+      const insertData: any = {
+        file_url: url,
+        uploaded_by: user!.id,
+        name,
+        folder_id: getCurrentFolderId(),
+        is_external_link: true,
+        file_size: 0, // External links have no storage size
+      };
+
+      if (currentView.type === "club") {
+        insertData.club_id = currentView.clubId;
+      } else if (currentView.type === "team") {
+        insertData.club_id = currentView.clubId;
+        insertData.team_id = currentView.teamId;
+      }
+
+      const { error: insertError } = await supabase.from("vault_files").insert(insertData);
+      if (insertError) throw insertError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      setAddLinkDialogOpen(false);
+      toast.success("Link added successfully!");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to add link");
     },
   });
 
@@ -2928,6 +2962,14 @@ export default function VaultPage() {
                     </TooltipTrigger>
                     <TooltipContent>Upload photos or files</TooltipContent>
                   </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="sm" onClick={() => setAddLinkDialogOpen(true)}>
+                        <Link2 className="h-4 w-4 mr-1" /> Add Link
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Add a Google Docs or external link</TooltipContent>
+                  </Tooltip>
                   
                   <CreateFolderDialog
                     open={newFolderDialogOpen}
@@ -2941,6 +2983,14 @@ export default function VaultPage() {
                     onOpenChange={setUploadDialogOpen}
                     onUpload={handleDialogUpload}
                     isUploading={uploading}
+                    targetName={currentView.folderName || (currentView.type === "team" ? currentView.teamName : currentView.type === "club" ? currentView.clubName : "Vault")}
+                  />
+
+                  <AddLinkDialog
+                    open={addLinkDialogOpen}
+                    onOpenChange={setAddLinkDialogOpen}
+                    onAddLink={(url, name) => addLinkMutation.mutate({ url, name })}
+                    isAdding={addLinkMutation.isPending}
                     targetName={currentView.folderName || (currentView.type === "team" ? currentView.teamName : currentView.type === "club" ? currentView.clubName : "Vault")}
                   />
                 </>
@@ -3986,6 +4036,35 @@ function isDocumentFile(fileName: string): boolean {
   return documentExtensions.some(ext => lowerName.endsWith(ext));
 }
 
+// Helper function to detect external link type from URL
+function getExternalLinkInfo(url: string): { type: string; icon: string; color: string } | null {
+  const lowerUrl = url.toLowerCase();
+  
+  if (lowerUrl.includes('docs.google.com/document')) {
+    return { type: 'Google Doc', icon: '📄', color: 'text-blue-600' };
+  }
+  if (lowerUrl.includes('docs.google.com/spreadsheets')) {
+    return { type: 'Google Sheet', icon: '📊', color: 'text-green-600' };
+  }
+  if (lowerUrl.includes('docs.google.com/presentation')) {
+    return { type: 'Google Slides', icon: '📽️', color: 'text-yellow-600' };
+  }
+  if (lowerUrl.includes('drive.google.com')) {
+    return { type: 'Google Drive', icon: '📁', color: 'text-blue-500' };
+  }
+  if (lowerUrl.includes('dropbox.com')) {
+    return { type: 'Dropbox', icon: '📦', color: 'text-blue-500' };
+  }
+  if (lowerUrl.includes('notion.so') || lowerUrl.includes('notion.site')) {
+    return { type: 'Notion', icon: '📝', color: 'text-foreground' };
+  }
+  if (lowerUrl.includes('onedrive.live.com') || lowerUrl.includes('sharepoint.com')) {
+    return { type: 'OneDrive', icon: '☁️', color: 'text-blue-600' };
+  }
+  
+  return { type: 'External Link', icon: '🔗', color: 'text-muted-foreground' };
+}
+
 // Helper function to download and open in external service
 function downloadAndOpenExternal(
   fileUrl: string, 
@@ -4161,7 +4240,11 @@ function ContentSection({
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">Files ({files.length})</h2>
           <div className="space-y-2">
-            {files.map((file) => (
+            {files.map((file) => {
+              const isExternalLink = file.is_external_link;
+              const externalLinkInfo = isExternalLink ? getExternalLinkInfo(file.file_url) : null;
+              
+              return (
               <Card 
                 key={file.id} 
                 className={`group cursor-pointer ${
@@ -4172,6 +4255,9 @@ function ContentSection({
                 onClick={() => {
                   if (selectionMode && onToggleFileSelection) {
                     onToggleFileSelection(file.id);
+                  } else if (isExternalLink) {
+                    // Open external link directly
+                    window.open(file.file_url, "_blank");
                   }
                 }}
               >
@@ -4194,18 +4280,30 @@ function ContentSection({
                       }}
                     />
                   </div>
-                  <div className={`p-2 rounded-lg ${isSpreadsheetFile(file.name || '') ? 'bg-green-500/10' : 'bg-primary/10'}`}>
-                    {isSpreadsheetFile(file.name || '') ? (
-                      <FileSpreadsheet className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <FileText className="h-4 w-4 text-primary" />
-                    )}
-                  </div>
+                  {isExternalLink && externalLinkInfo ? (
+                    <div className="p-2 rounded-lg bg-muted flex items-center justify-center text-lg">
+                      {externalLinkInfo.icon}
+                    </div>
+                  ) : (
+                    <div className={`p-2 rounded-lg ${isSpreadsheetFile(file.name || '') ? 'bg-green-500/10' : 'bg-primary/10'}`}>
+                      {isSpreadsheetFile(file.name || '') ? (
+                        <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <FileText className="h-4 w-4 text-primary" />
+                      )}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{file.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {format(new Date(file.created_at), "MMM d, yyyy")}
-                      {file.file_size ? ` • ${formatFileSize(file.file_size)}` : ''}
+                      {isExternalLink && externalLinkInfo ? (
+                        <span className={externalLinkInfo.color}>{externalLinkInfo.type}</span>
+                      ) : (
+                        <>
+                          {format(new Date(file.created_at), "MMM d, yyyy")}
+                          {file.file_size ? ` • ${formatFileSize(file.file_size)}` : ''}
+                        </>
+                      )}
                     </p>
                   </div>
                   {!selectionMode && (
@@ -4241,83 +4339,109 @@ function ContentSection({
                         </>
                       ) : (
                         <>
-                          {isSpreadsheetFile(file.name || '') && (
+                          {/* For external links - show Open button */}
+                          {isExternalLink ? (
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                    className="h-8 w-8 text-primary hover:text-primary"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      openInGoogleSheets(file.file_url, file.name || 'spreadsheet', toast);
+                                      window.open(file.file_url, "_blank");
                                     }}
                                   >
-                                    <Sheet className="h-4 w-4" />
+                                    <ExternalLink className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  <p>Open in Google Sheets</p>
+                                  <p>Open {externalLinkInfo?.type || 'Link'}</p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
+                          ) : (
+                            <>
+                              {isSpreadsheetFile(file.name || '') && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openInGoogleSheets(file.file_url, file.name || 'spreadsheet', toast);
+                                        }}
+                                      >
+                                        <Sheet className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Open in Google Sheets</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                              {/* Google Drive button for documents */}
+                              {isDocumentFile(file.name || '') && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openInGoogleDrive(file.file_url, file.name || 'document', toast);
+                                        }}
+                                      >
+                                        <HardDrive className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Open in Google Drive</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                              {/* Dropbox button for all files */}
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openInDropbox(file.file_url, file.name || 'file', toast);
+                                      }}
+                                    >
+                                      <ExternalLink className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Open in Dropbox</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(file.file_url, "_blank");
+                                }}
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </>
                           )}
-                          {/* Google Drive button for documents */}
-                          {isDocumentFile(file.name || '') && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openInGoogleDrive(file.file_url, file.name || 'document', toast);
-                                    }}
-                                  >
-                                    <HardDrive className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Open in Google Drive</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                          {/* Dropbox button for all files */}
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openInDropbox(file.file_url, file.name || 'file', toast);
-                                  }}
-                                >
-                                  <ExternalLink className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Open in Dropbox</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(file.file_url, "_blank");
-                            }}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
                           {canRenameFile?.(file) && onRenameFile && (
                             <Button
                               variant="ghost"
@@ -4350,7 +4474,8 @@ function ContentSection({
                   )}
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
