@@ -2137,7 +2137,7 @@ export default function HomePage() {
       {displayedTeams.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Pitch Board</h2>
+            <h2 className="text-lg font-semibold">Pitch Boards</h2>
             {sortedTeams.length > 2 && (
               <button 
                 onClick={() => setPitchBoardsExpanded(!pitchBoardsExpanded)}
