@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import useEmblaCarousel from "embla-carousel-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface ClubSponsorSectionProps {
   clubId: string | null;
@@ -18,6 +20,8 @@ interface SponsorItem {
 export function ClubSponsorSection({ clubId }: ClubSponsorSectionProps) {
   const { user } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [canScrollPrev, setCanScrollPrev] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
 
   // Fetch sponsors for this club (club primary sponsor + team allocations)
   const { data: sponsors = [] } = useQuery({
@@ -92,13 +96,18 @@ export function ClubSponsorSection({ clubId }: ClubSponsorSectionProps) {
   const onSelect = useCallback(() => {
     if (!emblaApi) return;
     setCurrentIndex(emblaApi.selectedScrollSnap());
+    setCanScrollPrev(emblaApi.canScrollPrev());
+    setCanScrollNext(emblaApi.canScrollNext());
   }, [emblaApi]);
 
   useEffect(() => {
     if (!emblaApi) return;
     emblaApi.on("select", onSelect);
+    emblaApi.on("reInit", onSelect);
+    onSelect();
     return () => {
       emblaApi.off("select", onSelect);
+      emblaApi.off("reInit", onSelect);
     };
   }, [emblaApi, onSelect]);
 
@@ -131,22 +140,41 @@ export function ClubSponsorSection({ clubId }: ClubSponsorSectionProps) {
     );
   }
 
-  // Multiple sponsors - show carousel
+  // Multiple sponsors - show carousel with navigation
   return (
     <section className="space-y-3">
-      <div className="overflow-hidden cursor-grab active:cursor-grabbing" ref={emblaRef}>
-        <div className="flex">
-          {sponsors.map((sponsor) => (
-            <div key={sponsor.id} className="flex-[0_0_100%] min-w-0">
-              <PrimarySponsorDisplay
-                sponsorId={sponsor.sponsorId}
-                variant="full"
-                context="home_page"
-                entityName={sponsor.entityName}
-              />
-            </div>
-          ))}
+      <div className="relative group">
+        <div className="overflow-hidden cursor-grab active:cursor-grabbing" ref={emblaRef}>
+          <div className="flex">
+            {sponsors.map((sponsor) => (
+              <div key={sponsor.id} className="flex-[0_0_100%] min-w-0">
+                <PrimarySponsorDisplay
+                  sponsorId={sponsor.sponsorId}
+                  variant="full"
+                  context="home_page"
+                  entityName={sponsor.entityName}
+                />
+              </div>
+            ))}
+          </div>
         </div>
+        {/* Navigation arrows */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute left-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => emblaApi?.scrollPrev()}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => emblaApi?.scrollNext()}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
       </div>
       <div className="flex justify-center gap-1.5">
         {sponsors.map((_, index) => (
