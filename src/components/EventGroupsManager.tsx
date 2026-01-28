@@ -176,7 +176,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
   });
 
   // Fetch RSVPs for this event to determine who is attending
-  const { data: eventRsvps } = useQuery({
+  const { data: eventRsvps, refetch: refetchRsvps } = useQuery({
     queryKey: ["event-rsvps-going", eventId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -188,6 +188,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       return data as { user_id: string | null; child_id: string | null; mini_league_player_id: string | null }[];
     },
     enabled: !!eventId,
+    staleTime: 0, // Always consider stale to get fresh data
   });
 
   // Map RSVPs to mini league players - now includes direct mini_league_player_id matching
@@ -546,6 +547,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
   const handleRegenerate = async () => {
     setIsRegenerating(true);
     try {
+      // Refetch RSVPs to get latest data before regenerating
+      await refetchRsvps();
       await deleteAllGroupsMutation.mutateAsync();
       setIsAutoGenOpen(true);
     } catch (error) {
@@ -589,7 +592,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
               <Copy className="h-4 w-4 mr-1" />
               Copy
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setIsAutoGenOpen(true)}>
+            <Button size="sm" variant="outline" onClick={() => { refetchRsvps(); setIsAutoGenOpen(true); }}>
               <Wand2 className="h-4 w-4 mr-1" />
               Auto
             </Button>
