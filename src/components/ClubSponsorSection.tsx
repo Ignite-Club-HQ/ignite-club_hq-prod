@@ -23,7 +23,7 @@ export function ClubSponsorSection({ clubId }: ClubSponsorSectionProps) {
   const [canScrollPrev, setCanScrollPrev] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
 
-  // Fetch ALL active sponsors for this club
+  // Fetch ALL active sponsors, showing team-allocated ones under team names
   const { data: sponsors = [] } = useQuery({
     queryKey: ["club-section-sponsors", clubId, user?.id],
     queryFn: async () => {
@@ -46,11 +46,49 @@ export function ClubSponsorSection({ clubId }: ClubSponsorSectionProps) {
         .eq("is_active", true)
         .order("name");
 
-      return (allSponsors || []).map((sponsor) => ({
-        id: `club-${club.id}-${sponsor.id}`,
-        sponsorId: sponsor.id,
-        entityName: club.name,
-      }));
+      if (!allSponsors || allSponsors.length === 0) return [];
+
+      // Fetch team allocations with team names
+      const { data: allocations } = await supabase
+        .from("team_sponsor_allocations")
+        .select("sponsor_id, team_id, teams!team_sponsor_allocations_team_id_fkey(id, name)")
+        .in("sponsor_id", allSponsors.map(s => s.id));
+
+      // Build a map of sponsor_id -> team names
+      const sponsorTeamMap = new Map<string, string[]>();
+      allocations?.forEach((alloc) => {
+        if (alloc.teams?.name) {
+          const existing = sponsorTeamMap.get(alloc.sponsor_id) || [];
+          existing.push(alloc.teams.name);
+          sponsorTeamMap.set(alloc.sponsor_id, existing);
+        }
+      });
+
+      // Map sponsors: if allocated to teams, show under team name; otherwise show under club
+      const result: SponsorItem[] = [];
+      allSponsors.forEach((sponsor) => {
+        const teamNames = sponsorTeamMap.get(sponsor.id);
+        
+        if (teamNames && teamNames.length > 0) {
+          // Show once per team allocation
+          teamNames.forEach((teamName) => {
+            result.push({
+              id: `club-${club.id}-${sponsor.id}-team-${teamName}`,
+              sponsorId: sponsor.id,
+              entityName: teamName,
+            });
+          });
+        } else {
+          // Club-level sponsor
+          result.push({
+            id: `club-${club.id}-${sponsor.id}`,
+            sponsorId: sponsor.id,
+            entityName: club.name,
+          });
+        }
+      });
+
+      return result;
     },
     enabled: !!clubId && !!user?.id,
   });

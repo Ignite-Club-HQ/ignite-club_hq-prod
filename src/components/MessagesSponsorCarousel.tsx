@@ -21,7 +21,7 @@ export function MessagesSponsorCarousel({ activeClubFilter }: MessagesSponsorCar
   const { user } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Fetch ALL active sponsors for user's clubs (filtered or all)
+  // Fetch ALL active sponsors, showing team-allocated ones under team names
   const { data: sponsors = [] } = useQuery({
     queryKey: ["messages-all-sponsors", user?.id, activeClubFilter],
     queryFn: async () => {
@@ -35,18 +35,51 @@ export function MessagesSponsorCarousel({ activeClubFilter }: MessagesSponsorCar
 
         if (!club) return [];
 
-        const { data: sponsors } = await supabase
+        const { data: clubSponsors } = await supabase
           .from("sponsors")
           .select("id, name, is_active")
           .eq("club_id", activeClubFilter)
           .eq("is_active", true)
           .order("name");
 
-        return (sponsors || []).map((sponsor) => ({
-          id: `club-${club.id}-${sponsor.id}`,
-          sponsorId: sponsor.id,
-          entityName: club.name,
-        }));
+        if (!clubSponsors || clubSponsors.length === 0) return [];
+
+        // Fetch team allocations
+        const { data: allocations } = await supabase
+          .from("team_sponsor_allocations")
+          .select("sponsor_id, team_id, teams!team_sponsor_allocations_team_id_fkey(id, name)")
+          .in("sponsor_id", clubSponsors.map(s => s.id));
+
+        const sponsorTeamMap = new Map<string, string[]>();
+        allocations?.forEach((alloc) => {
+          if (alloc.teams?.name) {
+            const existing = sponsorTeamMap.get(alloc.sponsor_id) || [];
+            existing.push(alloc.teams.name);
+            sponsorTeamMap.set(alloc.sponsor_id, existing);
+          }
+        });
+
+        const result: SponsorItem[] = [];
+        clubSponsors.forEach((sponsor) => {
+          const teamNames = sponsorTeamMap.get(sponsor.id);
+          if (teamNames && teamNames.length > 0) {
+            teamNames.forEach((teamName) => {
+              result.push({
+                id: `club-${club.id}-${sponsor.id}-team-${teamName}`,
+                sponsorId: sponsor.id,
+                entityName: teamName,
+              });
+            });
+          } else {
+            result.push({
+              id: `club-${club.id}-${sponsor.id}`,
+              sponsorId: sponsor.id,
+              entityName: club.name,
+            });
+          }
+        });
+
+        return result;
       } else {
         // No filter: show all active sponsors from all user's clubs
         const { data: roles } = await supabase
@@ -86,11 +119,46 @@ export function MessagesSponsorCarousel({ activeClubFilter }: MessagesSponsorCar
           .eq("is_active", true)
           .order("name");
 
-        return (allSponsors || []).map((sponsor) => ({
-          id: `sponsor-${sponsor.id}`,
-          sponsorId: sponsor.id,
-          entityName: clubNameMap.get(sponsor.club_id) || "",
-        }));
+        if (!allSponsors || allSponsors.length === 0) return [];
+
+        // Fetch team allocations
+        const { data: allocations } = await supabase
+          .from("team_sponsor_allocations")
+          .select("sponsor_id, team_id, teams!team_sponsor_allocations_team_id_fkey(id, name)")
+          .in("sponsor_id", allSponsors.map(s => s.id));
+
+        const sponsorTeamMap = new Map<string, string[]>();
+        allocations?.forEach((alloc) => {
+          if (alloc.teams?.name) {
+            const existing = sponsorTeamMap.get(alloc.sponsor_id) || [];
+            existing.push(alloc.teams.name);
+            sponsorTeamMap.set(alloc.sponsor_id, existing);
+          }
+        });
+
+        const result: SponsorItem[] = [];
+        allSponsors.forEach((sponsor) => {
+          const teamNames = sponsorTeamMap.get(sponsor.id);
+          const clubName = clubNameMap.get(sponsor.club_id) || "";
+          
+          if (teamNames && teamNames.length > 0) {
+            teamNames.forEach((teamName) => {
+              result.push({
+                id: `sponsor-${sponsor.id}-team-${teamName}`,
+                sponsorId: sponsor.id,
+                entityName: teamName,
+              });
+            });
+          } else {
+            result.push({
+              id: `sponsor-${sponsor.id}`,
+              sponsorId: sponsor.id,
+              entityName: clubName,
+            });
+          }
+        });
+
+        return result;
       }
     },
     enabled: !!user?.id,
