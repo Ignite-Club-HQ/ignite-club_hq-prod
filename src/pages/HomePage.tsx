@@ -25,6 +25,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 import GameTimerWidget from "@/components/pitch/GameTimerWidget";
 import PendingSubWidget from "@/components/pitch/PendingSubWidget";
+import { MiniLeagueGameWidgets } from "@/components/MiniLeagueGameWidgets";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -1435,6 +1436,9 @@ export default function HomePage() {
           </>
         );
       })()}
+
+      {/* Mini League Live Matches Widget */}
+      <MiniLeagueGameWidgets activeClubFilter={activeClubFilter} />
 
       {/* Account Recovery Banner */}
       {user && (
