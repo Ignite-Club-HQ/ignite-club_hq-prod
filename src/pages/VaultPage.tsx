@@ -27,6 +27,7 @@ import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { removePhotoFromCache } from "@/lib/mediaCache";
 import { StoragePurchaseDialog } from "@/components/StoragePurchaseDialog";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -3796,10 +3797,14 @@ function VaultPhotoItem({
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Use file_url or image_url (mini-league photos use image_url)
-  const photoUrl = photo.file_url || photo.image_url;
+  const rawPhotoUrl = photo.file_url || photo.image_url;
+  
+  // Get signed URL for private bucket photos
+  const { signedUrl, isLoading: isLoadingSignedUrl } = useSignedPhotoUrl(rawPhotoUrl);
+  const photoUrl = signedUrl || rawPhotoUrl;
   
   // If no URL is available, show error state
-  if (!photoUrl) {
+  if (!rawPhotoUrl) {
     return (
       <div className="aspect-square rounded-lg bg-muted flex items-center justify-center">
         <span className="text-xs text-muted-foreground">No image</span>
@@ -3807,21 +3812,23 @@ function VaultPhotoItem({
     );
   }
   
-  // Don't render anything until image is loaded
-  if (!isLoaded && !hasError) {
+  // Show loading state while fetching signed URL or loading image
+  if (isLoadingSignedUrl || (!isLoaded && !hasError)) {
     return (
       <>
-        {/* Hidden image to preload - use offscreen positioning instead of sr-only */}
-        <img
-          src={photoUrl}
-          alt=""
-          style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }}
-          onLoad={() => setIsLoaded(true)}
-          onError={() => {
-            console.error('[VaultPhotoItem] Failed to load image:', photoUrl);
-            setHasError(true);
-          }}
-        />
+        {/* Only start preloading once we have a signed URL */}
+        {!isLoadingSignedUrl && photoUrl && (
+          <img
+            src={photoUrl}
+            alt=""
+            style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }}
+            onLoad={() => setIsLoaded(true)}
+            onError={() => {
+              console.error('[VaultPhotoItem] Failed to load image:', photoUrl);
+              setHasError(true);
+            }}
+          />
+        )}
         {/* Placeholder skeleton while loading */}
         <div className="aspect-square rounded-lg bg-muted animate-pulse" />
       </>
