@@ -5,6 +5,7 @@ import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, Ar
 import { CreateFolderDialog } from "@/components/vault/CreateFolderDialog";
 import { UploadFilesDialog } from "@/components/vault/UploadFilesDialog";
 import { AddLinkDialog } from "@/components/vault/AddLinkDialog";
+import { MoveFileDialog } from "@/components/vault/MoveFileDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 import JSZip from "jszip";
@@ -111,6 +112,8 @@ export default function VaultPage() {
   const [storagePurchaseDialogOpen, setStoragePurchaseDialogOpen] = useState(false);
   const [addLinkDialogOpen, setAddLinkDialogOpen] = useState(false);
   const [addingLink, setAddingLink] = useState(false);
+  const [moveFileDialogOpen, setMoveFileDialogOpen] = useState(false);
+  const [fileToMove, setFileToMove] = useState<{ id: string; name: string; folder_id: string | null } | null>(null);
 
   const togglePhotoSelection = (photoId: string) => {
     setSelectedPhotos(prev => {
@@ -1553,6 +1556,25 @@ export default function VaultPage() {
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to permanently delete file");
+    },
+  });
+
+  // Move file to a different folder
+  const moveFileMutation = useMutation({
+    mutationFn: async ({ fileId, targetFolderId }: { fileId: string; targetFolderId: string | null }) => {
+      const { error } = await supabase.from("vault_files")
+        .update({ folder_id: targetFolderId })
+        .eq("id", fileId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      setMoveFileDialogOpen(false);
+      setFileToMove(null);
+      toast.success("File moved successfully");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to move file");
     },
   });
 
@@ -3204,6 +3226,7 @@ export default function VaultPage() {
               canDeleteFile={canDeleteFile}
               canRenamePhoto={canRenamePhoto}
               canRenameFile={canRenameFile}
+              canMoveFile={canRenameFile}
               onDeletePhoto={setDeletePhotoId}
               onDeleteFile={setDeleteFileId}
               onRenamePhoto={(photo) => {
@@ -3213,6 +3236,10 @@ export default function VaultPage() {
               onRenameFile={(file) => {
                 setRenameFileId(file.id);
                 setRenameFileName(file.name);
+              }}
+              onMoveFile={(file) => {
+                setFileToMove({ id: file.id, name: file.name, folder_id: file.folder_id });
+                setMoveFileDialogOpen(true);
               }}
               onDownloadPhoto={downloadFile}
               selectionMode={selectionMode}
@@ -3272,6 +3299,7 @@ export default function VaultPage() {
               canDeleteFile={canDeleteFile}
               canRenamePhoto={canRenamePhoto}
               canRenameFile={canRenameFile}
+              canMoveFile={canRenameFile}
               onDeletePhoto={setDeletePhotoId}
               onDeleteFile={setDeleteFileId}
               onRenamePhoto={(photo) => {
@@ -3281,6 +3309,10 @@ export default function VaultPage() {
               onRenameFile={(file) => {
                 setRenameFileId(file.id);
                 setRenameFileName(file.name);
+              }}
+              onMoveFile={(file) => {
+                setFileToMove({ id: file.id, name: file.name, folder_id: file.folder_id });
+                setMoveFileDialogOpen(true);
               }}
               onDownloadPhoto={downloadFile}
               selectionMode={selectionMode}
@@ -3809,6 +3841,17 @@ export default function VaultPage() {
           storageDowngradeAt={storageDowngradeAt}
         />
       )}
+
+      {/* Move File Dialog */}
+      <MoveFileDialog
+        open={moveFileDialogOpen}
+        onOpenChange={setMoveFileDialogOpen}
+        file={fileToMove}
+        teamId={currentView.type === "team" ? currentView.teamId : null}
+        clubId={currentView.type === "club" || currentView.type === "team" ? currentView.clubId : null}
+        onMove={(fileId, targetFolderId) => moveFileMutation.mutate({ fileId, targetFolderId })}
+        isMoving={moveFileMutation.isPending}
+      />
     </div>
   );
 }
@@ -4135,10 +4178,12 @@ interface ContentSectionProps {
   canDeleteFile: (file: any) => boolean;
   canRenamePhoto?: (photo: any) => boolean;
   canRenameFile?: (file: any) => boolean;
+  canMoveFile?: (file: any) => boolean;
   onDeletePhoto: (id: string) => void;
   onDeleteFile: (id: string) => void;
   onRenamePhoto?: (photo: any) => void;
   onRenameFile?: (file: any) => void;
+  onMoveFile?: (file: any) => void;
   onDownloadPhoto?: (url: string, filename: string) => void;
   selectionMode?: boolean;
   selectedPhotos?: Set<string>;
@@ -4162,10 +4207,12 @@ function ContentSection({
   canDeleteFile,
   canRenamePhoto,
   canRenameFile,
+  canMoveFile,
   onDeletePhoto,
   onDeleteFile,
   onRenamePhoto,
   onRenameFile,
+  onMoveFile,
   onDownloadPhoto,
   selectionMode = false,
   selectedPhotos = new Set(),
@@ -4441,6 +4488,28 @@ function ContentSection({
                                 <Download className="h-4 w-4" />
                               </Button>
                             </>
+                          )}
+                          {canMoveFile?.(file) && onMoveFile && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onMoveFile(file);
+                                    }}
+                                  >
+                                    <FolderDown className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Move to folder</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           )}
                           {canRenameFile?.(file) && onRenameFile && (
                             <Button
