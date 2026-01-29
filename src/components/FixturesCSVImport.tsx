@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { FixturePreviewEditor } from "@/components/FixturePreviewEditor";
+import { DriblImportMapper, isDriblFormat, parseDriblRows } from "@/components/DriblImportMapper";
 import * as XLSX from "xlsx";
 
 interface Team {
@@ -24,6 +25,7 @@ interface Team {
 
 interface FixturesCSVImportProps {
   clubId: string;
+  clubName?: string;
   teamId?: string;
   teams?: Team[];
   onImportComplete: () => void;
@@ -42,6 +44,7 @@ interface ParsedFixture {
   teamId?: string;
   existingEventId?: string;
   opponent?: string;
+  isHomeGame?: boolean;
 }
 
 interface ValidationError {
@@ -72,7 +75,7 @@ const isFixtureValid = (fixture: ParsedFixture): boolean => {
 
 const ACCEPTED_FILE_TYPES = ".csv,.xlsx,.xls";
 
-export function FixturesCSVImport({ clubId, teamId, teams = [], onImportComplete, isClubAdmin = false }: FixturesCSVImportProps) {
+export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], onImportComplete, isClubAdmin = false }: FixturesCSVImportProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -85,6 +88,10 @@ export function FixturesCSVImport({ clubId, teamId, teams = [], onImportComplete
   const [formatOpen, setFormatOpen] = useState(false);
   const [updateDuplicates, setUpdateDuplicates] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Dribl-specific state
+  const [driblMode, setDriblMode] = useState(false);
+  const [driblRawData, setDriblRawData] = useState<{ headers: string[]; rows: string[][] } | null>(null);
 
   const validateAndParseRows = (rows: string[][]): { fixtures: ParsedFixture[]; errors: ValidationError[] } => {
     const fixtures: ParsedFixture[] = [];
@@ -329,13 +336,34 @@ export function FixturesCSVImport({ clubId, teamId, teams = [], onImportComplete
     }
 
     try {
+      const parseAndCheck = async (rows: string[][]) => {
+        if (rows.length < 2) {
+          setErrors([{ row: 0, message: "File must have a header row and at least one data row" }]);
+          setFile(selectedFile);
+          return;
+        }
+        
+        const headers = rows[0].map(h => h?.toString() || '');
+        
+        // Check if this is a Dribl export
+        if (isDriblFormat(headers)) {
+          setFile(selectedFile);
+          setDriblMode(true);
+          setDriblRawData({ headers, rows: rows.slice(1) });
+          return;
+        }
+        
+        // Standard import flow
+        const { fixtures, errors: parseErrors } = validateAndParseRows(rows);
+        await processFixtures(fixtures, parseErrors, selectedFile);
+      };
+      
       if (isCSV) {
         const reader = new FileReader();
         reader.onload = async (event) => {
           const content = event.target?.result as string;
           const rows = parseCSV(content);
-          const { fixtures, errors: parseErrors } = validateAndParseRows(rows);
-          await processFixtures(fixtures, parseErrors, selectedFile);
+          await parseAndCheck(rows);
         };
         reader.readAsText(selectedFile);
       } else {
@@ -343,8 +371,7 @@ export function FixturesCSVImport({ clubId, teamId, teams = [], onImportComplete
         reader.onload = async (event) => {
           const data = event.target?.result as ArrayBuffer;
           const rows = parseExcel(data);
-          const { fixtures, errors: parseErrors } = validateAndParseRows(rows);
-          await processFixtures(fixtures, parseErrors, selectedFile);
+          await parseAndCheck(rows);
         };
         reader.readAsArrayBuffer(selectedFile);
       }
@@ -488,9 +515,56 @@ export function FixturesCSVImport({ clubId, teamId, teams = [], onImportComplete
     setDuplicateFixtures([]);
     setErrors([]);
     setUpdateDuplicates(false);
+    setDriblMode(false);
+    setDriblRawData(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  // Handle Dribl mapper confirmation
+  const handleDriblConfirm = async (
+    driblFixtures: Array<{
+      id: string;
+      title: string;
+      date: string;
+      time: string;
+      address?: string;
+      description?: string;
+      opponent?: string;
+      driblTeamKey: string;
+      isHomeGame: boolean;
+    }>,
+    mappings: Array<{
+      driblTeamKey: string;
+      driblTeamDisplay: string;
+      igniteTeamId: string | null;
+      fixtureCount: number;
+    }>
+  ) => {
+    // Convert Dribl fixtures to ParsedFixture format with team IDs
+    const mappingLookup = new Map(mappings.map(m => [m.driblTeamKey, m.igniteTeamId]));
+    
+    const fixtures: ParsedFixture[] = driblFixtures
+      .filter(f => mappingLookup.get(f.driblTeamKey)) // Only include fixtures with mapped teams
+      .map(f => ({
+        id: f.id,
+        title: f.title,
+        date: f.date,
+        time: f.time,
+        address: f.address,
+        description: f.description,
+        opponent: f.opponent,
+        teamId: mappingLookup.get(f.driblTeamKey) || undefined,
+        isHomeGame: f.isHomeGame,
+      }));
+    
+    // Exit Dribl mode and process fixtures normally
+    setDriblMode(false);
+    setDriblRawData(null);
+    
+    // Process fixtures for duplicates
+    await processFixtures(fixtures, [], file!);
   };
 
   const downloadTemplate = () => {
@@ -557,6 +631,20 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
   const invalidCount = parsedFixtures.filter(f => !isFixtureValid(f)).length + 
     (updateDuplicates ? duplicateFixtures.filter(f => !isFixtureValid(f)).length : 0);
 
+  // If in Dribl mode, show the mapper
+  if (driblMode && driblRawData) {
+    const driblRows = parseDriblRows(driblRawData.headers, driblRawData.rows);
+    return (
+      <DriblImportMapper
+        driblRows={driblRows}
+        teams={teams}
+        clubName={clubName}
+        onConfirm={handleDriblConfirm}
+        onCancel={handleClear}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Format Guide - Collapsible */}
@@ -607,6 +695,12 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
                 ) : (
                   <p className="text-primary/80">Fixtures will be assigned to the selected team automatically.</p>
                 )}
+              </div>
+              
+              <div className="pt-2 border-t border-border">
+                <p className="text-xs text-muted-foreground">
+                  <strong>⚽ Dribl exports:</strong> Automatically detected! Upload your Dribl export and we'll map teams for you.
+                </p>
               </div>
 
               <div className="flex gap-2 pt-2">

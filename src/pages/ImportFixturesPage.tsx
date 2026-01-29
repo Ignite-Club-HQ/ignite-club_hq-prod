@@ -66,13 +66,18 @@ export default function ImportFixturesPage() {
       
       const { data } = await supabase
         .from("clubs")
-        .select("id, name")
+        .select("id, name, sport")
         .in("id", clubIds);
 
       return data || [];
     },
     enabled: !!user && (!!clubAdminRoles || !!teamAdminRoles),
   });
+
+  // Get current club name and sport for Dribl detection
+  const selectedClub = clubs?.find(c => c.id === clubId);
+  const isFootballClub = selectedClub?.sport?.toLowerCase().includes('football') || 
+                          selectedClub?.sport?.toLowerCase().includes('soccer');
 
   // We no longer need userHasAnyProAccess - Pro access should be checked per team
 
@@ -405,6 +410,7 @@ export default function ImportFixturesPage() {
       {clubId && !proStatusLoading && isProActive && (isClubAdmin || teamId) ? (
         <FixturesCSVImport
           clubId={clubId}
+          clubName={selectedClub?.name || ''}
           teamId={teamId || undefined}
           teams={isClubAdmin ? (teams || []) : accessibleTeams}
           onImportComplete={() => navigate("/events")}
