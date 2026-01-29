@@ -1,11 +1,12 @@
-import { useEffect } from "react";
-import { X, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { X, ChevronLeft, ChevronRight, Trash2, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { usePinchZoom } from "@/hooks/usePinchZoom";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
+import { ReportPhotoDialog } from "@/components/ReportPhotoDialog";
 
 interface PhotoLightboxProps {
   isOpen: boolean;
@@ -62,6 +63,7 @@ export function PhotoLightbox({
   canDelete,
 }: PhotoLightboxProps) {
   const currentPhoto = photos[currentIndex];
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
   
   const {
     scale,
@@ -168,6 +170,17 @@ export function PhotoLightbox({
             </Button>
           )}
 
+          {/* Report button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-4 right-16 z-50 text-white hover:bg-white/20"
+            onClick={() => setReportDialogOpen(true)}
+            title="Report photo"
+          >
+            <Flag className="h-5 w-5" />
+          </Button>
+
           {/* Navigation */}
           {currentIndex > 0 && (
             <Button
@@ -206,6 +219,13 @@ export function PhotoLightbox({
           </div>
         </div>
       </DialogContent>
+
+      {/* Report Dialog */}
+      <ReportPhotoDialog
+        isOpen={reportDialogOpen}
+        onClose={() => setReportDialogOpen(false)}
+        photoId={currentPhoto.id}
+      />
     </Dialog>
   );
 }

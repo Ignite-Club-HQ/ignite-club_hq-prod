@@ -1,0 +1,150 @@
+import { useState } from "react";
+import { Flag, Loader2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+interface ReportPhotoDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  photoId: string;
+}
+
+const REPORT_REASONS = [
+  { value: "inappropriate", label: "Inappropriate content" },
+  { value: "offensive", label: "Offensive or harmful" },
+  { value: "privacy", label: "Privacy concern" },
+  { value: "copyright", label: "Copyright violation" },
+  { value: "spam", label: "Spam or misleading" },
+  { value: "other", label: "Other" },
+];
+
+export function ReportPhotoDialog({ isOpen, onClose, photoId }: ReportPhotoDialogProps) {
+  const [reason, setReason] = useState("");
+  const [additionalDetails, setAdditionalDetails] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!reason) {
+      toast.error("Please select a reason for your report");
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("You must be logged in to report a photo");
+        return;
+      }
+
+      const response = await supabase.functions.invoke("send-photo-report-email", {
+        body: {
+          photoId,
+          reason: REPORT_REASONS.find(r => r.value === reason)?.label || reason,
+          additionalDetails: additionalDetails.trim() || undefined,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      toast.success("Report submitted successfully. Our team will review it.");
+      handleClose();
+    } catch (error) {
+      console.error("Failed to submit report:", error);
+      toast.error("Failed to submit report. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleClose = () => {
+    setReason("");
+    setAdditionalDetails("");
+    onClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Flag className="h-5 w-5 text-destructive" />
+            Report Photo
+          </DialogTitle>
+          <DialogDescription>
+            Help us maintain a safe community by reporting inappropriate content.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <div className="space-y-3">
+            <Label>Why are you reporting this photo?</Label>
+            <RadioGroup value={reason} onValueChange={setReason}>
+              {REPORT_REASONS.map((option) => (
+                <div key={option.value} className="flex items-center space-x-2">
+                  <RadioGroupItem value={option.value} id={option.value} />
+                  <Label htmlFor={option.value} className="font-normal cursor-pointer">
+                    {option.label}
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="details">Additional details (optional)</Label>
+            <Textarea
+              id="details"
+              placeholder="Provide any additional context that might help us review this report..."
+              value={additionalDetails}
+              onChange={(e) => setAdditionalDetails(e.target.value)}
+              rows={3}
+              maxLength={500}
+            />
+            <p className="text-xs text-muted-foreground text-right">
+              {additionalDetails.length}/500
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="outline" onClick={handleClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button 
+            variant="destructive" 
+            onClick={handleSubmit} 
+            disabled={!reason || submitting}
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              <>
+                <Flag className="h-4 w-4" />
+                Submit Report
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
