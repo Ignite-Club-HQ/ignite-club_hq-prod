@@ -14,6 +14,7 @@ import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { IOSInstallPrompt } from "@/components/IOSInstallPrompt";
 import { PushNotificationManager } from "@/components/PushNotificationManager";
 import { PWAPendingInviteHandler } from "@/components/PWAPendingInviteHandler";
+import { BrowserCompatibilityCheck } from "@/components/BrowserCompatibilityCheck";
 import { Loader2 } from "lucide-react";
 
 // Eagerly loaded pages (initial load)
@@ -170,6 +171,7 @@ const App = () => (
             <CookieConsentBanner />
             <IOSInstallPrompt />
             <PushNotificationManager />
+            <BrowserCompatibilityCheck />
           </BrowserRouter>
           </TooltipProvider>
         </ClubThemeProvider>

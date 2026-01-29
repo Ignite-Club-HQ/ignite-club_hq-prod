@@ -1957,7 +1957,7 @@ export default function HomePage() {
           <Button 
             variant="outline" 
             className="w-full h-auto py-4 flex flex-col gap-2 relative"
-            disabled={!hasProAccess && !isAppAdmin}
+            disabled={showProBadge}
             onClick={() => {
               if (hasProAccess || isAppAdmin) {
                 navigate("/vault");
