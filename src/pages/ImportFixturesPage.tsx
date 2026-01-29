@@ -415,6 +415,7 @@ export default function ImportFixturesPage() {
           teams={isClubAdmin ? (teams || []) : accessibleTeams}
           onImportComplete={() => navigate("/events")}
           isClubAdmin={isClubAdmin}
+          isProFootball={!!(clubSubscription?.is_pro_football || clubSubscription?.admin_pro_football_override)}
         />
       ) : clubId && !proStatusLoading && isProActive && !isClubAdmin && !teamId ? null : clubId && !proStatusLoading && !isProActive ? (
         <Card className="border-dashed">

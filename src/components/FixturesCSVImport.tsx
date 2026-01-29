@@ -30,6 +30,7 @@ interface FixturesCSVImportProps {
   teams?: Team[];
   onImportComplete: () => void;
   isClubAdmin?: boolean;
+  isProFootball?: boolean; // Required for Dribl imports
 }
 
 interface ParsedFixture {
@@ -75,7 +76,7 @@ const isFixtureValid = (fixture: ParsedFixture): boolean => {
 
 const ACCEPTED_FILE_TYPES = ".csv,.xlsx,.xls";
 
-export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], onImportComplete, isClubAdmin = false }: FixturesCSVImportProps) {
+export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], onImportComplete, isClubAdmin = false, isProFootball = false }: FixturesCSVImportProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -347,6 +348,16 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         
         // Check if this is a Dribl export
         if (isDriblFormat(headers)) {
+          // Dribl imports are only available for Pro Football clubs
+          if (!isProFootball) {
+            setErrors([{ 
+              row: 0, 
+              message: "Dribl imports require a Pro Football subscription. Please use the standard CSV format or upgrade to Pro Football." 
+            }]);
+            setFile(selectedFile);
+            return;
+          }
+          
           setFile(selectedFile);
           setDriblMode(true);
           setDriblRawData({ headers, rows: rows.slice(1) });
@@ -697,11 +708,13 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
                 )}
               </div>
               
-              <div className="pt-2 border-t border-border">
-                <p className="text-xs text-muted-foreground">
-                  <strong>⚽ Dribl exports:</strong> Automatically detected! Upload your Dribl export and we'll map teams for you.
-                </p>
-              </div>
+              {isProFootball && (
+                <div className="pt-2 border-t border-border">
+                  <p className="text-xs text-muted-foreground">
+                    <strong>⚽ Dribl exports:</strong> Automatically detected! Upload your Dribl export and we'll map teams for you.
+                  </p>
+                </div>
+              )}
 
               <div className="flex gap-2 pt-2">
                 <Button variant="outline" size="sm" className="flex-1" onClick={downloadTemplate}>
