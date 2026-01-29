@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Cookie, X } from "lucide-react";
 
@@ -36,12 +35,14 @@ export function CookieConsentBanner() {
           <Cookie className="h-5 w-5 text-primary mt-0.5 shrink-0" />
           <p className="text-sm text-muted-foreground">
             We use cookies to enhance your experience. By continuing to visit this site, you agree to our use of cookies.{" "}
-            <Link 
-              to="/privacy-policy" 
+            <a 
+              href="https://igniteclubhq.com/privacy" 
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-primary hover:underline font-medium"
             >
               Learn more in our Privacy Policy
-            </Link>
+            </a>
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

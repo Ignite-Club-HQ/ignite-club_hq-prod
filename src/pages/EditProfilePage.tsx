@@ -1233,8 +1233,10 @@ export default function EditProfilePage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Link 
-            to="/privacy" 
+          <a 
+            href="https://igniteclubhq.com/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
           >
             <Shield className="h-5 w-5 text-muted-foreground" />
@@ -1242,9 +1244,11 @@ export default function EditProfilePage() {
               <p className="font-medium">Privacy Policy</p>
               <p className="text-xs text-muted-foreground">How we handle your data</p>
             </div>
-          </Link>
-          <Link 
-            to="/terms" 
+          </a>
+          <a 
+            href="https://igniteclubhq.com/terms"
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
           >
             <FileText className="h-5 w-5 text-muted-foreground" />
@@ -1252,7 +1256,7 @@ export default function EditProfilePage() {
               <p className="font-medium">Terms of Service</p>
               <p className="text-xs text-muted-foreground">Usage terms and conditions</p>
             </div>
-          </Link>
+          </a>
         </CardContent>
       </Card>
 
