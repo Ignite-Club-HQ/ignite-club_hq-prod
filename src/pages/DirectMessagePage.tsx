@@ -10,7 +10,6 @@ import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
@@ -66,7 +65,6 @@ export default function DirectMessagePage() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
@@ -471,7 +469,7 @@ export default function DirectMessagePage() {
     },
   });
   const handleSend = () => {
-    if (!message.trim() && !imageUrl) return;
+    if (!message.trim()) return;
     // Allow sending if canDM is true OR if we're still checking (give benefit of doubt for existing conversations)
     // The server-side RLS will still enforce the actual permission
     if (canDM === false && !checkingCanDM) {
@@ -480,11 +478,10 @@ export default function DirectMessagePage() {
     }
     sendMessageMutation.mutate({
       text: message.trim(),
-      imageUrl: imageUrl || null,
+      imageUrl: null,
       replyToId: replyTo?.id || null,
     });
     setMessage("");
-    setImageUrl(null);
     setReplyTo(null);
   };
 
@@ -662,7 +659,6 @@ export default function DirectMessagePage() {
       {/* Input area */}
       <div className="pt-4 border-t shrink-0">
         <div className="flex gap-2 items-end">
-          <ChatImageInput onImageUploaded={setImageUrl} imageUrl={imageUrl} />
           <EmojiPicker 
             onEmojiSelect={(emoji) => setMessage((prev) => prev + emoji)} 
             disabled={sendMessageMutation.isPending}
@@ -681,7 +677,7 @@ export default function DirectMessagePage() {
           
           <Button 
             onClick={handleSend} 
-            disabled={(!message.trim() && !imageUrl) || sendMessageMutation.isPending}
+            disabled={!message.trim() || sendMessageMutation.isPending}
             size="icon"
           >
             {sendMessageMutation.isPending ? (
