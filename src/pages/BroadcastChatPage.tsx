@@ -760,8 +760,8 @@ export default function BroadcastChatPage() {
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="p-1.5 rounded-lg bg-primary">
-          <Flame className="h-5 w-5 text-primary-foreground" />
+        <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
+          <Flame className="h-5 w-5 text-white" />
         </div>
         <div className="flex-1">
           <h1 className="font-semibold">Ignite Support</h1>
