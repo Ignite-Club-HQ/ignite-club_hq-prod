@@ -1311,18 +1311,29 @@ export default function EventDetailPage() {
 
   const cancelEventMutation = useMutation({
     mutationFn: async ({ cancelType, customMessage, sendPushNotification }: { cancelType: 'single' | 'series'; customMessage?: string; sendPushNotification?: boolean }) => {
+      console.log("[CancelEvent] Starting cancel mutation", { cancelType, eventId: id, miniLeagueId: event?.mini_league_id });
+      
       if (cancelType === 'series' && event?.parent_event_id) {
         // Cancel parent and all children
-        await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", event.parent_event_id);
-        await supabase.from("events").update({ is_cancelled: true }).eq("id", event.parent_event_id);
+        const { error: err1 } = await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", event.parent_event_id);
+        const { error: err2 } = await supabase.from("events").update({ is_cancelled: true }).eq("id", event.parent_event_id);
+        if (err1) { console.error("[CancelEvent] Error cancelling children:", err1); throw err1; }
+        if (err2) { console.error("[CancelEvent] Error cancelling parent:", err2); throw err2; }
       } else if (cancelType === 'series' && event?.is_recurring) {
         // This is the parent - cancel all children and this event
-        await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", id!);
-        await supabase.from("events").update({ is_cancelled: true }).eq("id", id!);
+        const { error: err1 } = await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", id!);
+        const { error: err2 } = await supabase.from("events").update({ is_cancelled: true }).eq("id", id!);
+        if (err1) { console.error("[CancelEvent] Error cancelling children:", err1); throw err1; }
+        if (err2) { console.error("[CancelEvent] Error cancelling this event:", err2); throw err2; }
       } else {
         // Just cancel this single event
-        const { error } = await supabase.from("events").update({ is_cancelled: true }).eq("id", id!);
-        if (error) throw error;
+        console.log("[CancelEvent] Cancelling single event:", id);
+        const { data, error } = await supabase.from("events").update({ is_cancelled: true }).eq("id", id!);
+        console.log("[CancelEvent] Update result:", { data, error });
+        if (error) {
+          console.error("[CancelEvent] Error cancelling event:", error);
+          throw error;
+        }
       }
 
       // Get member count for notifications - handle mini-league events differently
@@ -1432,9 +1443,18 @@ export default function EventDetailPage() {
       return uniqueMembers.length;
     },
     onSuccess: () => {
+      console.log("[CancelEvent] Success - event cancelled");
       setCancelDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["event", id] });
       toast({ title: "Event cancelled", description: "A message has been posted to the chat" });
+    },
+    onError: (error) => {
+      console.error("[CancelEvent] Mutation error:", error);
+      toast({ 
+        title: "Failed to cancel event", 
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive" 
+      });
     },
   });
 
