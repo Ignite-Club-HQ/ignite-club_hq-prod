@@ -1,0 +1,486 @@
+import { useState, useMemo } from "react";
+import { AlertCircle, Check, ChevronDown, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { getSportEmoji } from "@/lib/sportEmojis";
+
+interface Team {
+  id: string;
+  name: string;
+}
+
+interface DriblRow {
+  // Core fields from Dribl
+  identifier?: string;
+  eventStatus?: string;
+  competition?: string;
+  round?: string;
+  date?: string;
+  day?: string;
+  start?: string;
+  duration?: string;
+  ground?: string;
+  field?: string;
+  league?: string;
+  ageGroup?: string;
+  division?: string;
+  gender?: string;
+  homeClubCode?: string;
+  homeClubName?: string;
+  homeTeamCode?: string;
+  homeTeamName?: string;
+  awayClubCode?: string;
+  awayClubName?: string;
+  awayTeamCode?: string;
+  awayTeamName?: string;
+  // Computed
+  rawRow: Record<string, string>;
+}
+
+interface DriblFixture {
+  id: string;
+  title: string;
+  date: string;
+  time: string;
+  address?: string;
+  description?: string;
+  opponent?: string;
+  driblTeamKey: string; // Key to identify which team this fixture is for
+  isHomeGame: boolean;
+}
+
+interface TeamMapping {
+  driblTeamKey: string;
+  driblTeamDisplay: string; // e.g., "U12 Boys Div 1 - Eagles FC"
+  igniteTeamId: string | null;
+  fixtureCount: number;
+}
+
+interface DriblImportMapperProps {
+  driblRows: DriblRow[];
+  teams: Team[];
+  clubName: string; // Your club's name for home/away detection
+  onConfirm: (fixtures: DriblFixture[], mappings: TeamMapping[]) => void;
+  onCancel: () => void;
+}
+
+// Detect Dribl columns in header row
+export function isDriblFormat(headers: string[]): boolean {
+  const lowerHeaders = headers.map(h => h.toLowerCase().trim());
+  const driblIndicators = ['home club code', 'home team code', 'away club code', 'competition', 'matchsheet'];
+  return driblIndicators.filter(ind => 
+    lowerHeaders.some(h => h.includes(ind.replace(' ', '')) || h.includes(ind))
+  ).length >= 2;
+}
+
+// Parse Dribl column headers to standard keys
+function normalizeHeader(header: string): string {
+  const h = header.toLowerCase().trim().replace(/[\s_-]+/g, '');
+  
+  const mappings: Record<string, string> = {
+    'identifier': 'identifier',
+    'eventstatus': 'eventStatus',
+    'matchsheet': 'matchsheet',
+    'competition': 'competition',
+    'round': 'round',
+    'date': 'date',
+    'day': 'day',
+    'start': 'start',
+    'duration': 'duration',
+    'ground': 'ground',
+    'field': 'field',
+    'league': 'league',
+    'agegroup': 'ageGroup',
+    'division': 'division',
+    'gender': 'gender',
+    'homeclubcode': 'homeClubCode',
+    'homeclubname': 'homeClubName',
+    'hometeamcode': 'homeTeamCode',
+    'hometeamname': 'homeTeamName',
+    'awayclubcode': 'awayClubCode',
+    'awayclubname': 'awayClubName',
+    'awayteamcode': 'awayTeamCode',
+    'awayteamname': 'awayTeamName',
+  };
+  
+  return mappings[h] || h;
+}
+
+// Parse raw rows into structured DriblRow objects
+export function parseDriblRows(headers: string[], rows: string[][]): DriblRow[] {
+  const normalizedHeaders = headers.map(normalizeHeader);
+  
+  return rows.map(row => {
+    const rawRow: Record<string, string> = {};
+    const driblRow: DriblRow = { rawRow };
+    
+    normalizedHeaders.forEach((header, idx) => {
+      const value = row[idx]?.toString().trim() || '';
+      rawRow[header] = value;
+      
+      if (header in driblRow || header === 'identifier' || header === 'eventStatus' || 
+          header === 'competition' || header === 'round' || header === 'date' || 
+          header === 'day' || header === 'start' || header === 'duration' || 
+          header === 'ground' || header === 'field' || header === 'league' || 
+          header === 'ageGroup' || header === 'division' || header === 'gender' ||
+          header === 'homeClubCode' || header === 'homeClubName' || 
+          header === 'homeTeamCode' || header === 'homeTeamName' ||
+          header === 'awayClubCode' || header === 'awayClubName' ||
+          header === 'awayTeamCode' || header === 'awayTeamName') {
+        (driblRow as any)[header] = value;
+      }
+    });
+    
+    return driblRow;
+  });
+}
+
+// Generate a unique key for team matching
+function generateTeamKey(row: DriblRow, isHome: boolean): string {
+  const teamName = isHome ? (row.homeTeamName || row.homeTeamCode) : (row.awayTeamName || row.awayTeamCode);
+  const ageGroup = row.ageGroup || '';
+  const division = row.division || '';
+  const gender = row.gender || '';
+  
+  // Create a normalized key for matching
+  return `${ageGroup}|${division}|${gender}|${teamName}`.toLowerCase();
+}
+
+// Attempt to auto-match Dribl team to Ignite team
+function autoMatchTeam(teamKey: string, driblDisplay: string, teams: Team[]): string | null {
+  const keyParts = teamKey.split('|').filter(Boolean);
+  
+  for (const team of teams) {
+    const teamNameLower = team.name.toLowerCase();
+    
+    // Check if team name contains age group, division, or gender parts
+    let matchScore = 0;
+    for (const part of keyParts) {
+      if (part && teamNameLower.includes(part)) {
+        matchScore++;
+      }
+    }
+    
+    // If at least 2 parts match, consider it a potential match
+    if (matchScore >= 2) {
+      return team.id;
+    }
+    
+    // Also check for exact substring matches
+    const ageGroupMatch = keyParts[0] && teamNameLower.includes(keyParts[0]);
+    const divisionMatch = keyParts[1] && teamNameLower.includes(keyParts[1]);
+    
+    if (ageGroupMatch && divisionMatch) {
+      return team.id;
+    }
+  }
+  
+  return null;
+}
+
+export function DriblImportMapper({ 
+  driblRows, 
+  teams, 
+  clubName,
+  onConfirm, 
+  onCancel 
+}: DriblImportMapperProps) {
+  // Determine which club code represents "your" club
+  const [yourClubCode, setYourClubCode] = useState<string>(() => {
+    // Try to auto-detect based on club name
+    const clubNameLower = clubName.toLowerCase();
+    
+    for (const row of driblRows) {
+      if (row.homeClubName?.toLowerCase().includes(clubNameLower)) {
+        return row.homeClubCode || row.homeClubName || '';
+      }
+      if (row.awayClubName?.toLowerCase().includes(clubNameLower)) {
+        return row.awayClubCode || row.awayClubName || '';
+      }
+    }
+    
+    // Default to first home club code found
+    return driblRows[0]?.homeClubCode || driblRows[0]?.homeClubName || '';
+  });
+
+  // Get all unique club codes from the data
+  const clubCodes = useMemo(() => {
+    const codes = new Map<string, string>();
+    
+    for (const row of driblRows) {
+      if (row.homeClubCode || row.homeClubName) {
+        const code = row.homeClubCode || row.homeClubName || '';
+        const name = row.homeClubName || row.homeClubCode || '';
+        if (code && !codes.has(code)) {
+          codes.set(code, name);
+        }
+      }
+      if (row.awayClubCode || row.awayClubName) {
+        const code = row.awayClubCode || row.awayClubName || '';
+        const name = row.awayClubName || row.awayClubCode || '';
+        if (code && !codes.has(code)) {
+          codes.set(code, name);
+        }
+      }
+    }
+    
+    return Array.from(codes.entries()).map(([code, name]) => ({ code, name }));
+  }, [driblRows]);
+
+  // Generate fixtures and team mappings based on selected club
+  const { fixtures, teamMappings } = useMemo(() => {
+    const fixtures: DriblFixture[] = [];
+    const teamMap = new Map<string, TeamMapping>();
+    
+    for (const row of driblRows) {
+      // Skip if no date or cancelled
+      if (!row.date || row.eventStatus?.toLowerCase() === 'cancelled') continue;
+      
+      // Determine if this is a home or away game for your club
+      const isHome = (row.homeClubCode === yourClubCode) || 
+                     (row.homeClubName === yourClubCode);
+      const isAway = (row.awayClubCode === yourClubCode) || 
+                     (row.awayClubName === yourClubCode);
+      
+      // Skip if neither home nor away is your club
+      if (!isHome && !isAway) continue;
+      
+      const driblTeamKey = generateTeamKey(row, isHome);
+      const teamName = isHome 
+        ? (row.homeTeamName || row.homeTeamCode || 'Unknown Team')
+        : (row.awayTeamName || row.awayTeamCode || 'Unknown Team');
+      const opponent = isHome 
+        ? (row.awayClubName || row.awayTeamName || 'TBA')
+        : (row.homeClubName || row.homeTeamName || 'TBA');
+      
+      // Build address from ground + field
+      const addressParts = [row.ground, row.field].filter(Boolean);
+      const address = addressParts.join(' - ');
+      
+      // Build title from Competition + Round
+      const titleParts = [row.competition, row.round].filter(Boolean);
+      const title = titleParts.join(' - ') || `vs ${opponent}`;
+      
+      // Parse date (Dribl uses DD/MM/YYYY format typically)
+      let parsedDate = row.date;
+      if (row.date && row.date.includes('/')) {
+        const parts = row.date.split('/');
+        if (parts.length === 3) {
+          // Assume DD/MM/YYYY
+          parsedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+      }
+      
+      // Parse time
+      let time = row.start || '00:00';
+      if (time && !time.includes(':')) {
+        // Handle time like "1000" -> "10:00"
+        time = time.padStart(4, '0');
+        time = `${time.slice(0, 2)}:${time.slice(2, 4)}`;
+      }
+      
+      // Build description
+      const descParts = [
+        row.league,
+        row.ageGroup && row.division ? `${row.ageGroup} ${row.division}` : row.ageGroup || row.division,
+        row.gender,
+        isHome ? 'Home' : 'Away',
+      ].filter(Boolean);
+      
+      fixtures.push({
+        id: crypto.randomUUID(),
+        title,
+        date: parsedDate,
+        time: time.substring(0, 5),
+        address,
+        description: descParts.join(' • '),
+        opponent,
+        driblTeamKey,
+        isHomeGame: isHome,
+      });
+      
+      // Track team mapping
+      if (!teamMap.has(driblTeamKey)) {
+        const driblTeamDisplay = [
+          row.ageGroup,
+          row.gender,
+          row.division,
+          teamName !== 'Unknown Team' ? teamName : null,
+        ].filter(Boolean).join(' ') || teamName;
+        
+        teamMap.set(driblTeamKey, {
+          driblTeamKey,
+          driblTeamDisplay,
+          igniteTeamId: autoMatchTeam(driblTeamKey, driblTeamDisplay, teams),
+          fixtureCount: 0,
+        });
+      }
+      teamMap.get(driblTeamKey)!.fixtureCount++;
+    }
+    
+    return { 
+      fixtures, 
+      teamMappings: Array.from(teamMap.values()).sort((a, b) => b.fixtureCount - a.fixtureCount)
+    };
+  }, [driblRows, yourClubCode, teams]);
+
+  // State for team mapping overrides
+  const [mappingOverrides, setMappingOverrides] = useState<Record<string, string | null>>({});
+
+  const finalMappings = useMemo(() => {
+    return teamMappings.map(m => ({
+      ...m,
+      igniteTeamId: mappingOverrides[m.driblTeamKey] !== undefined 
+        ? mappingOverrides[m.driblTeamKey] 
+        : m.igniteTeamId,
+    }));
+  }, [teamMappings, mappingOverrides]);
+
+  const unmappedCount = finalMappings.filter(m => !m.igniteTeamId).length;
+  const totalFixtures = fixtures.length;
+
+  const handleConfirm = () => {
+    onConfirm(fixtures, finalMappings);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Club Selection */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            {getSportEmoji("Football (Soccer)")} Select Your Club
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Which club code represents your club in this export?
+          </p>
+          <Select value={yourClubCode} onValueChange={setYourClubCode}>
+            <SelectTrigger className="h-12">
+              <SelectValue placeholder="Select your club" />
+            </SelectTrigger>
+            <SelectContent>
+              {clubCodes.map(({ code, name }) => (
+                <SelectItem key={code} value={code}>
+                  {name} {code !== name && `(${code})`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          {totalFixtures > 0 && (
+            <p className="text-sm text-primary font-medium">
+              Found {totalFixtures} fixture{totalFixtures !== 1 ? 's' : ''} for your club
+            </p>
+          )}
+          
+          {totalFixtures === 0 && yourClubCode && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                No fixtures found for this club. Try selecting a different club code.
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Team Mapping */}
+      {totalFixtures > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center justify-between">
+              <span>Map Teams</span>
+              {unmappedCount > 0 && (
+                <Badge variant="destructive" className="text-xs">
+                  {unmappedCount} unmapped
+                </Badge>
+              )}
+              {unmappedCount === 0 && finalMappings.length > 0 && (
+                <Badge className="text-xs bg-green-600">
+                  <Check className="h-3 w-3 mr-1" />
+                  All mapped
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Match Dribl teams to your Ignite teams. Fixtures without a mapped team will be skipped.
+            </p>
+            
+            <ScrollArea className="max-h-[300px]">
+              <div className="space-y-3 pr-2">
+                {finalMappings.map((mapping) => (
+                  <div key={mapping.driblTeamKey} className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs shrink-0">
+                          {mapping.fixtureCount}
+                        </Badge>
+                        <span className="text-sm truncate">
+                          {mapping.driblTeamDisplay}
+                        </span>
+                      </div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <Select
+                      value={mapping.igniteTeamId || "unmapped"}
+                      onValueChange={(value) => {
+                        setMappingOverrides(prev => ({
+                          ...prev,
+                          [mapping.driblTeamKey]: value === "unmapped" ? null : value,
+                        }));
+                      }}
+                    >
+                      <SelectTrigger className={`w-[180px] h-10 ${
+                        !mapping.igniteTeamId ? 'border-destructive' : 'border-green-600'
+                      }`}>
+                        <SelectValue placeholder="Select team" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unmapped">
+                          <span className="text-muted-foreground">Skip (no mapping)</span>
+                        </SelectItem>
+                        {teams.map(team => (
+                          <SelectItem key={team.id} value={team.id}>
+                            {team.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2">
+        <Button variant="outline" className="flex-1 h-12" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button 
+          className="flex-1 h-12" 
+          onClick={handleConfirm}
+          disabled={totalFixtures === 0 || unmappedCount === finalMappings.length}
+        >
+          Continue with {totalFixtures - (unmappedCount > 0 ? finalMappings.filter(m => !m.igniteTeamId).reduce((sum, m) => sum + m.fixtureCount, 0) : 0)} fixtures
+        </Button>
+      </div>
+    </div>
+  );
+}
