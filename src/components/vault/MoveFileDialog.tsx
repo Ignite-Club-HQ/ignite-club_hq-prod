@@ -39,13 +39,14 @@ export function MoveFileDialog({
     queryFn: async () => {
       let query = supabase
         .from("vault_folders")
-        .select("id, name, parent_id")
+        .select("id, name, parent_id, team_id")
         .order("name");
 
       if (teamId) {
         query = query.eq("team_id", teamId);
       } else if (clubId) {
-        query = query.eq("club_id", clubId).is("team_id", null);
+        // At club level, show all folders in the club (including team folders)
+        query = query.eq("club_id", clubId);
       }
 
       const { data } = await query;
