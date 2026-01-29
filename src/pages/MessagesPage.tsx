@@ -557,7 +557,7 @@ export default function MessagesPage() {
   });
 
   // Get Pro status for each club to determine which are locked
-  const { data: clubProStatus } = useQuery({
+  const { data: clubProStatus, isLoading: isLoadingClubProStatus } = useQuery({
     queryKey: ["club-pro-status", user?.id],
     queryFn: async () => {
       const { data: roles } = await supabase
@@ -809,7 +809,7 @@ export default function MessagesPage() {
   );
 
   // Track if fresh data is still loading (for skeleton states)
-  const isLoadingFreshData = !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingProAccess);
+  const isLoadingFreshData = !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingProAccess || isLoadingClubProStatus);
 
   // Show skeleton loading UI instead of blocking PageLoading when we have cache
   const showSkeletonLoading = isLoadingFreshData && !hasCachedData && !teams?.length && !memberClubs?.length;
@@ -1048,10 +1048,11 @@ export default function MessagesPage() {
           const unreadCount = unreadCounts?.clubs[club.id] || 0;
           const hasUnread = unreadCount > 0;
           const isMuted = mutedChats?.clubs.has(club.id);
-          const hasProAccess = clubProStatus?.[club.id] === true;
+          // Only determine lock status after clubProStatus has loaded to prevent flash
+          const hasProAccess = isLoadingClubProStatus ? true : (clubProStatus?.[club.id] === true);
           
           // Locked club chat card (non-Pro) - still clickable for admin access
-          if (!hasProAccess) {
+          if (!isLoadingClubProStatus && !hasProAccess) {
             return (
               <Link key={`club-${club.id}`} to={`/messages/club/${club.id}`}>
                 <Card className="opacity-70 hover:border-primary/50 transition-colors">
