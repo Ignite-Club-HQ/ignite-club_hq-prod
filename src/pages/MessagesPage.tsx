@@ -1036,53 +1036,6 @@ export default function MessagesPage() {
           </>
         )}
 
-        {/* Broadcast Messages - Always show first */}
-        {!showSkeletonLoading && showBroadcast && (() => {
-          const hasUnread = (unreadCounts?.broadcast || 0) > 0;
-          return (
-            <Link to="/messages/broadcast">
-              <Card className={`hover:border-primary/50 transition-colors bg-primary/5 ${hasUnread ? 'border-primary/30' : ''}`}>
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className="relative">
-                    <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
-                      <Flame className="h-5 w-5 text-white" />
-                    </div>
-                    {hasUnread && (
-                      <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className={`truncate ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Ignite Support</h3>
-                    <p className={`text-sm ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-                      <MessagePreview 
-                        text={displayLatestBroadcast?.text} 
-                        imageUrl={displayLatestBroadcast?.image_url}
-                        author={(displayLatestBroadcast?.profiles as any)?.display_name}
-                        hasUnread={hasUnread}
-                        fallback="Official announcements and updates"
-                      />
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    {displayLatestBroadcast?.created_at && (
-                      <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(displayLatestBroadcast.created_at), { addSuffix: true })}
-                      </span>
-                    )}
-                    <div className="flex items-center gap-2">
-                      {hasUnread && (
-                        <span className="h-5 min-w-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-xs font-medium flex items-center justify-center">
-                          {unreadCounts?.broadcast > 9 ? "9+" : unreadCounts?.broadcast}
-                        </span>
-                      )}
-                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          );
-        })()}
 
         {/* Club Chats Section */}
         {!showSkeletonLoading && filteredClubs.length > 0 && (
@@ -1339,9 +1292,64 @@ export default function MessagesPage() {
           </Card>
         )}
 
-        {/* Direct Messages Section - Pro feature - separated at the bottom */}
+        {/* Direct Messages Section - Pro feature */}
         {!showSkeletonLoading && hasAnyProAccess && (
           <DMConversationsList searchQuery={searchQuery} hasProAccess={hasAnyProAccess} />
+        )}
+
+        {/* Ignite Support Section */}
+        {!showSkeletonLoading && showBroadcast && (
+          <>
+            <div className="flex items-center gap-2 pt-4 pb-1 border-t mt-2">
+              <span className="text-sm font-medium text-muted-foreground">Support</span>
+            </div>
+            {(() => {
+              const hasUnread = (unreadCounts?.broadcast || 0) > 0;
+              return (
+                <Link to="/messages/broadcast">
+                  <Card className={`hover:border-primary/50 transition-colors bg-primary/5 ${hasUnread ? 'border-primary/30' : ''}`}>
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <div className="relative">
+                        <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
+                          <Flame className="h-5 w-5 text-white" />
+                        </div>
+                        {hasUnread && (
+                          <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className={`truncate ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Ignite Support</h3>
+                        <p className={`text-sm ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                          <MessagePreview 
+                            text={displayLatestBroadcast?.text} 
+                            imageUrl={displayLatestBroadcast?.image_url}
+                            author={(displayLatestBroadcast?.profiles as any)?.display_name}
+                            hasUnread={hasUnread}
+                            fallback="Official announcements and updates"
+                          />
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {displayLatestBroadcast?.created_at && (
+                          <span className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(displayLatestBroadcast.created_at), { addSuffix: true })}
+                          </span>
+                        )}
+                        <div className="flex items-center gap-2">
+                          {hasUnread && (
+                            <span className="h-5 min-w-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-xs font-medium flex items-center justify-center">
+                              {unreadCounts?.broadcast > 9 ? "9+" : unreadCounts?.broadcast}
+                            </span>
+                          )}
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })()}
+          </>
         )}
 
         {/* Sponsor/Ad Carousel */}

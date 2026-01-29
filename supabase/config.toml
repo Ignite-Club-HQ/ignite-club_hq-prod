@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.send-game-stats-email]
 verify_jwt = false
+
+[functions.send-photo-report-email]
+verify_jwt = false

@@ -4,6 +4,7 @@ import { Flame, User, Camera, Loader2, Bell, Download, Fingerprint, UserPlus, Bu
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
@@ -53,6 +54,7 @@ export default function CompleteProfilePage() {
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [acceptInvites, setAcceptInvites] = useState(true);
   const [invitesLoading, setInvitesLoading] = useState(true);
+  const [policiesAccepted, setPoliciesAccepted] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { canPrompt, isInstalled, installApp, isReady: pwaReady, isIOS } = usePWAInstall();
@@ -906,6 +908,38 @@ export default function CompleteProfilePage() {
               </div>
             )}
 
+            {/* Policy Acceptance Checkbox */}
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="policies"
+                checked={policiesAccepted}
+                onCheckedChange={(checked) => setPoliciesAccepted(checked === true)}
+                className="mt-0.5"
+              />
+              <Label htmlFor="policies" className="text-sm text-muted-foreground leading-relaxed cursor-pointer">
+                I have read and agree to the{" "}
+                <a 
+                  href="https://igniteclubhq.com/terms" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Terms of Service
+                </a>
+                {" "}and{" "}
+                <a 
+                  href="https://igniteclubhq.com/privacy" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Privacy Policy
+                </a>
+              </Label>
+            </div>
+
             {/* Show "Open App" message after successful install */}
             {showOpenAppMessage ? (
               <div className="space-y-4 text-center p-4 rounded-lg border bg-primary/10 border-primary/20">
@@ -1001,7 +1035,7 @@ export default function CompleteProfilePage() {
                   // Normal flow - just save profile
                   handleSubmit();
                 }}
-                disabled={saving || !displayName.trim()}
+                disabled={saving || !displayName.trim() || !policiesAccepted}
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (installAndContinue && canPrompt ? "Install & Continue" : "Continue to Ignite Club HQ")}
               </Button>
