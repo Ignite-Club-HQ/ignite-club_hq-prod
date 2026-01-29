@@ -565,9 +565,9 @@ export default function AuthPage() {
         {/* Footer Links */}
         <div className="text-center text-xs text-muted-foreground space-y-2">
           <div className="flex justify-center gap-4">
-            <a href="/terms" className="hover:text-foreground hover:underline">Terms</a>
-            <a href="/privacy" className="hover:text-foreground hover:underline">Privacy</a>
-            <a href="/cancellation" className="hover:text-foreground hover:underline">Cancellation</a>
+            <a href="https://igniteclubhq.com/terms" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">Terms</a>
+            <a href="https://igniteclubhq.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">Privacy</a>
+            <a href="https://igniteclubhq.com/refunds" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">Cancellation</a>
           </div>
           <div className="flex justify-center gap-4">
             <a href="mailto:contact@igniteclubhq.app" className="hover:text-foreground hover:underline">Contact</a>
