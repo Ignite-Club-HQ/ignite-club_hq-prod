@@ -113,7 +113,7 @@ export default function VaultPage() {
   const [addLinkDialogOpen, setAddLinkDialogOpen] = useState(false);
   const [addingLink, setAddingLink] = useState(false);
   const [moveFileDialogOpen, setMoveFileDialogOpen] = useState(false);
-  const [fileToMove, setFileToMove] = useState<{ id: string; name: string; folder_id: string | null } | null>(null);
+  const [fileToMove, setFileToMove] = useState<{ id: string; name: string; folder_id: string | null; team_id?: string | null } | null>(null);
 
   const togglePhotoSelection = (photoId: string) => {
     setSelectedPhotos(prev => {
@@ -1559,11 +1559,20 @@ export default function VaultPage() {
     },
   });
 
-  // Move file to a different folder
+  // Move file to a different folder or team
   const moveFileMutation = useMutation({
-    mutationFn: async ({ fileId, targetFolderId }: { fileId: string; targetFolderId: string | null }) => {
+    mutationFn: async ({ fileId, targetFolderId, targetTeamId }: { fileId: string; targetFolderId: string | null; targetTeamId?: string | null }) => {
+      const updateData: { folder_id: string | null; team_id?: string | null } = { 
+        folder_id: targetFolderId 
+      };
+      
+      // If moving to a team (or to root), update team_id as well
+      if (targetTeamId !== undefined) {
+        updateData.team_id = targetTeamId;
+      }
+      
       const { error } = await supabase.from("vault_files")
-        .update({ folder_id: targetFolderId })
+        .update(updateData)
         .eq("id", fileId);
       if (error) throw error;
     },
@@ -3238,7 +3247,7 @@ export default function VaultPage() {
                 setRenameFileName(file.name);
               }}
               onMoveFile={(file) => {
-                setFileToMove({ id: file.id, name: file.name, folder_id: file.folder_id });
+                setFileToMove({ id: file.id, name: file.name, folder_id: file.folder_id, team_id: file.team_id });
                 setMoveFileDialogOpen(true);
               }}
               onDownloadPhoto={downloadFile}
@@ -3311,7 +3320,7 @@ export default function VaultPage() {
                 setRenameFileName(file.name);
               }}
               onMoveFile={(file) => {
-                setFileToMove({ id: file.id, name: file.name, folder_id: file.folder_id });
+                setFileToMove({ id: file.id, name: file.name, folder_id: file.folder_id, team_id: file.team_id });
                 setMoveFileDialogOpen(true);
               }}
               onDownloadPhoto={downloadFile}
@@ -3849,7 +3858,7 @@ export default function VaultPage() {
         file={fileToMove}
         teamId={currentView.type === "team" ? currentView.teamId : null}
         clubId={currentView.type === "club" || currentView.type === "team" ? currentView.clubId : null}
-        onMove={(fileId, targetFolderId) => moveFileMutation.mutate({ fileId, targetFolderId })}
+        onMove={(fileId, targetFolderId, targetTeamId) => moveFileMutation.mutate({ fileId, targetFolderId, targetTeamId })}
         isMoving={moveFileMutation.isPending}
       />
     </div>
