@@ -359,7 +359,7 @@ export default function HomePage() {
   };
 
   // Fetch user roles to check admin permissions
-  const { data: userRoles } = useQuery({
+  const { data: userRoles, isLoading: isLoadingUserRoles } = useQuery({
     queryKey: ["user-roles", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -503,7 +503,8 @@ export default function HomePage() {
   });
   
   // Show PRO badge only after we've confirmed they don't have Pro access
-  const showProBadge = !isLoadingProAccess && !hasProAccess && !isAppAdmin;
+  // Must wait for both userRoles AND hasProAccess queries to complete to prevent flash
+  const showProBadge = !isLoadingUserRoles && !isLoadingProAccess && !hasProAccess && !isAppAdmin;
 
   // Fetch clubs for rewards with Pro status
   const { data: rewardClubs = [] } = useQuery({
