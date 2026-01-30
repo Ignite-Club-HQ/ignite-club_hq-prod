@@ -89,7 +89,9 @@ export function BottomNav() {
     enabled: !!user && !!userRoles,
   });
 
-  const showProLock = !hasProAccess && !isAppAdmin;
+  // Only show lock after both queries have loaded to prevent flash
+  const isLoadingAccess = !userRoles || hasProAccess === undefined;
+  const showProLock = !isLoadingAccess && !hasProAccess && !isAppAdmin;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-lg">
