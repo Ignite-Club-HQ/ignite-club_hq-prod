@@ -2501,7 +2501,9 @@ export type Database = {
           invited_email: string | null
           invited_label: string | null
           invited_user_id: string | null
+          last_reminder_sent_at: string | null
           metadata: Json | null
+          reminder_count: number | null
           role: Database["public"]["Enums"]["app_role"]
           status: string
           team_id: string | null
@@ -2519,7 +2521,9 @@ export type Database = {
           invited_email?: string | null
           invited_label?: string | null
           invited_user_id?: string | null
+          last_reminder_sent_at?: string | null
           metadata?: Json | null
+          reminder_count?: number | null
           role: Database["public"]["Enums"]["app_role"]
           status?: string
           team_id?: string | null
@@ -2537,7 +2541,9 @@ export type Database = {
           invited_email?: string | null
           invited_label?: string | null
           invited_user_id?: string | null
+          last_reminder_sent_at?: string | null
           metadata?: Json | null
+          reminder_count?: number | null
           role?: Database["public"]["Enums"]["app_role"]
           status?: string
           team_id?: string | null
