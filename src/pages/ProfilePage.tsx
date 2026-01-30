@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, Flame, Trophy, Users, Settings, ChevronRight, ChevronDown, Baby, Loader2, Ticket, Crown, CreditCard, MessageSquare, ClipboardList, Calendar, CheckCircle2, Building2, ShieldCheck, UserCog, FileText, Gift, MinusCircle, FileArchive, BarChart3, Lock, Video, Plus, Megaphone, Fingerprint, User } from "lucide-react";
+import { LogOut, Flame, Trophy, Users, Settings, ChevronRight, ChevronDown, Baby, Loader2, Ticket, Crown, CreditCard, MessageSquare, ClipboardList, Calendar, CheckCircle2, Building2, ShieldCheck, UserCog, FileText, Gift, MinusCircle, FileArchive, BarChart3, Lock, Video, Plus, Megaphone, Fingerprint, User, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -705,6 +705,11 @@ export default function ProfilePage() {
               icon={Megaphone} 
               label="Manage Ads" 
               onClick={() => navigate("/admin/ads")}
+            />
+            <MenuCard 
+              icon={Bell} 
+              label="Notification Preferences" 
+              onClick={() => navigate("/admin/notification-preferences")}
             />
           </>
         )}
