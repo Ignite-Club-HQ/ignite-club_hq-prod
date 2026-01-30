@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Image, Lock, Crown, Plus, MessageCircle, Send, FolderOpen, Trash2, Loader2, Filter, X, Calendar } from "lucide-react";
+import { Image, Lock, Crown, Plus, MessageCircle, Send, Trash2, Loader2, Filter, X, Calendar } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -788,12 +788,6 @@ export default function MediaPage() {
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary sm:hidden" />
             )}
             {hasActiveFilters && <Badge variant="secondary" className="ml-1 h-5 px-1.5 hidden sm:inline-flex">!</Badge>}
-          </Button>
-          <Button variant="outline" size="icon" asChild className="h-12 w-12 sm:h-9 sm:w-auto sm:px-3">
-            <Link to="/vault">
-              <FolderOpen className="h-6 w-6 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline ml-1">Vault</span>
-            </Link>
           </Button>
           {hasProAccess && (
             <>
