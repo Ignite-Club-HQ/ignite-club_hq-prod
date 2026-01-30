@@ -914,8 +914,8 @@ export default function MessagesPage() {
     );
   }, [displayClubsWithAnnouncements, query, activeClubFilter]);
 
-  // Always show broadcast in club mode - it's a global support channel
-  const showBroadcast = !query || "ignite support".includes(query);
+  // Always show broadcast in club mode - it's a global announcements channel
+  const showBroadcast = !query || "announcements".includes(query);
 
   const hasNoResults = query && 
     filteredChatGroups.length === 0 && 
@@ -1298,7 +1298,7 @@ export default function MessagesPage() {
           <DMConversationsList searchQuery={searchQuery} hasProAccess={hasAnyProAccess} />
         )}
 
-        {/* Ignite Support Section */}
+        {/* Announcements Section */}
         {!showSkeletonLoading && showBroadcast && (
           <>
             <div className="flex items-center gap-2 pt-4 pb-1 border-t mt-2">
@@ -1319,7 +1319,7 @@ export default function MessagesPage() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className={`truncate ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Ignite Support</h3>
+                        <h3 className={`truncate ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Announcements</h3>
                         <p className={`text-sm ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
                           <MessagePreview 
                             text={displayLatestBroadcast?.text} 
