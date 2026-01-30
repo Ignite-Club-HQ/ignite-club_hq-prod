@@ -17,6 +17,30 @@ import { PWAPendingInviteHandler } from "@/components/PWAPendingInviteHandler";
 import { BrowserCompatibilityCheck } from "@/components/BrowserCompatibilityCheck";
 import { Loader2 } from "lucide-react";
 
+// Capture OAuth callback params BEFORE React Router initializes
+// This prevents the code from being lost during auth loading/redirects
+(function captureOAuthParams() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const code = urlParams.get('code');
+  const state = urlParams.get('state');
+  const error = urlParams.get('error');
+  
+  // Check if this looks like a Google Drive OAuth callback (has code and we're on /vault)
+  if (window.location.pathname === '/vault' && code) {
+    console.log("[App] Captured Google Drive OAuth code before router init");
+    sessionStorage.setItem('googleDriveOAuthCode', code);
+    // Clean the URL immediately to prevent any interference
+    window.history.replaceState({}, '', '/vault');
+  }
+  
+  // Handle OAuth error
+  if (window.location.pathname === '/vault' && error) {
+    console.log("[App] Captured Google Drive OAuth error:", error);
+    sessionStorage.setItem('googleDriveOAuthError', error);
+    window.history.replaceState({}, '', '/vault');
+  }
+})();
+
 // Eagerly loaded pages (initial load)
 import AuthPage from "./pages/AuthPage";
 import CompleteProfilePage from "./pages/CompleteProfilePage";
