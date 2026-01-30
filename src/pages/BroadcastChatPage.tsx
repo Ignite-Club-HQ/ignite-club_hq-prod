@@ -728,7 +728,7 @@ export default function BroadcastChatPage() {
   const { typingUsers, startTyping, stopTyping } = useTypingIndicator(
     "broadcast",
     user?.id,
-    "Ignite Support"
+    "Announcements"
   );
 
   // Mark messages as read when they become visible
@@ -764,8 +764,8 @@ export default function BroadcastChatPage() {
           <Flame className="h-5 w-5 text-white" />
         </div>
         <div className="flex-1">
-          <h1 className="font-semibold">Ignite Support</h1>
-          <p className="text-sm text-muted-foreground">Official announcements</p>
+          <h1 className="font-semibold">Announcements</h1>
+          <p className="text-sm text-muted-foreground">Official updates & news</p>
         </div>
         <Button 
           variant="ghost" 
@@ -820,7 +820,7 @@ export default function BroadcastChatPage() {
                         text={msg.text}
                         imageUrl={msg.image_url}
                         authorId={msg.author_id}
-                        authorName="Ignite Support"
+                        authorName="Announcements"
                         timestamp={formatTimestamp(msg.created_at)}
                         isOwn={msg.author_id === user?.id}
                         isAdmin={isAppAdmin || false}
