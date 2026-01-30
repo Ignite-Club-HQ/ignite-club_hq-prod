@@ -68,6 +68,12 @@ export function AppLayout() {
     sessionStorage.getItem('googleDriveOAuthError')
   );
 
+  // If there's a pending OAuth, immediately navigate to vault
+  // This prevents the flash to home screen after Google Drive authentication
+  if (hasPendingOAuth && typeof window !== 'undefined' && window.location.pathname !== '/vault') {
+    return <Navigate to="/vault" replace />;
+  }
+
   // Show loading only when we have no user and no profile (true initial load)
   // If we have a cached profile, skip loading screen entirely
   // Wait for theme to be ready (with timeout) to prevent theme flash on first login
