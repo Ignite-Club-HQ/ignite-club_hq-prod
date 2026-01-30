@@ -1,11 +1,12 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw, ExternalLink, Sheet, FileSpreadsheet, Link2 } from "lucide-react";
+import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw, ExternalLink, Sheet, FileSpreadsheet, Link2, CloudDownload } from "lucide-react";
 import { CreateFolderDialog } from "@/components/vault/CreateFolderDialog";
 import { UploadFilesDialog } from "@/components/vault/UploadFilesDialog";
 import { AddLinkDialog } from "@/components/vault/AddLinkDialog";
 import { MoveFileDialog } from "@/components/vault/MoveFileDialog";
+import { GoogleDriveImportDialog } from "@/components/vault/GoogleDriveImportDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 import JSZip from "jszip";
@@ -114,6 +115,7 @@ export default function VaultPage() {
   const [addingLink, setAddingLink] = useState(false);
   const [moveFileDialogOpen, setMoveFileDialogOpen] = useState(false);
   const [fileToMove, setFileToMove] = useState<{ id: string; name: string; folder_id: string | null; team_id?: string | null } | null>(null);
+  const [googleDriveImportOpen, setGoogleDriveImportOpen] = useState(false);
 
   const togglePhotoSelection = (photoId: string) => {
     setSelectedPhotos(prev => {
@@ -245,6 +247,48 @@ export default function VaultPage() {
       }
     }
   }, [activeClubFilter, userClubs, currentView.type]);
+
+  // Handle Google OAuth callback from redirect
+  useEffect(() => {
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
+    
+    if (code && state) {
+      // We have OAuth code - exchange it for token and open the import dialog
+      const pendingData = sessionStorage.getItem('googleDriveImportPending');
+      
+      // Clear URL params immediately
+      setSearchParams({});
+      
+      const exchangeCode = async () => {
+        try {
+          const redirectUri = `${window.location.origin}/vault`;
+          const { data, error } = await supabase.functions.invoke('google-drive-import?action=exchange-code', {
+            body: { code, redirectUri },
+          });
+          
+          if (error || data?.error) {
+            console.error("Token exchange failed:", data?.error || error);
+            toast.error("Failed to connect to Google Drive");
+            return;
+          }
+          
+          // Store the token temporarily for the dialog to use
+          sessionStorage.setItem('googleDriveAccessToken', data.accessToken);
+          
+          // Open the import dialog
+          setGoogleDriveImportOpen(true);
+        } catch (err) {
+          console.error("OAuth error:", err);
+          toast.error("Failed to connect to Google Drive");
+        } finally {
+          sessionStorage.removeItem('googleDriveImportPending');
+        }
+      };
+      
+      exchangeCode();
+    }
+  }, [searchParams, setSearchParams]);
 
   // Check if user is a club admin for the current club
   const isClubAdmin = useMemo(() => {
@@ -3001,6 +3045,14 @@ export default function VaultPage() {
                     </TooltipTrigger>
                     <TooltipContent>Add a Google Docs or external link</TooltipContent>
                   </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="sm" onClick={() => setGoogleDriveImportOpen(true)}>
+                        <CloudDownload className="h-4 w-4 mr-1" /> Import
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Import from Google Drive</TooltipContent>
+                  </Tooltip>
                   
                   <CreateFolderDialog
                     open={newFolderDialogOpen}
@@ -3023,6 +3075,19 @@ export default function VaultPage() {
                     onAddLink={(url, name) => addLinkMutation.mutate({ url, name })}
                     isAdding={addLinkMutation.isPending}
                     targetName={currentView.folderName || (currentView.type === "team" ? currentView.teamName : currentView.type === "club" ? currentView.clubName : "Vault")}
+                  />
+
+                  <GoogleDriveImportDialog
+                    open={googleDriveImportOpen}
+                    onOpenChange={setGoogleDriveImportOpen}
+                    onImportComplete={() => {
+                      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
+                      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+                      queryClient.invalidateQueries({ queryKey: ["vault-folders"] });
+                    }}
+                    targetFolderId={currentView.type === "team" || currentView.type === "mini-league" ? (currentView.folderId || null) : null}
+                    targetTeamId={currentView.type === "team" ? currentView.teamId : null}
+                    targetClubId={currentView.clubId}
                   />
                 </>
               )}
