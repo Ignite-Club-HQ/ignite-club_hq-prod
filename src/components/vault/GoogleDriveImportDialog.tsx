@@ -66,15 +66,12 @@ export function GoogleDriveImportDialog({
         // Exchange code for token
         try {
           setLoading(true);
-          const { data, error } = await supabase.functions.invoke('google-drive-import', {
-            body: { 
-              code: event.data.code,
-              redirectUri: getRedirectUri(),
-            },
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
+      const { data, error } = await supabase.functions.invoke('google-drive-import?action=exchange-code', {
+        body: { 
+          code: event.data.code,
+          redirectUri: getRedirectUri(),
+        },
+      });
 
           if (error || data?.error) {
             throw new Error(data?.error || error?.message || 'Failed to exchange code');
@@ -119,11 +116,8 @@ export function GoogleDriveImportDialog({
     try {
       setLoading(true);
       
-      const { data, error } = await supabase.functions.invoke('google-drive-import', {
+      const { data, error } = await supabase.functions.invoke('google-drive-import?action=get-auth-url', {
         body: { redirectUri: getRedirectUri() },
-        headers: {
-          'Content-Type': 'application/json',
-        },
       });
 
       if (error || data?.error) {
@@ -162,13 +156,10 @@ export function GoogleDriveImportDialog({
       setLoading(true);
       const tokenToUse = token || accessToken;
       
-      const { data, error } = await supabase.functions.invoke('google-drive-import', {
+      const { data, error } = await supabase.functions.invoke('google-drive-import?action=list-files', {
         body: { 
           accessToken: tokenToUse,
           folderId: folderId || undefined,
-        },
-        headers: {
-          'Content-Type': 'application/json',
         },
       });
 
@@ -292,15 +283,12 @@ export function GoogleDriveImportDialog({
           }
 
           // Download file from Drive
-          const { data: downloadData, error: downloadError } = await supabase.functions.invoke('google-drive-import', {
+          const { data: downloadData, error: downloadError } = await supabase.functions.invoke('google-drive-import?action=download-file', {
             body: {
               accessToken,
               fileId: file.id,
               mimeType: file.mimeType,
               fileName: file.name,
-            },
-            headers: {
-              'Content-Type': 'application/json',
             },
           });
 
@@ -397,13 +385,10 @@ export function GoogleDriveImportDialog({
     collected: { file: DriveFile; folderPath: string }[]
   ) => {
     try {
-      const { data, error } = await supabase.functions.invoke('google-drive-import', {
+      const { data, error } = await supabase.functions.invoke('google-drive-import?action=list-files', {
         body: { 
           accessToken,
           folderId,
-        },
-        headers: {
-          'Content-Type': 'application/json',
         },
       });
 
