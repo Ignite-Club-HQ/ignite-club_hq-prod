@@ -7,6 +7,32 @@ import { ArrowLeft, Flame } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
+import { useMemo } from "react";
+
+// Helper to convert URLs in text to clickable links
+function renderTextWithLinks(text: string) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  
+  return parts.map((part, index) => {
+    if (urlRegex.test(part)) {
+      // Reset regex lastIndex after test
+      urlRegex.lastIndex = 0;
+      return (
+        <a
+          key={index}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary underline hover:text-primary/80"
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+}
 
 export default function WelcomeMessagePage() {
   const navigate = useNavigate();
@@ -72,7 +98,7 @@ export default function WelcomeMessagePage() {
                 </span>
               </div>
               <div className="bg-muted rounded-lg rounded-tl-none p-3 max-w-[85%]">
-                <p className="text-sm whitespace-pre-wrap">{systemMessage.text}</p>
+                <p className="text-sm whitespace-pre-wrap">{renderTextWithLinks(systemMessage.text)}</p>
               </div>
             </div>
           </div>

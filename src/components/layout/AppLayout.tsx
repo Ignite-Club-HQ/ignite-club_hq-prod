@@ -74,11 +74,16 @@ export function AppLayout() {
     return <Navigate to="/vault" replace />;
   }
 
-  // Show loading only when we have no user and no profile (true initial load)
-  // If we have a cached profile, skip loading screen entirely
-  // Wait for theme to be ready (with timeout) to prevent theme flash on first login
+  // Consolidated loading check - show loading screen ONLY during initial auth load
+  // Once we have ANY profile (cached or fetched), proceed to render
+  // Theme loading uses a timeout to prevent blocking
   const shouldWaitForTheme = profile && !isThemeReady && !themeTimeout;
-  if ((loading && !profile) || shouldWaitForTheme) {
+  
+  // Only show loading if we're in initial auth loading AND have no profile at all
+  // The key is to NOT show loading once we have a profile, even if still fetching fresh data
+  const isInitialAuthLoading = loading && !profile;
+  
+  if (isInitialAuthLoading || shouldWaitForTheme) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <img src={logo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
@@ -145,24 +150,12 @@ export function AppLayout() {
     }
   }
 
-  // If profile is null and still loading, show loading screen
+  // At this point, if we still don't have a profile, something went wrong
+  // The consolidated loading check above should have caught this state
   if (!profile) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
-        <img src={logo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Loading your profile...</p>
-        {!profileLoading && (
-          <Button onClick={async () => {
-            setRetrying(true);
-            await refreshProfile();
-            setRetrying(false);
-          }}>
-            Retry
-          </Button>
-        )}
-      </div>
-    );
+    // This shouldn't happen, but redirect to complete-profile as fallback
+    console.log('[AppLayout] Unexpected state: no profile after all checks');
+    return <Navigate to="/complete-profile" replace />;
   }
 
   return (
