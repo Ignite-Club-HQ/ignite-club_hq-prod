@@ -248,20 +248,45 @@ export default function VaultPage() {
     }
   }, [activeClubFilter, userClubs, currentView.type]);
 
-  // Handle Google OAuth callback from popup
+  // Handle Google OAuth callback from redirect
   useEffect(() => {
     const code = searchParams.get('code');
     const state = searchParams.get('state');
     
     if (code && state) {
-      // If we have a code, we're the popup - send it to the opener and close
-      if (window.opener) {
-        window.opener.postMessage({ type: 'google-oauth-callback', code, state }, window.location.origin);
-        window.close();
-      } else {
-        // Clear the URL params if we're not a popup
-        setSearchParams({});
-      }
+      // We have OAuth code - exchange it for token and open the import dialog
+      const pendingData = sessionStorage.getItem('googleDriveImportPending');
+      
+      // Clear URL params immediately
+      setSearchParams({});
+      
+      const exchangeCode = async () => {
+        try {
+          const redirectUri = `${window.location.origin}/vault`;
+          const { data, error } = await supabase.functions.invoke('google-drive-import?action=exchange-code', {
+            body: { code, redirectUri },
+          });
+          
+          if (error || data?.error) {
+            console.error("Token exchange failed:", data?.error || error);
+            toast.error("Failed to connect to Google Drive");
+            return;
+          }
+          
+          // Store the token temporarily for the dialog to use
+          sessionStorage.setItem('googleDriveAccessToken', data.accessToken);
+          
+          // Open the import dialog
+          setGoogleDriveImportOpen(true);
+        } catch (err) {
+          console.error("OAuth error:", err);
+          toast.error("Failed to connect to Google Drive");
+        } finally {
+          sessionStorage.removeItem('googleDriveImportPending');
+        }
+      };
+      
+      exchangeCode();
     }
   }, [searchParams, setSearchParams]);
 

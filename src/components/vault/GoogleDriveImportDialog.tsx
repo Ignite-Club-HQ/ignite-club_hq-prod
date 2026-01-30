@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { HardDrive, Folder, FileText, Image, Loader2, ChevronRight, ChevronLeft, Check, ArrowLeft, X, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -51,47 +51,24 @@ export function GoogleDriveImportDialog({
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0, currentFile: "" });
-  const authWindowRef = useRef<Window | null>(null);
-  const authCheckInterval = useRef<number | null>(null);
 
   // Get the redirect URI based on current origin
   const getRedirectUri = useCallback(() => {
     return `${window.location.origin}/vault`;
   }, []);
 
-  // Listen for OAuth callback message
+  // Check for stored access token on open (from redirect flow)
   useEffect(() => {
-    const handleMessage = async (event: MessageEvent) => {
-      if (event.data?.type === 'google-oauth-callback' && event.data?.code) {
-        // Exchange code for token
-        try {
-          setLoading(true);
-      const { data, error } = await supabase.functions.invoke('google-drive-import?action=exchange-code', {
-        body: { 
-          code: event.data.code,
-          redirectUri: getRedirectUri(),
-        },
-      });
-
-          if (error || data?.error) {
-            throw new Error(data?.error || error?.message || 'Failed to exchange code');
-          }
-
-          setAccessToken(data.accessToken);
-          setStep("browse");
-          await loadFolderContents(null, data.accessToken);
-        } catch (err) {
-          console.error("OAuth error:", err);
-          toast.error("Failed to connect to Google Drive");
-        } finally {
-          setLoading(false);
-        }
+    if (open) {
+      const storedToken = sessionStorage.getItem('googleDriveAccessToken');
+      if (storedToken) {
+        sessionStorage.removeItem('googleDriveAccessToken');
+        setAccessToken(storedToken);
+        setStep("browse");
+        loadFolderContents(null, storedToken);
       }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [getRedirectUri]);
+    }
+  }, [open]);
 
   // Clean up on close
   useEffect(() => {
@@ -106,9 +83,6 @@ export function GoogleDriveImportDialog({
       setSelectedFolders(new Set());
       setImporting(false);
       setImportProgress({ current: 0, total: 0, currentFile: "" });
-      if (authCheckInterval.current) {
-        clearInterval(authCheckInterval.current);
-      }
     }
   }, [open]);
 
@@ -124,25 +98,15 @@ export function GoogleDriveImportDialog({
         throw new Error(data?.error || error?.message || 'Failed to get auth URL');
       }
 
-      // Open popup for OAuth
-      const width = 500;
-      const height = 600;
-      const left = window.screenX + (window.outerWidth - width) / 2;
-      const top = window.screenY + (window.outerHeight - height) / 2;
-      
-      authWindowRef.current = window.open(
-        data.authUrl,
-        'google-oauth',
-        `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
-      );
+      // Store state in sessionStorage to resume after redirect
+      sessionStorage.setItem('googleDriveImportPending', JSON.stringify({
+        targetFolderId,
+        targetTeamId,
+        targetClubId,
+      }));
 
-      // Check for popup being closed or code in URL
-      authCheckInterval.current = window.setInterval(() => {
-        if (authWindowRef.current?.closed) {
-          clearInterval(authCheckInterval.current!);
-          setLoading(false);
-        }
-      }, 500);
+      // Redirect to Google OAuth (works better than popup in iframe environments)
+      window.location.href = data.authUrl;
 
     } catch (err) {
       console.error("OAuth start error:", err);
