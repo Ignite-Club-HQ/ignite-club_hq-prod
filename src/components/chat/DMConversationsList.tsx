@@ -7,11 +7,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, Crown, MessageCircle, ImageIcon, EyeOff } from "lucide-react";
+import { ChevronRight, Crown, MessageCircle, ImageIcon, EyeOff, Flame } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useMemo } from "react";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
 import { toast } from "sonner";
+import { isIgniteSupportUser } from "@/lib/systemUser";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -101,6 +102,28 @@ interface DMConversationsListProps {
 export function DMConversationsList({ searchQuery = "", hasProAccess = false }: DMConversationsListProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  // Fetch system messages (welcome message from Ignite Support)
+  const { data: systemMessage } = useQuery({
+    queryKey: ["system-messages", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("system_messages")
+        .select("*")
+        .eq("user_id", user!.id)
+        .eq("message_type", "welcome")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (error) {
+        console.error("Error fetching system messages:", error);
+        return null;
+      }
+      return data;
+    },
+    enabled: !!user,
+  });
 
   // Fetch hidden conversations
   const { data: hiddenConversationIds } = useQuery({
@@ -258,7 +281,12 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
     );
   }
 
-  if (filteredConversations.length === 0) {
+  // Check if "ignite support" matches search query
+  const showIgniteSupport = systemMessage && (
+    !searchQuery.trim() || "ignite support".includes(searchQuery.toLowerCase())
+  );
+
+  if (filteredConversations.length === 0 && !showIgniteSupport) {
     if (searchQuery) return null; // Don't show empty state when searching
     
     return (
@@ -287,22 +315,54 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
         )}
       </div>
 
+      {/* Ignite Support welcome message */}
+      {showIgniteSupport && (
+        <Card className="hover:border-primary/50 transition-colors">
+          <CardContent className="p-4 flex items-center gap-4">
+            <Link to="/messages/welcome" className="flex items-center gap-4 flex-1 min-w-0">
+              <div className="h-12 w-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
+                <Flame className="h-6 w-6 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="truncate font-semibold">Ignite Support</h3>
+                <p className="text-sm text-muted-foreground truncate">
+                  {systemMessage.text.substring(0, 50)}...
+                </p>
+              </div>
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                <span className="text-xs text-muted-foreground">
+                  {formatDistanceToNow(new Date(systemMessage.created_at), { addSuffix: true })}
+                </span>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
       {filteredConversations.map((conv) => {
         const isOwn = conv.last_message?.author_id === user?.id;
+        const isIgniteSupport = isIgniteSupportUser(conv.other_user?.id);
         
         return (
           <Card key={conv.id} className="hover:border-primary/50 transition-colors">
             <CardContent className="p-4 flex items-center gap-4">
               <Link to={`/messages/dm/${conv.id}`} className="flex items-center gap-4 flex-1 min-w-0">
-                <Avatar className="h-12 w-12 shrink-0">
-                  <AvatarImage src={conv.other_user?.avatar_url || undefined} />
-                  <AvatarFallback className="bg-secondary text-secondary-foreground">
-                    {conv.other_user?.display_name?.charAt(0).toUpperCase() || "?"}
-                  </AvatarFallback>
-                </Avatar>
+                {isIgniteSupport ? (
+                  <div className="h-12 w-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
+                    <Flame className="h-6 w-6 text-white" />
+                  </div>
+                ) : (
+                  <Avatar className="h-12 w-12 shrink-0">
+                    <AvatarImage src={conv.other_user?.avatar_url || undefined} />
+                    <AvatarFallback className="bg-secondary text-secondary-foreground">
+                      {conv.other_user?.display_name?.charAt(0).toUpperCase() || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                )}
                 <div className="flex-1 min-w-0">
                   <h3 className="truncate font-semibold">
-                    {conv.other_user?.display_name || "Unknown User"}
+                    {isIgniteSupport ? "Ignite Support" : (conv.other_user?.display_name || "Unknown User")}
                   </h3>
                   <p className="text-sm text-muted-foreground truncate">
                     <MessagePreview 
@@ -322,35 +382,37 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
                 </div>
               </Link>
               
-              {/* Hide button */}
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-muted"
-                  >
-                    <EyeOff className="h-4 w-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Hide conversation?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will hide the conversation with {conv.other_user?.display_name || "this user"} from your list. 
-                      The messages will be preserved and the conversation will reappear if either of you sends a new message.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => hideConversationMutation.mutate(conv.id)}
+              {/* Hide button - not shown for Ignite Support */}
+              {!isIgniteSupport && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-muted"
                     >
-                      Hide
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                      <EyeOff className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Hide conversation?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will hide the conversation with {conv.other_user?.display_name || "this user"} from your list. 
+                        The messages will be preserved and the conversation will reappear if either of you sends a new message.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => hideConversationMutation.mutate(conv.id)}
+                      >
+                        Hide
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </CardContent>
           </Card>
         );

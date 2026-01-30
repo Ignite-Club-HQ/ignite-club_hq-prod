@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Send, Loader2, RefreshCw, Crown, Lock } from "lucide-react";
+import { ArrowLeft, Send, Loader2, RefreshCw, Crown, Lock, Flame } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage } from "@/lib/messageCache";
 import { ChatSearch, highlightText } from "@/components/chat/ChatSearch";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
+import { IGNITE_SUPPORT_USER_ID, isIgniteSupportUser } from "@/lib/systemUser";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -116,6 +117,9 @@ export default function DirectMessagePage() {
     ? (conversation.participant_1 === user?.id ? conversation.participant_2 : conversation.participant_1)
     : null;
 
+  // Check if this is a conversation with Ignite Support (system user)
+  const isIgniteSupportConversation = isIgniteSupportUser(otherUserId);
+
   // Fetch other participant's profile
   const { data: otherUser } = useQuery({
     queryKey: ["dm-other-user", otherUserId],
@@ -132,11 +136,14 @@ export default function DirectMessagePage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Check if DM is allowed (both users in Pro club)
+  // Check if DM is allowed (both users in Pro club) - skip for Ignite Support
   const { data: canDM, isLoading: checkingCanDM } = useQuery({
     queryKey: ["can-dm", otherUserId],
     queryFn: async () => {
       if (!otherUserId) return false;
+      // Always allow DMs with Ignite Support
+      if (isIgniteSupportUser(otherUserId)) return true;
+      
       const { data, error } = await supabase.rpc("can_dm_user", { other_user_id: otherUserId });
       if (error) {
         console.error("can_dm_user error:", error);
@@ -572,17 +579,31 @@ export default function DirectMessagePage() {
           <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={otherUser?.avatar_url || undefined} />
-            <AvatarFallback>{otherUser?.display_name?.charAt(0).toUpperCase() || "?"}</AvatarFallback>
-          </Avatar>
-          <div>
-            <h1 className="font-semibold">{otherUser?.display_name || "Unknown User"}</h1>
-          </div>
+          {isIgniteSupportConversation ? (
+            <>
+              <div className="h-10 w-10 rounded-full flex items-center justify-center" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
+                <Flame className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h1 className="font-semibold">Ignite Support</h1>
+                <p className="text-xs text-muted-foreground">Welcome & tips</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <Avatar className="h-10 w-10">
+                <AvatarImage src={otherUser?.avatar_url || undefined} />
+                <AvatarFallback>{otherUser?.display_name?.charAt(0).toUpperCase() || "?"}</AvatarFallback>
+              </Avatar>
+              <div>
+                <h1 className="font-semibold">{otherUser?.display_name || "Unknown User"}</h1>
+              </div>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <ChatSearch onSearch={setSearchQuery} />
-          <ChatMuteButton chatType="dm" chatId={conversationId!} />
+          {!isIgniteSupportConversation && <ChatMuteButton chatType="dm" chatId={conversationId!} />}
           <Button variant="ghost" size="icon" onClick={handleManualRefresh} disabled={isAnyRefreshing}>
             <RefreshCw className={`h-4 w-4 ${isAnyRefreshing ? 'animate-spin' : ''}`} />
           </Button>
@@ -623,7 +644,7 @@ export default function DirectMessagePage() {
                       text={searchQuery ? highlightText(msg.text, searchQuery) as string : msg.text}
                       imageUrl={msg.image_url}
                       authorId={msg.author_id}
-                      authorName={msg.author?.display_name || null}
+                      authorName={isIgniteSupportUser(msg.author_id) ? "Ignite Support" : (msg.author?.display_name || null)}
                       authorAvatar={msg.author?.avatar_url || null}
                       timestamp={format(new Date(msg.created_at), "h:mm a")}
                       isOwn={msg.author_id === user?.id}
@@ -637,7 +658,7 @@ export default function DirectMessagePage() {
                           ? { text: msg.reply_to.text, authorName: msg.reply_to.author?.display_name || null }
                           : null
                       }
-                      onReply={() => setReplyTo(msg)}
+                      onReply={isIgniteSupportConversation ? undefined : () => setReplyTo(msg)}
                     />
                   </div>
                 </div>
@@ -656,41 +677,49 @@ export default function DirectMessagePage() {
         />
       )}
 
-      {/* Input area */}
-      <div className="pt-4 border-t shrink-0">
-        <div className="flex gap-2 items-end">
-          <EmojiPicker 
-            onEmojiSelect={(emoji) => setMessage((prev) => prev + emoji)} 
-            disabled={sendMessageMutation.isPending}
-          />
-          
-          <div className="flex-1">
-            <Input
-              ref={inputRef}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-              placeholder="Type a message..."
+      {/* Input area - hidden for Ignite Support conversations */}
+      {isIgniteSupportConversation ? (
+        <div className="pt-4 border-t shrink-0">
+          <div className="text-center text-sm text-muted-foreground py-3 bg-muted/50 rounded-lg">
+            This is a welcome message from Ignite Support. Replies are not available.
+          </div>
+        </div>
+      ) : (
+        <div className="pt-4 border-t shrink-0">
+          <div className="flex gap-2 items-end">
+            <EmojiPicker 
+              onEmojiSelect={(emoji) => setMessage((prev) => prev + emoji)} 
               disabled={sendMessageMutation.isPending}
             />
+            
+            <div className="flex-1">
+              <Input
+                ref={inputRef}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                placeholder="Type a message..."
+                disabled={sendMessageMutation.isPending}
+              />
+            </div>
+            
+            <Button 
+              onClick={handleSend} 
+              disabled={!message.trim() || sendMessageMutation.isPending}
+              size="icon"
+            >
+              {sendMessageMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
           </div>
-          
-          <Button 
-            onClick={handleSend} 
-            disabled={!message.trim() || sendMessageMutation.isPending}
-            size="icon"
-          >
-            {sendMessageMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
+          <p className="text-xs text-muted-foreground mt-1">
+            Long-press a message to react • Tap menu to reply
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Long-press a message to react • Tap menu to reply
-        </p>
-      </div>
+      )}
     </div>
   );
 }

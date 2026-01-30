@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.send-invite-reminders]
 verify_jwt = false
+
+[functions.send-welcome-dm]
+verify_jwt = false

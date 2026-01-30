@@ -30,7 +30,7 @@ interface ReplyToMessage {
   authorName: string | null;
 }
 
-interface ChatMessageProps {
+export interface ChatMessageProps {
   id: string;
   text: string;
   imageUrl?: string | null;
@@ -49,6 +49,7 @@ interface ChatMessageProps {
   searchQuery?: string;
   readCount?: number;
   isPending?: boolean;
+  isSystemMessage?: boolean;
 }
 
 export const ChatMessage = memo(function ChatMessage({
@@ -70,6 +71,7 @@ export const ChatMessage = memo(function ChatMessage({
   searchQuery,
   readCount = 0,
   isPending = false,
+  isSystemMessage = false,
 }: ChatMessageProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
