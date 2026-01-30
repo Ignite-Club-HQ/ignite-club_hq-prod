@@ -967,44 +967,62 @@ export default function HomePage() {
     },
   });
 
-  const { data: clubs } = useQuery({
+  const { data: clubs, error: clubsError, isLoading: clubsLoading } = useQuery({
     queryKey: ["all-clubs"],
     queryFn: async () => {
+      console.log("[HomePage] Fetching all clubs...");
       const { data, error } = await supabase
         .from("clubs")
         .select("id, name, sport")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        console.error("[HomePage] Error fetching clubs:", error);
+        throw error;
+      }
+      console.log("[HomePage] Fetched clubs:", data?.length);
       return data as Club[];
     },
     enabled: !!user,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
-  const { data: teams } = useQuery({
+  const { data: teams, error: teamsError, isLoading: teamsLoading } = useQuery({
     queryKey: ["all-teams"],
     queryFn: async () => {
+      console.log("[HomePage] Fetching all teams...");
       const { data, error } = await supabase
         .from("teams")
         .select("id, name, club_id, clubs (name, sport)")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        console.error("[HomePage] Error fetching teams:", error);
+        throw error;
+      }
+      console.log("[HomePage] Fetched teams:", data?.length);
       return data as Team[];
     },
     enabled: !!user,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   // Fetch all mini leagues for join request dropdown
-  const { data: miniLeagues } = useQuery({
+  const { data: miniLeagues, error: miniLeaguesError } = useQuery({
     queryKey: ["all-mini-leagues"],
     queryFn: async () => {
+      console.log("[HomePage] Fetching all mini leagues...");
       const { data, error } = await supabase
         .from("mini_leagues")
         .select("id, name, club_id, clubs (name, sport)")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        console.error("[HomePage] Error fetching mini leagues:", error);
+        throw error;
+      }
+      console.log("[HomePage] Fetched mini leagues:", data?.length);
       return data as MiniLeague[];
     },
     enabled: !!user,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   // Fetch user's soccer teams with Pro Football subscription where user is direct team member (coach/team_admin)
