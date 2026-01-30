@@ -90,6 +90,10 @@ export function GoogleDriveImportDialog({
     try {
       setLoading(true);
       
+      // Clear any stale tokens before starting new auth
+      sessionStorage.removeItem('googleDriveAccessToken');
+      sessionStorage.removeItem('googleDriveImportPending');
+      
       const { data, error } = await supabase.functions.invoke('google-drive-import?action=get-auth-url', {
         body: { redirectUri: getRedirectUri() },
       });
