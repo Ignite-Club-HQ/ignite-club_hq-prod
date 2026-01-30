@@ -65,7 +65,8 @@ serve(async (req) => {
       authUrl.searchParams.set('response_type', 'code');
       authUrl.searchParams.set('scope', scopes);
       authUrl.searchParams.set('access_type', 'offline');
-      authUrl.searchParams.set('prompt', 'consent');
+      // Always show account selector to allow switching accounts
+      authUrl.searchParams.set('prompt', 'select_account');
       // Pass user ID in state for verification
       authUrl.searchParams.set('state', user!.id);
       
