@@ -542,11 +542,14 @@ export default function VaultPage() {
 
   const [showTrash, setShowTrash] = useState(false);
 
-  const { data: photos } = useQuery({
-    queryKey: ["vault-photos", currentView, isClubAdmin],
+  // Vault now reads all content from vault_files table only
+  // Photos uploaded via Media page are also added to vault_files
+  // Photos uploaded directly to Vault stay in vault_files only (not in photos table)
+  const { data: vaultItems } = useQuery({
+    queryKey: ["vault-files", currentView, isClubAdmin],
     queryFn: async () => {
       const folderId = getCurrentFolderId();
-      let query = supabase.from("photos").select("*").is("deleted_at", null);
+      let query = supabase.from("vault_files").select("*").is("deleted_at", null);
       
       if (currentView.type === "club") {
         // Club-level content only accessible to club admins
@@ -570,56 +573,38 @@ export default function VaultPage() {
     enabled: currentView.type !== "root" && !showTrash,
   });
 
-  const { data: files } = useQuery({
-    queryKey: ["vault-files", currentView, isClubAdmin],
-    queryFn: async () => {
-      const folderId = getCurrentFolderId();
-      let query = supabase.from("vault_files").select("*").is("deleted_at", null);
-      
-      if (currentView.type === "club") {
-        // Club-level content only accessible to club admins
-        if (!isClubAdmin) return [];
-        query = query.eq("club_id", currentView.clubId).is("team_id", null);
-      } else if (currentView.type === "team") {
-        query = query.eq("team_id", currentView.teamId);
-      } else if (currentView.type === "mini-league") {
-        // For now, mini-leagues don't have vault_files, just photos
-        return [];
-      }
-      
-      if (folderId) {
-        query = query.eq("folder_id", folderId);
-      } else {
-        query = query.is("folder_id", null);
-      }
-      
-      const { data } = await query.order("created_at", { ascending: false });
-      return data || [];
-    },
-    enabled: currentView.type !== "root" && !showTrash,
-  });
+  // Separate vault items into photos and files based on file_type
+  const photos = useMemo(() => {
+    if (!vaultItems) return [];
+    return vaultItems.filter(item => 
+      item.file_type?.startsWith('image/') || 
+      /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(item.name || item.file_url || '')
+    ).map(item => ({
+      ...item,
+      // Map vault_files fields to photo-like structure for compatibility
+      image_url: item.file_url,
+      uploader_id: item.uploaded_by,
+      title: item.name, // Map name to title for compatibility with existing code
+    }));
+  }, [vaultItems]);
 
-  // Trash query - fetches ALL deleted items for the current club (flat list)
+  const files = useMemo(() => {
+    if (!vaultItems) return [];
+    return vaultItems.filter(item => 
+      !item.file_type?.startsWith('image/') && 
+      !/\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(item.name || item.file_url || '')
+    );
+  }, [vaultItems]);
+
+  // Trash query - fetches ALL deleted items from vault_files for the current club
   const { data: trashItems, isLoading: isLoadingTrash } = useQuery({
     queryKey: ["vault-trash", currentView.type !== "root" ? (currentView.type === "club" ? currentView.clubId : currentView.clubId) : null],
     queryFn: async () => {
-      const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : null;
+      const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : currentView.type === "mini-league" ? currentView.clubId : null;
       if (!clubId) return { photos: [], files: [] };
       
-      // Fetch all deleted photos for this club with folder and team info
-      const { data: photosData } = await supabase
-        .from("photos")
-        .select(`
-          *,
-          folder:vault_folders(id, name),
-          team:teams(id, name)
-        `)
-        .eq("club_id", clubId)
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false });
-      
-      // Fetch all deleted files for this club with folder and team info
-      const { data: filesData } = await supabase
+      // Fetch all deleted items from vault_files for this club
+      const { data: allData } = await supabase
         .from("vault_files")
         .select(`
           *,
@@ -630,9 +615,26 @@ export default function VaultPage() {
         .not("deleted_at", "is", null)
         .order("deleted_at", { ascending: false });
       
+      // Separate into photos and files based on file type
+      const items = allData || [];
+      const photosData = items.filter(item => 
+        item.file_type?.startsWith('image/') || 
+        /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(item.name || item.file_url || '')
+      ).map(item => ({
+        ...item,
+        image_url: item.file_url,
+        uploader_id: item.uploaded_by,
+        title: item.name,
+      }));
+      
+      const filesData = items.filter(item => 
+        !item.file_type?.startsWith('image/') && 
+        !/\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(item.name || item.file_url || '')
+      );
+      
       return {
-        photos: photosData || [],
-        files: filesData || [],
+        photos: photosData,
+        files: filesData,
       };
     },
     enabled: showTrash && currentView.type !== "root",
@@ -1294,14 +1296,14 @@ export default function VaultPage() {
     },
   });
 
+  // Vault photos are stored in vault_files, so rename updates vault_files.name
   const renamePhotoMutation = useMutation({
     mutationFn: async ({ photoId, newName }: { photoId: string; newName: string }) => {
-      const { error } = await supabase.from("photos").update({ title: newName }).eq("id", photoId);
+      const { error } = await supabase.from("vault_files").update({ name: newName }).eq("id", photoId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       setRenamePhotoId(null);
       setRenamePhotoName("");
       toast.success("Photo renamed");
@@ -1311,6 +1313,8 @@ export default function VaultPage() {
     },
   });
 
+  // Vault photo uploads go to vault_files ONLY (not photos table)
+  // This keeps vault photos separate from the media gallery
   const uploadPhotoMutation = useMutation({
     mutationFn: async (file: File) => {
       // Check storage limit
@@ -1331,6 +1335,8 @@ export default function VaultPage() {
         storagePath = `clubs/${currentView.clubId}/teams/${currentView.teamId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
       } else if (currentView.type === "club" && currentView.clubId) {
         storagePath = `clubs/${currentView.clubId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
+      } else if (currentView.type === "mini-league" && currentView.clubId && currentView.miniLeagueId) {
+        storagePath = `clubs/${currentView.clubId}/mini-leagues/${currentView.miniLeagueId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
       } else {
         storagePath = `unassigned/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
       }
@@ -1345,11 +1351,15 @@ export default function VaultPage() {
       const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
       const storageUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
 
+      // Insert into vault_files instead of photos table
+      // This keeps vault photos private and separate from the media gallery
       const insertData: any = {
         file_url: storageUrl,
-        uploader_id: user!.id,
+        uploaded_by: user!.id,
+        name: file.name,
         folder_id: getCurrentFolderId(),
         file_size: file.size,
+        file_type: file.type,
       };
 
       if (currentView.type === "club") {
@@ -1357,20 +1367,20 @@ export default function VaultPage() {
       } else if (currentView.type === "team") {
         insertData.club_id = currentView.clubId;
         insertData.team_id = currentView.teamId;
+      } else if (currentView.type === "mini-league") {
+        insertData.club_id = currentView.clubId;
+        insertData.mini_league_id = currentView.miniLeagueId;
       }
 
-      const { error: insertError } = await supabase.from("photos").insert(insertData);
+      const { error: insertError } = await supabase.from("vault_files").insert(insertData);
       if (insertError) throw insertError;
-
-      // Note: Storage tracking is now per team, handled by the storage breakdown query
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["vault-clubs"] });
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
       queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
       setUploadDialogOpen(false);
-      toast.success("Photo uploaded successfully!");
+      toast.success("Photo uploaded to vault!");
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to upload photo");
@@ -1475,10 +1485,11 @@ export default function VaultPage() {
     },
   });
 
+  // Vault photos are now stored in vault_files
   const deletePhotoMutation = useMutation({
     mutationFn: async (photoId: string) => {
-      // Soft delete - set deleted_at and deleted_by
-      const { error } = await supabase.from("photos")
+      // Soft delete - set deleted_at and deleted_by in vault_files
+      const { error } = await supabase.from("vault_files")
         .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id })
         .eq("id", photoId);
       if (error) throw error;
@@ -1490,19 +1501,18 @@ export default function VaultPage() {
       setLightboxOpen(false);
       
       // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["vault-photos"] });
-      await queryClient.cancelQueries({ queryKey: ["photos"] });
+      await queryClient.cancelQueries({ queryKey: ["vault-files"] });
       
       // Snapshot the previous value
-      const previousPhotos = queryClient.getQueryData(["vault-photos", currentView, isClubAdmin, showTrash]);
+      const previousItems = queryClient.getQueryData(["vault-files", currentView, isClubAdmin]);
       
       // Optimistically remove the photo from the cache
-      queryClient.setQueryData(["vault-photos", currentView, isClubAdmin, showTrash], (old: any[] | undefined) => {
+      queryClient.setQueryData(["vault-files", currentView, isClubAdmin], (old: any[] | undefined) => {
         if (!old) return old;
-        return old.filter((photo: any) => photo.id !== photoId);
+        return old.filter((item: any) => item.id !== photoId);
       });
       
-      return { previousPhotos, photoId };
+      return { previousItems, photoId };
     },
     onSuccess: (photoId) => {
       // Remove from local storage cache
@@ -1511,14 +1521,13 @@ export default function VaultPage() {
     },
     onError: (error: any, _, context) => {
       // Rollback on error
-      if (context?.previousPhotos) {
-        queryClient.setQueryData(["vault-photos", currentView, isClubAdmin, showTrash], context.previousPhotos);
+      if (context?.previousItems) {
+        queryClient.setQueryData(["vault-files", currentView, isClubAdmin], context.previousItems);
       }
       toast.error(error.message || "Failed to delete photo");
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
     },
   });
@@ -1542,10 +1551,10 @@ export default function VaultPage() {
     },
   });
 
-  // Restore photo from trash
+  // Restore photo from trash (vault photos are in vault_files)
   const restorePhotoMutation = useMutation({
     mutationFn: async (photoId: string) => {
-      const { error } = await supabase.from("photos")
+      const { error } = await supabase.from("vault_files")
         .update({ deleted_at: null, deleted_by: null })
         .eq("id", photoId);
       if (error) throw error;
@@ -1553,8 +1562,7 @@ export default function VaultPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
-      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       toast.success("Photo restored to original location");
     },
     onError: (error: any) => {
@@ -1580,18 +1588,17 @@ export default function VaultPage() {
     },
   });
 
-  // Permanently delete photo
+  // Permanently delete photo (vault photos are in vault_files)
   const permanentDeletePhotoMutation = useMutation({
     mutationFn: async (photoId: string) => {
-      const { error } = await supabase.from("photos").delete().eq("id", photoId);
+      const { error } = await supabase.from("vault_files").delete().eq("id", photoId);
       if (error) throw error;
       return photoId;
     },
     onSuccess: (photoId) => {
       removePhotoFromCache(photoId);
       queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
-      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
       toast.success("Photo permanently deleted");
     },
@@ -1680,7 +1687,6 @@ export default function VaultPage() {
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["photos"] });
       queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
@@ -1816,7 +1822,6 @@ export default function VaultPage() {
       const freedSpace = itemsToDelete.reduce((sum, item) => sum + item.size, 0);
       
       // Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
       queryClient.invalidateQueries({ queryKey: ["photos"] });
@@ -3097,7 +3102,6 @@ export default function VaultPage() {
                     open={googleDriveImportOpen}
                     onOpenChange={setGoogleDriveImportOpen}
                     onImportComplete={() => {
-                      queryClient.invalidateQueries({ queryKey: ["vault-photos"] });
                       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
                       queryClient.invalidateQueries({ queryKey: ["vault-folders"] });
                     }}
