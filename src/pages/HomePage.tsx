@@ -2149,21 +2149,24 @@ export default function HomePage() {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Quick Actions</h2>
         <div className="grid grid-cols-2 gap-3">
-          <Button 
-            variant="outline" 
-            className="w-full h-auto py-4 flex flex-col gap-2"
-            onClick={() => {
-              // In club mode, go directly to the club detail page
-              if (activeClubFilter) {
-                navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
-              } else {
-                navigate("/clubs", { state: { fromCreateTeam: true } });
-              }
-            }}
-          >
-            <UserPlus className="h-5 w-5 text-primary" />
-            <span className="text-sm">{activeClubFilter ? "Create Team" : "Create Team or Club"}</span>
-          </Button>
+          {/* Only show Create Team if user is a club admin (or Create Team or Club for non-filtered mode) */}
+          {(userRoles?.some(r => r.role === 'club_admin') || !activeClubFilter) && (
+            <Button 
+              variant="outline" 
+              className="w-full h-auto py-4 flex flex-col gap-2"
+              onClick={() => {
+                // In club mode, go directly to the club detail page
+                if (activeClubFilter) {
+                  navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
+                } else {
+                  navigate("/clubs", { state: { fromCreateTeam: true } });
+                }
+              }}
+            >
+              <UserPlus className="h-5 w-5 text-primary" />
+              <span className="text-sm">{activeClubFilter ? "Create Team" : "Create Team or Club"}</span>
+            </Button>
+          )}
           <Button 
             variant="outline" 
             className="w-full h-auto py-4 flex flex-col gap-2"
