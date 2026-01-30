@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.google-drive-import]
 verify_jwt = false
+
+[functions.send-invite-reminders]
+verify_jwt = false
