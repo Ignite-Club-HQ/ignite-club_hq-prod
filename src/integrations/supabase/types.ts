@@ -974,6 +974,7 @@ export type Database = {
           deleted_at: string | null
           id: string
           image_url: string | null
+          is_system_message: boolean | null
           reply_to_id: string | null
           text: string
         }
@@ -984,6 +985,7 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           image_url?: string | null
+          is_system_message?: boolean | null
           reply_to_id?: string | null
           text: string
         }
@@ -994,6 +996,7 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           image_url?: string | null
+          is_system_message?: boolean | null
           reply_to_id?: string | null
           text?: string
         }
@@ -3508,6 +3511,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      system_messages: {
+        Row: {
+          created_at: string
+          id: string
+          message_type: string
+          read_at: string | null
+          text: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_type?: string
+          read_at?: string | null
+          text: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_type?: string
+          read_at?: string | null
+          text?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       team_folders: {
         Row: {

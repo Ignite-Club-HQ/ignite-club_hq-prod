@@ -270,6 +270,19 @@ export default function CompleteProfilePage() {
         return;
       }
 
+      // Send welcome DM from Ignite Support (fire and forget - don't block on this)
+      supabase.functions.invoke("send-welcome-dm", {
+        body: { userId: user.id }
+      }).then(({ error: welcomeError }) => {
+        if (welcomeError) {
+          console.warn("[CompleteProfile] Failed to send welcome DM:", welcomeError);
+        } else {
+          console.log("[CompleteProfile] Welcome DM sent successfully");
+        }
+      }).catch(err => {
+        console.warn("[CompleteProfile] Error calling welcome DM function:", err);
+      });
+
       // Process pending invites if user opted in
       if (acceptInvites && pendingInvites.length > 0) {
         console.log("[CompleteProfile] Processing pending invites:", pendingInvites.length);

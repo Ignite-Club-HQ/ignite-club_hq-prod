@@ -1,0 +1,80 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+const WELCOME_MESSAGE_TEXT =
+  "Welcome to Ignite Club HQ! 🔥 For tips on how to use all of the app's features and help run your club in one place, visit igniteclubhq.com/videos";
+
+Deno.serve(async (req: Request) => {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Use service role client to bypass RLS
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { userId } = await req.json();
+
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: "userId is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log("[send-welcome-dm] Sending welcome message to user:", userId);
+
+    // Check if welcome message already sent
+    const { data: existingMsg } = await supabase
+      .from("system_messages")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("message_type", "welcome")
+      .limit(1);
+    
+    if (existingMsg && existingMsg.length > 0) {
+      console.log("[send-welcome-dm] Welcome message already sent, skipping");
+      return new Response(
+        JSON.stringify({ success: true, alreadySent: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Insert a welcome message into system_messages table
+    const { error: msgError } = await supabase
+      .from("system_messages")
+      .insert({
+        user_id: userId,
+        message_type: "welcome",
+        text: WELCOME_MESSAGE_TEXT,
+      });
+
+    if (msgError) {
+      console.error("[send-welcome-dm] Error inserting message:", msgError);
+      throw msgError;
+    }
+
+    console.log("[send-welcome-dm] Welcome message sent successfully");
+
+    return new Response(
+      JSON.stringify({ success: true }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("[send-welcome-dm] Error:", errorMessage);
+    return new Response(
+      JSON.stringify({ error: errorMessage }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
