@@ -1,3 +1,32 @@
+// =====================================================
+// CRITICAL: Capture OAuth callback params IMMEDIATELY
+// This MUST run before any React code or imports that might cause redirects
+// =====================================================
+(function captureOAuthCallbackBeforeAnythingElse() {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const error = urlParams.get('error');
+    
+    // Check if this looks like a Google Drive OAuth callback (has code and we're on /vault)
+    if (window.location.pathname === '/vault' && code) {
+      console.log("[Main] EARLY CAPTURE: Google Drive OAuth code detected");
+      sessionStorage.setItem('googleDriveOAuthCode', code);
+      // Clean the URL immediately to prevent any interference from routing
+      window.history.replaceState({}, '', '/vault');
+    }
+    
+    // Handle OAuth error
+    if (window.location.pathname === '/vault' && error) {
+      console.log("[Main] EARLY CAPTURE: Google Drive OAuth error:", error);
+      sessionStorage.setItem('googleDriveOAuthError', error);
+      window.history.replaceState({}, '', '/vault');
+    }
+  } catch (e) {
+    console.error("[Main] OAuth capture error:", e);
+  }
+})();
+
 import { createRoot } from "react-dom/client"; // rebuild v2
 import App from "./App.tsx";
 import "./index.css";
