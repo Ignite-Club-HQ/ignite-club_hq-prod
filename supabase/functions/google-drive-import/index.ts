@@ -210,8 +210,15 @@ serve(async (req) => {
       
       const fileData = await fileResponse.arrayBuffer();
       
-      // Return base64 encoded file data
-      const base64Data = btoa(String.fromCharCode(...new Uint8Array(fileData)));
+      // Convert to base64 using chunked approach to avoid stack overflow
+      const bytes = new Uint8Array(fileData);
+      let base64Data = '';
+      const chunkSize = 8192;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, i + chunkSize);
+        base64Data += String.fromCharCode.apply(null, Array.from(chunk));
+      }
+      base64Data = btoa(base64Data);
       
       return new Response(
         JSON.stringify({ 
