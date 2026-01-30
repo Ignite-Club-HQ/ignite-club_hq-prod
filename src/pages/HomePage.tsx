@@ -1945,6 +1945,206 @@ export default function HomePage() {
         </ResponsiveDialogContent>
       </ResponsiveDialog>
 
+      {/* Upcoming Events - Moved above Quick Actions */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Upcoming Events</h2>
+          <Link to="/events" className="text-sm text-primary hover:underline">
+            View all
+          </Link>
+        </div>
+
+        {events?.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="p-8 text-center">
+              <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">No upcoming events</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {userClubs && userClubs.length > 0 
+                  ? "No events scheduled yet" 
+                  : "Join a club or create one to see events here"}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {events?.map((event) => (
+              <Card 
+                key={event.id} 
+                className={`hover:border-primary/50 transition-colors cursor-pointer ${event.is_cancelled ? 'opacity-60' : ''}`}
+                onClick={() => navigate(`/events/${event.id}`)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1 flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge className={eventTypeColors[event.type]} variant="secondary">
+                          {event.type}
+                        </Badge>
+                        {event.is_cancelled && (
+                          <Badge variant="destructive">Cancelled</Badge>
+                        )}
+                        {event.teams?.name && (
+                          <span className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                            <span>{getSportEmoji(event.clubs?.sport)}</span>
+                            {event.teams.name}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className={`font-semibold truncate ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3.5 w-3.5" />
+                          {formatEventDate(event.event_date)}
+                        </span>
+                      </div>
+                      {event.suburb && (
+                        <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <MapPin className="h-3.5 w-3.5" />
+                          {event.suburb}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {/* Quick RSVP Button - only for non-cancelled events */}
+                      {!event.is_cancelled && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setQuickRsvpEvent(event);
+                          }}
+                        >
+                          {getRsvpIcon(getUserRsvpStatus(event.id))}
+                          RSVP
+                        </Button>
+                      )}
+                      {canManageEvent(event) && (
+                        <>
+                          <Link to={`/events/${event.id}/edit`} onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                          {!event.is_cancelled && (
+                            <>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-primary"
+                                disabled={loadingRemindCount}
+                                onClick={async (e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setLoadingRemindCount(true);
+                                  
+                                  // Fetch count of non-RSVP members first
+                                  const { data: rsvps } = await supabase
+                                    .from("rsvps")
+                                    .select("user_id")
+                                    .eq("event_id", event.id);
+                                  
+                                  const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
+                                  
+                                  // Get all members - handle mini-league events differently
+                                  let allMemberIds: string[] = [];
+                                  
+                                  if (event.mini_league_id) {
+                                    // Get mini league to find the club_id
+                                    const { data: league } = await supabase
+                                      .from("mini_leagues")
+                                      .select("club_id")
+                                      .eq("id", event.mini_league_id)
+                                      .single();
+                                    
+                                    if (league) {
+                                      // Get all parent user IDs from mini league players
+                                      const { data: playersData } = await supabase
+                                        .from("mini_league_players")
+                                        .select("parent_user_id")
+                                        .eq("mini_league_id", event.mini_league_id)
+                                        .not("parent_user_id", "is", null);
+                                      
+                                      const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
+                                      
+                                      // Get club admins, league admins, and coaches
+                                      const { data: adminRoles } = await supabase
+                                        .from("user_roles")
+                                        .select("user_id")
+                                        .eq("club_id", league.club_id)
+                                        .in("role", ["club_admin", "league_admin", "coach"]);
+                                      
+                                      const adminIds = adminRoles?.map(r => r.user_id) || [];
+                                      
+                                      allMemberIds = [...new Set([...parentIds, ...adminIds])];
+                                    }
+                                  } else {
+                                    let memberQuery = supabase.from("user_roles").select("user_id");
+                                    if (event.team_id) {
+                                      memberQuery = memberQuery.eq("team_id", event.team_id);
+                                    } else {
+                                      memberQuery = memberQuery.eq("club_id", event.club_id);
+                                    }
+                                    
+                                    const { data: members } = await memberQuery;
+                                    allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
+                                  }
+                                  const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
+                                  
+                                  setNonRsvpCount(count);
+                                  setEventToRemind(event);
+                                  setRemindDialogOpen(true);
+                                  setLoadingRemindCount(false);
+                                }}
+                              >
+                                {loadingRemindCount ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Bell className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-warning"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setEventToCancel(event);
+                                  setCancelDialogOpen(true);
+                                }}
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-destructive"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setEventToDelete(event);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
       {/* Quick Actions */}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Quick Actions</h2>
@@ -2188,207 +2388,6 @@ export default function HomePage() {
           </ResponsiveDialogFooter>
         </ResponsiveDialogContent>
       </ResponsiveDialog>
-
-      {/* Upcoming Events */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Upcoming Events</h2>
-          <Link to="/events" className="text-sm text-primary hover:underline">
-            View all
-          </Link>
-        </div>
-
-        {events?.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="p-8 text-center">
-              <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No upcoming events</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {userClubs && userClubs.length > 0 
-                  ? "No events scheduled yet" 
-                  : "Join a club or create one to see events here"}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {events?.map((event) => (
-              <Card 
-                key={event.id} 
-                className={`hover:border-primary/50 transition-colors cursor-pointer ${event.is_cancelled ? 'opacity-60' : ''}`}
-                onClick={() => navigate(`/events/${event.id}`)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1 flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge className={eventTypeColors[event.type]} variant="secondary">
-                          {event.type}
-                        </Badge>
-                        {event.is_cancelled && (
-                          <Badge variant="destructive">Cancelled</Badge>
-                        )}
-                        {event.teams?.name && (
-                          <span className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                            <span>{getSportEmoji(event.clubs?.sport)}</span>
-                            {event.teams.name}
-                          </span>
-                        )}
-                      </div>
-                      <h3 className={`font-semibold truncate ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3.5 w-3.5" />
-                          {formatEventDate(event.event_date)}
-                        </span>
-                      </div>
-                      {event.suburb && (
-                        <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <MapPin className="h-3.5 w-3.5" />
-                          {event.suburb}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {/* Quick RSVP Button - only for non-cancelled events */}
-                      {!event.is_cancelled && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setQuickRsvpEvent(event);
-                          }}
-                        >
-                          {getRsvpIcon(getUserRsvpStatus(event.id))}
-                          RSVP
-                        </Button>
-                      )}
-                      {canManageEvent(event) && (
-                        <>
-                          <Link to={`/events/${event.id}/edit`} onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                          {!event.is_cancelled && (
-                            <>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-8 w-8 text-primary"
-                                disabled={loadingRemindCount}
-                                onClick={async (e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setLoadingRemindCount(true);
-                                  
-                                  // Fetch count of non-RSVP members first
-                                  const { data: rsvps } = await supabase
-                                    .from("rsvps")
-                                    .select("user_id")
-                                    .eq("event_id", event.id);
-                                  
-                                  const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
-                                  
-                                  // Get all members - handle mini-league events differently
-                                  let allMemberIds: string[] = [];
-                                  
-                                  if (event.mini_league_id) {
-                                    // Get mini league to find the club_id
-                                    const { data: league } = await supabase
-                                      .from("mini_leagues")
-                                      .select("club_id")
-                                      .eq("id", event.mini_league_id)
-                                      .single();
-                                    
-                                    if (league) {
-                                      // Get all parent user IDs from mini league players
-                                      const { data: playersData } = await supabase
-                                        .from("mini_league_players")
-                                        .select("parent_user_id")
-                                        .eq("mini_league_id", event.mini_league_id)
-                                        .not("parent_user_id", "is", null);
-                                      
-                                      const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
-                                      
-                                      // Get club admins, league admins, and coaches
-                                      const { data: adminRoles } = await supabase
-                                        .from("user_roles")
-                                        .select("user_id")
-                                        .eq("club_id", league.club_id)
-                                        .in("role", ["club_admin", "league_admin", "coach"]);
-                                      
-                                      const adminIds = adminRoles?.map(r => r.user_id) || [];
-                                      
-                                      allMemberIds = [...new Set([...parentIds, ...adminIds])];
-                                    }
-                                  } else {
-                                    let memberQuery = supabase.from("user_roles").select("user_id");
-                                    if (event.team_id) {
-                                      memberQuery = memberQuery.eq("team_id", event.team_id);
-                                    } else {
-                                      memberQuery = memberQuery.eq("club_id", event.club_id);
-                                    }
-                                    
-                                    const { data: members } = await memberQuery;
-                                    allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
-                                  }
-                                  const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
-                                  
-                                  setNonRsvpCount(count);
-                                  setEventToRemind(event);
-                                  setRemindDialogOpen(true);
-                                  setLoadingRemindCount(false);
-                                }}
-                              >
-                                {loadingRemindCount ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Bell className="h-4 w-4" />
-                                )}
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-8 w-8 text-warning"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setEventToCancel(event);
-                                  setCancelDialogOpen(true);
-                                }}
-                              >
-                                <XCircle className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-destructive"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setEventToDelete(event);
-                              setDeleteDialogOpen(true);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
-
       {/* My Soccer Teams - Pitch Board Access (last 2 used) */}
       {displayedTeams.length > 0 && (
         <section className="space-y-3">
