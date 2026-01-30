@@ -73,6 +73,7 @@ const ManageAdsPage = lazy(() => import("./pages/ManageAdsPage"));
 const VideoGuideDownloadPage = lazy(() => import("./pages/VideoGuideDownloadPage"));
 const AttendanceStatsPage = lazy(() => import("./pages/AttendanceStatsPage"));
 const PushAnalyticsPage = lazy(() => import("./pages/PushAnalyticsPage"));
+const NotificationPreferencesPage = lazy(() => import("./pages/NotificationPreferencesPage"));
 const MiniLeaguesPage = lazy(() => import("./pages/MiniLeaguesPage"));
 const MiniLeagueDetailPage = lazy(() => import("./pages/MiniLeagueDetailPage"));
 const EventGroupPitchPage = lazy(() => import("./pages/EventGroupPitchPage"));
@@ -161,6 +162,7 @@ const App = () => (
                   <Route path="/admin/sponsor-analytics" element={<SponsorAnalyticsPage />} />
                   <Route path="/admin/ads" element={<ManageAdsPage />} />
                   <Route path="/admin/push-analytics" element={<PushAnalyticsPage />} />
+                  <Route path="/admin/notification-preferences" element={<NotificationPreferencesPage />} />
                   <Route path="/mini-leagues" element={<MiniLeaguesPage />} />
                   <Route path="/mini-leagues/:id" element={<MiniLeagueDetailPage />} />
                 </Route>
