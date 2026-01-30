@@ -249,33 +249,44 @@ export default function VaultPage() {
   }, [activeClubFilter, userClubs, currentView.type]);
 
   // Handle Google OAuth callback from redirect
+  // This runs on initial mount to check for OAuth callback params
   useEffect(() => {
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
-    const error = searchParams.get('error');
+    // Check URL params directly to catch OAuth callback before any re-renders
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const error = urlParams.get('error');
     
     // Debug: log what we received
-    if (code || state || error) {
-      console.log("[GoogleDrive OAuth] Callback detected:", { hasCode: !!code, hasState: !!state, error });
+    if (code || error) {
+      console.log("[GoogleDrive OAuth] Callback detected on mount:", { hasCode: !!code, error });
     }
     
     // Handle Google OAuth error
     if (error) {
       console.error("[GoogleDrive OAuth] Error from Google:", error);
       toast.error("Google authentication was cancelled or failed");
-      setSearchParams({});
+      // Clean URL without triggering navigation
+      window.history.replaceState({}, '', '/vault');
       sessionStorage.removeItem('googleDriveImportPending');
       return;
     }
     
-    // Only need the code - state is optional (it's just for our verification)
+    // If we have a code, save it immediately and clean the URL
     if (code) {
-      // We have OAuth code - exchange it for token and open the import dialog
-      const pendingData = sessionStorage.getItem('googleDriveImportPending');
-      console.log("[GoogleDrive OAuth] Processing code, pendingData:", !!pendingData);
-      
-      // Clear URL params immediately to prevent re-processing
-      setSearchParams({});
+      console.log("[GoogleDrive OAuth] Saving code to session and cleaning URL");
+      sessionStorage.setItem('googleDriveOAuthCode', code);
+      // Clean URL without triggering navigation
+      window.history.replaceState({}, '', '/vault');
+    }
+  }, []); // Only run on mount
+  
+  // Process saved OAuth code
+  useEffect(() => {
+    const savedCode = sessionStorage.getItem('googleDriveOAuthCode');
+    
+    if (savedCode) {
+      console.log("[GoogleDrive OAuth] Processing saved code");
+      sessionStorage.removeItem('googleDriveOAuthCode');
       
       const exchangeCode = async () => {
         try {
@@ -283,7 +294,7 @@ export default function VaultPage() {
           console.log("[GoogleDrive OAuth] Exchanging code with redirectUri:", redirectUri);
           
           const { data, error: exchangeError } = await supabase.functions.invoke('google-drive-import?action=exchange-code', {
-            body: { code, redirectUri },
+            body: { code: savedCode, redirectUri },
           });
           
           if (exchangeError || data?.error) {
@@ -309,7 +320,7 @@ export default function VaultPage() {
       
       exchangeCode();
     }
-  }, [searchParams, setSearchParams]);
+  }, []); // Only run on mount after the first effect
 
   // Check if user is a club admin for the current club
   const isClubAdmin = useMemo(() => {
