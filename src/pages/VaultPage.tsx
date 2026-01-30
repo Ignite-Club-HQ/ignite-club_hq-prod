@@ -252,26 +252,47 @@ export default function VaultPage() {
   useEffect(() => {
     const code = searchParams.get('code');
     const state = searchParams.get('state');
+    const error = searchParams.get('error');
     
-    if (code && state) {
+    // Debug: log what we received
+    if (code || state || error) {
+      console.log("[GoogleDrive OAuth] Callback detected:", { hasCode: !!code, hasState: !!state, error });
+    }
+    
+    // Handle Google OAuth error
+    if (error) {
+      console.error("[GoogleDrive OAuth] Error from Google:", error);
+      toast.error("Google authentication was cancelled or failed");
+      setSearchParams({});
+      sessionStorage.removeItem('googleDriveImportPending');
+      return;
+    }
+    
+    // Only need the code - state is optional (it's just for our verification)
+    if (code) {
       // We have OAuth code - exchange it for token and open the import dialog
       const pendingData = sessionStorage.getItem('googleDriveImportPending');
+      console.log("[GoogleDrive OAuth] Processing code, pendingData:", !!pendingData);
       
-      // Clear URL params immediately
+      // Clear URL params immediately to prevent re-processing
       setSearchParams({});
       
       const exchangeCode = async () => {
         try {
           const redirectUri = `${window.location.origin}/vault`;
-          const { data, error } = await supabase.functions.invoke('google-drive-import?action=exchange-code', {
+          console.log("[GoogleDrive OAuth] Exchanging code with redirectUri:", redirectUri);
+          
+          const { data, error: exchangeError } = await supabase.functions.invoke('google-drive-import?action=exchange-code', {
             body: { code, redirectUri },
           });
           
-          if (error || data?.error) {
-            console.error("Token exchange failed:", data?.error || error);
+          if (exchangeError || data?.error) {
+            console.error("[GoogleDrive OAuth] Token exchange failed:", data?.error || exchangeError);
             toast.error("Failed to connect to Google Drive");
             return;
           }
+          
+          console.log("[GoogleDrive OAuth] Token exchange successful, opening dialog");
           
           // Store the token temporarily for the dialog to use
           sessionStorage.setItem('googleDriveAccessToken', data.accessToken);
@@ -279,7 +300,7 @@ export default function VaultPage() {
           // Open the import dialog
           setGoogleDriveImportOpen(true);
         } catch (err) {
-          console.error("OAuth error:", err);
+          console.error("[GoogleDrive OAuth] Exception:", err);
           toast.error("Failed to connect to Google Drive");
         } finally {
           sessionStorage.removeItem('googleDriveImportPending');
