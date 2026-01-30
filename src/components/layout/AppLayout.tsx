@@ -61,6 +61,13 @@ export function AppLayout() {
     }
   }, [profileError, profile, user, retrying, refreshProfile]);
 
+  // Check if there's a pending OAuth callback that needs to be processed
+  // This prevents redirecting to /auth before the OAuth code can be handled
+  const hasPendingOAuth = typeof window !== 'undefined' && (
+    sessionStorage.getItem('googleDriveOAuthCode') || 
+    sessionStorage.getItem('googleDriveOAuthError')
+  );
+
   // Show loading only when we have no user and no profile (true initial load)
   // If we have a cached profile, skip loading screen entirely
   // Wait for theme to be ready (with timeout) to prevent theme flash on first login
@@ -75,7 +82,9 @@ export function AppLayout() {
     );
   }
 
-  if (!user) {
+  // Don't redirect to auth if we have a pending OAuth callback
+  // The user is authenticated - just waiting for session to initialize
+  if (!user && !hasPendingOAuth) {
     return <Navigate to="/auth" replace />;
   }
 
