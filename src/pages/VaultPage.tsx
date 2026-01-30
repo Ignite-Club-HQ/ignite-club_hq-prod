@@ -3045,14 +3045,16 @@ export default function VaultPage() {
                     </TooltipTrigger>
                     <TooltipContent>Add a Google Docs or external link</TooltipContent>
                   </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="outline" size="sm" onClick={() => setGoogleDriveImportOpen(true)}>
-                        <CloudDownload className="h-4 w-4 mr-1" /> Import
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Import from Google Drive</TooltipContent>
-                  </Tooltip>
+                  {isClubAdmin && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="sm" onClick={() => setGoogleDriveImportOpen(true)}>
+                          <CloudDownload className="h-4 w-4 mr-1" /> Import
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Import from Google Drive</TooltipContent>
+                    </Tooltip>
+                  )}
                   
                   <CreateFolderDialog
                     open={newFolderDialogOpen}

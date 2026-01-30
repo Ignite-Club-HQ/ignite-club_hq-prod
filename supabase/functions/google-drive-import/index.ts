@@ -50,6 +50,24 @@ serve(async (req) => {
       );
     }
 
+    // Verify user is a club admin (only club admins can import from Google Drive)
+    if (user) {
+      const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+      const { data: userRoles } = await serviceClient
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .in('role', ['club_admin', 'app_admin']);
+      
+      if (!userRoles || userRoles.length === 0) {
+        console.error("User is not a club admin:", user.id);
+        return new Response(
+          JSON.stringify({ error: "Only club admins can import from Google Drive" }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // Action: Get OAuth URL for popup
     if (action === 'get-auth-url') {
       const body = await req.json();
