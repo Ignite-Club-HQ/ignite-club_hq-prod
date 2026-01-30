@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { HardDrive, Folder, FileText, Image, Loader2, ChevronRight, ChevronLeft, Check, ArrowLeft, X, RefreshCw } from "lucide-react";
+import { HardDrive, Folder, FileText, Image, Loader2, ChevronRight, ChevronLeft, Check, ArrowLeft, X, RefreshCw, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
@@ -515,6 +515,24 @@ export function GoogleDriveImportDialog({
                 )}
                 <Button variant="ghost" size="sm" onClick={() => loadFolderContents(currentFolderId)}>
                   <RefreshCw className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => {
+                    setAccessToken(null);
+                    setStep("connect");
+                    setFolders([]);
+                    setFiles([]);
+                    setCurrentFolderId(null);
+                    setFolderPath([]);
+                    setSelectedFiles(new Set());
+                    setSelectedFolders(new Set());
+                  }}
+                  className="text-muted-foreground"
+                >
+                  <UserCircle className="h-4 w-4 mr-1" />
+                  Switch Account
                 </Button>
               </div>
               <div className="flex items-center gap-2">
