@@ -50,6 +50,24 @@ serve(async (req) => {
       );
     }
 
+    // Verify user is a club admin (only club admins can import from Google Drive)
+    if (user) {
+      const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+      const { data: userRoles } = await serviceClient
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .in('role', ['club_admin', 'app_admin']);
+      
+      if (!userRoles || userRoles.length === 0) {
+        console.error("User is not a club admin:", user.id);
+        return new Response(
+          JSON.stringify({ error: "Only club admins can import from Google Drive" }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // Action: Get OAuth URL for popup
     if (action === 'get-auth-url') {
       const body = await req.json();
@@ -192,8 +210,15 @@ serve(async (req) => {
       
       const fileData = await fileResponse.arrayBuffer();
       
-      // Return base64 encoded file data
-      const base64Data = btoa(String.fromCharCode(...new Uint8Array(fileData)));
+      // Convert to base64 using chunked approach to avoid stack overflow
+      const bytes = new Uint8Array(fileData);
+      let base64Data = '';
+      const chunkSize = 8192;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, i + chunkSize);
+        base64Data += String.fromCharCode.apply(null, Array.from(chunk));
+      }
+      base64Data = btoa(base64Data);
       
       return new Response(
         JSON.stringify({ 

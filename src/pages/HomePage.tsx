@@ -1989,7 +1989,7 @@ export default function HomePage() {
               )}
             </div>
             <span className="text-sm flex items-center gap-1">
-              Access Vault
+              File Vault
               {showProBadge && (
                 <Badge variant="secondary" className="text-[8px] px-1 py-0">PRO</Badge>
               )}
