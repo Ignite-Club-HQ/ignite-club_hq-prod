@@ -296,9 +296,10 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     if (uploadError) throw uploadError;
 
     // Store the Supabase storage URL format (will be converted to signed URL when displayed)
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://yabcfiuntwqjwvschnji.supabase.co";
+    const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
     const storageUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
 
+    // 1. Insert into photos table (for media gallery)
     const { error: insertError } = await supabase.from("photos").insert({
       image_url: storageUrl,
       uploader_id: user!.id,
@@ -310,7 +311,6 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
 
     if (insertError) {
       // Cleanup: remove the uploaded file from storage if database insert fails
-      // This prevents orphaned storage objects with tracked bytes but no photo record
       console.error("Database insert failed, cleaning up storage:", insertError);
       try {
         await supabase.storage.from("photos").remove([storagePath]);
@@ -318,6 +318,28 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         console.error("Failed to cleanup orphaned storage file:", cleanupError);
       }
       throw insertError;
+    }
+    
+    // 2. Also insert into vault_files (for vault access)
+    // This ensures media photos also appear in the vault
+    const vaultInsertData: any = {
+      file_url: storageUrl,
+      uploaded_by: user!.id,
+      name: file.name,
+      file_size: file.size,
+      file_type: file.type,
+      club_id: clubId || null,
+      team_id: teamId || null,
+    };
+    
+    if (miniLeagueId) {
+      vaultInsertData.mini_league_id = miniLeagueId;
+    }
+
+    // Insert into vault_files - don't fail if this errors (photo is already in media)
+    const { error: vaultError } = await supabase.from("vault_files").insert(vaultInsertData);
+    if (vaultError) {
+      console.warn("Failed to add photo to vault (continuing anyway):", vaultError);
     }
     
     return storageUrl;
@@ -450,8 +472,9 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       );
     }
     
-    // Invalidate photos query and storage breakdown
+    // Invalidate photos query, vault files query, and storage breakdown
     queryClient.invalidateQueries({ queryKey: ["photos"] });
+    queryClient.invalidateQueries({ queryKey: ["vault-files"] });
     queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
     
     // Notify parent that uploading is complete
