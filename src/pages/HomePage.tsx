@@ -2017,7 +2017,7 @@ export default function HomePage() {
             {/* Only show club selector if not in club mode */}
             {!activeClubFilter ? (
               <div className="space-y-2">
-                <Label>Select Club</Label>
+                <Label>Select Club {clubs ? `(${clubs.length} available)` : "(loading...)"}</Label>
                 <SearchableSelect
                   options={clubs?.map((club) => ({
                     value: club.id,
@@ -2028,7 +2028,7 @@ export default function HomePage() {
                   onValueChange={setSelectedClub}
                   placeholder="Choose a club..."
                   searchPlaceholder="Search clubs..."
-                  emptyMessage="No clubs found."
+                  emptyMessage={clubsLoading ? "Loading clubs..." : clubsError ? `Error: ${clubsError.message}` : "No clubs found."}
                 />
               </div>
             ) : (
