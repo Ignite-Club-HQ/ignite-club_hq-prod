@@ -249,36 +249,18 @@ export default function VaultPage() {
   }, [activeClubFilter, userClubs, currentView.type]);
 
   // Handle Google OAuth callback from redirect
-  // This runs on initial mount to check for OAuth callback params
+  // The OAuth code is now captured in App.tsx before router init
+  // This effect just processes any saved errors
   useEffect(() => {
-    // Check URL params directly to catch OAuth callback before any re-renders
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const error = urlParams.get('error');
+    const savedError = sessionStorage.getItem('googleDriveOAuthError');
     
-    // Debug: log what we received
-    if (code || error) {
-      console.log("[GoogleDrive OAuth] Callback detected on mount:", { hasCode: !!code, error });
-    }
-    
-    // Handle Google OAuth error
-    if (error) {
-      console.error("[GoogleDrive OAuth] Error from Google:", error);
+    if (savedError) {
+      console.error("[GoogleDrive OAuth] Error from Google:", savedError);
       toast.error("Google authentication was cancelled or failed");
-      // Clean URL without triggering navigation
-      window.history.replaceState({}, '', '/vault');
+      sessionStorage.removeItem('googleDriveOAuthError');
       sessionStorage.removeItem('googleDriveImportPending');
-      return;
     }
-    
-    // If we have a code, save it immediately and clean the URL
-    if (code) {
-      console.log("[GoogleDrive OAuth] Saving code to session and cleaning URL");
-      sessionStorage.setItem('googleDriveOAuthCode', code);
-      // Clean URL without triggering navigation
-      window.history.replaceState({}, '', '/vault');
-    }
-  }, []); // Only run on mount
+  }, []);
   
   // Process saved OAuth code
   useEffect(() => {
