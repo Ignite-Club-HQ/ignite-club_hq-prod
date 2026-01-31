@@ -230,50 +230,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // This helps with RLS policies that check auth.uid()
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // If we have a cached profile for THIS USER, use it for display immediately
-      // BUT we still need to fetch fresh data before making gating decisions
+      // If we have a cached profile for THIS USER with display_name, TRUST IT immediately
+      // This eliminates the flash on page refresh - no need to wait for server
       const cached = getCachedProfile(userId);
-      if (cached && cached.id === userId) {
+      if (cached && cached.id === userId && cached.display_name) {
+        // TRUST the cached profile - user is already set up
         setProfile(cached);
-        // DON'T set loading=false yet - wait for profile fetch to complete
-        // This prevents the "flash" where UI renders before profileLoading is false
-        // ALWAYS fetch fresh profile - this updates the profile state with server truth
-        // and sets profileLoading to false when complete
-        fetchProfile(userId, 5, false)
-          .then((fetchedProfile) => {
-            if (mounted) {
-              // Ensure profile state is updated before setting loading to false
-              // The fetchProfile function already sets profile, but we add a microtask delay
-              // to ensure React has processed the state update
-              queueMicrotask(() => {
-                if (mounted) {
-                  // Set BOTH loading states together to prevent render gaps
-                  setProfileLoading(false);
-                  setLoading(false);
-                  setInitialized(true); // Mark as initialized after profile fetch
-                }
-              });
-            }
-          })
-          .catch(() => {
-            if (mounted) {
-              setProfileLoading(false);
-              setLoading(false);
-              setInitialized(true); // Mark as initialized even on error
-            }
-          });
+        setProfileLoading(false);
+        setLoading(false);
+        setInitialized(true);
+        
+        // Background refresh - update cache silently, no blocking
+        fetchProfile(userId, 5, false).catch(() => {
+          // Silent fail - we already have valid cached data
+        });
+      } else if (cached && cached.id === userId && !cached.display_name) {
+        // Cached profile exists but no display_name - need to complete profile
+        // Still trust the cache for immediate render
+        setProfile(cached);
+        setProfileLoading(false);
+        setLoading(false);
+        setInitialized(true);
+        
+        // Background refresh
+        fetchProfile(userId, 5, false).catch(() => {});
       } else {
-        // No cache - fetch profile
+        // No cache - must fetch profile before proceeding
         setProfileLoading(true);
         fetchProfile(userId, 5, applyTheme)
-          .then((fetchedProfile) => {
+          .then(() => {
             if (mounted) {
-              // Ensure profile state is updated before setting loading to false
               queueMicrotask(() => {
                 if (mounted) {
                   setProfileLoading(false);
                   setLoading(false);
-                  setInitialized(true); // Mark as initialized after profile fetch
+                  setInitialized(true);
                 }
               });
             }
@@ -282,7 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (mounted) {
               setProfileLoading(false);
               setLoading(false);
-              setInitialized(true); // Mark as initialized even on error
+              setInitialized(true);
             }
           });
       }
