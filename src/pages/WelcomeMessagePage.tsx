@@ -9,29 +9,59 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { useMemo } from "react";
 
-// Helper to convert URLs in text to clickable links
+// Helper to convert URLs and markdown-style links in text to clickable links
 function renderTextWithLinks(text: string) {
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  const parts = text.split(urlRegex);
-  
-  return parts.map((part, index) => {
-    if (urlRegex.test(part)) {
-      // Reset regex lastIndex after test
-      urlRegex.lastIndex = 0;
-      return (
+  // Combined regex for markdown links [text](url) and plain URLs
+  const combinedRegex = /(\[([^\]]+)\]\((https?:\/\/[^)]+)\))|(https?:\/\/[^\s\]]+)/g;
+  const result: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = combinedRegex.exec(text)) !== null) {
+    // Add text before this match
+    if (match.index > lastIndex) {
+      result.push(text.slice(lastIndex, match.index));
+    }
+
+    if (match[1]) {
+      // Markdown-style link: [text](url)
+      const linkText = match[2];
+      const url = match[3];
+      result.push(
         <a
-          key={index}
-          href={part}
+          key={match.index}
+          href={url}
           target="_blank"
           rel="noopener noreferrer"
           className="text-primary underline hover:text-primary/80"
         >
-          {part}
+          {linkText}
+        </a>
+      );
+    } else if (match[4]) {
+      // Plain URL
+      result.push(
+        <a
+          key={match.index}
+          href={match[4]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary underline hover:text-primary/80"
+        >
+          {match[4]}
         </a>
       );
     }
-    return part;
-  });
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    result.push(text.slice(lastIndex));
+  }
+
+  return result.length > 0 ? result : [text];
 }
 
 export default function WelcomeMessagePage() {
