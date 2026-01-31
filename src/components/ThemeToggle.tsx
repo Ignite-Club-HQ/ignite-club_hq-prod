@@ -9,9 +9,9 @@ export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
   const [theme, setThemeState] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('app-theme') || 'dark';
+      return localStorage.getItem('app-theme') || 'light';
     }
-    return 'dark';
+    return 'light';
   });
   const [isSaving, setIsSaving] = useState(false);
 

@@ -132,7 +132,7 @@ export default function CreateEventPage() {
         .from("user_roles")
         .select("club_id")
         .eq("user_id", user!.id)
-        .eq("role", "club_admin")
+        .in("role", ["club_admin", "committee_member"])
         .not("club_id", "is", null);
 
       const { data: teamRoles } = await supabase

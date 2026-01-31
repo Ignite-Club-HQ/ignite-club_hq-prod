@@ -46,6 +46,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MobileCardSelect } from "@/components/MobileCardSelect";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
@@ -2188,32 +2189,55 @@ export default function HomePage() {
             <UserPlus className="h-5 w-5 text-primary" />
             <span className="text-sm">Join Team</span>
           </Button>
-          <Button 
-            variant="outline" 
-            className="w-full h-auto py-4 flex flex-col gap-2 relative"
-            disabled={showProBadge}
-            onClick={() => {
-              if (hasProAccess || isAppAdmin) {
-                navigate("/vault");
-              }
-            }}
-          >
-            <div className="flex items-center gap-1">
-              <FolderOpen className="h-5 w-5 text-primary" />
-              {showProBadge && (
-                <Lock className="h-3 w-3 text-muted-foreground" />
-              )}
-            </div>
-            <span className="text-sm flex items-center gap-1">
-              File Vault
-              {showProBadge && (
-                <Badge variant="secondary" className="text-[8px] px-1 py-0">PRO</Badge>
-              )}
-            </span>
-          </Button>
+          {(() => {
+            // Vault access requires: Pro subscription AND admin/coach role
+            const hasVaultRoleAccess = isAppAdmin || userRoles?.some(r => 
+              ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
+            );
+            const canAccessVault = (hasProAccess || isAppAdmin) && hasVaultRoleAccess;
+            const showVaultRestricted = !canAccessVault;
+            
+            return (
+              <Button 
+                variant="outline" 
+                className={`w-full h-auto py-4 flex flex-col gap-2 relative ${showVaultRestricted ? 'opacity-60' : ''}`}
+                onClick={() => {
+                  if (!hasVaultRoleAccess) {
+                    toast({
+                      description: "Only admins, coaches, and committee members can access the File Vault",
+                    });
+                    return;
+                  }
+                  if (showProBadge) {
+                    toast({
+                      description: "File Vault is a Pro feature. Upgrade to access.",
+                    });
+                    return;
+                  }
+                  navigate("/vault");
+                }}
+              >
+                <div className="flex items-center gap-1">
+                  <FolderOpen className="h-5 w-5 text-primary" />
+                  {showProBadge && (
+                    <Lock className="h-3 w-3 text-muted-foreground" />
+                  )}
+                </div>
+                <span className="text-sm flex items-center gap-1">
+                  File Vault
+                  {showProBadge && (
+                    <Badge variant="secondary" className="text-[8px] px-1 py-0">PRO</Badge>
+                  )}
+                </span>
+                {showVaultRestricted && (
+                  <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Admin</span>
+                )}
+              </Button>
+            );
+          })()}
           {(() => {
             const canCreateEvents = userRoles?.some(r => 
-              ['club_admin', 'team_admin', 'coach', 'league_admin', 'app_admin'].includes(r.role)
+              ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member', 'app_admin'].includes(r.role)
             );
             const showAdminIndicator = !canCreateEvents;
             
@@ -2278,21 +2302,13 @@ export default function HomePage() {
                 </div>
               </div>
             )}
-            <div className="space-y-2">
-              <Label>Select Role</Label>
-              <Select value={selectedClubRole} onValueChange={(v) => setSelectedClubRole(v as ClubRole)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {clubRoleOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <MobileCardSelect
+              value={selectedClubRole}
+              onValueChange={(v) => setSelectedClubRole(v as ClubRole)}
+              options={clubRoleOptions}
+              label="Select Role"
+              placeholder="Choose a role..."
+            />
           </div>
           <ResponsiveDialogFooter>
             <Button
@@ -2379,36 +2395,23 @@ export default function HomePage() {
                 emptyMessage="No teams found."
               />
             </div>
-            <div className="space-y-2">
-              <Label>Select Role</Label>
-              {isLeagueSelected ? (
-                <Select value={selectedLeagueRole} onValueChange={(v) => setSelectedLeagueRole(v as LeagueRole)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {leagueRoleOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Select value={selectedTeamRole} onValueChange={(v) => setSelectedTeamRole(v as TeamRole)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {teamRoleOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+            {isLeagueSelected ? (
+              <MobileCardSelect
+                value={selectedLeagueRole}
+                onValueChange={(v) => setSelectedLeagueRole(v as LeagueRole)}
+                options={leagueRoleOptions}
+                label="Select Role"
+                placeholder="Choose a role..."
+              />
+            ) : (
+              <MobileCardSelect
+                value={selectedTeamRole}
+                onValueChange={(v) => setSelectedTeamRole(v as TeamRole)}
+                options={teamRoleOptions}
+                label="Select Role"
+                placeholder="Choose a role..."
+              />
+            )}
           </div>
           <ResponsiveDialogFooter>
             {(hasExistingTeamRole || hasExistingLeagueRole) && (

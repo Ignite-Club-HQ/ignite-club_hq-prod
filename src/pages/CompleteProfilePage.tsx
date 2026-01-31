@@ -251,12 +251,14 @@ export default function CompleteProfilePage() {
 
     try {
       // Use upsert to handle both new users (insert) and existing users (update)
+      // Default new users to light mode
       const { error } = await supabase
         .from("profiles")
         .upsert({
           id: user.id,
           display_name: displayName.trim(),
           avatar_url: avatarUrl || null,
+          theme_preference: 'light',
         }, { onConflict: 'id' });
 
       if (error) {
@@ -269,6 +271,12 @@ export default function CompleteProfilePage() {
         setSaving(false);
         return;
       }
+
+      // Set light theme as default for new users
+      localStorage.setItem('app-theme', 'light');
+      const root = window.document.documentElement;
+      root.classList.remove('dark');
+      root.style.colorScheme = 'light';
 
       // Send welcome DM from Ignite Support (fire and forget - don't block on this)
       supabase.functions.invoke("send-welcome-dm", {
