@@ -422,12 +422,20 @@ export default function EventsPage() {
             type="single" 
             value={viewMode} 
             onValueChange={(value) => value && handleViewModeChange(value as "list" | "calendar")}
-            className="border rounded-md"
+            className="bg-muted p-1 rounded-lg"
           >
-            <ToggleGroupItem value="list" aria-label="List view" className="h-9 w-9 p-0">
+            <ToggleGroupItem 
+              value="list" 
+              aria-label="List view" 
+              className="h-8 w-8 p-0 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
+            >
               <List className="h-4 w-4" />
             </ToggleGroupItem>
-            <ToggleGroupItem value="calendar" aria-label="Calendar view" className="h-9 w-9 p-0">
+            <ToggleGroupItem 
+              value="calendar" 
+              aria-label="Calendar view" 
+              className="h-8 w-8 p-0 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
+            >
               <CalendarDays className="h-4 w-4" />
             </ToggleGroupItem>
           </ToggleGroup>
