@@ -1401,9 +1401,8 @@ export default function HomePage() {
     },
   });
 
-  if (isLoading) {
-    return <PageLoading message="Loading home..." />;
-  }
+  // Don't block entire page on events loading - show skeleton/loading state inline instead
+  // This prevents the "double flash" issue on login where the page loads, then shows loading, then loads again
 
   return (
     <div className="py-6 space-y-6">
@@ -1955,7 +1954,24 @@ export default function HomePage() {
           </Link>
         </div>
 
-        {events?.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <Card key={i}>
+                <CardContent className="p-4">
+                  <div className="space-y-2 animate-pulse">
+                    <div className="flex items-center gap-2">
+                      <div className="h-5 w-16 bg-muted rounded" />
+                      <div className="h-4 w-24 bg-muted rounded" />
+                    </div>
+                    <div className="h-5 w-48 bg-muted rounded" />
+                    <div className="h-4 w-32 bg-muted rounded" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : events?.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="p-8 text-center">
               <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
