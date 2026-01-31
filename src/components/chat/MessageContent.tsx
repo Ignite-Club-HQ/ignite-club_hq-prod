@@ -18,6 +18,8 @@ interface MessageContentProps {
 const URL_REGEX = /(?:https?:\/\/|www\.)[^\s]+/gi;
 // Mention regex pattern @[name](userId)
 const MENTION_REGEX = /@\[([^\]]+)\]\(([^)]+)\)/g;
+// Markdown link pattern [text](url)
+const MARKDOWN_LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
 
 // Ensure URL has protocol for href
 const ensureProtocol = (url: string): string => {
@@ -52,11 +54,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   const parts = useMemo(() => {
     if (!text) return [];
     
-    const result: { type: "text" | "link" | "mention"; content: string; userId?: string }[] = [];
+    const result: { type: "text" | "link" | "mention" | "markdown-link"; content: string; userId?: string; linkText?: string }[] = [];
     let lastIndex = 0;
     
-    // Combined regex to find both URLs and mentions
-    const combinedRegex = /((?:https?:\/\/|www\.)[^\s]+)|(@\[([^\]]+)\]\(([^)]+)\))/gi;
+    // Combined regex to find markdown links, plain URLs, and mentions
+    // Order matters: markdown links first to prevent plain URL matching the URL inside markdown
+    const combinedRegex = /(\[([^\]]+)\]\((https?:\/\/[^)]+)\))|((?:https?:\/\/|www\.)[^\s\]]+)|(@\[([^\]]+)\]\(([^)]+)\))/gi;
     let match;
     
     while ((match = combinedRegex.exec(text)) !== null) {
@@ -69,14 +72,21 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       }
       
       if (match[1]) {
-        // URL match
-        result.push({ type: "link", content: match[1] });
-      } else if (match[2]) {
-        // Mention match - match[3] is display name, match[4] is userId
+        // Markdown link match: [text](url) - match[2] is text, match[3] is URL
+        result.push({ 
+          type: "markdown-link", 
+          content: match[3] || "", 
+          linkText: match[2] || "" 
+        });
+      } else if (match[4]) {
+        // Plain URL match
+        result.push({ type: "link", content: match[4] });
+      } else if (match[5]) {
+        // Mention match - match[6] is display name, match[7] is userId
         result.push({ 
           type: "mention", 
-          content: match[3] || "", 
-          userId: match[4] || "" 
+          content: match[6] || "", 
+          userId: match[7] || "" 
         });
       }
       
@@ -191,6 +201,21 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
             text
           ) : (
             parts.map((part, index) => {
+              if (part.type === "markdown-link") {
+                // Markdown link: show linkText, href to content (URL)
+                return (
+                  <a
+                    key={index}
+                    href={part.content}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline hover:opacity-80"
+                    onClick={handleLinkClick}
+                  >
+                    {part.linkText}
+                  </a>
+                );
+              }
               if (part.type === "link") {
                 const videoId = extractYouTubeId(part.content);
                 if (videoId) {
@@ -202,7 +227,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                     href={ensureProtocol(part.content)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="underline hover:opacity-80"
+                    className="text-primary underline hover:opacity-80"
                     onClick={handleLinkClick}
                   >
                     {part.content}
