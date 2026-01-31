@@ -428,8 +428,8 @@ export default function EventsPage() {
           </Button>
           {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
             <Link to="/events/new">
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1" /> New
+              <Button size="icon" variant="default">
+                <Plus className="h-4 w-4" />
               </Button>
             </Link>
           )}
