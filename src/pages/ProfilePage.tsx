@@ -15,7 +15,7 @@ import { format } from "date-fns";
 import RewardRedemptionCard from "@/components/RewardRedemptionCard";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { useTheme } from "next-themes";
+
 import igniteIcon from "@/assets/ignite-icon.png";
 import igniteIconLight from "@/assets/ignite-icon-light.png";
 import { usePasskey } from "@/hooks/usePasskey";
@@ -36,7 +36,8 @@ export default function ProfilePage() {
   
   // Get active club filter from theme context
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
-  const { resolvedTheme } = useTheme();
+  // Read theme from localStorage directly to prevent hydration flash
+  const storedTheme = typeof window !== 'undefined' ? localStorage.getItem('app-theme') : 'light';
 
   const { data: isAppAdmin } = useQuery({
     queryKey: ["is-app-admin", user?.id],
@@ -526,7 +527,7 @@ export default function ProfilePage() {
                 className="h-14 w-14 object-contain"
               />
             ) : (
-              <img src={resolvedTheme === 'light' ? igniteIconLight : igniteIcon} alt="Profile" className="h-full w-full object-cover rounded-full" />
+              <img src={storedTheme === 'light' ? igniteIconLight : igniteIcon} alt="Profile" className="h-full w-full object-cover rounded-full" />
             )}
           </AvatarFallback>
         </Avatar>

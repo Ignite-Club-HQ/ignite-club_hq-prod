@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, Navigate } from "react-router-dom";
 import { AppHeader } from "./AppHeader";
 import { BottomNav } from "./BottomNav";
@@ -11,23 +11,23 @@ import igniteIconLight from "@/assets/ignite-icon-light.png";
 import igniteIcon from "@/assets/ignite-icon.png";
 
 // Read theme from localStorage synchronously to prevent flash
-const getStoredTheme = () => {
+const getStoredTheme = (): 'light' | 'dark' => {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem('app-theme') || 'light';
+    const stored = localStorage.getItem('app-theme');
+    if (stored === 'dark') return 'dark';
   }
   return 'light';
 };
+
+// Pre-compute logo based on stored theme - this runs once at module load
+const STORED_THEME = getStoredTheme();
+const LOADING_LOGO = STORED_THEME === "dark" ? igniteIcon : igniteIconLight;
 
 export function AppLayout() {
   const { user, profile, loading, profileLoading, profileError, refreshProfile } = useAuth();
   const { isThemeReady } = useClubTheme();
   const [retrying, setRetrying] = useState(false);
   const [themeTimeout, setThemeTimeout] = useState(false);
-  
-  // Get theme synchronously from localStorage - no useEffect needed
-  // This is stable and doesn't cause re-renders
-  const storedTheme = useMemo(() => getStoredTheme(), []);
-  const logo = storedTheme === "dark" ? igniteIcon : igniteIconLight;
 
   // Debug logging for profile state - must be before any conditional returns
   useEffect(() => {
@@ -98,7 +98,7 @@ export function AppLayout() {
   if (isStillLoading || shouldWaitForTheme) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
-        <img src={logo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
+        <img src={LOADING_LOGO} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Loading your profile...</p>
       </div>
@@ -115,7 +115,7 @@ export function AppLayout() {
   if (profileError && !profile) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
-        <img src={logo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
+        <img src={LOADING_LOGO} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
         {retrying ? (
           <>
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
