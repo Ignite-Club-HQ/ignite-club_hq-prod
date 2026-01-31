@@ -77,7 +77,11 @@ export function AppLayout() {
   // CRITICAL: Show loading screen FIRST before ANY routing decisions
   // This prevents any flash of wrong content during initialization
   const shouldWaitForTheme = profile && !isThemeReady && !themeTimeout;
-  const isStillLoading = !initialized || loading || profileLoading;
+  
+  // If we already have a valid profile with display_name, skip loading entirely
+  // This prevents double-flash on login when cache is already populated
+  const hasValidProfile = profile?.display_name;
+  const isStillLoading = !hasValidProfile && (!initialized || loading || profileLoading);
   
   if (isStillLoading || shouldWaitForTheme) {
     return (
