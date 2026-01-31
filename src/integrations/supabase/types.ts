@@ -1301,6 +1301,35 @@ export type Database = {
           },
         ]
       }
+      event_views: {
+        Row: {
+          event_id: string
+          id: string
+          user_id: string
+          viewed_at: string
+        }
+        Insert: {
+          event_id: string
+          id?: string
+          user_id: string
+          viewed_at?: string
+        }
+        Update: {
+          event_id?: string
+          id?: string
+          user_id?: string
+          viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_views_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           address: string | null
