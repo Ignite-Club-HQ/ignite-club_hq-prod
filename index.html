@@ -38,13 +38,13 @@
       (function() {
         try {
           var theme = localStorage.getItem('app-theme');
-          if (theme === 'light') {
-            document.documentElement.classList.remove('dark');
-            document.documentElement.style.colorScheme = 'light';
-          } else {
-            // Default to dark theme if not set or if set to dark
+          if (theme === 'dark') {
             document.documentElement.classList.add('dark');
             document.documentElement.style.colorScheme = 'dark';
+          } else {
+            // Default to light theme if not set or if set to light
+            document.documentElement.classList.remove('dark');
+            document.documentElement.style.colorScheme = 'light';
           }
         } catch (e) {}
       })();
