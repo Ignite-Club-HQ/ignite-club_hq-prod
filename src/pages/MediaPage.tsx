@@ -807,25 +807,34 @@ export default function MediaPage() {
       <Collapsible open={showFilters}>
         <CollapsibleContent>
           <Card className="p-4">
-            <ClubTeamFilter
-              clubs={availableClubs || []}
-              teams={filteredTeams || []}
-              selectedClubId={selectedClubId}
-              selectedTeamId={selectedTeamId}
-              onClubChange={(value) => {
-                setSelectedClubId(value);
-                if (value !== "all") {
-                  setSelectedTeamId("all");
-                }
-              }}
-              onTeamChange={setSelectedTeamId}
-              showClubFilter={(availableClubs?.length || 0) > 0}
-              showTeamFilter={(filteredTeams?.length || 0) > 0}
-            />
-            
-            {hasActiveFilters && (
-              <p className="text-xs text-muted-foreground mt-3">
-                Showing {photos.length} of {allPhotos.length} photos
+            {/* Check if any filters are available to show */}
+            {(availableClubs?.length || 0) > 1 || (filteredTeams?.length || 0) > 0 ? (
+              <>
+                <ClubTeamFilter
+                  clubs={availableClubs || []}
+                  teams={filteredTeams || []}
+                  selectedClubId={selectedClubId}
+                  selectedTeamId={selectedTeamId}
+                  onClubChange={(value) => {
+                    setSelectedClubId(value);
+                    if (value !== "all") {
+                      setSelectedTeamId("all");
+                    }
+                  }}
+                  onTeamChange={setSelectedTeamId}
+                  showClubFilter={(availableClubs?.length || 0) > 0}
+                  showTeamFilter={(filteredTeams?.length || 0) > 0}
+                />
+                
+                {hasActiveFilters && (
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Showing {photos.length} of {allPhotos.length} photos
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-2">
+                No filters available
               </p>
             )}
           </Card>
