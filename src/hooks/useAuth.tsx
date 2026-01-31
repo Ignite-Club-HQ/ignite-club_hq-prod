@@ -28,6 +28,7 @@ interface AuthContextType {
   loading: boolean;
   profileLoading: boolean;
   profileError: boolean;
+  initialized: boolean; // True only after first auth check completes
   unreadCount: number;
   unreadMessagesCount: number;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -107,6 +108,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // This prevents stale cached profiles from incorrectly gating users
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState(false);
+  // Initialized becomes true ONLY after first auth check completes
+  // This prevents any routing decisions before we know auth state
+  const [initialized, setInitialized] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 
@@ -246,6 +250,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   // Set BOTH loading states together to prevent render gaps
                   setProfileLoading(false);
                   setLoading(false);
+                  setInitialized(true); // Mark as initialized after profile fetch
                 }
               });
             }
@@ -254,6 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (mounted) {
               setProfileLoading(false);
               setLoading(false);
+              setInitialized(true); // Mark as initialized even on error
             }
           });
       } else {
@@ -267,6 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 if (mounted) {
                   setProfileLoading(false);
                   setLoading(false);
+                  setInitialized(true); // Mark as initialized after profile fetch
                 }
               });
             }
@@ -275,6 +282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (mounted) {
               setProfileLoading(false);
               setLoading(false);
+              setInitialized(true); // Mark as initialized even on error
             }
           });
       }
@@ -330,6 +338,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn('Session check timed out, proceeding with cached state');
         setLoading(false);
         setProfileLoading(false);
+        setInitialized(true); // Mark as initialized even on timeout
       }
     }, 10000); // 10 second timeout for slow connections
 
@@ -350,6 +359,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (mounted) {
           setProfileLoading(false);
           setLoading(false);
+          setInitialized(true); // Mark as initialized
         }
       }
     }).catch(err => {
@@ -358,6 +368,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (mounted) {
         setLoading(false);
         setProfileLoading(false);
+        setInitialized(true); // Mark as initialized even on error
       }
     });
 
@@ -526,6 +537,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       profileLoading,
       profileError,
+      initialized,
       unreadCount,
       unreadMessagesCount,
       signUp,
