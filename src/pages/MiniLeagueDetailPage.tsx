@@ -120,7 +120,7 @@ export default function MiniLeagueDetailPage() {
         .or(`club_id.eq.${league!.club_id},role.eq.app_admin`);
       
       return data?.some(r => 
-        ['club_admin', 'league_admin', 'coach', 'app_admin'].includes(r.role)
+        ['club_admin', 'league_admin', 'coach', 'committee_member', 'app_admin'].includes(r.role)
       ) ?? false;
     },
     enabled: !!league?.club_id && !!user,
