@@ -417,28 +417,7 @@ export default function EventsPage() {
     <div className="py-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Events</h1>
-        <div className="flex items-center gap-3">
-          <ToggleGroup 
-            type="single" 
-            value={viewMode} 
-            onValueChange={(value) => value && handleViewModeChange(value as "list" | "calendar")}
-            className="bg-muted p-1 rounded-lg"
-          >
-            <ToggleGroupItem 
-              value="list" 
-              aria-label="List view" 
-              className="h-8 w-8 p-0 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
-            >
-              <List className="h-4 w-4" />
-            </ToggleGroupItem>
-            <ToggleGroupItem 
-              value="calendar" 
-              aria-label="Calendar view" 
-              className="h-8 w-8 p-0 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
-            >
-              <CalendarDays className="h-4 w-4" />
-            </ToggleGroupItem>
-          </ToggleGroup>
+        <div className="flex items-center gap-4">
           {/* Filter button - only show if there are filters to display */}
           {((userClubs?.length || 0) > 1 || (userTeams?.length || 0) > 0) && (
             <Button 
@@ -497,19 +476,42 @@ export default function EventsPage() {
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Filter Pills */}
-      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
-        {(["all", "game", "training", "social"] as const).map((type) => (
-          <Button
-            key={type}
-            variant={filter === type ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilter(type)}
-            className="shrink-0"
+      {/* Filter Pills with View Toggle */}
+      <div className="flex items-center justify-between gap-2 -mx-4 px-4">
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {(["all", "game", "training", "social"] as const).map((type) => (
+            <Button
+              key={type}
+              variant={filter === type ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilter(type)}
+              className="shrink-0"
+            >
+              {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
+            </Button>
+          ))}
+        </div>
+        <ToggleGroup 
+          type="single" 
+          value={viewMode} 
+          onValueChange={(value) => value && handleViewModeChange(value as "list" | "calendar")}
+          className="bg-muted p-1 rounded-lg shrink-0"
+        >
+          <ToggleGroupItem 
+            value="list" 
+            aria-label="List view" 
+            className="h-8 w-8 p-0 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
           >
-            {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
-          </Button>
-        ))}
+            <List className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem 
+            value="calendar" 
+            aria-label="Calendar view" 
+            className="h-8 w-8 p-0 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
+          >
+            <CalendarDays className="h-4 w-4" />
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
 
       {viewMode === "calendar" ? (
