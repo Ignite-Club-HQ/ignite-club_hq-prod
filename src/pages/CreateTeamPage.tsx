@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Camera, Loader2, AlertCircle, Users, Sparkles, FolderOpen, Baby, UserCheck, Crown } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, AlertCircle, Users, Sparkles, FolderOpen, Baby, UserCheck, Crown, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +53,22 @@ export default function CreateTeamPage() {
       return data;
     },
     enabled: !!clubId,
+  });
+
+  // Check if current user is a club admin
+  const { data: isClubAdmin, isLoading: isCheckingAdmin } = useQuery({
+    queryKey: ["is-club-admin", clubId, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("club_id", clubId!)
+        .eq("role", "club_admin")
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!clubId && !!user,
   });
 
   // Get team count and club subscription
@@ -330,6 +346,41 @@ export default function CreateTeamPage() {
   };
 
   // No longer needed - we navigate immediately now
+
+  // Show loading while checking admin status
+  if (isCheckingAdmin) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Show access denied if not a club admin
+  if (!isClubAdmin) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col bg-background">
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate(-1)}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg font-semibold">Create Team</h1>
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center p-6">
+          <Alert variant="destructive" className="max-w-md">
+            <ShieldAlert className="h-4 w-4" />
+            <AlertDescription>
+              Only club admins can create teams. Please contact your club administrator if you need to create a new team.
+            </AlertDescription>
+          </Alert>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
