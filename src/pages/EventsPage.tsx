@@ -10,13 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageLoading } from "@/components/ui/page-loading";
 import { Calendar } from "@/components/ui/calendar";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -30,6 +23,7 @@ import {
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
+import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -444,43 +438,23 @@ export default function EventsPage() {
 
       {/* Club and Team Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        {userClubs && userClubs.length > 1 && (
-          <Select value={clubFilter || "all"} onValueChange={handleClubChange}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="All Clubs" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Clubs</SelectItem>
-              {userClubs.map((club) => (
-                <SelectItem key={club.id} value={club.id}>
-                  {club.sport && getSportEmoji(club.sport)} {club.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        
-        {userTeams && userTeams.length > 0 && (
-          <Select value={teamFilter || "all"} onValueChange={handleTeamChange}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="All Teams" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Teams</SelectItem>
-              {userTeams.map((team) => (
-                <SelectItem key={team.id} value={team.id}>
-                  {team.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+        <ClubTeamFilter
+          clubs={userClubs || []}
+          teams={userTeams || []}
+          selectedClubId={clubFilter || "all"}
+          selectedTeamId={teamFilter || "all"}
+          onClubChange={handleClubChange}
+          onTeamChange={handleTeamChange}
+          showClubFilter={(userClubs?.length || 0) > 1}
+          showTeamFilter={(userTeams?.length || 0) > 0}
+          getSportEmoji={getSportEmoji}
+        />
 
         {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Link to="/events/import">
-                <Button size="icon" variant="outline">
+                <Button size="icon" variant="outline" className="h-10 w-10 sm:h-9 sm:w-9">
                   <Upload className="h-4 w-4" />
                 </Button>
               </Link>
