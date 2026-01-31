@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageLoading } from "@/components/ui/page-loading";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -416,21 +417,20 @@ export default function EventsPage() {
     <div className="py-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Events</h1>
-        <div className="flex items-center gap-4">
-          <Button
-            variant={viewMode === "list" ? "default" : "outline"}
-            size="icon"
-            onClick={() => handleViewModeChange("list")}
+        <div className="flex items-center gap-3">
+          <ToggleGroup 
+            type="single" 
+            value={viewMode} 
+            onValueChange={(value) => value && handleViewModeChange(value as "list" | "calendar")}
+            className="border rounded-md"
           >
-            <List className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === "calendar" ? "default" : "outline"}
-            size="icon"
-            onClick={() => handleViewModeChange("calendar")}
-          >
-            <CalendarDays className="h-4 w-4" />
-          </Button>
+            <ToggleGroupItem value="list" aria-label="List view" className="h-9 w-9 p-0">
+              <List className="h-4 w-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="calendar" aria-label="Calendar view" className="h-9 w-9 p-0">
+              <CalendarDays className="h-4 w-4" />
+            </ToggleGroupItem>
+          </ToggleGroup>
           {/* Filter button - only show if there are filters to display */}
           {((userClubs?.length || 0) > 1 || (userTeams?.length || 0) > 0) && (
             <Button 
