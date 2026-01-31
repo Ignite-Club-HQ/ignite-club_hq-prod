@@ -432,7 +432,7 @@ export default function EventsPage() {
           >
             <CalendarDays className="h-4 w-4" />
           </Button>
-          {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach"].includes(r.role))) && (
+          {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
             <Link to="/events/new">
               <Button size="sm">
                 <Plus className="h-4 w-4 mr-1" /> New
@@ -476,7 +476,7 @@ export default function EventsPage() {
           </Select>
         )}
 
-        {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach"].includes(r.role))) && (
+        {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Link to="/events/import">
