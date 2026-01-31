@@ -231,7 +231,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const cached = getCachedProfile(userId);
       if (cached && cached.id === userId) {
         setProfile(cached);
-        setLoading(false); // Allow UI to render with cached data
+        // DON'T set loading=false yet - wait for profile fetch to complete
+        // This prevents the "flash" where UI renders before profileLoading is false
         // ALWAYS fetch fresh profile - this updates the profile state with server truth
         // and sets profileLoading to false when complete
         fetchProfile(userId, 5, false)
@@ -242,7 +243,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               // to ensure React has processed the state update
               queueMicrotask(() => {
                 if (mounted) {
+                  // Set BOTH loading states together to prevent render gaps
                   setProfileLoading(false);
+                  setLoading(false);
                 }
               });
             }
@@ -250,6 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .catch(() => {
             if (mounted) {
               setProfileLoading(false);
+              setLoading(false);
             }
           });
       } else {
