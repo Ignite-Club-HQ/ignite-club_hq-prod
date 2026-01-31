@@ -71,7 +71,7 @@ export const EventViewReminderEmail = ({
   clubLogoUrl,
   primaryColor = IGNITE_BRAND_COLOR,
 }: EventViewReminderEmailProps) => {
-  const previewText = `You haven't viewed: ${eventTitle} - ${eventDate} at ${eventTime}`;
+  const previewText = `RSVP needed: ${eventTitle} - ${eventDate} at ${eventTime}`;
   const normalizedEventLink = normalizeLink(eventLink);
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
 
@@ -105,7 +105,7 @@ export const EventViewReminderEmail = ({
 
           {/* Attention Banner */}
           <Section style={{ ...attentionBanner, backgroundColor: '#f59e0b' }}>
-            <Text style={attentionBannerText}>👀 You Haven't Viewed This Event Yet!</Text>
+            <Text style={attentionBannerText}>📋 RSVP Needed!</Text>
           </Section>
 
           {/* Main Content */}
@@ -117,7 +117,7 @@ export const EventViewReminderEmail = ({
             </Text>
             
             <Text style={paragraph}>
-              Your team admin has noticed you haven't viewed an upcoming <strong>{eventType.toLowerCase()}</strong> for <strong style={{ color: primaryColor }}>{teamName}</strong>. Please take a moment to view the details and RSVP.
+              Your team admin has noticed you haven't RSVP'd to an upcoming <strong>{eventType.toLowerCase()}</strong> for <strong style={{ color: primaryColor }}>{teamName}</strong>. Please take a moment to view the details and let them know if you can make it.
             </Text>
 
             {/* Event Details Card */}
@@ -153,7 +153,7 @@ export const EventViewReminderEmail = ({
             </Section>
 
             <Text style={rsvpPrompt}>
-              <strong>Please check this event!</strong> Tap the button above to view all the details and let your team know if you can make it.
+              <strong>Your response is needed!</strong> Tap the button above to view all the details and let your team know if you can make it.
             </Text>
             
             <Text style={linkFallback}>

@@ -198,7 +198,7 @@ serve(async (req) => {
             await resend.emails.send({
               from: "Ignite Club HQ <support@igniteclubhq.app>",
               to: [email],
-              subject: `📅 Reminder: You haven't viewed "${event.title}"`,
+              subject: `📅 Reminder: Please RSVP to "${event.title}"`,
               html,
             });
             emailsSent++;
@@ -216,7 +216,7 @@ serve(async (req) => {
         await supabase.from("notifications").insert({
           user_id: userId,
           type: "event_view_reminder",
-          message: `Reminder: Please check "${event.title}" - ${eventDate}`,
+          message: `Reminder: Please RSVP to "${event.title}" - ${eventDate}`,
           related_id: event.id,
         });
 
@@ -232,7 +232,7 @@ serve(async (req) => {
             body: {
               userId,
               title: "📅 Event Reminder",
-              body: `You haven't viewed "${event.title}" - tap to see details`,
+              body: `You haven't RSVP'd to "${event.title}" - tap to respond`,
               url: `/events/${event.id}`,
               tag: `event-view-${event.id}`,
             },
