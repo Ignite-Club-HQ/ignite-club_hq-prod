@@ -313,13 +313,18 @@ export default function VaultPage() {
     }
   }, []); // Only run on mount after the first effect
 
-  // Check if user is a club admin for the current club
-  const isClubAdmin = useMemo(() => {
+  // Check if user is a club admin or committee member for the current club (can see all teams)
+  const isClubAdminOrCommittee = useMemo(() => {
     if (isAppAdmin) return true;
-    if (currentView.type !== "club" && currentView.type !== "team") return false;
-    const clubId = currentView.type === "club" ? currentView.clubId : currentView.clubId;
-    return userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId) || false;
+    if (currentView.type !== "club" && currentView.type !== "team" && currentView.type !== "mini-league") return false;
+    const clubId = currentView.clubId;
+    return userRoles?.some(r => 
+      (r.role === "club_admin" || r.role === "committee_member") && r.club_id === clubId
+    ) || false;
   }, [isAppAdmin, currentView, userRoles]);
+
+  // Alias for backward compatibility
+  const isClubAdmin = isClubAdminOrCommittee;
 
   // Get first admin club/team for upgrade link
   const adminUpgradeInfo = useMemo(() => {
@@ -469,9 +474,10 @@ export default function VaultPage() {
       
       const isLeagueAdmin = userRoles?.some(r => r.role === "league_admin" && r.club_id === currentView.clubId);
       const isCoach = userRoles?.some(r => r.role === "coach" && r.club_id === currentView.clubId);
+      const isCommitteeMember = userRoles?.some(r => r.role === "committee_member" && r.club_id === currentView.clubId);
       
-      if (isAppAdmin || isClubAdmin || isLeagueAdmin || isCoach) {
-        // Admins can see all mini-leagues
+      if (isAppAdmin || isClubAdmin || isLeagueAdmin || isCoach || isCommitteeMember) {
+        // Admins and committee members can see all mini-leagues
         const { data } = await supabase
           .from("mini_leagues")
           .select("id, name")
