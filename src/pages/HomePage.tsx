@@ -2236,7 +2236,7 @@ export default function HomePage() {
           })()}
           {(() => {
             const canCreateEvents = userRoles?.some(r => 
-              ['club_admin', 'team_admin', 'coach', 'league_admin', 'app_admin'].includes(r.role)
+              ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member', 'app_admin'].includes(r.role)
             );
             const showAdminIndicator = !canCreateEvents;
             
