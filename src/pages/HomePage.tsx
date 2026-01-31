@@ -2149,24 +2149,37 @@ export default function HomePage() {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Quick Actions</h2>
         <div className="grid grid-cols-2 gap-3">
-          {/* Only show Create Team if user is a club admin (or Create Team or Club for non-filtered mode) */}
-          {(userRoles?.some(r => r.role === 'club_admin') || !activeClubFilter) && (
-            <Button 
-              variant="outline" 
-              className="w-full h-auto py-4 flex flex-col gap-2"
-              onClick={() => {
-                // In club mode, go directly to the club detail page
-                if (activeClubFilter) {
-                  navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
-                } else {
-                  navigate("/clubs", { state: { fromCreateTeam: true } });
-                }
-              }}
-            >
-              <UserPlus className="h-5 w-5 text-primary" />
-              <span className="text-sm">{activeClubFilter ? "Create Team" : "Create Team or Club"}</span>
-            </Button>
-          )}
+          {/* Create Team button - show for all but indicate admin-only when in club mode */}
+          {(() => {
+            const isClubAdmin = userRoles?.some(r => r.role === 'club_admin' && r.club_id === activeClubFilter);
+            const showAdminIndicator = activeClubFilter && !isClubAdmin;
+            
+            return (
+              <Button 
+                variant="outline" 
+                className={`w-full h-auto py-4 flex flex-col gap-2 relative ${showAdminIndicator ? 'opacity-60' : ''}`}
+                onClick={() => {
+                  if (showAdminIndicator) {
+                    toast({ description: "Only club admins can create teams" });
+                    return;
+                  }
+                  if (activeClubFilter) {
+                    navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
+                  } else {
+                    navigate("/clubs", { state: { fromCreateTeam: true } });
+                  }
+                }}
+              >
+                <UserPlus className="h-5 w-5 text-primary" />
+                <span className="text-sm">{activeClubFilter ? "Create Team" : "Create Team or Club"}</span>
+                {showAdminIndicator && (
+                  <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
+                    Admin
+                  </span>
+                )}
+              </Button>
+            );
+          })()}
           <Button 
             variant="outline" 
             className="w-full h-auto py-4 flex flex-col gap-2"
