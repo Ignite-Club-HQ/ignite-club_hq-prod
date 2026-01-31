@@ -2211,12 +2211,34 @@ export default function HomePage() {
               )}
             </span>
           </Button>
-          <Link to="/events/new">
-            <Button variant="outline" className="w-full h-auto py-4 flex flex-col gap-2">
-              <Plus className="h-5 w-5 text-primary" />
-              <span className="text-sm">New Event</span>
-            </Button>
-          </Link>
+          {(() => {
+            const canCreateEvents = userRoles?.some(r => 
+              ['club_admin', 'team_admin', 'coach', 'league_admin', 'app_admin'].includes(r.role)
+            );
+            const showAdminIndicator = !canCreateEvents;
+            
+            return (
+              <Button 
+                variant="outline" 
+                className={`w-full h-auto py-4 flex flex-col gap-2 relative ${showAdminIndicator ? 'opacity-60' : ''}`}
+                onClick={() => {
+                  if (showAdminIndicator) {
+                    toast({
+                      description: "Only admins and coaches can create events",
+                    });
+                    return;
+                  }
+                  navigate('/events/new');
+                }}
+              >
+                <Plus className="h-5 w-5 text-primary" />
+                <span className="text-sm">New Event</span>
+                {showAdminIndicator && (
+                  <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Admin</span>
+                )}
+              </Button>
+            );
+          })()}
         </div>
       </section>
 
