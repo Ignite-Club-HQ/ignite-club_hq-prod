@@ -46,6 +46,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MobileCardSelect } from "@/components/MobileCardSelect";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
@@ -2301,21 +2302,13 @@ export default function HomePage() {
                 </div>
               </div>
             )}
-            <div className="space-y-2">
-              <Label>Select Role</Label>
-              <Select value={selectedClubRole} onValueChange={(v) => setSelectedClubRole(v as ClubRole)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {clubRoleOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <MobileCardSelect
+              value={selectedClubRole}
+              onValueChange={(v) => setSelectedClubRole(v as ClubRole)}
+              options={clubRoleOptions}
+              label="Select Role"
+              placeholder="Choose a role..."
+            />
           </div>
           <ResponsiveDialogFooter>
             <Button
@@ -2402,36 +2395,23 @@ export default function HomePage() {
                 emptyMessage="No teams found."
               />
             </div>
-            <div className="space-y-2">
-              <Label>Select Role</Label>
-              {isLeagueSelected ? (
-                <Select value={selectedLeagueRole} onValueChange={(v) => setSelectedLeagueRole(v as LeagueRole)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {leagueRoleOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Select value={selectedTeamRole} onValueChange={(v) => setSelectedTeamRole(v as TeamRole)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {teamRoleOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+            {isLeagueSelected ? (
+              <MobileCardSelect
+                value={selectedLeagueRole}
+                onValueChange={(v) => setSelectedLeagueRole(v as LeagueRole)}
+                options={leagueRoleOptions}
+                label="Select Role"
+                placeholder="Choose a role..."
+              />
+            ) : (
+              <MobileCardSelect
+                value={selectedTeamRole}
+                onValueChange={(v) => setSelectedTeamRole(v as TeamRole)}
+                options={teamRoleOptions}
+                label="Select Role"
+                placeholder="Choose a role..."
+              />
+            )}
           </div>
           <ResponsiveDialogFooter>
             {(hasExistingTeamRole || hasExistingLeagueRole) && (
