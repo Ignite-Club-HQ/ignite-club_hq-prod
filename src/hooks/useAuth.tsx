@@ -77,6 +77,56 @@ function getCachedProfile(userId?: string): Profile | null {
   return null;
 }
 
+// Get cached profile with its userId for validation
+function getCachedProfileWithUser(): { profile: Profile; userId: string } | null {
+  try {
+    const cached = localStorage.getItem(PROFILE_CACHE_KEY);
+    if (cached) {
+      const data = JSON.parse(cached) as CachedProfileData;
+      if (data.profile && data.profile.id && data.userId) {
+        return { profile: data.profile, userId: data.userId };
+      }
+    }
+  } catch {
+    // Ignore errors
+  }
+  return null;
+}
+
+// SYNCHRONOUS initialization: Check if we have a valid cached profile with display_name
+// This runs ONCE at module load time to determine initial state
+function getInitialAuthState(): { 
+  profile: Profile | null; 
+  initialized: boolean; 
+  loading: boolean; 
+  profileLoading: boolean;
+  cachedUserId: string | null;
+} {
+  const cached = getCachedProfileWithUser();
+  if (cached && cached.profile.display_name) {
+    // We have a complete cached profile - start as "ready"
+    // The async session check will validate this is still correct
+    return {
+      profile: cached.profile,
+      initialized: true,
+      loading: false,
+      profileLoading: false,
+      cachedUserId: cached.userId,
+    };
+  }
+  // No valid cache - need to wait for async check
+  return {
+    profile: null,
+    initialized: false,
+    loading: true,
+    profileLoading: true,
+    cachedUserId: null,
+  };
+}
+
+// Compute initial state once at module load
+const initialAuthState = getInitialAuthState();
+
 function setCachedProfile(profile: Profile | null, userId?: string) {
   try {
     if (profile && userId) {
@@ -96,23 +146,20 @@ function setCachedProfile(profile: Profile | null, userId?: string) {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  // DON'T use cached profile on initial render - we don't know user ID yet
-  // The cache will be validated once we have the user from getSession
+  
+  // SYNCHRONOUS HYDRATION: Use pre-computed initial state from cache
+  // This eliminates flash by starting with cached profile if available
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  // Always start with loading=true until we check session
-  const [loading, setLoading] = useState(true);
-  // Always start profileLoading as true - we need fresh data from server
-  // before making decisions like redirecting to complete-profile
-  // This prevents stale cached profiles from incorrectly gating users
-  const [profileLoading, setProfileLoading] = useState(true);
+  const [profile, setProfile] = useState<Profile | null>(initialAuthState.profile);
+  const [loading, setLoading] = useState(initialAuthState.loading);
+  const [profileLoading, setProfileLoading] = useState(initialAuthState.profileLoading);
   const [profileError, setProfileError] = useState(false);
-  // Initialized becomes true ONLY after first auth check completes
-  // This prevents any routing decisions before we know auth state
-  const [initialized, setInitialized] = useState(false);
+  const [initialized, setInitialized] = useState(initialAuthState.initialized);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  // Track the cached userId we started with (for validation)
+  const [cachedUserId] = useState(initialAuthState.cachedUserId);
 
   // Flag to track if this is a fresh login (not a page refresh)
   const [isFreshLogin, setIsFreshLogin] = useState(false);
@@ -225,6 +272,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       profileFetched = true;
       const userId = currentSession.user.id;
+      
+      // CHECK: If we started with a cached profile, validate it's for this user
+      // If userId mismatch, we need to clear and refetch
+      if (cachedUserId && cachedUserId !== userId) {
+        console.log('[Auth] Session user differs from cached - clearing and refetching');
+        setProfile(null);
+        setCachedProfile(null);
+        setProfileLoading(true);
+        setLoading(true);
+        setInitialized(false);
+      }
+      
+      // If we already have initialized=true from sync hydration AND userId matches,
+      // just do a background refresh - no need to block
+      if (initialized && profile?.display_name && cachedUserId === userId) {
+        // Already ready from sync hydration - just background refresh
+        fetchProfile(userId, 5, false).catch(() => {});
+        // Prefetch other data
+        setTimeout(() => {
+          prefetchUserData(queryClient, userId).catch(console.error);
+          fetchUnreadCount(userId).catch(console.error);
+          const email = currentSession.user.email;
+          const displayName = currentSession.user.user_metadata?.full_name || 
+                             currentSession.user.user_metadata?.name;
+          if (email) {
+            syncPasskeyAccountsFromDatabase(userId, email, displayName).catch(console.error);
+          }
+        }, 100);
+        return;
+      }
       
       // Small delay to ensure session is fully propagated to Supabase
       // This helps with RLS policies that check auth.uid()
