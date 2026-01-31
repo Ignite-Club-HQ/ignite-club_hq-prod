@@ -1,12 +1,14 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Calendar as CalendarIcon, MapPin, Clock, Plus, List, CalendarDays, Pencil, Trash2, XCircle, Bell, Repeat, Upload, Eye } from "lucide-react";
+import { Calendar as CalendarIcon, MapPin, Clock, Plus, List, CalendarDays, Pencil, Trash2, XCircle, Bell, Repeat, Upload, Eye, Filter } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageLoading } from "@/components/ui/page-loading";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -71,6 +73,10 @@ export default function EventsPage() {
   const savedViewMode = (profile as any)?.events_view_mode as "list" | "calendar" | undefined;
   const [viewMode, setViewMode] = useState<"list" | "calendar">(savedViewMode || "list");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Track if filters are active
+  const hasActiveFilters = clubFilter !== null || teamFilter !== null;
 
   // Update view mode when profile loads
   useEffect(() => {
@@ -411,72 +417,101 @@ export default function EventsPage() {
     <div className="py-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Events</h1>
-        <div className="flex items-center gap-4">
-          <Button
-            variant={viewMode === "list" ? "default" : "outline"}
-            size="icon"
-            onClick={() => handleViewModeChange("list")}
-          >
-            <List className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === "calendar" ? "default" : "outline"}
-            size="icon"
-            onClick={() => handleViewModeChange("calendar")}
-          >
-            <CalendarDays className="h-4 w-4" />
-          </Button>
+        <div className="flex items-center gap-6">
+          {/* Filter button - only show if there are filters to display */}
+          {((userClubs?.length || 0) > 1 || (userTeams?.length || 0) > 0) && (
+            <Button 
+              variant={hasActiveFilters ? "default" : "outline"} 
+              size="icon"
+              onClick={() => setShowFilters(!showFilters)}
+              className="relative"
+            >
+              <Filter className="h-4 w-4" />
+              {hasActiveFilters && (
+                <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary" />
+              )}
+            </Button>
+          )}
           {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
             <Link to="/events/new">
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1" /> New
+              <Button size="icon" variant="default">
+                <Plus className="h-4 w-4" />
               </Button>
             </Link>
           )}
         </div>
       </div>
 
-      {/* Club and Team Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <ClubTeamFilter
-          clubs={userClubs || []}
-          teams={userTeams || []}
-          selectedClubId={clubFilter || "all"}
-          selectedTeamId={teamFilter || "all"}
-          onClubChange={handleClubChange}
-          onTeamChange={handleTeamChange}
-          showClubFilter={(userClubs?.length || 0) > 1}
-          showTeamFilter={(userTeams?.length || 0) > 0}
-          getSportEmoji={getSportEmoji}
-        />
+      {/* Collapsible Filter Panel */}
+      <Collapsible open={showFilters}>
+        <CollapsibleContent>
+          <Card className="p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <ClubTeamFilter
+                clubs={userClubs || []}
+                teams={userTeams || []}
+                selectedClubId={clubFilter || "all"}
+                selectedTeamId={teamFilter || "all"}
+                onClubChange={handleClubChange}
+                onTeamChange={handleTeamChange}
+                showClubFilter={(userClubs?.length || 0) > 1}
+                showTeamFilter={(userTeams?.length || 0) > 0}
+                getSportEmoji={getSportEmoji}
+              />
 
-        {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link to="/events/import">
-                <Button size="icon" variant="outline" className="h-10 w-10 sm:h-9 sm:w-9">
-                  <Upload className="h-4 w-4" />
-                </Button>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent>Import Fixtures</TooltipContent>
-          </Tooltip>
-        )}
-      </div>
+              {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link to="/events/import">
+                      <Button size="icon" variant="outline" className="h-10 w-10 sm:h-9 sm:w-9">
+                        <Upload className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent>Import Fixtures</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          </Card>
+        </CollapsibleContent>
+      </Collapsible>
 
-      {/* Filter Pills */}
-      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
-        {(["all", "game", "training", "social"] as const).map((type) => (
-          <Button
-            key={type}
-            variant={filter === type ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilter(type)}
-            className="shrink-0"
+      {/* Filter Pills with View Toggle */}
+      <div className="flex items-center justify-between gap-2 -mx-4 px-4">
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {(["all", "game", "training", "social"] as const).map((type) => (
+            <Button
+              key={type}
+              variant={filter === type ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilter(type)}
+              className="shrink-0"
+            >
+              {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
+            </Button>
+          ))}
+        </div>
+        <ToggleGroup 
+          type="single" 
+          value={viewMode} 
+          onValueChange={(value) => value && handleViewModeChange(value as "list" | "calendar")}
+          className="bg-muted p-1 rounded-lg shrink-0"
+        >
+          <ToggleGroupItem 
+            value="list" 
+            aria-label="List view" 
+            className="h-8 w-8 p-0 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
           >
-            {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
-          </Button>
-        ))}
+            <List className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem 
+            value="calendar" 
+            aria-label="Calendar view" 
+            className="h-8 w-8 p-0 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
+          >
+            <CalendarDays className="h-4 w-4" />
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
 
       {viewMode === "calendar" ? (

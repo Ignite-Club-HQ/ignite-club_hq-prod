@@ -30,6 +30,8 @@ type AppRole = Database["public"]["Enums"]["app_role"];
 interface CreateGroupDialogProps {
   clubId?: string;
   teamId?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
@@ -41,16 +43,26 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "player", label: "Players" },
 ];
 
-export default function CreateGroupDialog({ clubId, teamId }: CreateGroupDialogProps) {
+export default function CreateGroupDialog({ clubId, teamId, open: controlledOpen, onOpenChange }: CreateGroupDialogProps) {
   const { user } = useAuth();
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [name, setName] = useState("");
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>(teamId || "");
   const [selectedClubId, setSelectedClubId] = useState<string>(clubId || "");
   const [groupType, setGroupType] = useState<"team" | "club">(teamId ? "team" : clubId ? "club" : "team");
+
+  // Use controlled or uncontrolled state
+  const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = (open: boolean) => {
+    if (onOpenChange) {
+      onOpenChange(open);
+    } else {
+      setInternalOpen(open);
+    }
+  };
 
   // Auto-select filtered club
   useEffect(() => {
@@ -66,22 +78,44 @@ export default function CreateGroupDialog({ clubId, teamId }: CreateGroupDialogP
     queryFn: async () => {
       const { data: roles } = await supabase
         .from("user_roles")
-        .select("team_id")
+        .select("team_id, club_id")
         .eq("user_id", user!.id)
-        .in("role", ["team_admin", "coach", "app_admin"])
-        .not("team_id", "is", null);
+        .in("role", ["team_admin", "coach", "app_admin", "committee_member"]);
       
+      // Get team IDs from team roles
       const teamIds = roles?.map((r) => r.team_id).filter((id): id is string => id !== null) || [];
-      if (teamIds.length === 0) return [];
+      
+      // Also get teams from clubs where user is a committee member
+      const clubIds = roles?.filter(r => r.club_id && !r.team_id).map(r => r.club_id).filter((id): id is string => id !== null) || [];
+      
+      let allTeamIds = [...teamIds];
+      
+      // If user is committee member of a club, they can create groups for any team in that club
+      if (clubIds.length > 0) {
+        const { data: clubTeams } = await supabase
+          .from("teams")
+          .select("id")
+          .in("club_id", clubIds);
+        
+        if (clubTeams) {
+          clubTeams.forEach(t => {
+            if (!allTeamIds.includes(t.id)) {
+              allTeamIds.push(t.id);
+            }
+          });
+        }
+      }
+      
+      if (allTeamIds.length === 0) return [];
 
       const { data } = await supabase
         .from("teams")
         .select("id, name, club_id, clubs(name)")
-        .in("id", teamIds);
+        .in("id", allTeamIds);
       
       return data || [];
     },
-    enabled: !!user && !teamId && open,
+    enabled: !!user && !teamId && isOpen,
   });
 
   // Fetch admin clubs with their Pro status
@@ -92,7 +126,7 @@ export default function CreateGroupDialog({ clubId, teamId }: CreateGroupDialogP
         .from("user_roles")
         .select("club_id")
         .eq("user_id", user!.id)
-        .in("role", ["club_admin", "app_admin"]);
+        .in("role", ["club_admin", "app_admin", "committee_member"]);
       
       const clubIds = roles?.map((r) => r.club_id).filter(Boolean) || [];
       if (clubIds.length === 0) return [];
@@ -118,7 +152,7 @@ export default function CreateGroupDialog({ clubId, teamId }: CreateGroupDialogP
         return { ...club, hasPro };
       });
     },
-    enabled: !!user && !clubId && open,
+    enabled: !!user && !clubId && isOpen,
   });
 
   // Check if a specific club has Pro (for pre-selected clubId)
@@ -136,7 +170,7 @@ export default function CreateGroupDialog({ clubId, teamId }: CreateGroupDialogP
       
       return !!(data?.is_pro || data?.is_pro_football || data?.admin_pro_override || data?.admin_pro_football_override);
     },
-    enabled: !!(clubId || selectedClubId) && open,
+    enabled: !!(clubId || selectedClubId) && isOpen,
   });
 
   // Check if any club has Pro (for enabling club group type)
@@ -225,14 +259,9 @@ export default function CreateGroupDialog({ clubId, teamId }: CreateGroupDialogP
     return adminTeams.filter(team => team.club_id === activeClubFilter);
   }, [adminTeams, activeClubFilter]);
 
-  return (
-    <>
-      <Button variant="outline" size="sm" className="gap-2" onClick={() => setOpen(true)}>
-        <Plus className="h-4 w-4" />
-        New Group
-      </Button>
-      
-      <ResponsiveDialog open={open} onOpenChange={setOpen}>
+  // Render without trigger button when controlled
+  const dialogContent = (
+      <ResponsiveDialog open={isOpen} onOpenChange={setOpen}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle>Create Chat Group</ResponsiveDialogTitle>
@@ -361,6 +390,20 @@ export default function CreateGroupDialog({ clubId, teamId }: CreateGroupDialogP
           </ResponsiveDialogFooter>
         </ResponsiveDialogContent>
       </ResponsiveDialog>
-    </>
   );
+
+  // If not controlled, show trigger button
+  if (controlledOpen === undefined) {
+    return (
+      <>
+        <Button variant="outline" size="sm" className="gap-2" onClick={() => setOpen(true)}>
+          <Plus className="h-4 w-4" />
+          New Group
+        </Button>
+        {dialogContent}
+      </>
+    );
+  }
+
+  return dialogContent;
 }
