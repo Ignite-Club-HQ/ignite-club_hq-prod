@@ -85,9 +85,14 @@ export function ClubTeamFilter({
     onTeamChange("all");
   };
 
+  // If no filters are visible, don't render anything
+  if (!showClubOption && !showTeamOption) {
+    return null;
+  }
+
   if (isMobile) {
     return (
-    <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
         {/* Mobile Club Filter */}
         {showClubOption && (
           <>
