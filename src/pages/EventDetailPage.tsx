@@ -52,6 +52,8 @@ import { format, parseISO } from "date-fns";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { EventSponsorsSection } from "@/components/EventSponsorsSection";
 import { EventGroupsManager } from "@/components/EventGroupsManager";
+import { EventViewsAdminSection } from "@/components/EventViewsAdminSection";
+import { useEventViewTracking } from "@/hooks/useEventViews";
 
 
 // Lazy load PitchBoard for game events
@@ -205,6 +207,9 @@ export default function EventDetailPage() {
   
   // Mini league player overrides for match generation
   const [playerOverrides, setPlayerOverrides] = useState<Record<string, boolean>>({});
+
+  // Track when user views this event
+  useEventViewTracking(id, user?.id);
 
   const { data: event, isLoading } = useQuery({
     queryKey: ["event", id],
@@ -1846,6 +1851,16 @@ export default function EventDetailPage() {
 
       {/* Event Sponsors (Pro only) */}
       <EventSponsorsSection eventId={id!} clubId={event.club_id} />
+
+      {/* Event Views Admin Section - shows who has/hasn't seen the event (Pro only) */}
+      {(isAdmin || isAppAdmin) && hasTeamPro && (
+        <EventViewsAdminSection
+          eventId={id!}
+          teamId={event.team_id}
+          clubId={event.club_id}
+          miniLeagueId={event.mini_league_id}
+        />
+      )}
 
       {event.description && (
         <p className="text-muted-foreground">{event.description}</p>

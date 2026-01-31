@@ -104,13 +104,50 @@ export default function MiniLeaguesPage() {
     }
   }, [adminClubs, clubIdFromUrl, newLeague.club_id]);
 
-  // Fetch mini leagues (filtered by club if specified)
+  // Fetch mini leagues the user has access to (admin or has a player assigned)
   const { data: miniLeagues, isLoading } = useQuery({
-    queryKey: ["mini-leagues", clubIdFromUrl],
+    queryKey: ["mini-leagues", clubIdFromUrl, user?.id],
     queryFn: async () => {
+      // First, get league IDs where user is a parent (has a player)
+      const { data: playerLeagues } = await supabase
+        .from("mini_league_players")
+        .select("mini_league_id")
+        .eq("parent_user_id", user!.id);
+      
+      const parentLeagueIds = playerLeagues?.map(p => p.mini_league_id) || [];
+      
+      // Get admin club IDs (clubs where user is club_admin, league_admin, or app_admin)
+      const { data: adminRoles } = await supabase
+        .from("user_roles")
+        .select("club_id")
+        .eq("user_id", user!.id)
+        .in("role", ["club_admin", "league_admin", "app_admin"])
+        .not("club_id", "is", null);
+      
+      const adminClubIds = adminRoles?.map(r => r.club_id) as string[] || [];
+      
+      // Get leagues where user is admin
+      let adminLeagueIds: string[] = [];
+      if (adminClubIds.length > 0) {
+        const { data: adminLeagues } = await supabase
+          .from("mini_leagues")
+          .select("id")
+          .in("club_id", adminClubIds);
+        adminLeagueIds = adminLeagues?.map(l => l.id) || [];
+      }
+      
+      // Combine both sets of league IDs
+      const allAccessibleLeagueIds = [...new Set([...parentLeagueIds, ...adminLeagueIds])];
+      
+      if (allAccessibleLeagueIds.length === 0) {
+        return [] as MiniLeague[];
+      }
+      
+      // Fetch the actual league data
       let query = supabase
         .from("mini_leagues")
         .select(`*, club:clubs(id, name)`)
+        .in("id", allAccessibleLeagueIds)
         .order("created_at", { ascending: false });
       
       if (clubIdFromUrl) {

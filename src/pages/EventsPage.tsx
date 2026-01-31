@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Calendar as CalendarIcon, MapPin, Clock, Plus, List, CalendarDays, Pencil, Trash2, XCircle, Bell, Repeat, Upload } from "lucide-react";
+import { Calendar as CalendarIcon, MapPin, Clock, Plus, List, CalendarDays, Pencil, Trash2, XCircle, Bell, Repeat, Upload, Eye } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ import { format, parseISO, startOfDay, isSameDay, subHours } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
+import { useUserEventViews } from "@/hooks/useEventViews";
 
 type EventType = "game" | "training" | "social";
 
@@ -359,6 +360,10 @@ export default function EventsPage() {
     enabled: !!user,
   });
 
+  // Get IDs of events user has viewed
+  const eventIds = events?.map(e => e.id) || [];
+  const { data: viewedEventIds } = useUserEventViews(user?.id, eventIds);
+
   const handleClubChange = (value: string) => {
     const params = new URLSearchParams(searchParams);
     if (value === "all") {
@@ -559,7 +564,7 @@ export default function EventsPage() {
                 </Card>
               ) : (
                 selectedDateEvents?.map((event) => (
-                  <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} />
+                  <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} />
                 ))
               )}
             </div>
@@ -582,7 +587,7 @@ export default function EventsPage() {
               </Card>
             ) : (
               upcomingEvents?.map((event) => (
-                <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} />
+                <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} />
               ))
             )}
           </TabsContent>
@@ -596,7 +601,7 @@ export default function EventsPage() {
               </Card>
             ) : (
               pastEvents?.map((event) => (
-                <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} />
+                <EventCard key={event.id} event={event} isAdmin={isAdminForEvent(event)} hasViewed={viewedEventIds?.has(event.id) ?? true} />
               ))
             )}
           </TabsContent>
@@ -609,7 +614,7 @@ export default function EventsPage() {
   );
 }
 
-function EventCard({ event, isAdmin }: { event: Event; isAdmin: boolean }) {
+function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin: boolean; hasViewed?: boolean }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -861,6 +866,12 @@ function EventCard({ event, isAdmin }: { event: Event; isAdmin: boolean }) {
             <Badge className={eventTypeColors[event.type]} variant="secondary">
               {event.type}
             </Badge>
+            {hasPro && isAdmin && !hasViewed && !event.is_cancelled && (
+              <Badge variant="default" className="gap-1 bg-primary text-primary-foreground">
+                <Eye className="h-3 w-3" />
+                New
+              </Badge>
+            )}
             {event.is_cancelled && (
               <Badge variant="destructive">Cancelled</Badge>
             )}
