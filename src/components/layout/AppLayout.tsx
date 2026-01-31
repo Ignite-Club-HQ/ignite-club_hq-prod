@@ -16,8 +16,23 @@ export function AppLayout() {
   const { isThemeReady } = useClubTheme();
   const [retrying, setRetrying] = useState(false);
   const [themeTimeout, setThemeTimeout] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { resolvedTheme } = useTheme();
-  const logo = resolvedTheme === "dark" ? igniteIcon : igniteIconLight;
+  
+  // Prevent hydration mismatch - check localStorage for initial theme
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const getInitialTheme = () => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('app-theme') || 'dark';
+    }
+    return 'dark';
+  };
+
+  const isDark = mounted ? resolvedTheme === "dark" : getInitialTheme() === "dark";
+  const logo = isDark ? igniteIcon : igniteIconLight;
 
   // Debug logging for profile state - must be before any conditional returns
   useEffect(() => {
