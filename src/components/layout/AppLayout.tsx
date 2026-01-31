@@ -74,6 +74,21 @@ export function AppLayout() {
     }
   }, [profileError, profile, user, retrying, refreshProfile]);
 
+  // CRITICAL: Show loading screen FIRST before ANY routing decisions
+  // This prevents any flash of wrong content during initialization
+  const shouldWaitForTheme = profile && !isThemeReady && !themeTimeout;
+  const isStillLoading = !initialized || loading || profileLoading;
+  
+  if (isStillLoading || shouldWaitForTheme) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
+        <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Loading your profile...</p>
+      </div>
+    );
+  }
+
   // Check if there's a pending OAuth callback that needs to be processed
   // This prevents redirecting to /auth before the OAuth code can be handled
   const hasPendingOAuth = typeof window !== 'undefined' && (
@@ -85,28 +100,6 @@ export function AppLayout() {
   // This prevents the flash to home screen after Google Drive authentication
   if (hasPendingOAuth && typeof window !== 'undefined' && window.location.pathname !== '/vault') {
     return <Navigate to="/vault" replace />;
-  }
-
-  // Consolidated loading check - show loading screen during initial load
-  // Keep showing loading until BOTH auth AND profile are resolved
-  // This prevents the "flash" to complete-profile before profile is fetched
-  const shouldWaitForTheme = profile && !isThemeReady && !themeTimeout;
-  
-  // Show loading if:
-  // 1. Not initialized yet (first auth check hasn't completed), OR
-  // 2. Auth is still loading, OR
-  // 3. Profile is still loading (even if we have a cached profile, wait for server truth)
-  // This prevents redirect to complete-profile before profile fetch completes
-  const isStillLoading = !initialized || loading || profileLoading;
-  
-  if (isStillLoading || shouldWaitForTheme) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
-        <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Loading your profile...</p>
-      </div>
-    );
   }
 
   // Don't redirect to auth if we have a pending OAuth callback
