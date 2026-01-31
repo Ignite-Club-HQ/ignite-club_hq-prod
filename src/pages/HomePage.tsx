@@ -2188,29 +2188,52 @@ export default function HomePage() {
             <UserPlus className="h-5 w-5 text-primary" />
             <span className="text-sm">Join Team</span>
           </Button>
-          <Button 
-            variant="outline" 
-            className="w-full h-auto py-4 flex flex-col gap-2 relative"
-            disabled={showProBadge}
-            onClick={() => {
-              if (hasProAccess || isAppAdmin) {
-                navigate("/vault");
-              }
-            }}
-          >
-            <div className="flex items-center gap-1">
-              <FolderOpen className="h-5 w-5 text-primary" />
-              {showProBadge && (
-                <Lock className="h-3 w-3 text-muted-foreground" />
-              )}
-            </div>
-            <span className="text-sm flex items-center gap-1">
-              File Vault
-              {showProBadge && (
-                <Badge variant="secondary" className="text-[8px] px-1 py-0">PRO</Badge>
-              )}
-            </span>
-          </Button>
+          {(() => {
+            // Vault access requires: Pro subscription AND admin/coach role
+            const hasVaultRoleAccess = isAppAdmin || userRoles?.some(r => 
+              ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
+            );
+            const canAccessVault = (hasProAccess || isAppAdmin) && hasVaultRoleAccess;
+            const showVaultRestricted = !canAccessVault;
+            
+            return (
+              <Button 
+                variant="outline" 
+                className={`w-full h-auto py-4 flex flex-col gap-2 relative ${showVaultRestricted ? 'opacity-60' : ''}`}
+                onClick={() => {
+                  if (!hasVaultRoleAccess) {
+                    toast({
+                      description: "Only admins, coaches, and committee members can access the File Vault",
+                    });
+                    return;
+                  }
+                  if (showProBadge) {
+                    toast({
+                      description: "File Vault is a Pro feature. Upgrade to access.",
+                    });
+                    return;
+                  }
+                  navigate("/vault");
+                }}
+              >
+                <div className="flex items-center gap-1">
+                  <FolderOpen className="h-5 w-5 text-primary" />
+                  {showProBadge && (
+                    <Lock className="h-3 w-3 text-muted-foreground" />
+                  )}
+                </div>
+                <span className="text-sm flex items-center gap-1">
+                  File Vault
+                  {showProBadge && (
+                    <Badge variant="secondary" className="text-[8px] px-1 py-0">PRO</Badge>
+                  )}
+                </span>
+                {showVaultRestricted && (
+                  <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Admin</span>
+                )}
+              </Button>
+            );
+          })()}
           {(() => {
             const canCreateEvents = userRoles?.some(r => 
               ['club_admin', 'team_admin', 'coach', 'league_admin', 'app_admin'].includes(r.role)
