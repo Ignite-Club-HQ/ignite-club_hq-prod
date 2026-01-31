@@ -11,9 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -27,6 +24,7 @@ import { LazyImage } from "@/components/LazyImage";
 import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { UploadPhotoSheet } from "@/components/UploadPhotoSheet";
 import { SharePhotoButton } from "@/components/SharePhotoButton";
+import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { cachePhotos, removePhotoFromCache, getFeedPhotosFromCache, backgroundRefreshPhotos, CachedPhoto } from "@/lib/mediaCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import {
@@ -809,60 +807,21 @@ export default function MediaPage() {
       <Collapsible open={showFilters}>
         <CollapsibleContent>
           <Card className="p-4">
-            <div className="flex flex-wrap gap-4 items-end">
-              {/* Club Filter */}
-              <div className="flex-1 min-w-[150px]">
-                <Label className="text-xs text-muted-foreground mb-1 block">Club</Label>
-                <Select 
-                  value={selectedClubId} 
-                  onValueChange={(value) => {
-                    setSelectedClubId(value);
-                    // Reset team filter when club changes
-                    if (value !== "all") {
-                      setSelectedTeamId("all");
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All clubs" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All clubs</SelectItem>
-                    {availableClubs?.map((club) => (
-                      <SelectItem key={club.id} value={club.id}>
-                        {club.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Team Filter */}
-              <div className="flex-1 min-w-[150px]">
-                <Label className="text-xs text-muted-foreground mb-1 block">Team</Label>
-                <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All teams" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All teams</SelectItem>
-                    {filteredTeams?.map((team) => (
-                      <SelectItem key={team.id} value={team.id}>
-                        {team.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-
-              {/* Clear Filters */}
-              {hasActiveFilters && (
-                <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9">
-                  <X className="h-4 w-4 mr-1" /> Clear
-                </Button>
-              )}
-            </div>
+            <ClubTeamFilter
+              clubs={availableClubs || []}
+              teams={filteredTeams || []}
+              selectedClubId={selectedClubId}
+              selectedTeamId={selectedTeamId}
+              onClubChange={(value) => {
+                setSelectedClubId(value);
+                if (value !== "all") {
+                  setSelectedTeamId("all");
+                }
+              }}
+              onTeamChange={setSelectedTeamId}
+              showClubFilter={(availableClubs?.length || 0) > 0}
+              showTeamFilter={(filteredTeams?.length || 0) > 0}
+            />
             
             {hasActiveFilters && (
               <p className="text-xs text-muted-foreground mt-3">
