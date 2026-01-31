@@ -109,6 +109,23 @@ export default function MiniLeagueDetailPage() {
     enabled: !!id,
   });
 
+  // Check if user can manage this league (admin/coach roles)
+  const { data: canManageLeague } = useQuery({
+    queryKey: ["can-manage-league", league?.club_id, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user!.id)
+        .or(`club_id.eq.${league!.club_id},role.eq.app_admin`);
+      
+      return data?.some(r => 
+        ['club_admin', 'league_admin', 'coach', 'app_admin'].includes(r.role)
+      ) ?? false;
+    },
+    enabled: !!league?.club_id && !!user,
+  });
+
   // Fetch players
   const { data: players, isLoading: playersLoading } = useQuery({
     queryKey: ["mini-league-players", id],
@@ -429,13 +446,26 @@ export default function MiniLeagueDetailPage() {
         <TabsContent value="sessions" className="space-y-3 mt-3">
           <div className="flex justify-between items-center">
             <h2 className="text-base font-semibold">Sessions</h2>
-            <Button 
-              size="sm" 
-              onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}
-            >
-              <Plus className="h-4 w-4 mr-1.5" />
-              New Session
-            </Button>
+            {canManageLeague ? (
+              <Button 
+                size="sm" 
+                onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}
+              >
+                <Plus className="h-4 w-4 mr-1.5" />
+                New Session
+              </Button>
+            ) : (
+              <Button 
+                size="sm" 
+                variant="outline"
+                className="opacity-60 relative"
+                onClick={() => toast.error("Only admins and coaches can create sessions")}
+              >
+                <Plus className="h-4 w-4 mr-1.5" />
+                New Session
+                <span className="absolute -top-1 -right-1 text-[10px] bg-muted text-muted-foreground px-1 py-0.5 rounded">Admin</span>
+              </Button>
+            )}
           </div>
 
           {eventsLoading ? (
@@ -447,14 +477,18 @@ export default function MiniLeagueDetailPage() {
               <CardContent className="py-8 text-center">
                 <Calendar className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
                 <p className="text-sm text-muted-foreground">No sessions scheduled</p>
-                <Button 
-                  variant="link" 
-                  size="sm" 
-                  className="mt-1"
-                  onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}
-                >
-                  Create your first session
-                </Button>
+                {canManageLeague ? (
+                  <Button 
+                    variant="link" 
+                    size="sm" 
+                    className="mt-1"
+                    onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}
+                  >
+                    Create your first session
+                  </Button>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">Ask an admin or coach to create a session</p>
+                )}
               </CardContent>
             </Card>
           ) : (
