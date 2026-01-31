@@ -378,8 +378,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(currentSession?.user ?? null);
         
         if (event === 'SIGNED_IN') {
-          // This is a fresh login - apply theme from profile
+          // FRESH LOGIN: Reset state to block AppLayout until profile is fetched
+          // This prevents the double-flash to complete-profile page
           setIsFreshLogin(true);
+          setInitialized(false);
+          setLoading(true);
+          setProfileLoading(true);
           handleSession(currentSession, false, true);
         } else if ((event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && currentSession?.user) {
           // Page refresh or token refresh - don't override theme
@@ -394,6 +398,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUnreadMessagesCount(0);
           setProfileLoading(false);
           setLoading(false);
+          setInitialized(true); // Stay initialized but with no user
         }
       }
     );
