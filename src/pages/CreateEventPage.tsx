@@ -630,6 +630,37 @@ export default function CreateEventPage() {
     </div>
   );
 
+  // Check if user has any clubs to create events for (meaning they have admin/coach permission)
+  const hasPermission = clubs && clubs.length > 0;
+
+  // No permission fallback
+  if (clubs !== undefined && !hasPermission) {
+    return (
+      <div className="pb-6 space-y-4">
+        <div className="flex items-center gap-3 py-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-xl font-bold">New Event</h1>
+        </div>
+        <Card className="border-destructive/30">
+          <CardContent className="py-8 text-center space-y-3">
+            <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
+              <Calendar className="h-6 w-6 text-destructive" />
+            </div>
+            <h2 className="font-semibold">Permission Required</h2>
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+              Only club admins, team admins, and coaches can create events. Contact your club administrator if you need access.
+            </p>
+            <Button variant="outline" onClick={() => navigate(-1)} className="mt-2">
+              Go Back
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="pb-6 space-y-4">
       {/* Header */}
