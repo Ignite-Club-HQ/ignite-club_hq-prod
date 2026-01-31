@@ -11,7 +11,7 @@ import igniteIconLight from "@/assets/ignite-icon-light.png";
 import igniteIcon from "@/assets/ignite-icon.png";
 
 export function AppLayout() {
-  const { user, profile, loading, profileLoading, profileError, refreshProfile } = useAuth();
+  const { user, profile, loading, profileLoading, profileError, refreshProfile, initialized } = useAuth();
   const { isThemeReady } = useClubTheme();
   const [retrying, setRetrying] = useState(false);
   const [themeTimeout, setThemeTimeout] = useState(false);
@@ -34,6 +34,7 @@ export function AppLayout() {
   // Debug logging for profile state - must be before any conditional returns
   useEffect(() => {
     console.log('[AppLayout] Profile state:', {
+      initialized,
       loading,
       profileLoading,
       profileError,
@@ -43,7 +44,7 @@ export function AppLayout() {
       isThemeReady,
       themeTimeout
     });
-  }, [loading, profileLoading, profileError, profile, user, isThemeReady, themeTimeout]);
+  }, [initialized, loading, profileLoading, profileError, profile, user, isThemeReady, themeTimeout]);
 
   // Theme loading timeout - don't block forever waiting for theme
   useEffect(() => {
@@ -92,10 +93,11 @@ export function AppLayout() {
   const shouldWaitForTheme = profile && !isThemeReady && !themeTimeout;
   
   // Show loading if:
-  // 1. Auth is still loading, OR
-  // 2. Profile is still loading (even if we have a cached profile, wait for server truth)
+  // 1. Not initialized yet (first auth check hasn't completed), OR
+  // 2. Auth is still loading, OR
+  // 3. Profile is still loading (even if we have a cached profile, wait for server truth)
   // This prevents redirect to complete-profile before profile fetch completes
-  const isStillLoading = loading || profileLoading;
+  const isStillLoading = !initialized || loading || profileLoading;
   
   if (isStillLoading || shouldWaitForTheme) {
     return (
