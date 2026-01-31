@@ -74,16 +74,18 @@ export function AppLayout() {
     return <Navigate to="/vault" replace />;
   }
 
-  // Consolidated loading check - show loading screen ONLY during initial auth load
-  // Once we have ANY profile (cached or fetched), proceed to render
-  // Theme loading uses a timeout to prevent blocking
+  // Consolidated loading check - show loading screen during initial load
+  // Keep showing loading until BOTH auth AND profile are resolved
+  // This prevents the "flash" to complete-profile before profile is fetched
   const shouldWaitForTheme = profile && !isThemeReady && !themeTimeout;
   
-  // Only show loading if we're in initial auth loading AND have no profile at all
-  // The key is to NOT show loading once we have a profile, even if still fetching fresh data
-  const isInitialAuthLoading = loading && !profile;
+  // Show loading if:
+  // 1. Auth is still loading, OR
+  // 2. Profile is still loading (even if we have a cached profile, wait for server truth)
+  // This prevents redirect to complete-profile before profile fetch completes
+  const isStillLoading = loading || profileLoading;
   
-  if (isInitialAuthLoading || shouldWaitForTheme) {
+  if (isStillLoading || shouldWaitForTheme) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <img src={logo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
