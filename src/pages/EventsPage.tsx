@@ -866,7 +866,7 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
             <Badge className={eventTypeColors[event.type]} variant="secondary">
               {event.type}
             </Badge>
-            {!hasViewed && !event.is_cancelled && (
+            {hasPro && !hasViewed && !event.is_cancelled && (
               <Badge variant="default" className="gap-1 bg-primary text-primary-foreground">
                 <Eye className="h-3 w-3" />
                 New

@@ -74,6 +74,40 @@ serve(async (req) => {
       });
     }
 
+    // Check if club/team has Pro subscription (Pro only feature)
+    let hasPro = false;
+    
+    if (event.team_id) {
+      const { data: teamSub } = await supabase
+        .from("team_subscriptions")
+        .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+        .eq("team_id", event.team_id)
+        .maybeSingle();
+      
+      if (teamSub?.is_pro || teamSub?.is_pro_football || teamSub?.admin_pro_override || teamSub?.admin_pro_football_override) {
+        hasPro = true;
+      }
+    }
+    
+    if (!hasPro && event.club_id) {
+      const { data: clubSub } = await supabase
+        .from("club_subscriptions")
+        .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+        .eq("club_id", event.club_id)
+        .maybeSingle();
+      
+      if (clubSub?.is_pro || clubSub?.is_pro_football || clubSub?.admin_pro_override || clubSub?.admin_pro_football_override) {
+        hasPro = true;
+      }
+    }
+
+    if (!hasPro) {
+      return new Response(JSON.stringify({ error: "This feature requires a Pro subscription" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Verify requesting user is admin for this event
     const { data: adminRole } = await supabase
       .from("user_roles")

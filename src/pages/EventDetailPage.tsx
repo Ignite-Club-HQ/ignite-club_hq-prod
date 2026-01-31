@@ -1852,8 +1852,8 @@ export default function EventDetailPage() {
       {/* Event Sponsors (Pro only) */}
       <EventSponsorsSection eventId={id!} clubId={event.club_id} />
 
-      {/* Event Views Admin Section - shows who has/hasn't seen the event */}
-      {(isAdmin || isAppAdmin) && (
+      {/* Event Views Admin Section - shows who has/hasn't seen the event (Pro only) */}
+      {(isAdmin || isAppAdmin) && hasTeamPro && (
         <EventViewsAdminSection
           eventId={id!}
           teamId={event.team_id}
