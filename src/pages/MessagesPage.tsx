@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Crown, Lock, RefreshCw, Flame } from "lucide-react";
+import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Crown, Lock, RefreshCw, Flame, Plus } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link, useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
@@ -22,6 +22,7 @@ import EditGroupDialog from "@/components/chat/EditGroupDialog";
 import ChatGroupCard from "@/components/chat/ChatGroupCard";
 import { StartDMDialog } from "@/components/chat/StartDMDialog";
 import { DMConversationsList } from "@/components/chat/DMConversationsList";
+import { NewMessageMenu } from "@/components/chat/NewMessageMenu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -140,6 +141,8 @@ export default function MessagesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
+  const [showDMDialog, setShowDMDialog] = useState(false);
+  const [showGroupDialog, setShowGroupDialog] = useState(false);
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
 
   // Load cached data for instant display
@@ -483,10 +486,25 @@ export default function MessagesPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("user_roles")
-        .select("team_id")
+        .select("team_id, club_id, role")
         .eq("user_id", user!.id)
-        .in("role", ["team_admin", "coach"]);
+        .in("role", ["team_admin", "coach", "committee_member"]);
       return data?.map((r) => r.team_id).filter(Boolean) || [];
+    },
+    enabled: !!user,
+  });
+
+  // Check if user is a committee member (club-level role)
+  const { data: isCommitteeMember } = useQuery({
+    queryKey: ["is-committee-member", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("role", "committee_member")
+        .maybeSingle();
+      return !!data;
     },
     enabled: !!user,
   });
@@ -828,7 +846,7 @@ export default function MessagesPage() {
   const displayClubsWithAnnouncements = displayMemberClubs;
 
   // Check if user can create groups (requires admin role AND Pro access)
-  const canCreateGroups = (adminTeamIds?.length || adminClubs?.length || isAppAdmin) && (hasAnyProAccess || isAppAdmin);
+  const canCreateGroups = (adminTeamIds?.length || adminClubs?.length || isAppAdmin || isCommitteeMember) && (hasAnyProAccess || isAppAdmin);
 
   // Filter all items based on search query and active club filter
   const query = searchQuery.toLowerCase().trim();
@@ -974,44 +992,16 @@ export default function MessagesPage() {
             <RefreshCw className="h-4 w-4 text-muted-foreground animate-spin" />
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <StartDMDialog />
-          {canCreateGroups && <CreateGroupDialog />}
-          {hasAdminRoleButNoPro && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="gap-2 text-muted-foreground"
-                    onClick={() => {
-                      // Navigate to club upgrade if user is club admin, otherwise team upgrade
-                      if (adminClubs?.length && adminClubs[0]?.id) {
-                        navigate(`/clubs/${adminClubs[0].id}/upgrade`);
-                      } else if (adminTeamIds?.length && adminTeamIds[0]) {
-                        navigate(`/teams/${adminTeamIds[0]}/upgrade`);
-                      } else {
-                        navigate("/profile");
-                      }
-                    }}
-                  >
-                    <Lock className="h-4 w-4" />
-                    <span className="hidden sm:inline">New Group</span>
-                    <Badge variant="secondary" className="gap-1 ml-1">
-                      <Crown className="h-3 w-3" />
-                      Pro
-                    </Badge>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Upgrade to Pro to create message groups</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </div>
+        <NewMessageMenu 
+          onNewDM={() => setShowDMDialog(true)}
+          onNewGroup={() => setShowGroupDialog(true)}
+          canCreateGroups={!!canCreateGroups}
+        />
       </div>
+
+      {/* DM and Group dialogs */}
+      <StartDMDialog open={showDMDialog} onOpenChange={setShowDMDialog} />
+      {canCreateGroups && <CreateGroupDialog open={showGroupDialog} onOpenChange={setShowGroupDialog} />}
 
       {/* Search input */}
       <div className="relative">

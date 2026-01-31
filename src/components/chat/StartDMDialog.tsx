@@ -46,23 +46,38 @@ interface TeamInfo {
   club_id: string;
 }
 
-export function StartDMDialog() {
+interface StartDMDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDialogProps) {
   const { user } = useAuth();
   const { activeClubFilter } = useClubTheme();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<DMableUser[]>([]);
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
 
+  // Use controlled or uncontrolled state
+  const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = (open: boolean) => {
+    if (onOpenChange) {
+      onOpenChange(open);
+    } else {
+      setInternalOpen(open);
+    }
+  };
+
   // Auto-select club filter when in club mode
   useEffect(() => {
-    if (activeClubFilter && open) {
+    if (activeClubFilter && isOpen) {
       setSelectedClubId(activeClubFilter);
     }
-  }, [activeClubFilter, open]);
+  }, [activeClubFilter, isOpen]);
 
   // Check if user has Pro access for DMs
   const { data: hasProAccess, isLoading: checkingPro } = useQuery({
@@ -90,7 +105,7 @@ export function StartDMDialog() {
         (!sub.expires_at || new Date(sub.expires_at) > new Date())
       ) ?? false;
     },
-    enabled: !!user && open,
+    enabled: !!user && isOpen,
   });
 
   // Fetch users that can be DMed (members of shared Pro clubs + mini-league parents) excluding app admins
@@ -223,7 +238,7 @@ export function StartDMDialog() {
 
       return { users, clubs, teams };
     },
-    enabled: !!user && open && hasProAccess === true,
+    enabled: !!user && isOpen && hasProAccess === true,
   });
 
   const dmableUsers = dmData?.users || [];
@@ -372,20 +387,15 @@ export function StartDMDialog() {
   const isClubFilterLocked = !!activeClubFilter;
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={(isOpen) => {
-      setOpen(isOpen);
-      if (!isOpen) {
+    <ResponsiveDialog open={isOpen} onOpenChange={(open) => {
+      setOpen(open);
+      if (!open) {
         setSelectedUsers([]);
         setSearchQuery("");
         setSelectedClubId(activeClubFilter || "all");
         setSelectedTeamId("all");
       }
     }}>
-      <Button variant="outline" size="sm" className="gap-2" onClick={() => setOpen(true)}>
-        <MessageCircle className="h-4 w-4" />
-        <span className="hidden sm:inline">New DM</span>
-      </Button>
-
       <ResponsiveDialogContent fullScreen className="sm:max-w-md sm:max-h-[85vh] flex flex-col p-0">
         <ResponsiveDialogHeader className="p-4 pb-2 border-b sm:border-b-0">
           <ResponsiveDialogTitle className="flex items-center gap-2">
