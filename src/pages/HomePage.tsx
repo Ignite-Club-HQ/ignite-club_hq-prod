@@ -2278,25 +2278,24 @@ export default function HomePage() {
           <div className="space-y-4 pt-4">
             {/* Only show club selector if not in club mode */}
             {!activeClubFilter ? (
-              <div className="space-y-2">
-                <Label>Select Club {clubs ? `(${clubs.length} available)` : "(loading...)"}</Label>
-                <SearchableSelect
-                  options={clubs?.map((club) => ({
-                    value: club.id,
-                    label: club.name,
-                    icon: <span>{getSportEmoji(club.sport)}</span>,
-                  })) || []}
-                  value={selectedClub}
-                  onValueChange={setSelectedClub}
-                  placeholder="Choose a club..."
-                  searchPlaceholder="Search clubs..."
-                  emptyMessage={clubsLoading ? "Loading clubs..." : clubsError ? `Error: ${clubsError.message}` : "No clubs found."}
-                />
-              </div>
+              <MobileCardSelect
+                value={selectedClub}
+                onValueChange={setSelectedClub}
+                options={clubs?.map((club) => ({
+                  value: club.id,
+                  label: club.name,
+                  icon: <span>{getSportEmoji(club.sport)}</span>,
+                })) || []}
+                label={`Select Club ${clubs ? `(${clubs.length} available)` : "(loading...)"}`}
+                placeholder="Choose a club..."
+                searchable
+                searchPlaceholder="Search clubs..."
+                emptyMessage={clubsLoading ? "Loading clubs..." : clubsError ? `Error: ${clubsError.message}` : "No clubs found."}
+              />
             ) : (
               <div className="space-y-2">
-                <Label>Club</Label>
-                <div className="flex items-center gap-2 p-2 rounded-md border bg-muted/50">
+                <label className="text-sm font-medium text-foreground">Club</label>
+                <div className="flex items-center gap-2 p-4 rounded-xl border-2 border-primary bg-primary/5">
                   <span>{getSportEmoji(clubs?.find(c => c.id === activeClubFilter)?.sport)}</span>
                   <span className="font-medium">{clubs?.find(c => c.id === activeClubFilter)?.name}</span>
                 </div>
@@ -2333,68 +2332,66 @@ export default function HomePage() {
           <div className="space-y-4 pt-4">
             {/* Only show club filter if not in club mode */}
             {!activeClubFilter && (
-              <div className="space-y-2">
-                <Label>Select Club (optional)</Label>
-                <SearchableSelect
-                  options={[
-                    { value: "all", label: "All clubs" },
-                    ...(clubs?.map((club) => ({
-                      value: club.id,
-                      label: club.name,
-                      icon: <span>{getSportEmoji(club.sport)}</span>,
-                    })) || [])
-                  ]}
-                  value={selectedClubForTeam || "all"}
-                  onValueChange={(v) => {
-                    setSelectedClubForTeam(v);
-                    setSelectedTeam(""); // Reset selection when club changes
-                  }}
-                  placeholder="All clubs..."
-                  searchPlaceholder="Search clubs..."
-                  emptyMessage="No clubs found."
-                />
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label>Select Team</Label>
-              <SearchableSelect
+              <MobileCardSelect
+                value={selectedClubForTeam || "all"}
+                onValueChange={(v) => {
+                  setSelectedClubForTeam(v);
+                  setSelectedTeam(""); // Reset selection when club changes
+                }}
                 options={[
-                  // Teams section
-                  ...(teams
-                    ?.filter(team => {
-                      if (activeClubFilter) {
-                        return team.club_id === activeClubFilter;
-                      }
-                      return !selectedClubForTeam || selectedClubForTeam === "all" || team.club_id === selectedClubForTeam;
-                    })
-                    .map((team) => ({
-                      value: team.id,
-                      label: activeClubFilter ? team.name : `${team.name} (${team.clubs?.name})`,
-                      icon: <span>{getSportEmoji(team.clubs?.sport)}</span>,
-                    })) || []),
-                  // Mini Leagues section - prefixed with "league_" to distinguish from teams
-                  ...(miniLeagues
-                    ?.filter(league => {
-                      if (activeClubFilter) {
-                        return league.club_id === activeClubFilter;
-                      }
-                      return !selectedClubForTeam || selectedClubForTeam === "all" || league.club_id === selectedClubForTeam;
-                    })
-                    .map((league) => ({
-                      value: `league_${league.id}`,
-                      label: activeClubFilter 
-                        ? `⭐ ${league.name} (League)` 
-                        : `⭐ ${league.name} (${league.clubs?.name}) - League`,
-                      icon: <span>⭐</span>,
-                    })) || []),
+                  { value: "all", label: "All clubs" },
+                  ...(clubs?.map((club) => ({
+                    value: club.id,
+                    label: club.name,
+                    icon: <span>{getSportEmoji(club.sport)}</span>,
+                  })) || [])
                 ]}
-                value={selectedTeam}
-                onValueChange={setSelectedTeam}
-                placeholder="Choose a team..."
-                searchPlaceholder="Search teams..."
-                emptyMessage="No teams found."
+                label="Select Club (optional)"
+                placeholder="All clubs..."
+                searchable
+                searchPlaceholder="Search clubs..."
+                emptyMessage="No clubs found."
               />
-            </div>
+            )}
+            <MobileCardSelect
+              value={selectedTeam}
+              onValueChange={setSelectedTeam}
+              options={[
+                // Teams section
+                ...(teams
+                  ?.filter(team => {
+                    if (activeClubFilter) {
+                      return team.club_id === activeClubFilter;
+                    }
+                    return !selectedClubForTeam || selectedClubForTeam === "all" || team.club_id === selectedClubForTeam;
+                  })
+                  .map((team) => ({
+                    value: team.id,
+                    label: activeClubFilter ? team.name : `${team.name} (${team.clubs?.name})`,
+                    icon: <span>{getSportEmoji(team.clubs?.sport)}</span>,
+                  })) || []),
+                // Mini Leagues section - prefixed with "league_" to distinguish from teams
+                ...(miniLeagues
+                  ?.filter(league => {
+                    if (activeClubFilter) {
+                      return league.club_id === activeClubFilter;
+                    }
+                    return !selectedClubForTeam || selectedClubForTeam === "all" || league.club_id === selectedClubForTeam;
+                  })
+                  .map((league) => ({
+                    value: `league_${league.id}`,
+                    label: activeClubFilter 
+                      ? `⭐ ${league.name} (League)` 
+                      : `⭐ ${league.name} (${league.clubs?.name}) - League`,
+                    icon: <span>⭐</span>,
+                  })) || []),
+              ]}
+              label="Select Team"
+              placeholder="Choose a team..."
+              searchable
+              searchPlaceholder="Search teams..."
+              emptyMessage="No teams found."
+            />
             {isLeagueSelected ? (
               <MobileCardSelect
                 value={selectedLeagueRole}
