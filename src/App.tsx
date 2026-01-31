@@ -91,8 +91,22 @@ const PageLoader = () => (
   </div>
 );
 
+// Read stored theme synchronously to match index.html bootstrap
+const getInitialTheme = (): 'light' | 'dark' => {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('app-theme');
+    if (stored === 'dark') return 'dark';
+    if (stored === 'light') return 'light';
+    // Check DOM class set by index.html script
+    if (document.documentElement.classList.contains('dark')) return 'dark';
+  }
+  return 'light'; // Default to light to match index.html
+};
+
+const INITIAL_THEME = getInitialTheme();
+
 const App = () => (
-  <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="app-theme">
+  <ThemeProvider attribute="class" defaultTheme={INITIAL_THEME} enableSystem={false} storageKey="app-theme">
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ClubThemeProvider>
