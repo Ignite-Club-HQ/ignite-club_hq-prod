@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Outlet, Navigate } from "react-router-dom";
 import { AppHeader } from "./AppHeader";
 import { BottomNav } from "./BottomNav";
@@ -7,32 +7,27 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
-import { useTheme } from "next-themes";
 import igniteIconLight from "@/assets/ignite-icon-light.png";
 import igniteIcon from "@/assets/ignite-icon.png";
+
+// Read theme from localStorage synchronously to prevent flash
+const getStoredTheme = () => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('app-theme') || 'light';
+  }
+  return 'light';
+};
 
 export function AppLayout() {
   const { user, profile, loading, profileLoading, profileError, refreshProfile } = useAuth();
   const { isThemeReady } = useClubTheme();
   const [retrying, setRetrying] = useState(false);
   const [themeTimeout, setThemeTimeout] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const { resolvedTheme } = useTheme();
   
-  // Prevent hydration mismatch - check localStorage for initial theme
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const getInitialTheme = () => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('app-theme') || 'dark';
-    }
-    return 'dark';
-  };
-
-  const isDark = mounted ? resolvedTheme === "dark" : getInitialTheme() === "dark";
-  const logo = isDark ? igniteIcon : igniteIconLight;
+  // Get theme synchronously from localStorage - no useEffect needed
+  // This is stable and doesn't cause re-renders
+  const storedTheme = useMemo(() => getStoredTheme(), []);
+  const logo = storedTheme === "dark" ? igniteIcon : igniteIconLight;
 
   // Debug logging for profile state - must be before any conditional returns
   useEffect(() => {
