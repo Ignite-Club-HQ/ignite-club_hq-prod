@@ -174,7 +174,7 @@ export default function VaultPage() {
     enabled: !!user,
   });
 
-  const { data: userRoles } = useQuery({
+  const { data: userRoles, isLoading: isLoadingRoles } = useQuery({
     queryKey: ["user-admin-roles", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -185,6 +185,15 @@ export default function VaultPage() {
     },
     enabled: !!user,
   });
+
+  // Check if user has vault access (admins and coaches only)
+  const hasVaultRoleAccess = useMemo(() => {
+    if (isAppAdmin) return true;
+    if (!userRoles) return false;
+    return userRoles.some(r => 
+      ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
+    );
+  }, [isAppAdmin, userRoles]);
 
   const { data: userClubs, isLoading: isLoadingClubs } = useQuery({
     queryKey: ["vault-clubs", user?.id, isAppAdmin],
@@ -717,8 +726,9 @@ export default function VaultPage() {
   });
 
   const hasProClub = proAccessInfo ?? false;
-  const isLoadingAccess = isLoadingAppAdmin || isLoadingProClub;
-  const canAccessVault = isAppAdmin || hasProClub;
+  const isLoadingAccess = isLoadingAppAdmin || isLoadingProClub || isLoadingRoles;
+  // Vault access requires: 1) Pro subscription AND 2) Admin/coach role
+  const canAccessVault = (isAppAdmin || hasProClub) && hasVaultRoleAccess;
 
   // Handle storage purchase success redirect
   useEffect(() => {
@@ -2546,6 +2556,9 @@ export default function VaultPage() {
   }
 
   if (!canAccessVault) {
+    // Determine if it's a role issue or a Pro subscription issue
+    const hasProButNoRole = hasProClub && !hasVaultRoleAccess;
+    
     return (
       <div className="py-6 space-y-6">
         <div className="flex items-center gap-2">
@@ -2558,22 +2571,33 @@ export default function VaultPage() {
             <div className="p-4 rounded-full bg-primary/10 w-fit mx-auto mb-4">
               <Lock className="h-8 w-8 text-primary" />
             </div>
-            <h3 className="font-semibold text-lg mb-2">Vault is a Pro Feature</h3>
-            <p className="text-muted-foreground text-sm mb-4">
-              Upgrade to Pro to unlock file storage.
-            </p>
-            <Badge variant="secondary" className="mb-4 bg-primary/20 text-primary">
-              <Crown className="h-3 w-3 mr-1" /> Pro Only
-            </Badge>
-            {(adminUpgradeInfo.clubId || adminUpgradeInfo.teamId) && (
-              <div className="mt-4">
-                <Link to={adminUpgradeInfo.teamId ? `/teams/${adminUpgradeInfo.teamId}/upgrade` : `/clubs/${adminUpgradeInfo.clubId}/upgrade`}>
-                  <Button size="sm">
-                    <Crown className="h-4 w-4 mr-2" />
-                    Upgrade to Pro
-                  </Button>
-                </Link>
-              </div>
+            {hasProButNoRole ? (
+              <>
+                <h3 className="font-semibold text-lg mb-2">Permission Required</h3>
+                <p className="text-muted-foreground text-sm mb-4">
+                  The File Vault is only accessible to club admins, team admins, coaches, and committee members.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3 className="font-semibold text-lg mb-2">Vault is a Pro Feature</h3>
+                <p className="text-muted-foreground text-sm mb-4">
+                  Upgrade to Pro to unlock file storage.
+                </p>
+                <Badge variant="secondary" className="mb-4 bg-primary/20 text-primary">
+                  <Crown className="h-3 w-3 mr-1" /> Pro Only
+                </Badge>
+                {(adminUpgradeInfo.clubId || adminUpgradeInfo.teamId) && (
+                  <div className="mt-4">
+                    <Link to={adminUpgradeInfo.teamId ? `/teams/${adminUpgradeInfo.teamId}/upgrade` : `/clubs/${adminUpgradeInfo.clubId}/upgrade`}>
+                      <Button size="sm">
+                        <Crown className="h-4 w-4 mr-2" />
+                        Upgrade to Pro
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
