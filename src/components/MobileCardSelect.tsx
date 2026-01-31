@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, ChevronRight } from "lucide-react";
+import { Check, ChevronRight, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
@@ -15,10 +15,12 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { Input } from "@/components/ui/input";
 
 interface Option {
   value: string;
   label: string;
+  icon?: React.ReactNode;
 }
 
 interface MobileCardSelectProps {
@@ -29,6 +31,9 @@ interface MobileCardSelectProps {
   label?: string;
   disabled?: boolean;
   required?: boolean;
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  emptyMessage?: string;
 }
 
 export function MobileCardSelect({
@@ -39,11 +44,26 @@ export function MobileCardSelect({
   label,
   disabled = false,
   required = false,
+  searchable = false,
+  searchPlaceholder = "Search...",
+  emptyMessage = "No options found.",
 }: MobileCardSelectProps) {
   const isMobile = useIsMobile();
   const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
 
   const selectedOption = options.find((opt) => opt.value === value);
+
+  const filteredOptions = searchable && search
+    ? options.filter((opt) => 
+        opt.label.toLowerCase().includes(search.toLowerCase())
+      )
+    : options;
+
+  // Reset search when drawer closes
+  React.useEffect(() => {
+    if (!open) setSearch("");
+  }, [open]);
 
   if (isMobile) {
     return (
@@ -67,9 +87,10 @@ export function MobileCardSelect({
               </span>
             )}
             <span className={cn(
-              "text-base font-medium",
+              "text-base font-medium flex items-center gap-2",
               !selectedOption && "text-muted-foreground"
             )}>
+              {selectedOption?.icon}
               {selectedOption?.label || placeholder}
             </span>
           </div>
@@ -81,29 +102,51 @@ export function MobileCardSelect({
             <DrawerHeader className="text-left">
               <DrawerTitle>{label || "Select"}</DrawerTitle>
             </DrawerHeader>
-            <div className="px-4 pb-8 space-y-2 max-h-[60vh] overflow-y-auto">
-              {options.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => {
-                    onValueChange(option.value);
-                    setOpen(false);
-                  }}
-                  className={cn(
-                    "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left",
-                    "hover:bg-accent/50",
-                    value === option.value
-                      ? "border-primary bg-primary/5"
-                      : "border-border bg-card"
-                  )}
-                >
-                  <span className="text-base font-medium">{option.label}</span>
-                  {value === option.value && (
-                    <Check className="h-5 w-5 text-primary" />
-                  )}
-                </button>
-              ))}
+            <div className="px-4 pb-8 space-y-3">
+              {searchable && (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={searchPlaceholder}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-10 h-11"
+                  />
+                </div>
+              )}
+              <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+                {filteredOptions.length === 0 ? (
+                  <div className="py-6 text-center text-muted-foreground">
+                    {emptyMessage}
+                  </div>
+                ) : (
+                  filteredOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        onValueChange(option.value);
+                        setOpen(false);
+                      }}
+                      className={cn(
+                        "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left",
+                        "hover:bg-accent/50",
+                        value === option.value
+                          ? "border-primary bg-primary/5"
+                          : "border-border bg-card"
+                      )}
+                    >
+                      <span className="text-base font-medium flex items-center gap-2">
+                        {option.icon}
+                        {option.label}
+                      </span>
+                      {value === option.value && (
+                        <Check className="h-5 w-5 text-primary" />
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
           </DrawerContent>
         </Drawer>
@@ -141,7 +184,10 @@ export function MobileCardSelect({
                 value={option.value}
                 className="py-3 text-base cursor-pointer"
               >
-                {option.label}
+                <span className="flex items-center gap-2">
+                  {option.icon}
+                  {option.label}
+                </span>
               </SelectItem>
             ))
           )}
