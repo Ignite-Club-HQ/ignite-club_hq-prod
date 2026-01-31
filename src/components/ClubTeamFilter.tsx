@@ -65,7 +65,10 @@ export function ClubTeamFilter({
   const selectedClub = clubs.find((c) => c.id === selectedClubId);
   const selectedTeam = teams.find((t) => t.id === selectedTeamId);
 
-  const hasActiveFilters = selectedClubId !== "all" || selectedTeamId !== "all";
+  // Only show clear button if there are visible filters with active selections
+  const showClubOption = showClubFilter && clubs.length > 1;
+  const showTeamOption = showTeamFilter && teams.length > 0;
+  const hasActiveFilters = (showClubOption && selectedClubId !== "all") || (showTeamOption && selectedTeamId !== "all");
 
   const handleClubSelect = (clubId: string) => {
     onClubChange(clubId);
@@ -84,9 +87,9 @@ export function ClubTeamFilter({
 
   if (isMobile) {
     return (
-      <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-2">
         {/* Mobile Club Filter */}
-        {showClubFilter && clubs.length > 1 && (
+        {showClubOption && (
           <>
             <Button
               variant="outline"
@@ -162,7 +165,7 @@ export function ClubTeamFilter({
         )}
 
         {/* Mobile Team Filter */}
-        {showTeamFilter && teams.length > 0 && (
+        {showTeamOption && (
           <>
             <Button
               variant="outline"
@@ -250,7 +253,7 @@ export function ClubTeamFilter({
   // Desktop: Standard select dropdowns
   return (
     <div className="flex flex-wrap items-center gap-3">
-      {showClubFilter && clubs.length > 1 && (
+      {showClubOption && (
         <Select value={selectedClubId} onValueChange={onClubChange}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="All Clubs" />
@@ -266,7 +269,7 @@ export function ClubTeamFilter({
         </Select>
       )}
 
-      {showTeamFilter && teams.length > 0 && (
+      {showTeamOption && (
         <Select value={selectedTeamId} onValueChange={onTeamChange}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="All Teams" />
