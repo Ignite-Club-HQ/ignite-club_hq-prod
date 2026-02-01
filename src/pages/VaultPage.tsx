@@ -2678,6 +2678,49 @@ export default function VaultPage() {
                         {isStorageLimitReached && (
                           <Badge variant="destructive" className="text-xs shrink-0">Full</Badge>
                         )}
+                        
+                        {/* More Dropdown - shown here when user can't upload (so it's not alone in toolbar) */}
+                        {!canUpload && !selectionMode && !isExporting && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-popover">
+                              {(photos?.length > 0 || files?.length > 0 || subfolders?.length > 0) && (
+                                <>
+                                  <DropdownMenuItem onClick={() => initiateExport('zip')}>
+                                    <FileArchive className="h-4 w-4 mr-2" />
+                                    Export as ZIP
+                                  </DropdownMenuItem>
+                                  {(subfolders && subfolders.length > 0) && (
+                                    <DropdownMenuItem onClick={() => initiateExport('zipAll')}>
+                                      <FolderDown className="h-4 w-4 mr-2" />
+                                      ZIP All (with subfolders)
+                                    </DropdownMenuItem>
+                                  )}
+                                </>
+                              )}
+                              {(isClubAdmin || isAppAdmin) && (
+                                <DropdownMenuItem onClick={() => setShowTrash(!showTrash)}>
+                                  {showTrash ? (
+                                    <>
+                                      <FolderOpen className="h-4 w-4 mr-2" />
+                                      View Files
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      View Trash
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                        
                         <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-data-[state=open]:rotate-180" />
                       </div>
                     );
@@ -3012,45 +3055,47 @@ export default function VaultPage() {
                     </DropdownMenu>
                   )}
 
-                  {/* More Dropdown - Export, ZIP All, View Trash */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-9 w-9">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-popover">
-                      {(photos?.length > 0 || files?.length > 0 || subfolders?.length > 0) && (
-                        <>
-                          <DropdownMenuItem onClick={() => initiateExport('zip')}>
-                            <FileArchive className="h-4 w-4 mr-2" />
-                            Export as ZIP
-                          </DropdownMenuItem>
-                          {(subfolders && subfolders.length > 0) && (
-                            <DropdownMenuItem onClick={() => initiateExport('zipAll')}>
-                              <FolderDown className="h-4 w-4 mr-2" />
-                              ZIP All (with subfolders)
+                  {/* More Dropdown - Export, ZIP All, View Trash - only shown here when user can upload */}
+                  {canUpload && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="icon" className="h-9 w-9">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-popover">
+                        {(photos?.length > 0 || files?.length > 0 || subfolders?.length > 0) && (
+                          <>
+                            <DropdownMenuItem onClick={() => initiateExport('zip')}>
+                              <FileArchive className="h-4 w-4 mr-2" />
+                              Export as ZIP
                             </DropdownMenuItem>
-                          )}
-                        </>
-                      )}
-                      {(isClubAdmin || isAppAdmin) && (
-                        <DropdownMenuItem onClick={() => setShowTrash(!showTrash)}>
-                          {showTrash ? (
-                            <>
-                              <FolderOpen className="h-4 w-4 mr-2" />
-                              View Files
-                            </>
-                          ) : (
-                            <>
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              View Trash
-                            </>
-                          )}
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                            {(subfolders && subfolders.length > 0) && (
+                              <DropdownMenuItem onClick={() => initiateExport('zipAll')}>
+                                <FolderDown className="h-4 w-4 mr-2" />
+                                ZIP All (with subfolders)
+                              </DropdownMenuItem>
+                            )}
+                          </>
+                        )}
+                        {(isClubAdmin || isAppAdmin) && (
+                          <DropdownMenuItem onClick={() => setShowTrash(!showTrash)}>
+                            {showTrash ? (
+                              <>
+                                <FolderOpen className="h-4 w-4 mr-2" />
+                                View Files
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                View Trash
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </>
               )}
             </TooltipProvider>
