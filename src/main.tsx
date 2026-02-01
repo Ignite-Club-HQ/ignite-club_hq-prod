@@ -5,8 +5,21 @@
 (function captureOAuthCallbackBeforeAnythingElse() {
   try {
     const urlParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
     const code = urlParams.get('code');
     const error = urlParams.get('error');
+    
+    // Check if this is a Supabase OAuth callback with tokens in hash
+    // This happens when Google OAuth redirects back to the app
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token');
+    
+    if (accessToken && refreshToken) {
+      console.log("[Main] EARLY CAPTURE: Supabase OAuth tokens detected in hash");
+      // The tokens are in the hash - Supabase client will automatically detect them
+      // Just log for debugging - the client handles this automatically
+      // Do NOT clear the hash here - let Supabase client process it first
+    }
     
     // Check if this looks like a Google Drive OAuth callback (has code and we're on /vault)
     if (window.location.pathname === '/vault' && code) {
