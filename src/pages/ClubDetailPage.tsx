@@ -941,7 +941,7 @@ export default function ClubDetailPage() {
       })()}
 
       {/* Collapsible Sections */}
-      <Accordion type="multiple" defaultValue={["teams", "admin", "app-admin"]} className="space-y-4">
+      <Accordion type="multiple" defaultValue={[]} className="space-y-4">
         {/* Teams Section */}
         <AccordionItem value="teams" className="border rounded-lg px-4">
           <AccordionTrigger className="hover:no-underline">
@@ -1410,7 +1410,7 @@ export default function ClubDetailPage() {
 
       {/* Mini Leagues Section */}
       {(isAdmin || miniLeagues.length > 0) && (
-        <Accordion type="multiple" defaultValue={miniLeagues.length > 0 ? ["mini-leagues"] : []} className="space-y-4">
+        <Accordion type="multiple" defaultValue={[]} className="space-y-4">
           <AccordionItem value="mini-leagues" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center gap-2">

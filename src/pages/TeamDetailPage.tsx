@@ -782,7 +782,7 @@ export default function TeamDetailPage() {
 
       {/* Collapsible Sections */}
       {(isMember || isClubAdmin) && (
-        <Accordion type="multiple" defaultValue={["members", "chat-groups"]} className="space-y-4">
+        <Accordion type="multiple" defaultValue={[]} className="space-y-4">
           {/* Members Section - expanded by default */}
           <AccordionItem value="members" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
