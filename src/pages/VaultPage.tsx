@@ -4856,7 +4856,10 @@ function TrashSection({
                       variant="ghost"
                       size="sm"
                       className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                      onClick={() => onRestorePhoto(photo.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRestorePhoto(photo.id);
+                      }}
                     >
                       <RotateCcw className="h-4 w-4 mr-1" />
                       Restore
@@ -4864,11 +4867,15 @@ function TrashSection({
                     {onPermanentDeletePhoto && (
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => onPermanentDeletePhoto(photo.id)}
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPermanentDeletePhoto(photo.id);
+                        }}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete
                       </Button>
                     )}
                   </div>
@@ -4907,7 +4914,10 @@ function TrashSection({
                       variant="ghost"
                       size="sm"
                       className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                      onClick={() => onRestoreFile(file.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRestoreFile(file.id);
+                      }}
                     >
                       <RotateCcw className="h-4 w-4 mr-1" />
                       Restore
@@ -4915,11 +4925,15 @@ function TrashSection({
                     {onPermanentDeleteFile && (
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => onPermanentDeleteFile(file.id)}
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPermanentDeleteFile(file.id);
+                        }}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete
                       </Button>
                     )}
                   </div>
