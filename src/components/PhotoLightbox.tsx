@@ -148,45 +148,50 @@ export function PhotoLightbox({
           onTouchEnd={handleTouchEnd}
           onDoubleClick={handleDoubleClick}
         >
-          {/* Close button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-4 right-4 z-50 text-white hover:bg-white/20"
-            onClick={onClose}
-          >
-            <X className="h-6 w-6" />
-          </Button>
+          {/* Top toolbar with dark background for visibility */}
+          <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-gradient-to-b from-black/70 to-transparent">
+            {/* Left side - Delete button */}
+            <div>
+              {canDelete && onDelete && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-white/20 bg-black/40 rounded-full"
+                  onClick={() => onDelete(currentPhoto.id)}
+                >
+                  <Trash2 className="h-5 w-5" />
+                </Button>
+              )}
+            </div>
+            
+            {/* Right side - Report and Close buttons */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-white/20 bg-black/40 rounded-full"
+                onClick={() => setReportDialogOpen(true)}
+                title="Report photo"
+              >
+                <Flag className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-white/20 bg-black/40 rounded-full"
+                onClick={onClose}
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
 
-          {/* Delete button */}
-          {canDelete && onDelete && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-4 left-4 z-50 text-destructive hover:bg-destructive/20"
-              onClick={() => onDelete(currentPhoto.id)}
-            >
-              <Trash2 className="h-6 w-6" />
-            </Button>
-          )}
-
-          {/* Report button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-4 right-16 z-50 text-white hover:bg-white/20"
-            onClick={() => setReportDialogOpen(true)}
-            title="Report photo"
-          >
-            <Flag className="h-5 w-5" />
-          </Button>
-
-          {/* Navigation */}
+          {/* Navigation buttons with dark backgrounds */}
           {currentIndex > 0 && (
             <Button
               variant="ghost"
               size="icon"
-              className="absolute left-4 z-50 text-white hover:bg-white/20"
+              className="absolute left-4 z-50 text-white hover:bg-white/20 bg-black/40 rounded-full"
               onClick={handlePrev}
             >
               <ChevronLeft className="h-8 w-8" />
@@ -197,7 +202,7 @@ export function PhotoLightbox({
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-4 z-50 text-white hover:bg-white/20"
+              className="absolute right-4 z-50 text-white hover:bg-white/20 bg-black/40 rounded-full"
               onClick={handleNext}
             >
               <ChevronRight className="h-8 w-8" />
@@ -213,8 +218,8 @@ export function PhotoLightbox({
             translateY={translateY}
           />
 
-          {/* Counter */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/80 text-sm">
+          {/* Counter with dark background */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm px-3 py-1 bg-black/50 rounded-full">
             {currentIndex + 1} / {photos.length}
           </div>
         </div>
