@@ -433,6 +433,18 @@ export default function EventsPage() {
             </Button>
           )}
           {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link to="/events/import">
+                  <Button size="icon" variant="outline">
+                    <Upload className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent>Import Fixtures</TooltipContent>
+            </Tooltip>
+          )}
+          {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
             <Link to="/events/new">
               <Button size="icon" variant="default">
                 <Plus className="h-4 w-4" />
@@ -459,18 +471,6 @@ export default function EventsPage() {
                 getSportEmoji={getSportEmoji}
               />
 
-              {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Link to="/events/import">
-                      <Button size="icon" variant="outline" className="h-10 w-10 sm:h-9 sm:w-9">
-                        <Upload className="h-4 w-4" />
-                      </Button>
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent>Import Fixtures</TooltipContent>
-                </Tooltip>
-              )}
             </div>
           </Card>
         </CollapsibleContent>
