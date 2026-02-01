@@ -2780,45 +2780,47 @@ export default function VaultPage() {
                       </Collapsible>
                     )}
                     
-                    {/* Manage Large Files Button - only show when near storage limit (>80%) */}
-                    {(totalClubStorageUsed / PRO_STORAGE_LIMIT) >= 0.8 && (
-                      <div className="pt-3 border-t space-y-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="w-full"
-                          onClick={() => {
-                            setLargeFilesDialogOpen(true);
-                            fetchLargeFiles();
-                          }}
-                        >
-                          <HardDrive className="h-4 w-4 mr-2" />
-                          Manage Large Files
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="w-full"
-                          onClick={() => setStoragePurchaseDialogOpen(true)}
-                        >
-                          <ShoppingCart className="h-4 w-4 mr-2" />
-                          {purchasedStorageGb > 0 ? "Manage Storage" : "Buy More Storage"}
-                        </Button>
-                      </div>
-                    )}
-                    
-                    {/* Buy/Manage storage button - show when storage is less than 80% but user is club admin */}
-                    {isClubAdmin && (totalClubStorageUsed / PRO_STORAGE_LIMIT) < 0.8 && (
-                      <div className="pt-3 border-t">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="w-full text-muted-foreground"
-                          onClick={() => setStoragePurchaseDialogOpen(true)}
-                        >
-                          <ShoppingCart className="h-4 w-4 mr-2" />
-                          {purchasedStorageGb > 0 ? "Manage Storage" : "Buy Storage"}
-                        </Button>
+                    {/* Compact action icons row */}
+                    {(isClubAdmin || (totalClubStorageUsed / PRO_STORAGE_LIMIT) >= 0.8) && (
+                      <div className="pt-3 border-t flex items-center gap-2">
+                        <TooltipProvider>
+                          {/* Large Files - only when storage >= 80% */}
+                          {(totalClubStorageUsed / PRO_STORAGE_LIMIT) >= 0.8 && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="outline" 
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => {
+                                    setLargeFilesDialogOpen(true);
+                                    fetchLargeFiles();
+                                  }}
+                                >
+                                  <HardDrive className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Manage Large Files</TooltipContent>
+                            </Tooltip>
+                          )}
+                          
+                          {/* Buy/Manage Storage */}
+                          {isClubAdmin && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  variant="outline" 
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => setStoragePurchaseDialogOpen(true)}
+                                >
+                                  <ShoppingCart className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{purchasedStorageGb > 0 ? "Manage Storage" : "Buy Storage"}</TooltipContent>
+                            </Tooltip>
+                          )}
+                        </TooltipProvider>
                       </div>
                     )}
                   </div>
