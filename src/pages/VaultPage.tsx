@@ -122,6 +122,16 @@ export default function VaultPage() {
   const [moveFileDialogOpen, setMoveFileDialogOpen] = useState(false);
   const [fileToMove, setFileToMove] = useState<{ id: string; name: string; folder_id: string | null; team_id?: string | null } | null>(null);
   const [googleDriveImportOpen, setGoogleDriveImportOpen] = useState(false);
+  const [folderExportDialogOpen, setFolderExportDialogOpen] = useState(false);
+  const [folderExportData, setFolderExportData] = useState<{
+    folderId: string;
+    folderName: string;
+    photos: any[];
+    files: any[];
+    selectedPhotos: Set<string>;
+    selectedFiles: Set<string>;
+    loading: boolean;
+  } | null>(null);
 
   const togglePhotoSelection = (photoId: string) => {
     setSelectedPhotos(prev => {
@@ -2311,6 +2321,168 @@ export default function VaultPage() {
     }
   };
 
+  // Open folder export dialog - fetches folder contents and opens selection dialog
+  const openFolderExportDialog = async (folder: { id: string; name: string }) => {
+    const clubId = getCurrentClubId();
+    const teamId = getCurrentTeamId();
+
+    setFolderExportData({
+      folderId: folder.id,
+      folderName: folder.name,
+      photos: [],
+      files: [],
+      selectedPhotos: new Set(),
+      selectedFiles: new Set(),
+      loading: true,
+    });
+    setFolderExportDialogOpen(true);
+
+    try {
+      const contents = await fetchFolderContents(folder.id, clubId, teamId, "");
+      setFolderExportData({
+        folderId: folder.id,
+        folderName: folder.name,
+        photos: contents.photos,
+        files: contents.files,
+        selectedPhotos: new Set(contents.photos.map((p: any) => p.id)),
+        selectedFiles: new Set(contents.files.map((f: any) => f.id)),
+        loading: false,
+      });
+    } catch (error) {
+      console.error("Failed to fetch folder contents for export:", error);
+      toast.error("Failed to load folder contents");
+      setFolderExportDialogOpen(false);
+    }
+  };
+
+  const toggleFolderExportPhotoSelection = (photoId: string) => {
+    if (!folderExportData) return;
+    const newSelected = new Set(folderExportData.selectedPhotos);
+    if (newSelected.has(photoId)) {
+      newSelected.delete(photoId);
+    } else {
+      newSelected.add(photoId);
+    }
+    setFolderExportData({ ...folderExportData, selectedPhotos: newSelected });
+  };
+
+  const toggleFolderExportFileSelection = (fileId: string) => {
+    if (!folderExportData) return;
+    const newSelected = new Set(folderExportData.selectedFiles);
+    if (newSelected.has(fileId)) {
+      newSelected.delete(fileId);
+    } else {
+      newSelected.add(fileId);
+    }
+    setFolderExportData({ ...folderExportData, selectedFiles: newSelected });
+  };
+
+  const selectAllFolderExportItems = () => {
+    if (!folderExportData) return;
+    setFolderExportData({
+      ...folderExportData,
+      selectedPhotos: new Set(folderExportData.photos.map((p: any) => p.id)),
+      selectedFiles: new Set(folderExportData.files.map((f: any) => f.id)),
+    });
+  };
+
+  const deselectAllFolderExportItems = () => {
+    if (!folderExportData) return;
+    setFolderExportData({
+      ...folderExportData,
+      selectedPhotos: new Set(),
+      selectedFiles: new Set(),
+    });
+  };
+
+  const exportSelectedFolderItems = async () => {
+    if (!folderExportData) return;
+    
+    const photosToExport = folderExportData.photos.filter((p: any) => folderExportData.selectedPhotos.has(p.id));
+    const filesToExport = folderExportData.files.filter((f: any) => folderExportData.selectedFiles.has(f.id));
+    
+    if (photosToExport.length === 0 && filesToExport.length === 0) {
+      toast.error("No items selected for export");
+      return;
+    }
+    
+    setFolderExportDialogOpen(false);
+    
+    // Use ZIP export for multiple files
+    const totalItems = photosToExport.length + filesToExport.length;
+    if (totalItems > 1) {
+      // Create ZIP
+      exportAbortController.current = new AbortController();
+      const signal = exportAbortController.current.signal;
+      
+      setExportProgress({ current: 0, total: totalItems });
+      setIsExporting(true);
+      
+      try {
+        const zip = new JSZip();
+        let downloadCount = 0;
+        
+        for (const photo of photosToExport) {
+          if (signal.aborted) throw new Error("Export cancelled");
+          try {
+            const response = await fetch(photo.file_url);
+            const blob = await response.blob();
+            const filename = photo.title || `photo-${photo.id}.jpg`;
+            zip.file(filename, blob);
+          } catch (err) {
+            console.error(`Failed to fetch photo: ${photo.id}`, err);
+          }
+          downloadCount++;
+          setExportProgress({ current: downloadCount, total: totalItems });
+        }
+        
+        for (const file of filesToExport) {
+          if (signal.aborted) throw new Error("Export cancelled");
+          try {
+            const response = await fetch(file.file_url);
+            const blob = await response.blob();
+            zip.file(file.name, blob);
+          } catch (err) {
+            console.error(`Failed to fetch file: ${file.id}`, err);
+          }
+          downloadCount++;
+          setExportProgress({ current: downloadCount, total: totalItems });
+        }
+        
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        const blobUrl = window.URL.createObjectURL(zipBlob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = `${folderExportData.folderName}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+        
+        toast.success(`Exported ${totalItems} items as ZIP`);
+      } catch (error: any) {
+        if (error.message === "Export cancelled") {
+          toast.info("Export cancelled");
+        } else {
+          toast.error("Export failed");
+        }
+      } finally {
+        setIsExporting(false);
+        setExportProgress({ current: 0, total: 0 });
+        exportAbortController.current = null;
+      }
+    } else {
+      // Single file - just download
+      const item = photosToExport[0] || filesToExport[0];
+      if (item) {
+        await downloadFile(item.file_url, item.title || item.name || 'file');
+        toast.success("Downloaded file");
+      }
+    }
+    
+    setFolderExportData(null);
+  };
+
   const toggleFolderExclusion = (folderPath: string) => {
     setExcludedFolders(prev => {
       const newSet = new Set(prev);
@@ -3322,6 +3494,7 @@ export default function VaultPage() {
                   folder={folder}
                   onNavigate={() => navigateToFolder({ id: folder.id, name: folder.name })}
                   onShare={() => shareFolder(folder.id)}
+                  onExport={() => openFolderExportDialog({ id: folder.id, name: folder.name })}
                   onRename={() => {
                     setRenameFolderId(folder.id);
                     setRenameFolderName(folder.name);
@@ -3395,6 +3568,7 @@ export default function VaultPage() {
                   folder={folder}
                   onNavigate={() => navigateToFolder({ id: folder.id, name: folder.name })}
                   onShare={() => shareFolder(folder.id)}
+                  onExport={() => openFolderExportDialog({ id: folder.id, name: folder.name })}
                   onRename={() => {
                     setRenameFolderId(folder.id);
                     setRenameFolderName(folder.name);
@@ -3945,6 +4119,128 @@ export default function VaultPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Folder Export Selection Dialog */}
+      <Dialog open={folderExportDialogOpen} onOpenChange={(open) => {
+        setFolderExportDialogOpen(open);
+        if (!open) setFolderExportData(null);
+      }}>
+        <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5" />
+              Export: {folderExportData?.folderName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {folderExportData?.loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-muted-foreground">Loading folder contents...</span>
+              </div>
+            ) : folderExportData ? (
+              <>
+                {/* Selection controls */}
+                <div className="flex items-center justify-between mb-3 gap-2">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={selectAllFolderExportItems}
+                    >
+                      <CheckSquare className="h-4 w-4 mr-1" />
+                      Select All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={deselectAllFolderExportItems}
+                    >
+                      <Square className="h-4 w-4 mr-1" />
+                      Deselect All
+                    </Button>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {folderExportData.selectedPhotos.size + folderExportData.selectedFiles.size} selected
+                  </span>
+                </div>
+
+                {/* Items list */}
+                <div className="flex-1 overflow-y-auto space-y-3">
+                  {folderExportData.photos.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-medium text-muted-foreground">Photos ({folderExportData.photos.length})</h3>
+                      {folderExportData.photos.map((photo: any) => (
+                        <div
+                          key={photo.id}
+                          className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-accent/50 ${
+                            folderExportData.selectedPhotos.has(photo.id) ? 'bg-accent/50' : ''
+                          }`}
+                          onClick={() => toggleFolderExportPhotoSelection(photo.id)}
+                        >
+                          <Checkbox
+                            checked={folderExportData.selectedPhotos.has(photo.id)}
+                            onCheckedChange={() => toggleFolderExportPhotoSelection(photo.id)}
+                          />
+                          <img
+                            src={photo.file_url}
+                            alt={photo.title || "Photo"}
+                            className="h-10 w-10 object-cover rounded"
+                          />
+                          <span className="text-sm truncate flex-1">{photo.title || "Untitled photo"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {folderExportData.files.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-medium text-muted-foreground">Files ({folderExportData.files.length})</h3>
+                      {folderExportData.files.map((file: any) => (
+                        <div
+                          key={file.id}
+                          className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-accent/50 ${
+                            folderExportData.selectedFiles.has(file.id) ? 'bg-accent/50' : ''
+                          }`}
+                          onClick={() => toggleFolderExportFileSelection(file.id)}
+                        >
+                          <Checkbox
+                            checked={folderExportData.selectedFiles.has(file.id)}
+                            onCheckedChange={() => toggleFolderExportFileSelection(file.id)}
+                          />
+                          <div className="p-2 rounded-lg bg-primary/10">
+                            <FileText className="h-4 w-4 text-primary" />
+                          </div>
+                          <span className="text-sm truncate flex-1">{file.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {folderExportData.photos.length === 0 && folderExportData.files.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <FolderOpen className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                      <p>This folder is empty</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Export button */}
+                <div className="pt-4 border-t mt-4">
+                  <Button
+                    className="w-full"
+                    onClick={exportSelectedFolderItems}
+                    disabled={folderExportData.selectedPhotos.size + folderExportData.selectedFiles.size === 0}
+                  >
+                    <FileArchive className="h-4 w-4 mr-1" />
+                    Export {folderExportData.selectedPhotos.size + folderExportData.selectedFiles.size} Items as ZIP
+                  </Button>
+                </div>
+              </>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Storage Purchase Dialog */}
       {currentClub && (
         <StoragePurchaseDialog
@@ -3973,7 +4269,7 @@ export default function VaultPage() {
   );
 }
 
-// Photo item that only appears once the image is loaded
+// Photo item with three-dot menu for actions
 function VaultPhotoItem({
   photo,
   index,
@@ -4003,8 +4299,6 @@ function VaultPhotoItem({
 }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const touchTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Use file_url or image_url (mini-league photos use image_url)
   const rawPhotoUrl = photo.file_url || photo.image_url;
@@ -4054,36 +4348,7 @@ function VaultPhotoItem({
     );
   }
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-    touchTimerRef.current = setTimeout(() => {
-      // Long press detected - enter selection mode and select this photo
-      if (!selectionMode && onToggleSelection) {
-        onCheckboxClick(photo.id, e as any);
-      }
-    }, 500);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchTimerRef.current && touchStartRef.current) {
-      const touch = e.touches[0];
-      const dx = Math.abs(touch.clientX - touchStartRef.current.x);
-      const dy = Math.abs(touch.clientY - touchStartRef.current.y);
-      // Cancel if moved more than 10px
-      if (dx > 10 || dy > 10) {
-        clearTimeout(touchTimerRef.current);
-        touchTimerRef.current = null;
-      }
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (touchTimerRef.current) {
-      clearTimeout(touchTimerRef.current);
-      touchTimerRef.current = null;
-    }
-  };
+  const hasActions = onDownload || (canRename && onRename) || canDelete;
 
   return (
     <div className="relative group">
@@ -4097,9 +4362,6 @@ function VaultPhotoItem({
         }`}
         draggable={false}
         onContextMenu={(e) => e.preventDefault()}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
         onClick={() => {
           if (selectionMode && onToggleSelection) {
             onToggleSelection(photo.id);
@@ -4122,47 +4384,53 @@ function VaultPhotoItem({
           className="h-5 w-5 bg-background/80 border-2"
         />
       </div>
-      {!selectionMode && (
-        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {onDownload && (
-            <Button
-              variant="secondary"
-              size="icon"
-              className="h-6 w-6"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDownload(photoUrl, photo.title || `photo-${photo.id}.jpg`);
-              }}
-            >
-              <Download className="h-3 w-3" />
-            </Button>
-          )}
-          {canRename && onRename && (
-            <Button
-              variant="secondary"
-              size="icon"
-              className="h-6 w-6"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRename(photo);
-              }}
-            >
-              <Pencil className="h-3 w-3" />
-            </Button>
-          )}
-          {canDelete && (
-            <Button
-              variant="destructive"
-              size="icon"
-              className="h-6 w-6"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(photo.id);
-              }}
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          )}
+      {/* Three-dot menu for actions - shown when not in selection mode */}
+      {!selectionMode && hasActions && (
+        <div className="absolute top-1 right-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="secondary"
+                size="icon"
+                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-popover">
+              {onDownload && (
+                <DropdownMenuItem onClick={(e) => {
+                  e.stopPropagation();
+                  onDownload(photoUrl, photo.title || `photo-${photo.id}.jpg`);
+                }}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </DropdownMenuItem>
+              )}
+              {canRename && onRename && (
+                <DropdownMenuItem onClick={(e) => {
+                  e.stopPropagation();
+                  onRename(photo);
+                }}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Rename
+                </DropdownMenuItem>
+              )}
+              {canDelete && (
+                <DropdownMenuItem 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(photo.id);
+                  }}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
     </div>
@@ -4502,159 +4770,96 @@ function ContentSection({
                           )}
                         </>
                       ) : (
-                        <>
-                          {/* For external links - show Open button */}
-                          {isExternalLink ? (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-primary hover:text-primary"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      window.open(file.file_url, "_blank");
-                                    }}
-                                  >
-                                    <ExternalLink className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Open {externalLinkInfo?.type || 'Link'}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          ) : (
-                            <>
-                              {isSpreadsheetFile(file.name || '') && (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          openInGoogleSheets(file.file_url, file.name || 'spreadsheet', toast);
-                                        }}
-                                      >
-                                        <Sheet className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Open in Google Sheets</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
-                              {/* Google Drive button for documents */}
-                              {isDocumentFile(file.name || '') && (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          openInGoogleDrive(file.file_url, file.name || 'document', toast);
-                                        }}
-                                      >
-                                        <HardDrive className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Open in Google Drive</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
-                              {/* Dropbox button for all files */}
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        openInDropbox(file.file_url, file.name || 'file', toast);
-                                      }}
-                                    >
-                                      <ExternalLink className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Open in Dropbox</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  window.open(file.file_url, "_blank");
-                                }}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-                          {canMoveFile?.(file) && onMoveFile && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onMoveFile(file);
-                                    }}
-                                  >
-                                    <FolderDown className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Move to folder</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                          {canRenameFile?.(file) && onRenameFile && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={(e) => {
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="bg-popover">
+                            {/* Download / Open */}
+                            {isExternalLink ? (
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(file.file_url, "_blank");
+                              }}>
+                                <ExternalLink className="h-4 w-4 mr-2" />
+                                Open {externalLinkInfo?.type || 'Link'}
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(file.file_url, "_blank");
+                              }}>
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </DropdownMenuItem>
+                            )}
+                            
+                            {/* Open in Google Sheets - for spreadsheets */}
+                            {!isExternalLink && isSpreadsheetFile(file.name || '') && (
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation();
+                                openInGoogleSheets(file.file_url, file.name || 'spreadsheet', toast);
+                              }}>
+                                <Sheet className="h-4 w-4 mr-2" />
+                                Open in Google Sheets
+                              </DropdownMenuItem>
+                            )}
+                            
+                            {/* Open in Google Drive - for documents */}
+                            {!isExternalLink && isDocumentFile(file.name || '') && (
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation();
+                                openInGoogleDrive(file.file_url, file.name || 'document', toast);
+                              }}>
+                                <HardDrive className="h-4 w-4 mr-2" />
+                                Open in Google Drive
+                              </DropdownMenuItem>
+                            )}
+                            
+                            {/* Move to folder */}
+                            {canMoveFile?.(file) && onMoveFile && (
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation();
+                                onMoveFile(file);
+                              }}>
+                                <FolderDown className="h-4 w-4 mr-2" />
+                                Move to Folder
+                              </DropdownMenuItem>
+                            )}
+                            
+                            {/* Rename */}
+                            {canRenameFile?.(file) && onRenameFile && (
+                              <DropdownMenuItem onClick={(e) => {
                                 e.stopPropagation();
                                 onRenameFile(file);
-                              }}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {canDeleteFile(file) && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDeleteFile(file.id);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </>
+                              }}>
+                                <Pencil className="h-4 w-4 mr-2" />
+                                Rename
+                              </DropdownMenuItem>
+                            )}
+                            
+                            {/* Delete */}
+                            {canDeleteFile(file) && (
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteFile(file.id);
+                                }}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </div>
                   )}
