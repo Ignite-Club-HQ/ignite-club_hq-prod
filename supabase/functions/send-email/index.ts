@@ -18,6 +18,7 @@ import { DutyAssignedEmail } from "./_templates/duty-assigned.tsx";
 import { PointsAwardedEmail } from "./_templates/points-awarded.tsx";
 import { RewardRedeemedEmail } from "./_templates/reward-redeemed.tsx";
 import { GameStatsReadyEmail } from "./_templates/game-stats-ready.tsx";
+import { JoinRequestResponseEmail } from "./_templates/join-request-response.tsx";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -58,7 +59,8 @@ type TemplateType =
   | "duty-assigned"
   | "points-awarded"
   | "reward-redeemed"
-  | "game-stats-ready";
+  | "game-stats-ready"
+  | "join-request-response";
 
 interface EmailRequest {
   to: string | string[];
@@ -67,7 +69,7 @@ interface EmailRequest {
   from?: string;
   // Template-based email
   template?: TemplateType;
-  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData | SubscriptionRenewedTemplateData | PaymentFailedTemplateData | PhotoUploadedTemplateData | PitchBoardNotificationTemplateData | DutyAssignedTemplateData | PointsAwardedTemplateData | RewardRedeemedTemplateData | GameStatsReadyTemplateData;
+  templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData | SubscriptionRenewedTemplateData | PaymentFailedTemplateData | PhotoUploadedTemplateData | PitchBoardNotificationTemplateData | DutyAssignedTemplateData | PointsAwardedTemplateData | RewardRedeemedTemplateData | GameStatsReadyTemplateData | JoinRequestResponseTemplateData;
 }
 
 interface TeamInviteTemplateData {
@@ -252,6 +254,17 @@ interface GameStatsReadyTemplateData {
   totalGameTime: string;
   reportLink: string;
   clubName: string;
+  clubLogoUrl?: string;
+  primaryColor?: string;
+}
+
+interface JoinRequestResponseTemplateData {
+  recipientName: string;
+  teamName?: string;
+  clubName: string;
+  roleName: string;
+  approved: boolean;
+  teamLink?: string;
   clubLogoUrl?: string;
   primaryColor?: string;
 }
@@ -559,6 +572,20 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           totalGameTime: data.totalGameTime,
           reportLink: data.reportLink,
           clubName: data.clubName,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+        })
+      );
+    
+    case "join-request-response":
+      return await renderAsync(
+        React.createElement(JoinRequestResponseEmail, {
+          recipientName: data.recipientName,
+          teamName: data.teamName,
+          clubName: data.clubName,
+          roleName: data.roleName,
+          approved: data.approved,
+          teamLink: data.teamLink,
           clubLogoUrl: data.clubLogoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
         })
