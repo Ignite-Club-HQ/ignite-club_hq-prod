@@ -2783,9 +2783,9 @@ export default function VaultPage() {
                     {/* Compact action icons row */}
                     {(isClubAdmin || (totalClubStorageUsed / PRO_STORAGE_LIMIT) >= 0.8) && (
                       <div className="pt-3 border-t flex items-center gap-2">
-                        <TooltipProvider>
-                          {/* Large Files - only when storage >= 80% */}
-                          {(totalClubStorageUsed / PRO_STORAGE_LIMIT) >= 0.8 && (
+                        {/* Large Files - only when storage >= 80% */}
+                        {(totalClubStorageUsed / PRO_STORAGE_LIMIT) >= 0.8 && (
+                          <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button 
@@ -2802,10 +2802,12 @@ export default function VaultPage() {
                               </TooltipTrigger>
                               <TooltipContent>Manage Large Files</TooltipContent>
                             </Tooltip>
-                          )}
-                          
-                          {/* Buy/Manage Storage */}
-                          {isClubAdmin && (
+                          </TooltipProvider>
+                        )}
+                        
+                        {/* Buy/Manage Storage */}
+                        {isClubAdmin && (
+                          <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button 
@@ -2819,8 +2821,8 @@ export default function VaultPage() {
                               </TooltipTrigger>
                               <TooltipContent>{purchasedStorageGb > 0 ? "Manage Storage" : "Buy Storage"}</TooltipContent>
                             </Tooltip>
-                          )}
-                        </TooltipProvider>
+                          </TooltipProvider>
+                        )}
                       </div>
                     )}
                   </div>
