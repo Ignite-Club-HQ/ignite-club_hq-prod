@@ -47,7 +47,7 @@ export default function ImportFixturesPage() {
         .from("user_roles")
         .select("team_id, club_id")
         .eq("user_id", user!.id)
-        .in("role", ["team_admin", "coach"])
+        .in("role", ["team_admin", "coach", "committee_member"])
         .not("team_id", "is", null);
       return data || [];
     },
@@ -240,7 +240,7 @@ export default function ImportFixturesPage() {
               <div className="space-y-2">
                 <h2 className="text-lg font-semibold">Access Denied</h2>
                 <p className="text-sm text-muted-foreground max-w-sm">
-                  You need to be a club admin, team admin, or coach to import fixtures.
+                  You need to be a club admin, team admin, coach, or committee member to import fixtures.
                 </p>
               </div>
               <Button variant="outline" onClick={() => navigate("/events")}>
