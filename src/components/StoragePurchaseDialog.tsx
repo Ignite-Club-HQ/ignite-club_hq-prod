@@ -477,11 +477,14 @@ export function StoragePurchaseDialog({
               ))}
             </div>
 
-            {/* Not configured message */}
+            {/* Coming soon message */}
             {hasStripeConfig === false && (
-              <p className="text-sm text-muted-foreground text-center">
-                Payment is not configured for this club. Please contact an administrator.
-              </p>
+              <div className="bg-muted/50 rounded-lg p-3 text-center space-y-1">
+                <p className="text-sm font-medium">Storage purchases coming soon!</p>
+                <p className="text-xs text-muted-foreground">
+                  Use a promo code above to add storage, or check back later for purchase options.
+                </p>
+              </div>
             )}
 
             {/* Purchase button */}
