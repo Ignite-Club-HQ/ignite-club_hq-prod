@@ -24,15 +24,15 @@ export default function ImportFixturesPage() {
   const [clubId, setClubId] = useState("");
   const [teamId, setTeamId] = useState("");
 
-  // Fetch user's club admin roles
+  // Fetch user's club-level admin roles (club_admin and committee_member)
   const { data: clubAdminRoles, isLoading: clubRolesLoading } = useQuery({
     queryKey: ["user-club-admin-roles", user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("user_roles")
-        .select("club_id")
+        .select("club_id, role")
         .eq("user_id", user!.id)
-        .eq("role", "club_admin")
+        .in("role", ["club_admin", "committee_member"])
         .not("club_id", "is", null);
       return data || [];
     },
@@ -101,7 +101,7 @@ export default function ImportFixturesPage() {
   const clubHasPro = clubSubscription?.is_pro || clubSubscription?.is_pro_football || 
                      clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override;
 
-  // Check if user is club admin for selected club
+  // Check if user is club admin or committee member for selected club
   const isClubAdmin = useMemo(() => {
     if (!clubId || !clubAdminRoles) return false;
     return clubAdminRoles.some((r) => r.club_id === clubId);
