@@ -2649,26 +2649,33 @@ export default function VaultPage() {
             <Collapsible className="w-full">
               <div className="bg-card border rounded-lg p-3">
                 <CollapsibleTrigger className="w-full">
-                  <div className="flex items-center gap-3">
-                    <HardDrive className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <Progress 
-                        value={Math.min(100, (totalClubStorageUsed / PRO_STORAGE_LIMIT) * 100)} 
-                        className={`h-2 w-full ${
-                          (totalClubStorageUsed / PRO_STORAGE_LIMIT) * 100 >= 90 ? '[&>div]:bg-destructive' 
-                          : (totalClubStorageUsed / PRO_STORAGE_LIMIT) * 100 >= 70 ? '[&>div]:bg-yellow-500' 
-                          : '[&>div]:bg-green-500'
-                        }`}
-                      />
-                    </div>
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {formatStorageSize(totalClubStorageUsed)} / {5 + (purchasedStorageGb || 0)} GB
-                    </span>
-                    {isStorageLimitReached && (
-                      <Badge variant="destructive" className="text-xs shrink-0">Full</Badge>
-                    )}
-                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-data-[state=open]:rotate-180" />
-                  </div>
+                  {(() => {
+                    const storagePercentage = PRO_STORAGE_LIMIT > 0 
+                      ? Math.min(100, Math.max(0, (totalClubStorageUsed / PRO_STORAGE_LIMIT) * 100))
+                      : 0;
+                    return (
+                      <div className="flex items-center gap-3">
+                        <HardDrive className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <Progress 
+                            value={storagePercentage} 
+                            className={`h-2 w-full ${
+                              storagePercentage >= 90 ? '[&>div]:bg-destructive' 
+                              : storagePercentage >= 70 ? '[&>div]:bg-yellow-500' 
+                              : '[&>div]:bg-primary'
+                            }`}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          {formatStorageSize(totalClubStorageUsed)} / {5 + (purchasedStorageGb || 0)} GB
+                        </span>
+                        {isStorageLimitReached && (
+                          <Badge variant="destructive" className="text-xs shrink-0">Full</Badge>
+                        )}
+                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                      </div>
+                    );
+                  })()}
                 </CollapsibleTrigger>
                 
                 <CollapsibleContent className="mt-3 pt-3 border-t">
