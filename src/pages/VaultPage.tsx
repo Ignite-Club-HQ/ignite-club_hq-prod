@@ -2672,9 +2672,6 @@ export default function VaultPage() {
                             }`}
                           />
                         </div>
-                        <span className="text-xs text-muted-foreground shrink-0 font-medium">
-                          {storagePercentage < 1 && storagePercentage > 0 ? '<1' : Math.round(storagePercentage)}%
-                        </span>
                         <span className="text-xs text-muted-foreground shrink-0">
                           {formatStorageSize(totalClubStorageUsed)} / {5 + (purchasedStorageGb || 0)} GB
                         </span>
