@@ -2665,7 +2665,7 @@ export default function VaultPage() {
                         <div className="flex-1 min-w-0">
                           <Progress 
                             value={storagePercentage} 
-                            className={`h-2 w-full bg-white dark:bg-white/20 ${
+                            className={`h-2 w-full bg-white dark:bg-muted ${
                               storagePercentage >= 90 ? '[&>div]:bg-destructive' 
                               : storagePercentage >= 70 ? '[&>div]:bg-yellow-500' 
                               : '[&>div]:bg-primary'
@@ -2817,7 +2817,7 @@ export default function VaultPage() {
                                 </div>
                                 <Progress 
                                   value={teamPercentageOfTotal} 
-                                  className="h-1.5 w-full bg-white dark:bg-white/20 [&>div]:bg-primary"
+                                  className="h-1.5 w-full bg-white dark:bg-muted [&>div]:bg-primary"
                                 />
                               </div>
                             );
