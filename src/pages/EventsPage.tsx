@@ -432,7 +432,7 @@ export default function EventsPage() {
               )}
             </Button>
           )}
-          {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
+          {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach"].includes(r.role))) && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Link to="/events/import">
