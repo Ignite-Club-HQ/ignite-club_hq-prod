@@ -407,16 +407,28 @@ export default function TeamDetailPage() {
       });
       if (error) throw error;
 
-      // Notify team admins and coaches
-      const { data: admins } = await supabase
+      // Notify team admins, coaches, and club admins
+      const { data: teamAdmins } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("team_id", id!)
         .in("role", ["team_admin", "coach"]);
 
-      if (admins?.length) {
-        const notifications = admins.map((admin) => ({
-          user_id: admin.user_id,
+      // Also notify club admins
+      const { data: clubAdmins } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", team?.club_id)
+        .eq("role", "club_admin");
+
+      // Combine and deduplicate admin user IDs
+      const adminUserIds = new Set<string>();
+      teamAdmins?.forEach(a => adminUserIds.add(a.user_id));
+      clubAdmins?.forEach(a => adminUserIds.add(a.user_id));
+
+      if (adminUserIds.size > 0) {
+        const notifications = Array.from(adminUserIds).map((userId) => ({
+          user_id: userId,
           type: "role_request",
           message: `New role request: Someone wants to join ${team?.name} as ${selectedRole.replace("_", " ")}`,
           related_id: id!,
