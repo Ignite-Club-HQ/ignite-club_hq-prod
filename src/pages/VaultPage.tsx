@@ -3019,7 +3019,14 @@ export default function VaultPage() {
               )}
               {canUpload && !selectionMode && (
                 <>
-                  {/* Prominent Upload Button */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="sm" onClick={() => setNewFolderDialogOpen(true)}>
+                        <FolderPlus className="h-4 w-4 mr-1" /> New Folder
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Create new folder</TooltipContent>
+                  </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button size="sm" onClick={() => setUploadDialogOpen(true)}>
@@ -3028,28 +3035,19 @@ export default function VaultPage() {
                     </TooltipTrigger>
                     <TooltipContent>Upload photos or files</TooltipContent>
                   </Tooltip>
-                  {/* Secondary actions as icon buttons */}
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setNewFolderDialogOpen(true)}>
-                        <FolderPlus className="h-4 w-4" />
+                      <Button variant="outline" size="sm" onClick={() => setAddLinkDialogOpen(true)}>
+                        <Link2 className="h-4 w-4 mr-1" /> Add Link
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>New Folder</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setAddLinkDialogOpen(true)}>
-                        <Link2 className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Add Link</TooltipContent>
+                    <TooltipContent>Add a Google Docs or external link</TooltipContent>
                   </Tooltip>
                   {isClubAdmin && (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setGoogleDriveImportOpen(true)}>
-                          <CloudDownload className="h-4 w-4" />
+                        <Button variant="outline" size="sm" onClick={() => setGoogleDriveImportOpen(true)}>
+                          <CloudDownload className="h-4 w-4 mr-1" /> Import
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>Import from Google Drive</TooltipContent>
