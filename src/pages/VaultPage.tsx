@@ -1177,8 +1177,8 @@ export default function VaultPage() {
     const teamId = getCurrentTeamId();
     const miniLeagueId = getCurrentMiniLeagueId();
     
-    // Club admins can upload to any club, team, or mini-league vault within their club
-    if (userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId)) return true;
+    // Club admins and committee members can upload to any club, team, or mini-league vault within their club
+    if (userRoles?.some(r => (r.role === "club_admin" || r.role === "committee_member") && r.club_id === clubId)) return true;
     
     // Team admins can only upload to their own team vault
     if (currentView.type === "team") {
@@ -1192,7 +1192,7 @@ export default function VaultPage() {
       );
     }
     
-    // For club-level view, only club admins can upload (handled above)
+    // For club-level view, only club admins and committee members can upload (handled above)
     return false;
   }, [isAppAdmin, currentClub, isStorageLimitReached, currentView, userRoles, currentContextHasPro]);
 
@@ -1201,7 +1201,7 @@ export default function VaultPage() {
     if (photo.uploader_id === user?.id) return true;
     const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : currentView.type === "mini-league" ? currentView.clubId : null;
     const teamId = currentView.type === "team" ? currentView.teamId : null;
-    if (userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId)) return true;
+    if (userRoles?.some(r => (r.role === "club_admin" || r.role === "committee_member") && r.club_id === clubId)) return true;
     if (teamId && userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId)) return true;
     // Mini-league: league admins and coaches can delete
     if (currentView.type === "mini-league" && userRoles?.some(r => (r.role === "league_admin" || r.role === "coach") && r.club_id === clubId)) return true;
@@ -1211,9 +1211,9 @@ export default function VaultPage() {
   const canDeleteFile = useCallback((file: any) => {
     if (isAppAdmin) return true;
     if (file.uploader_id === user?.id) return true;
-    const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : null;
+    const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : currentView.type === "mini-league" ? currentView.clubId : null;
     const teamId = currentView.type === "team" ? currentView.teamId : null;
-    if (userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId)) return true;
+    if (userRoles?.some(r => (r.role === "club_admin" || r.role === "committee_member") && r.club_id === clubId)) return true;
     if (teamId && userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId)) return true;
     return false;
   }, [isAppAdmin, user?.id, currentView, userRoles]);
@@ -1221,9 +1221,9 @@ export default function VaultPage() {
   const canRenameFile = useCallback((file: any) => {
     if (isAppAdmin) return true;
     if (file.uploader_id === user?.id) return true;
-    const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : null;
+    const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : currentView.type === "mini-league" ? currentView.clubId : null;
     const teamId = currentView.type === "team" ? currentView.teamId : null;
-    if (userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId)) return true;
+    if (userRoles?.some(r => (r.role === "club_admin" || r.role === "committee_member") && r.club_id === clubId)) return true;
     if (teamId && userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId)) return true;
     return false;
   }, [isAppAdmin, user?.id, currentView, userRoles]);
@@ -1233,7 +1233,7 @@ export default function VaultPage() {
     if (photo.uploader_id === user?.id) return true;
     const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : currentView.type === "mini-league" ? currentView.clubId : null;
     const teamId = currentView.type === "team" ? currentView.teamId : null;
-    if (userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId)) return true;
+    if (userRoles?.some(r => (r.role === "club_admin" || r.role === "committee_member") && r.club_id === clubId)) return true;
     if (teamId && userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId)) return true;
     // Mini-league: league admins and coaches can rename
     if (currentView.type === "mini-league" && userRoles?.some(r => (r.role === "league_admin" || r.role === "coach") && r.club_id === clubId)) return true;
@@ -1245,7 +1245,7 @@ export default function VaultPage() {
     if (folder.created_by === user?.id) return true;
     const clubId = getCurrentClubId();
     const teamId = getCurrentTeamId();
-    if (userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId)) return true;
+    if (userRoles?.some(r => (r.role === "club_admin" || r.role === "committee_member") && r.club_id === clubId)) return true;
     if (teamId && userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId)) return true;
     return false;
   }, [isAppAdmin, user?.id, getCurrentClubId, getCurrentTeamId, userRoles]);
