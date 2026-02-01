@@ -782,8 +782,19 @@ export default function TeamDetailPage() {
 
       {/* Collapsible Sections */}
       {(isMember || isClubAdmin) && (
-        <Accordion type="multiple" defaultValue={[]} className="space-y-4">
-          {/* Members Section - expanded by default */}
+        <Accordion 
+          type="multiple" 
+          defaultValue={[]} 
+          className="space-y-4"
+          onValueChange={(value) => {
+            // Auto-refresh members list when expanding if empty
+            if (value.includes("members") && Object.keys(members).length === 0 && teamChildren.length === 0 && !isMembersLoading && !isMembersFetching && !isChildrenLoading && !isChildrenFetching) {
+              refetchMembers();
+              refetchChildren();
+            }
+          }}
+        >
+          {/* Members Section */}
           <AccordionItem value="members" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
