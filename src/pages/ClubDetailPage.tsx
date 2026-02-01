@@ -125,7 +125,7 @@ export default function ClubDetailPage() {
 
 
   // Fetch roles data with profiles and team info - includes both club-level and team-level roles
-  const { data: rawClubMembers = [], isLoading: isMembersLoading } = useQuery({
+  const { data: rawClubMembers = [], isLoading: isMembersLoading, isFetching: isMembersFetching, refetch: refetchClubMembers } = useQuery({
     queryKey: ["club-members-roles", id],
     queryFn: async () => {
       // First get team IDs for this club
@@ -1520,7 +1520,17 @@ export default function ClubDetailPage() {
       </Dialog>
 
       {/* Club Members and Admin Accordion */}
-      <Accordion type="multiple" defaultValue={[]} className="space-y-4">
+      <Accordion 
+        type="multiple" 
+        defaultValue={[]} 
+        className="space-y-4"
+        onValueChange={(value) => {
+          // Auto-refresh members list when expanding if empty
+          if (value.includes("members") && Object.keys(clubMembers).length === 0 && !isMembersLoading && !isMembersFetching) {
+            refetchClubMembers();
+          }
+        }}
+      >
         {/* Club Members Section - separate from Admin */}
         {isMember && (
           <AccordionItem value="members" className="border rounded-lg px-4">
