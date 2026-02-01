@@ -276,9 +276,8 @@ export default function ChildrenPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-2xl font-bold flex-1">My Children</h1>
-        <Button size="sm" onClick={() => setAddDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Child
+        <Button size="icon" variant="default" onClick={() => setAddDialogOpen(true)}>
+          <Plus className="h-4 w-4" />
         </Button>
         <ResponsiveDialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
           <ResponsiveDialogContent>
