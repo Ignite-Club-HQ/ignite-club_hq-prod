@@ -270,10 +270,14 @@ export default function NotificationsPage() {
 
   const approveRequest = useMutation({
     mutationFn: async (requestId: string) => {
-      // Get the request details first
+      // Get the request details first with team/club info
       const { data: request, error: fetchError } = await supabase
         .from("role_requests")
-        .select("*")
+        .select(`
+          *,
+          teams:team_id(id, name, club_id, clubs:club_id(id, name, logo_url)),
+          clubs:club_id(id, name, logo_url)
+        `)
         .eq("id", requestId)
         .maybeSingle();
 
@@ -325,6 +329,60 @@ export default function NotificationsPage() {
         .eq("id", requestId);
 
       if (updateError) throw updateError;
+
+      // Get context info for notifications
+      const teamData = request.teams as { id: string; name: string; club_id: string; clubs: { id: string; name: string; logo_url: string | null } | null } | null;
+      const clubData = request.clubs as { id: string; name: string; logo_url: string | null } | null;
+      
+      const teamName = teamData?.name;
+      const clubName = teamData?.clubs?.name || clubData?.name || "the club";
+      const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url;
+      const entityName = teamName || clubName;
+      const relatedId = request.team_id || request.club_id;
+      const roleName = request.role.replace("_", " ");
+
+      // Create in-app notification for the requester
+      await supabase.from("notifications").insert({
+        user_id: request.user_id,
+        type: "join_request_approved",
+        message: `Your request to join ${entityName} as ${roleName} has been approved!`,
+        related_id: relatedId,
+      });
+
+      // Get requester's profile for email
+      const { data: requesterProfile } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", request.user_id)
+        .single();
+
+      // Get requester's email
+      const { data: emailData } = await supabase.rpc("get_user_emails_by_ids", { user_ids: [request.user_id] });
+      const userEmail = emailData?.[0]?.email;
+      
+      // Send email notification if we can get the email (via edge function)
+      if (userEmail) {
+        const teamLink = request.team_id 
+          ? `/teams/${request.team_id}` 
+          : `/clubs/${request.club_id}`;
+        
+        await supabase.functions.invoke("send-email", {
+          body: {
+            to: userEmail,
+            subject: `Welcome to ${entityName}! 🎉`,
+            template: "join-request-response",
+            templateData: {
+              recipientName: requesterProfile?.display_name || "Member",
+              teamName: teamName,
+              clubName: clubName,
+              roleName: roleName,
+              approved: true,
+              teamLink: teamLink,
+              clubLogoUrl: clubLogoUrl,
+            },
+          },
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
@@ -337,12 +395,76 @@ export default function NotificationsPage() {
 
   const denyRequest = useMutation({
     mutationFn: async (requestId: string) => {
+      // Get the request details first with team/club info
+      const { data: request, error: fetchError } = await supabase
+        .from("role_requests")
+        .select(`
+          *,
+          teams:team_id(id, name, club_id, clubs:club_id(id, name, logo_url)),
+          clubs:club_id(id, name, logo_url)
+        `)
+        .eq("id", requestId)
+        .maybeSingle();
+
+      if (fetchError || !request) {
+        throw new Error("Request not found");
+      }
+
       const { error } = await supabase
         .from("role_requests")
         .update({ status: "denied", processed_by: user!.id })
         .eq("id", requestId);
 
       if (error) throw error;
+
+      // Get context info for notifications
+      const teamData = request.teams as { id: string; name: string; club_id: string; clubs: { id: string; name: string; logo_url: string | null } | null } | null;
+      const clubData = request.clubs as { id: string; name: string; logo_url: string | null } | null;
+      
+      const teamName = teamData?.name;
+      const clubName = teamData?.clubs?.name || clubData?.name || "the club";
+      const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url;
+      const entityName = teamName || clubName;
+      const relatedId = request.team_id || request.club_id;
+      const roleName = request.role.replace("_", " ");
+
+      // Create in-app notification for the requester
+      await supabase.from("notifications").insert({
+        user_id: request.user_id,
+        type: "join_request_denied",
+        message: `Your request to join ${entityName} as ${roleName} was not approved`,
+        related_id: relatedId,
+      });
+
+      // Get requester's profile for email
+      const { data: requesterProfile } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", request.user_id)
+        .single();
+
+      // Get requester's email
+      const { data: emailData } = await supabase.rpc("get_user_emails_by_ids", { user_ids: [request.user_id] });
+      const userEmail = emailData?.[0]?.email;
+      
+      // Send email notification if we can get the email
+      if (userEmail) {
+        await supabase.functions.invoke("send-email", {
+          body: {
+            to: userEmail,
+            subject: `Update on your request to join ${entityName}`,
+            template: "join-request-response",
+            templateData: {
+              recipientName: requesterProfile?.display_name || "Member",
+              teamName: teamName,
+              clubName: clubName,
+              roleName: roleName,
+              approved: false,
+              clubLogoUrl: clubLogoUrl,
+            },
+          },
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
