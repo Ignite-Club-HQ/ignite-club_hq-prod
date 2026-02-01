@@ -3532,12 +3532,6 @@ export default function VaultPage() {
                 setMoveFileDialogOpen(true);
               }}
               onDownloadPhoto={downloadFile}
-              selectionMode={selectionMode}
-              selectedPhotos={selectedPhotos}
-              selectedFiles={selectedFiles}
-              onTogglePhotoSelection={togglePhotoSelection}
-              onToggleFileSelection={toggleFileSelection}
-              onEnterSelectionMode={() => setSelectionMode(true)}
             />
           )}
 
@@ -3606,12 +3600,6 @@ export default function VaultPage() {
                 setMoveFileDialogOpen(true);
               }}
               onDownloadPhoto={downloadFile}
-              selectionMode={selectionMode}
-              selectedPhotos={selectedPhotos}
-              selectedFiles={selectedFiles}
-              onTogglePhotoSelection={togglePhotoSelection}
-              onToggleFileSelection={toggleFileSelection}
-              onEnterSelectionMode={() => setSelectionMode(true)}
             />
           )}
 
@@ -3649,12 +3637,6 @@ export default function VaultPage() {
             }}
             onRenameFile={() => {}}
             onDownloadPhoto={downloadFile}
-            selectionMode={selectionMode}
-            selectedPhotos={selectedPhotos}
-            selectedFiles={new Set()}
-            onTogglePhotoSelection={togglePhotoSelection}
-            onToggleFileSelection={() => {}}
-            onEnterSelectionMode={() => setSelectionMode(true)}
           />
         </div>
       )}
@@ -4273,11 +4255,7 @@ export default function VaultPage() {
 function VaultPhotoItem({
   photo,
   index,
-  selectionMode,
-  isSelected,
   onPhotoClick,
-  onToggleSelection,
-  onCheckboxClick,
   canDelete,
   onDelete,
   onDownload,
@@ -4286,11 +4264,7 @@ function VaultPhotoItem({
 }: {
   photo: any;
   index: number;
-  selectionMode: boolean;
-  isSelected: boolean;
   onPhotoClick: (index: number) => void;
-  onToggleSelection?: (id: string) => void;
-  onCheckboxClick: (id: string, e: React.MouseEvent) => void;
   canDelete: boolean;
   onDelete: (id: string) => void;
   onDownload?: (url: string, filename: string) => void;
@@ -4355,37 +4329,13 @@ function VaultPhotoItem({
       <img
         src={photoUrl}
         alt={photo.title || "Photo"}
-        className={`aspect-square object-cover rounded-lg cursor-pointer transition-opacity select-none ${
-          selectionMode && isSelected 
-            ? "ring-2 ring-primary ring-offset-2 opacity-90" 
-            : "hover:opacity-90"
-        }`}
+        className="aspect-square object-cover rounded-lg cursor-pointer transition-opacity select-none hover:opacity-90"
         draggable={false}
         onContextMenu={(e) => e.preventDefault()}
-        onClick={() => {
-          if (selectionMode && onToggleSelection) {
-            onToggleSelection(photo.id);
-          } else {
-            onPhotoClick(index);
-          }
-        }}
+        onClick={() => onPhotoClick(index)}
       />
-      {/* Always show checkbox on hover, or always show when in selection mode */}
-      <div 
-        className={`absolute top-1 left-1 ${
-          selectionMode || isSelected
-            ? "opacity-100" 
-            : "opacity-0 group-hover:opacity-100"
-        } transition-opacity`}
-        onClick={(e) => onCheckboxClick(photo.id, e)}
-      >
-        <Checkbox 
-          checked={isSelected} 
-          className="h-5 w-5 bg-background/80 border-2"
-        />
-      </div>
-      {/* Three-dot menu for actions - shown when not in selection mode */}
-      {!selectionMode && hasActions && (
+      {/* Three-dot menu for actions */}
+      {hasActions && (
         <div className="absolute top-1 right-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -4570,12 +4520,6 @@ interface ContentSectionProps {
   onRenameFile?: (file: any) => void;
   onMoveFile?: (file: any) => void;
   onDownloadPhoto?: (url: string, filename: string) => void;
-  selectionMode?: boolean;
-  selectedPhotos?: Set<string>;
-  selectedFiles?: Set<string>;
-  onTogglePhotoSelection?: (id: string) => void;
-  onToggleFileSelection?: (id: string) => void;
-  onEnterSelectionMode?: () => void;
   // Trash mode props
   isTrashView?: boolean;
   onRestorePhoto?: (id: string) => void;
@@ -4599,12 +4543,6 @@ function ContentSection({
   onRenameFile,
   onMoveFile,
   onDownloadPhoto,
-  selectionMode = false,
-  selectedPhotos = new Set(),
-  selectedFiles = new Set(),
-  onTogglePhotoSelection,
-  onToggleFileSelection,
-  onEnterSelectionMode,
   isTrashView = false,
   onRestorePhoto,
   onRestoreFile,
@@ -4612,22 +4550,6 @@ function ContentSection({
   onPermanentDeleteFile,
 }: ContentSectionProps) {
   const hasContent = photos.length > 0 || files.length > 0;
-
-  const handlePhotoCheckboxClick = (photoId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!selectionMode && onEnterSelectionMode) {
-      onEnterSelectionMode();
-    }
-    onTogglePhotoSelection?.(photoId);
-  };
-
-  const handleFileCheckboxClick = (fileId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!selectionMode && onEnterSelectionMode) {
-      onEnterSelectionMode();
-    }
-    onToggleFileSelection?.(fileId);
-  };
 
   if (!hasContent) {
     return (
@@ -4652,11 +4574,7 @@ function ContentSection({
                 key={photo.id}
                 photo={photo}
                 index={index}
-                selectionMode={selectionMode}
-                isSelected={selectedPhotos.has(photo.id)}
                 onPhotoClick={onPhotoClick}
-                onToggleSelection={onTogglePhotoSelection}
-                onCheckboxClick={handlePhotoCheckboxClick}
                 canDelete={canDeletePhoto(photo)}
                 onDelete={onDeletePhoto}
                 onDownload={onDownloadPhoto}
@@ -4679,39 +4597,15 @@ function ContentSection({
               return (
               <Card 
                 key={file.id} 
-                className={`group cursor-pointer ${
-                  selectedFiles.has(file.id) 
-                    ? "ring-2 ring-primary" 
-                    : ""
-                }`}
+                className="group cursor-pointer"
                 onClick={() => {
-                  if (selectionMode && onToggleFileSelection) {
-                    onToggleFileSelection(file.id);
-                  } else if (isExternalLink) {
+                  if (isExternalLink) {
                     // Open external link directly
                     window.open(file.file_url, "_blank");
                   }
                 }}
               >
                 <CardContent className="p-3 flex items-center gap-3">
-                  {/* Always show checkbox on hover, or always show when in selection mode */}
-                  <div className={`${
-                    selectionMode || selectedFiles.has(file.id)
-                      ? "block" 
-                      : "hidden group-hover:block"
-                  }`}>
-                    <Checkbox 
-                      checked={selectedFiles.has(file.id)} 
-                      className="h-5 w-5"
-                      onClick={(e) => handleFileCheckboxClick(file.id, e as any)}
-                      onCheckedChange={() => {
-                        if (!selectionMode && onEnterSelectionMode) {
-                          onEnterSelectionMode();
-                        }
-                        onToggleFileSelection?.(file.id);
-                      }}
-                    />
-                  </div>
                   {isExternalLink && externalLinkInfo ? (
                     <div className="p-2 rounded-lg bg-muted flex items-center justify-center text-lg">
                       {externalLinkInfo.icon}
@@ -4738,8 +4632,7 @@ function ContentSection({
                       )}
                     </p>
                   </div>
-                  {!selectionMode && (
-                    <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1">
                       {isTrashView ? (
                         <>
                           {onRestoreFile && (
@@ -4862,7 +4755,6 @@ function ContentSection({
                         </DropdownMenu>
                       )}
                     </div>
-                  )}
                 </CardContent>
               </Card>
               );
