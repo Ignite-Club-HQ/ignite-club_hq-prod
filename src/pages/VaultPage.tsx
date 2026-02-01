@@ -2644,242 +2644,180 @@ export default function VaultPage() {
             </Breadcrumb>
           </div>
         
-          {/* Storage usage display */}
+          {/* Compact Storage Bar - always visible */}
           {currentClub && (
-            <div className="w-full sm:w-auto bg-card border rounded-lg p-3">
-              {/* Club storage limit - always shown */}
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                <span className="font-medium text-foreground">Club Storage</span>
-              </div>
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-lg font-semibold text-foreground">
-                  {formatStorageSize(totalClubStorageUsed)}
-                </span>
-                <span className="text-muted-foreground">/</span>
-                <span className="text-muted-foreground">{5 + (purchasedStorageGb || 0)} GB</span>
-                {(purchasedStorageGb || 0) > 0 && (
-                  <Badge variant="secondary" className="text-xs">+{purchasedStorageGb}GB</Badge>
-                )}
-                {isStorageLimitReached && (
-                  <Badge variant="destructive" className="text-xs">Full</Badge>
-                )}
-                {scheduledDowngradeGb !== null && scheduledDowngradeGb !== undefined && storageDowngradeAt && (
-                  <Badge variant="outline" className="text-xs text-amber-600 border-amber-500/50">
-                    ↓ {scheduledDowngradeGb === 0 ? "50GB" : `${scheduledDowngradeGb}GB`} on {new Date(storageDowngradeAt).toLocaleDateString()}
-                  </Badge>
-                )}
-              </div>
-              {(() => {
-                const percentage = Math.min(100, (totalClubStorageUsed / PRO_STORAGE_LIMIT) * 100);
-                const colorClass = percentage >= 90 ? '[&>div]:bg-destructive' 
-                  : percentage >= 70 ? '[&>div]:bg-yellow-500' 
-                  : '[&>div]:bg-green-500';
-                return (
-                  <div className="space-y-1">
-                    <Progress 
-                      value={percentage} 
-                      className={`h-3 w-full sm:w-64 ${colorClass}`}
-                    />
-                    <span className="text-xs text-muted-foreground">
-                      {Math.round(percentage)}% used
-                      {percentage < 100 && ` • ${formatStorageSize(PRO_STORAGE_LIMIT - totalClubStorageUsed)} remaining`}
-                    </span>
-                  </div>
-                );
-              })()}
-              
-              {/* Team-specific storage - only shown in team view */}
-              {currentView.type === "team" && currentTeamStorageUsed > 0 && (
-                <div className="mt-3 pt-3 border-t">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                    <span className="font-medium text-foreground">This Team</span>
-                  </div>
+            <Collapsible className="w-full">
+              <div className="bg-card border rounded-lg p-3">
+                <CollapsibleTrigger className="w-full">
                   <div className="flex items-center gap-3">
-                    <span className="text-base font-semibold text-foreground">
-                      {formatStorageSize(currentTeamStorageUsed)}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      ({Math.round((currentTeamStorageUsed / totalClubStorageUsed) * 100)}% of club storage)
-                    </span>
-                  </div>
-                </div>
-              )}
-              {/* Storage breakdown pie chart - photos vs documents */}
-              {storageBreakdown && (storageBreakdown.photos > 0 || storageBreakdown.documents > 0) && (
-                <Collapsible className="mt-3 pt-3 border-t">
-                  <CollapsibleTrigger className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group">
-                    <span>Storage by Type</span>
-                    <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-2">
-                    <div className="flex items-center gap-4">
-                      <div className="w-20 h-20">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={[
-                                { name: 'Photos', value: storageBreakdown.photos, color: 'hsl(var(--primary))' },
-                                { name: 'Documents', value: storageBreakdown.documents, color: 'hsl(var(--muted-foreground))' },
-                              ].filter(d => d.value > 0)}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={20}
-                              outerRadius={35}
-                              paddingAngle={2}
-                              dataKey="value"
-                            >
-                              {[
-                                { name: 'Photos', value: storageBreakdown.photos, color: 'hsl(var(--primary))' },
-                                { name: 'Documents', value: storageBreakdown.documents, color: 'hsl(var(--muted-foreground))' },
-                              ].filter(d => d.value > 0).map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <RechartsTooltip 
-                              formatter={(value: number) => formatStorageSize(value)}
-                              contentStyle={{ 
-                                backgroundColor: 'hsl(var(--popover))', 
-                                border: '1px solid hsl(var(--border))',
-                                borderRadius: '6px',
-                                fontSize: '12px'
-                              }}
-                            />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="flex-1 space-y-1.5">
-                        <div className="flex items-center gap-2 text-xs">
-                          <div className="w-3 h-3 rounded-sm bg-primary shrink-0" />
-                          <FileImage className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-muted-foreground">Photos</span>
-                          <span className="ml-auto font-medium">{formatStorageSize(storageBreakdown.photos)}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs">
-                          <div className="w-3 h-3 rounded-sm bg-muted-foreground shrink-0" />
-                          <File className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-muted-foreground">Documents</span>
-                          <span className="ml-auto font-medium">{formatStorageSize(storageBreakdown.documents)}</span>
-                        </div>
-                      </div>
+                    <HardDrive className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <Progress 
+                        value={Math.min(100, (totalClubStorageUsed / PRO_STORAGE_LIMIT) * 100)} 
+                        className={`h-2 w-full ${
+                          (totalClubStorageUsed / PRO_STORAGE_LIMIT) * 100 >= 90 ? '[&>div]:bg-destructive' 
+                          : (totalClubStorageUsed / PRO_STORAGE_LIMIT) * 100 >= 70 ? '[&>div]:bg-yellow-500' 
+                          : '[&>div]:bg-green-500'
+                        }`}
+                      />
                     </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
-              {/* Storage breakdown by team - shows team usage contribution */}
-              {currentView.type === "club" && storageBreakdown?.byTeam && storageBreakdown.byTeam.length > 0 && (
-                <Collapsible className="mt-3 pt-3 border-t">
-                  <CollapsibleTrigger className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group">
-                    <span>Storage by Team</span>
-                    <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-2 space-y-2">
-                    {storageBreakdown.byTeam.slice(0, 5).map((team) => {
-                      // Show percentage of total club storage
-                      const teamPercentageOfTotal = totalClubStorageUsed > 0 
-                        ? Math.min(100, (team.size / totalClubStorageUsed) * 100)
-                        : 0;
-                      return (
-                        <div key={team.teamId || "club"} className="space-y-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <FolderOpen className="h-3 w-3 text-muted-foreground shrink-0" />
-                              <span className="truncate">{team.teamName}</span>
-                            </div>
-                            <span className="text-muted-foreground shrink-0">
-                              {formatStorageSize(team.size)} ({Math.round(teamPercentageOfTotal)}%)
-                            </span>
-                          </div>
-                          <Progress 
-                            value={teamPercentageOfTotal} 
-                            className="h-1.5 w-full [&>div]:bg-primary"
-                          />
-                        </div>
-                      );
-                    })}
-                    {storageBreakdown.byTeam.length > 5 && (
-                      <span className="text-xs text-muted-foreground">+{storageBreakdown.byTeam.length - 5} more teams</span>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {formatStorageSize(totalClubStorageUsed)} / {5 + (purchasedStorageGb || 0)} GB
+                    </span>
+                    {isStorageLimitReached && (
+                      <Badge variant="destructive" className="text-xs shrink-0">Full</Badge>
                     )}
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
-              {/* Storage breakdown by mini-league */}
-              {currentView.type === "club" && storageBreakdown?.byMiniLeague && storageBreakdown.byMiniLeague.length > 0 && (
-                <Collapsible className="mt-3 pt-3 border-t">
-                  <CollapsibleTrigger className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group">
-                    <span>Storage by Mini-League</span>
-                    <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-2 space-y-2">
-                    {storageBreakdown.byMiniLeague.slice(0, 5).map((league) => {
-                      // Show percentage of total club storage
-                      const leaguePercentageOfTotal = totalClubStorageUsed > 0 
-                        ? Math.min(100, (league.size / totalClubStorageUsed) * 100)
-                        : 0;
-                      return (
-                        <div key={league.miniLeagueId} className="space-y-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <FolderOpen className="h-3 w-3 text-muted-foreground shrink-0" />
-                              <span className="truncate">{league.miniLeagueName}</span>
-                            </div>
-                            <span className="text-muted-foreground shrink-0">
-                              {formatStorageSize(league.size)} ({Math.round(leaguePercentageOfTotal)}%)
-                            </span>
-                          </div>
-                          <Progress 
-                            value={leaguePercentageOfTotal} 
-                            className="h-1.5 w-full [&>div]:bg-primary"
-                          />
+                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                  </div>
+                </CollapsibleTrigger>
+                
+                <CollapsibleContent className="mt-3 pt-3 border-t">
+                  {/* Expanded storage details */}
+                  <div className="space-y-3">
+                    {/* Team-specific storage - only shown in team view */}
+                    {currentView.type === "team" && currentTeamStorageUsed > 0 && (
+                      <div className="pb-3 border-b">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                          <span className="font-medium text-foreground">This Team</span>
                         </div>
-                      );
-                    })}
-                    {storageBreakdown.byMiniLeague.length > 5 && (
-                      <span className="text-xs text-muted-foreground">+{storageBreakdown.byMiniLeague.length - 5} more mini-leagues</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-base font-semibold text-foreground">
+                            {formatStorageSize(currentTeamStorageUsed)}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            ({Math.round((currentTeamStorageUsed / totalClubStorageUsed) * 100)}% of club storage)
+                          </span>
+                        </div>
+                      </div>
                     )}
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
-              {/* Manage Large Files Button - only show when near storage limit (>80%) */}
-              {currentClub && (totalClubStorageUsed / PRO_STORAGE_LIMIT) >= 0.8 && (
-                <div className="mt-3 pt-3 border-t">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full"
-                    onClick={() => {
-                      setLargeFilesDialogOpen(true);
-                      fetchLargeFiles();
-                    }}
-                  >
-                    <HardDrive className="h-4 w-4 mr-2" />
-                    Manage Large Files
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full"
-                    onClick={() => setStoragePurchaseDialogOpen(true)}
-                  >
-                    <ShoppingCart className="h-4 w-4 mr-2" />
-                    {purchasedStorageGb > 0 ? "Manage Storage" : "Buy More Storage"}
-                  </Button>
-                </div>
-              )}
-              {/* Buy/Manage storage button - show when storage is less than 80% but user is club admin */}
-              {currentClub && isClubAdmin && (totalClubStorageUsed / PRO_STORAGE_LIMIT) < 0.8 && (
-                <div className="mt-3 pt-3 border-t flex gap-2">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="flex-1 text-muted-foreground"
-                    onClick={() => setStoragePurchaseDialogOpen(true)}
-                  >
-                    <ShoppingCart className="h-4 w-4 mr-2" />
-                    {purchasedStorageGb > 0 ? "Manage Storage" : "Buy Storage"}
-                  </Button>
-                </div>
-              )}
-            </div>
+                    
+                    {/* Storage breakdown pie chart - photos vs documents */}
+                    {storageBreakdown && (storageBreakdown.photos > 0 || storageBreakdown.documents > 0) && (
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={[
+                                  { name: 'Photos', value: storageBreakdown.photos, color: 'hsl(var(--primary))' },
+                                  { name: 'Documents', value: storageBreakdown.documents, color: 'hsl(var(--muted-foreground))' },
+                                ].filter(d => d.value > 0)}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={16}
+                                outerRadius={28}
+                                paddingAngle={2}
+                                dataKey="value"
+                              >
+                                {[
+                                  { name: 'Photos', value: storageBreakdown.photos, color: 'hsl(var(--primary))' },
+                                  { name: 'Documents', value: storageBreakdown.documents, color: 'hsl(var(--muted-foreground))' },
+                                ].filter(d => d.value > 0).map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                              </Pie>
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2 text-xs">
+                            <div className="w-2 h-2 rounded-sm bg-primary shrink-0" />
+                            <FileImage className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-muted-foreground">Photos</span>
+                            <span className="ml-auto font-medium">{formatStorageSize(storageBreakdown.photos)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            <div className="w-2 h-2 rounded-sm bg-muted-foreground shrink-0" />
+                            <File className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-muted-foreground">Documents</span>
+                            <span className="ml-auto font-medium">{formatStorageSize(storageBreakdown.documents)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Storage breakdown by team */}
+                    {currentView.type === "club" && storageBreakdown?.byTeam && storageBreakdown.byTeam.length > 0 && (
+                      <Collapsible className="pt-3 border-t">
+                        <CollapsibleTrigger className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group">
+                          <span>Storage by Team</span>
+                          <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-2 space-y-2">
+                          {storageBreakdown.byTeam.slice(0, 5).map((team) => {
+                            const teamPercentageOfTotal = totalClubStorageUsed > 0 
+                              ? Math.min(100, (team.size / totalClubStorageUsed) * 100)
+                              : 0;
+                            return (
+                              <div key={team.teamId || "club"} className="space-y-1">
+                                <div className="flex items-center justify-between text-xs">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <FolderOpen className="h-3 w-3 text-muted-foreground shrink-0" />
+                                    <span className="truncate">{team.teamName}</span>
+                                  </div>
+                                  <span className="text-muted-foreground shrink-0">
+                                    {formatStorageSize(team.size)} ({Math.round(teamPercentageOfTotal)}%)
+                                  </span>
+                                </div>
+                                <Progress 
+                                  value={teamPercentageOfTotal} 
+                                  className="h-1.5 w-full [&>div]:bg-primary"
+                                />
+                              </div>
+                            );
+                          })}
+                          {storageBreakdown.byTeam.length > 5 && (
+                            <span className="text-xs text-muted-foreground">+{storageBreakdown.byTeam.length - 5} more teams</span>
+                          )}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+                    
+                    {/* Manage Large Files Button - only show when near storage limit (>80%) */}
+                    {(totalClubStorageUsed / PRO_STORAGE_LIMIT) >= 0.8 && (
+                      <div className="pt-3 border-t space-y-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full"
+                          onClick={() => {
+                            setLargeFilesDialogOpen(true);
+                            fetchLargeFiles();
+                          }}
+                        >
+                          <HardDrive className="h-4 w-4 mr-2" />
+                          Manage Large Files
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full"
+                          onClick={() => setStoragePurchaseDialogOpen(true)}
+                        >
+                          <ShoppingCart className="h-4 w-4 mr-2" />
+                          {purchasedStorageGb > 0 ? "Manage Storage" : "Buy More Storage"}
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {/* Buy/Manage storage button - show when storage is less than 80% but user is club admin */}
+                    {isClubAdmin && (totalClubStorageUsed / PRO_STORAGE_LIMIT) < 0.8 && (
+                      <div className="pt-3 border-t">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="w-full text-muted-foreground"
+                          onClick={() => setStoragePurchaseDialogOpen(true)}
+                        >
+                          <ShoppingCart className="h-4 w-4 mr-2" />
+                          {purchasedStorageGb > 0 ? "Manage Storage" : "Buy Storage"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
           )}
           
           <div className="flex items-center gap-4 flex-wrap sm:ml-auto">
