@@ -519,7 +519,7 @@ export default function VaultPage() {
         return [];
       }
     },
-    enabled: currentView.type === "club" && !!user,
+    enabled: currentView.type === "club" && !!user && !isLoadingRoles,
   });
 
   const getCurrentFolderId = () => {
