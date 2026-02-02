@@ -295,6 +295,13 @@ export function AppHeader() {
 
   // Show club logo if theme is active and showLogoInHeader is enabled
   const showClubLogo = activeThemeData?.showLogoInHeader && activeThemeData?.logoUrl;
+  
+  // CRITICAL: Only show club theme elements when theme is fully ready
+  // During Google OAuth return, there's a brief moment where activeThemeData may have
+  // stale values while the auth session is being established. Wait for isThemeReady
+  // to prevent incorrect contrast colors during this transition.
+  const { isThemeReady } = useClubTheme();
+  const shouldShowClubTheming = isThemeReady && activeThemeData;
 
   // Parse club name to split into main name and suffix (e.g., "Bridgewater Soccer Club" -> ["Bridgewater", "Soccer Club"])
   const parseClubName = (name: string): { mainName: string; suffix: string } => {
@@ -509,7 +516,7 @@ export function AppHeader() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg">
-              {activeThemeData ? (
+              {shouldShowClubTheming ? (
                 <>
                   {showClubLogo ? (
                     <div className="relative">
