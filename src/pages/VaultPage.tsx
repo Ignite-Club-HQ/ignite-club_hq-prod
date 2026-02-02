@@ -547,26 +547,43 @@ export default function VaultPage() {
     queryFn: async () => {
       const clubId = getCurrentClubId();
       const teamId = getCurrentTeamId();
+      const miniLeagueId = getCurrentMiniLeagueId();
       const parentFolderId = getCurrentFolderId();
       
-      let query = supabase.from("vault_folders").select("*");
+      // Build filter conditions based on view type
+      let filters: Record<string, any> = {};
+      let nullFilters: string[] = [];
       
       if (currentView.type === "club") {
         // Club-level folders only accessible to club admins
         if (!isClubAdmin) return [];
-        query = query.eq("club_id", clubId).is("team_id", null);
+        filters.club_id = clubId;
+        nullFilters = ["team_id", "mini_league_id"];
       } else if (currentView.type === "team") {
-        query = query.eq("team_id", teamId);
+        filters.team_id = teamId;
+      } else if (currentView.type === "mini-league") {
+        filters.mini_league_id = miniLeagueId;
       }
       
       if (parentFolderId) {
-        query = query.eq("parent_id", parentFolderId);
+        filters.parent_id = parentFolderId;
       } else {
-        query = query.is("parent_id", null);
+        nullFilters.push("parent_id");
+      }
+      
+      // Execute query with filters - use type assertion to avoid deep type instantiation
+      let query: any = supabase.from("vault_folders").select("*");
+      
+      for (const [key, value] of Object.entries(filters)) {
+        query = query.eq(key, value);
+      }
+      
+      for (const nullField of nullFilters) {
+        query = query.is(nullField, null);
       }
       
       const { data } = await query.order("name");
-      return data || [];
+      return (data || []) as { id: string; name: string; parent_id: string | null; club_id: string | null; team_id: string | null; mini_league_id: string | null; created_at: string }[];
     },
     enabled: currentView.type !== "root",
   });
