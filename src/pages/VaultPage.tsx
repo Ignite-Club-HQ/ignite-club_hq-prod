@@ -496,6 +496,17 @@ export default function VaultPage() {
       const isCoach = userRoles?.some(r => r.role === "coach" && r.club_id === clubId);
       const isCommitteeMember = userRoles?.some(r => r.role === "committee_member" && r.club_id === clubId);
       
+      console.log("[Vault Mini-Leagues Debug]", {
+        clubId,
+        userRoles,
+        isAppAdmin,
+        isClubAdminRole,
+        isLeagueAdmin,
+        isCoach,
+        isCommitteeMember,
+        hasAccess: isAppAdmin || isClubAdminRole || isLeagueAdmin || isCoach || isCommitteeMember
+      });
+      
       if (isAppAdmin || isClubAdminRole || isLeagueAdmin || isCoach || isCommitteeMember) {
         // Admins, committee members, coaches and league admins can see all mini-leagues
         const { data } = await supabase
@@ -503,6 +514,7 @@ export default function VaultPage() {
           .select("id, name")
           .eq("club_id", clubId)
           .order("name");
+        console.log("[Vault Mini-Leagues] Fetched leagues:", data);
         return data || [];
       } else {
         // Parents can only see leagues their children are in
