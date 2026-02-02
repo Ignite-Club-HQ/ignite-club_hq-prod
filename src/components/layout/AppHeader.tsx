@@ -250,12 +250,27 @@ export function AppHeader() {
   const queryClient = useQueryClient();
   const { profile, unreadCount, user } = useAuth();
   const { activeThemeData, activeClubTheme } = useClubTheme();
-  const { setTheme, theme } = useTheme();
+  const { setTheme, theme, resolvedTheme } = useTheme();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [demoLoginOpen, setDemoLoginOpen] = useState(false);
+  
+  // CRITICAL: Read theme from localStorage for initial render to prevent flash
+  // next-themes' theme/resolvedTheme are undefined before hydration
+  const getStoredTheme = (): 'light' | 'dark' => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('app-theme');
+      if (stored === 'dark' || stored === 'light') {
+        return stored;
+      }
+    }
+    return 'light';
+  };
+  
+  // Use resolvedTheme after hydration, fall back to localStorage on initial render
+  const effectiveTheme = resolvedTheme ?? getStoredTheme();
 
   // Check if user is app admin
   const { data: isAppAdmin } = useQuery({
@@ -509,14 +524,14 @@ export function AppHeader() {
                   {activeThemeData.showNameInHeader && !activeThemeData.logoOnlyMode && clubNameParts?.mainName && (
                     <div className="flex flex-col leading-tight items-start">
                       <div className="flex items-center gap-1.5">
-                        <span 
+                      <span 
                           className="font-bold text-lg truncate max-w-[140px]"
                           style={{ 
                             color: getBestContrastColor(
-                              theme === 'dark' ? (activeThemeData?.darkPrimary || activeThemeData?.primary) : activeThemeData?.primary,
-                              theme === 'dark' ? (activeThemeData?.darkSecondary || activeThemeData?.secondary) : activeThemeData?.secondary,
-                              theme === 'dark' ? (activeThemeData?.darkAccent || activeThemeData?.accent) : activeThemeData?.accent,
-                              theme === 'dark'
+                              effectiveTheme === 'dark' ? (activeThemeData?.darkPrimary || activeThemeData?.primary) : activeThemeData?.primary,
+                              effectiveTheme === 'dark' ? (activeThemeData?.darkSecondary || activeThemeData?.secondary) : activeThemeData?.secondary,
+                              effectiveTheme === 'dark' ? (activeThemeData?.darkAccent || activeThemeData?.accent) : activeThemeData?.accent,
+                              effectiveTheme === 'dark'
                             )
                           }}
                         >
