@@ -106,6 +106,14 @@ export function AppLayout() {
     sessionStorage.getItem('googleDriveOAuthCode') || 
     sessionStorage.getItem('googleDriveOAuthError')
   );
+  
+  // Check if there's a Supabase OAuth callback in progress (tokens in URL hash)
+  // This happens when returning from Google OAuth - Supabase client needs time to process
+  const hasOAuthTokensInUrl = typeof window !== 'undefined' && (
+    window.location.hash.includes('access_token') ||
+    window.location.hash.includes('refresh_token') ||
+    window.location.search.includes('code=')
+  );
 
   // If there's a pending OAuth, immediately navigate to vault
   // This prevents the flash to home screen after Google Drive authentication
@@ -113,9 +121,11 @@ export function AppLayout() {
     return <Navigate to="/vault" replace />;
   }
 
-  // Don't redirect to auth if we have a pending OAuth callback
-  // The user is authenticated - just waiting for session to initialize
-  if (!user && !hasPendingOAuth) {
+  // Don't redirect to auth if:
+  // 1. We have a pending OAuth callback (Google Drive)
+  // 2. There are OAuth tokens in the URL (Google login in progress)
+  // The user is authenticated or about to be - just waiting for session to initialize
+  if (!user && !hasPendingOAuth && !hasOAuthTokensInUrl) {
     return <Navigate to="/auth" replace />;
   }
 
