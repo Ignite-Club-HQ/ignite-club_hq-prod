@@ -186,8 +186,8 @@ export default function CreateEventPage() {
     enabled: !!clubId && !!user,
   });
 
-  // Check if club has Pro Football access
-  const { data: hasProFootball } = useQuery({
+  // Check if club has Pro Football access - use placeholderData to prevent flash
+  const { data: hasProFootball, isLoading: isLoadingProFootball } = useQuery({
     queryKey: ["club-pro-football", clubId],
     queryFn: async () => {
       const { data } = await supabase
@@ -201,6 +201,7 @@ export default function CreateEventPage() {
       return hasAccess && notExpired;
     },
     enabled: !!clubId,
+    placeholderData: false, // Prevent undefined state causing delayed render
   });
 
   // Fetch mini leagues for the selected club (Pro Football only)
@@ -673,32 +674,40 @@ export default function CreateEventPage() {
 
       {/* Event Type Selection */}
       <div className="grid grid-cols-4 gap-2">
-        {EVENT_TYPES.filter(et => !et.proFootballOnly || hasProFootball).map((eventType) => (
-          <button
-            key={eventType.value}
-            type="button"
-            onClick={() => {
-              setType(eventType.value as EventType);
-              // Clear mini league if switching away
-              if (eventType.value !== "mini_league") {
-                setMiniLeagueId("");
-              }
-              // Clear team if switching to mini league
-              if (eventType.value === "mini_league") {
-                setTeamId("");
-              }
-            }}
-            className={cn(
-              "flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all",
-              type === eventType.value
-                ? "border-primary bg-primary/10"
-                : "border-border hover:border-muted-foreground/50"
-            )}
-          >
-            <span className="text-2xl">{eventType.icon}</span>
-            <span className="text-xs font-medium">{eventType.label}</span>
-          </button>
-        ))}
+        {EVENT_TYPES.map((eventType) => {
+          // Hide pro football items if user doesn't have access (after query resolves)
+          const isProFeature = eventType.proFootballOnly;
+          const showItem = !isProFeature || hasProFootball;
+          
+          if (!showItem) return null;
+          
+          return (
+            <button
+              key={eventType.value}
+              type="button"
+              onClick={() => {
+                setType(eventType.value as EventType);
+                // Clear mini league if switching away
+                if (eventType.value !== "mini_league") {
+                  setMiniLeagueId("");
+                }
+                // Clear team if switching to mini league
+                if (eventType.value === "mini_league") {
+                  setTeamId("");
+                }
+              }}
+              className={cn(
+                "flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all",
+                type === eventType.value
+                  ? "border-primary bg-primary/10"
+                  : "border-border hover:border-muted-foreground/50"
+              )}
+            >
+              <span className="text-2xl">{eventType.icon}</span>
+              <span className="text-xs font-medium">{eventType.label}</span>
+            </button>
+          );
+        })}
       </div>
 
 
