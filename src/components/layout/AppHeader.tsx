@@ -257,19 +257,25 @@ export function AppHeader() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [demoLoginOpen, setDemoLoginOpen] = useState(false);
   
-  // CRITICAL: Read theme from localStorage for initial render to prevent flash
+  // CRITICAL: Read theme from localStorage AND DOM class for initial render
   // next-themes' theme/resolvedTheme are undefined before hydration
+  // On Google OAuth return, localStorage might not be synced yet, but the 
+  // index.html bootstrap script sets the 'dark' class on documentElement
   const getStoredTheme = (): 'light' | 'dark' => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('app-theme');
       if (stored === 'dark' || stored === 'light') {
         return stored;
       }
+      // Fallback: Check DOM class set by index.html bootstrap script
+      if (document.documentElement.classList.contains('dark')) {
+        return 'dark';
+      }
     }
     return 'light';
   };
   
-  // Use resolvedTheme after hydration, fall back to localStorage on initial render
+  // Use resolvedTheme after hydration, fall back to localStorage/DOM on initial render
   const effectiveTheme = resolvedTheme ?? getStoredTheme();
 
   // Check if user is app admin
