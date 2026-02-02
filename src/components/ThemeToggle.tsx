@@ -4,35 +4,62 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
+// Get theme from DOM (the authoritative source after useAuth applies it)
+const getThemeFromDOM = (): 'light' | 'dark' => {
+  if (typeof window !== 'undefined') {
+    if (document.documentElement.classList.contains('dark')) return 'dark';
+    if (document.documentElement.classList.contains('light')) return 'light';
+    // Fallback to localStorage only if DOM doesn't have explicit class
+    const stored = localStorage.getItem('app-theme');
+    if (stored === 'dark' || stored === 'light') return stored;
+  }
+  return 'light';
+};
+
 export function ThemeToggle() {
   const { user } = useAuth();
-  const [mounted, setMounted] = useState(false);
-  const [theme, setThemeState] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('app-theme') || 'light';
-    }
-    return 'light';
-  });
+  const [theme, setThemeState] = useState<'light' | 'dark'>(getThemeFromDOM);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Track mount state to prevent hydration mismatch
+  // CRITICAL: Sync state with DOM when it changes (e.g., after Google OAuth applies theme)
+  // This fixes the mismatch where useAuth sets DOM to 'dark' but ThemeToggle state was 'light'
   useEffect(() => {
-    setMounted(true);
+    const syncThemeFromDOM = () => {
+      const domTheme = getThemeFromDOM();
+      setThemeState(domTheme);
+    };
+
+    // Sync immediately on mount
+    syncThemeFromDOM();
+
+    // Watch for class changes on documentElement (handles useAuth theme application)
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          syncThemeFromDOM();
+          break;
+        }
+      }
+    });
+
+    observer.observe(document.documentElement, { 
+      attributes: true, 
+      attributeFilter: ['class'] 
+    });
+
+    return () => observer.disconnect();
   }, []);
 
-  // Apply theme to DOM and localStorage
-  useEffect(() => {
+  // Apply theme to DOM and localStorage when user toggles
+  const applyTheme = useCallback((newTheme: 'light' | 'dark') => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
-    root.classList.add(theme);
-    root.style.colorScheme = theme;
-    localStorage.setItem('app-theme', theme);
-  }, [theme]);
+    root.classList.add(newTheme);
+    root.style.colorScheme = newTheme;
+    localStorage.setItem('app-theme', newTheme);
+  }, []);
 
-  // No need to load theme from profile here - useAuth handles it on fresh login
-  // On page refresh, localStorage (set by index.html) is the source of truth
-
-  // Save theme to profile when changed
+  // Save theme to profile when changed by user
   const saveThemeToProfile = useCallback(async (newTheme: string) => {
     if (!user || isSaving) return;
     
@@ -52,12 +79,12 @@ export function ThemeToggle() {
   const toggleTheme = () => {
     const newTheme = theme === "dark" ? "light" : "dark";
     setThemeState(newTheme);
+    applyTheme(newTheme);
     saveThemeToProfile(newTheme);
   };
 
   const isDark = theme === 'dark';
 
-  // Use explicit styling based on current theme state to prevent flash
   return (
     <Button 
       variant="ghost" 
