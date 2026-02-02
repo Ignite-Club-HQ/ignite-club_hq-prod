@@ -84,11 +84,18 @@ export function AppLayout() {
   const isStillLoading = !hasValidProfile && (!initialized || loading || profileLoading);
   
   if (isStillLoading || shouldWaitForTheme) {
+    // Show appropriate message based on auth state
+    const loadingMessage = !initialized 
+      ? "Checking authentication..." 
+      : shouldWaitForTheme 
+        ? "Applying theme..." 
+        : "Loading your profile...";
+    
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Loading your profile...</p>
+        <p className="text-sm text-muted-foreground">{loadingMessage}</p>
       </div>
     );
   }
