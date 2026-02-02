@@ -173,10 +173,18 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   
   const { resolvedTheme } = useTheme();
   
-  // CRITICAL: Read theme synchronously from localStorage to avoid flash on initial load
-  // next-themes' resolvedTheme is undefined before hydration, causing incorrect isDarkMode
-  const getStoredTheme = (): 'light' | 'dark' => {
+  // CRITICAL: Read theme from DOM class first, then localStorage
+  // During Google OAuth return, useAuth updates DOM class synchronously when profile is fetched,
+  // but localStorage and next-themes may still have stale values from the previous user.
+  // The DOM class is the authoritative source after auth updates it.
+  const getEffectiveTheme = (): 'light' | 'dark' => {
     if (typeof window !== 'undefined') {
+      // First check DOM class - this is updated synchronously by useAuth on fresh login
+      const isDarkClass = document.documentElement.classList.contains('dark');
+      if (isDarkClass) return 'dark';
+      if (document.documentElement.classList.contains('light')) return 'light';
+      
+      // Fallback to localStorage
       const stored = localStorage.getItem('app-theme');
       if (stored === 'dark' || stored === 'light') {
         return stored;
@@ -185,8 +193,9 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     return 'light';
   };
   
-  // Use resolvedTheme after hydration, but fall back to localStorage on initial render
-  const isDarkMode = resolvedTheme ? resolvedTheme === "dark" : getStoredTheme() === "dark";
+  // Use resolvedTheme after hydration, but fall back to DOM/localStorage on initial render
+  // CRITICAL: During OAuth, resolvedTheme may be stale - prefer getEffectiveTheme which reads DOM
+  const isDarkMode = resolvedTheme ? resolvedTheme === "dark" : getEffectiveTheme() === "dark";
 
   // SYNCHRONOUS INITIALIZATION: Read from localStorage during initial state setup
   // This ensures theme is available immediately on first render, not after an effect
@@ -208,9 +217,9 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
             sport: parsedData.sport ?? null 
           };
           // Apply theme CSS immediately during initialization
-          // CRITICAL: Use getStoredTheme() instead of resolvedTheme here because
+          // CRITICAL: Use getEffectiveTheme() instead of resolvedTheme here because
           // resolvedTheme is undefined during initial render before next-themes hydrates
-          applyThemeCSS(themeFromCache, getStoredTheme() === "dark");
+          applyThemeCSS(themeFromCache, getEffectiveTheme() === "dark");
           return { themeId: storedId, themeData: themeFromCache };
         }
       } catch {
@@ -256,12 +265,17 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('club-theme-updated', handleThemeUpdate);
   }, []);
 
-  // CRITICAL: Detect user switch and reset ALL theme state
+  // CRITICAL: Detect user switch OR fresh login and reset ALL theme state
   // This prevents stale theme data from previous user appearing during Google OAuth login
+  // Fresh login scenario: lastUserId is null but user.id exists
+  // User switch scenario: both exist but are different
   useLayoutEffect(() => {
-    if (user?.id && lastUserId && user.id !== lastUserId) {
-      console.log('[ClubTheme] User switch detected, clearing stale theme state');
-      // Clear CSS immediately
+    const isFreshLogin = user?.id && !lastUserId;
+    const isUserSwitch = user?.id && lastUserId && user.id !== lastUserId;
+    
+    if (isFreshLogin || isUserSwitch) {
+      console.log('[ClubTheme] User change detected:', isFreshLogin ? 'fresh login' : 'user switch');
+      // Clear CSS immediately to prevent flash of wrong colors
       const root = document.documentElement;
       root.style.removeProperty("--primary");
       root.style.removeProperty("--primary-foreground");
@@ -275,7 +289,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       setCachedThemeData(null);
       setHasCheckedDefault(false);
       setHasStartedDbLoad(false);
-      setIsLoadingFromDb(false);
+      setIsLoadingFromDb(true); // Mark as loading to prevent isThemeReady from being true
     }
     // Update lastUserId after handling
     if (user?.id !== lastUserId) {
