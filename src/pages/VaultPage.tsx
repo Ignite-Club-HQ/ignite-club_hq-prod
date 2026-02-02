@@ -475,11 +475,19 @@ export default function VaultPage() {
 
   // Fetch mini-leagues for the current club (Pro Football only)
   const { data: clubMiniLeagues } = useQuery({
-    queryKey: ["vault-club-mini-leagues", currentView.type === "club" ? currentView.clubId : null, isClubAdmin, userRoles],
+    queryKey: ["vault-club-mini-leagues", currentView.type === "club" ? currentView.clubId : null, isClubAdmin, user?.id, userRoles?.length],
     queryFn: async () => {
       if (currentView.type !== "club") return [];
       
       const clubId = currentView.clubId;
+      
+      // First fetch the user's roles fresh to avoid stale closure issues
+      const { data: freshRoles } = await supabase
+        .from("user_roles")
+        .select("role, club_id, team_id")
+        .eq("user_id", user!.id);
+      
+      console.log("[Vault Mini-Leagues] Fresh roles for user:", user!.id, freshRoles);
       
       // Check if club has Pro Football access
       const { data: clubSub } = await supabase
@@ -489,17 +497,20 @@ export default function VaultPage() {
         .maybeSingle();
       
       const hasProFootball = clubSub?.is_pro_football || clubSub?.admin_pro_football_override;
-      if (!hasProFootball && !isAppAdmin) return [];
+      if (!hasProFootball && !isAppAdmin) {
+        console.log("[Vault Mini-Leagues] Club doesn't have Pro Football, returning empty");
+        return [];
+      }
       
-      // Check roles fresh from userRoles (not stale closure values)
-      const isClubAdminRole = userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId);
-      const isLeagueAdmin = userRoles?.some(r => r.role === "league_admin" && r.club_id === clubId);
-      const isCoach = userRoles?.some(r => r.role === "coach" && r.club_id === clubId);
-      const isCommitteeMember = userRoles?.some(r => r.role === "committee_member" && r.club_id === clubId);
+      // Check roles from freshly fetched data
+      const isClubAdminRole = freshRoles?.some(r => r.role === "club_admin" && r.club_id === clubId);
+      const isLeagueAdmin = freshRoles?.some(r => r.role === "league_admin" && r.club_id === clubId);
+      const isCoach = freshRoles?.some(r => r.role === "coach" && r.club_id === clubId);
+      const isCommitteeMember = freshRoles?.some(r => r.role === "committee_member" && r.club_id === clubId);
       
       console.log("[Vault Mini-Leagues Debug]", {
         clubId,
-        userRoles,
+        freshRoles,
         isAppAdmin,
         isClubAdminRole,
         isLeagueAdmin,
@@ -519,29 +530,23 @@ export default function VaultPage() {
         return data || [];
       } else {
         // Parents can only see leagues their children are in
+        console.log("[Vault Mini-Leagues] User doesn't have admin access, checking for children");
         const { data: playerLeagues } = await supabase
           .from("mini_league_players")
           .select("mini_league_id, mini_leagues!inner(id, name, club_id)")
           .eq("parent_user_id", user!.id);
         
         if (playerLeagues) {
-          return playerLeagues
+          const filtered = playerLeagues
             .filter((pl: any) => pl.mini_leagues?.club_id === clubId)
             .map((pl: any) => ({ id: pl.mini_leagues.id, name: pl.mini_leagues.name }));
+          console.log("[Vault Mini-Leagues] Leagues via children:", filtered);
+          return filtered;
         }
         return [];
       }
     },
-    enabled: (() => {
-      const isEnabled = currentView.type === "club" && !!user && !isLoadingRoles;
-      console.log("[Vault Mini-Leagues] Query enabled check:", { 
-        viewType: currentView.type, 
-        hasUser: !!user, 
-        isLoadingRoles, 
-        isEnabled 
-      });
-      return isEnabled;
-    })(),
+    enabled: currentView.type === "club" && !!user,
   });
 
   const getCurrentFolderId = () => {
