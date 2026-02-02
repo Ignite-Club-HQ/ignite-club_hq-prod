@@ -239,6 +239,8 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   const [isLoadingFromDb, setIsLoadingFromDb] = useState(false);
   // Track if we've ever started the DB load for this user session
   const [hasStartedDbLoad, setHasStartedDbLoad] = useState(false);
+  // Track the last user ID to detect user switches (e.g., Google OAuth to different account)
+  const [lastUserId, setLastUserId] = useState<string | null>(null);
 
   // Counter to force re-read from localStorage (incremented by custom event)
   const [localStorageVersion, setLocalStorageVersion] = useState(0);
@@ -254,6 +256,33 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('club-theme-updated', handleThemeUpdate);
   }, []);
 
+  // CRITICAL: Detect user switch and reset ALL theme state
+  // This prevents stale theme data from previous user appearing during Google OAuth login
+  useLayoutEffect(() => {
+    if (user?.id && lastUserId && user.id !== lastUserId) {
+      console.log('[ClubTheme] User switch detected, clearing stale theme state');
+      // Clear CSS immediately
+      const root = document.documentElement;
+      root.style.removeProperty("--primary");
+      root.style.removeProperty("--primary-foreground");
+      root.style.removeProperty("--secondary");
+      root.style.removeProperty("--secondary-foreground");
+      root.style.removeProperty("--accent");
+      root.style.removeProperty("--accent-foreground");
+      root.style.removeProperty("--ring");
+      // Reset state - will be populated from new user's cache/DB
+      setActiveClubThemeState(null);
+      setCachedThemeData(null);
+      setHasCheckedDefault(false);
+      setHasStartedDbLoad(false);
+      setIsLoadingFromDb(false);
+    }
+    // Update lastUserId after handling
+    if (user?.id !== lastUserId) {
+      setLastUserId(user?.id ?? null);
+    }
+  }, [user?.id, lastUserId]);
+
   // Re-read from localStorage when user changes OR when localStorageVersion changes
   // Use useLayoutEffect to ensure this runs synchronously before browser paint
   // This handles subsequent updates after initial render
@@ -262,7 +291,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       const storedId = localStorage.getItem(getStorageKey(user.id));
       const storedData = localStorage.getItem(getStorageDataKey(user.id));
       
-      // If localStorage has theme data, sync state
+      // If localStorage has theme data for THIS user, sync state
       if (storedId) {
         setActiveClubThemeState(storedId);
         
@@ -282,6 +311,10 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
             // Invalid cache
           }
         }
+      } else {
+        // No cache for this user - clear any stale state
+        setActiveClubThemeState(null);
+        setCachedThemeData(null);
       }
     }
   }, [user?.id, localStorageVersion, isDarkMode]);
