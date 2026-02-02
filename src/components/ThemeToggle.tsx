@@ -1,6 +1,6 @@
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -20,19 +20,22 @@ export function ThemeToggle() {
   const { user } = useAuth();
   const [theme, setThemeState] = useState<'light' | 'dark'>(getThemeFromDOM);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Use ref to always have current user value (avoids stale closure)
+  const userRef = useRef(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   // CRITICAL: Sync state with DOM when it changes (e.g., after Google OAuth applies theme)
-  // This fixes the mismatch where useAuth sets DOM to 'dark' but ThemeToggle state was 'light'
   useEffect(() => {
     const syncThemeFromDOM = () => {
       const domTheme = getThemeFromDOM();
       setThemeState(domTheme);
     };
 
-    // Sync immediately on mount
     syncThemeFromDOM();
 
-    // Watch for class changes on documentElement (handles useAuth theme application)
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
@@ -50,33 +53,37 @@ export function ThemeToggle() {
     return () => observer.disconnect();
   }, []);
 
-  // Apply theme to DOM and localStorage when user toggles
-  const applyTheme = useCallback((newTheme: 'light' | 'dark') => {
+  const toggleTheme = async () => {
+    const newTheme = theme === "dark" ? "light" : "dark";
+    console.log('[ThemeToggle] Toggle clicked, changing from', theme, 'to', newTheme);
+    
+    // Apply to DOM immediately
+    setThemeState(newTheme);
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
     root.classList.add(newTheme);
     root.style.colorScheme = newTheme;
     localStorage.setItem('app-theme', newTheme);
-  }, []);
-
-  // Save theme to profile when changed by user
-  const saveThemeToProfile = useCallback(async (newTheme: string) => {
-    if (!user) {
-      console.warn('[ThemeToggle] Cannot save theme - no user logged in');
+    
+    // Save to profile (use ref to get current user)
+    const currentUser = userRef.current;
+    if (!currentUser) {
+      console.warn('[ThemeToggle] Cannot save theme - no user logged in, user ref:', currentUser);
       return;
     }
+    
     if (isSaving) {
       console.log('[ThemeToggle] Save already in progress, skipping');
       return;
     }
     
-    console.log('[ThemeToggle] Saving theme to profile:', newTheme, 'for user:', user.id);
+    console.log('[ThemeToggle] Saving theme to profile:', newTheme, 'for user:', currentUser.id);
     setIsSaving(true);
     try {
       const { error } = await supabase
         .from('profiles')
         .update({ theme_preference: newTheme })
-        .eq('id', user.id);
+        .eq('id', currentUser.id);
       
       if (error) {
         console.error('[ThemeToggle] Failed to save theme preference:', error);
@@ -88,13 +95,6 @@ export function ThemeToggle() {
     } finally {
       setIsSaving(false);
     }
-  }, [user, isSaving]);
-
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setThemeState(newTheme);
-    applyTheme(newTheme);
-    saveThemeToProfile(newTheme);
   };
 
   const isDark = theme === 'dark';
