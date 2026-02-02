@@ -257,26 +257,29 @@ export function AppHeader() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [demoLoginOpen, setDemoLoginOpen] = useState(false);
   
-  // CRITICAL: Read theme from localStorage AND DOM class for initial render
-  // next-themes' theme/resolvedTheme are undefined before hydration
-  // On Google OAuth return, localStorage might not be synced yet, but the 
-  // index.html bootstrap script sets the 'dark' class on documentElement
-  const getStoredTheme = (): 'light' | 'dark' => {
+  // CRITICAL: Read theme from DOM class FIRST, then localStorage
+  // During Google OAuth return, useAuth updates DOM class synchronously when profile is fetched,
+  // but localStorage and next-themes may still have stale values from the previous user.
+  // The DOM class is the authoritative source after auth updates it.
+  const getEffectiveTheme = (): 'light' | 'dark' => {
     if (typeof window !== 'undefined') {
+      // First check DOM class - this is updated synchronously by useAuth on fresh login
+      const isDarkClass = document.documentElement.classList.contains('dark');
+      if (isDarkClass) return 'dark';
+      if (document.documentElement.classList.contains('light')) return 'light';
+      
+      // Fallback to localStorage
       const stored = localStorage.getItem('app-theme');
       if (stored === 'dark' || stored === 'light') {
         return stored;
-      }
-      // Fallback: Check DOM class set by index.html bootstrap script
-      if (document.documentElement.classList.contains('dark')) {
-        return 'dark';
       }
     }
     return 'light';
   };
   
-  // Use resolvedTheme after hydration, fall back to localStorage/DOM on initial render
-  const effectiveTheme = resolvedTheme ?? getStoredTheme();
+  // Use resolvedTheme after hydration, fall back to DOM/localStorage on initial render
+  // CRITICAL: During OAuth, resolvedTheme may be stale - prefer getEffectiveTheme which reads DOM
+  const effectiveTheme = resolvedTheme ?? getEffectiveTheme();
 
   // Check if user is app admin
   const { data: isAppAdmin } = useQuery({
