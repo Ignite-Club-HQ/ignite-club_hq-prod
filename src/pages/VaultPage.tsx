@@ -478,26 +478,30 @@ export default function VaultPage() {
     queryFn: async () => {
       if (currentView.type !== "club") return [];
       
+      const clubId = currentView.clubId;
+      
       // Check if club has Pro Football access
       const { data: clubSub } = await supabase
         .from("club_subscriptions")
         .select("is_pro_football, admin_pro_football_override")
-        .eq("club_id", currentView.clubId)
+        .eq("club_id", clubId)
         .maybeSingle();
       
       const hasProFootball = clubSub?.is_pro_football || clubSub?.admin_pro_football_override;
       if (!hasProFootball && !isAppAdmin) return [];
       
-      const isLeagueAdmin = userRoles?.some(r => r.role === "league_admin" && r.club_id === currentView.clubId);
-      const isCoach = userRoles?.some(r => r.role === "coach" && r.club_id === currentView.clubId);
-      const isCommitteeMember = userRoles?.some(r => r.role === "committee_member" && r.club_id === currentView.clubId);
+      // Check roles fresh from userRoles (not stale closure values)
+      const isClubAdminRole = userRoles?.some(r => r.role === "club_admin" && r.club_id === clubId);
+      const isLeagueAdmin = userRoles?.some(r => r.role === "league_admin" && r.club_id === clubId);
+      const isCoach = userRoles?.some(r => r.role === "coach" && r.club_id === clubId);
+      const isCommitteeMember = userRoles?.some(r => r.role === "committee_member" && r.club_id === clubId);
       
-      if (isAppAdmin || isClubAdmin || isLeagueAdmin || isCoach || isCommitteeMember) {
-        // Admins and committee members can see all mini-leagues
+      if (isAppAdmin || isClubAdminRole || isLeagueAdmin || isCoach || isCommitteeMember) {
+        // Admins, committee members, coaches and league admins can see all mini-leagues
         const { data } = await supabase
           .from("mini_leagues")
           .select("id, name")
-          .eq("club_id", currentView.clubId)
+          .eq("club_id", clubId)
           .order("name");
         return data || [];
       } else {
@@ -509,7 +513,7 @@ export default function VaultPage() {
         
         if (playerLeagues) {
           return playerLeagues
-            .filter((pl: any) => pl.mini_leagues?.club_id === currentView.clubId)
+            .filter((pl: any) => pl.mini_leagues?.club_id === clubId)
             .map((pl: any) => ({ id: pl.mini_leagues.id, name: pl.mini_leagues.name }));
         }
         return [];
