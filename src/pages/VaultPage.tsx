@@ -197,6 +197,7 @@ export default function VaultPage() {
         .from("user_roles")
         .select("role, club_id, team_id")
         .eq("user_id", user!.id);
+      console.log("[Vault] Fetched userRoles for user", user!.id, ":", data);
       return data || [];
     },
     enabled: !!user,
@@ -531,7 +532,16 @@ export default function VaultPage() {
         return [];
       }
     },
-    enabled: currentView.type === "club" && !!user && !isLoadingRoles,
+    enabled: (() => {
+      const isEnabled = currentView.type === "club" && !!user && !isLoadingRoles;
+      console.log("[Vault Mini-Leagues] Query enabled check:", { 
+        viewType: currentView.type, 
+        hasUser: !!user, 
+        isLoadingRoles, 
+        isEnabled 
+      });
+      return isEnabled;
+    })(),
   });
 
   const getCurrentFolderId = () => {
