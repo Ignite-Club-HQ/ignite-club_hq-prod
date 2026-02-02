@@ -205,18 +205,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             markProfileCompleted(userId);
           }
           
-          // Only apply theme preference on fresh login, not page refresh
+          // Apply theme preference on fresh login (including Google OAuth)
           // On page refresh, localStorage (set by index.html) is the source of truth
-          if (applyTheme && profileData.theme_preference) {
-            const currentTheme = localStorage.getItem('app-theme');
-            // Only override if this is a fresh login (not a refresh with existing theme)
-            if (!currentTheme || isFreshLogin) {
-              const root = window.document.documentElement;
-              root.classList.remove('light', 'dark');
-              root.classList.add(profileData.theme_preference);
-              root.style.colorScheme = profileData.theme_preference;
-              localStorage.setItem('app-theme', profileData.theme_preference);
-            }
+          // CRITICAL: On fresh login (isFreshLogin=true), ALWAYS apply the user's saved preference
+          // This handles Google OAuth where localStorage may have stale theme from previous user
+          if (applyTheme && isFreshLogin) {
+            const root = window.document.documentElement;
+            const themeToApply = profileData.theme_preference || 'light'; // Default to light for new users
+            root.classList.remove('light', 'dark');
+            root.classList.add(themeToApply);
+            root.style.colorScheme = themeToApply;
+            localStorage.setItem('app-theme', themeToApply);
+            console.log('[Auth] Applied theme preference on fresh login:', themeToApply);
           }
           
           return profileData;
