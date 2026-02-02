@@ -208,7 +208,9 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
             sport: parsedData.sport ?? null 
           };
           // Apply theme CSS immediately during initialization
-          applyThemeCSS(themeFromCache, resolvedTheme === "dark");
+          // CRITICAL: Use getStoredTheme() instead of resolvedTheme here because
+          // resolvedTheme is undefined during initial render before next-themes hydrates
+          applyThemeCSS(themeFromCache, getStoredTheme() === "dark");
           return { themeId: storedId, themeData: themeFromCache };
         }
       } catch {
