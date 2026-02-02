@@ -172,7 +172,21 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   }
   
   const { resolvedTheme } = useTheme();
-  const isDarkMode = resolvedTheme === "dark";
+  
+  // CRITICAL: Read theme synchronously from localStorage to avoid flash on initial load
+  // next-themes' resolvedTheme is undefined before hydration, causing incorrect isDarkMode
+  const getStoredTheme = (): 'light' | 'dark' => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('app-theme');
+      if (stored === 'dark' || stored === 'light') {
+        return stored;
+      }
+    }
+    return 'light';
+  };
+  
+  // Use resolvedTheme after hydration, but fall back to localStorage on initial render
+  const isDarkMode = resolvedTheme ? resolvedTheme === "dark" : getStoredTheme() === "dark";
 
   // SYNCHRONOUS INITIALIZATION: Read from localStorage during initial state setup
   // This ensures theme is available immediately on first render, not after an effect
