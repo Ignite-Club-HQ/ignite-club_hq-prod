@@ -269,9 +269,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let profileFetched = false;
     
     const handleSession = async (currentSession: Session | null, isInitial = false, applyTheme = false) => {
-      if (!mounted || !currentSession?.user) return;
+      if (!mounted || !currentSession?.user) {
+        console.log('[Auth] handleSession early exit - mounted:', mounted, 'hasUser:', !!currentSession?.user);
+        return;
+      }
       
       const userId = currentSession.user.id;
+      console.log('[Auth] handleSession called - userId:', userId, 'isInitial:', isInitial, 'applyTheme:', applyTheme, 'profileFetched:', profileFetched);
       
       // CHECK: If we started with a cached profile, validate it's for this user
       // If userId mismatch, we need to clear and refetch - this is a USER SWITCH scenario
@@ -287,7 +291,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       // Prevent duplicate fetches within same session (but allow user switches)
-      if (profileFetched && !isInitial && !isUserSwitch) return;
+      // CRITICAL: For SIGNED_IN event (isInitial=false, applyTheme=true), we MUST proceed
+      // even if profileFetched is true from a previous INITIAL_SESSION
+      const shouldSkip = profileFetched && !isInitial && !isUserSwitch && !applyTheme;
+      if (shouldSkip) {
+        console.log('[Auth] handleSession skipping - already fetched');
+        return;
+      }
       profileFetched = true;
       
       // If we already have initialized=true from sync hydration AND userId matches (no switch),
