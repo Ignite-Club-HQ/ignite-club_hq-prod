@@ -164,6 +164,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Flag to track if this is a fresh login (not a page refresh)
   const [isFreshLogin, setIsFreshLogin] = useState(false);
 
+  // CRITICAL FIX: applyTheme is now a direct parameter, not dependent on React state
+  // This avoids stale closure issues during Google OAuth where isFreshLogin state
+  // wasn't available in the callback at the right time
   const fetchProfile = useCallback(async (userId: string, retries = 5, applyTheme = false): Promise<Profile | null> => {
     setProfileError(false);
     for (let attempt = 1; attempt <= retries; attempt++) {
@@ -205,18 +208,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             markProfileCompleted(userId);
           }
           
-          // Apply theme preference on fresh login (including Google OAuth)
-          // On page refresh, localStorage (set by index.html) is the source of truth
-          // CRITICAL: On fresh login (isFreshLogin=true), ALWAYS apply the user's saved preference
-          // This handles Google OAuth where localStorage may have stale theme from previous user
-          if (applyTheme && isFreshLogin) {
+          // CRITICAL FIX: Apply theme when applyTheme=true (passed by caller)
+          // The caller determines if this is a fresh login, not React state
+          // This fixes Google OAuth where the closure captured stale isFreshLogin state
+          if (applyTheme) {
             const root = window.document.documentElement;
             const themeToApply = profileData.theme_preference || 'light'; // Default to light for new users
             root.classList.remove('light', 'dark');
             root.classList.add(themeToApply);
             root.style.colorScheme = themeToApply;
             localStorage.setItem('app-theme', themeToApply);
-            console.log('[Auth] Applied theme preference on fresh login:', themeToApply);
+            console.log('[Auth] Applied theme preference on fresh login:', themeToApply, '(was:', localStorage.getItem('app-theme'), ')');
           }
           
           return profileData;
@@ -239,7 +241,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setProfileError(true);
     return null;
-  }, [isFreshLogin]);
+  }, []); // No dependencies - applyTheme is a parameter, not state
 
   // MESSAGE_NOTIFICATION_TYPES imported from @/lib/notificationTypes
 
