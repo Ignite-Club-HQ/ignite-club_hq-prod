@@ -37,14 +37,34 @@
     <script>
       (function() {
         try {
-          var theme = localStorage.getItem('app-theme');
-          if (theme === 'dark') {
-            document.documentElement.classList.add('dark');
-            document.documentElement.style.colorScheme = 'dark';
-          } else {
-            // Default to light theme if not set or if set to light
+          // CRITICAL: Check if this is an OAuth callback (Google login)
+          // If so, localStorage may contain stale theme from previous user
+          // Default to LIGHT mode and let React apply the correct theme after profile fetch
+          var hash = window.location.hash;
+          var search = window.location.search;
+          var isOAuthCallback = (hash && (hash.includes('access_token') || hash.includes('refresh_token'))) ||
+                                (search && search.includes('code='));
+          
+          if (isOAuthCallback) {
+            // OAuth callback - default to light mode, don't trust localStorage
+            // The useAuth hook will apply the correct theme after fetching the profile
+            console.log('[Theme] OAuth callback detected - defaulting to light mode');
             document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light');
             document.documentElement.style.colorScheme = 'light';
+            // Clear localStorage to ensure useAuth can apply the correct theme
+            localStorage.removeItem('app-theme');
+          } else {
+            // Normal page load - use localStorage
+            var theme = localStorage.getItem('app-theme');
+            if (theme === 'dark') {
+              document.documentElement.classList.add('dark');
+              document.documentElement.style.colorScheme = 'dark';
+            } else {
+              // Default to light theme if not set or if set to light
+              document.documentElement.classList.remove('dark');
+              document.documentElement.style.colorScheme = 'light';
+            }
           }
         } catch (e) {}
       })();
