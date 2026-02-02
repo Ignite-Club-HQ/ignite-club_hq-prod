@@ -268,25 +268,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const handleSession = async (currentSession: Session | null, isInitial = false, applyTheme = false) => {
       if (!mounted || !currentSession?.user) return;
-      if (profileFetched && !isInitial) return;
       
-      profileFetched = true;
       const userId = currentSession.user.id;
       
       // CHECK: If we started with a cached profile, validate it's for this user
-      // If userId mismatch, we need to clear and refetch
-      if (cachedUserId && cachedUserId !== userId) {
-        console.log('[Auth] Session user differs from cached - clearing and refetching');
+      // If userId mismatch, we need to clear and refetch - this is a USER SWITCH scenario
+      const isUserSwitch = cachedUserId && cachedUserId !== userId;
+      if (isUserSwitch) {
+        console.log('[Auth] Session user differs from cached - clearing stale cache for user switch');
         setProfile(null);
         setCachedProfile(null);
-        setProfileLoading(true);
-        setLoading(true);
-        setInitialized(false);
+        // Clear the old cache from localStorage too
+        localStorage.removeItem(PROFILE_CACHE_KEY);
+        // Reset the profileFetched flag since we're switching users
+        profileFetched = false;
       }
       
-      // If we already have initialized=true from sync hydration AND userId matches,
+      // Prevent duplicate fetches within same session (but allow user switches)
+      if (profileFetched && !isInitial && !isUserSwitch) return;
+      profileFetched = true;
+      
+      // If we already have initialized=true from sync hydration AND userId matches (no switch),
       // just do a background refresh - no need to block
-      if (initialized && profile?.display_name && cachedUserId === userId) {
+      if (!isUserSwitch && initialized && profile?.display_name && cachedUserId === userId) {
         // Already ready from sync hydration - just background refresh
         fetchProfile(userId, 5, false).catch(() => {});
         // Prefetch other data
@@ -309,7 +313,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // If we have a cached profile for THIS USER with display_name, TRUST IT immediately
       // This eliminates the flash on page refresh - no need to wait for server
-      const cached = getCachedProfile(userId);
+      // NOTE: Don't use cache if this is a user switch (cache was just cleared)
+      const cached = isUserSwitch ? null : getCachedProfile(userId);
       if (cached && cached.id === userId && cached.display_name) {
         // TRUST the cached profile - user is already set up
         setProfile(cached);
@@ -332,27 +337,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Background refresh
         fetchProfile(userId, 5, false).catch(() => {});
       } else {
-        // No cache - must fetch profile before proceeding
+        // No cache or user switch - must fetch profile before proceeding
+        console.log('[Auth] Fetching profile for user:', userId, isUserSwitch ? '(user switch)' : '');
         setProfileLoading(true);
-        fetchProfile(userId, 5, applyTheme)
-          .then(() => {
-            if (mounted) {
-              queueMicrotask(() => {
-                if (mounted) {
-                  setProfileLoading(false);
-                  setLoading(false);
-                  setInitialized(true);
-                }
-              });
-            }
-          })
-          .catch(() => {
-            if (mounted) {
-              setProfileLoading(false);
-              setLoading(false);
-              setInitialized(true);
-            }
-          });
+        try {
+          const fetchedProfile = await fetchProfile(userId, 5, applyTheme);
+          if (mounted) {
+            // Use queueMicrotask to batch state updates
+            queueMicrotask(() => {
+              if (mounted) {
+                setProfileLoading(false);
+                setLoading(false);
+                setInitialized(true);
+                console.log('[Auth] Profile fetch complete, initialized:', !!fetchedProfile);
+              }
+            });
+          }
+        } catch (err) {
+          console.error('[Auth] Profile fetch failed:', err);
+          if (mounted) {
+            setProfileLoading(false);
+            setLoading(false);
+            setInitialized(true); // Initialize even on error to prevent hang
+          }
+        }
       }
       // Background prefetch - fire and forget
       setTimeout(() => {
