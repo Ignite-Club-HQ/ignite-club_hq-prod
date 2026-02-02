@@ -61,16 +61,30 @@ export function ThemeToggle() {
 
   // Save theme to profile when changed by user
   const saveThemeToProfile = useCallback(async (newTheme: string) => {
-    if (!user || isSaving) return;
+    if (!user) {
+      console.warn('[ThemeToggle] Cannot save theme - no user logged in');
+      return;
+    }
+    if (isSaving) {
+      console.log('[ThemeToggle] Save already in progress, skipping');
+      return;
+    }
     
+    console.log('[ThemeToggle] Saving theme to profile:', newTheme, 'for user:', user.id);
     setIsSaving(true);
     try {
-      await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({ theme_preference: newTheme })
         .eq('id', user.id);
+      
+      if (error) {
+        console.error('[ThemeToggle] Failed to save theme preference:', error);
+      } else {
+        console.log('[ThemeToggle] Theme preference saved successfully:', newTheme);
+      }
     } catch (err) {
-      console.error('Failed to save theme preference:', err);
+      console.error('[ThemeToggle] Exception saving theme preference:', err);
     } finally {
       setIsSaving(false);
     }
