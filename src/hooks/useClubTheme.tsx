@@ -250,6 +250,8 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   const [hasStartedDbLoad, setHasStartedDbLoad] = useState(false);
   // Track the last user ID to detect user switches (e.g., Google OAuth to different account)
   const [lastUserId, setLastUserId] = useState<string | null>(null);
+  // Track if we're in the middle of a user switch - prevents isThemeReady from being true prematurely
+  const [isUserSwitching, setIsUserSwitching] = useState(false);
 
   // Counter to force re-read from localStorage (incremented by custom event)
   const [localStorageVersion, setLocalStorageVersion] = useState(0);
@@ -275,6 +277,8 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     
     if (isFreshLogin || isUserSwitch) {
       console.log('[ClubTheme] User change detected:', isFreshLogin ? 'fresh login' : 'user switch');
+      // Set user switching flag FIRST - this prevents isThemeReady from being true
+      setIsUserSwitching(true);
       // Clear CSS immediately to prevent flash of wrong colors
       const root = document.documentElement;
       root.style.removeProperty("--primary");
@@ -445,6 +449,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           console.error('Failed to load club theme from database:', err);
         } finally {
           setIsLoadingFromDb(false);
+          setIsUserSwitching(false); // Clear switching flag - theme is now ready
         }
       };
       
@@ -788,8 +793,9 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   // - OR user exists AND we've started AND finished loading from DB
   // This prevents flash of default theme on first login
   // CRITICAL: We must wait for auth to finish loading before claiming "no user"
+  // CRITICAL: During user switch/fresh login, we must wait until isUserSwitching is cleared
   const hasLocalThemeData = activeClubTheme !== null && cachedThemeData !== null;
-  const themeIsReady = (!authLoading && !user?.id) || hasLocalThemeData || (hasStartedDbLoad && !isLoadingFromDb);
+  const themeIsReady = !isUserSwitching && ((!authLoading && !user?.id) || hasLocalThemeData || (hasStartedDbLoad && !isLoadingFromDb));
 
   return (
     <ClubThemeContext.Provider value={{
