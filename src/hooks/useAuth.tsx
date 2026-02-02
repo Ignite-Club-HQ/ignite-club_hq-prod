@@ -301,8 +301,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileFetched = true;
       
       // If we already have initialized=true from sync hydration AND userId matches (no switch),
-      // just do a background refresh - no need to block
-      if (!isUserSwitch && initialized && profile?.display_name && cachedUserId === userId) {
+      // AND this is NOT a fresh login (applyTheme=true means fresh login), just do background refresh
+      // CRITICAL: For fresh logins (applyTheme=true), we must NOT skip - we need to apply theme
+      if (!isUserSwitch && !applyTheme && initialized && profile?.display_name && cachedUserId === userId) {
+        console.log('[Auth] handleSession - using cached profile, background refresh only');
         // Already ready from sync hydration - just background refresh
         fetchProfile(userId, 5, false).catch(() => {});
         // Prefetch other data
