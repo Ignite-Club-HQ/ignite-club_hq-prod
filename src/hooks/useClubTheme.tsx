@@ -276,7 +276,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     const isUserSwitch = user?.id && lastUserId && user.id !== lastUserId;
     
     if (isFreshLogin || isUserSwitch) {
-      console.log('[ClubTheme] User change detected:', isFreshLogin ? 'fresh login' : 'user switch');
+      console.log('[ClubTheme] User change detected:', isFreshLogin ? 'fresh login' : 'user switch', 'userId:', user?.id);
       // Set user switching flag FIRST - this prevents isThemeReady from being true
       setIsUserSwitching(true);
       // Clear CSS immediately to prevent flash of wrong colors
@@ -289,11 +289,20 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       root.style.removeProperty("--accent-foreground");
       root.style.removeProperty("--ring");
       // Reset state - will be populated from new user's cache/DB
+      // CRITICAL: Clear cachedThemeData so hasLocalThemeData becomes false
+      // This prevents stale localStorage data from making isThemeReady=true prematurely
       setActiveClubThemeState(null);
       setCachedThemeData(null);
       setHasCheckedDefault(false);
       setHasStartedDbLoad(false);
       setIsLoadingFromDb(true); // Mark as loading to prevent isThemeReady from being true
+      
+      // CRITICAL FIX: Also clear localStorage for THIS user to prevent stale cache
+      // The correct theme will be fetched from DB and re-cached
+      if (user?.id) {
+        localStorage.removeItem(getStorageKey(user.id));
+        localStorage.removeItem(getStorageDataKey(user.id));
+      }
     }
     // Update lastUserId after handling
     if (user?.id !== lastUserId) {
@@ -799,8 +808,30 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   // This prevents flash of default theme on first login
   // CRITICAL: We must wait for auth to finish loading before claiming "no user"
   // CRITICAL: During user switch/fresh login, we must wait until isUserSwitching is cleared
+  // CRITICAL: hasLocalThemeData should only be trusted when NOT user switching
   const hasLocalThemeData = activeClubTheme !== null && cachedThemeData !== null;
-  const themeIsReady = !isUserSwitching && ((!authLoading && !user?.id) || hasLocalThemeData || (hasStartedDbLoad && !isLoadingFromDb));
+  const dbLoadComplete = hasStartedDbLoad && !isLoadingFromDb;
+  // Only trust cached data if we're not switching users - otherwise wait for DB
+  const themeIsReady = !isUserSwitching && (
+    (!authLoading && !user?.id) || // No user - no theme to load
+    dbLoadComplete || // DB load is complete - theme is authoritative
+    (!isLoadingFromDb && hasLocalThemeData && !authLoading) // Have cache AND not loading
+  );
+  
+  // Debug logging for theme readiness
+  if (typeof window !== 'undefined' && user?.id) {
+    console.log('[ClubTheme] Ready check:', {
+      isUserSwitching,
+      authLoading,
+      hasLocalThemeData,
+      dbLoadComplete,
+      isLoadingFromDb,
+      hasStartedDbLoad,
+      themeIsReady,
+      activeClubTheme,
+      hasCachedData: !!cachedThemeData,
+    });
+  }
 
   return (
     <ClubThemeContext.Provider value={{
