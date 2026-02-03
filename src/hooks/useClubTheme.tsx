@@ -150,6 +150,9 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
     const cssValue = `${primary.h} ${primary.s}% ${primary.l}%`;
     console.log('[ClubTheme] Setting --primary to:', cssValue);
     root.style.setProperty("--primary", cssValue);
+    // Verify the value was actually set
+    const computedValue = getComputedStyle(root).getPropertyValue('--primary');
+    console.log('[ClubTheme] Verified --primary computed value:', computedValue);
     const fgL = primary.l > 50 ? 10 : 98;
     root.style.setProperty("--primary-foreground", `${primary.h} 10% ${fgL}%`);
     root.style.setProperty("--ring", cssValue);
