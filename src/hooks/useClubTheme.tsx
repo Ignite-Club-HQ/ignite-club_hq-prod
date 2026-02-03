@@ -434,12 +434,17 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
                   applyThemeCSS(themeData, isDarkMode);
                 }
               }
+            } else {
+              // Database has null/undefined active_club_theme_id - user chose "Ignite Mode"
+              // Clear localStorage to match DB and prevent stale club mode on re-login
+              console.log('[ClubTheme] DB has no active club theme - clearing localStorage to match');
+              localStorage.removeItem(getStorageKey(user.id));
+              localStorage.removeItem(getStorageDataKey(user.id));
+              setActiveClubThemeState(null);
+              setCachedThemeData(null);
+              // User explicitly has no club theme in DB - respect that choice
+              setHasCheckedDefault(true);
             }
-            // If active_club_theme_id is null, it could mean:
-            // 1. User explicitly chose default (but we can't distinguish this easily)
-            // 2. New user who hasn't set any preference yet
-            // We'll let the auto-set logic handle new users by NOT setting hasCheckedDefault here
-            // The auto-set will run if availableClubThemes has items
           } else if (storedId) {
             // Have localStorage but failed to fetch DB - use localStorage, don't auto-set
             setHasCheckedDefault(true);
