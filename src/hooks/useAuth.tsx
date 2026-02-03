@@ -328,7 +328,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // If we have a cached profile for THIS USER with display_name, TRUST IT immediately
       // This eliminates the flash on page refresh - no need to wait for server
       // NOTE: Don't use cache if this is a user switch (cache was just cleared)
-      const cached = isUserSwitch ? null : getCachedProfile(userId);
+      // CRITICAL: On fresh login (applyTheme=true), we must fetch to apply DB theme preference
+      const cached = (isUserSwitch || applyTheme) ? null : getCachedProfile(userId);
       if (cached && cached.id === userId && cached.display_name) {
         // TRUST the cached profile - user is already set up
         setProfile(cached);
@@ -351,8 +352,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Background refresh
         fetchProfile(userId, 5, false).catch(() => {});
       } else {
-        // No cache or user switch - must fetch profile before proceeding
-        console.log('[Auth] Fetching profile for user:', userId, isUserSwitch ? '(user switch)' : '');
+        // No cache, user switch, or fresh login - must fetch profile before proceeding
+        console.log('[Auth] Fetching profile for user:', userId, isUserSwitch ? '(user switch)' : '', applyTheme ? '(fresh login)' : '');
         setProfileLoading(true);
         try {
           const fetchedProfile = await fetchProfile(userId, 5, applyTheme);
