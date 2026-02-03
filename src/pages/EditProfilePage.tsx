@@ -823,7 +823,30 @@ export default function EditProfilePage() {
             </div>
             <Switch
               checked={theme === "dark"}
-              onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+              onCheckedChange={async (checked) => {
+                const newTheme = checked ? "dark" : "light";
+                
+                // CRITICAL: Update DOM and localStorage immediately (same as AppHeader)
+                // This triggers useClubTheme to re-apply the club theme for the new mode
+                const root = window.document.documentElement;
+                root.classList.remove('light', 'dark');
+                root.classList.add(newTheme);
+                root.style.colorScheme = newTheme;
+                localStorage.setItem('app-theme', newTheme);
+                setTheme(newTheme); // Also update next-themes
+                
+                // Save to profile
+                if (user) {
+                  try {
+                    await supabase
+                      .from('profiles')
+                      .update({ theme_preference: newTheme })
+                      .eq('id', user.id);
+                  } catch (err) {
+                    console.error('[EditProfilePage] Failed to save theme preference:', err);
+                  }
+                }
+              }}
             />
           </div>
         </CardContent>
