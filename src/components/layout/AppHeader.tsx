@@ -652,8 +652,8 @@ export function AppHeader() {
         <div className="flex items-center gap-4">
           <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
+              <Button variant="ghost" size="icon" className="relative text-foreground">
+                <Bell className="h-5 w-5 text-foreground" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-destructive text-[10px] font-bold flex items-center justify-center text-destructive-foreground">
                     {unreadCount > 9 ? "9+" : unreadCount}
@@ -732,9 +732,9 @@ export function AppHeader() {
           <DropdownMenu open={profileOpen} onOpenChange={setProfileOpen}>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0">
-                <Avatar className="h-8 w-8 border-2 border-primary/20">
+                <Avatar className="h-8 w-8 border-2 border-foreground/20">
                   <AvatarImage src={profile?.avatar_url || undefined} />
-                  <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                  <AvatarFallback className="bg-foreground/20 text-foreground text-xs">
                     {profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
                   </AvatarFallback>
                 </Avatar>
