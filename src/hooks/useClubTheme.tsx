@@ -138,11 +138,21 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
   const secondary = isDarkMode ? (theme.darkSecondary || theme.secondary) : theme.secondary;
   const accent = isDarkMode ? (theme.darkAccent || theme.accent) : theme.accent;
 
+  // DEBUG: Log what we're actually setting
+  console.log('[ClubTheme] applyThemeCSS:', {
+    isDarkMode,
+    themeDarkPrimary: theme.darkPrimary,
+    themePrimary: theme.primary,
+    resolvedPrimary: primary,
+  });
+
   if (primary) {
-    root.style.setProperty("--primary", `${primary.h} ${primary.s}% ${primary.l}%`);
+    const cssValue = `${primary.h} ${primary.s}% ${primary.l}%`;
+    console.log('[ClubTheme] Setting --primary to:', cssValue);
+    root.style.setProperty("--primary", cssValue);
     const fgL = primary.l > 50 ? 10 : 98;
     root.style.setProperty("--primary-foreground", `${primary.h} 10% ${fgL}%`);
-    root.style.setProperty("--ring", `${primary.h} ${primary.s}% ${primary.l}%`);
+    root.style.setProperty("--ring", cssValue);
   }
 
   if (secondary) {
@@ -771,8 +781,18 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // DEBUG: Log what we're applying
+    console.log('[ClubTheme] CSS effect applying theme:', {
+      source: theme ? 'availableClubThemes' : 'cachedThemeData',
+      clubId: themeToApply.clubId,
+      isDarkMode,
+      primary: themeToApply.primary,
+      darkPrimary: themeToApply.darkPrimary,
+      resolvedTheme,
+    });
+
     applyThemeCSS(themeToApply, isDarkMode);
-  }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode, isLoadingFromDb, isUserSwitching]);
+  }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode, isLoadingFromDb, isUserSwitching, resolvedTheme]);
 
   // Validate stored theme exists and user is a member
   useEffect(() => {
