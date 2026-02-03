@@ -2187,7 +2187,7 @@ export default function HomePage() {
                   }
                 }}
               >
-                <UserPlus className="h-5 w-5 text-primary" />
+                <UserPlus className="h-5 w-5 text-foreground" />
                 <span className="text-sm">{activeClubFilter ? "Create Team" : "Create Team or Club"}</span>
                 {showAdminIndicator && (
                   <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
@@ -2202,7 +2202,7 @@ export default function HomePage() {
             className="w-full h-auto py-4 flex flex-col gap-2"
             onClick={() => setTeamDialogOpen(true)}
           >
-            <UserPlus className="h-5 w-5 text-primary" />
+            <UserPlus className="h-5 w-5 text-foreground" />
             <span className="text-sm">Join Team</span>
           </Button>
           {(() => {
@@ -2234,7 +2234,7 @@ export default function HomePage() {
                 }}
               >
                 <div className="flex items-center gap-1">
-                  <FolderOpen className="h-5 w-5 text-primary" />
+                  <FolderOpen className="h-5 w-5 text-foreground" />
                   {showProBadge && (
                     <Lock className="h-3 w-3 text-muted-foreground" />
                   )}
@@ -2271,7 +2271,7 @@ export default function HomePage() {
                   navigate('/events/new');
                 }}
               >
-                <Plus className="h-5 w-5 text-primary" />
+                <Plus className="h-5 w-5 text-foreground" />
                 <span className="text-sm">New Event</span>
                 {showAdminIndicator && (
                   <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Admin</span>
