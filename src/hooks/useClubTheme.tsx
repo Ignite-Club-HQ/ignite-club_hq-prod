@@ -438,9 +438,17 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
                     darkSecondary: clubData.theme_dark_secondary_h !== null ? { h: clubData.theme_dark_secondary_h, s: clubData.theme_dark_secondary_s!, l: clubData.theme_dark_secondary_l! } : null,
                     darkAccent: clubData.theme_dark_accent_h !== null ? { h: clubData.theme_dark_accent_h, s: clubData.theme_dark_accent_s!, l: clubData.theme_dark_accent_l! } : null,
                   };
+                  console.log('[ClubTheme] DB load complete - applying theme CSS:', {
+                    clubId: themeData.clubId,
+                    primary: themeData.primary,
+                    darkPrimary: themeData.darkPrimary,
+                    isDarkMode,
+                    logoOnlyMode: themeData.logoOnlyMode,
+                  });
                   safeSetItem(getStorageDataKey(user.id), JSON.stringify(toCacheableTheme(themeData)));
                   setCachedThemeData(themeData);
                   applyThemeCSS(themeData, isDarkMode);
+                  console.log('[ClubTheme] Applied theme CSS from DB load');
                 }
               }
             } else {
@@ -680,6 +688,13 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const root = document.documentElement;
 
+    // CRITICAL: Don't do anything while loading from DB or switching users
+    // This prevents race condition where CSS is cleared before DB load completes
+    if (isLoadingFromDb || isUserSwitching) {
+      console.log('[ClubTheme] Skipping CSS effect - still loading/switching');
+      return;
+    }
+
     // Don't apply theme if not logged in
     if (!user) {
       root.style.removeProperty("--primary");
@@ -757,7 +772,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     }
 
     applyThemeCSS(themeToApply, isDarkMode);
-  }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode]);
+  }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode, isLoadingFromDb, isUserSwitching]);
 
   // Validate stored theme exists and user is a member
   useEffect(() => {
