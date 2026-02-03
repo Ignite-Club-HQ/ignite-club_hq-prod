@@ -304,7 +304,7 @@ export function AppHeader() {
     }
   };
   
-  // CRITICAL: Read theme from DOM class FIRST, then localStorage
+  // CRITICAL: Read theme from DOM class FIRST, then localStorage, then next-themes
   // During Google OAuth return, useAuth updates DOM class synchronously when profile is fetched,
   // but localStorage and next-themes may still have stale values from the previous user.
   // The DOM class is the authoritative source after auth updates it.
@@ -320,6 +320,16 @@ export function AppHeader() {
       if (stored === 'dark' || stored === 'light') {
         return stored;
       }
+      
+      // Fallback to next-themes resolved value
+      if (resolvedTheme === 'dark' || resolvedTheme === 'light') {
+        return resolvedTheme;
+      }
+      
+      // Check system preference as last resort
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+      }
     }
     return 'light';
   };
@@ -332,7 +342,8 @@ export function AppHeader() {
   // Keep effectiveTheme in sync with DOM changes (from auth or manual toggles)
   useEffect(() => {
     const updateTheme = () => {
-      setEffectiveTheme(getEffectiveTheme());
+      const newTheme = getEffectiveTheme();
+      setEffectiveTheme(newTheme);
     };
     
     // Watch for class changes on documentElement
@@ -350,7 +361,7 @@ export function AppHeader() {
     updateTheme();
     
     return () => observer.disconnect();
-  }, []);
+  }, [resolvedTheme]);
 
   // Check if user is app admin
   const { data: isAppAdmin } = useQuery({
