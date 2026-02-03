@@ -680,6 +680,13 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const root = document.documentElement;
 
+    // CRITICAL: Don't do anything while loading from DB or switching users
+    // This prevents race condition where CSS is cleared before DB load completes
+    if (isLoadingFromDb || isUserSwitching) {
+      console.log('[ClubTheme] Skipping CSS effect - still loading/switching');
+      return;
+    }
+
     // Don't apply theme if not logged in
     if (!user) {
       root.style.removeProperty("--primary");
@@ -757,7 +764,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     }
 
     applyThemeCSS(themeToApply, isDarkMode);
-  }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode]);
+  }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode, isLoadingFromDb, isUserSwitching]);
 
   // Validate stored theme exists and user is a member
   useEffect(() => {
