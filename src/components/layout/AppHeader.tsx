@@ -652,8 +652,13 @@ export function AppHeader() {
         <div className="flex items-center gap-4">
           <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative text-foreground">
-                <Bell className="h-5 w-5 text-foreground" />
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="relative"
+                style={{ color: effectiveTheme === 'dark' ? 'hsl(160 5% 95%)' : 'hsl(160 10% 10%)' }}
+              >
+                <Bell className="h-5 w-5" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-destructive text-[10px] font-bold flex items-center justify-center text-destructive-foreground">
                     {unreadCount > 9 ? "9+" : unreadCount}
@@ -732,9 +737,20 @@ export function AppHeader() {
           <DropdownMenu open={profileOpen} onOpenChange={setProfileOpen}>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0">
-                <Avatar className="h-8 w-8 border-2 border-foreground/20">
+                <Avatar 
+                  className="h-8 w-8 border-2" 
+                  style={{ 
+                    borderColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)'
+                  }}
+                >
                   <AvatarImage src={profile?.avatar_url || undefined} />
-                  <AvatarFallback className="bg-foreground/20 text-foreground text-xs">
+                  <AvatarFallback 
+                    className="text-xs"
+                    style={{
+                      backgroundColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)',
+                      color: effectiveTheme === 'dark' ? 'hsl(160 5% 95%)' : 'hsl(160 10% 10%)'
+                    }}
+                  >
                     {profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
                   </AvatarFallback>
                 </Avatar>
