@@ -771,8 +771,18 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // DEBUG: Log what we're applying
+    console.log('[ClubTheme] CSS effect applying theme:', {
+      source: theme ? 'availableClubThemes' : 'cachedThemeData',
+      clubId: themeToApply.clubId,
+      isDarkMode,
+      primary: themeToApply.primary,
+      darkPrimary: themeToApply.darkPrimary,
+      resolvedTheme,
+    });
+
     applyThemeCSS(themeToApply, isDarkMode);
-  }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode, isLoadingFromDb, isUserSwitching]);
+  }, [activeClubTheme, availableClubThemes, cachedThemeData, user, isDarkMode, isLoadingFromDb, isUserSwitching, resolvedTheme]);
 
   // Validate stored theme exists and user is a member
   useEffect(() => {
