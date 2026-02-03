@@ -635,7 +635,7 @@ export function AppHeader() {
                         >
                           {clubNameParts.mainName}
                         </span>
-                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-wide">Beta</span>
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide">Beta</span>
                       </div>
                       <span className="text-[10px] text-muted-foreground -mt-1 text-left">{clubNameParts.suffix}</span>
                     </div>
@@ -649,7 +649,7 @@ export function AppHeader() {
                   <div className="flex flex-col leading-tight items-start">
                     <div className="flex items-center gap-1.5">
                       <span className="font-bold text-lg text-gradient-emerald">Ignite</span>
-                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-wide">Beta</span>
+                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide">Beta</span>
                     </div>
                     <span className="text-[10px] text-muted-foreground -mt-1 text-left">Club HQ</span>
                   </div>

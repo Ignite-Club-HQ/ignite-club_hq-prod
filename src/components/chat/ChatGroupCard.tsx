@@ -98,8 +98,8 @@ export default function ChatGroupCard({
       >
         <CardContent className="p-4 flex items-center gap-4">
           <div className="relative">
-            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <Users className="h-6 w-6 text-primary" />
+            <div className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center">
+              <Users className="h-6 w-6 text-secondary-foreground" />
             </div>
             {hasUnread && (
               <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />

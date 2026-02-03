@@ -1517,8 +1517,8 @@ export default function HomePage() {
         >
           <CardContent className="p-4">
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-full bg-primary/10 shrink-0">
-                <Smartphone className="h-6 w-6 text-primary" />
+              <div className="p-3 rounded-full bg-secondary shrink-0">
+                <Smartphone className="h-6 w-6 text-foreground" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold">Install Ignite App</p>
@@ -2450,7 +2450,7 @@ export default function HomePage() {
             {sortedTeams.length > 2 && (
               <button 
                 onClick={() => setPitchBoardsExpanded(!pitchBoardsExpanded)}
-                className="text-sm text-primary hover:underline"
+                className="text-sm text-muted-foreground hover:text-foreground hover:underline"
               >
                 {pitchBoardsExpanded ? "Show less" : "View all"}
               </button>
@@ -2469,7 +2469,7 @@ export default function HomePage() {
                       View
                     </Badge>
                   )}
-                  <LayoutGrid className="h-6 w-6 text-primary" />
+                  <LayoutGrid className="h-6 w-6 text-foreground" />
                   <span className="text-sm font-medium text-center truncate w-full">{team.name}</span>
                 </CardContent>
               </Card>
