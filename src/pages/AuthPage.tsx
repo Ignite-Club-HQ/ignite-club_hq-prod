@@ -262,7 +262,7 @@ export default function AuthPage() {
           </div>
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase tracking-wide">Beta</span>
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide">Beta</span>
           </div>
           <p className="text-sm font-medium text-muted-foreground">Club HQ</p>
         </div>

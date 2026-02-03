@@ -861,7 +861,7 @@ export default function MediaPage() {
           <CardContent className="p-8 text-center">
             <Filter className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">No photos match your filters</p>
-            <Button variant="link" onClick={clearFilters} className="mt-2">
+            <Button variant="link" onClick={clearFilters} className="mt-2 text-muted-foreground hover:text-foreground">
               Clear filters
             </Button>
           </CardContent>

@@ -1152,7 +1152,7 @@ export default function MessagesPage() {
                     <div className="relative">
                       <Avatar className="h-12 w-12">
                         <AvatarImage src={team.logo_url || team.clubs?.logo_url || undefined} />
-                        <AvatarFallback className="bg-primary/20 text-primary">
+                        <AvatarFallback className="bg-secondary text-secondary-foreground">
                           {team.name.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
