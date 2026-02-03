@@ -150,6 +150,9 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
     const cssValue = `${primary.h} ${primary.s}% ${primary.l}%`;
     console.log('[ClubTheme] Setting --primary to:', cssValue);
     root.style.setProperty("--primary", cssValue);
+    // Verify the value was actually set
+    const computedValue = getComputedStyle(root).getPropertyValue('--primary');
+    console.log('[ClubTheme] Verified --primary computed value:', computedValue);
     const fgL = primary.l > 50 ? 10 : 98;
     root.style.setProperty("--primary-foreground", `${primary.h} 10% ${fgL}%`);
     root.style.setProperty("--ring", cssValue);
@@ -203,9 +206,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     return 'light';
   };
   
-  // Use resolvedTheme after hydration, but fall back to DOM/localStorage on initial render
-  // CRITICAL: During OAuth, resolvedTheme may be stale - prefer getEffectiveTheme which reads DOM
-  const isDarkMode = resolvedTheme ? resolvedTheme === "dark" : getEffectiveTheme() === "dark";
+  // CRITICAL: Always use DOM class as the source of truth for dark mode
+  // resolvedTheme from next-themes can be stale during initialization (reports light when user prefers dark)
+  // especially after the "light mode default" change in index.html
+  // The DOM class is updated synchronously when theme changes, so it's always accurate
+  const isDarkMode = getEffectiveTheme() === "dark";
 
   // SYNCHRONOUS INITIALIZATION: Read from localStorage during initial state setup
   // This ensures theme is available immediately on first render, not after an effect
