@@ -1,63 +1,104 @@
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
+// Get theme from DOM (the authoritative source after useAuth applies it)
+const getThemeFromDOM = (): 'light' | 'dark' => {
+  if (typeof window !== 'undefined') {
+    if (document.documentElement.classList.contains('dark')) return 'dark';
+    if (document.documentElement.classList.contains('light')) return 'light';
+    // Fallback to localStorage only if DOM doesn't have explicit class
+    const stored = localStorage.getItem('app-theme');
+    if (stored === 'dark' || stored === 'light') return stored;
+  }
+  return 'light';
+};
+
 export function ThemeToggle() {
   const { user } = useAuth();
-  const [mounted, setMounted] = useState(false);
-  const [theme, setThemeState] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('app-theme') || 'light';
-    }
-    return 'light';
-  });
+  const [theme, setThemeState] = useState<'light' | 'dark'>(getThemeFromDOM);
   const [isSaving, setIsSaving] = useState(false);
-
-  // Track mount state to prevent hydration mismatch
+  
+  // Use ref to always have current user value (avoids stale closure)
+  const userRef = useRef(user);
   useEffect(() => {
-    setMounted(true);
+    userRef.current = user;
+  }, [user]);
+
+  // CRITICAL: Sync state with DOM when it changes (e.g., after Google OAuth applies theme)
+  useEffect(() => {
+    const syncThemeFromDOM = () => {
+      const domTheme = getThemeFromDOM();
+      setThemeState(domTheme);
+    };
+
+    syncThemeFromDOM();
+
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          syncThemeFromDOM();
+          break;
+        }
+      }
+    });
+
+    observer.observe(document.documentElement, { 
+      attributes: true, 
+      attributeFilter: ['class'] 
+    });
+
+    return () => observer.disconnect();
   }, []);
 
-  // Apply theme to DOM and localStorage
-  useEffect(() => {
+  const toggleTheme = async () => {
+    const newTheme = theme === "dark" ? "light" : "dark";
+    console.log('[ThemeToggle] Toggle clicked, changing from', theme, 'to', newTheme);
+    
+    // Apply to DOM immediately
+    setThemeState(newTheme);
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
-    root.classList.add(theme);
-    root.style.colorScheme = theme;
-    localStorage.setItem('app-theme', theme);
-  }, [theme]);
-
-  // No need to load theme from profile here - useAuth handles it on fresh login
-  // On page refresh, localStorage (set by index.html) is the source of truth
-
-  // Save theme to profile when changed
-  const saveThemeToProfile = useCallback(async (newTheme: string) => {
-    if (!user || isSaving) return;
+    root.classList.add(newTheme);
+    root.style.colorScheme = newTheme;
+    localStorage.setItem('app-theme', newTheme);
     
+    // Save to profile (use ref to get current user)
+    const currentUser = userRef.current;
+    if (!currentUser) {
+      console.warn('[ThemeToggle] Cannot save theme - no user logged in, user ref:', currentUser);
+      return;
+    }
+    
+    if (isSaving) {
+      console.log('[ThemeToggle] Save already in progress, skipping');
+      return;
+    }
+    
+    console.log('[ThemeToggle] Saving theme to profile:', newTheme, 'for user:', currentUser.id);
     setIsSaving(true);
     try {
-      await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({ theme_preference: newTheme })
-        .eq('id', user.id);
+        .eq('id', currentUser.id);
+      
+      if (error) {
+        console.error('[ThemeToggle] Failed to save theme preference:', error);
+      } else {
+        console.log('[ThemeToggle] Theme preference saved successfully:', newTheme);
+      }
     } catch (err) {
-      console.error('Failed to save theme preference:', err);
+      console.error('[ThemeToggle] Exception saving theme preference:', err);
     } finally {
       setIsSaving(false);
     }
-  }, [user, isSaving]);
-
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setThemeState(newTheme);
-    saveThemeToProfile(newTheme);
   };
 
   const isDark = theme === 'dark';
 
-  // Use explicit styling based on current theme state to prevent flash
   return (
     <Button 
       variant="ghost" 

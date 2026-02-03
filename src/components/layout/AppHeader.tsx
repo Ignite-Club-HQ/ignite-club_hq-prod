@@ -256,6 +256,53 @@ export function AppHeader() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [demoLoginOpen, setDemoLoginOpen] = useState(false);
+  const [isSavingTheme, setIsSavingTheme] = useState(false);
+  
+  // Handle theme toggle with save to profile
+  const handleThemeToggle = async () => {
+    const currentTheme = getEffectiveTheme();
+    const newTheme = currentTheme === "dark" ? "light" : "dark";
+    
+    console.log('[AppHeader] Theme toggle clicked, changing from', currentTheme, 'to', newTheme);
+    
+    // Apply to DOM immediately
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(newTheme);
+    root.style.colorScheme = newTheme;
+    localStorage.setItem('app-theme', newTheme);
+    setTheme(newTheme); // Also update next-themes
+    
+    // Save to profile if logged in
+    if (!user) {
+      console.warn('[AppHeader] Cannot save theme - no user logged in');
+      return;
+    }
+    
+    if (isSavingTheme) {
+      console.log('[AppHeader] Theme save already in progress');
+      return;
+    }
+    
+    console.log('[AppHeader] Saving theme to profile:', newTheme, 'for user:', user.id);
+    setIsSavingTheme(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ theme_preference: newTheme })
+        .eq('id', user.id);
+      
+      if (error) {
+        console.error('[AppHeader] Failed to save theme preference:', error);
+      } else {
+        console.log('[AppHeader] Theme preference saved successfully:', newTheme);
+      }
+    } catch (err) {
+      console.error('[AppHeader] Exception saving theme preference:', err);
+    } finally {
+      setIsSavingTheme(false);
+    }
+  };
   
   // CRITICAL: Read theme from DOM class FIRST, then localStorage
   // During Google OAuth return, useAuth updates DOM class synchronously when profile is fetched,
@@ -715,16 +762,17 @@ export function AppHeader() {
                 onSelect={(e) => {
                   e.preventDefault();
                   setProfileOpen(false);
-                  setTheme(theme === "dark" ? "light" : "dark");
+                  handleThemeToggle();
                 }}
                 className="py-3 px-3"
+                disabled={isSavingTheme}
               >
-                {theme === "dark" ? (
+                {effectiveTheme === "dark" ? (
                   <Sun className="mr-3 h-5 w-5" />
                 ) : (
                   <Moon className="mr-3 h-5 w-5" />
                 )}
-                <span className="text-sm">{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+                <span className="text-sm">{effectiveTheme === "dark" ? "Light Mode" : "Dark Mode"}</span>
               </DropdownMenuItem>
               {isAppAdmin && (
                 <>
