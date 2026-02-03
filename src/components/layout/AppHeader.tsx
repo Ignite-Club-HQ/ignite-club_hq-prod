@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, HelpCircle, Building2, Lock, UserCog } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
@@ -324,9 +324,33 @@ export function AppHeader() {
     return 'light';
   };
   
-  // Use resolvedTheme after hydration, fall back to DOM/localStorage on initial render
-  // CRITICAL: During OAuth, resolvedTheme may be stale - prefer getEffectiveTheme which reads DOM
-  const effectiveTheme = resolvedTheme ?? getEffectiveTheme();
+  // CRITICAL: Always use DOM-based theme detection instead of next-themes
+  // next-themes can return stale values from localStorage that haven't been updated yet
+  // The DOM class is the authoritative source - it's updated synchronously by useAuth on fresh login
+  const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>(getEffectiveTheme);
+  
+  // Keep effectiveTheme in sync with DOM changes (from auth or manual toggles)
+  useEffect(() => {
+    const updateTheme = () => {
+      setEffectiveTheme(getEffectiveTheme());
+    };
+    
+    // Watch for class changes on documentElement
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          updateTheme();
+        }
+      });
+    });
+    
+    observer.observe(document.documentElement, { attributes: true });
+    
+    // Also sync immediately in case DOM changed before observer was set up
+    updateTheme();
+    
+    return () => observer.disconnect();
+  }, []);
 
   // Check if user is app admin
   const { data: isAppAdmin } = useQuery({
