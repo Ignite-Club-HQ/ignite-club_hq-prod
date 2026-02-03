@@ -438,9 +438,17 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
                     darkSecondary: clubData.theme_dark_secondary_h !== null ? { h: clubData.theme_dark_secondary_h, s: clubData.theme_dark_secondary_s!, l: clubData.theme_dark_secondary_l! } : null,
                     darkAccent: clubData.theme_dark_accent_h !== null ? { h: clubData.theme_dark_accent_h, s: clubData.theme_dark_accent_s!, l: clubData.theme_dark_accent_l! } : null,
                   };
+                  console.log('[ClubTheme] DB load complete - applying theme CSS:', {
+                    clubId: themeData.clubId,
+                    primary: themeData.primary,
+                    darkPrimary: themeData.darkPrimary,
+                    isDarkMode,
+                    logoOnlyMode: themeData.logoOnlyMode,
+                  });
                   safeSetItem(getStorageDataKey(user.id), JSON.stringify(toCacheableTheme(themeData)));
                   setCachedThemeData(themeData);
                   applyThemeCSS(themeData, isDarkMode);
+                  console.log('[ClubTheme] Applied theme CSS from DB load');
                 }
               }
             } else {
