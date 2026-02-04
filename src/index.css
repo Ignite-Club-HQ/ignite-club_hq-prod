@@ -154,3 +154,10 @@
     overscroll-behavior-y: contain;
   }
 }
+
+/* Remove react-day-picker default today indicator dot */
+.rdp-day_today::after,
+.rdp-day_today::before {
+  display: none !important;
+  content: none !important;
+}
