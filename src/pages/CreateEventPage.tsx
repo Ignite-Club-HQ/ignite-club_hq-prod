@@ -675,9 +675,10 @@ export default function CreateEventPage() {
       {/* Event Type Selection */}
       <div className="grid grid-cols-4 gap-2">
         {EVENT_TYPES.map((eventType) => {
-          // Hide pro football items if user doesn't have access (after query resolves)
+          // Hide pro football items if still loading or user doesn't have access
+          // This prevents the mini-league icon from appearing after other icons load
           const isProFeature = eventType.proFootballOnly;
-          const showItem = !isProFeature || hasProFootball;
+          const showItem = !isProFeature || (hasProFootball && !isLoadingProFootball);
           
           if (!showItem) return null;
           
