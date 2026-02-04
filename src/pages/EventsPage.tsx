@@ -539,15 +539,15 @@ export default function EventsPage() {
                     const showPlus = totalCount > 3;
                     
                     return (
-                      <div className="relative flex flex-col items-center justify-center w-full h-full">
+                      <div className="relative flex items-center justify-center w-full h-full">
                         <span>{date.getDate()}</span>
                         {totalCount > 0 && (
-                          <div className="flex gap-0.5 mt-0.5">
+                          <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 flex gap-0.5">
                             {dots.slice(0, 3).map((dot, i) => (
-                              <div key={i} className={`w-1.5 h-1.5 rounded-full ${dot.color}`} />
+                              <div key={i} className={`w-1 h-1 rounded-full ${dot.color}`} />
                             ))}
                             {showPlus && (
-                              <span className="text-[8px] text-muted-foreground font-bold">+{totalCount - 3}</span>
+                              <span className="text-[6px] text-muted-foreground font-bold leading-none">+</span>
                             )}
                           </div>
                         )}
