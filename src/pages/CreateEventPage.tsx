@@ -672,13 +672,22 @@ export default function CreateEventPage() {
         <h1 className="text-xl font-bold">New Event</h1>
       </div>
 
-      {/* Event Type Selection */}
+      {/* Event Type Selection - wait for Pro Football check to prevent icon pop-in */}
+      {isLoadingProFootball ? (
+        <div className="grid grid-cols-4 gap-2">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex flex-col items-center gap-1 p-3 rounded-xl border-2 border-border animate-pulse">
+              <div className="w-8 h-8 rounded bg-muted" />
+              <div className="w-12 h-3 rounded bg-muted" />
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="grid grid-cols-4 gap-2">
         {EVENT_TYPES.map((eventType) => {
-          // Hide pro football items if still loading or user doesn't have access
-          // This prevents the mini-league icon from appearing after other icons load
+          // Hide pro football items if user doesn't have access
           const isProFeature = eventType.proFootballOnly;
-          const showItem = !isProFeature || (hasProFootball && !isLoadingProFootball);
+          const showItem = !isProFeature || hasProFootball;
           
           if (!showItem) return null;
           
@@ -710,6 +719,7 @@ export default function CreateEventPage() {
           );
         })}
       </div>
+      )}
 
 
       {/* Details Section */}
