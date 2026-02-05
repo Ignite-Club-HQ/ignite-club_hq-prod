@@ -54,6 +54,7 @@ import { EventSponsorsSection } from "@/components/EventSponsorsSection";
 import { EventGroupsManager } from "@/components/EventGroupsManager";
 import { EventViewsAdminSection } from "@/components/EventViewsAdminSection";
 import { useEventViewTracking } from "@/hooks/useEventViews";
+import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 
 
 // Lazy load PitchBoard for game events
@@ -744,6 +745,8 @@ export default function EventDetailPage() {
 
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
+      let rsvpId: string | null = null;
+      
       if (myRsvp) {
         const { error } = await supabase
           .from("rsvps")
@@ -753,14 +756,27 @@ export default function EventDetailPage() {
           })
           .eq("id", myRsvp.id);
         if (error) throw error;
+        rsvpId = myRsvp.id;
       } else {
-        const { error } = await supabase.from("rsvps").insert({
+        const { data: newRsvp, error } = await supabase.from("rsvps").insert({
           event_id: id!,
           user_id: user!.id,
           status,
           notes: rsvpNotes || null,
-        });
+        }).select("id").single();
         if (error) throw error;
+        rsvpId = newRsvp?.id || null;
+      }
+
+      // Award early RSVP points if going and event is 3+ days away
+      if (status === "going" && rsvpId && event) {
+        await awardEarlyRsvpPoints({
+          userId: user!.id,
+          eventDate: event.event_date,
+          rsvpId,
+          clubId: event.club_id,
+          clubName: event.clubs?.name || "Your club",
+        });
       }
 
       // Notify event managers about RSVP change

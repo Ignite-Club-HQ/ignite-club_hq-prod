@@ -3343,6 +3343,7 @@ export type Database = {
         Row: {
           child_id: string | null
           created_at: string
+          early_rsvp_points_awarded: boolean
           event_id: string
           has_paid: boolean | null
           id: string
@@ -3355,6 +3356,7 @@ export type Database = {
         Insert: {
           child_id?: string | null
           created_at?: string
+          early_rsvp_points_awarded?: boolean
           event_id: string
           has_paid?: boolean | null
           id?: string
@@ -3367,6 +3369,7 @@ export type Database = {
         Update: {
           child_id?: string | null
           created_at?: string
+          early_rsvp_points_awarded?: boolean
           event_id?: string
           has_paid?: boolean | null
           id?: string
