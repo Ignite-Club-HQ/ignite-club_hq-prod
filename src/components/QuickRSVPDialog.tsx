@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isToday, isTomorrow } from "date-fns";
+import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -34,6 +35,8 @@ interface QuickRSVPDialogProps {
   teamId: string | null;
   suburb: string | null;
   opponent: string | null;
+  clubId: string;
+  clubName: string;
 }
 
 function formatEventDate(dateStr: string) {
@@ -53,6 +56,8 @@ export function QuickRSVPDialog({
   teamId,
   suburb,
   opponent,
+  clubId,
+  clubName,
 }: QuickRSVPDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -110,19 +115,34 @@ export function QuickRSVPDialog({
   // RSVP mutation for self
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
+      let rsvpId: string | null = null;
+      
       if (myRsvp) {
         const { error } = await supabase
           .from("rsvps")
           .update({ status })
           .eq("id", myRsvp.id);
         if (error) throw error;
+        rsvpId = myRsvp.id;
       } else {
-        const { error } = await supabase.from("rsvps").insert({
+        const { data: newRsvp, error } = await supabase.from("rsvps").insert({
           event_id: eventId,
           user_id: user!.id,
           status,
-        });
+        }).select("id").single();
         if (error) throw error;
+        rsvpId = newRsvp?.id || null;
+      }
+
+      // Award early RSVP points if going and event is 3+ days away
+      if (status === "going" && rsvpId) {
+        await awardEarlyRsvpPoints({
+          userId: user!.id,
+          eventDate,
+          rsvpId,
+          clubId,
+          clubName,
+        });
       }
     },
     onSuccess: () => {

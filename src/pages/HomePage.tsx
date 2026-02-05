@@ -2668,6 +2668,8 @@ export default function HomePage() {
           teamId={quickRsvpEvent.team_id}
           suburb={quickRsvpEvent.suburb}
           opponent={quickRsvpEvent.opponent}
+          clubId={quickRsvpEvent.club_id}
+          clubName={quickRsvpEvent.clubs?.name || "Your club"}
         />
       )}
 
