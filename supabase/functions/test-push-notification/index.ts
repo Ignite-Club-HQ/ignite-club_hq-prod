@@ -99,13 +99,14 @@ serve(async (req) => {
           await new Promise((resolve) => setTimeout(resolve, delayMs));
           console.log(`[test-push] Background: delay complete, sending now`);
           
-          // Create notification
+          // Create notification with unique timestamp message
+          const testId = Date.now();
           const { data: notification, error: notificationError } = await adminClient
             .from("notifications")
             .insert({
               user_id: userId,
               type: "test",
-              message: "🔔 This is a test push notification from Ignite Club HQ!",
+              message: `🔔 Test notification (delayed ${delay}s) - ID: ${testId}`,
               is_read: false,
             })
             .select()
@@ -116,17 +117,17 @@ serve(async (req) => {
             return;
           }
 
-          // Send push
+          // Send push with unique tag to prevent OS collapsing
           const { error: invokeError } = await adminClient.functions.invoke(
             "send-push-notification",
             {
               body: {
                 userId: userId,
-                title: "Test Notification",
-                body: "🔔 This is a test push notification from Ignite Club HQ!",
+                title: `Test (${delay}s delay)`,
+                body: `🔔 Push arrived! Delayed by ${delay} seconds. ID: ${testId}`,
                 url: "/notifications",
                 notificationId: notification.id,
-                tag: `test-${notification.id}`,
+                tag: `test-${testId}-${delay}s`,
               },
             }
           );
