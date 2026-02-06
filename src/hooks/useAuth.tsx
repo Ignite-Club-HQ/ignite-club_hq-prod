@@ -475,6 +475,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [fetchProfile, queryClient]);
 
+  // SAFARI PWA FIX: Refresh session when app resumes from background
+  // Safari's WKWebView can lose connection state when backgrounded, causing auth to appear stale
+  // This ensures the session is validated and refreshed when the user returns
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && session?.user) {
+        console.log('[Auth] App resumed - validating session');
+        try {
+          // Try to refresh the session to ensure it's still valid
+          const { data, error } = await supabase.auth.getSession();
+          if (error) {
+            console.error('[Auth] Session validation failed on resume:', error);
+            // Don't immediately sign out - the token might just need refresh
+            const { error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError) {
+              console.error('[Auth] Token refresh failed on resume:', refreshError);
+              // Only now consider the session invalid - but still don't force logout
+              // Let the user continue until their next API call fails
+            }
+          } else if (!data.session) {
+            console.warn('[Auth] No session found on resume - session may have expired');
+            // Session genuinely expired - clear local state
+            // But don't call signOut() which would trigger a full logout flow
+            setUser(null);
+            setSession(null);
+            setProfile(null);
+            setCachedProfile(null);
+            setInitialized(true);
+          } else {
+            // Session is valid - update state to be safe
+            setSession(data.session);
+            setUser(data.session.user);
+          }
+        } catch (err) {
+          console.error('[Auth] Error validating session on resume:', err);
+          // Network error - don't log out, user might just be offline
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [session?.user?.id]);
+
   // Real-time notifications subscription and push registration
   useEffect(() => {
     if (!user) return;
