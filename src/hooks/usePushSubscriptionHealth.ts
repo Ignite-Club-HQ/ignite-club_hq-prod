@@ -1,100 +1,99 @@
 import { useEffect, useRef, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { subscribeToPushNotifications, checkPushSubscription } from "@/lib/pushNotifications";
+import {
+  logPush,
+  generateCorrelationId,
+  needsRevalidation,
+  markSubscriptionValidated,
+  checkServiceWorkerUpdate,
+  activateWaitingServiceWorker,
+  permissionWasRevoked,
+  getPlatformInfo,
+} from "@/lib/pushReliability";
+import {
+  verifySubscriptionHealth,
+  cleanupStaleSubscriptions,
+  handlePermissionRevoked,
+  processOfflineQueue,
+  resilientSubscribe,
+} from "@/lib/pushSubscriptionSync";
 
-// How often to validate subscription (every 4 hours)
-const VALIDATION_INTERVAL_MS = 4 * 60 * 60 * 1000;
-// Key for storing last validation timestamp
-const LAST_VALIDATION_KEY = "push_last_validation";
+// How often to validate subscription (every 2 hours - reduced from 4)
+const VALIDATION_INTERVAL_MS = 2 * 60 * 60 * 1000;
 // Debounce visibility changes
-const VISIBILITY_DEBOUNCE_MS = 2000;
+const VISIBILITY_DEBOUNCE_MS = 1500;
+// SW update check interval (every 30 minutes)
+const SW_UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
 /**
- * Enhanced push subscription health check
- * - Listens for subscription change messages from service worker
- * - Periodically validates subscription is still active
- * - Revalidates when app becomes visible (user returns)
- * - Ensures browser and DB subscriptions are in sync
+ * Enhanced push subscription health check with improved reliability
+ * 
+ * Features:
+ * - Aggressive validation on visibility change
+ * - Stale subscription cleanup
+ * - Service worker update checks
+ * - Offline queue processing
+ * - Platform-aware handling
  */
 export function usePushSubscriptionHealth(userId: string | undefined) {
   const isValidating = useRef(false);
   const visibilityTimeout = useRef<NodeJS.Timeout | null>(null);
+  const lastValidation = useRef<number>(0);
 
   /**
-   * Validate subscription is healthy and in sync with database
+   * Validate subscription health and resubscribe if needed
    */
   const validateSubscription = useCallback(async (force = false): Promise<boolean> => {
     if (!userId || isValidating.current) return false;
-    
-    // Check if we need to validate (cooldown)
-    if (!force) {
-      try {
-        const lastValidation = localStorage.getItem(LAST_VALIDATION_KEY);
-        if (lastValidation) {
-          const elapsed = Date.now() - parseInt(lastValidation, 10);
-          if (elapsed < VALIDATION_INTERVAL_MS) {
-            return true; // Assume healthy if recently validated
-          }
-        }
-      } catch {
-        // localStorage not available
+
+    // Skip if recently validated (unless forced)
+    if (!force && !needsRevalidation()) {
+      const elapsed = Date.now() - lastValidation.current;
+      if (elapsed < VALIDATION_INTERVAL_MS) {
+        return true;
       }
     }
 
     isValidating.current = true;
-    console.log('[PushHealth] Starting subscription validation...');
+    const correlationId = generateCorrelationId();
+    logPush('info', 'Starting subscription validation', { force }, correlationId);
 
     try {
-      // Check if browser has an active subscription
-      const hasSubscription = await checkPushSubscription(userId);
-      
-      if (!hasSubscription) {
-        console.log('[PushHealth] No valid subscription found, resubscribing...');
-        const result = await subscribeToPushNotifications(userId, true);
-        
-        if (result.success) {
-          console.log('[PushHealth] Resubscribed successfully');
-          updateLastValidation();
-          return true;
-        } else {
-          console.warn('[PushHealth] Resubscription failed:', result.error);
-          return false;
-        }
+      // Check if permission was revoked
+      if (permissionWasRevoked()) {
+        logPush('warn', 'Permission revoked, cleaning up', undefined, correlationId);
+        await handlePermissionRevoked(userId);
+        return false;
       }
 
-      // Verify DB has the subscription
-      if ('serviceWorker' in navigator && 'PushManager' in window) {
-        try {
-          const registration = await navigator.serviceWorker.ready;
-          const subscription = await registration.pushManager.getSubscription();
-          
-          if (subscription) {
-            const { data: dbSub } = await supabase
-              .from('push_subscriptions')
-              .select('id, endpoint')
-              .eq('user_id', userId)
-              .eq('endpoint', subscription.endpoint)
-              .maybeSingle();
+      // Verify health of current subscription
+      const health = await verifySubscriptionHealth(userId);
 
-            if (!dbSub) {
-              console.log('[PushHealth] Browser subscription not in DB, syncing...');
-              const result = await subscribeToPushNotifications(userId, true);
-              if (result.success) {
-                console.log('[PushHealth] Synced subscription to DB');
-              }
-            } else {
-              console.log('[PushHealth] Subscription validated - healthy');
-            }
-          }
-        } catch (e) {
-          console.warn('[PushHealth] Error checking subscription sync:', e);
-        }
+      if (health.healthy) {
+        lastValidation.current = Date.now();
+        return true;
       }
 
-      updateLastValidation();
-      return true;
+      // Subscription is unhealthy - attempt to fix
+      logPush('info', 'Subscription unhealthy, resubscribing', { reason: health.reason }, correlationId);
+
+      // Clean up stale entries first
+      if (health.dbHasSubscription && !health.endpointsMatch) {
+        await cleanupStaleSubscriptions(userId);
+      }
+
+      // Attempt resubscription with resilience
+      const result = await resilientSubscribe(userId, (uid) => subscribeToPushNotifications(uid, true));
+
+      if (result.success || result.queued) {
+        lastValidation.current = Date.now();
+        return result.success;
+      }
+
+      logPush('warn', 'Resubscription failed', { error: result.error }, correlationId);
+      return false;
     } catch (error) {
-      console.error('[PushHealth] Validation error:', error);
+      logPush('error', 'Validation error', { error: String(error) }, correlationId);
       return false;
     } finally {
       isValidating.current = false;
@@ -102,72 +101,93 @@ export function usePushSubscriptionHealth(userId: string | undefined) {
   }, [userId]);
 
   /**
-   * Update the last validation timestamp
-   */
-  const updateLastValidation = () => {
-    try {
-      localStorage.setItem(LAST_VALIDATION_KEY, Date.now().toString());
-    } catch {
-      // localStorage not available
-    }
-  };
-
-  /**
-   * Force resubscribe - useful when user manually triggers
+   * Force resubscribe with full reliability
    */
   const validateAndResubscribe = useCallback(async () => {
     if (!userId) return false;
-    console.log('[PushHealth] Manual resubscription triggered');
-    return subscribeToPushNotifications(userId);
+    logPush('info', 'Manual resubscription triggered');
+    
+    const result = await resilientSubscribe(userId, subscribeToPushNotifications);
+    return result.success;
   }, [userId]);
 
   useEffect(() => {
     if (!userId || !('serviceWorker' in navigator)) return;
 
+    const platform = getPlatformInfo();
+    logPush('info', 'Push health hook initialized', {
+      platform: platform.platform,
+      reliability: platform.reliabilityRating,
+    });
+
     // Listen for subscription change messages from service worker
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'PUSH_SUBSCRIPTION_CHANGED') {
-        console.log('[PushHealth] SW reported subscription changed, resubscribing...');
-        subscribeToPushNotifications(userId);
+        logPush('info', 'SW reported subscription changed, revalidating');
+        validateSubscription(true);
       }
       
-      // Handle keepalive pong from SW
+      if (event.data?.type === 'PUSH_SUBSCRIPTION_RENEWED') {
+        logPush('info', 'SW auto-renewed subscription');
+        markSubscriptionValidated(event.data.subscription?.endpoint);
+      }
+
       if (event.data?.type === 'PONG') {
-        console.log('[PushHealth] SW keepalive confirmed');
+        logPush('debug', 'SW keepalive confirmed');
       }
     };
 
     navigator.serviceWorker.addEventListener('message', handleMessage);
 
     // Initial validation after short delay
-    const initialTimer = setTimeout(() => validateSubscription(false), 3000);
+    const initialTimer = setTimeout(() => validateSubscription(false), 2000);
 
     // Periodic validation
     const intervalTimer = setInterval(() => {
       validateSubscription(false);
     }, VALIDATION_INTERVAL_MS);
 
-    // Validate when app becomes visible (debounced)
+    // Validate when app becomes visible (aggressive for mobile)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        // Debounce to avoid multiple rapid calls
         if (visibilityTimeout.current) {
           clearTimeout(visibilityTimeout.current);
         }
+        
+        // iOS PWA needs more aggressive revalidation
+        const delay = platform.platform === 'ios-pwa' ? 500 : VISIBILITY_DEBOUNCE_MS;
+        
         visibilityTimeout.current = setTimeout(() => {
+          logPush('debug', 'App became visible, validating');
           validateSubscription(false);
-        }, VISIBILITY_DEBOUNCE_MS);
+        }, delay);
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Validate when coming back online
-    const handleOnline = () => {
-      console.log('[PushHealth] Device came online, validating subscription...');
+    // Validate when coming back online + process queue
+    const handleOnline = async () => {
+      logPush('info', 'Device came online');
+      
+      // Process any queued operations
+      await processOfflineQueue((uid) => subscribeToPushNotifications(uid, true));
+      
+      // Then validate current subscription
       validateSubscription(true);
     };
     window.addEventListener('online', handleOnline);
+
+    // Check for SW updates periodically
+    const swUpdateTimer = setInterval(async () => {
+      const hasUpdate = await checkServiceWorkerUpdate();
+      if (hasUpdate) {
+        logPush('info', 'SW update available, activating');
+        await activateWaitingServiceWorker();
+        // Revalidate after SW update
+        setTimeout(() => validateSubscription(true), 2000);
+      }
+    }, SW_UPDATE_CHECK_INTERVAL_MS);
 
     // Send keepalive ping to SW periodically
     const sendKeepalive = async () => {
@@ -181,13 +201,14 @@ export function usePushSubscriptionHealth(userId: string | undefined) {
       }
     };
     
-    const keepaliveTimer = setInterval(sendKeepalive, 60000); // Every minute
+    const keepaliveTimer = setInterval(sendKeepalive, 60000);
 
     return () => {
       navigator.serviceWorker.removeEventListener('message', handleMessage);
       clearTimeout(initialTimer);
       clearInterval(intervalTimer);
       clearInterval(keepaliveTimer);
+      clearInterval(swUpdateTimer);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', handleOnline);
       if (visibilityTimeout.current) {
@@ -198,6 +219,6 @@ export function usePushSubscriptionHealth(userId: string | undefined) {
 
   return { 
     validateAndResubscribe,
-    validateSubscription: () => validateSubscription(true)
+    validateSubscription: () => validateSubscription(true),
   };
 }

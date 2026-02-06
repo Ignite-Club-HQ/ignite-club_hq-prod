@@ -1,8 +1,20 @@
-// Service Worker for Push Notifications v5
-// Enhanced reliability with better error handling and keepalive
+// Service Worker for Push Notifications v6
+// Enhanced reliability with aggressive recovery, better error handling, and auto-renewal
 // IMPORTANT: This file must be served from the root with proper MIME type
 
-const SW_VERSION = '5.0.0';
+const SW_VERSION = '6.0.0';
+
+// Retry configuration
+const MAX_NOTIFICATION_RETRIES = 2;
+const RETRY_DELAY_MS = 500;
+
+// Track recent notifications to prevent duplicates
+const recentNotifications = new Map();
+const NOTIFICATION_DEDUP_WINDOW_MS = 5000;
+
+// ============================================
+// LIFECYCLE EVENTS
+// ============================================
 
 // Install - skip waiting to activate immediately
 self.addEventListener('install', (event) => {
@@ -17,14 +29,85 @@ self.addEventListener('activate', (event) => {
     Promise.all([
       self.clients.claim(),
       // Clear any old caches
-      caches.keys().then(names => Promise.all(names.map(name => caches.delete(name))))
+      caches.keys().then(names => Promise.all(names.map(name => caches.delete(name)))),
+      // Notify clients of activation
+      notifyClients({ type: 'SW_ACTIVATED', version: SW_VERSION }),
     ]).then(() => {
       console.log('[SW v' + SW_VERSION + '] Activated and claimed clients');
     })
   );
 });
 
-// Push notification handler with enhanced error handling
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+async function notifyClients(message) {
+  try {
+    const clients = await self.clients.matchAll({ includeUncontrolled: true });
+    clients.forEach(client => {
+      try {
+        client.postMessage(message);
+      } catch (e) {
+        // Ignore individual client errors
+      }
+    });
+  } catch (e) {
+    console.warn('[SW v' + SW_VERSION + '] Error notifying clients:', e);
+  }
+}
+
+async function showNotificationWithRetry(title, options, attempt = 1) {
+  try {
+    await self.registration.showNotification(title, options);
+    console.log('[SW v' + SW_VERSION + '] Notification shown successfully');
+    return true;
+  } catch (error) {
+    console.error('[SW v' + SW_VERSION + '] Notification attempt', attempt, 'failed:', error);
+    
+    if (attempt < MAX_NOTIFICATION_RETRIES) {
+      await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+      return showNotificationWithRetry(title, options, attempt + 1);
+    }
+    
+    // Final fallback - simpler notification
+    try {
+      await self.registration.showNotification('Ignite Club HQ', {
+        body: options.body || 'You have a new notification',
+        icon: '/ignite-logo.png',
+        tag: 'ignite-fallback-' + Date.now(),
+      });
+      console.log('[SW v' + SW_VERSION + '] Fallback notification shown');
+      return true;
+    } catch (fallbackError) {
+      console.error('[SW v' + SW_VERSION + '] Even fallback notification failed:', fallbackError);
+      return false;
+    }
+  }
+}
+
+function isDuplicateNotification(tag) {
+  const now = Date.now();
+  
+  // Clean old entries
+  for (const [key, timestamp] of recentNotifications.entries()) {
+    if (now - timestamp > NOTIFICATION_DEDUP_WINDOW_MS) {
+      recentNotifications.delete(key);
+    }
+  }
+  
+  if (recentNotifications.has(tag)) {
+    return true;
+  }
+  
+  recentNotifications.set(tag, now);
+  return false;
+}
+
+// ============================================
+// PUSH HANDLER
+// ============================================
+
 self.addEventListener('push', (event) => {
   console.log('[SW v' + SW_VERSION + '] Push received');
   
@@ -39,15 +122,22 @@ self.addEventListener('push', (event) => {
     try {
       const payload = event.data.json();
       data = { ...data, ...payload };
-      console.log('[SW v' + SW_VERSION + '] Push payload parsed:', data.title);
+      console.log('[SW v' + SW_VERSION + '] Push payload:', data.title);
     } catch (e) {
-      console.log('[SW v' + SW_VERSION + '] Could not parse push data as JSON, using text');
+      console.log('[SW v' + SW_VERSION + '] Parsing as text');
       try {
         data.body = event.data.text();
       } catch (e2) {
         console.error('[SW v' + SW_VERSION + '] Could not read push data');
       }
     }
+  }
+  
+  // Deduplicate
+  const notificationTag = data.tag || data.notificationId || ('ignite-' + Date.now());
+  if (isDuplicateNotification(notificationTag)) {
+    console.log('[SW v' + SW_VERSION + '] Duplicate notification ignored:', notificationTag);
+    return;
   }
   
   const options = {
@@ -57,43 +147,29 @@ self.addEventListener('push', (event) => {
     data: { 
       url: data.url,
       notificationId: data.notificationId,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     },
-    tag: data.tag || 'ignite-notification',
+    tag: notificationTag,
     renotify: true,
     requireInteraction: false,
     vibrate: [200, 100, 200],
-    // Add actions for richer interaction
     actions: [
       { action: 'open', title: 'View' },
       { action: 'dismiss', title: 'Dismiss' }
-    ]
+    ],
   };
   
-  // Use waitUntil to ensure the notification is shown
-  event.waitUntil(
-    self.registration.showNotification(data.title, options)
-      .then(() => {
-        console.log('[SW v' + SW_VERSION + '] Notification shown successfully');
-      })
-      .catch((error) => {
-        console.error('[SW v' + SW_VERSION + '] Failed to show notification:', error);
-        // Try a simpler notification as fallback
-        return self.registration.showNotification('Ignite Club HQ', {
-          body: data.body || 'You have a new notification',
-          icon: '/ignite-logo.png',
-          tag: 'ignite-fallback'
-        });
-      })
-  );
+  event.waitUntil(showNotificationWithRetry(data.title, options));
 });
 
-// Notification click handler with robust navigation
+// ============================================
+// NOTIFICATION INTERACTION HANDLERS
+// ============================================
+
 self.addEventListener('notificationclick', (event) => {
   console.log('[SW v' + SW_VERSION + '] Notification clicked, action:', event.action);
   event.notification.close();
   
-  // If user clicked dismiss, just close
   if (event.action === 'dismiss') {
     return;
   }
@@ -106,80 +182,74 @@ self.addEventListener('notificationclick', (event) => {
       .then((clients) => {
         // Try to find an existing window and focus it
         for (const client of clients) {
-          // Check if this client is at our origin
           if (client.url.startsWith(self.location.origin) && 'focus' in client) {
             return client.focus().then((focusedClient) => {
-              // Navigate to the notification URL
               if (focusedClient && 'navigate' in focusedClient) {
                 return focusedClient.navigate(fullUrl);
               }
               return focusedClient;
             }).catch(() => {
-              // Focus failed, try to open new window
               return self.clients.openWindow(fullUrl);
             });
           }
         }
-        // No existing window found, open new one
         return self.clients.openWindow(fullUrl);
       })
       .catch((error) => {
-        console.error('[SW v' + SW_VERSION + '] Error handling notification click:', error);
-        // Last resort - try to open the URL
+        console.error('[SW v' + SW_VERSION + '] Error handling click:', error);
         return self.clients.openWindow(fullUrl);
       })
   );
 });
 
-// Notification close handler (for analytics/tracking if needed)
 self.addEventListener('notificationclose', (event) => {
   console.log('[SW v' + SW_VERSION + '] Notification closed:', event.notification.tag);
 });
 
-// Subscription change handler - notify clients to resubscribe
+// ============================================
+// SUBSCRIPTION CHANGE HANDLER (CRITICAL FOR RELIABILITY)
+// ============================================
+
 self.addEventListener('pushsubscriptionchange', (event) => {
-  console.log('[SW v' + SW_VERSION + '] Subscription changed, notifying clients...');
+  console.log('[SW v' + SW_VERSION + '] Subscription changed - attempting recovery');
   
   event.waitUntil(
-    Promise.all([
-      // Notify all clients
-      self.clients.matchAll({ includeUncontrolled: true }).then(clients => {
-        clients.forEach(client => {
-          client.postMessage({ 
-            type: 'PUSH_SUBSCRIPTION_CHANGED',
-            timestamp: Date.now()
-          });
-        });
-        console.log('[SW v' + SW_VERSION + '] Notified', clients.length, 'client(s) of subscription change');
-      }),
-      // Try to resubscribe automatically if we have the old subscription
-      (async () => {
+    (async () => {
+      // Notify all clients immediately
+      await notifyClients({ 
+        type: 'PUSH_SUBSCRIPTION_CHANGED',
+        timestamp: Date.now(),
+        reason: 'pushsubscriptionchange event',
+      });
+      
+      // Try to resubscribe automatically
+      if (event.oldSubscription) {
         try {
-          if (event.oldSubscription) {
-            console.log('[SW v' + SW_VERSION + '] Attempting automatic resubscription...');
-            const newSubscription = await self.registration.pushManager.subscribe(
-              event.oldSubscription.options
-            );
-            console.log('[SW v' + SW_VERSION + '] Auto-resubscribed successfully');
-            // Notify clients of new subscription
-            const clients = await self.clients.matchAll({ includeUncontrolled: true });
-            clients.forEach(client => {
-              client.postMessage({
-                type: 'PUSH_SUBSCRIPTION_RENEWED',
-                subscription: newSubscription.toJSON(),
-                timestamp: Date.now()
-              });
-            });
-          }
+          console.log('[SW v' + SW_VERSION + '] Attempting automatic resubscription...');
+          const newSubscription = await self.registration.pushManager.subscribe(
+            event.oldSubscription.options
+          );
+          console.log('[SW v' + SW_VERSION + '] Auto-resubscribed successfully');
+          
+          // Notify clients of new subscription
+          await notifyClients({
+            type: 'PUSH_SUBSCRIPTION_RENEWED',
+            subscription: newSubscription.toJSON(),
+            timestamp: Date.now(),
+          });
         } catch (error) {
           console.error('[SW v' + SW_VERSION + '] Auto-resubscription failed:', error);
+          // Client-side code will handle resubscription
         }
-      })()
-    ])
+      }
+    })()
   );
 });
 
-// Message handler for communication with main thread
+// ============================================
+// MESSAGE HANDLER
+// ============================================
+
 self.addEventListener('message', (event) => {
   const data = event.data;
   
@@ -189,34 +259,55 @@ self.addEventListener('message', (event) => {
     return;
   }
   
-  // Typed message handlers
   if (data && typeof data === 'object') {
     switch (data.type) {
       case 'PING':
-        // Keepalive ping - respond with PONG
-        event.source?.postMessage({ type: 'PONG', version: SW_VERSION, timestamp: Date.now() });
+        event.source?.postMessage({ 
+          type: 'PONG', 
+          version: SW_VERSION, 
+          timestamp: Date.now(),
+        });
         break;
         
       case 'GET_VERSION':
         event.source?.postMessage({ type: 'VERSION', version: SW_VERSION });
         break;
         
+      case 'SKIP_WAITING':
+        self.skipWaiting();
+        break;
+        
       case 'CHECK_SUBSCRIPTION':
-        // Check if push subscription is active
         self.registration.pushManager.getSubscription()
           .then(subscription => {
             event.source?.postMessage({
               type: 'SUBSCRIPTION_STATUS',
               hasSubscription: !!subscription,
-              endpoint: subscription?.endpoint?.substring(0, 50)
+              endpoint: subscription?.endpoint?.substring(0, 50),
             });
           })
           .catch(error => {
             event.source?.postMessage({
               type: 'SUBSCRIPTION_STATUS',
               hasSubscription: false,
-              error: error.message
+              error: error.message,
             });
+          });
+        break;
+        
+      case 'FORCE_RESUBSCRIBE':
+        // Trigger subscription change flow
+        self.registration.pushManager.getSubscription()
+          .then(sub => {
+            if (sub) {
+              return sub.unsubscribe().then(() => {
+                event.source?.postMessage({ type: 'UNSUBSCRIBED' });
+              });
+            }
+            event.source?.postMessage({ type: 'NO_SUBSCRIPTION' });
+          })
+          .catch(error => {
+            event.source?.postMessage({ type: 'ERROR', error: error.message });
           });
         break;
         
@@ -226,24 +317,34 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Periodic sync for background updates (if supported)
+// ============================================
+// PERIODIC SYNC (Background health check)
+// ============================================
+
 self.addEventListener('periodicsync', (event) => {
-  if (event.tag === 'push-keepalive') {
-    console.log('[SW v' + SW_VERSION + '] Periodic sync: push-keepalive');
+  if (event.tag === 'push-health-check') {
+    console.log('[SW v' + SW_VERSION + '] Periodic sync: push-health-check');
     event.waitUntil(
       self.registration.pushManager.getSubscription()
         .then(subscription => {
           if (!subscription) {
             console.log('[SW v' + SW_VERSION + '] No subscription during periodic sync');
-            // Notify clients
-            return self.clients.matchAll({ includeUncontrolled: true }).then(clients => {
-              clients.forEach(client => {
-                client.postMessage({ type: 'PUSH_SUBSCRIPTION_CHANGED' });
-              });
-            });
+            return notifyClients({ type: 'PUSH_SUBSCRIPTION_CHANGED' });
           }
           console.log('[SW v' + SW_VERSION + '] Subscription healthy during periodic sync');
         })
     );
   }
+});
+
+// ============================================
+// ERROR HANDLING
+// ============================================
+
+self.addEventListener('error', (event) => {
+  console.error('[SW v' + SW_VERSION + '] Uncaught error:', event.error);
+});
+
+self.addEventListener('unhandledrejection', (event) => {
+  console.error('[SW v' + SW_VERSION + '] Unhandled rejection:', event.reason);
 });
