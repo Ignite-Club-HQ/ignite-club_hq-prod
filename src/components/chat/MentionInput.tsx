@@ -10,11 +10,13 @@ interface MentionInputProps {
   value: string;
   onChange: (value: string) => void;
   onKeyPress?: (e: React.KeyboardEvent) => void;
+  onInputChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
   teamId?: string;
   clubId?: string;
+  groupId?: string;
   showEmojiPicker?: boolean;
 }
 
@@ -31,11 +33,13 @@ export function MentionInput({
   value,
   onChange,
   onKeyPress,
+  onInputChange,
   disabled,
   placeholder,
   className,
   teamId,
   clubId,
+  groupId,
   showEmojiPicker = true,
 }: MentionInputProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -50,13 +54,34 @@ export function MentionInput({
     return [...new Set(matches)].slice(0, 3); // Max 3 previews
   }, [value]);
 
-  // Fetch users based on team/club context
+  // Fetch users based on team/club/group context
   const { data: users } = useQuery({
-    queryKey: ["mention-users", teamId, clubId, mentionSearch],
+    queryKey: ["mention-users", teamId, clubId, groupId, mentionSearch],
     queryFn: async () => {
       let userIds: string[] = [];
       
-      if (teamId) {
+      if (groupId) {
+        // For group chats, get users who have access to the group via their roles
+        const { data: group } = await supabase
+          .from("chat_groups")
+          .select("team_id, club_id")
+          .eq("id", groupId)
+          .single();
+        
+        if (group?.team_id) {
+          const { data: roles } = await supabase
+            .from("user_roles")
+            .select("user_id")
+            .eq("team_id", group.team_id);
+          userIds = [...new Set(roles?.map((r) => r.user_id) || [])];
+        } else if (group?.club_id) {
+          const { data: roles } = await supabase
+            .from("user_roles")
+            .select("user_id")
+            .eq("club_id", group.club_id);
+          userIds = [...new Set(roles?.map((r) => r.user_id) || [])];
+        }
+      } else if (teamId) {
         const { data: roles } = await supabase
           .from("user_roles")
           .select("user_id")

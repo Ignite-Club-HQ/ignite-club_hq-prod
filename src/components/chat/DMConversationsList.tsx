@@ -62,6 +62,11 @@ function DMSkeleton() {
   );
 }
 
+// Helper to strip mention formatting: @[Name](id) -> @Name
+const stripMentionFormatting = (text: string): string => {
+  return text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '@$1');
+};
+
 // Message preview component
 const MessagePreview = ({ 
   text, 
@@ -75,6 +80,7 @@ const MessagePreview = ({
   const hasText = text && text.trim();
   const isImageOnly = !hasText && imageUrl;
   const hasTextAndImage = hasText && imageUrl;
+  const displayText = hasText ? stripMentionFormatting(text!) : null;
   
   return (
     <span className="flex items-center gap-1.5">
@@ -89,7 +95,7 @@ const MessagePreview = ({
       {hasTextAndImage && (
         <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       )}
-      <span className="truncate">{hasText ? text : (isImageOnly ? "Image" : "Start a conversation")}</span>
+      <span className="truncate">{displayText ?? (isImageOnly ? "Image" : "Start a conversation")}</span>
     </span>
   );
 };

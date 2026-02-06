@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { MentionInput } from "@/components/chat/MentionInput";
 import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, RefreshCw, Users } from "lucide-react";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
@@ -15,7 +15,7 @@ import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator
 const MESSAGES_PER_PAGE = 15;
 import { toast } from "sonner";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
-import { EmojiPicker } from "@/components/chat/EmojiPicker";
+// EmojiPicker is built into MentionInput
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { ChatSearch } from "@/components/chat/ChatSearch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -299,9 +299,9 @@ export default function GroupChatPage() {
       };
     },
     enabled: !!groupId,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 30, // 30 seconds - refetch more often to get new reactions
     gcTime: 1000 * 60 * 30,
-    refetchOnMount: false,
+    refetchOnMount: 'always', // Always refetch on mount to get latest reactions
     refetchOnWindowFocus: false,
   });
 
@@ -935,27 +935,159 @@ export default function GroupChatPage() {
     },
   });
 
-  // Toggle reaction mutation
+  // Toggle reaction mutation with optimistic updates
+  // Rule: One reaction per user per message. Clicking same emoji removes it, different emoji replaces it.
   const toggleReactionMutation = useMutation({
     mutationFn: async ({ messageId, reactionType }: { messageId: string; reactionType: string }) => {
-      if (!user) return;
-      const existing = reactions.find(
-        (r) => r.group_message_id === messageId && r.user_id === user.id && r.reaction_type === reactionType
-      );
-      if (existing) {
-        const { error } = await supabase.from("message_reactions").delete().eq("id", existing.id);
-        if (error) throw error;
+      if (!user) return { action: 'none' as const };
+      
+      console.log('[Reaction] Starting mutation for message:', messageId, 'type:', reactionType);
+      
+      // Query DATABASE directly for existing reaction (not cache - cache is modified by onMutate)
+      const { data: existingReaction, error: fetchError } = await supabase
+        .from("message_reactions")
+        .select("id, reaction_type")
+        .eq("group_message_id", messageId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      
+      if (fetchError) {
+        console.error('[Reaction] Fetch existing error:', fetchError);
+        throw fetchError;
+      }
+      
+      console.log('[Reaction] Existing reaction from DB:', existingReaction);
+      
+      if (existingReaction) {
+        if (existingReaction.reaction_type === reactionType) {
+          // Same emoji - remove reaction
+          console.log('[Reaction] Removing existing reaction');
+          const { error } = await supabase.from("message_reactions").delete().eq("id", existingReaction.id);
+          if (error) {
+            console.error('[Reaction] Delete error:', error);
+            throw error;
+          }
+          return { action: 'removed' as const, reactionId: existingReaction.id };
+        } else {
+          // Different emoji - update reaction
+          console.log('[Reaction] Updating existing reaction to:', reactionType);
+          const { data, error } = await supabase.from("message_reactions")
+            .update({ reaction_type: reactionType })
+            .eq("id", existingReaction.id)
+            .select()
+            .maybeSingle();
+          if (error) {
+            console.error('[Reaction] Update error:', error);
+            throw error;
+          }
+          console.log('[Reaction] Update success:', data);
+          return { action: 'updated' as const, reaction: data, oldReactionId: existingReaction.id };
+        }
       } else {
-        const { error } = await supabase.from("message_reactions").insert({
+        // No existing reaction - add new
+        console.log('[Reaction] Adding new reaction');
+        const { data, error } = await supabase.from("message_reactions").insert({
           group_message_id: messageId,
           user_id: user.id,
           reaction_type: reactionType,
-        });
-        if (error) throw error;
+        }).select().maybeSingle();
+        
+        if (error) {
+          console.error('[Reaction] Insert error:', error);
+          throw error;
+        }
+        console.log('[Reaction] Insert success:', data);
+        return { action: 'added' as const, reaction: data };
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["group-message-reactions", groupId] });
+    onMutate: async ({ messageId, reactionType }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
+      
+      const previousData = queryClient.getQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId]);
+      
+      // Check if user already has a reaction on this message (any type)
+      const existingReaction = previousData?.reactions.find(
+        r => r.group_message_id === messageId && r.user_id === user?.id && !r.id.startsWith('temp-')
+      );
+      
+      // Optimistically update reactions
+      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+        if (!old) return { messages: [], reactions: [] };
+        
+        if (existingReaction) {
+          if (existingReaction.reaction_type === reactionType) {
+            // Same emoji - remove reaction optimistically
+            return { ...old, reactions: old.reactions.filter(r => r.id !== existingReaction.id) };
+          } else {
+            // Different emoji - update reaction optimistically
+            return { 
+              ...old, 
+              reactions: old.reactions.map(r => 
+                r.id === existingReaction.id 
+                  ? { ...r, reaction_type: reactionType }
+                  : r
+              )
+            };
+          }
+        } else {
+          // Check if there's already a temp reaction for this user on this message
+          const hasTempReaction = old.reactions.some(
+            r => r.id.startsWith('temp-') && r.group_message_id === messageId && r.user_id === user?.id
+          );
+          if (hasTempReaction) return old;
+          
+          // Add reaction optimistically with temp ID
+          const tempReaction: MessageReaction = {
+            id: `temp-reaction-${Date.now()}`,
+            user_id: user!.id,
+            reaction_type: reactionType,
+            group_message_id: messageId,
+          };
+          return { ...old, reactions: [...old.reactions, tempReaction] };
+        }
+      });
+      
+      return { previousData, existingReaction };
+    },
+    onError: (err, variables, context) => {
+      // Revert on error
+      if (context?.previousData) {
+        queryClient.setQueryData(["group-messages", groupId], context.previousData);
+      }
+      toast.error("Failed to update reaction");
+    },
+    onSuccess: (result) => {
+      if (!result) return;
+      
+      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+        if (!old) return { messages: [], reactions: [] };
+        
+        if (result.action === 'added' && result.reaction) {
+          // Remove any temp reactions for this message/user and add the real one
+          const filteredReactions = old.reactions.filter(r => 
+            !(r.id.startsWith('temp-reaction-') && 
+              r.group_message_id === result.reaction.group_message_id && 
+              r.user_id === result.reaction.user_id)
+          );
+          if (!filteredReactions.some(r => r.id === result.reaction.id)) {
+            return { ...old, reactions: [...filteredReactions, result.reaction] };
+          }
+          return { ...old, reactions: filteredReactions };
+        }
+        
+        if (result.action === 'updated' && result.reaction) {
+          // Replace the old reaction with the updated one
+          return { 
+            ...old, 
+            reactions: old.reactions.map(r => 
+              r.id === result.reaction.id ? result.reaction : r
+            )
+          };
+        }
+        
+        return old;
+      });
     },
   });
 
@@ -1216,17 +1348,27 @@ export default function GroupChatPage() {
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-2">
                             <div className="flex gap-1">
-                              {REACTION_EMOJIS.map((emoji) => (
-                                <Button
-                                  key={emoji}
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() => toggleReactionMutation.mutate({ messageId: msg.id, reactionType: emoji })}
-                                >
-                                  {emoji}
-                                </Button>
-                              ))}
+                              {REACTION_EMOJIS.map((emoji) => {
+                                // Check if user has ANY reaction on this message
+                                const userReaction = reactions.find(
+                                  r => r.group_message_id === msg.id && r.user_id === user?.id
+                                );
+                                const isSelected = userReaction?.reaction_type === emoji;
+                                return (
+                                  <Button
+                                    key={emoji}
+                                    variant="ghost"
+                                    size="sm"
+                                    className={`h-8 w-8 p-0 ${isSelected ? 'bg-primary/20 ring-2 ring-primary' : ''}`}
+                                    onClick={() => toggleReactionMutation.mutate({ 
+                                      messageId: msg.id, 
+                                      reactionType: emoji
+                                    })}
+                                  >
+                                    {emoji}
+                                  </Button>
+                                );
+                              })}
                             </div>
                           </PopoverContent>
                         </Popover>
@@ -1300,26 +1442,25 @@ export default function GroupChatPage() {
             clubId={group?.club_id || undefined}
             teamId={group?.team_id || undefined}
           />
-          <EmojiPicker 
-            onEmojiSelect={(emoji) => setMessage((prev) => prev + emoji)} 
-            disabled={sendMessageMutation.isPending}
-          />
-          <Input
-            ref={inputRef}
+          <MentionInput
             value={message}
-            onChange={(e) => {
-              setMessage(e.target.value);
-              if (e.target.value.trim()) startTyping();
+            onChange={(val) => {
+              setMessage(val);
+              if (val.trim()) startTyping();
               else stopTyping();
             }}
-            placeholder="Type a message..."
-            onKeyDown={(e) => {
+            placeholder="Type a message... (@ to mention)"
+            onKeyPress={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 stopTyping();
                 handleSend();
               }
             }}
-            className="flex-1"
+            groupId={groupId}
+            teamId={group?.team_id || undefined}
+            clubId={group?.club_id || undefined}
+            disabled={sendMessageMutation.isPending}
+            showEmojiPicker={false}
           />
           <Button 
             onClick={() => {

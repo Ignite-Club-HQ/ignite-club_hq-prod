@@ -14,7 +14,7 @@ import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { ChatMessage } from "@/components/chat/ChatMessage";
-import { EmojiPicker } from "@/components/chat/EmojiPicker";
+import { MentionInput } from "@/components/chat/MentionInput";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
@@ -687,21 +687,13 @@ export default function DirectMessagePage() {
       ) : (
         <div className="pt-4 border-t shrink-0">
           <div className="flex gap-2 items-end">
-            <EmojiPicker 
-              onEmojiSelect={(emoji) => setMessage((prev) => prev + emoji)} 
+            <MentionInput
+              value={message}
+              onChange={setMessage}
+              onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+              placeholder="Type a message... (@ to mention)"
               disabled={sendMessageMutation.isPending}
             />
-            
-            <div className="flex-1">
-              <Input
-                ref={inputRef}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-                placeholder="Type a message..."
-                disabled={sendMessageMutation.isPending}
-              />
-            </div>
             
             <Button 
               onClick={handleSend} 
