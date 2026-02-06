@@ -941,36 +941,54 @@ export default function GroupChatPage() {
     mutationFn: async ({ messageId, reactionType }: { messageId: string; reactionType: string }) => {
       if (!user) return { action: 'none' as const };
       
+      console.log('[Reaction] Starting mutation for message:', messageId, 'type:', reactionType);
+      
       // Get fresh reaction data from cache to find existing reaction
       const cachedData = queryClient.getQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId]);
       const existingReaction = cachedData?.reactions.find(
         r => r.group_message_id === messageId && r.user_id === user.id && !r.id.startsWith('temp-')
       );
       
+      console.log('[Reaction] Existing reaction:', existingReaction);
+      
       if (existingReaction) {
         if (existingReaction.reaction_type === reactionType) {
           // Same emoji - remove reaction
+          console.log('[Reaction] Removing existing reaction');
           const { error } = await supabase.from("message_reactions").delete().eq("id", existingReaction.id);
-          if (error) throw error;
+          if (error) {
+            console.error('[Reaction] Delete error:', error);
+            throw error;
+          }
           return { action: 'removed' as const, reactionId: existingReaction.id };
         } else {
           // Different emoji - update reaction
+          console.log('[Reaction] Updating existing reaction');
           const { data, error } = await supabase.from("message_reactions")
             .update({ reaction_type: reactionType })
             .eq("id", existingReaction.id)
             .select()
-            .single();
-          if (error) throw error;
+            .maybeSingle();
+          if (error) {
+            console.error('[Reaction] Update error:', error);
+            throw error;
+          }
           return { action: 'updated' as const, reaction: data, oldReactionId: existingReaction.id };
         }
       } else {
         // No existing reaction - add new
+        console.log('[Reaction] Adding new reaction');
         const { data, error } = await supabase.from("message_reactions").insert({
           group_message_id: messageId,
           user_id: user.id,
           reaction_type: reactionType,
-        }).select().single();
-        if (error) throw error;
+        }).select().maybeSingle();
+        
+        if (error) {
+          console.error('[Reaction] Insert error:', error);
+          throw error;
+        }
+        console.log('[Reaction] Insert success:', data);
         return { action: 'added' as const, reaction: data };
       }
     },
