@@ -935,27 +935,78 @@ export default function GroupChatPage() {
     },
   });
 
-  // Toggle reaction mutation
+  // Toggle reaction mutation with optimistic updates
   const toggleReactionMutation = useMutation({
-    mutationFn: async ({ messageId, reactionType }: { messageId: string; reactionType: string }) => {
-      if (!user) return;
-      const existing = reactions.find(
-        (r) => r.group_message_id === messageId && r.user_id === user.id && r.reaction_type === reactionType
-      );
-      if (existing) {
-        const { error } = await supabase.from("message_reactions").delete().eq("id", existing.id);
+    mutationFn: async ({ messageId, reactionType, existingReactionId }: { messageId: string; reactionType: string; existingReactionId?: string }) => {
+      if (!user) return { action: 'none' as const };
+      
+      if (existingReactionId) {
+        const { error } = await supabase.from("message_reactions").delete().eq("id", existingReactionId);
         if (error) throw error;
+        return { action: 'removed' as const, reactionId: existingReactionId };
       } else {
-        const { error } = await supabase.from("message_reactions").insert({
+        const { data, error } = await supabase.from("message_reactions").insert({
           group_message_id: messageId,
           user_id: user.id,
           reaction_type: reactionType,
-        });
+        }).select().single();
         if (error) throw error;
+        return { action: 'added' as const, reaction: data };
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["group-message-reactions", groupId] });
+    onMutate: async ({ messageId, reactionType, existingReactionId }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
+      
+      const previousData = queryClient.getQueryData(["group-messages", groupId]);
+      
+      // Optimistically update reactions
+      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+        if (!old) return { messages: [], reactions: [] };
+        
+        if (existingReactionId) {
+          // Remove reaction optimistically
+          return { ...old, reactions: old.reactions.filter(r => r.id !== existingReactionId) };
+        } else {
+          // Add reaction optimistically with temp ID
+          const tempReaction: MessageReaction = {
+            id: `temp-reaction-${Date.now()}`,
+            user_id: user!.id,
+            reaction_type: reactionType,
+            group_message_id: messageId,
+          };
+          return { ...old, reactions: [...old.reactions, tempReaction] };
+        }
+      });
+      
+      return { previousData };
+    },
+    onError: (err, variables, context) => {
+      // Revert on error
+      if (context?.previousData) {
+        queryClient.setQueryData(["group-messages", groupId], context.previousData);
+      }
+      toast.error("Failed to update reaction");
+    },
+    onSuccess: (result) => {
+      // Replace temp reaction with real one from server
+      if (result?.action === 'added' && result.reaction) {
+        queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+          if (!old) return { messages: [], reactions: [] };
+          // Remove any temp reactions for this message/user/type and add the real one
+          const filteredReactions = old.reactions.filter(r => 
+            !(r.id.startsWith('temp-reaction-') && 
+              r.group_message_id === result.reaction.group_message_id && 
+              r.user_id === result.reaction.user_id &&
+              r.reaction_type === result.reaction.reaction_type)
+          );
+          // Only add if not already present
+          if (!filteredReactions.some(r => r.id === result.reaction.id)) {
+            return { ...old, reactions: [...filteredReactions, result.reaction] };
+          }
+          return { ...old, reactions: filteredReactions };
+        });
+      }
     },
   });
 
@@ -1216,17 +1267,26 @@ export default function GroupChatPage() {
                           </PopoverTrigger>
                           <PopoverContent className="w-auto p-2">
                             <div className="flex gap-1">
-                              {REACTION_EMOJIS.map((emoji) => (
-                                <Button
-                                  key={emoji}
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() => toggleReactionMutation.mutate({ messageId: msg.id, reactionType: emoji })}
-                                >
-                                  {emoji}
-                                </Button>
-                              ))}
+                              {REACTION_EMOJIS.map((emoji) => {
+                                const existingReaction = reactions.find(
+                                  r => r.group_message_id === msg.id && r.user_id === user?.id && r.reaction_type === emoji
+                                );
+                                return (
+                                  <Button
+                                    key={emoji}
+                                    variant="ghost"
+                                    size="sm"
+                                    className={`h-8 w-8 p-0 ${existingReaction ? 'bg-primary/20' : ''}`}
+                                    onClick={() => toggleReactionMutation.mutate({ 
+                                      messageId: msg.id, 
+                                      reactionType: emoji,
+                                      existingReactionId: existingReaction?.id
+                                    })}
+                                  >
+                                    {emoji}
+                                  </Button>
+                                );
+                              })}
                             </div>
                           </PopoverContent>
                         </Popover>
