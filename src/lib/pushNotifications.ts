@@ -12,7 +12,8 @@ function getLockTimeout(): number {
   const ua = navigator.userAgent;
   const isChromeAndroid = /android/i.test(ua) && /chrome/i.test(ua) && !/samsungbrowser/i.test(ua);
   const isSamsungInternet = /samsungbrowser/i.test(ua);
-  return (isChromeAndroid || isSamsungInternet) ? 10000 : 30000; // 10s for problematic browsers, 30s for others
+  // Use very short timeout - lock should only prevent true concurrent calls, not sequential retries
+  return (isChromeAndroid || isSamsungInternet) ? 5000 : 15000; // 5s for Android browsers, 15s for others
 }
 
 type LockData = { timestamp: number; runId: string };
