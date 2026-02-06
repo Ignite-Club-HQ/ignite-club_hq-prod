@@ -304,6 +304,15 @@ export async function resilientSubscribe(
     reliability: platform.reliabilityRating,
   }, correlationId);
 
+  // Force clear any stale lock before attempting - this is a deliberate retry so lock shouldn't block
+  try {
+    const { forceUnlockPushSubscription } = await import('@/lib/pushNotifications');
+    forceUnlockPushSubscription();
+    logPush('debug', 'Cleared push lock before resilient subscribe', undefined, correlationId);
+  } catch (e) {
+    // Ignore - function might not be available
+  }
+
   // Check if offline
   if (!navigator.onLine) {
     addToOfflineQueue({ type: 'subscribe', userId });
