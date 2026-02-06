@@ -24,7 +24,8 @@ import {
   TrendingDown,
   Users,
   Settings,
-  Save
+  Save,
+  Smartphone
 } from "lucide-react";
 import { format, subDays, startOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -114,19 +115,47 @@ export default function PushAnalyticsPage() {
     enabled: isAdmin === true,
   });
 
-  // Fetch subscription count
-  const { data: subscriptionCount } = useQuery({
-    queryKey: ["push-subscription-count"],
+  // Fetch subscription count with platform breakdown
+  const { data: subscriptionStats } = useQuery({
+    queryKey: ["push-subscription-stats"],
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { data, error } = await supabase
         .from("push_subscriptions")
-        .select("*", { count: "exact", head: true });
+        .select("platform, failure_count, last_success_at, created_at");
 
       if (error) throw error;
-      return count || 0;
+      
+      const stats = {
+        total: data?.length || 0,
+        byPlatform: {} as Record<string, { count: number; healthy: number; failing: number }>,
+        healthy: 0,
+        failing: 0,
+      };
+      
+      for (const sub of data || []) {
+        const platform = sub.platform || 'unknown';
+        if (!stats.byPlatform[platform]) {
+          stats.byPlatform[platform] = { count: 0, healthy: 0, failing: 0 };
+        }
+        stats.byPlatform[platform].count++;
+        
+        const isHealthy = (sub.failure_count || 0) === 0;
+        if (isHealthy) {
+          stats.byPlatform[platform].healthy++;
+          stats.healthy++;
+        } else {
+          stats.byPlatform[platform].failing++;
+          stats.failing++;
+        }
+      }
+      
+      return stats;
     },
     enabled: isAdmin === true,
   });
+
+  // Keep legacy subscription count for backwards compat
+  const subscriptionCount = subscriptionStats?.total || 0;
 
   // Fetch alert settings
   const { data: alertSettings, isLoading: settingsLoading } = useQuery({
@@ -525,7 +554,64 @@ export default function PushAnalyticsPage() {
           </Card>
         </div>
 
-        {/* Charts */}
+        {/* Platform Breakdown */}
+        {subscriptionStats && Object.keys(subscriptionStats.byPlatform).length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Smartphone className="h-5 w-5" />
+                Platform Breakdown
+              </CardTitle>
+              <CardDescription>
+                Subscription health by platform
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {Object.entries(subscriptionStats.byPlatform)
+                  .sort(([, a], [, b]) => b.count - a.count)
+                  .map(([platform, data]) => {
+                    const healthPercent = data.count > 0 
+                      ? Math.round((data.healthy / data.count) * 100) 
+                      : 0;
+                    return (
+                      <div key={platform} className="p-4 rounded-lg bg-muted/50 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium capitalize">{platform}</span>
+                          <Badge variant="outline">{data.count}</Badge>
+                        </div>
+                        <Progress value={healthPercent} className="h-2" />
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span className="text-green-500">{data.healthy} healthy</span>
+                          {data.failing > 0 && (
+                            <span className="text-destructive">{data.failing} failing</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+              
+              {/* Overall Health Summary */}
+              <div className="mt-4 pt-4 border-t flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Overall Health:</span>
+                  <Badge variant={subscriptionStats.failing === 0 ? "default" : subscriptionStats.failing < subscriptionStats.healthy ? "secondary" : "destructive"}>
+                    {subscriptionStats.total > 0 
+                      ? Math.round((subscriptionStats.healthy / subscriptionStats.total) * 100) 
+                      : 0}% healthy
+                  </Badge>
+                </div>
+                {subscriptionStats.failing > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {subscriptionStats.failing} subscription(s) have delivery issues
+                  </span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
         <div className="grid gap-4 lg:grid-cols-3">
           {/* Bar Chart */}
           <Card className="lg:col-span-2">

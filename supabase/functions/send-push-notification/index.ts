@@ -460,6 +460,13 @@ serve(async (req) => {
           statusCode: result.statusCode || undefined,
           retries: result.retryCount 
         });
+        
+        // Record success in subscription health tracking
+        try {
+          await supabase.rpc('record_push_success', { p_endpoint: sub.endpoint });
+        } catch (e) {
+          // Ignore - function may not exist in older deployments
+        }
       } else if (result.statusCode === 410 || result.statusCode === 404) {
         console.log(`[PUSH] Subscription EXPIRED`);
         expiredEndpoints.push(sub.id);
@@ -479,6 +486,16 @@ serve(async (req) => {
           statusCode: result.statusCode || undefined,
           retries: result.retryCount 
         });
+        
+        // Record failure in subscription health tracking
+        try {
+          await supabase.rpc('record_push_failure', { 
+            p_endpoint: sub.endpoint, 
+            p_reason: result.error || 'Unknown error' 
+          });
+        } catch (e) {
+          // Ignore - function may not exist in older deployments
+        }
       }
     }
     
