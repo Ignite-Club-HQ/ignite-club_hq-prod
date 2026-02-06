@@ -159,7 +159,15 @@ export default function EditProfilePage() {
   }, [toast, user?.id]);
 
   const handlePushToggle = async (enabled: boolean) => {
-    console.log('[EditProfile] Push toggle clicked, enabled:', enabled, 'user:', !!user, 'pushLoading:', pushLoading);
+    console.log('[EditProfile] === Push toggle clicked ===');
+    console.log('[EditProfile] enabled:', enabled);
+    console.log('[EditProfile] user:', !!user);
+    console.log('[EditProfile] pushLoading:', pushLoading);
+    console.log('[EditProfile] Current Notification.permission:', 
+      typeof window !== 'undefined' && 'Notification' in window 
+        ? window.Notification.permission 
+        : 'N/A'
+    );
     
     if (!user) {
       toast({

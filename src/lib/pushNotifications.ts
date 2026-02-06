@@ -261,29 +261,58 @@ function isLovablePreview(): boolean {
  * Request notification permission
  */
 async function requestNotificationPermission(): Promise<NotificationPermission> {
+  console.log('[Push] === requestNotificationPermission ===');
+  console.log('[Push] window defined:', typeof window !== 'undefined');
+  console.log('[Push] Notification in window:', 'Notification' in window);
+  
   if (typeof window === 'undefined' || !('Notification' in window)) {
+    console.log('[Push] No Notification API - returning denied');
     return 'denied';
   }
 
+  const currentPermission = window.Notification.permission;
+  console.log('[Push] Current Notification.permission:', currentPermission);
+
   if (isInIframe()) {
-    return window.Notification.permission;
+    console.log('[Push] In iframe - returning current permission without requesting');
+    return currentPermission;
   }
 
-  if (window.Notification.permission === 'granted') {
+  if (currentPermission === 'granted') {
+    console.log('[Push] Already granted');
     return 'granted';
   }
 
-  if (window.Notification.permission === 'denied') {
+  if (currentPermission === 'denied') {
+    console.log('[Push] Already denied - cannot request again');
     return 'denied';
   }
 
+  // Permission is 'default' - need to request
+  console.log('[Push] Permission is default - requesting...');
+  
   try {
     const permission = await window.Notification.requestPermission();
     console.log('[Push] Permission request result:', permission);
+    
+    // Double-check the actual permission state after request
+    // Some browsers (Samsung Internet) may not update immediately
+    await wait(100);
+    const finalPermission = window.Notification.permission;
+    console.log('[Push] Final Notification.permission after request:', finalPermission);
+    
+    // Trust the actual state over the returned value
+    if (finalPermission === 'granted') {
+      return 'granted';
+    }
+    
     return permission;
   } catch (error) {
     console.error('[Push] Permission request error:', error);
-    return 'denied';
+    // Check if permission was actually granted despite the error
+    const fallbackPermission = window.Notification.permission;
+    console.log('[Push] Fallback permission check:', fallbackPermission);
+    return fallbackPermission;
   }
 }
 
