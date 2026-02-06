@@ -127,7 +127,7 @@ export function clearLogs(): void {
 // PLATFORM DETECTION
 // ============================================
 
-export type PushPlatform = 'ios-pwa' | 'ios-safari' | 'android-chrome' | 'android-firefox' | 'android-other' | 'desktop-chrome' | 'desktop-firefox' | 'desktop-safari' | 'desktop-edge' | 'desktop-other' | 'unknown';
+export type PushPlatform = 'ios-pwa' | 'ios-safari' | 'android-chrome' | 'android-samsung' | 'android-firefox' | 'android-other' | 'desktop-chrome' | 'desktop-firefox' | 'desktop-safari' | 'desktop-edge' | 'desktop-other' | 'unknown';
 
 export interface PlatformInfo {
   platform: PushPlatform;
@@ -148,8 +148,10 @@ export function detectPlatformDetailed(): PushPlatform {
     return isStandalone ? 'ios-pwa' : 'ios-safari';
   }
 
-  // Android detection
+  // Android detection - order matters (Samsung Internet contains "chrome" in UA)
   if (/android/.test(ua)) {
+    // Samsung Internet browser detection (SamsungBrowser in UA)
+    if (/samsungbrowser/.test(ua)) return 'android-samsung';
     if (/chrome/.test(ua) && !/edge|edg/.test(ua)) return 'android-chrome';
     if (/firefox/.test(ua)) return 'android-firefox';
     return 'android-other';
@@ -189,6 +191,13 @@ export function getPlatformInfo(): PlatformInfo {
       reliabilityRating: 5,
       notes: 'Most reliable. Uses Firebase Cloud Messaging.',
     },
+    'android-samsung': {
+      supportsNativePush: true,
+      requiresPWA: false,
+      pushService: 'fcm',
+      reliabilityRating: 4,
+      notes: 'Samsung Internet uses FCM. May need permission granted in browser settings first.',
+    },
     'android-firefox': {
       supportsNativePush: true,
       requiresPWA: false,
@@ -201,7 +210,7 @@ export function getPlatformInfo(): PlatformInfo {
       requiresPWA: false,
       pushService: 'fcm',
       reliabilityRating: 4,
-      notes: 'Samsung Internet, Brave, etc. Generally reliable.',
+      notes: 'Brave, etc. Generally reliable.',
     },
     'desktop-chrome': {
       supportsNativePush: true,
