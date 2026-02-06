@@ -387,26 +387,40 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
 
     // In silent mode, only proceed if permission is already granted
     if (silent && window.Notification.permission !== 'granted') {
+      console.log('[Push] Silent mode but permission not granted:', window.Notification.permission);
       return { success: false, error: 'Permission not granted' };
     }
 
     // Request permission
+    console.log('[Push] About to request permission...');
     const permission = await requestNotificationPermission();
     console.log('[Push] Permission result:', permission);
+    console.log('[Push] Final Notification.permission state:', window.Notification.permission);
     
     if (permission === 'denied') {
-      return { 
-        success: false, 
-        error: 'Notifications are blocked. Please enable them in your browser settings (click the lock icon in the address bar).' 
-      };
+      // Provide browser-specific instructions
+      const isSamsungInternet = /samsungbrowser/i.test(navigator.userAgent);
+      const isChromeAndroid = /android/i.test(navigator.userAgent) && /chrome/i.test(navigator.userAgent) && !isSamsungInternet;
+      
+      let instructions = 'Notifications are blocked. ';
+      if (isSamsungInternet) {
+        instructions += 'Go to Samsung Internet Settings → Sites and downloads → Notifications → Allow this site.';
+      } else if (isChromeAndroid) {
+        instructions += 'Go to Chrome Settings → Site settings → Notifications → Allow this site.';
+      } else {
+        instructions += 'Please enable them in your browser settings (click the lock icon in the address bar).';
+      }
+      
+      return { success: false, error: instructions };
     }
 
     if (permission !== 'granted') {
-      return { success: false, error: 'Notification permission not granted.' };
+      console.log('[Push] Permission not granted, actual value:', permission);
+      return { success: false, error: `Notification permission not granted (status: ${permission}). Please allow notifications when prompted.` };
     }
 
     // Get service worker registration
-    console.log('[Push] Getting service worker...');
+    console.log('[Push] Permission granted! Getting service worker...');
     const registration = await getServiceWorkerRegistration();
     
     if (!registration) {
