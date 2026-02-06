@@ -7,10 +7,12 @@ const VAPID_PUBLIC_KEY = 'BIFKB_ZTDn9fhiF-crB2xQk1eNaKQQg0svSjsMV-KvM21y8L05Q6Zw
 // This is more reliable than module-level variables which can get stuck
 const SUBSCRIPTION_LOCK_KEY = 'push_subscription_in_progress';
 
-// Chrome Android has flaky push service - use shorter timeout
+// Chrome Android and Samsung Internet have flaky push service - use shorter timeout
 function getLockTimeout(): number {
-  const isChromeAndroid = /android/i.test(navigator.userAgent) && /chrome/i.test(navigator.userAgent);
-  return isChromeAndroid ? 10000 : 30000; // 10s for Chrome Android, 30s for others
+  const ua = navigator.userAgent;
+  const isChromeAndroid = /android/i.test(ua) && /chrome/i.test(ua) && !/samsungbrowser/i.test(ua);
+  const isSamsungInternet = /samsungbrowser/i.test(ua);
+  return (isChromeAndroid || isSamsungInternet) ? 10000 : 30000; // 10s for problematic browsers, 30s for others
 }
 
 type LockData = { timestamp: number; runId: string };
@@ -479,31 +481,34 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
         console.warn('[Push] Error clearing stale subscription:', e);
       }
       
-      // Detect if Chrome on Android - needs special handling
-      const isChromeAndroid = /android/i.test(navigator.userAgent) && /chrome/i.test(navigator.userAgent);
+      // Detect if Chrome on Android or Samsung Internet - needs special handling
+      const isChromeAndroid = /android/i.test(navigator.userAgent) && /chrome/i.test(navigator.userAgent) && !/samsungbrowser/i.test(navigator.userAgent);
+      const isSamsungInternet = /samsungbrowser/i.test(navigator.userAgent);
+      const needsSpecialHandling = isChromeAndroid || isSamsungInternet;
       console.log('[Push] Chrome Android detected:', isChromeAndroid);
+      console.log('[Push] Samsung Internet detected:', isSamsungInternet);
       
       // Try subscribing with retry logic for AbortError
       let lastError: Error | null = null;
-      const maxAttempts = isChromeAndroid ? 5 : 3; // More retries for Chrome Android
-      const retryDelays = isChromeAndroid 
-        ? [2000, 3000, 4000, 5000] // Longer delays for Chrome Android
+      const maxAttempts = needsSpecialHandling ? 5 : 3; // More retries for problematic browsers
+      const retryDelays = needsSpecialHandling 
+        ? [2000, 3000, 4000, 5000] // Longer delays for Chrome Android / Samsung
         : [1500, 2000, 2500];
       
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           console.log(`[Push] Subscribe attempt ${attempt}/${maxAttempts}...`);
           
-          // Chrome Android workaround: Check push manager state before subscribe
-          if (isChromeAndroid && attempt > 1) {
+          // Chrome Android / Samsung Internet workaround: Check push manager state before subscribe
+          if (needsSpecialHandling && attempt > 1) {
             // Wait for push service to stabilize
-            console.log('[Push] Chrome Android: waiting for push service to stabilize...');
+            console.log('[Push] Android browser: waiting for push service to stabilize...');
             await wait(retryDelays[Math.min(attempt - 2, retryDelays.length - 1)]);
             
             // Re-check service worker is still active
             const freshReg = await navigator.serviceWorker.getRegistration();
             if (!freshReg?.active) {
-              console.log('[Push] Chrome Android: SW became inactive, waiting for ready...');
+              console.log('[Push] Android browser: SW became inactive, waiting for ready...');
               await navigator.serviceWorker.ready;
             }
           }
@@ -533,9 +538,9 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
             };
           }
           
-          // For AbortError on Chrome Android, don't wait between first few attempts
+          // For AbortError on Chrome Android / Samsung Internet, don't wait between first few attempts
           if (attempt < maxAttempts) {
-            const delay = isChromeAndroid && subscribeError?.name === 'AbortError' 
+            const delay = needsSpecialHandling && subscribeError?.name === 'AbortError' 
               ? retryDelays[Math.min(attempt - 1, retryDelays.length - 1)]
               : 1500;
             console.log(`[Push] Waiting ${delay}ms before retry...`);
@@ -548,11 +553,12 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
         console.error('[Push] All subscription attempts failed:', lastError);
         
         if (lastError.name === 'AbortError') {
-          // Chrome Android specific advice
-          if (isChromeAndroid) {
+          // Chrome Android / Samsung Internet specific advice
+          if (needsSpecialHandling) {
+            const browserName = isSamsungInternet ? 'Samsung Internet' : 'Chrome on Android';
             return { 
               success: false, 
-              error: 'Chrome on Android cancelled the subscription. This is a known Chrome issue. Please: 1) Close and reopen the app, 2) Try again. If it persists, use "Reset" in Push Diagnostics below.' 
+              error: `${browserName} cancelled the subscription. This is a known browser issue. Please: 1) Close and reopen the app, 2) Try again. If it persists, use "Reset" in Push Diagnostics below.` 
             };
           }
           return { 
