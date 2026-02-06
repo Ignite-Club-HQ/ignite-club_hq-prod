@@ -943,13 +943,20 @@ export default function GroupChatPage() {
       
       console.log('[Reaction] Starting mutation for message:', messageId, 'type:', reactionType);
       
-      // Get fresh reaction data from cache to find existing reaction
-      const cachedData = queryClient.getQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId]);
-      const existingReaction = cachedData?.reactions.find(
-        r => r.group_message_id === messageId && r.user_id === user.id && !r.id.startsWith('temp-')
-      );
+      // Query DATABASE directly for existing reaction (not cache - cache is modified by onMutate)
+      const { data: existingReaction, error: fetchError } = await supabase
+        .from("message_reactions")
+        .select("id, reaction_type")
+        .eq("group_message_id", messageId)
+        .eq("user_id", user.id)
+        .maybeSingle();
       
-      console.log('[Reaction] Existing reaction:', existingReaction);
+      if (fetchError) {
+        console.error('[Reaction] Fetch existing error:', fetchError);
+        throw fetchError;
+      }
+      
+      console.log('[Reaction] Existing reaction from DB:', existingReaction);
       
       if (existingReaction) {
         if (existingReaction.reaction_type === reactionType) {
@@ -963,7 +970,7 @@ export default function GroupChatPage() {
           return { action: 'removed' as const, reactionId: existingReaction.id };
         } else {
           // Different emoji - update reaction
-          console.log('[Reaction] Updating existing reaction');
+          console.log('[Reaction] Updating existing reaction to:', reactionType);
           const { data, error } = await supabase.from("message_reactions")
             .update({ reaction_type: reactionType })
             .eq("id", existingReaction.id)
@@ -973,6 +980,7 @@ export default function GroupChatPage() {
             console.error('[Reaction] Update error:', error);
             throw error;
           }
+          console.log('[Reaction] Update success:', data);
           return { action: 'updated' as const, reaction: data, oldReactionId: existingReaction.id };
         }
       } else {
