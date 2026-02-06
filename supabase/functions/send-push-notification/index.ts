@@ -370,6 +370,104 @@ async function sendPushWithRetry(
   };
 }
 
+// Send FCM notification to native app users
+async function sendFCMNotifications(
+  supabase: any,
+  userId: string,
+  title: string,
+  body: string,
+  url: string,
+  notificationId: string | null,
+  tag: string
+): Promise<{ sent: number; total: number }> {
+  const fcmServerKey = Deno.env.get('FCM_SERVER_KEY');
+  
+  if (!fcmServerKey) {
+    console.log('[PUSH] FCM_SERVER_KEY not configured, skipping native push');
+    return { sent: 0, total: 0 };
+  }
+
+  // Get FCM tokens for this user
+  const { data: tokens, error: tokenError } = await supabase
+    .from('fcm_tokens')
+    .select('*')
+    .eq('user_id', userId);
+
+  if (tokenError || !tokens || tokens.length === 0) {
+    console.log(`[PUSH] No FCM tokens found for user ${userId}`);
+    return { sent: 0, total: 0 };
+  }
+
+  console.log(`[PUSH] Found ${tokens.length} FCM token(s)`);
+
+  let successCount = 0;
+  const expiredTokens: string[] = [];
+
+  for (const tokenRecord of tokens) {
+    try {
+      const response = await fetch('https://fcm.googleapis.com/fcm/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `key=${fcmServerKey}`,
+        },
+        body: JSON.stringify({
+          to: tokenRecord.token,
+          notification: {
+            title: title || 'Ignite Club HQ',
+            body: body || 'You have a new notification',
+            icon: '/icon-192.png',
+            tag: tag || `notification-${notificationId || Date.now()}`,
+          },
+          data: {
+            url: url || '/notifications',
+            notificationId,
+          },
+          android: {
+            priority: 'high',
+            notification: {
+              channel_id: 'default',
+              priority: 'high',
+              default_sound: true,
+            },
+          },
+          apns: {
+            payload: {
+              aps: {
+                'mutable-content': 1,
+                sound: 'default',
+              },
+            },
+          },
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success === 1) {
+        successCount++;
+        console.log('[PUSH] FCM sent successfully');
+      } else if (result.failure === 1) {
+        const errorResult = result.results?.[0];
+        if (errorResult?.error === 'NotRegistered' || errorResult?.error === 'InvalidRegistration') {
+          expiredTokens.push(tokenRecord.id);
+          console.log('[PUSH] FCM token expired');
+        }
+      }
+    } catch (err) {
+      console.error('[PUSH] FCM send error:', err);
+    }
+  }
+
+  // Cleanup expired tokens
+  if (expiredTokens.length > 0) {
+    await supabase.from('fcm_tokens').delete().in('id', expiredTokens);
+    console.log(`[PUSH] Cleaned up ${expiredTokens.length} expired FCM token(s)`);
+  }
+
+  return { sent: successCount, total: tokens.length };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -386,15 +484,40 @@ serve(async (req) => {
     const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
     const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:support@igniteclubhq.com';
     
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Send to native apps via FCM (parallel with web push)
+    const fcmPromise = sendFCMNotifications(
+      supabase,
+      userId,
+      title || 'Ignite Club HQ',
+      body || 'You have a new notification',
+      url || '/notifications',
+      notificationId,
+      tag || `notification-${notificationId || Date.now()}`
+    );
+    
+    // Check for web push subscriptions
     if (!vapidPublicKey || !vapidPrivateKey) {
       console.error('[PUSH] VAPID keys not configured');
+      // Still try FCM
+      const fcmResult = await fcmPromise;
+      if (fcmResult.sent > 0) {
+        return new Response(
+          JSON.stringify({ 
+            message: 'FCM notifications sent',
+            sent: fcmResult.sent,
+            total: fcmResult.total,
+            webPush: { sent: 0, total: 0, error: 'VAPID not configured' }
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       return new Response(
         JSON.stringify({ error: 'Push notification configuration error' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     const { data: subscriptions, error: subError } = await supabase
       .from('push_subscriptions')
@@ -409,15 +532,23 @@ serve(async (req) => {
       );
     }
     
+    // If no web push subscriptions, just wait for FCM
     if (!subscriptions || subscriptions.length === 0) {
-      console.log(`[PUSH] No push subscriptions found for user ${userId}`);
+      console.log(`[PUSH] No web push subscriptions found for user ${userId}`);
+      const fcmResult = await fcmPromise;
       return new Response(
-        JSON.stringify({ message: 'No subscriptions found', sent: 0 }),
+        JSON.stringify({ 
+          message: 'Push notifications processed',
+          sent: fcmResult.sent,
+          total: fcmResult.total,
+          webPush: { sent: 0, total: 0 },
+          fcm: fcmResult
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    console.log(`[PUSH] Found ${subscriptions.length} subscription(s)`);
+    console.log(`[PUSH] Found ${subscriptions.length} web push subscription(s)`);
     
     const payload = JSON.stringify({
       title: title || 'Ignite Club HQ',
@@ -508,15 +639,23 @@ serve(async (req) => {
       console.log(`[PUSH] Cleaned up ${expiredEndpoints.length} expired subscription(s)`);
     }
     
-    console.log(`[PUSH] COMPLETE: ${successCount}/${subscriptions.length} sent successfully`);
+    // Wait for FCM result
+    const fcmResult = await fcmPromise;
+    
+    const totalSent = successCount + fcmResult.sent;
+    const totalSubscriptions = subscriptions.length + fcmResult.total;
+    
+    console.log(`[PUSH] COMPLETE: Web ${successCount}/${subscriptions.length}, FCM ${fcmResult.sent}/${fcmResult.total}`);
     
     return new Response(
       JSON.stringify({ 
         message: 'Push notifications processed',
-        sent: successCount,
-        total: subscriptions.length,
+        sent: totalSent,
+        total: totalSubscriptions,
         cleaned: expiredEndpoints.length,
-        results
+        results,
+        webPush: { sent: successCount, total: subscriptions.length },
+        fcm: fcmResult
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

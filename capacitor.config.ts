@@ -4,10 +4,23 @@ const config: CapacitorConfig = {
   appId: 'app.lovable.igniteteamhub',
   appName: 'Ignite Club HQ',
   webDir: 'dist',
-  server: {
-    url: 'https://0ae01178-1280-45c0-83ac-d7ab1bb64b2e.lovableproject.com?forceHideBadge=true',
-    cleartext: true
-  }
+  // Remove server.url to bundle web app locally for offline support
+  // Only use server.url during development for hot-reload
+  plugins: {
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert'],
+    },
+    FirebaseMessaging: {
+      // Auto-initialize FCM
+      presentationOptions: ['badge', 'sound', 'alert'],
+    },
+  },
+  android: {
+    allowMixedContent: true,
+  },
+  ios: {
+    contentInset: 'automatic',
+  },
 };
 
 export default config;
