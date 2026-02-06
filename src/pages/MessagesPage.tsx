@@ -56,9 +56,14 @@ function MessageSkeleton() {
   );
 }
 
+// Helper to strip mention formatting: @[Name](id) -> @Name
+const stripMentionFormatting = (text: string): string => {
+  return text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '@$1');
+};
+
 // Helper to get message preview text - shows "Image" if message is only an image
 const getMessagePreview = (text: string | undefined, imageUrl?: string | null): string => {
-  if (text && text.trim()) return text;
+  if (text && text.trim()) return stripMentionFormatting(text);
   if (imageUrl) return "Image";
   return "";
 };
@@ -98,6 +103,9 @@ const MessagePreview = ({
   const isImageOnly = !hasText && imageUrl;
   const hasTextAndImage = hasText && imageUrl;
   
+  // Strip mention formatting from text for preview
+  const displayText = hasText ? stripMentionFormatting(text!) : null;
+  
   if (!hasText && !imageUrl && !author) {
     return <span>{fallback}</span>;
   }
@@ -117,7 +125,7 @@ const MessagePreview = ({
         <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       )}
       {author && <span className="font-medium">{getFirstName(author)}:</span>}
-      <span className="truncate">{hasText ? text : (isImageOnly ? "Image" : fallback)}</span>
+      <span className="truncate">{displayText ?? (isImageOnly ? "Image" : fallback)}</span>
     </span>
   );
 };
