@@ -936,6 +936,7 @@ export default function GroupChatPage() {
   });
 
   // Toggle reaction mutation with optimistic updates
+  // Rule: One reaction per user per message. Clicking same emoji removes it, different emoji replaces it.
   const toggleReactionMutation = useMutation({
     mutationFn: async ({ messageId, reactionType }: { messageId: string; reactionType: string }) => {
       if (!user) return { action: 'none' as const };
@@ -943,14 +944,27 @@ export default function GroupChatPage() {
       // Get fresh reaction data from cache to find existing reaction
       const cachedData = queryClient.getQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId]);
       const existingReaction = cachedData?.reactions.find(
-        r => r.group_message_id === messageId && r.user_id === user.id && r.reaction_type === reactionType && !r.id.startsWith('temp-')
+        r => r.group_message_id === messageId && r.user_id === user.id && !r.id.startsWith('temp-')
       );
       
       if (existingReaction) {
-        const { error } = await supabase.from("message_reactions").delete().eq("id", existingReaction.id);
-        if (error) throw error;
-        return { action: 'removed' as const, reactionId: existingReaction.id };
+        if (existingReaction.reaction_type === reactionType) {
+          // Same emoji - remove reaction
+          const { error } = await supabase.from("message_reactions").delete().eq("id", existingReaction.id);
+          if (error) throw error;
+          return { action: 'removed' as const, reactionId: existingReaction.id };
+        } else {
+          // Different emoji - update reaction
+          const { data, error } = await supabase.from("message_reactions")
+            .update({ reaction_type: reactionType })
+            .eq("id", existingReaction.id)
+            .select()
+            .single();
+          if (error) throw error;
+          return { action: 'updated' as const, reaction: data, oldReactionId: existingReaction.id };
+        }
       } else {
+        // No existing reaction - add new
         const { data, error } = await supabase.from("message_reactions").insert({
           group_message_id: messageId,
           user_id: user.id,
@@ -966,9 +980,9 @@ export default function GroupChatPage() {
       
       const previousData = queryClient.getQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId]);
       
-      // Check if user already has this reaction (look for non-temp reactions)
+      // Check if user already has a reaction on this message (any type)
       const existingReaction = previousData?.reactions.find(
-        r => r.group_message_id === messageId && r.user_id === user?.id && r.reaction_type === reactionType && !r.id.startsWith('temp-')
+        r => r.group_message_id === messageId && r.user_id === user?.id && !r.id.startsWith('temp-')
       );
       
       // Optimistically update reactions
@@ -976,12 +990,24 @@ export default function GroupChatPage() {
         if (!old) return { messages: [], reactions: [] };
         
         if (existingReaction) {
-          // Remove reaction optimistically
-          return { ...old, reactions: old.reactions.filter(r => r.id !== existingReaction.id) };
+          if (existingReaction.reaction_type === reactionType) {
+            // Same emoji - remove reaction optimistically
+            return { ...old, reactions: old.reactions.filter(r => r.id !== existingReaction.id) };
+          } else {
+            // Different emoji - update reaction optimistically
+            return { 
+              ...old, 
+              reactions: old.reactions.map(r => 
+                r.id === existingReaction.id 
+                  ? { ...r, reaction_type: reactionType }
+                  : r
+              )
+            };
+          }
         } else {
-          // Check if there's already a temp reaction for this - avoid duplicates
+          // Check if there's already a temp reaction for this user on this message
           const hasTempReaction = old.reactions.some(
-            r => r.id.startsWith('temp-') && r.group_message_id === messageId && r.user_id === user?.id && r.reaction_type === reactionType
+            r => r.id.startsWith('temp-') && r.group_message_id === messageId && r.user_id === user?.id
           );
           if (hasTempReaction) return old;
           
@@ -1006,24 +1032,36 @@ export default function GroupChatPage() {
       toast.error("Failed to update reaction");
     },
     onSuccess: (result) => {
-      // Replace temp reaction with real one from server
-      if (result?.action === 'added' && result.reaction) {
-        queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
-          if (!old) return { messages: [], reactions: [] };
-          // Remove any temp reactions for this message/user/type and add the real one
+      if (!result) return;
+      
+      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+        if (!old) return { messages: [], reactions: [] };
+        
+        if (result.action === 'added' && result.reaction) {
+          // Remove any temp reactions for this message/user and add the real one
           const filteredReactions = old.reactions.filter(r => 
             !(r.id.startsWith('temp-reaction-') && 
               r.group_message_id === result.reaction.group_message_id && 
-              r.user_id === result.reaction.user_id &&
-              r.reaction_type === result.reaction.reaction_type)
+              r.user_id === result.reaction.user_id)
           );
-          // Only add if not already present
           if (!filteredReactions.some(r => r.id === result.reaction.id)) {
             return { ...old, reactions: [...filteredReactions, result.reaction] };
           }
           return { ...old, reactions: filteredReactions };
-        });
-      }
+        }
+        
+        if (result.action === 'updated' && result.reaction) {
+          // Replace the old reaction with the updated one
+          return { 
+            ...old, 
+            reactions: old.reactions.map(r => 
+              r.id === result.reaction.id ? result.reaction : r
+            )
+          };
+        }
+        
+        return old;
+      });
     },
   });
 
@@ -1285,15 +1323,17 @@ export default function GroupChatPage() {
                           <PopoverContent className="w-auto p-2">
                             <div className="flex gap-1">
                               {REACTION_EMOJIS.map((emoji) => {
-                                const existingReaction = reactions.find(
-                                  r => r.group_message_id === msg.id && r.user_id === user?.id && r.reaction_type === emoji
+                                // Check if user has ANY reaction on this message
+                                const userReaction = reactions.find(
+                                  r => r.group_message_id === msg.id && r.user_id === user?.id
                                 );
+                                const isSelected = userReaction?.reaction_type === emoji;
                                 return (
                                   <Button
                                     key={emoji}
                                     variant="ghost"
                                     size="sm"
-                                    className={`h-8 w-8 p-0 ${existingReaction ? 'bg-primary/20' : ''}`}
+                                    className={`h-8 w-8 p-0 ${isSelected ? 'bg-primary/20 ring-2 ring-primary' : ''}`}
                                     onClick={() => toggleReactionMutation.mutate({ 
                                       messageId: msg.id, 
                                       reactionType: emoji
