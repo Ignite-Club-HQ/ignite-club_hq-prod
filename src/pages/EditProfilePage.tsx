@@ -180,12 +180,26 @@ export default function EditProfilePage() {
     
     setPushLoading(true);
     
+    // Show immediate feedback that we're trying
+    console.log('[EditProfile] Setting pushLoading to true');
+    
     try {
       if (enabled) {
         console.log('[EditProfile] Calling subscribeToPushNotifications...');
+        console.log('[EditProfile] Current Notification.permission before call:', 
+          typeof window !== 'undefined' && 'Notification' in window 
+            ? window.Notification.permission 
+            : 'N/A'
+        );
+        
         toast({ title: "Enabling push notifications...", description: "Please allow notifications if prompted" });
         const result = await subscribeToPushNotifications(user.id);
-        console.log('[EditProfile] Subscribe result:', result);
+        console.log('[EditProfile] Subscribe result:', JSON.stringify(result));
+        console.log('[EditProfile] Notification.permission after call:', 
+          typeof window !== 'undefined' && 'Notification' in window 
+            ? window.Notification.permission 
+            : 'N/A'
+        );
         
         if (result.success) {
           setPushEnabled(true);
@@ -193,11 +207,12 @@ export default function EditProfilePage() {
         } else {
           const errorMsg = result.error || "Please check your browser permissions";
           console.error('[EditProfile] Push subscription failed:', errorMsg);
+          // Always show the error to user
           toast({ 
-            title: "Push Error", 
+            title: "Could not enable notifications", 
             description: errorMsg,
             variant: "destructive",
-            duration: 15000
+            duration: 20000 // Longer duration so user can read instructions
           });
         }
       } else {
