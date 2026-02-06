@@ -102,9 +102,12 @@ serve(async (req) => {
       );
     }
 
-    // Small delay if requested (for testing timing)
+    // Delay if requested (up to 60 seconds for testing background delivery)
     if (delay && delay > 0) {
-      await new Promise((resolve) => setTimeout(resolve, Math.min(delay, 5000)));
+      const delayMs = Math.min(delay * 1000, 60000); // Max 60 seconds
+      console.log(`[test-push] Waiting ${delay} seconds before sending...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      console.log(`[test-push] Delay complete, sending notification now`);
     }
 
     // Invoke the send-push-notification function

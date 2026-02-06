@@ -76,6 +76,7 @@ export default function EditProfilePage() {
   const [prefsLoading, setPrefsLoading] = useState(false);
   const [emailPrefsLoading, setEmailPrefsLoading] = useState(false);
   const [testingPush, setTestingPush] = useState(false);
+  const [testPushDelay, setTestPushDelay] = useState(10); // Default 10 second delay
   const [testingDbSave, setTestingDbSave] = useState(false);
   const [resettingPush, setResettingPush] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -272,12 +273,12 @@ export default function EditProfilePage() {
     setTestingPush(true);
     toast({
       title: "Test notification scheduled",
-      description: "Notification will arrive in 5 seconds. Close the app now!",
+      description: `Notification will arrive in ${testPushDelay} seconds. Lock your phone now!`,
     });
     
     try {
       const { data, error } = await supabase.functions.invoke('test-push-notification', {
-        body: { delay: 5 }
+        body: { delay: testPushDelay }
       });
       
       if (error) {
@@ -878,25 +879,44 @@ export default function EditProfilePage() {
               />
             </div>
 
-            {/* Test Push Button */}
+            {/* Test Push Button with Delay Selector */}
             {pushEnabled && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleTestPush}
-                disabled={testingPush}
-                className="w-full"
-              >
-                {testingPush ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Send className="h-4 w-4 mr-2" />
-                )}
-                Send Test Notification
-              </Button>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="push-delay" className="text-sm whitespace-nowrap">Delay:</Label>
+                  <select
+                    id="push-delay"
+                    value={testPushDelay}
+                    onChange={(e) => setTestPushDelay(Number(e.target.value))}
+                    className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    disabled={testingPush}
+                  >
+                    <option value={5}>5 sec</option>
+                    <option value={10}>10 sec</option>
+                    <option value={15}>15 sec</option>
+                    <option value={30}>30 sec</option>
+                    <option value={60}>60 sec</option>
+                  </select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestPush}
+                    disabled={testingPush}
+                    className="flex-1"
+                  >
+                    {testingPush ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Send className="h-4 w-4 mr-2" />
+                    )}
+                    {testingPush ? `Sending in ${testPushDelay}s...` : 'Test Push'}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tap the button, then lock your phone. Notification arrives after the delay.
+                </p>
+              </div>
             )}
-
-
 
             <div className="text-xs text-muted-foreground flex items-center gap-2">
               <span>Browser permission:</span>
