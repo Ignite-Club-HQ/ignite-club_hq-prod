@@ -82,7 +82,15 @@ serve(async (req) => {
 
     console.log(`[test-push] User ${userId} has ${subs?.length || 0} push subscriptions`);
 
-    // Create a test notification
+    // IMPORTANT: Delay BEFORE creating notification to avoid trigger sending it early
+    if (delay && delay > 0) {
+      const delayMs = Math.min(delay * 1000, 60000); // Max 60 seconds
+      console.log(`[test-push] Waiting ${delay} seconds before sending...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      console.log(`[test-push] Delay complete, creating notification and sending push now`);
+    }
+
+    // Create a test notification AFTER the delay
     const { data: notification, error: notificationError } = await adminClient
       .from("notifications")
       .insert({
@@ -100,14 +108,6 @@ serve(async (req) => {
         JSON.stringify({ error: "An error occurred. Please try again." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-    }
-
-    // Delay if requested (up to 60 seconds for testing background delivery)
-    if (delay && delay > 0) {
-      const delayMs = Math.min(delay * 1000, 60000); // Max 60 seconds
-      console.log(`[test-push] Waiting ${delay} seconds before sending...`);
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-      console.log(`[test-push] Delay complete, sending notification now`);
     }
 
     // Invoke the send-push-notification function
