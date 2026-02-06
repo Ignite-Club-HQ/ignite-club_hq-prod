@@ -30,6 +30,7 @@ import {
 import { 
   subscribeToPushNotifications, 
   resetPushNotifications,
+  forceUnlockPushSubscription,
 } from "@/lib/pushNotifications";
 
 interface PushDiagnosticsCardProps {
@@ -128,6 +129,9 @@ export function PushDiagnosticsCard({ userId, pushEnabled, onPushStatusChange }:
   const handleFix = async () => {
     setFixing(true);
     try {
+      // Force clear any stale lock before attempting to fix
+      forceUnlockPushSubscription();
+      
       const result = await subscribeToPushNotifications(userId);
       if (result.success) {
         toast({ title: "Push notifications fixed!", description: "Subscription restored successfully" });
@@ -145,6 +149,9 @@ export function PushDiagnosticsCard({ userId, pushEnabled, onPushStatusChange }:
   const handleReset = async () => {
     setResetting(true);
     try {
+      // Force clear lock before reset
+      forceUnlockPushSubscription();
+      
       // For Chrome Android, recommend reload after reset for cleaner state
       const shouldReload = isChromeAndroid();
       await resetPushNotifications(userId, shouldReload);

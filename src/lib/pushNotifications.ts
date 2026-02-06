@@ -6,7 +6,12 @@ const VAPID_PUBLIC_KEY = 'BIFKB_ZTDn9fhiF-crB2xQk1eNaKQQg0svSjsMV-KvM21y8L05Q6Zw
 // Use sessionStorage-based mutex to prevent issues across page refreshes
 // This is more reliable than module-level variables which can get stuck
 const SUBSCRIPTION_LOCK_KEY = 'push_subscription_in_progress';
-const SUBSCRIPTION_LOCK_TIMEOUT = 30000; // 30 seconds max lock time
+
+// Chrome Android has flaky push service - use shorter timeout
+function getLockTimeout(): number {
+  const isChromeAndroid = /android/i.test(navigator.userAgent) && /chrome/i.test(navigator.userAgent);
+  return isChromeAndroid ? 10000 : 30000; // 10s for Chrome Android, 30s for others
+}
 
 type LockData = { timestamp: number; runId: string };
 
@@ -18,12 +23,19 @@ function getLock(): LockData | null {
   }
 }
 
+function isLockStale(): boolean {
+  const lock = getLock();
+  if (!lock) return false;
+  const elapsed = Date.now() - lock.timestamp;
+  return elapsed > getLockTimeout();
+}
+
 function isSubscriptionLocked(): boolean {
   const lock = getLock();
   if (!lock) return false;
 
-  const elapsed = Date.now() - lock.timestamp;
-  if (elapsed > SUBSCRIPTION_LOCK_TIMEOUT) {
+  if (isLockStale()) {
+    console.log('[Push] Clearing stale lock');
     sessionStorage.removeItem(SUBSCRIPTION_LOCK_KEY);
     return false;
   }
@@ -41,6 +53,25 @@ function clearSubscriptionLock(runId?: string): void {
   if (!lock) return;
   // Only clear if this run owns it (prevents a second caller clearing the first)
   if (!runId || lock.runId === runId) {
+    sessionStorage.removeItem(SUBSCRIPTION_LOCK_KEY);
+  }
+}
+
+/**
+ * Force clear the subscription lock - use when user manually triggers reset
+ */
+export function forceUnlockPushSubscription(): void {
+  console.log('[Push] Force clearing subscription lock');
+  sessionStorage.removeItem(SUBSCRIPTION_LOCK_KEY);
+}
+
+/**
+ * Clear stale locks on app startup/visibility change
+ * Call this early in app initialization
+ */
+export function clearStalePushLocks(): void {
+  if (isLockStale()) {
+    console.log('[Push] Clearing stale lock on startup');
     sessionStorage.removeItem(SUBSCRIPTION_LOCK_KEY);
   }
 }
@@ -282,7 +313,7 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
     console.log('[Push] Lock exists, age:', lockAge, 'ms');
     
     // If lock is older than timeout, clear it
-    if (lockAge > SUBSCRIPTION_LOCK_TIMEOUT) {
+    if (lockAge > getLockTimeout()) {
       console.log('[Push] Clearing stale lock');
       sessionStorage.removeItem(SUBSCRIPTION_LOCK_KEY);
     } else {
