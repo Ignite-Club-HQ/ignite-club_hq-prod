@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { MentionInput } from "@/components/chat/MentionInput";
 import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, RefreshCw, Users } from "lucide-react";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
@@ -15,7 +15,7 @@ import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator
 const MESSAGES_PER_PAGE = 15;
 import { toast } from "sonner";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
-import { EmojiPicker } from "@/components/chat/EmojiPicker";
+// EmojiPicker is built into MentionInput
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { ChatSearch } from "@/components/chat/ChatSearch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -1442,26 +1442,25 @@ export default function GroupChatPage() {
             clubId={group?.club_id || undefined}
             teamId={group?.team_id || undefined}
           />
-          <EmojiPicker 
-            onEmojiSelect={(emoji) => setMessage((prev) => prev + emoji)} 
-            disabled={sendMessageMutation.isPending}
-          />
-          <Input
-            ref={inputRef}
+          <MentionInput
             value={message}
-            onChange={(e) => {
-              setMessage(e.target.value);
-              if (e.target.value.trim()) startTyping();
+            onChange={(val) => {
+              setMessage(val);
+              if (val.trim()) startTyping();
               else stopTyping();
             }}
-            placeholder="Type a message..."
-            onKeyDown={(e) => {
+            placeholder="Type a message... (@ to mention)"
+            onKeyPress={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 stopTyping();
                 handleSend();
               }
             }}
-            className="flex-1"
+            groupId={groupId}
+            teamId={group?.team_id || undefined}
+            clubId={group?.club_id || undefined}
+            disabled={sendMessageMutation.isPending}
+            showEmojiPicker={false}
           />
           <Button 
             onClick={() => {
