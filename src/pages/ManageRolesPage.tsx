@@ -1,20 +1,13 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, UserPlus, Trash2, Loader2, Shield, Check, X } from "lucide-react";
+import { ArrowLeft, UserPlus, Trash2, Shield, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +22,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import AddClubRoleToMemberDialog from "@/components/AddClubRoleToMemberDialog";
 
 type AppRole = "basic_user" | "club_admin" | "team_admin" | "coach" | "player" | "parent" | "app_admin" | "committee_member";
 
@@ -289,6 +283,13 @@ export default function ManageRolesPage() {
                         <p className="text-xs text-muted-foreground">You</p>
                       )}
                     </div>
+                    <AddClubRoleToMemberDialog
+                      userId={userId}
+                      userName={profile?.display_name || "User"}
+                      clubId={clubId!}
+                      clubName={club?.name || ""}
+                      existingRoles={userRoleList}
+                    />
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {userRoleList.map((role) => {
