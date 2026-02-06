@@ -2,7 +2,7 @@
 // Enhanced reliability with aggressive recovery, better error handling, and auto-renewal
 // IMPORTANT: This file must be served from the root with proper MIME type
 
-const SW_VERSION = '6.0.0';
+const SW_VERSION = '6.1.0';
 
 // Retry configuration
 const MAX_NOTIFICATION_RETRIES = 2;
@@ -109,57 +109,90 @@ function isDuplicateNotification(tag) {
 // ============================================
 
 self.addEventListener('push', (event) => {
-  console.log('[SW v' + SW_VERSION + '] Push received');
+  console.log('[SW v' + SW_VERSION + '] Push received at', new Date().toISOString());
   
-  let data = {
-    title: 'Ignite Club HQ',
-    body: 'You have a new notification',
-    url: '/',
-    tag: 'ignite-' + Date.now()
-  };
-  
-  if (event.data) {
-    try {
-      const payload = event.data.json();
-      data = { ...data, ...payload };
-      console.log('[SW v' + SW_VERSION + '] Push payload:', data.title);
-    } catch (e) {
-      console.log('[SW v' + SW_VERSION + '] Parsing as text');
+  // CRITICAL: Must call event.waitUntil synchronously
+  // Chrome PWA can terminate SW if we don't extend the lifetime immediately
+  const handlePush = async () => {
+    let data = {
+      title: 'Ignite Club HQ',
+      body: 'You have a new notification',
+      url: '/',
+      tag: 'ignite-' + Date.now()
+    };
+    
+    if (event.data) {
       try {
-        data.body = event.data.text();
-      } catch (e2) {
-        console.error('[SW v' + SW_VERSION + '] Could not read push data');
+        const payload = event.data.json();
+        data = { ...data, ...payload };
+        console.log('[SW v' + SW_VERSION + '] Push payload:', JSON.stringify({ title: data.title, body: data.body?.substring(0, 50) }));
+      } catch (e) {
+        console.log('[SW v' + SW_VERSION + '] Parsing as text');
+        try {
+          data.body = event.data.text();
+        } catch (e2) {
+          console.error('[SW v' + SW_VERSION + '] Could not read push data');
+        }
       }
     }
-  }
-  
-  // Deduplicate
-  const notificationTag = data.tag || data.notificationId || ('ignite-' + Date.now());
-  if (isDuplicateNotification(notificationTag)) {
-    console.log('[SW v' + SW_VERSION + '] Duplicate notification ignored:', notificationTag);
-    return;
-  }
-  
-  const options = {
-    body: data.body,
-    icon: '/ignite-logo.png',
-    badge: '/badge-96.png',
-    data: { 
-      url: data.url,
-      notificationId: data.notificationId,
-      timestamp: Date.now(),
-    },
-    tag: notificationTag,
-    renotify: true,
-    requireInteraction: false,
-    vibrate: [200, 100, 200],
-    actions: [
-      { action: 'open', title: 'View' },
-      { action: 'dismiss', title: 'Dismiss' }
-    ],
+    
+    // Generate unique tag - avoid collapsing notifications unintentionally
+    // For Chrome PWA, using timestamp ensures each notification is shown
+    const notificationTag = data.tag || ('ignite-' + (data.notificationId || Date.now()));
+    
+    // Deduplicate only within very short window
+    if (isDuplicateNotification(notificationTag)) {
+      console.log('[SW v' + SW_VERSION + '] Duplicate notification ignored:', notificationTag);
+      // IMPORTANT: Still show a notification to keep SW alive on Chrome PWA
+      // Chrome can kill the SW if push doesn't result in notification
+      return self.registration.showNotification('Ignite Club HQ', {
+        body: 'Notification already shown',
+        tag: 'ignite-dedup-placeholder',
+        silent: true,
+      }).then(() => {
+        // Immediately close the placeholder
+        return self.registration.getNotifications({ tag: 'ignite-dedup-placeholder' })
+          .then(notifications => notifications.forEach(n => n.close()));
+      }).catch(() => {});
+    }
+    
+    const options = {
+      body: data.body,
+      icon: '/ignite-logo.png',
+      badge: '/badge-96.png',
+      data: { 
+        url: data.url,
+        notificationId: data.notificationId,
+        timestamp: Date.now(),
+      },
+      tag: notificationTag,
+      renotify: true,
+      requireInteraction: false,
+      vibrate: [200, 100, 200],
+      // Chrome Android PWA needs silent: false explicitly
+      silent: false,
+      actions: [
+        { action: 'open', title: 'View' },
+        { action: 'dismiss', title: 'Dismiss' }
+      ],
+    };
+    
+    console.log('[SW v' + SW_VERSION + '] Showing notification with tag:', notificationTag);
+    
+    // Show the notification
+    const shown = await showNotificationWithRetry(data.title, options);
+    
+    if (shown) {
+      console.log('[SW v' + SW_VERSION + '] Notification displayed successfully');
+    } else {
+      console.error('[SW v' + SW_VERSION + '] Failed to display notification');
+    }
+    
+    return shown;
   };
   
-  event.waitUntil(showNotificationWithRetry(data.title, options));
+  // CRITICAL: Call waitUntil immediately and synchronously
+  event.waitUntil(handlePush());
 });
 
 // ============================================

@@ -6,7 +6,14 @@ const VAPID_PUBLIC_KEY = 'BIFKB_ZTDn9fhiF-crB2xQk1eNaKQQg0svSjsMV-KvM21y8L05Q6Zw
 // Use sessionStorage-based mutex to prevent issues across page refreshes
 // This is more reliable than module-level variables which can get stuck
 const SUBSCRIPTION_LOCK_KEY = 'push_subscription_in_progress';
-const SUBSCRIPTION_LOCK_TIMEOUT = 30000; // 30 seconds max lock time
+
+// Chrome Android and Samsung Internet have flaky push service - use shorter timeout
+function getLockTimeout(): number {
+  const ua = navigator.userAgent;
+  const isChromeAndroid = /android/i.test(ua) && /chrome/i.test(ua) && !/samsungbrowser/i.test(ua);
+  const isSamsungInternet = /samsungbrowser/i.test(ua);
+  return (isChromeAndroid || isSamsungInternet) ? 10000 : 30000; // 10s for problematic browsers, 30s for others
+}
 
 type LockData = { timestamp: number; runId: string };
 
@@ -18,12 +25,19 @@ function getLock(): LockData | null {
   }
 }
 
+function isLockStale(): boolean {
+  const lock = getLock();
+  if (!lock) return false;
+  const elapsed = Date.now() - lock.timestamp;
+  return elapsed > getLockTimeout();
+}
+
 function isSubscriptionLocked(): boolean {
   const lock = getLock();
   if (!lock) return false;
 
-  const elapsed = Date.now() - lock.timestamp;
-  if (elapsed > SUBSCRIPTION_LOCK_TIMEOUT) {
+  if (isLockStale()) {
+    console.log('[Push] Clearing stale lock');
     sessionStorage.removeItem(SUBSCRIPTION_LOCK_KEY);
     return false;
   }
@@ -41,6 +55,25 @@ function clearSubscriptionLock(runId?: string): void {
   if (!lock) return;
   // Only clear if this run owns it (prevents a second caller clearing the first)
   if (!runId || lock.runId === runId) {
+    sessionStorage.removeItem(SUBSCRIPTION_LOCK_KEY);
+  }
+}
+
+/**
+ * Force clear the subscription lock - use when user manually triggers reset
+ */
+export function forceUnlockPushSubscription(): void {
+  console.log('[Push] Force clearing subscription lock');
+  sessionStorage.removeItem(SUBSCRIPTION_LOCK_KEY);
+}
+
+/**
+ * Clear stale locks on app startup/visibility change
+ * Call this early in app initialization
+ */
+export function clearStalePushLocks(): void {
+  if (isLockStale()) {
+    console.log('[Push] Clearing stale lock on startup');
     sessionStorage.removeItem(SUBSCRIPTION_LOCK_KEY);
   }
 }
@@ -228,29 +261,58 @@ function isLovablePreview(): boolean {
  * Request notification permission
  */
 async function requestNotificationPermission(): Promise<NotificationPermission> {
+  console.log('[Push] === requestNotificationPermission ===');
+  console.log('[Push] window defined:', typeof window !== 'undefined');
+  console.log('[Push] Notification in window:', 'Notification' in window);
+  
   if (typeof window === 'undefined' || !('Notification' in window)) {
+    console.log('[Push] No Notification API - returning denied');
     return 'denied';
   }
 
+  const currentPermission = window.Notification.permission;
+  console.log('[Push] Current Notification.permission:', currentPermission);
+
   if (isInIframe()) {
-    return window.Notification.permission;
+    console.log('[Push] In iframe - returning current permission without requesting');
+    return currentPermission;
   }
 
-  if (window.Notification.permission === 'granted') {
+  if (currentPermission === 'granted') {
+    console.log('[Push] Already granted');
     return 'granted';
   }
 
-  if (window.Notification.permission === 'denied') {
+  if (currentPermission === 'denied') {
+    console.log('[Push] Already denied - cannot request again');
     return 'denied';
   }
 
+  // Permission is 'default' - need to request
+  console.log('[Push] Permission is default - requesting...');
+  
   try {
     const permission = await window.Notification.requestPermission();
     console.log('[Push] Permission request result:', permission);
+    
+    // Double-check the actual permission state after request
+    // Some browsers (Samsung Internet) may not update immediately
+    await wait(100);
+    const finalPermission = window.Notification.permission;
+    console.log('[Push] Final Notification.permission after request:', finalPermission);
+    
+    // Trust the actual state over the returned value
+    if (finalPermission === 'granted') {
+      return 'granted';
+    }
+    
     return permission;
   } catch (error) {
     console.error('[Push] Permission request error:', error);
-    return 'denied';
+    // Check if permission was actually granted despite the error
+    const fallbackPermission = window.Notification.permission;
+    console.log('[Push] Fallback permission check:', fallbackPermission);
+    return fallbackPermission;
   }
 }
 
@@ -282,7 +344,7 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
     console.log('[Push] Lock exists, age:', lockAge, 'ms');
     
     // If lock is older than timeout, clear it
-    if (lockAge > SUBSCRIPTION_LOCK_TIMEOUT) {
+    if (lockAge > getLockTimeout()) {
       console.log('[Push] Clearing stale lock');
       sessionStorage.removeItem(SUBSCRIPTION_LOCK_KEY);
     } else {
@@ -325,26 +387,40 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
 
     // In silent mode, only proceed if permission is already granted
     if (silent && window.Notification.permission !== 'granted') {
+      console.log('[Push] Silent mode but permission not granted:', window.Notification.permission);
       return { success: false, error: 'Permission not granted' };
     }
 
     // Request permission
+    console.log('[Push] About to request permission...');
     const permission = await requestNotificationPermission();
     console.log('[Push] Permission result:', permission);
+    console.log('[Push] Final Notification.permission state:', window.Notification.permission);
     
     if (permission === 'denied') {
-      return { 
-        success: false, 
-        error: 'Notifications are blocked. Please enable them in your browser settings (click the lock icon in the address bar).' 
-      };
+      // Provide browser-specific instructions
+      const isSamsungInternet = /samsungbrowser/i.test(navigator.userAgent);
+      const isChromeAndroid = /android/i.test(navigator.userAgent) && /chrome/i.test(navigator.userAgent) && !isSamsungInternet;
+      
+      let instructions = 'Notifications are blocked. ';
+      if (isSamsungInternet) {
+        instructions += 'Go to Samsung Internet Settings → Sites and downloads → Notifications → Allow this site.';
+      } else if (isChromeAndroid) {
+        instructions += 'Go to Chrome Settings → Site settings → Notifications → Allow this site.';
+      } else {
+        instructions += 'Please enable them in your browser settings (click the lock icon in the address bar).';
+      }
+      
+      return { success: false, error: instructions };
     }
 
     if (permission !== 'granted') {
-      return { success: false, error: 'Notification permission not granted.' };
+      console.log('[Push] Permission not granted, actual value:', permission);
+      return { success: false, error: `Notification permission not granted (status: ${permission}). Please allow notifications when prompted.` };
     }
 
     // Get service worker registration
-    console.log('[Push] Getting service worker...');
+    console.log('[Push] Permission granted! Getting service worker...');
     const registration = await getServiceWorkerRegistration();
     
     if (!registration) {
@@ -448,31 +524,34 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
         console.warn('[Push] Error clearing stale subscription:', e);
       }
       
-      // Detect if Chrome on Android - needs special handling
-      const isChromeAndroid = /android/i.test(navigator.userAgent) && /chrome/i.test(navigator.userAgent);
+      // Detect if Chrome on Android or Samsung Internet - needs special handling
+      const isChromeAndroid = /android/i.test(navigator.userAgent) && /chrome/i.test(navigator.userAgent) && !/samsungbrowser/i.test(navigator.userAgent);
+      const isSamsungInternet = /samsungbrowser/i.test(navigator.userAgent);
+      const needsSpecialHandling = isChromeAndroid || isSamsungInternet;
       console.log('[Push] Chrome Android detected:', isChromeAndroid);
+      console.log('[Push] Samsung Internet detected:', isSamsungInternet);
       
       // Try subscribing with retry logic for AbortError
       let lastError: Error | null = null;
-      const maxAttempts = isChromeAndroid ? 5 : 3; // More retries for Chrome Android
-      const retryDelays = isChromeAndroid 
-        ? [2000, 3000, 4000, 5000] // Longer delays for Chrome Android
+      const maxAttempts = needsSpecialHandling ? 5 : 3; // More retries for problematic browsers
+      const retryDelays = needsSpecialHandling 
+        ? [2000, 3000, 4000, 5000] // Longer delays for Chrome Android / Samsung
         : [1500, 2000, 2500];
       
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           console.log(`[Push] Subscribe attempt ${attempt}/${maxAttempts}...`);
           
-          // Chrome Android workaround: Check push manager state before subscribe
-          if (isChromeAndroid && attempt > 1) {
+          // Chrome Android / Samsung Internet workaround: Check push manager state before subscribe
+          if (needsSpecialHandling && attempt > 1) {
             // Wait for push service to stabilize
-            console.log('[Push] Chrome Android: waiting for push service to stabilize...');
+            console.log('[Push] Android browser: waiting for push service to stabilize...');
             await wait(retryDelays[Math.min(attempt - 2, retryDelays.length - 1)]);
             
             // Re-check service worker is still active
             const freshReg = await navigator.serviceWorker.getRegistration();
             if (!freshReg?.active) {
-              console.log('[Push] Chrome Android: SW became inactive, waiting for ready...');
+              console.log('[Push] Android browser: SW became inactive, waiting for ready...');
               await navigator.serviceWorker.ready;
             }
           }
@@ -502,9 +581,9 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
             };
           }
           
-          // For AbortError on Chrome Android, don't wait between first few attempts
+          // For AbortError on Chrome Android / Samsung Internet, don't wait between first few attempts
           if (attempt < maxAttempts) {
-            const delay = isChromeAndroid && subscribeError?.name === 'AbortError' 
+            const delay = needsSpecialHandling && subscribeError?.name === 'AbortError' 
               ? retryDelays[Math.min(attempt - 1, retryDelays.length - 1)]
               : 1500;
             console.log(`[Push] Waiting ${delay}ms before retry...`);
@@ -517,11 +596,12 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
         console.error('[Push] All subscription attempts failed:', lastError);
         
         if (lastError.name === 'AbortError') {
-          // Chrome Android specific advice
-          if (isChromeAndroid) {
+          // Chrome Android / Samsung Internet specific advice
+          if (needsSpecialHandling) {
+            const browserName = isSamsungInternet ? 'Samsung Internet' : 'Chrome on Android';
             return { 
               success: false, 
-              error: 'Chrome on Android cancelled the subscription. This is a known Chrome issue. Please: 1) Close and reopen the app, 2) Try again. If it persists, use "Reset" in Push Diagnostics below.' 
+              error: `${browserName} cancelled the subscription. This is a known browser issue. Please: 1) Close and reopen the app, 2) Try again. If it persists, use "Reset" in Push Diagnostics below.` 
             };
           }
           return { 
