@@ -299,9 +299,9 @@ export default function GroupChatPage() {
       };
     },
     enabled: !!groupId,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 30, // 30 seconds - refetch more often to get new reactions
     gcTime: 1000 * 60 * 30,
-    refetchOnMount: false,
+    refetchOnMount: 'always', // Always refetch on mount to get latest reactions
     refetchOnWindowFocus: false,
   });
 
