@@ -6,6 +6,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Declare EdgeRuntime for background tasks
+declare const EdgeRuntime: {
+  waitUntil: (promise: Promise<unknown>) => void;
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -82,15 +87,75 @@ serve(async (req) => {
 
     console.log(`[test-push] User ${userId} has ${subs?.length || 0} push subscriptions`);
 
-    // IMPORTANT: Delay BEFORE creating notification to avoid trigger sending it early
+    // If delay requested, run in background and return immediately
     if (delay && delay > 0) {
       const delayMs = Math.min(delay * 1000, 60000); // Max 60 seconds
-      console.log(`[test-push] Waiting ${delay} seconds before sending...`);
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-      console.log(`[test-push] Delay complete, creating notification and sending push now`);
+      console.log(`[test-push] Scheduling notification in ${delay} seconds (background task)`);
+      
+      // Background task that runs after response is sent
+      const backgroundTask = async () => {
+        try {
+          console.log(`[test-push] Background: waiting ${delay} seconds...`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          console.log(`[test-push] Background: delay complete, sending now`);
+          
+          // Create notification
+          const { data: notification, error: notificationError } = await adminClient
+            .from("notifications")
+            .insert({
+              user_id: userId,
+              type: "test",
+              message: "🔔 This is a test push notification from Ignite Club HQ!",
+              is_read: false,
+            })
+            .select()
+            .single();
+
+          if (notificationError) {
+            console.error("[test-push] Background: Failed to create notification:", notificationError);
+            return;
+          }
+
+          // Send push
+          const { error: invokeError } = await adminClient.functions.invoke(
+            "send-push-notification",
+            {
+              body: {
+                userId: userId,
+                title: "Test Notification",
+                body: "🔔 This is a test push notification from Ignite Club HQ!",
+                url: "/notifications",
+                notificationId: notification.id,
+                tag: `test-${notification.id}`,
+              },
+            }
+          );
+
+          if (invokeError) {
+            console.error("[test-push] Background: Failed to send push:", invokeError);
+          } else {
+            console.log("[test-push] Background: Push sent successfully!");
+          }
+        } catch (err) {
+          console.error("[test-push] Background task error:", err);
+        }
+      };
+
+      // Schedule background task and return immediately
+      EdgeRuntime.waitUntil(backgroundTask());
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Test notification scheduled in ${delay} seconds`,
+          subscriptionsFound: subs?.length || 0,
+          delayed: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // Create a test notification AFTER the delay
+    // No delay - send immediately
     const { data: notification, error: notificationError } = await adminClient
       .from("notifications")
       .insert({
@@ -110,7 +175,6 @@ serve(async (req) => {
       );
     }
 
-    // Invoke the send-push-notification function
     const { error: invokeError } = await adminClient.functions.invoke(
       "send-push-notification",
       {
