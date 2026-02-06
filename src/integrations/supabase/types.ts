@@ -3149,7 +3149,11 @@ export type Database = {
           auth: string
           created_at: string
           endpoint: string
+          failure_count: number | null
           id: string
+          last_failure_at: string | null
+          last_failure_reason: string | null
+          last_success_at: string | null
           p256dh: string
           platform: string | null
           updated_at: string
@@ -3159,7 +3163,11 @@ export type Database = {
           auth: string
           created_at?: string
           endpoint: string
+          failure_count?: number | null
           id?: string
+          last_failure_at?: string | null
+          last_failure_reason?: string | null
+          last_success_at?: string | null
           p256dh: string
           platform?: string | null
           updated_at?: string
@@ -3169,7 +3177,11 @@ export type Database = {
           auth?: string
           created_at?: string
           endpoint?: string
+          failure_count?: number | null
           id?: string
+          last_failure_at?: string | null
+          last_failure_reason?: string | null
+          last_success_at?: string | null
           p256dh?: string
           platform?: string | null
           updated_at?: string
@@ -4303,6 +4315,18 @@ export type Database = {
           team_name: string
         }[]
       }
+      get_push_subscription_health: {
+        Args: { p_user_id: string }
+        Returns: {
+          age_hours: number
+          endpoint: string
+          failure_count: number
+          last_failure_at: string
+          last_failure_reason: string
+          last_success_at: string
+          platform: string
+        }[]
+      }
       get_team_invite_by_token: {
         Args: { _token: string }
         Returns: {
@@ -4393,6 +4417,11 @@ export type Database = {
         }
         Returns: undefined
       }
+      record_push_failure: {
+        Args: { p_endpoint: string; p_reason?: string }
+        Returns: undefined
+      }
+      record_push_success: { Args: { p_endpoint: string }; Returns: undefined }
       require_app_admin: { Args: never; Returns: boolean }
       require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
       send_duty_notification_email: {
