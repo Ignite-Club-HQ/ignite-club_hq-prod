@@ -1,10 +1,12 @@
 import { useEffect, useRef, useCallback } from "react";
-import { subscribeToPushNotifications, checkPushSubscription } from "@/lib/pushNotifications";
+import { subscribeToPushNotifications, checkPushSubscription, resetPushNotifications } from "@/lib/pushNotifications";
 import {
   logPush,
   generateCorrelationId,
   needsRevalidation,
+  needsIOSProactiveRenewal,
   markSubscriptionValidated,
+  markSubscriptionRenewed,
   checkServiceWorkerUpdate,
   activateWaitingServiceWorker,
   permissionWasRevoked,
@@ -64,6 +66,25 @@ export function usePushSubscriptionHealth(userId: string | undefined) {
         logPush('warn', 'Permission revoked, cleaning up', undefined, correlationId);
         await handlePermissionRevoked(userId);
         return false;
+      }
+
+      // Check if iOS PWA needs proactive renewal (before 7-day ITP expiry)
+      if (needsIOSProactiveRenewal()) {
+        logPush('info', 'iOS proactive renewal triggered', undefined, correlationId);
+        
+        // Reset and resubscribe to get fresh subscription
+        await resetPushNotifications(userId, false);
+        const result = await subscribeToPushNotifications(userId, true);
+        
+        if (result.success) {
+          markSubscriptionRenewed();
+          lastValidation.current = Date.now();
+          logPush('info', 'iOS proactive renewal succeeded', undefined, correlationId);
+          return true;
+        } else {
+          logPush('warn', 'iOS proactive renewal failed', { error: result.error }, correlationId);
+          // Continue with normal validation
+        }
       }
 
       // Verify health of current subscription

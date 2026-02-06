@@ -400,11 +400,17 @@ export function clearOfflineQueue(): void {
 const SUBSCRIPTION_FRESHNESS_KEY = 'push_subscription_freshness';
 const FRESHNESS_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours (reduced from 4)
 
+// iOS ITP can evict data after 7 days of inactivity
+// We proactively renew at 5 days to be safe
+const IOS_RENEWAL_THRESHOLD_MS = 5 * 24 * 60 * 60 * 1000; // 5 days
+
 interface SubscriptionFreshness {
   lastValidated: number;
   lastSuccessfulPush?: number;
   consecutiveFailures: number;
   endpoint?: string;
+  createdAt?: number; // When subscription was first created
+  lastRenewal?: number; // When subscription was last renewed
 }
 
 export function getSubscriptionFreshness(): SubscriptionFreshness | null {
@@ -421,6 +427,7 @@ export function updateSubscriptionFreshness(updates: Partial<SubscriptionFreshne
     const current = getSubscriptionFreshness() || {
       lastValidated: 0,
       consecutiveFailures: 0,
+      createdAt: Date.now(),
     };
     localStorage.setItem(SUBSCRIPTION_FRESHNESS_KEY, JSON.stringify({
       ...current,
@@ -432,10 +439,21 @@ export function updateSubscriptionFreshness(updates: Partial<SubscriptionFreshne
 }
 
 export function markSubscriptionValidated(endpoint?: string): void {
+  const current = getSubscriptionFreshness();
   updateSubscriptionFreshness({
     lastValidated: Date.now(),
     consecutiveFailures: 0,
     endpoint,
+    // Set createdAt if not already set
+    createdAt: current?.createdAt || Date.now(),
+  });
+}
+
+export function markSubscriptionRenewed(): void {
+  updateSubscriptionFreshness({
+    lastRenewal: Date.now(),
+    consecutiveFailures: 0,
+    createdAt: Date.now(), // Reset creation time on renewal
   });
 }
 
@@ -456,6 +474,26 @@ export function needsRevalidation(): boolean {
   // - More than threshold time has passed
   // - There have been consecutive failures
   return age > FRESHNESS_THRESHOLD_MS || freshness.consecutiveFailures > 0;
+}
+
+/**
+ * Check if iOS PWA subscription needs proactive renewal
+ * iOS ITP can evict localStorage/session data after 7 days of inactivity
+ */
+export function needsIOSProactiveRenewal(): boolean {
+  const platform = detectPlatformDetailed();
+  
+  // Only applies to iOS PWA
+  if (platform !== 'ios-pwa') return false;
+  
+  const freshness = getSubscriptionFreshness();
+  if (!freshness) return true; // No record, needs renewal
+  
+  const createdAt = freshness.createdAt || freshness.lastRenewal || freshness.lastValidated;
+  const age = Date.now() - createdAt;
+  
+  // Renew if subscription is older than threshold (5 days)
+  return age > IOS_RENEWAL_THRESHOLD_MS;
 }
 
 export function clearSubscriptionFreshness(): void {

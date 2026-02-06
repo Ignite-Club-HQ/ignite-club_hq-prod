@@ -21,6 +21,7 @@ import {
   wasJustReset
 } from "@/lib/pushNotifications";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
+import { PushDiagnosticsCard } from "@/components/PushDiagnosticsCard";
 
 
 interface NotificationPreferences {
@@ -1106,6 +1107,15 @@ export default function EditProfilePage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Push Diagnostics Card */}
+      {pushSupported && user && (
+        <PushDiagnosticsCard
+          userId={user.id}
+          pushEnabled={pushEnabled}
+          onPushStatusChange={setPushEnabled}
+        />
       )}
 
       {/* Email Notifications Card */}
