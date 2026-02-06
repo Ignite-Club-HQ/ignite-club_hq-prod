@@ -937,13 +937,19 @@ export default function GroupChatPage() {
 
   // Toggle reaction mutation with optimistic updates
   const toggleReactionMutation = useMutation({
-    mutationFn: async ({ messageId, reactionType, existingReactionId }: { messageId: string; reactionType: string; existingReactionId?: string }) => {
+    mutationFn: async ({ messageId, reactionType }: { messageId: string; reactionType: string }) => {
       if (!user) return { action: 'none' as const };
       
-      if (existingReactionId) {
-        const { error } = await supabase.from("message_reactions").delete().eq("id", existingReactionId);
+      // Get fresh reaction data from cache to find existing reaction
+      const cachedData = queryClient.getQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId]);
+      const existingReaction = cachedData?.reactions.find(
+        r => r.group_message_id === messageId && r.user_id === user.id && r.reaction_type === reactionType && !r.id.startsWith('temp-')
+      );
+      
+      if (existingReaction) {
+        const { error } = await supabase.from("message_reactions").delete().eq("id", existingReaction.id);
         if (error) throw error;
-        return { action: 'removed' as const, reactionId: existingReactionId };
+        return { action: 'removed' as const, reactionId: existingReaction.id };
       } else {
         const { data, error } = await supabase.from("message_reactions").insert({
           group_message_id: messageId,
@@ -954,20 +960,31 @@ export default function GroupChatPage() {
         return { action: 'added' as const, reaction: data };
       }
     },
-    onMutate: async ({ messageId, reactionType, existingReactionId }) => {
+    onMutate: async ({ messageId, reactionType }) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
       
-      const previousData = queryClient.getQueryData(["group-messages", groupId]);
+      const previousData = queryClient.getQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId]);
+      
+      // Check if user already has this reaction (look for non-temp reactions)
+      const existingReaction = previousData?.reactions.find(
+        r => r.group_message_id === messageId && r.user_id === user?.id && r.reaction_type === reactionType && !r.id.startsWith('temp-')
+      );
       
       // Optimistically update reactions
       queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
         if (!old) return { messages: [], reactions: [] };
         
-        if (existingReactionId) {
+        if (existingReaction) {
           // Remove reaction optimistically
-          return { ...old, reactions: old.reactions.filter(r => r.id !== existingReactionId) };
+          return { ...old, reactions: old.reactions.filter(r => r.id !== existingReaction.id) };
         } else {
+          // Check if there's already a temp reaction for this - avoid duplicates
+          const hasTempReaction = old.reactions.some(
+            r => r.id.startsWith('temp-') && r.group_message_id === messageId && r.user_id === user?.id && r.reaction_type === reactionType
+          );
+          if (hasTempReaction) return old;
+          
           // Add reaction optimistically with temp ID
           const tempReaction: MessageReaction = {
             id: `temp-reaction-${Date.now()}`,
@@ -979,7 +996,7 @@ export default function GroupChatPage() {
         }
       });
       
-      return { previousData };
+      return { previousData, existingReaction };
     },
     onError: (err, variables, context) => {
       // Revert on error
@@ -1279,8 +1296,7 @@ export default function GroupChatPage() {
                                     className={`h-8 w-8 p-0 ${existingReaction ? 'bg-primary/20' : ''}`}
                                     onClick={() => toggleReactionMutation.mutate({ 
                                       messageId: msg.id, 
-                                      reactionType: emoji,
-                                      existingReactionId: existingReaction?.id
+                                      reactionType: emoji
                                     })}
                                   >
                                     {emoji}
