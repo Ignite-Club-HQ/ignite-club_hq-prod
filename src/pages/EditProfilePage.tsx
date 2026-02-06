@@ -18,7 +18,8 @@ import {
   unsubscribeFromPushNotifications, 
   checkPushSubscription,
   resetPushNotifications,
-  wasJustReset
+  wasJustReset,
+  forceUnlockPushSubscription
 } from "@/lib/pushNotifications";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { PushDiagnosticsCard } from "@/components/PushDiagnosticsCard";
@@ -182,6 +183,9 @@ export default function EditProfilePage() {
     
     // Show immediate feedback that we're trying
     console.log('[EditProfile] Setting pushLoading to true');
+    
+    // Force clear any stale lock before user-initiated toggle
+    forceUnlockPushSubscription();
     
     try {
       if (enabled) {

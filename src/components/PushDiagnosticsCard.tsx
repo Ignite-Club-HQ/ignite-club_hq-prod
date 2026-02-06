@@ -111,12 +111,15 @@ export function PushDiagnosticsCard({ userId, pushEnabled, onPushStatusChange }:
       return { status: 'revoked', color: 'text-orange-500', icon: AlertTriangle };
     }
     
-    if (!pushEnabled) {
-      return { status: 'disabled', color: 'text-muted-foreground', icon: Bell };
+    // Check for failures BEFORE checking if disabled - user needs Reset button to fix stuck state
+    const hasFailures = diagnostics.freshness?.consecutiveFailures && diagnostics.freshness.consecutiveFailures > 0;
+    
+    if (hasFailures) {
+      return { status: 'degraded', color: 'text-yellow-500', icon: AlertTriangle };
     }
     
-    if (diagnostics.freshness?.consecutiveFailures && diagnostics.freshness.consecutiveFailures > 0) {
-      return { status: 'degraded', color: 'text-yellow-500', icon: AlertTriangle };
+    if (!pushEnabled) {
+      return { status: 'disabled', color: 'text-muted-foreground', icon: Bell };
     }
     
     if (diagnostics.offlineQueue.length > 0) {
