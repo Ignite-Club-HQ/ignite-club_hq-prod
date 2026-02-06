@@ -60,6 +60,12 @@ const RELIABILITY_COLORS: Record<number, string> = {
   5: 'text-green-500',
 };
 
+// Detect Chrome on Android
+function isChromeAndroid(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /android/i.test(navigator.userAgent) && /chrome/i.test(navigator.userAgent);
+}
+
 export function PushDiagnosticsCard({ userId, pushEnabled, onPushStatusChange }: PushDiagnosticsCardProps) {
   const { toast } = useToast();
   const [diagnostics, setDiagnostics] = useState<PushDiagnostics | null>(null);
@@ -139,11 +145,17 @@ export function PushDiagnosticsCard({ userId, pushEnabled, onPushStatusChange }:
   const handleReset = async () => {
     setResetting(true);
     try {
-      await resetPushNotifications(userId, false);
-      toast({ title: "Push state reset", description: "Now try enabling notifications again" });
-      onPushStatusChange(false);
-      clearLogs();
-      await loadDiagnostics();
+      // For Chrome Android, recommend reload after reset for cleaner state
+      const shouldReload = isChromeAndroid();
+      await resetPushNotifications(userId, shouldReload);
+      
+      if (!shouldReload) {
+        toast({ title: "Push state reset", description: "Now try enabling notifications again" });
+        onPushStatusChange(false);
+        clearLogs();
+        await loadDiagnostics();
+      }
+      // If shouldReload is true, page will reload automatically
     } catch (e) {
       toast({ title: "Reset failed", description: String(e), variant: "destructive" });
     }
@@ -154,6 +166,8 @@ export function PushDiagnosticsCard({ userId, pushEnabled, onPushStatusChange }:
   const HealthIcon = health.icon;
 
   const getStatusMessage = () => {
+    const chromeAndroid = isChromeAndroid();
+    
     switch (health.status) {
       case 'unsupported':
         return 'Push notifications are not supported on this browser/device.';
@@ -164,6 +178,9 @@ export function PushDiagnosticsCard({ userId, pushEnabled, onPushStatusChange }:
       case 'disabled':
         return 'Push notifications are disabled. Enable them above.';
       case 'degraded':
+        if (chromeAndroid) {
+          return `Chrome Android issue detected. Click "Reset" to fix, then re-enable notifications.`;
+        }
         return `Recent delivery issues detected (${diagnostics?.freshness?.consecutiveFailures} failures). Click "Fix" to refresh.`;
       case 'pending':
         return `${diagnostics?.offlineQueue.length} operation(s) queued. Will sync when online.`;
