@@ -441,24 +441,48 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
         if (stale) {
           console.log('[Push] Found stale subscription, unsubscribing before re-subscribe...');
           await stale.unsubscribe();
+          // Chrome Android needs extra time after unsubscribe
+          await wait(800);
         }
       } catch (e) {
         console.warn('[Push] Error clearing stale subscription:', e);
       }
       
+      // Detect if Chrome on Android - needs special handling
+      const isChromeAndroid = /android/i.test(navigator.userAgent) && /chrome/i.test(navigator.userAgent);
+      console.log('[Push] Chrome Android detected:', isChromeAndroid);
+      
       // Try subscribing with retry logic for AbortError
       let lastError: Error | null = null;
+      const maxAttempts = isChromeAndroid ? 5 : 3; // More retries for Chrome Android
+      const retryDelays = isChromeAndroid 
+        ? [2000, 3000, 4000, 5000] // Longer delays for Chrome Android
+        : [1500, 2000, 2500];
       
-      for (let attempt = 1; attempt <= 3; attempt++) {
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-          console.log(`[Push] Subscribe attempt ${attempt}/3...`);
+          console.log(`[Push] Subscribe attempt ${attempt}/${maxAttempts}...`);
+          
+          // Chrome Android workaround: Check push manager state before subscribe
+          if (isChromeAndroid && attempt > 1) {
+            // Wait for push service to stabilize
+            console.log('[Push] Chrome Android: waiting for push service to stabilize...');
+            await wait(retryDelays[Math.min(attempt - 2, retryDelays.length - 1)]);
+            
+            // Re-check service worker is still active
+            const freshReg = await navigator.serviceWorker.getRegistration();
+            if (!freshReg?.active) {
+              console.log('[Push] Chrome Android: SW became inactive, waiting for ready...');
+              await navigator.serviceWorker.ready;
+            }
+          }
           
           subscription = await withTimeout(
             controllingReg.pushManager.subscribe({
               userVisibleOnly: true,
               applicationServerKey: applicationServerKey.buffer.slice(0) as ArrayBuffer
             }),
-            15000,
+            20000, // Longer timeout for flaky mobile connections
             'Subscribe timed out'
           );
           
@@ -478,9 +502,13 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
             };
           }
           
-          // AbortError: wait briefly then retry
-          if (attempt < 3) {
-            await wait(1500);
+          // For AbortError on Chrome Android, don't wait between first few attempts
+          if (attempt < maxAttempts) {
+            const delay = isChromeAndroid && subscribeError?.name === 'AbortError' 
+              ? retryDelays[Math.min(attempt - 1, retryDelays.length - 1)]
+              : 1500;
+            console.log(`[Push] Waiting ${delay}ms before retry...`);
+            await wait(delay);
           }
         }
       }
@@ -489,6 +517,13 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
         console.error('[Push] All subscription attempts failed:', lastError);
         
         if (lastError.name === 'AbortError') {
+          // Chrome Android specific advice
+          if (isChromeAndroid) {
+            return { 
+              success: false, 
+              error: 'Chrome on Android cancelled the subscription. This is a known Chrome issue. Please: 1) Close and reopen the app, 2) Try again. If it persists, use "Reset" in Push Diagnostics below.' 
+            };
+          }
           return { 
             success: false, 
             error: 'Push subscription was cancelled by the browser. This can happen due to browser push service issues. Please try: 1) Use "Reset Push Notifications" button in Edit Profile, 2) Refresh the page, 3) Try again in a few minutes.' 
@@ -641,6 +676,8 @@ export async function resetPushNotifications(userId?: string, reloadAfter = fals
   console.log('[Push] === Resetting push notifications ===');
   console.log('[Push] Reload after:', reloadAfter);
   
+  const isChromeAndroid = /android/i.test(navigator.userAgent) && /chrome/i.test(navigator.userAgent);
+  
   try {
     // 1. Clear subscription lock
     clearSubscriptionLock();
@@ -665,6 +702,10 @@ export async function resetPushNotifications(userId?: string, reloadAfter = fals
           if (subscription) {
             await subscription.unsubscribe();
             console.log('[Push] Unsubscribed from', registration.scope);
+            // Chrome Android needs extra time between unsubscribe and unregister
+            if (isChromeAndroid) {
+              await new Promise(r => setTimeout(r, 500));
+            }
           }
         } catch (e) {
           console.warn('[Push] Error unsubscribing:', e);
@@ -677,6 +718,12 @@ export async function resetPushNotifications(userId?: string, reloadAfter = fals
         } catch (e) {
           console.warn('[Push] Error unregistering SW:', e);
         }
+      }
+      
+      // Chrome Android: wait for cleanup to fully propagate
+      if (isChromeAndroid) {
+        console.log('[Push] Chrome Android: waiting for cleanup to propagate...');
+        await new Promise(r => setTimeout(r, 1000));
       }
     }
 
