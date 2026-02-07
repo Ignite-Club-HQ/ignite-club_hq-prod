@@ -6,9 +6,28 @@
  */
 
 import { Capacitor } from '@capacitor/core';
-import { PushNotifications, Token, ActionPerformed, PushNotificationSchema } from '@capacitor/push-notifications';
-import { FirebaseMessaging } from '@capacitor-firebase/messaging';
 import { supabase } from '@/integrations/supabase/client';
+
+// Lazy load plugins to prevent import-time crashes when Firebase isn't configured
+let PushNotifications: any = null;
+let FirebaseMessaging: any = null;
+
+async function loadPlugins(): Promise<boolean> {
+  try {
+    if (!PushNotifications) {
+      const pushModule = await import('@capacitor/push-notifications');
+      PushNotifications = pushModule.PushNotifications;
+    }
+    if (!FirebaseMessaging) {
+      const fcmModule = await import('@capacitor-firebase/messaging');
+      FirebaseMessaging = fcmModule.FirebaseMessaging;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[NativePush] Failed to load plugins:', err);
+    return false;
+  }
+}
 
 // Platform detection
 export function isNativePlatform(): boolean {
@@ -86,9 +105,9 @@ export async function requestNativePermission(): Promise<'granted' | 'denied' | 
   }
 
   try {
-    // Check if plugin is available before calling it
-    if (!PushNotifications || typeof PushNotifications.requestPermissions !== 'function') {
-      console.warn('[NativePush] PushNotifications plugin not available');
+    const loaded = await loadPlugins();
+    if (!loaded || !PushNotifications) {
+      console.warn('[NativePush] Plugins not available');
       return 'denied';
     }
     
@@ -103,7 +122,6 @@ export async function requestNativePermission(): Promise<'granted' | 'denied' | 
     return 'prompt';
   } catch (err) {
     console.error('[NativePush] Error requesting permission:', err);
-    // Don't let this crash the app - just return denied
     return 'denied';
   }
 }
@@ -115,6 +133,9 @@ export async function checkNativePermission(): Promise<'granted' | 'denied' | 'p
   }
 
   try {
+    const loaded = await loadPlugins();
+    if (!loaded || !PushNotifications) return 'denied';
+    
     const result = await PushNotifications.checkPermissions();
     if (result.receive === 'granted') return 'granted';
     if (result.receive === 'denied') return 'denied';
@@ -133,12 +154,18 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
   console.log('[NativePush] Initializing for user:', userId);
 
   try {
-    // Request permission - wrapped in try/catch to handle plugin not available
+    // Load plugins first
+    const loaded = await loadPlugins();
+    if (!loaded) {
+      return { success: false, error: 'Failed to load push plugins' };
+    }
+
+    // Request permission
     let permission: 'granted' | 'denied' | 'prompt';
     try {
       permission = await requestNativePermission();
     } catch (permErr) {
-      console.warn('[NativePush] Permission request failed (plugin may not be configured):', permErr);
+      console.warn('[NativePush] Permission request failed:', permErr);
       return { success: false, error: 'Push plugin not available' };
     }
     
@@ -146,22 +173,25 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
       return { success: false, error: 'Push notification permission denied' };
     }
 
-    // Register with FCM - this can crash if Firebase is not configured
+    // Register with FCM
     try {
       await PushNotifications.register();
       console.log('[NativePush] Registered with push service');
     } catch (regErr) {
-      console.warn('[NativePush] Registration failed (Firebase may not be configured):', regErr);
-      return { success: false, error: 'Push registration failed - Firebase not configured' };
+      console.warn('[NativePush] Registration failed:', regErr);
+      return { success: false, error: 'Push registration failed' };
     }
 
-    // Get FCM token - wrapped separately to catch Firebase-specific errors
+    // Get FCM token
     let token: string | undefined;
     try {
+      if (!FirebaseMessaging) {
+        return { success: false, error: 'Firebase not configured' };
+      }
       const tokenResult = await FirebaseMessaging.getToken();
       token = tokenResult.token;
     } catch (tokenErr) {
-      console.warn('[NativePush] Failed to get FCM token (Firebase not configured?):', tokenErr);
+      console.warn('[NativePush] Failed to get FCM token:', tokenErr);
       return { success: false, error: 'FCM token retrieval failed' };
     }
     
@@ -179,7 +209,6 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
 
     return { success: true };
   } catch (err) {
-    // Catch-all for any unexpected errors - should never crash the app
     console.error('[NativePush] Unexpected error initializing:', err);
     return { success: false, error: String(err) };
   }
@@ -187,26 +216,30 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
 
 // Setup push notification listeners
 export function setupNativePushListeners(
-  onNotificationReceived?: (notification: PushNotificationSchema) => void,
-  onNotificationAction?: (notification: ActionPerformed) => void,
+  onNotificationReceived?: (notification: any) => void,
+  onNotificationAction?: (notification: any) => void,
   onTokenRefresh?: (token: string) => void
 ): () => void {
   if (!isNativePlatform()) {
     return () => {};
   }
 
+  // If plugins haven't been loaded yet, we can't set up listeners
+  if (!PushNotifications) {
+    console.warn('[NativePush] Cannot setup listeners - plugins not loaded');
+    return () => {};
+  }
+
   console.log('[NativePush] Setting up listeners');
 
-  // Wrap all listener setup in try/catch to prevent crashes if plugins aren't ready
   let receivedListener: Promise<any> | null = null;
   let actionListener: Promise<any> | null = null;
   let tokenListener: Promise<any> | null = null;
 
   try {
-    // Listen for push notifications received while app is in foreground
     receivedListener = PushNotifications.addListener(
       'pushNotificationReceived',
-      (notification) => {
+      (notification: any) => {
         console.log('[NativePush] Notification received:', notification);
         onNotificationReceived?.(notification);
       }
@@ -216,17 +249,14 @@ export function setupNativePushListeners(
   }
 
   try {
-    // Listen for push notification actions (user tapped notification)
     actionListener = PushNotifications.addListener(
       'pushNotificationActionPerformed',
-      (notification) => {
+      (notification: any) => {
         console.log('[NativePush] Notification action:', notification);
         onNotificationAction?.(notification);
         
-        // Handle deep linking based on notification data
-        const data = notification.notification.data;
+        const data = notification.notification?.data;
         if (data?.url) {
-          // Navigate to the URL
           window.location.href = data.url;
         }
       }
@@ -236,19 +266,19 @@ export function setupNativePushListeners(
   }
 
   try {
-    // Listen for token refresh
-    tokenListener = FirebaseMessaging.addListener(
-      'tokenReceived',
-      (event) => {
-        console.log('[NativePush] Token refreshed');
-        onTokenRefresh?.(event.token);
-      }
-    );
+    if (FirebaseMessaging) {
+      tokenListener = FirebaseMessaging.addListener(
+        'tokenReceived',
+        (event: any) => {
+          console.log('[NativePush] Token refreshed');
+          onTokenRefresh?.(event.token);
+        }
+      );
+    }
   } catch (err) {
     console.warn('[NativePush] Failed to add token listener:', err);
   }
 
-  // Return cleanup function
   return () => {
     receivedListener?.then(l => l.remove()).catch(() => {});
     actionListener?.then(l => l.remove()).catch(() => {});
@@ -261,13 +291,14 @@ export async function unregisterNativePush(userId: string): Promise<void> {
   if (!isNativePlatform()) return;
 
   try {
-    // Get current token before unregistering
+    const loaded = await loadPlugins();
+    if (!loaded || !FirebaseMessaging) return;
+    
     const tokenResult = await FirebaseMessaging.getToken();
     if (tokenResult.token) {
       await removeFCMToken(userId, tokenResult.token);
     }
 
-    // Delete the FCM token
     await FirebaseMessaging.deleteToken();
     console.log('[NativePush] Unregistered successfully');
   } catch (err) {
