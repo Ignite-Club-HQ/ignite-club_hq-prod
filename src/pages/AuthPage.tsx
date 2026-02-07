@@ -87,7 +87,13 @@ export default function AuthPage() {
   
   const { toast } = useToast();
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
-  const { isAvailable, accounts, loading: passkeyLoading, authenticateWithPasskey } = usePasskey();
+  const { 
+    isAvailable, 
+    nativeBiometricInfo,
+    loading: passkeyLoading, 
+    authenticateWithPasskey,
+    storeCredentialsForNativeBiometric 
+  } = usePasskey();
   
   // Check if biometrics are available (for showing the passkey button)
   useEffect(() => {
@@ -97,6 +103,25 @@ export default function AuthPage() {
     };
     checkBiometrics();
   }, []);
+  
+  // Determine button text based on platform
+  const getBiometricButtonText = () => {
+    if (nativeBiometricInfo) {
+      switch (nativeBiometricInfo.biometryType) {
+        case 'faceId':
+          return 'Sign in with Face ID';
+        case 'touchId':
+          return 'Sign in with Touch ID';
+        case 'fingerprint':
+          return 'Sign in with Fingerprint';
+        case 'iris':
+          return 'Sign in with Iris';
+        default:
+          return 'Sign in with Biometrics';
+      }
+    }
+    return 'Sign in with Face ID / Touch ID';
+  };
   
 
 
@@ -192,11 +217,23 @@ export default function AuthPage() {
         title,
         description: message,
       });
-    } else if (mode === "signup") {
-      toast({
-        title: "Welcome to Ignite Club HQ!",
-        description: "Your account has been created successfully.",
-      });
+    } else {
+      // Success! On native platforms, offer to save credentials for biometric login
+      if (mode === "signin" && Capacitor.isNativePlatform() && nativeBiometricInfo?.isAvailable && !nativeBiometricInfo.hasCredentials) {
+        // Store credentials for future biometric login
+        const stored = await storeCredentialsForNativeBiometric(email, password);
+        if (stored.success) {
+          toast({
+            title: "Biometric login enabled",
+            description: `You can now use ${getBiometricButtonText().replace('Sign in with ', '')} to sign in next time.`,
+          });
+        }
+      } else if (mode === "signup") {
+        toast({
+          title: "Welcome to Ignite Club HQ!",
+          description: "Your account has been created successfully.",
+        });
+      }
     }
   };
 
@@ -389,7 +426,7 @@ export default function AuthPage() {
                       ) : (
                         <>
                           <Fingerprint className="h-4 w-4" />
-                          Sign in with Face ID / Touch ID
+                          {getBiometricButtonText()}
                         </>
                       )}
                     </Button>

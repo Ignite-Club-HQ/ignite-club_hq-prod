@@ -1,6 +1,13 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
+import { 
+  checkNativeBiometricAvailability, 
+  authenticateWithNativeBiometric,
+  storeCredentialsForBiometric,
+  deleteStoredCredentials,
+  BiometricAvailability
+} from '@/lib/nativeBiometrics';
 
 // WebAuthn utilities
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -42,20 +49,28 @@ export function isWebAuthnAvailable(): boolean {
 }
 
 // Check if platform authenticator (biometrics) is available
+// On native platforms, uses native biometrics; on web, uses WebAuthn
 export async function isPlatformAuthenticatorAvailable(): Promise<boolean> {
-  // WebAuthn does NOT work in Capacitor WebViews - the browser engine doesn't support it
-  // Hide biometric login option on native platforms since it will always fail
+  // On native platforms, check for native biometrics
   if (Capacitor.isNativePlatform()) {
-    console.log('[Passkey] Native platform detected - WebAuthn not supported in WebView');
-    return false;
+    const availability = await checkNativeBiometricAvailability();
+    console.log('[Passkey] Native biometric availability:', availability);
+    return availability.isAvailable;
   }
   
+  // On web, check for WebAuthn
   if (!isWebAuthnAvailable()) return false;
   try {
     return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
   } catch {
     return false;
   }
+}
+
+// Export native biometric availability check for detailed info
+export async function getNativeBiometricInfo(): Promise<BiometricAvailability | null> {
+  if (!Capacitor.isNativePlatform()) return null;
+  return await checkNativeBiometricAvailability();
 }
 
 // Storage keys
@@ -189,12 +204,21 @@ export function usePasskey() {
   const [accounts, setAccounts] = useState<PasskeyAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nativeBiometricInfo, setNativeBiometricInfo] = useState<BiometricAvailability | null>(null);
 
   // Refresh accounts list
-  const refreshAccounts = useCallback(() => {
+  const refreshAccounts = useCallback(async () => {
     const storedAccounts = getStoredPasskeyAccounts();
     setAccounts(storedAccounts);
-    setIsRegistered(storedAccounts.length > 0);
+    
+    // For native platforms, check if we have stored credentials
+    if (Capacitor.isNativePlatform()) {
+      const biometricInfo = await checkNativeBiometricAvailability();
+      setNativeBiometricInfo(biometricInfo);
+      setIsRegistered(biometricInfo.hasCredentials);
+    } else {
+      setIsRegistered(storedAccounts.length > 0);
+    }
   }, []);
 
   // Check availability on mount
@@ -207,12 +231,18 @@ export function usePasskey() {
     checkAvailability();
   }, [refreshAccounts]);
 
-  // Register a new passkey for the current user
+  // Register a new passkey for the current user (WebAuthn - web only)
+  // For native, use storeCredentialsForNativeBiometric instead
   const registerPasskey = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
     setLoading(true);
     setError(null);
 
     try {
+      // Native platforms don't support WebAuthn passkeys
+      if (Capacitor.isNativePlatform()) {
+        throw new Error('Use storeCredentialsForNativeBiometric for native platforms');
+      }
+      
       // Get current session
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) {
@@ -306,6 +336,7 @@ export function usePasskey() {
   }, [refreshAccounts]);
 
   // Authenticate with passkey - supports both email-based and discoverable credentials
+  // On native platforms, uses native biometrics with stored credentials
   const authenticateWithPasskey = useCallback(async (email?: string): Promise<{ 
     success: boolean; 
     error?: string;
@@ -315,6 +346,37 @@ export function usePasskey() {
     setError(null);
 
     try {
+      // On native platforms, use native biometric authentication
+      if (Capacitor.isNativePlatform()) {
+        console.log('[Passkey] Using native biometric authentication');
+        
+        const result = await authenticateWithNativeBiometric();
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Biometric authentication failed');
+        }
+        
+        // Sign in with the stored credentials
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: result.email!,
+          password: result.password!,
+        });
+        
+        if (signInError) {
+          // If credentials are invalid, clear them
+          if (signInError.message.includes('Invalid login') || signInError.message.includes('Invalid')) {
+            await deleteStoredCredentials();
+            await refreshAccounts();
+            throw new Error('Stored credentials are no longer valid. Please sign in with your password.');
+          }
+          throw signInError;
+        }
+        
+        setLoading(false);
+        return { success: true, userEmail: result.email };
+      }
+      
+      // Web: Use WebAuthn passkeys
       // Get authentication options from server
       // If no email, use discoverable credentials mode
       const { data: optionsData, error: optionsError } = await supabase.functions.invoke(
@@ -411,23 +473,47 @@ export function usePasskey() {
       setLoading(false);
       return { success: false, error: message };
     }
-  }, []);
+  }, [refreshAccounts]);
+
+  // Store credentials for native biometric login (call after successful email/password login)
+  const storeCredentialsForNativeBiometric = useCallback(async (
+    email: string,
+    password: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!Capacitor.isNativePlatform()) {
+      return { success: false, error: 'Not on native platform' };
+    }
+    
+    const result = await storeCredentialsForBiometric(email, password);
+    if (result.success) {
+      await refreshAccounts();
+    }
+    return result;
+  }, [refreshAccounts]);
 
   // Remove passkey account from local storage
-  const removeAccount = useCallback((email: string) => {
+  const removeAccount = useCallback(async (email: string) => {
+    // On native, also delete stored credentials
+    if (Capacitor.isNativePlatform()) {
+      await deleteStoredCredentials();
+    }
     removeStoredPasskeyAccount(email);
-    refreshAccounts();
+    await refreshAccounts();
   }, [refreshAccounts]);
 
   // Clear all passkey registrations (client-side only)
-  const clearPasskey = useCallback(() => {
+  const clearPasskey = useCallback(async () => {
     try {
       localStorage.removeItem(PASSKEY_ACCOUNTS_KEY);
       localStorage.removeItem(LAST_USED_ACCOUNT_KEY);
+      // On native, also delete stored credentials
+      if (Capacitor.isNativePlatform()) {
+        await deleteStoredCredentials();
+      }
     } catch {
       // Ignore
     }
-    refreshAccounts();
+    await refreshAccounts();
   }, [refreshAccounts]);
 
   return {
@@ -436,8 +522,10 @@ export function usePasskey() {
     accounts,
     loading,
     error,
+    nativeBiometricInfo,
     registerPasskey,
     authenticateWithPasskey,
+    storeCredentialsForNativeBiometric,
     removeAccount,
     clearPasskey,
     refreshAccounts,
