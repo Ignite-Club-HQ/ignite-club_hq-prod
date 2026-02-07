@@ -114,9 +114,11 @@ export default function AuthPage() {
     const redirectPath = sessionStorage.getItem("redirectAfterAuth");
     if (redirectPath) {
       sessionStorage.removeItem("redirectAfterAuth");
+      console.log('[AuthPage] Authenticated, redirecting to:', redirectPath);
       return <Navigate to={redirectPath} replace />;
     }
     // Default to home - clear any stale invite flow context since we're not in a flow
+    console.log('[AuthPage] Authenticated, redirecting to home');
     clearInviteFlowContext();
     return <Navigate to="/" replace />;
   }
