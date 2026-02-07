@@ -17,9 +17,22 @@ const config: CapacitorConfig = {
   },
   android: {
     allowMixedContent: true,
+    // Keep all navigation inside the WebView
+    appendUserAgent: 'IgniteClubHQ-Android',
   },
   ios: {
     contentInset: 'automatic',
+    // Keep all navigation inside the WebView
+    appendUserAgent: 'IgniteClubHQ-iOS',
+    allowsLinkPreview: false,
+  },
+  // Server configuration - keep navigation in app
+  server: {
+    // Don't open links in external browser
+    androidScheme: 'https',
+    iosScheme: 'ionic',
+    // Handle navigation internally
+    hostname: 'ignite.app',
   },
 };
 
