@@ -11,6 +11,8 @@ workflows:
         script: npm install
       - name: Build web app
         script: npm run build
+      - name: Add Android platform
+        script: npx cap add android || true
       - name: Sync Capacitor
         script: npx cap sync android
       - name: Build Android
