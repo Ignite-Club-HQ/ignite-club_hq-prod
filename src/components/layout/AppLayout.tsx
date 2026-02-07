@@ -189,7 +189,7 @@ export function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col pt-safe">
       <AppHeader />
       <main className="flex-1 pb-20 px-4 max-w-lg mx-auto w-full">
         <Outlet />
