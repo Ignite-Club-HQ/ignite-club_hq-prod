@@ -197,45 +197,62 @@ export function setupNativePushListeners(
 
   console.log('[NativePush] Setting up listeners');
 
-  // Listen for push notifications received while app is in foreground
-  const receivedListener = PushNotifications.addListener(
-    'pushNotificationReceived',
-    (notification) => {
-      console.log('[NativePush] Notification received:', notification);
-      onNotificationReceived?.(notification);
-    }
-  );
+  // Wrap all listener setup in try/catch to prevent crashes if plugins aren't ready
+  let receivedListener: Promise<any> | null = null;
+  let actionListener: Promise<any> | null = null;
+  let tokenListener: Promise<any> | null = null;
 
-  // Listen for push notification actions (user tapped notification)
-  const actionListener = PushNotifications.addListener(
-    'pushNotificationActionPerformed',
-    (notification) => {
-      console.log('[NativePush] Notification action:', notification);
-      onNotificationAction?.(notification);
-      
-      // Handle deep linking based on notification data
-      const data = notification.notification.data;
-      if (data?.url) {
-        // Navigate to the URL
-        window.location.href = data.url;
+  try {
+    // Listen for push notifications received while app is in foreground
+    receivedListener = PushNotifications.addListener(
+      'pushNotificationReceived',
+      (notification) => {
+        console.log('[NativePush] Notification received:', notification);
+        onNotificationReceived?.(notification);
       }
-    }
-  );
+    );
+  } catch (err) {
+    console.warn('[NativePush] Failed to add received listener:', err);
+  }
 
-  // Listen for token refresh
-  const tokenListener = FirebaseMessaging.addListener(
-    'tokenReceived',
-    (event) => {
-      console.log('[NativePush] Token refreshed');
-      onTokenRefresh?.(event.token);
-    }
-  );
+  try {
+    // Listen for push notification actions (user tapped notification)
+    actionListener = PushNotifications.addListener(
+      'pushNotificationActionPerformed',
+      (notification) => {
+        console.log('[NativePush] Notification action:', notification);
+        onNotificationAction?.(notification);
+        
+        // Handle deep linking based on notification data
+        const data = notification.notification.data;
+        if (data?.url) {
+          // Navigate to the URL
+          window.location.href = data.url;
+        }
+      }
+    );
+  } catch (err) {
+    console.warn('[NativePush] Failed to add action listener:', err);
+  }
+
+  try {
+    // Listen for token refresh
+    tokenListener = FirebaseMessaging.addListener(
+      'tokenReceived',
+      (event) => {
+        console.log('[NativePush] Token refreshed');
+        onTokenRefresh?.(event.token);
+      }
+    );
+  } catch (err) {
+    console.warn('[NativePush] Failed to add token listener:', err);
+  }
 
   // Return cleanup function
   return () => {
-    receivedListener.then(l => l.remove());
-    actionListener.then(l => l.remove());
-    tokenListener.then(l => l.remove());
+    receivedListener?.then(l => l.remove()).catch(() => {});
+    actionListener?.then(l => l.remove()).catch(() => {});
+    tokenListener?.then(l => l.remove()).catch(() => {});
   };
 }
 
