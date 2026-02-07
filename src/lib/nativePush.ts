@@ -3,41 +3,123 @@
  * 
  * This module handles push notifications for native Android/iOS apps
  * wrapped with Capacitor. Falls back gracefully when running in web browser.
+ * 
+ * IMPORTANT: Firebase must be properly configured with google-services.json (Android)
+ * or GoogleService-Info.plist (iOS) for push notifications to work.
+ * Without these files, attempting to use Firebase plugins will crash the app.
  */
 
-import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
+
+// Lazy load Capacitor core to prevent crashes if not available
+let Capacitor: any = null;
+let capacitorLoaded = false;
 
 // Lazy load plugins to prevent import-time crashes when Firebase isn't configured
 let PushNotifications: any = null;
 let FirebaseMessaging: any = null;
+let pluginsChecked = false;
+let pluginsAvailable = false;
+
+// Safely load Capacitor core
+async function loadCapacitor(): Promise<boolean> {
+  if (capacitorLoaded) return Capacitor !== null;
+  
+  try {
+    const capacitorModule = await import('@capacitor/core');
+    Capacitor = capacitorModule.Capacitor;
+    capacitorLoaded = true;
+    return true;
+  } catch (err) {
+    console.warn('[NativePush] Capacitor not available:', err);
+    capacitorLoaded = true;
+    return false;
+  }
+}
+
+// Check if we're on a native platform (must be called after loadCapacitor)
+function checkIsNative(): boolean {
+  if (!Capacitor) return false;
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
+}
 
 async function loadPlugins(): Promise<boolean> {
+  // Only check once to avoid repeated failures
+  if (pluginsChecked) return pluginsAvailable;
+  pluginsChecked = true;
+  
+  // First ensure Capacitor is loaded
+  const capacitorOk = await loadCapacitor();
+  if (!capacitorOk || !checkIsNative()) {
+    console.log('[NativePush] Not a native platform, skipping plugin load');
+    return false;
+  }
+  
   try {
+    // Load PushNotifications first - this is less likely to crash
     if (!PushNotifications) {
       const pushModule = await import('@capacitor/push-notifications');
       PushNotifications = pushModule.PushNotifications;
     }
+    
+    // Try loading Firebase - this WILL fail if google-services.json is missing
+    // The try/catch here helps, but the native side may still crash
     if (!FirebaseMessaging) {
-      const fcmModule = await import('@capacitor-firebase/messaging');
-      FirebaseMessaging = fcmModule.FirebaseMessaging;
+      try {
+        const fcmModule = await import('@capacitor-firebase/messaging');
+        FirebaseMessaging = fcmModule.FirebaseMessaging;
+        
+        // Test if Firebase is actually usable by checking a simple method
+        // This can throw if Firebase isn't properly initialized on native side
+        await FirebaseMessaging.checkPermissions();
+        console.log('[NativePush] Firebase Messaging loaded and available');
+      } catch (fcmErr: any) {
+        // Firebase not configured - this is expected if google-services.json is missing
+        console.warn('[NativePush] Firebase Messaging not available:', fcmErr?.message || fcmErr);
+        FirebaseMessaging = null;
+        // Continue without Firebase - at least basic push might work
+      }
     }
-    return true;
+    
+    pluginsAvailable = PushNotifications !== null;
+    return pluginsAvailable;
   } catch (err) {
     console.warn('[NativePush] Failed to load plugins:', err);
     return false;
   }
 }
 
-// Platform detection
+// Platform detection - safe synchronous checks
 export function isNativePlatform(): boolean {
-  return Capacitor.isNativePlatform();
+  // If Capacitor hasn't been loaded yet, try to load synchronously
+  // This is a fallback - ideally loadCapacitor() should be called first
+  if (!capacitorLoaded) {
+    try {
+      // Try synchronous require as fallback (won't work in all bundlers)
+      const { Capacitor: Cap } = require('@capacitor/core');
+      Capacitor = Cap;
+      capacitorLoaded = true;
+    } catch {
+      // Can't load synchronously, assume not native
+      return false;
+    }
+  }
+  return checkIsNative();
 }
 
 export function getPlatform(): 'android' | 'ios' | 'web' {
-  const platform = Capacitor.getPlatform();
-  if (platform === 'android') return 'android';
-  if (platform === 'ios') return 'ios';
+  if (!Capacitor) return 'web';
+  try {
+    const platform = Capacitor.getPlatform();
+    if (platform === 'android') return 'android';
+    if (platform === 'ios') return 'ios';
+  } catch {
+    // Capacitor not properly initialized
+  }
   return 'web';
 }
 
