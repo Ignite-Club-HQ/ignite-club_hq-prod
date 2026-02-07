@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Capacitor } from "@capacitor/core";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9,9 +8,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Bell, CheckCircle, XCircle } from "lucide-react";
+import { Bell, CheckCircle } from "lucide-react";
 
 const NATIVE_NOTIFICATION_PROMPTED_KEY = "native-notification-prompted";
+
+// Check if native at module load - wrapped in try/catch
+let isNative = false;
+let platform = 'web';
+try {
+  const { Capacitor } = require('@capacitor/core');
+  isNative = Capacitor.isNativePlatform();
+  platform = Capacitor.getPlatform();
+} catch (e) {
+  console.log("[NativeNotificationPrompt] Capacitor not available at module load");
+}
+
+console.log("[NativeNotificationPrompt] Module loaded, isNative:", isNative, "platform:", platform);
 
 interface NativeNotificationPromptProps {
   userId?: string;
@@ -22,13 +34,13 @@ export function NativeNotificationPrompt({ userId }: NativeNotificationPromptPro
 
   useEffect(() => {
     console.log("[NativeNotificationPrompt] useEffect triggered", {
-      isNative: Capacitor.isNativePlatform(),
-      platform: Capacitor.getPlatform(),
-      userId: userId,
+      isNative,
+      platform,
+      userId,
     });
     
     // Only run on native platforms
-    if (!Capacitor.isNativePlatform()) {
+    if (!isNative) {
       console.log("[NativeNotificationPrompt] Not native platform, skipping");
       return;
     }
@@ -59,10 +71,10 @@ export function NativeNotificationPrompt({ userId }: NativeNotificationPromptPro
       try {
         // Dynamically import to avoid issues on web
         const { initializeNativePush } = await import("@/lib/nativePush");
-        console.log("[NativeNotificationPrompt] Calling initializeNativePush");
+        console.log("[NativeNotificationPrompt] Calling initializeNativePush with userId:", userId);
         
         const result = await initializeNativePush(userId);
-        console.log("[NativeNotificationPrompt] initializeNativePush result:", result);
+        console.log("[NativeNotificationPrompt] initializeNativePush result:", JSON.stringify(result));
         
         if (result.success) {
           console.log("[NativeNotificationPrompt] Push notifications enabled successfully");
