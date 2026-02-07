@@ -89,6 +89,7 @@ export default function AuthPage() {
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
   const { 
     isAvailable, 
+    isRegistered,
     nativeBiometricInfo,
     loading: passkeyLoading, 
     authenticateWithPasskey,
@@ -414,7 +415,7 @@ export default function AuthPage() {
                     )}
                   </Button>
                   
-                  {biometricsAvailable && (
+                  {biometricsAvailable && isRegistered && (
                     <Button 
                       variant="outline" 
                       className="w-full gap-2" 
