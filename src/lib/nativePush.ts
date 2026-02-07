@@ -95,24 +95,35 @@ async function loadPlugins(): Promise<boolean> {
 
 // Platform detection - safe synchronous checks
 export function isNativePlatform(): boolean {
-  // If Capacitor hasn't been loaded yet, try to load synchronously
-  // This is a fallback - ideally loadCapacitor() should be called first
-  if (!capacitorLoaded) {
-    try {
-      // Try synchronous require as fallback (won't work in all bundlers)
-      const { Capacitor: Cap } = require('@capacitor/core');
-      Capacitor = Cap;
+  // Check window.Capacitor which is injected by Capacitor in native WebViews
+  // This works synchronously without needing dynamic imports
+  const windowCapacitor = (window as any).Capacitor;
+  
+  if (windowCapacitor) {
+    // Cache it for later use
+    if (!Capacitor) {
+      Capacitor = windowCapacitor;
       capacitorLoaded = true;
-      console.log('[NativePush] Loaded Capacitor synchronously');
-    } catch (err) {
-      // Can't load synchronously, assume not native
-      console.log('[NativePush] Could not load Capacitor synchronously:', err);
+    }
+    try {
+      const isNative = windowCapacitor.isNativePlatform?.() ?? false;
+      console.log('[NativePush] isNativePlatform check (window.Capacitor):', isNative);
+      return isNative;
+    } catch {
       return false;
     }
   }
-  const isNative = checkIsNative();
-  console.log('[NativePush] isNativePlatform check:', isNative);
-  return isNative;
+  
+  // Fallback to cached Capacitor if already loaded via async
+  if (capacitorLoaded && Capacitor) {
+    const isNative = checkIsNative();
+    console.log('[NativePush] isNativePlatform check (cached):', isNative);
+    return isNative;
+  }
+  
+  // Not loaded yet and no window.Capacitor - assume web
+  console.log('[NativePush] isNativePlatform: no Capacitor detected, assuming web');
+  return false;
 }
 
 export function getPlatform(): 'android' | 'ios' | 'web' {
