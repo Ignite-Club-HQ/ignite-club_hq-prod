@@ -5,7 +5,7 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       java: 17
-      node: 18
+      node: 22
     scripts:
       - name: Install dependencies
         script: npm install
@@ -26,7 +26,7 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       xcode: latest
-      node: 18
+      node: 22
       cocoapods: default
     scripts:
       - name: Install dependencies
