@@ -21,26 +21,49 @@ export function NativeNotificationPrompt({ userId }: NativeNotificationPromptPro
   const [showResult, setShowResult] = useState<'success' | 'denied' | null>(null);
 
   useEffect(() => {
+    console.log("[NativeNotificationPrompt] useEffect triggered", {
+      isNative: Capacitor.isNativePlatform(),
+      platform: Capacitor.getPlatform(),
+      userId: userId,
+    });
+    
     // Only run on native platforms
-    if (!Capacitor.isNativePlatform()) return;
+    if (!Capacitor.isNativePlatform()) {
+      console.log("[NativeNotificationPrompt] Not native platform, skipping");
+      return;
+    }
     
     // Only proceed if user is logged in
-    if (!userId) return;
+    if (!userId) {
+      console.log("[NativeNotificationPrompt] No userId, skipping");
+      return;
+    }
     
     // Check if we've already prompted
     const hasPrompted = localStorage.getItem(NATIVE_NOTIFICATION_PROMPTED_KEY);
-    if (hasPrompted) return;
+    console.log("[NativeNotificationPrompt] hasPrompted:", hasPrompted);
+    if (hasPrompted) {
+      console.log("[NativeNotificationPrompt] Already prompted, skipping");
+      return;
+    }
+    
+    console.log("[NativeNotificationPrompt] Will trigger permission prompt in 1.5s");
     
     // Small delay to let the app settle, then directly request system permission
     const timer = setTimeout(async () => {
+      console.log("[NativeNotificationPrompt] Timer fired, requesting permission");
+      
       // Mark as prompted immediately to prevent re-triggering
       localStorage.setItem(NATIVE_NOTIFICATION_PROMPTED_KEY, "true");
       
       try {
         // Dynamically import to avoid issues on web
         const { initializeNativePush } = await import("@/lib/nativePush");
+        console.log("[NativeNotificationPrompt] Calling initializeNativePush");
         
         const result = await initializeNativePush(userId);
+        console.log("[NativeNotificationPrompt] initializeNativePush result:", result);
+        
         if (result.success) {
           console.log("[NativeNotificationPrompt] Push notifications enabled successfully");
           setShowResult('success');

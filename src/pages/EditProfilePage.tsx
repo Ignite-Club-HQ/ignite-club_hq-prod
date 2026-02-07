@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Loader2, User, Camera, Bell, MessageSquare, Calendar, Image, Users, Download, Smartphone, LayoutGrid, Send, Settings, FileText, Shield, Trash2, DatabaseBackup, Moon, Sun, Database, Mail, Gift, Trophy } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -14,17 +14,40 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { updateProfileCache } from "@/lib/profileCache";
-// Only import web push modules on non-native platforms to avoid issues
-import { 
-  subscribeToPushNotifications, 
-  unsubscribeFromPushNotifications, 
-  checkPushSubscription,
-  resetPushNotifications,
-  wasJustReset,
-  forceUnlockPushSubscription
-} from "@/lib/pushNotifications";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
-import { PushDiagnosticsCard } from "@/components/PushDiagnosticsCard";
+
+// Check if we're on native platform at module load time
+const isNativePlatform = Capacitor.isNativePlatform();
+console.log("[EditProfilePage] Module loading, isNativePlatform:", isNativePlatform);
+
+// Lazy load PushDiagnosticsCard only on web (it imports pushReliability which uses browser APIs)
+const PushDiagnosticsCard = !isNativePlatform 
+  ? lazy(() => import("@/components/PushDiagnosticsCard").then(m => ({ default: m.PushDiagnosticsCard })))
+  : null;
+
+// Only import push notification functions on web platforms
+// These access browser APIs that may not be available on native
+let subscribeToPushNotifications: any = null;
+let unsubscribeFromPushNotifications: any = null;
+let checkPushSubscription: any = null;
+let resetPushNotifications: any = null;
+let wasJustReset: any = null;
+let forceUnlockPushSubscription: any = null;
+
+// Dynamically import push modules only on web
+if (!isNativePlatform) {
+  import("@/lib/pushNotifications").then(module => {
+    subscribeToPushNotifications = module.subscribeToPushNotifications;
+    unsubscribeFromPushNotifications = module.unsubscribeFromPushNotifications;
+    checkPushSubscription = module.checkPushSubscription;
+    resetPushNotifications = module.resetPushNotifications;
+    wasJustReset = module.wasJustReset;
+    forceUnlockPushSubscription = module.forceUnlockPushSubscription;
+    console.log("[EditProfilePage] Push modules loaded successfully");
+  }).catch(err => {
+    console.error("[EditProfilePage] Failed to load push modules:", err);
+  });
+}
 
 
 interface NotificationPreferences {
@@ -135,7 +158,8 @@ export default function EditProfilePage() {
   useEffect(() => {
     const checkPushStatus = async () => {
       // Skip web push on native platforms - they use FCM instead
-      if (Capacitor.isNativePlatform()) {
+      if (isNativePlatform) {
+        console.log("[EditProfilePage] Native platform detected, skipping web push setup");
         setPushSupported(false);
         setPushLoading(false);
         return;
@@ -148,6 +172,14 @@ export default function EditProfilePage() {
           !('Notification' in window)) {
         setPushSupported(false);
         setPushLoading(false);
+        return;
+      }
+      
+      // Wait for push modules to be loaded
+      if (!checkPushSubscription || !wasJustReset) {
+        console.log("[EditProfilePage] Push modules not yet loaded, waiting...");
+        // Retry after a short delay
+        setTimeout(checkPushStatus, 100);
         return;
       }
       
@@ -183,6 +215,16 @@ export default function EditProfilePage() {
       toast({
         title: "Not logged in",
         description: "Please log in to enable push notifications",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Check if push modules are loaded
+    if (!subscribeToPushNotifications || !unsubscribeFromPushNotifications || !forceUnlockPushSubscription) {
+      toast({
+        title: "Push system loading",
+        description: "Please wait a moment and try again",
         variant: "destructive",
       });
       return;
@@ -1145,13 +1187,15 @@ export default function EditProfilePage() {
         </Card>
       )}
 
-      {/* Push Diagnostics Card */}
-      {pushSupported && user && (
-        <PushDiagnosticsCard
-          userId={user.id}
-          pushEnabled={pushEnabled}
-          onPushStatusChange={setPushEnabled}
-        />
+      {/* Push Diagnostics Card - only on web */}
+      {pushSupported && user && PushDiagnosticsCard && (
+        <Suspense fallback={<Card><CardContent className="py-6"><div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div></CardContent></Card>}>
+          <PushDiagnosticsCard
+            userId={user.id}
+            pushEnabled={pushEnabled}
+            onPushStatusChange={setPushEnabled}
+          />
+        </Suspense>
       )}
 
       {/* Email Notifications Card */}
