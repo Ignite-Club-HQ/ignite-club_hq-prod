@@ -395,7 +395,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       (event, currentSession) => {
         if (!mounted) return;
         
-        console.log('Auth state change:', event, currentSession?.user?.id);
+        // Check if we're in a native app context
+        const isNative = typeof (window as any).Capacitor !== 'undefined' && 
+                         (window as any).Capacitor?.isNativePlatform?.();
+        
+        console.log('Auth state change:', event, currentSession?.user?.id, 'isNative:', isNative);
         
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
@@ -403,6 +407,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (event === 'SIGNED_IN') {
           // FRESH LOGIN: Reset state to block AppLayout until profile is fetched
           // This prevents the double-flash to complete-profile page
+          console.log('[Auth] SIGNED_IN event - processing login', isNative ? '(native app)' : '(web)');
           setIsFreshLogin(true);
           setInitialized(false);
           setLoading(true);
@@ -410,9 +415,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           handleSession(currentSession, false, true);
         } else if ((event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && currentSession?.user) {
           // Page refresh or token refresh - don't override theme
+          console.log('[Auth] Session restored:', event, isNative ? '(native app)' : '(web)');
           setIsFreshLogin(false);
           handleSession(currentSession, event === 'INITIAL_SESSION', false);
         } else if (event === 'SIGNED_OUT') {
+          console.log('[Auth] SIGNED_OUT event');
           profileFetched = false;
           setIsFreshLogin(false);
           setProfile(null);
@@ -616,16 +623,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error as Error | null };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      return { error: error as Error | null };
+    } catch (err) {
+      console.error('[Auth] signIn error:', err);
+      return { error: err as Error };
+    }
   };
 
   const signInWithGoogle = async () => {
     // Check for pending redirect (e.g., from invite link)
     const pendingRedirect = sessionStorage.getItem("redirectAfterAuth");
+    
+    // For native apps, use the published app URL for OAuth redirects
+    // The WebView can't handle capacitor:// or ionic:// schemes for OAuth
+    const isNative = typeof (window as any).Capacitor !== 'undefined' && 
+                     (window as any).Capacitor?.isNativePlatform?.();
+    
+    // Use the published app URL for native, or current origin for web
+    const baseUrl = isNative 
+      ? 'https://ignite-club-launchpad.lovable.app'
+      : window.location.origin;
+    
     const redirectUrl = pendingRedirect 
-      ? `${window.location.origin}${pendingRedirect}`
-      : `${window.location.origin}/`;
+      ? `${baseUrl}${pendingRedirect}`
+      : `${baseUrl}/`;
+      
+    console.log('[Auth] Google OAuth redirect URL:', redirectUrl, 'isNative:', isNative);
+    
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
