@@ -86,6 +86,12 @@ export async function requestNativePermission(): Promise<'granted' | 'denied' | 
   }
 
   try {
+    // Check if plugin is available before calling it
+    if (!PushNotifications || typeof PushNotifications.requestPermissions !== 'function') {
+      console.warn('[NativePush] PushNotifications plugin not available');
+      return 'denied';
+    }
+    
     const result = await PushNotifications.requestPermissions();
     console.log('[NativePush] Permission result:', result.receive);
     
@@ -97,6 +103,7 @@ export async function requestNativePermission(): Promise<'granted' | 'denied' | 
     return 'prompt';
   } catch (err) {
     console.error('[NativePush] Error requesting permission:', err);
+    // Don't let this crash the app - just return denied
     return 'denied';
   }
 }
@@ -126,19 +133,37 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
   console.log('[NativePush] Initializing for user:', userId);
 
   try {
-    // Request permission
-    const permission = await requestNativePermission();
+    // Request permission - wrapped in try/catch to handle plugin not available
+    let permission: 'granted' | 'denied' | 'prompt';
+    try {
+      permission = await requestNativePermission();
+    } catch (permErr) {
+      console.warn('[NativePush] Permission request failed (plugin may not be configured):', permErr);
+      return { success: false, error: 'Push plugin not available' };
+    }
+    
     if (permission !== 'granted') {
       return { success: false, error: 'Push notification permission denied' };
     }
 
-    // Register with FCM
-    await PushNotifications.register();
-    console.log('[NativePush] Registered with push service');
+    // Register with FCM - this can crash if Firebase is not configured
+    try {
+      await PushNotifications.register();
+      console.log('[NativePush] Registered with push service');
+    } catch (regErr) {
+      console.warn('[NativePush] Registration failed (Firebase may not be configured):', regErr);
+      return { success: false, error: 'Push registration failed - Firebase not configured' };
+    }
 
-    // Get FCM token
-    const tokenResult = await FirebaseMessaging.getToken();
-    const token = tokenResult.token;
+    // Get FCM token - wrapped separately to catch Firebase-specific errors
+    let token: string | undefined;
+    try {
+      const tokenResult = await FirebaseMessaging.getToken();
+      token = tokenResult.token;
+    } catch (tokenErr) {
+      console.warn('[NativePush] Failed to get FCM token (Firebase not configured?):', tokenErr);
+      return { success: false, error: 'FCM token retrieval failed' };
+    }
     
     if (!token) {
       return { success: false, error: 'Failed to get FCM token' };
@@ -154,7 +179,8 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
 
     return { success: true };
   } catch (err) {
-    console.error('[NativePush] Error initializing:', err);
+    // Catch-all for any unexpected errors - should never crash the app
+    console.error('[NativePush] Unexpected error initializing:', err);
     return { success: false, error: String(err) };
   }
 }
