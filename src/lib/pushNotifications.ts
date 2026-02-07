@@ -142,21 +142,52 @@ async function ensureSWControlsPage(timeoutMs = 8000): Promise<boolean> {
 /**
  * Get service worker registration with proper activation handling
  */
+/**
+ * Detect if running on Safari (desktop or iOS)
+ */
+function isSafari(): boolean {
+  const ua = navigator.userAgent;
+  // Safari but not Chrome/Firefox/Edge etc.
+  return /^((?!chrome|android|crios|fxios|edgios).)*safari/i.test(ua) ||
+    // iOS PWA (standalone mode on iOS Safari)
+    (!!('standalone' in navigator) && (navigator as any).standalone);
+}
+
+/**
+ * Get service worker registration with proper activation handling
+ * Safari needs special handling as it's slower to activate SW
+ */
 async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
   if (!('serviceWorker' in navigator)) {
     console.log('[Push] Service workers not supported');
     return null;
   }
 
+  const safari = isSafari();
+  // Safari needs longer timeouts for SW activation
+  const activationTimeout = safari ? 15000 : 10000;
+  const readyTimeout = safari ? 8000 : 5000;
+  const stabilizationDelay = safari ? 1000 : 500;
+
   try {
-    console.log('[Push] Getting service worker registration...');
+    console.log('[Push] Getting service worker registration... (Safari:', safari, ')');
     
     // First, get existing registration for current page or register new one
     let registration = await navigator.serviceWorker.getRegistration();
     
     if (!registration) {
       console.log('[Push] No existing registration, registering new SW...');
-      registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      try {
+        registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        console.log('[Push] SW registered, waiting for it to activate...');
+        // Safari needs time after registration
+        if (safari) {
+          await wait(500);
+        }
+      } catch (regError) {
+        console.error('[Push] SW registration failed:', regError);
+        return null;
+      }
     }
     
     console.log('[Push] Registration found, state:', {
@@ -178,9 +209,9 @@ async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration
       
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
-          console.log('[Push] SW activation timeout after 10s');
+          console.log('[Push] SW activation timeout after', activationTimeout, 'ms');
           resolve(); // Don't reject, just continue
-        }, 10000);
+        }, activationTimeout);
         
         const checkState = () => {
           if (worker.state === 'activated' || registration?.active) {
@@ -198,8 +229,8 @@ async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration
       });
     }
     
-    // Wait a bit more for the SW to fully stabilize
-    await wait(500);
+    // Wait for the SW to fully stabilize (Safari needs more time)
+    await wait(stabilizationDelay);
     
     // Re-fetch registration to ensure we have the latest state
     registration = await navigator.serviceWorker.getRegistration();
@@ -209,15 +240,39 @@ async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration
       return registration;
     }
     
-    // Last resort: use navigator.serviceWorker.ready
+    // Safari often needs navigator.serviceWorker.ready to properly activate
     console.log('[Push] Falling back to navigator.serviceWorker.ready...');
     const readyRegistration = await Promise.race([
       navigator.serviceWorker.ready,
-      wait(5000).then(() => null)
+      wait(readyTimeout).then(() => null)
     ]);
     
     if (readyRegistration?.active) {
+      console.log('[Push] SW ready via navigator.serviceWorker.ready');
       return readyRegistration;
+    }
+    
+    // Safari-specific: Try one more time after a delay
+    if (safari) {
+      console.log('[Push] Safari: Extra wait and retry for SW activation...');
+      await wait(1500);
+      
+      registration = await navigator.serviceWorker.getRegistration();
+      if (registration?.active) {
+        console.log('[Push] Safari: SW now active after extra wait');
+        return registration;
+      }
+      
+      // Try forcing activation via ready again
+      const finalReady = await Promise.race([
+        navigator.serviceWorker.ready,
+        wait(5000).then(() => null)
+      ]);
+      
+      if (finalReady?.active) {
+        console.log('[Push] Safari: SW activated on final ready check');
+        return finalReady;
+      }
     }
     
     console.log('[Push] Could not get active SW');
@@ -425,16 +480,29 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
     const registration = await getServiceWorkerRegistration();
     
     if (!registration) {
-      return { 
-        success: false, 
-        error: isInIframe() 
-          ? 'Push requires the app to be opened directly. Please open in a new tab.'
-          : 'Service worker not available. Please refresh and try again.' 
-      };
+      const safari = isSafari();
+      let errorMsg = 'Service worker not available. ';
+      
+      if (isInIframe()) {
+        errorMsg = 'Push requires the app to be opened directly. Please open in a new tab.';
+      } else if (safari) {
+        errorMsg += 'Safari may need a moment to set up. Please wait a few seconds, then try toggling the switch again.';
+      } else {
+        errorMsg += 'Please refresh and try again.';
+      }
+      
+      return { success: false, error: errorMsg };
     }
 
     if (!registration.active) {
-      return { success: false, error: 'Service worker not active. Please refresh the page.' };
+      const safari = isSafari();
+      if (safari) {
+        return { 
+          success: false, 
+          error: 'Subscribing for push requires an active service worker. On Safari, please: 1) Wait 5 seconds, 2) Try the toggle again. If it still fails, close and reopen the app.' 
+        };
+      }
+      return { success: false, error: 'Service worker not active. Please refresh the page and try again.' };
     }
 
     console.log('[Push] Service worker active:', registration.active.scriptURL);
