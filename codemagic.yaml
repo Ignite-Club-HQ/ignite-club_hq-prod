@@ -13,6 +13,10 @@ workflows:
         script: npm run build
       - name: Add Android platform
         script: npx cap add android || true
+      - name: Copy Firebase config
+        script: |
+          mkdir -p android/app
+          cp firebase/google-services.json android/app/google-services.json
       - name: Sync Capacitor
         script: npx cap sync android
       - name: Build Android
