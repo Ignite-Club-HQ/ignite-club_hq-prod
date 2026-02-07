@@ -3,14 +3,13 @@ import { Capacitor } from "@capacitor/core";
 import {
   AlertDialog,
   AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Bell } from "lucide-react";
+import { Bell, CheckCircle, XCircle } from "lucide-react";
 
 const NATIVE_NOTIFICATION_PROMPTED_KEY = "native-notification-prompted";
 
@@ -19,89 +18,105 @@ interface NativeNotificationPromptProps {
 }
 
 export function NativeNotificationPrompt({ userId }: NativeNotificationPromptProps) {
-  const [showPrompt, setShowPrompt] = useState(false);
+  const [showResult, setShowResult] = useState<'success' | 'denied' | null>(null);
 
   useEffect(() => {
-    // Only show on native platforms
+    // Only run on native platforms
     if (!Capacitor.isNativePlatform()) return;
     
-    // Only show if user is logged in
+    // Only proceed if user is logged in
     if (!userId) return;
     
     // Check if we've already prompted
     const hasPrompted = localStorage.getItem(NATIVE_NOTIFICATION_PROMPTED_KEY);
     if (hasPrompted) return;
     
-    // Small delay to let the app settle before showing prompt
-    const timer = setTimeout(() => {
-      setShowPrompt(true);
+    // Small delay to let the app settle, then directly request system permission
+    const timer = setTimeout(async () => {
+      // Mark as prompted immediately to prevent re-triggering
+      localStorage.setItem(NATIVE_NOTIFICATION_PROMPTED_KEY, "true");
+      
+      try {
+        // Dynamically import to avoid issues on web
+        const { initializeNativePush } = await import("@/lib/nativePush");
+        
+        const result = await initializeNativePush(userId);
+        if (result.success) {
+          console.log("[NativeNotificationPrompt] Push notifications enabled successfully");
+          setShowResult('success');
+        } else {
+          console.warn("[NativeNotificationPrompt] Failed to enable push:", result.error);
+          // Only show denied message if user explicitly denied (not for technical errors)
+          if (result.error?.includes('denied')) {
+            setShowResult('denied');
+          }
+        }
+      } catch (err) {
+        console.error("[NativeNotificationPrompt] Error enabling notifications:", err);
+      }
     }, 1500);
     
     return () => clearTimeout(timer);
   }, [userId]);
 
-  const handleEnableNotifications = async () => {
-    // Mark as prompted
-    localStorage.setItem(NATIVE_NOTIFICATION_PROMPTED_KEY, "true");
-    setShowPrompt(false);
-    
-    try {
-      // Dynamically import to avoid issues on web
-      const { initializeNativePush } = await import("@/lib/nativePush");
-      
-      if (userId) {
-        const result = await initializeNativePush(userId);
-        if (result.success) {
-          console.log("[NativeNotificationPrompt] Push notifications enabled successfully");
-        } else {
-          console.warn("[NativeNotificationPrompt] Failed to enable push:", result.error);
-        }
-      }
-    } catch (err) {
-      console.error("[NativeNotificationPrompt] Error enabling notifications:", err);
-    }
+  const handleDismiss = () => {
+    setShowResult(null);
   };
 
-  const handleSkip = () => {
-    // Mark as prompted so we don't ask again
-    localStorage.setItem(NATIVE_NOTIFICATION_PROMPTED_KEY, "true");
-    setShowPrompt(false);
-  };
-
-  if (!showPrompt) return null;
-
-  return (
-    <AlertDialog open={showPrompt} onOpenChange={setShowPrompt}>
-      <AlertDialogContent className="max-w-sm">
-        <AlertDialogHeader>
-          <div className="flex justify-center mb-4">
-            <div className="p-4 rounded-full bg-primary/10">
-              <Bell className="h-8 w-8 text-primary" />
+  // Show a brief confirmation dialog after permission result
+  if (showResult === 'success') {
+    return (
+      <AlertDialog open={true} onOpenChange={handleDismiss}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <div className="flex justify-center mb-4">
+              <div className="p-4 rounded-full bg-green-500/10">
+                <CheckCircle className="h-8 w-8 text-green-500" />
+              </div>
             </div>
-          </div>
-          <AlertDialogTitle className="text-center">
-            Enable Notifications
-          </AlertDialogTitle>
-          <AlertDialogDescription className="text-center">
-            Stay updated with match times, team messages, and important club announcements. 
-            You can change this anytime in settings.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
-          <AlertDialogAction 
-            onClick={handleEnableNotifications}
-            className="w-full"
-          >
-            Enable Notifications
-          </AlertDialogAction>
-          <AlertDialogCancel 
-            onClick={handleSkip}
-            className="w-full"
-          >
-            Maybe Later
-          </AlertDialogCancel>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
+            <AlertDialogTitle className="text-center">
+              Notifications Enabled
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center">
+              You'll receive updates about match times, team messages, and important announcements.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={handleDismiss} className="w-full">
+              Got it
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  }
+
+  if (showResult === 'denied') {
+    return (
+      <AlertDialog open={true} onOpenChange={handleDismiss}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <div className="flex justify-center mb-4">
+              <div className="p-4 rounded-full bg-muted">
+                <Bell className="h-8 w-8 text-muted-foreground" />
+              </div>
+            </div>
+            <AlertDialogTitle className="text-center">
+              Notifications Disabled
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center">
+              You can enable notifications later in your device settings or in your profile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={handleDismiss} className="w-full">
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  }
+
+  return null;
 }
