@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Capacitor } from "@capacitor/core";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -8,8 +9,8 @@ interface BeforeInstallPromptEvent extends Event {
 // Store the prompt globally so it persists across component remounts
 let globalDeferredPrompt: BeforeInstallPromptEvent | null = null;
 
-// Set up global listener early
-if (typeof window !== 'undefined') {
+// Set up global listener early - only on web platforms
+if (typeof window !== 'undefined' && !Capacitor.isNativePlatform()) {
   window.addEventListener("beforeinstallprompt", (e: Event) => {
     e.preventDefault();
     globalDeferredPrompt = e as BeforeInstallPromptEvent;
@@ -22,10 +23,15 @@ const MIN_INSTALLING_TIME = 6000;
 const MAX_INSTALLING_TIME = 10000;
 
 export function usePWAInstall() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(globalDeferredPrompt);
-  const [canPrompt, setCanPrompt] = useState(!!globalDeferredPrompt);
+  // On native platforms, PWA install is not applicable
+  const isNative = Capacitor.isNativePlatform();
+  
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(isNative ? null : globalDeferredPrompt);
+  const [canPrompt, setCanPrompt] = useState(isNative ? false : !!globalDeferredPrompt);
   // Check standalone mode immediately to prevent flash of install UI
+  // On native, consider the app as "installed"
   const [isInstalled, setIsInstalled] = useState(() => {
+    if (isNative) return true;
     if (typeof window !== 'undefined') {
       return window.matchMedia("(display-mode: standalone)").matches;
     }
@@ -33,13 +39,16 @@ export function usePWAInstall() {
   });
   const [isInstalling, setIsInstalling] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
-  const [isReady, setIsReady] = useState(false);
+  const [isReady, setIsReady] = useState(isNative); // Ready immediately on native
   
   // Track when installation was accepted and when appinstalled event fired
   const installAcceptedAt = useRef<number | null>(null);
   const appInstalledEventFired = useRef(false);
 
   useEffect(() => {
+    // Skip all PWA logic on native platforms
+    if (isNative) return;
+    
     try {
       // Check if app is already installed (running as standalone)
       if (window.matchMedia("(display-mode: standalone)").matches) {
