@@ -103,12 +103,16 @@ export function isNativePlatform(): boolean {
       const { Capacitor: Cap } = require('@capacitor/core');
       Capacitor = Cap;
       capacitorLoaded = true;
-    } catch {
+      console.log('[NativePush] Loaded Capacitor synchronously');
+    } catch (err) {
       // Can't load synchronously, assume not native
+      console.log('[NativePush] Could not load Capacitor synchronously:', err);
       return false;
     }
   }
-  return checkIsNative();
+  const isNative = checkIsNative();
+  console.log('[NativePush] isNativePlatform check:', isNative);
+  return isNative;
 }
 
 export function getPlatform(): 'android' | 'ios' | 'web' {
@@ -229,7 +233,10 @@ export async function checkNativePermission(): Promise<'granted' | 'denied' | 'p
 
 // Initialize native push notifications
 export async function initializeNativePush(userId: string): Promise<{ success: boolean; error?: string }> {
+  console.log('[NativePush] initializeNativePush called with userId:', userId);
+  
   if (!isNativePlatform()) {
+    console.log('[NativePush] Not a native platform, returning early');
     return { success: false, error: 'Not a native platform' };
   }
 
@@ -237,15 +244,20 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
 
   try {
     // Load plugins first
+    console.log('[NativePush] Loading plugins...');
     const loaded = await loadPlugins();
+    console.log('[NativePush] Plugins loaded:', loaded);
+    
     if (!loaded) {
       return { success: false, error: 'Failed to load push plugins' };
     }
 
     // Request permission
+    console.log('[NativePush] Requesting permission...');
     let permission: 'granted' | 'denied' | 'prompt';
     try {
       permission = await requestNativePermission();
+      console.log('[NativePush] Permission result:', permission);
     } catch (permErr) {
       console.warn('[NativePush] Permission request failed:', permErr);
       return { success: false, error: 'Push plugin not available' };
@@ -256,6 +268,7 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
     }
 
     // Register with FCM
+    console.log('[NativePush] Registering with push service...');
     try {
       await PushNotifications.register();
       console.log('[NativePush] Registered with push service');
