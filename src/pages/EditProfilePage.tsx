@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Loader2, User, Camera, Bell, MessageSquare, Calendar, Image, Users, Download, Smartphone, LayoutGrid, Send, Settings, FileText, Shield, Trash2, DatabaseBackup, Moon, Sun, Database, Mail, Gift, Trophy } from "lucide-react";
 import { useTheme } from "next-themes";
+import { Capacitor } from "@capacitor/core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { updateProfileCache } from "@/lib/profileCache";
+// Only import web push modules on non-native platforms to avoid issues
 import { 
   subscribeToPushNotifications, 
   unsubscribeFromPushNotifications, 
@@ -132,6 +134,13 @@ export default function EditProfilePage() {
   // Check push notification status
   useEffect(() => {
     const checkPushStatus = async () => {
+      // Skip web push on native platforms - they use FCM instead
+      if (Capacitor.isNativePlatform()) {
+        setPushSupported(false);
+        setPushLoading(false);
+        return;
+      }
+      
       // Guard against SSR and missing APIs
       if (typeof window === 'undefined' || 
           !('PushManager' in window) || 
