@@ -43,6 +43,10 @@
 import { createRoot } from "react-dom/client"; // rebuild v2
 import App from "./App.tsx";
 import "./index.css";
+import { initDeepLinkHandler } from "./lib/deepLinkHandler";
+
+// Initialize deep link handler for native OAuth callbacks
+initDeepLinkHandler();
 
 // Declare global types
 declare global {
