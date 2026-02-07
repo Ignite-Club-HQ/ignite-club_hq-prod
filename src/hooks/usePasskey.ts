@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 
 // WebAuthn utilities
@@ -42,6 +43,13 @@ export function isWebAuthnAvailable(): boolean {
 
 // Check if platform authenticator (biometrics) is available
 export async function isPlatformAuthenticatorAvailable(): Promise<boolean> {
+  // In native Capacitor apps, biometrics are typically available on modern iOS/Android
+  // WebAuthn may not work in WebView, so we assume biometrics exist on native platforms
+  if (Capacitor.isNativePlatform()) {
+    console.log('[Passkey] Native platform detected - assuming biometrics available');
+    return true;
+  }
+  
   if (!isWebAuthnAvailable()) return false;
   try {
     return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
