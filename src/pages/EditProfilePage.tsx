@@ -34,6 +34,11 @@ const LazyPushDiagnosticsCard = !SKIP_WEB_PUSH
   ? lazy(() => import("@/components/PushDiagnosticsCard").then(m => ({ default: m.PushDiagnosticsCard })))
   : () => null;
 
+// Lazy load NativePushCard only on native platforms
+const LazyNativePushCard = SKIP_WEB_PUSH
+  ? lazy(() => import("@/components/NativePushCard").then(m => ({ default: m.NativePushCard })))
+  : () => null;
+
 
 interface NotificationPreferences {
   messages_enabled: boolean;
@@ -1150,6 +1155,13 @@ export default function EditProfilePage() {
             pushEnabled={pushEnabled}
             onPushStatusChange={setPushEnabled}
           />
+        </Suspense>
+      )}
+
+      {/* Native Push Card - only on native platforms */}
+      {SKIP_WEB_PUSH && user && (
+        <Suspense fallback={<Card><CardContent className="py-6"><div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div></CardContent></Card>}>
+          <LazyNativePushCard userId={user.id} />
         </Suspense>
       )}
 
