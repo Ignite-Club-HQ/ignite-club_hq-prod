@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import igniteIconLight from "@/assets/ignite-icon-light.png";
 import igniteIcon from "@/assets/ignite-icon.png";
+import { Capacitor } from "@capacitor/core";
 
 export function AppLayout() {
   const { user, profile, loading, profileLoading, profileError, refreshProfile, initialized } = useAuth();
@@ -188,8 +189,11 @@ export function AppLayout() {
     return <Navigate to="/complete-profile" replace />;
   }
 
+  // Only apply pt-safe padding for PWA/web - native apps handle this via StatusBarManager
+  const isNative = Capacitor.isNativePlatform();
+  
   return (
-    <div className="min-h-screen bg-background flex flex-col pt-safe">
+    <div className={`min-h-screen bg-background flex flex-col ${isNative ? '' : 'pt-safe'}`}>
       <AppHeader />
       <main className="flex-1 pb-20 px-4 max-w-lg mx-auto w-full">
         <Outlet />

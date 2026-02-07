@@ -32,8 +32,8 @@ export function StatusBarManager() {
           }
         }
 
-        // Make status bar overlay the WebView (for immersive look)
-        await StatusBar.setOverlaysWebView({ overlay: true });
+        // Don't overlay - let the native platform handle status bar spacing
+        await StatusBar.setOverlaysWebView({ overlay: false });
       } catch (error) {
         console.log('[StatusBar] Error configuring status bar:', error);
       }
