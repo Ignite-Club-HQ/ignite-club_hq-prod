@@ -7,6 +7,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
 import igniteIconLight from "@/assets/ignite-icon-light.png";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { Capacitor } from "@capacitor/core";
@@ -200,6 +201,7 @@ export function AppLayout() {
       </main>
       <BottomNav />
       <OfflineIndicator />
+      <NativeNotificationPrompt userId={user?.id} />
     </div>
   );
 }
