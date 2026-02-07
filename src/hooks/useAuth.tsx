@@ -642,6 +642,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                      (window as any).Capacitor?.isNativePlatform?.();
     
     // Use the published app URL for native, or current origin for web
+    // For native: OAuth will redirect to the published URL, which triggers App Links
+    // and brings the user back into the native app with the tokens
     const baseUrl = isNative 
       ? 'https://ignite-club-launchpad.lovable.app'
       : window.location.origin;
@@ -656,6 +658,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       provider: 'google',
       options: {
         redirectTo: redirectUrl,
+        // Skip the browser redirect - we'll handle token exchange in the app
+        // This is needed for the native app to capture the callback
+        skipBrowserRedirect: false,
       },
     });
     return { error: error as Error | null };
