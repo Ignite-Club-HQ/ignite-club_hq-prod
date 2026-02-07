@@ -43,11 +43,11 @@ export function isWebAuthnAvailable(): boolean {
 
 // Check if platform authenticator (biometrics) is available
 export async function isPlatformAuthenticatorAvailable(): Promise<boolean> {
-  // In native Capacitor apps, biometrics are typically available on modern iOS/Android
-  // WebAuthn may not work in WebView, so we assume biometrics exist on native platforms
+  // WebAuthn does NOT work in Capacitor WebViews - the browser engine doesn't support it
+  // Hide biometric login option on native platforms since it will always fail
   if (Capacitor.isNativePlatform()) {
-    console.log('[Passkey] Native platform detected - assuming biometrics available');
-    return true;
+    console.log('[Passkey] Native platform detected - WebAuthn not supported in WebView');
+    return false;
   }
   
   if (!isWebAuthnAvailable()) return false;
