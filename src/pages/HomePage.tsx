@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense, useMemo } from "react";
+import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import SoccerBall from "@/components/pitch/SoccerBall";
@@ -1503,7 +1504,8 @@ export default function HomePage() {
           onRecovered={() => queryClient.invalidateQueries()}
         />
       )}
-      {!isInstalled && showInstallCard && isReady && (
+      {/* Hide install card on native apps */}
+      {!Capacitor.isNativePlatform() && !isInstalled && showInstallCard && isReady && (
         <Card 
           className="border-primary/30 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors"
           onClick={() => {
