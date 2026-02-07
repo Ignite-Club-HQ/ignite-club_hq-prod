@@ -12,6 +12,12 @@ export function IOSInstallPrompt() {
 
   useEffect(() => {
     try {
+      // Skip if running as native Capacitor app
+      const isNativeApp = !!(window as any).Capacitor?.isNativePlatform?.();
+      if (isNativeApp) {
+        return;
+      }
+
       // Check if iOS Safari (not in standalone mode)
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
       const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
