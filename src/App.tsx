@@ -15,6 +15,7 @@ import { IOSInstallPrompt } from "@/components/IOSInstallPrompt";
 import { PushNotificationManager } from "@/components/PushNotificationManager";
 import { PWAPendingInviteHandler } from "@/components/PWAPendingInviteHandler";
 import { BrowserCompatibilityCheck } from "@/components/BrowserCompatibilityCheck";
+import { StatusBarManager } from "@/components/StatusBarManager";
 import { Loader2 } from "lucide-react";
 
 // OAuth callback capture is now handled in main.tsx (runs earlier)
@@ -191,6 +192,7 @@ const App = () => (
             <CookieConsentBanner />
             <IOSInstallPrompt />
             <PushNotificationManager />
+            <StatusBarManager />
             <BrowserCompatibilityCheck />
           </BrowserRouter>
           </TooltipProvider>

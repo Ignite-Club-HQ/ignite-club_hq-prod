@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Loader2, User, Camera, Bell, MessageSquare, Calendar, Image, Users, Download, Smartphone, LayoutGrid, Send, Settings, FileText, Shield, Trash2, DatabaseBackup, Moon, Sun, Database, Mail, Gift, Trophy } from "lucide-react";
 import { useTheme } from "next-themes";
+import { Capacitor } from "@capacitor/core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,16 +14,30 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { updateProfileCache } from "@/lib/profileCache";
-import { 
-  subscribeToPushNotifications, 
-  unsubscribeFromPushNotifications, 
-  checkPushSubscription,
-  resetPushNotifications,
-  wasJustReset,
-  forceUnlockPushSubscription
-} from "@/lib/pushNotifications";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
-import { PushDiagnosticsCard } from "@/components/PushDiagnosticsCard";
+
+// Check if we're on native platform at module load time - wrapped in try/catch for safety
+let isNativePlatform = false;
+try {
+  isNativePlatform = Capacitor.isNativePlatform();
+} catch (e) {
+  console.warn("[EditProfilePage] Error checking native platform:", e);
+}
+console.log("[EditProfilePage] Module loading, isNativePlatform:", isNativePlatform);
+
+// COMPLETELY skip all web push related imports and features on native
+// This prevents any browser API access that causes blank screens
+const SKIP_WEB_PUSH = isNativePlatform;
+
+// Lazy load PushDiagnosticsCard only on web
+const LazyPushDiagnosticsCard = !SKIP_WEB_PUSH 
+  ? lazy(() => import("@/components/PushDiagnosticsCard").then(m => ({ default: m.PushDiagnosticsCard })))
+  : () => null;
+
+// Lazy load NativePushCard only on native platforms
+const LazyNativePushCard = SKIP_WEB_PUSH
+  ? lazy(() => import("@/components/NativePushCard").then(m => ({ default: m.NativePushCard })))
+  : () => null;
 
 
 interface NotificationPreferences {
@@ -55,9 +70,10 @@ export default function EditProfilePage() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   
   const [saving, setSaving] = useState(false);
+  // On native, skip all web push state - just mark as not supported
   const [pushEnabled, setPushEnabled] = useState(false);
-  const [pushLoading, setPushLoading] = useState(true);
-  const [pushSupported, setPushSupported] = useState(true);
+  const [pushLoading, setPushLoading] = useState(!SKIP_WEB_PUSH); // Don't load on native
+  const [pushSupported, setPushSupported] = useState(!SKIP_WEB_PUSH); // Not supported on native
   const [preferences, setPreferences] = useState<NotificationPreferences>({
     messages_enabled: true,
     events_enabled: true,
@@ -129,8 +145,14 @@ export default function EditProfilePage() {
     loadPreferences();
   }, [user]);
 
-  // Check push notification status
+  // Check push notification status - COMPLETELY SKIP on native
   useEffect(() => {
+    // On native, web push is not used at all
+    if (SKIP_WEB_PUSH) {
+      console.log("[EditProfilePage] Native platform - skipping web push entirely");
+      return;
+    }
+    
     const checkPushStatus = async () => {
       // Guard against SSR and missing APIs
       if (typeof window === 'undefined' || 
@@ -142,33 +164,38 @@ export default function EditProfilePage() {
         return;
       }
       
-      // Check if we just reset - show a toast
-      if (wasJustReset()) {
-        toast({
-          title: "Push notifications reset",
-          description: "Wait a few seconds, then enable notifications again",
-        });
+      try {
+        // Dynamically import push modules
+        const pushModule = await import("@/lib/pushNotifications");
+        const { checkPushSubscription, wasJustReset } = pushModule;
+        
+        // Check if we just reset - show a toast
+        if (wasJustReset()) {
+          toast({
+            title: "Push notifications reset",
+            description: "Wait a few seconds, then enable notifications again",
+          });
+        }
+        
+        // Pass user ID to also verify subscription exists in database
+        const isSubscribed = await checkPushSubscription(user?.id);
+        setPushEnabled(isSubscribed);
+        setPushLoading(false);
+      } catch (err) {
+        console.error("[EditProfilePage] Failed to load push modules:", err);
+        setPushSupported(false);
+        setPushLoading(false);
       }
-      
-      // Pass user ID to also verify subscription exists in database
-      const isSubscribed = await checkPushSubscription(user?.id);
-      setPushEnabled(isSubscribed);
-      setPushLoading(false);
     };
     
     checkPushStatus();
   }, [toast, user?.id]);
 
   const handlePushToggle = async (enabled: boolean) => {
+    // Skip on native
+    if (SKIP_WEB_PUSH) return;
+    
     console.log('[EditProfile] === Push toggle clicked ===');
-    console.log('[EditProfile] enabled:', enabled);
-    console.log('[EditProfile] user:', !!user);
-    console.log('[EditProfile] pushLoading:', pushLoading);
-    console.log('[EditProfile] Current Notification.permission:', 
-      typeof window !== 'undefined' && 'Notification' in window 
-        ? window.Notification.permission 
-        : 'N/A'
-    );
     
     if (!user) {
       toast({
@@ -181,46 +208,30 @@ export default function EditProfilePage() {
     
     setPushLoading(true);
     
-    // Show immediate feedback that we're trying
-    console.log('[EditProfile] Setting pushLoading to true');
-    
-    // Force clear any stale lock before user-initiated toggle
-    forceUnlockPushSubscription();
-    
     try {
+      const pushModule = await import("@/lib/pushNotifications");
+      const { subscribeToPushNotifications, unsubscribeFromPushNotifications, forceUnlockPushSubscription } = pushModule;
+      
+      // Force clear any stale lock before user-initiated toggle
+      forceUnlockPushSubscription();
+      
       if (enabled) {
-        console.log('[EditProfile] Calling subscribeToPushNotifications...');
-        console.log('[EditProfile] Current Notification.permission before call:', 
-          typeof window !== 'undefined' && 'Notification' in window 
-            ? window.Notification.permission 
-            : 'N/A'
-        );
-        
         toast({ title: "Enabling push notifications...", description: "Please allow notifications if prompted" });
         const result = await subscribeToPushNotifications(user.id);
-        console.log('[EditProfile] Subscribe result:', JSON.stringify(result));
-        console.log('[EditProfile] Notification.permission after call:', 
-          typeof window !== 'undefined' && 'Notification' in window 
-            ? window.Notification.permission 
-            : 'N/A'
-        );
         
         if (result.success) {
           setPushEnabled(true);
           toast({ title: "Push notifications enabled" });
         } else {
           const errorMsg = result.error || "Please check your browser permissions";
-          console.error('[EditProfile] Push subscription failed:', errorMsg);
-          // Always show the error to user
           toast({ 
             title: "Could not enable notifications", 
             description: errorMsg,
             variant: "destructive",
-            duration: 20000 // Longer duration so user can read instructions
+            duration: 20000
           });
         }
       } else {
-        console.log('[EditProfile] Calling unsubscribeToPushNotifications...');
         await unsubscribeFromPushNotifications(user.id);
         setPushEnabled(false);
         toast({ title: "Push notifications disabled" });
@@ -1136,13 +1147,22 @@ export default function EditProfilePage() {
         </Card>
       )}
 
-      {/* Push Diagnostics Card */}
-      {pushSupported && user && (
-        <PushDiagnosticsCard
-          userId={user.id}
-          pushEnabled={pushEnabled}
-          onPushStatusChange={setPushEnabled}
-        />
+      {/* Push Diagnostics Card - only on web, skip entirely on native */}
+      {!SKIP_WEB_PUSH && pushSupported && user && (
+        <Suspense fallback={<Card><CardContent className="py-6"><div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div></CardContent></Card>}>
+          <LazyPushDiagnosticsCard
+            userId={user.id}
+            pushEnabled={pushEnabled}
+            onPushStatusChange={setPushEnabled}
+          />
+        </Suspense>
+      )}
+
+      {/* Native Push Card - only on native platforms */}
+      {SKIP_WEB_PUSH && user && (
+        <Suspense fallback={<Card><CardContent className="py-6"><div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div></CardContent></Card>}>
+          <LazyNativePushCard userId={user.id} />
+        </Suspense>
       )}
 
       {/* Email Notifications Card */}

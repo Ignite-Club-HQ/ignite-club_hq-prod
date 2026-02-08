@@ -10,17 +10,68 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
-    FirebaseMessaging: {
-      // Auto-initialize FCM
-      presentationOptions: ['badge', 'sound', 'alert'],
-    },
+    // NOTE: FirebaseMessaging is intentionally NOT configured here
+    // to prevent app crashes when google-services.json is missing.
+    // Firebase will be initialized lazily via JavaScript when available.
+    // Once you add google-services.json (Android) or GoogleService-Info.plist (iOS),
+    // you can optionally add FirebaseMessaging config here for better performance.
   },
   android: {
     allowMixedContent: true,
+    // Keep all navigation inside the WebView
+    appendUserAgent: 'IgniteClubHQ-Android',
   },
   ios: {
     contentInset: 'automatic',
+    // Keep all navigation inside the WebView
+    appendUserAgent: 'IgniteClubHQ-iOS',
+    allowsLinkPreview: false,
+  },
+  // Server configuration - keep navigation in app
+  server: {
+    // Don't open links in external browser
+    androidScheme: 'https',
+    iosScheme: 'ionic',
+    // Handle navigation internally
+    hostname: 'ignite.app',
   },
 };
 
 export default config;
+
+/*
+ * IMPORTANT: Deep Linking Setup for Google OAuth
+ * ================================================
+ * 
+ * For Google OAuth to return to the native app after authentication,
+ * you need to configure App Links (Android) and Universal Links (iOS).
+ * 
+ * ANDROID: Add to android/app/src/main/AndroidManifest.xml inside <activity>:
+ * 
+ *   <intent-filter android:autoVerify="true">
+ *     <action android:name="android.intent.action.VIEW" />
+ *     <category android:name="android.intent.category.DEFAULT" />
+ *     <category android:name="android.intent.category.BROWSABLE" />
+ *     <data android:scheme="https" 
+ *           android:host="ignite-club-launchpad.lovable.app" />
+ *   </intent-filter>
+ * 
+ * iOS: Add to ios/App/App/Info.plist:
+ * 
+ *   <key>CFBundleURLTypes</key>
+ *   <array>
+ *     <dict>
+ *       <key>CFBundleURLSchemes</key>
+ *       <array>
+ *         <string>app.lovable.igniteteamhub</string>
+ *       </array>
+ *     </dict>
+ *   </array>
+ * 
+ * And add Associated Domains in Xcode:
+ *   applinks:ignite-club-launchpad.lovable.app
+ * 
+ * HOSTING: You also need to host verification files:
+ *   - Android: /.well-known/assetlinks.json
+ *   - iOS: /.well-known/apple-app-site-association
+ */

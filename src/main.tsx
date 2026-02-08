@@ -43,6 +43,15 @@
 import { createRoot } from "react-dom/client"; // rebuild v2
 import App from "./App.tsx";
 import "./index.css";
+import { initDeepLinkHandler } from "./lib/deepLinkHandler";
+import { initNotificationLaunchHandler } from "./lib/notificationLaunchHandler";
+
+// Initialize deep link handler for native OAuth callbacks
+initDeepLinkHandler();
+
+// Initialize notification launch handler for native push notification taps
+// This MUST be called early to catch the launch notification action
+initNotificationLaunchHandler();
 
 // Declare global types
 declare global {
