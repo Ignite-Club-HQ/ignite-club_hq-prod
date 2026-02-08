@@ -6,6 +6,7 @@
  * - Token refresh handling
  * - Notification listeners
  * - Cleanup on logout
+ * - Processing pending notification navigation from cold start
  * 
  * IMPORTANT: This hook is designed to fail gracefully if Firebase/FCM is not configured.
  * The native app will NOT crash if google-services.json or GoogleService-Info.plist is missing,
@@ -16,6 +17,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { processPendingNotificationNavigation } from '@/lib/notificationLaunchHandler';
 
 // Lazy import everything to prevent crashes at module load time
 let nativePushModule: typeof import('@/lib/nativePush') | null = null;
@@ -49,19 +51,30 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
   const cleanupRef = useRef<(() => void) | null>(null);
   const initializedRef = useRef(false);
   const [isNative, setIsNative] = useState(false);
+  const pendingNavProcessed = useRef(false);
 
-  // Check if we're on native platform (async to be safe)
+  // Check if we're on native platform and handle pending notification navigation
   useEffect(() => {
     loadNativePushModule().then(mod => {
       if (mod) {
         try {
-          setIsNative(mod.isNativePlatform());
+          const native = mod.isNativePlatform();
+          setIsNative(native);
+          
+          // On native, check for any pending notification navigation
+          if (native && !pendingNavProcessed.current) {
+            pendingNavProcessed.current = true;
+            const wasProcessed = processPendingNotificationNavigation(navigate);
+            if (wasProcessed) {
+              console.log('[useNativePush] Processed pending notification navigation');
+            }
+          }
         } catch {
           setIsNative(false);
         }
       }
     });
-  }, []);
+  }, [navigate]);
 
   // Save refreshed token to database
   const handleTokenRefresh = useCallback(async (token: string) => {
