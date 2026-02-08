@@ -800,7 +800,7 @@ export default function BroadcastChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 py-4 flex flex-col overscroll-contain relative" ref={pullRefreshRef}>
+      <div className="flex-1 min-h-0 py-4 flex flex-col relative" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
         <PullToRefreshIndicator
           pullDistance={pullDistance}
           pullProgress={pullProgress}
