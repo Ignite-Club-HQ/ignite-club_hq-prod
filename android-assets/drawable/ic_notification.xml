@@ -3,8 +3,8 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Outer flame shape with curved top like Ignite icon -->
+    <!-- Larger flame shape filling more of the viewport -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M12,2C12,2 7,8 7,13C7,16 8.5,18 10,19C9,17.5 9,15 10.5,13C12,11 12,9 12,9C12,9 13,11.5 13,14C13,16 12,17.5 11,19C12.5,19.5 14.5,19 16,17C18,14.5 17,10 12,2Z"/>
+        android:pathData="M12,1C12,1 5,9 5,15C5,19 7.5,22 10,23C8.5,21 8.5,18 10.5,15.5C12.5,13 12.5,10 12.5,10C12.5,10 14,13 14,16.5C14,19 12.5,21 11,23C13,23.5 16,23 18,20C21,16.5 19.5,10 12,1Z"/>
 </vector>
