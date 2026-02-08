@@ -10,11 +10,10 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
-    // NOTE: FirebaseMessaging is intentionally NOT configured here
-    // to prevent app crashes when google-services.json is missing.
-    // Firebase will be initialized lazily via JavaScript when available.
-    // Once you add google-services.json (Android) or GoogleService-Info.plist (iOS),
-    // you can optionally add FirebaseMessaging config here for better performance.
+    FirebaseMessaging: {
+      // Use custom notification icon for Android
+      presentationOptions: ['badge', 'sound', 'alert'],
+    },
   },
   android: {
     allowMixedContent: true,

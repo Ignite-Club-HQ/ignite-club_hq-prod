@@ -19,6 +19,17 @@ workflows:
           cp firebase/google-services.json android/app/google-services.json
       - name: Sync Capacitor
         script: npx cap sync android
+      - name: Copy app icons
+        script: |
+          cp -r android-assets/mipmap-* android/app/src/main/res/
+          mkdir -p android/app/src/main/res/drawable
+          cp android-assets/drawable/ic_notification.png android/app/src/main/res/drawable/
+          mkdir -p android/app/src/main/res/values
+          cp android-assets/res-values/colors.xml android/app/src/main/res/values/colors.xml
+      - name: Configure notification icon
+        script: |
+          # Add meta-data for default notification icon and color to AndroidManifest.xml
+          sed -i 's|</application>|<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification"/>\n<meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/ignite_green"/>\n</application>|' android/app/src/main/AndroidManifest.xml
       - name: Build Android
         script: |
           cd android
