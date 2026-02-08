@@ -175,7 +175,7 @@ export function ChatMembersSheet({
           <Users className="h-4 w-4" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-[300px] sm:w-[400px] pt-[calc(1.5rem+env(safe-area-inset-top,0px))]">
+      <SheetContent side="right" className="w-[300px] sm:w-[400px]">
         <SheetHeader>
           <SheetTitle>{chatName}</SheetTitle>
         </SheetHeader>
