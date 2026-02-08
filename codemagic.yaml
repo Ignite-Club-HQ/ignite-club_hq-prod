@@ -21,7 +21,13 @@ workflows:
         script: npx cap sync android
       - name: Copy app icons
         script: |
+          # Remove Capacitor default icons first, then copy our custom ones
+          rm -rf android/app/src/main/res/mipmap-*
           cp -r android-assets/mipmap-* android/app/src/main/res/
+          # Also copy as round icons for devices that use them
+          for dir in android/app/src/main/res/mipmap-*; do
+            cp "$dir/ic_launcher.png" "$dir/ic_launcher_round.png" 2>/dev/null || true
+          done
           mkdir -p android/app/src/main/res/drawable
           cp android-assets/drawable/ic_notification.png android/app/src/main/res/drawable/
           mkdir -p android/app/src/main/res/values
