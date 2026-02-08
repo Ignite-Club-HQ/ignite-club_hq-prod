@@ -971,8 +971,8 @@ export default function ClubChatPage() {
   // Block access for non-Pro users - show full page blocker
   if (!isLoadingClubSubscription && !canAccessClubChat) {
   return (
-    <div className="flex flex-col h-[calc(100dvh-12rem)] pb-[env(safe-area-inset-bottom,1rem)]">
-        <div className="flex items-center gap-3 px-4 py-4 border-b bg-card sticky top-0 z-10">
+    <div className="flex flex-col h-[100dvh] pt-[env(safe-area-inset-top,0px)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))]">
+        <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">
           <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -1008,9 +1008,9 @@ export default function ClubChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-12rem)] pb-[env(safe-area-inset-bottom,1rem)]">
+    <div className="flex flex-col h-[100dvh] pt-[env(safe-area-inset-top,0px)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))]">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-4 border-b bg-card sticky top-0 z-10">
+      <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -1126,7 +1126,7 @@ export default function ClubChatPage() {
 
       {/* Input (for users with Pro access: app_admin, club admin, or Pro team member) */}
       {canAccessClubChat && (
-        <div className="border-t py-4">
+        <div className="border-t py-3 px-4 bg-background shrink-0">
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           <div className="flex gap-2 items-end">
