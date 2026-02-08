@@ -3823,7 +3823,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   : "bg-muted text-foreground hover:bg-muted/80 border border-border"
               )}
               style={{
-                bottom: toolbarCollapsed ? floatingSubsPosition.y : 16,
+                bottom: `calc(${toolbarCollapsed ? floatingSubsPosition.y : 16}px + env(safe-area-inset-bottom, 0px))`,
                 right: toolbarCollapsed ? floatingSubsPosition.x + 160 : isTabletLandscape ? 304 : isDesktopLandscape ? 336 : 240,
                 touchAction: "none",
               }}
@@ -4597,7 +4597,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
       {/* Swap Positions Button - Always visible below pitch (hidden in view mode) */}
       {!readOnly && playersOnPitch.length >= 2 && (
-        <div className="flex justify-center py-2 px-4 shrink-0">
+        <div className={cn("flex justify-center py-2 px-4 shrink-0", isNative && "pb-safe")}>
           <Button
             variant={swapMode ? "default" : "outline"}
             size="sm"
