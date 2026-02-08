@@ -643,15 +643,14 @@ export function AppHeader() {
                 </>
               ) : (
                 <>
-                  <div className="p-1.5 rounded-lg bg-primary">
-                    <Flame className="h-5 w-5 text-primary-foreground" />
-                  </div>
-                  <div className="flex flex-col leading-tight items-start">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-lg text-gradient-emerald">Ignite</span>
-                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide">Beta</span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground -mt-1 text-left">Club HQ</span>
+                  <img 
+                    src={effectiveTheme === 'dark' ? igniteIcon : igniteIconLight} 
+                    alt="Ignite" 
+                    className="h-8 w-8 object-contain"
+                  />
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-lg text-gradient-emerald">Ignite</span>
+                    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide">Beta</span>
                   </div>
                 </>
               )}
