@@ -1008,7 +1008,7 @@ export default function ClubChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[100dvh] pt-[env(safe-area-inset-top,0px)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))]">
+    <div className="flex flex-col h-[100dvh] pt-[env(safe-area-inset-top,0px)] pb-[calc(11rem+env(safe-area-inset-bottom,0px))]">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
@@ -1126,7 +1126,7 @@ export default function ClubChatPage() {
 
       {/* Input (for users with Pro access: app_admin, club admin, or Pro team member) */}
       {canAccessClubChat && (
-        <div className="border-t py-3 px-4 bg-background shrink-0">
+        <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] left-0 right-0 border-t py-3 px-4 bg-background z-40">
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           <div className="flex gap-2 items-end">
