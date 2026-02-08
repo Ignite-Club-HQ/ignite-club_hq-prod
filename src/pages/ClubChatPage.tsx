@@ -972,7 +972,7 @@ export default function ClubChatPage() {
   if (!isLoadingClubSubscription && !canAccessClubChat) {
   return (
     <div className="flex flex-col h-[calc(100dvh-10rem)] pb-safe">
-        <div className="flex items-center gap-3 py-4 border-b">
+        <div className="flex items-center gap-3 py-4 border-b bg-background sticky top-0 z-10">
           <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -1010,7 +1010,7 @@ export default function ClubChatPage() {
   return (
     <div className="flex flex-col h-[calc(100dvh-10rem)] pb-safe">
       {/* Header */}
-      <div className="flex items-center gap-3 py-4 border-b">
+      <div className="flex items-center gap-3 py-4 border-b bg-background sticky top-0 z-10">
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
