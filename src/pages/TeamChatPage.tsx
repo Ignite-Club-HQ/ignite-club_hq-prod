@@ -964,7 +964,7 @@ export default function TeamChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-10rem)] pb-safe">
+    <div className="flex flex-col h-[100dvh] pt-[env(safe-area-inset-top,0px)] pb-[calc(11rem+env(safe-area-inset-bottom,0px))]">
       {/* Header */}
       <div className="flex items-center gap-3 py-4 border-b border-border bg-background sticky top-0 z-10">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -1076,8 +1076,8 @@ export default function TeamChatPage() {
          )}
        </div>
 
-      {/* Input */}
-      <div className="border-t border-border pt-4 pb-2">
+      {/* Input - Fixed at bottom above nav bar */}
+      <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] left-0 right-0 border-t py-3 px-4 bg-background z-40">
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         <div className="flex gap-2 items-end">
@@ -1116,9 +1116,6 @@ export default function TeamChatPage() {
             )}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Long-press a message to react • Tap menu to reply
-        </p>
       </div>
     </div>
   );

@@ -599,7 +599,7 @@ export default function DirectMessagePage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-10rem)] pb-safe" ref={pullRefreshRef as any}>
+    <div className="flex flex-col h-[100dvh] pt-[env(safe-area-inset-top,0px)] pb-[calc(11rem+env(safe-area-inset-bottom,0px))]" ref={pullRefreshRef as any}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 pb-4 border-b shrink-0 bg-background sticky top-0 z-10">
         <div className="flex items-center gap-3">
@@ -704,15 +704,15 @@ export default function DirectMessagePage() {
         />
       )}
 
-      {/* Input area - hidden for Ignite Support conversations */}
+      {/* Input area - Fixed at bottom above nav bar */}
       {isIgniteSupportConversation ? (
-        <div className="pt-4 border-t shrink-0">
+        <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] left-0 right-0 border-t py-3 px-4 bg-background z-40">
           <div className="text-center text-sm text-muted-foreground py-3 bg-muted/50 rounded-lg">
             This is a welcome message from Ignite Support. Replies are not available.
           </div>
         </div>
       ) : (
-        <div className="pt-4 border-t shrink-0">
+        <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] left-0 right-0 border-t py-3 px-4 bg-background z-40">
           <div className="flex gap-2 items-end">
             <MentionInput
               value={message}
@@ -734,9 +734,6 @@ export default function DirectMessagePage() {
               )}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Long-press a message to react • Tap menu to reply
-          </p>
         </div>
       )}
     </div>
