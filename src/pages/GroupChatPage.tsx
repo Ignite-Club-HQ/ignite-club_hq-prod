@@ -30,6 +30,7 @@ import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { MessageReadIndicator } from "@/components/chat/MessageReadIndicator";
 import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCache } from "@/lib/profileCache";
+import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages, removeMessageFromCache } from "@/lib/messageCache";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
@@ -325,6 +326,12 @@ export default function GroupChatPage() {
   // Track if initial scroll has happened - reset on every mount
   const hasInitialScrolled = useRef(false);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+  
+  // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
+  const authorIds = useMemo(() => {
+    return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
+  }, [localMessages]);
+  const { getProfile } = useProfiles(authorIds);
   
   // Reset scroll state when groupId changes
   useEffect(() => {
@@ -1301,16 +1308,16 @@ export default function GroupChatPage() {
                 >
                   <div className={`flex gap-2 max-w-[85%] group ${isOwnMessage ? "flex-row-reverse" : ""}`}>
                     <Avatar className="h-8 w-8 shrink-0">
-                      <AvatarImage src={msg.author?.avatar_url || undefined} />
+                      <AvatarImage src={getProfile(msg.author_id)?.avatar_url || msg.author?.avatar_url || undefined} />
                       <AvatarFallback>
-                        {msg.author?.display_name?.[0]?.toUpperCase() || "?"}
+                        {(getProfile(msg.author_id)?.display_name || msg.author?.display_name)?.[0]?.toUpperCase() || "?"}
                       </AvatarFallback>
                     </Avatar>
                     
                     <div className={`flex flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-medium">
-                          {msg.author?.display_name || "Loading..."}
+                          {getProfile(msg.author_id)?.display_name || msg.author?.display_name || "Loading..."}
                         </span>
                         {msg.id.startsWith("queued-") && (
                           <span className="flex items-center text-amber-500" title="Pending sync">

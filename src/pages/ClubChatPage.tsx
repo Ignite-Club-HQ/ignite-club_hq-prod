@@ -26,6 +26,7 @@ import { useMessageReads } from "@/hooks/useMessageReads";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCache } from "@/lib/profileCache";
+import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
@@ -318,6 +319,12 @@ export default function ClubChatPage() {
   // Track if initial scroll has happened - reset on every mount
   const hasInitialScrolled = useRef(false);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+  
+  // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
+  const authorIds = useMemo(() => {
+    return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
+  }, [localMessages]);
+  const { getProfile } = useProfiles(authorIds);
   
   // Reset scroll state when clubId changes
   useEffect(() => {
@@ -1088,8 +1095,8 @@ export default function ClubChatPage() {
                         text={msg.text}
                         imageUrl={msg.image_url}
                         authorId={msg.author_id}
-                        authorName={msg.profiles?.display_name}
-                        authorAvatar={msg.profiles?.avatar_url}
+                        authorName={getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || null}
+                        authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null}
                         timestamp={formatTimestamp(msg.created_at)}
                         isOwn={msg.author_id === user?.id}
                         isAdmin={isClubAdmin || isAppAdmin || false}
