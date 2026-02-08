@@ -74,16 +74,9 @@ const getFirstName = (fullName: string | undefined): string => {
   return fullName.split(" ")[0];
 };
 
-// Generate a consistent placeholder name based on user ID when profile not available
-const getPlaceholderName = (id: string): string => {
-  const firstNames = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Quinn", "Avery", "Parker", "Drew"];
-  const lastNames = ["Smith", "Johnson", "Brown", "Davis", "Wilson", "Moore", "Clark", "Lewis", "Walker", "Hall"];
-  
-  const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const firstName = firstNames[hash % firstNames.length];
-  const lastName = lastNames[(hash * 7) % lastNames.length];
-  return `${firstName} ${lastName}`;
-};
+// NOTE: Placeholder name generation was removed - it caused confusion by showing
+// fake names like "Casey Walker" when profiles weren't loaded yet.
+// Now we show empty string until the real profile is fetched.
 
 // Component for message preview with optional image thumbnail
 const MessagePreview = ({ 
@@ -344,8 +337,8 @@ export default function MessagesPage() {
             .maybeSingle();
           
           if (msgData) {
-            // Fetch author profile separately, use placeholder if not available
-            let authorName = msgData.author_id ? getPlaceholderName(msgData.author_id) : "";
+            // Fetch author profile - start with empty string, will be populated from DB
+            let authorName = "";
             if (msgData.author_id) {
               const { data: profile } = await supabase
                 .from("profiles")
@@ -389,8 +382,8 @@ export default function MessagesPage() {
       
       if (!data) return null;
       
-      // Fetch author profile separately, use placeholder if not available
-      let authorName = data.author_id ? getPlaceholderName(data.author_id) : "";
+      // Fetch author profile - start with empty string, will be populated from DB
+      let authorName = "";
       if (data.author_id) {
         const { data: profile } = await supabase
           .from("profiles")
@@ -456,8 +449,8 @@ export default function MessagesPage() {
             .maybeSingle();
           
           if (msgData) {
-            // Fetch author profile separately, use placeholder if not available
-            let authorName = msgData.author_id ? getPlaceholderName(msgData.author_id) : "";
+            // Fetch author profile - start with empty string, will be populated from DB
+            let authorName = "";
             if (msgData.author_id) {
               const { data: profile } = await supabase
                 .from("profiles")
