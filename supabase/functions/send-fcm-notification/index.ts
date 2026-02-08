@@ -37,19 +37,42 @@ async function getAccessToken(serviceAccount: any): Promise<string> {
   // Base64URL encode
   const base64UrlEncode = (obj: any) => {
     const json = JSON.stringify(obj);
-    const base64 = btoa(json);
+    // Use TextEncoder for proper UTF-8 handling
+    const bytes = new TextEncoder().encode(json);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const base64 = btoa(binary);
     return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   };
 
   const unsignedToken = `${base64UrlEncode(header)}.${base64UrlEncode(payload)}`;
 
-  // Import private key and sign
-  const pemContents = serviceAccount.private_key
+  // Normalize private key - handle various newline formats
+  // The private key might have: literal \n, actual newlines, or \\n
+  let privateKey = serviceAccount.private_key;
+  
+  // First, normalize escaped newlines to actual newlines
+  privateKey = privateKey.replace(/\\n/g, '\n');
+  
+  // Extract the base64 content between the PEM markers
+  const pemContents = privateKey
     .replace(/-----BEGIN PRIVATE KEY-----/, '')
     .replace(/-----END PRIVATE KEY-----/, '')
-    .replace(/\s/g, '');
+    .replace(/[\r\n\s]/g, ''); // Remove all whitespace including newlines
   
-  const binaryKey = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+  console.log('[FCM] Private key base64 length:', pemContents.length);
+  
+  // Decode base64 to binary
+  let binaryKey: Uint8Array;
+  try {
+    const binaryString = atob(pemContents);
+    binaryKey = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+  } catch (e) {
+    console.error('[FCM] Failed to decode private key base64:', e);
+    throw new Error('Invalid private key format - base64 decode failed');
+  }
   
   const cryptoKey = await crypto.subtle.importKey(
     'pkcs8',
