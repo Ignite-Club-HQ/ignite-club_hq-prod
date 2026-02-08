@@ -599,7 +599,7 @@ export default function DirectMessagePage() {
   }
 
   return (
-    <div className="flex flex-col h-[100dvh] pt-[env(safe-area-inset-top,0px)] pb-[calc(11rem+env(safe-area-inset-bottom,0px))]" ref={pullRefreshRef as any}>
+    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(7rem+env(safe-area-inset-bottom,0px))]" ref={pullRefreshRef as any}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 pb-4 border-b shrink-0 bg-background sticky top-0 z-10">
         <div className="flex items-center gap-3">
