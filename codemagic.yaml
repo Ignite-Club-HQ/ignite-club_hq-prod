@@ -29,7 +29,10 @@ workflows:
           mkdir -p android/app/src/main/res/drawable
           cp android-assets/drawable/ic_launcher_foreground.png android/app/src/main/res/drawable/
           cp android-assets/drawable/ic_notification.png android/app/src/main/res/drawable/
-          # Remove Capacitor's default colors.xml to avoid duplicate resource error, then copy ours
+          # Remove ALL Capacitor default colors.xml files to avoid duplicate resource errors
+          rm -f android/app/src/main/res/values/colors.xml
+          rm -f android/app/src/main/res/values-night/colors.xml
+          # Copy our colors.xml with uniquely named resources
           rm -f android/app/src/main/res/values/colors.xml
           mkdir -p android/app/src/main/res/values
           cp android-assets/res-values/colors.xml android/app/src/main/res/values/colors.xml
