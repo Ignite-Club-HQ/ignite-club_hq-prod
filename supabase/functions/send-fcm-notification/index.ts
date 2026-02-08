@@ -129,35 +129,57 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    // Support both: separate secrets (preferred) or single JSON blob (legacy)
+    const fcmProjectId = Deno.env.get('FCM_PROJECT_ID');
+    const fcmClientEmail = Deno.env.get('FCM_CLIENT_EMAIL');
+    const fcmPrivateKey = Deno.env.get('FCM_PRIVATE_KEY');
     const fcmServiceAccountJson = Deno.env.get('FCM_SERVICE_ACCOUNT');
 
-    if (!fcmServiceAccountJson) {
-      console.log('[FCM] FCM_SERVICE_ACCOUNT not configured, skipping FCM');
+    let serviceAccount: { project_id: string; client_email: string; private_key: string };
+
+    // Check for separate secrets first (avoids truncation issues)
+    if (fcmProjectId && fcmClientEmail && fcmPrivateKey) {
+      console.log('[FCM] Using separate secrets (FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY)');
+      serviceAccount = {
+        project_id: fcmProjectId,
+        client_email: fcmClientEmail,
+        private_key: fcmPrivateKey,
+      };
+    } else if (fcmServiceAccountJson) {
+      // Fallback to legacy single JSON blob
+      console.log('[FCM] Using legacy FCM_SERVICE_ACCOUNT JSON');
+      try {
+        serviceAccount = JSON.parse(fcmServiceAccountJson);
+      } catch (e) {
+        console.error('[FCM] Invalid FCM_SERVICE_ACCOUNT JSON:', e);
+        return new Response(
+          JSON.stringify({ error: 'Invalid service account configuration' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else {
+      console.log('[FCM] FCM not configured - need FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY');
       return new Response(
         JSON.stringify({ message: 'FCM not configured', sent: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    let serviceAccount: any;
-    try {
-      serviceAccount = JSON.parse(fcmServiceAccountJson);
-    } catch (e) {
-      console.error('[FCM] Invalid FCM_SERVICE_ACCOUNT JSON:', e);
-      return new Response(
-        JSON.stringify({ error: 'Invalid service account configuration' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     const projectId = serviceAccount.project_id;
-    if (!projectId) {
-      console.error('[FCM] No project_id in service account');
+    if (!projectId || !serviceAccount.client_email || !serviceAccount.private_key) {
+      console.error('[FCM] Missing required fields:', { 
+        hasProjectId: !!projectId, 
+        hasClientEmail: !!serviceAccount.client_email, 
+        hasPrivateKey: !!serviceAccount.private_key 
+      });
       return new Response(
-        JSON.stringify({ error: 'Invalid service account: missing project_id' }),
+        JSON.stringify({ error: 'Invalid service account: missing required fields' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log('[FCM] Project ID:', projectId);
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
