@@ -370,7 +370,7 @@ async function sendPushWithRetry(
   };
 }
 
-// Send FCM notification to native app users
+// Send FCM notification to native app users via the send-fcm-notification edge function
 async function sendFCMNotifications(
   supabase: any,
   userId: string,
@@ -380,92 +380,40 @@ async function sendFCMNotifications(
   notificationId: string | null,
   tag: string
 ): Promise<{ sent: number; total: number }> {
-  const fcmServerKey = Deno.env.get('FCM_SERVER_KEY');
+  // Check if FCM is configured (service account for v1 API)
+  const fcmServiceAccount = Deno.env.get('FCM_SERVICE_ACCOUNT');
   
-  if (!fcmServerKey) {
-    console.log('[PUSH] FCM_SERVER_KEY not configured, skipping native push');
+  if (!fcmServiceAccount) {
+    console.log('[PUSH] FCM_SERVICE_ACCOUNT not configured, skipping native push');
     return { sent: 0, total: 0 };
   }
 
-  // Get FCM tokens for this user
-  const { data: tokens, error: tokenError } = await supabase
-    .from('fcm_tokens')
-    .select('*')
-    .eq('user_id', userId);
+  try {
+    // Call the dedicated FCM edge function
+    console.log(`[PUSH] Invoking send-fcm-notification for user ${userId}`);
+    
+    const { data, error } = await supabase.functions.invoke('send-fcm-notification', {
+      body: {
+        userId,
+        title: title || 'Ignite Club HQ',
+        body: body || 'You have a new notification',
+        url: url || '/notifications',
+        notificationId,
+        tag: tag || `notification-${notificationId || Date.now()}`,
+      },
+    });
 
-  if (tokenError || !tokens || tokens.length === 0) {
-    console.log(`[PUSH] No FCM tokens found for user ${userId}`);
-    return { sent: 0, total: 0 };
-  }
-
-  console.log(`[PUSH] Found ${tokens.length} FCM token(s)`);
-
-  let successCount = 0;
-  const expiredTokens: string[] = [];
-
-  for (const tokenRecord of tokens) {
-    try {
-      const response = await fetch('https://fcm.googleapis.com/fcm/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `key=${fcmServerKey}`,
-        },
-        body: JSON.stringify({
-          to: tokenRecord.token,
-          notification: {
-            title: title || 'Ignite Club HQ',
-            body: body || 'You have a new notification',
-            icon: '/icon-192.png',
-            tag: tag || `notification-${notificationId || Date.now()}`,
-          },
-          data: {
-            url: url || '/notifications',
-            notificationId,
-          },
-          android: {
-            priority: 'high',
-            notification: {
-              channel_id: 'default',
-              priority: 'high',
-              default_sound: true,
-            },
-          },
-          apns: {
-            payload: {
-              aps: {
-                'mutable-content': 1,
-                sound: 'default',
-              },
-            },
-          },
-        }),
-      });
-
-      const result = await response.json();
-      
-      if (result.success === 1) {
-        successCount++;
-        console.log('[PUSH] FCM sent successfully');
-      } else if (result.failure === 1) {
-        const errorResult = result.results?.[0];
-        if (errorResult?.error === 'NotRegistered' || errorResult?.error === 'InvalidRegistration') {
-          expiredTokens.push(tokenRecord.id);
-          console.log('[PUSH] FCM token expired');
-        }
-      }
-    } catch (err) {
-      console.error('[PUSH] FCM send error:', err);
+    if (error) {
+      console.error('[PUSH] FCM function error:', error);
+      return { sent: 0, total: 0 };
     }
-  }
 
-  // Cleanup expired tokens
-  if (expiredTokens.length > 0) {
-    await supabase.from('fcm_tokens').delete().in('id', expiredTokens);
-    console.log(`[PUSH] Cleaned up ${expiredTokens.length} expired FCM token(s)`);
+    console.log('[PUSH] FCM function response:', JSON.stringify(data));
+    return { sent: data?.sent || 0, total: data?.total || 0 };
+  } catch (err) {
+    console.error('[PUSH] Error calling FCM function:', err);
+    return { sent: 0, total: 0 };
   }
-
-  return { sent: successCount, total: tokens.length };
 }
 
 serve(async (req) => {
