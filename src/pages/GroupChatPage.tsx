@@ -1264,7 +1264,7 @@ export default function GroupChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 overscroll-contain relative" ref={(node) => {
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 relative" style={{ touchAction: 'pan-y' }} ref={(node) => {
         // Combine refs for scrollAreaRef and pullRefreshRef
         scrollAreaRef.current = node;
         (pullRefreshRef as React.MutableRefObject<HTMLDivElement | null>).current = node;

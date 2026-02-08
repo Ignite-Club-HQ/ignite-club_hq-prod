@@ -71,8 +71,10 @@ export function usePullToRefresh({
     // Only trigger pull-to-refresh for significant downward pulls (> 30px)
     // This prevents accidental triggers during normal scroll attempts
     if (distance > 30) {
-      // Now we're definitely pulling down - prevent default scroll
-      e.preventDefault();
+      // Now we're definitely pulling down - prevent default scroll only if we can
+      if (e.cancelable) {
+        e.preventDefault();
+      }
       setIsPulling(true);
       
       // Apply strong resistance as user pulls further
