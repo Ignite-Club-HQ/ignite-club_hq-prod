@@ -242,6 +242,26 @@ export async function checkNativePermission(): Promise<'granted' | 'denied' | 'p
   }
 }
 
+// Check for launch notification (notification that opened the app from cold start)
+export async function getLaunchNotification(): Promise<any | null> {
+  if (!isNativePlatform()) return null;
+  
+  try {
+    const loaded = await loadPlugins();
+    if (!loaded || !PushNotifications) return null;
+    
+    // This returns the notification that was used to launch the app
+    const launchNotification = await PushNotifications.getDeliveredNotifications();
+    console.log('[NativePush] Checking for launch notification, delivered:', launchNotification);
+    
+    // On Android, we can also check the launch URL from App plugin
+    return null; // Capacitor doesn't directly expose this, but pushNotificationActionPerformed should fire
+  } catch (err) {
+    console.warn('[NativePush] Error checking launch notification:', err);
+    return null;
+  }
+}
+
 // Initialize native push notifications
 export async function initializeNativePush(userId: string): Promise<{ success: boolean; error?: string }> {
   console.log('[NativePush] initializeNativePush called with userId:', userId);
