@@ -22,6 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { MessageContent } from "@/components/chat/MessageContent";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
@@ -1264,11 +1265,7 @@ export default function GroupChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 relative" style={{ touchAction: 'pan-y' }} ref={(node) => {
-        // Combine refs for scrollAreaRef and pullRefreshRef
-        scrollAreaRef.current = node;
-        (pullRefreshRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-      }}>
+      <div className="flex-1 min-h-0 py-4 flex flex-col relative" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
         <PullToRefreshIndicator
           pullDistance={pullDistance}
           pullProgress={pullProgress}
@@ -1283,7 +1280,8 @@ export default function GroupChatPage() {
             isSearchResult={!!searchQuery}
           />
         ) : (
-          <>
+          <ScrollArea className="flex-1 h-full" ref={scrollAreaRef}>
+            <div className="space-y-4 p-4">
             {/* Invisible trigger for infinite scroll */}
             {hasOlderMessages && !searchQuery && (
               <div ref={loadTriggerRef} className="flex justify-center py-2">
@@ -1436,8 +1434,9 @@ export default function GroupChatPage() {
               </div>
             );
           })}
-          <div ref={messagesEndRef} />
-          </>
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
         )}
       </div>
 
