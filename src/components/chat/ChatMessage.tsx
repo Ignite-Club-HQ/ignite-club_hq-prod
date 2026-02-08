@@ -379,20 +379,9 @@ export const ChatMessage = memo(function ChatMessage({
     };
   }, [showReactionPicker]);
 
-  // Generate a consistent placeholder name based on author ID when profile not loaded
-  const getPlaceholderName = (id: string): string => {
-    const firstNames = ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Quinn", "Avery", "Parker", "Drew"];
-    const lastNames = ["Smith", "Johnson", "Brown", "Davis", "Wilson", "Moore", "Clark", "Lewis", "Walker", "Hall"];
-    
-    // Use the ID to generate consistent indices
-    const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const firstName = firstNames[hash % firstNames.length];
-    const lastName = lastNames[(hash * 7) % lastNames.length];
-    return `${firstName} ${lastName}`;
-  };
-
-  // Get display name - fallback to generated name if profile not loaded
-  const displayName = authorName || getPlaceholderName(authorId);
+  // Get display name - show ellipsis if profile not yet loaded
+  // IMPORTANT: Never show fake placeholder names - they confuse users
+  const displayName = authorName || "...";
   const hasName = !!authorName;
 
   // Handle inserting emoji at cursor position
