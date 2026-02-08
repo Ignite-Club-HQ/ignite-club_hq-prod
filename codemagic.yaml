@@ -21,9 +21,11 @@ workflows:
         script: npx cap sync android
       - name: Copy app icons
         script: |
-          # Remove ALL Capacitor default icons first
+          # Remove ALL Capacitor default icons first (including vector drawables)
           rm -rf android/app/src/main/res/mipmap-*
           rm -rf android/app/src/main/res/drawable/ic_launcher*
+          rm -rf android/app/src/main/res/drawable-v24
+          rm -f android/app/src/main/res/drawable/ic_launcher_background.xml
           # Copy our mipmap directories (includes mipmap-anydpi-v26 for adaptive icons)
           cp -r android-assets/mipmap-* android/app/src/main/res/
           # Copy drawable assets (foreground icon and notification icon)
