@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'app.lovable.igniteteamhub',
-  appName: 'Ignite Club HQ',
+  appName: 'Ignite',
   webDir: 'dist',
   // Remove server.url to bundle web app locally for offline support
   // Only use server.url during development for hot-reload
