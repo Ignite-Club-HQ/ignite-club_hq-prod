@@ -592,7 +592,7 @@ export default function DirectMessagePage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]" ref={pullRefreshRef as any}>
+    <div className="flex flex-col h-[calc(100dvh-10rem)] pb-safe" ref={pullRefreshRef as any}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 pb-4 border-b shrink-0">
         <div className="flex items-center gap-3">
