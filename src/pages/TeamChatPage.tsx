@@ -354,6 +354,26 @@ export default function TeamChatPage() {
     }
   }, [teamId, messages, loadingMessages, isFetching, queryClient]);
 
+  // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
+  useEffect(() => {
+    let lastRefresh = Date.now();
+    
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "visible" && teamId) {
+        const timeSinceLastRefresh = Date.now() - lastRefresh;
+        // Only refresh if it's been more than 30 seconds
+        if (timeSinceLastRefresh > 30000) {
+          console.log("[TeamChat] App became visible, refreshing messages");
+          lastRefresh = Date.now();
+          await queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [teamId, queryClient]);
+
   // Always ensure profiles are loaded for messages with missing profile data
   useEffect(() => {
     if (!localMessages?.length) return;
