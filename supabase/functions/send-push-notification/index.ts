@@ -416,15 +416,103 @@ async function sendFCMNotifications(
   }
 }
 
+// Map notification type to preference column
+function getPreferenceColumn(notificationType: string | undefined): string | null {
+  if (!notificationType) return null;
+  
+  const typeMap: Record<string, string> = {
+    // Message types
+    'team_message': 'messages_enabled',
+    'club_message': 'messages_enabled',
+    'group_message': 'messages_enabled',
+    'direct_message': 'messages_enabled',
+    'broadcast': 'messages_enabled',
+    'message_reply': 'messages_enabled',
+    'message_mention': 'messages_enabled',
+    // Event types
+    'event_invite': 'events_enabled',
+    'event_reminder': 'events_enabled',
+    'event_cancelled': 'events_enabled',
+    'event_updated': 'events_enabled',
+    'duty_assigned': 'events_enabled',
+    'rsvp_updated': 'events_enabled',
+    // Media types
+    'photo_uploaded': 'media_enabled',
+    'photo_comment': 'media_enabled',
+    'photo_reaction': 'media_enabled',
+    // Membership types
+    'team_join': 'membership_enabled',
+    'club_join': 'membership_enabled',
+    'member_joined': 'membership_enabled',
+    'invite_accepted': 'membership_enabled',
+    'join_request': 'membership_enabled',
+    // Admin types
+    'admin_alert': 'admin_enabled',
+    'system_update': 'admin_enabled',
+    'subscription_renewed': 'admin_enabled',
+    'subscription_expired': 'admin_enabled',
+    // Pitch board types
+    'pitch_board_update': 'pitch_board_enabled',
+    'substitution_alert': 'pitch_board_enabled',
+    'game_started': 'pitch_board_enabled',
+    'game_ended': 'pitch_board_enabled',
+    'half_time': 'pitch_board_enabled',
+    // Rewards types
+    'reward_redeemed': 'rewards_enabled',
+    'points_awarded': 'rewards_enabled',
+    'reward_available': 'rewards_enabled',
+    // POM/Stats types
+    'player_of_match': 'pom_enabled',
+    'game_stats_ready': 'pom_enabled',
+  };
+  
+  return typeMap[notificationType] || null;
+}
+
+// Check if user has enabled this notification type
+async function checkUserPreference(
+  supabase: any,
+  userId: string,
+  notificationType: string | undefined
+): Promise<boolean> {
+  const preferenceColumn = getPreferenceColumn(notificationType);
+  
+  // If no mapping found, allow the notification (don't block unknown types)
+  if (!preferenceColumn) {
+    return true;
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('notification_preferences')
+      .select(preferenceColumn)
+      .eq('user_id', userId)
+      .single();
+    
+    if (error) {
+      // If no preferences found, default to true (allow)
+      console.log(`[PUSH] No preferences found for user ${userId}, defaulting to enabled`);
+      return true;
+    }
+    
+    const isEnabled = data?.[preferenceColumn] ?? true;
+    console.log(`[PUSH] User ${userId} preference for ${notificationType} (${preferenceColumn}): ${isEnabled}`);
+    return isEnabled;
+  } catch (err) {
+    console.error('[PUSH] Error checking user preferences:', err);
+    return true; // Default to allowing if check fails
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
   
   try {
-    const { userId, title, body, url, notificationId, tag } = await req.json();
+    const { userId, title, body, url, notificationId, tag, notificationType } = await req.json();
     
-    console.log(`[PUSH] Starting push notification for user ${userId}`);
+    console.log(`[PUSH] Starting push notification for user ${userId}, type: ${notificationType || 'unspecified'}`);
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -433,6 +521,21 @@ serve(async (req) => {
     const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:support@igniteclubhq.com';
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Check user preferences before sending
+    const shouldSend = await checkUserPreference(supabase, userId, notificationType);
+    if (!shouldSend) {
+      console.log(`[PUSH] User ${userId} has disabled ${notificationType} notifications, skipping`);
+      return new Response(
+        JSON.stringify({ 
+          message: 'Notification skipped - user preference',
+          sent: 0,
+          total: 0,
+          reason: `User has disabled ${notificationType} notifications`
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     // Send to native apps via FCM (parallel with web push)
     const fcmPromise = sendFCMNotifications(

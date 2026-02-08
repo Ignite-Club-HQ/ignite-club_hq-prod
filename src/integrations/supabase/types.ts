@@ -2458,6 +2458,7 @@ export type Database = {
       }
       notification_preferences: {
         Row: {
+          admin_enabled: boolean | null
           created_at: string
           email_admin_enabled: boolean
           email_events_enabled: boolean
@@ -2473,10 +2474,13 @@ export type Database = {
           membership_enabled: boolean
           messages_enabled: boolean
           pitch_board_enabled: boolean
+          pom_enabled: boolean | null
+          rewards_enabled: boolean | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          admin_enabled?: boolean | null
           created_at?: string
           email_admin_enabled?: boolean
           email_events_enabled?: boolean
@@ -2492,10 +2496,13 @@ export type Database = {
           membership_enabled?: boolean
           messages_enabled?: boolean
           pitch_board_enabled?: boolean
+          pom_enabled?: boolean | null
+          rewards_enabled?: boolean | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          admin_enabled?: boolean | null
           created_at?: string
           email_admin_enabled?: boolean
           email_events_enabled?: boolean
@@ -2511,6 +2518,8 @@ export type Database = {
           membership_enabled?: boolean
           messages_enabled?: boolean
           pitch_board_enabled?: boolean
+          pom_enabled?: boolean | null
+          rewards_enabled?: boolean | null
           updated_at?: string
           user_id?: string
         }
