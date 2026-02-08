@@ -1226,7 +1226,7 @@ export default function GroupChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-8rem)] pb-safe">
+    <div className="flex flex-col h-[calc(100dvh-10rem)] pb-safe">
       {/* Header */}
       <div className="flex items-center gap-3 p-4 border-b bg-card">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>

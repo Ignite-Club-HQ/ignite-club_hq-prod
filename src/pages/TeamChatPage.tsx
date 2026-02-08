@@ -957,7 +957,7 @@ export default function TeamChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-8rem)] pb-safe">
+    <div className="flex flex-col h-[calc(100dvh-10rem)] pb-safe">
       {/* Header */}
       <div className="flex items-center gap-3 py-4 border-b border-border">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
