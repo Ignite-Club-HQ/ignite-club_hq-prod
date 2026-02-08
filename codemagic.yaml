@@ -21,11 +21,17 @@ workflows:
         script: npx cap sync android
       - name: Copy app icons
         script: |
-          # Remove ALL Capacitor default icons first (including vector drawables)
+          # Remove ALL Capacitor default icons first (including vector drawables and all density folders)
           rm -rf android/app/src/main/res/mipmap-*
           rm -rf android/app/src/main/res/drawable/ic_launcher*
           rm -rf android/app/src/main/res/drawable-v24
+          rm -rf android/app/src/main/res/drawable-hdpi
+          rm -rf android/app/src/main/res/drawable-mdpi
+          rm -rf android/app/src/main/res/drawable-xhdpi
+          rm -rf android/app/src/main/res/drawable-xxhdpi
+          rm -rf android/app/src/main/res/drawable-xxxhdpi
           rm -f android/app/src/main/res/drawable/ic_launcher_background.xml
+          rm -f android/app/src/main/res/drawable/splash.png
           # Copy our mipmap directories (includes mipmap-anydpi-v26 for adaptive icons)
           cp -r android-assets/mipmap-* android/app/src/main/res/
           # Copy drawable assets (foreground icon and notification icon)
@@ -38,8 +44,10 @@ workflows:
           # Copy our colors.xml with uniquely named resources
           mkdir -p android/app/src/main/res/values
           cp android-assets/res-values/colors.xml android/app/src/main/res/values/colors.xml
-          # Verify icons were copied
-          echo "=== Copied mipmap contents ===" && ls -la android/app/src/main/res/mipmap-hdpi/
+          # Debug: List what we have
+          echo "=== drawable contents ===" && ls -la android/app/src/main/res/drawable/
+          echo "=== mipmap-hdpi contents ===" && ls -la android/app/src/main/res/mipmap-hdpi/
+          echo "=== mipmap-anydpi-v26 contents ===" && ls -la android/app/src/main/res/mipmap-anydpi-v26/
       - name: Configure notification icon
         script: |
           # Add meta-data for default notification icon and color to AndroidManifest.xml
@@ -48,6 +56,8 @@ workflows:
       - name: Build Android
         script: |
           cd android
+          # Clean build to ensure no cached icons
+          ./gradlew clean
           ./gradlew assembleDebug
     artifacts:
       - android/app/build/outputs/**/*.apk
