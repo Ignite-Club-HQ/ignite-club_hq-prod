@@ -202,16 +202,21 @@ export default function HomePage() {
         .select("club_id, team_id, role")
         .eq("user_id", user!.id);
       
-      if (!roles) return { teamIds: [], clubIds: [], leagueAdminClubIds: [], miniLeagueIds: [] };
+      if (!roles) return { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [] };
       
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
       const clubIds = new Set<string>();
+      const clubAdminClubIds = new Set<string>();
       const leagueAdminClubIds = new Set<string>();
       
       // Direct club roles
       roles.forEach(r => {
         if (r.club_id) {
           clubIds.add(r.club_id);
+          // Track club admin roles for team event visibility
+          if (r.role === 'club_admin' || r.role === 'app_admin') {
+            clubAdminClubIds.add(r.club_id);
+          }
           // Track club admin roles for league access
           if (r.role === 'club_admin' || r.role === 'league_admin' || r.role === 'app_admin') {
             leagueAdminClubIds.add(r.club_id);
@@ -252,6 +257,7 @@ export default function HomePage() {
       return { 
         teamIds, 
         clubIds: Array.from(clubIds), 
+        clubAdminClubIds: Array.from(clubAdminClubIds),
         leagueAdminClubIds: Array.from(leagueAdminClubIds),
         miniLeagueIds 
       };
@@ -297,16 +303,17 @@ export default function HomePage() {
       if (error) throw error;
       
       // Filter to only show events user is invited to:
-      // - Team events: user must be a member of that team
+      // - Team events: user must be a member of that team OR a club admin of the team's club
       // - Mini League events: user must be a league admin or have a player in that league
       // - Club-wide events (no team_id, no mini_league_id): user must be a member of that club
+      const { clubAdminClubIds } = userMemberships;
       const filtered = (data as (Event & { mini_league_id: string | null })[]).filter(event => {
         if (event.mini_league_id) {
           // Mini League event - user must be league admin or have a player in this league
           return miniLeagueIds.includes(event.mini_league_id);
         } else if (event.team_id) {
-          // Team event - user must be a member of this team
-          return teamIds.includes(event.team_id);
+          // Team event - user must be a member of this team OR a club admin of the team's club
+          return teamIds.includes(event.team_id) || clubAdminClubIds.includes(event.club_id);
         } else {
           // Club-wide event - user must be a member of this club
           return clubIds.includes(event.club_id);
