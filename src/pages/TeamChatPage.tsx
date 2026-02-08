@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, Loader2, RefreshCw } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { SecureAvatar } from "@/components/SecureAvatar";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
 import { PageLoading } from "@/components/ui/page-loading";
@@ -970,12 +970,12 @@ export default function TeamChatPage() {
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <Avatar className="h-10 w-10">
-          <AvatarImage src={team.logo_url || undefined} />
-          <AvatarFallback className="bg-secondary text-secondary-foreground">
-            {team.name?.charAt(0)?.toUpperCase() || "T"}
-          </AvatarFallback>
-        </Avatar>
+        <SecureAvatar 
+          src={team.logo_url} 
+          fallback={team.name?.charAt(0)?.toUpperCase() || "T"}
+          className="h-10 w-10"
+          fallbackClassName="bg-secondary text-secondary-foreground"
+        />
         <div className="flex-1">
           <h1 className="font-semibold">{team.name}</h1>
           <p className="text-xs text-muted-foreground">{team.clubs?.name}</p>
