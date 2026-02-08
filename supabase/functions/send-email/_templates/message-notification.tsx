@@ -101,20 +101,22 @@ export const MessageNotificationEmail = ({
         <Container style={container}>
           {/* Header with Logo */}
           <Section style={headerSection}>
-            {validClubLogoUrl ? (
-              <Img
-                src={validClubLogoUrl}
-                width="80"
-                height="80"
-                alt={displayContextName}
-                style={logoStyle}
-              />
-            ) : (
-              <div style={{ ...logoPlaceholder, backgroundColor: primaryColor }}>
-                <Text style={logoPlaceholderText}>
-                  {displayContextName.charAt(0).toUpperCase()}
-                </Text>
-              </div>
+            {messageType !== 'direct' && (
+              validClubLogoUrl ? (
+                <Img
+                  src={validClubLogoUrl}
+                  width="80"
+                  height="80"
+                  alt={displayContextName}
+                  style={logoStyle}
+                />
+              ) : (
+                <div style={{ ...logoPlaceholder, backgroundColor: primaryColor }}>
+                  <Text style={logoPlaceholderText}>
+                    {displayContextName.charAt(0).toUpperCase()}
+                  </Text>
+                </div>
+              )
             )}
             <Text style={clubNameText}>{displayContextName}</Text>
           </Section>
