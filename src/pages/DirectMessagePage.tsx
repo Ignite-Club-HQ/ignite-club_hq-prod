@@ -600,8 +600,8 @@ export default function DirectMessagePage() {
 
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(7rem+env(safe-area-inset-bottom,0px))]" ref={pullRefreshRef as any}>
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 pb-4 border-b shrink-0 bg-background sticky top-0 z-10">
+      {/* Header - Fixed at top */}
+      <div className="flex items-center justify-between gap-3 py-3 border-b shrink-0 bg-background z-10">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
             <ArrowLeft className="h-5 w-5" />
@@ -640,7 +640,7 @@ export default function DirectMessagePage() {
       <PullToRefreshIndicator isRefreshing={isRefreshing} pullDistance={pullDistance} pullProgress={pullProgress} />
 
       {/* Messages area */}
-      <ScrollArea ref={scrollAreaRef} className="flex-1 pr-4 -mr-4 relative">
+      <ScrollArea ref={scrollAreaRef} className="flex-1 pr-4 -mr-4 relative overflow-hidden">
         <div className="py-4 space-y-4 pb-2">
           {showLoading ? (
             <div className="flex justify-center py-8">
