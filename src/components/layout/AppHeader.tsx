@@ -163,7 +163,7 @@ function LogoClubThemeDropdown() {
         />
         <div className="flex-1">
           <p className="text-sm font-medium">Default</p>
-          <p className="text-xs text-muted-foreground">Ignite emerald</p>
+          <p className="text-xs text-muted-foreground">Ignite Club HQ</p>
         </div>
         {!activeClubTheme && <Check className="h-4 w-4 text-primary" />}
       </DropdownMenuItem>
