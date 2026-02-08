@@ -1233,7 +1233,7 @@ export default function GroupChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-10rem)] pb-safe">
+    <div className="flex flex-col h-[100dvh] pt-[env(safe-area-inset-top,0px)] pb-[calc(11rem+env(safe-area-inset-bottom,0px))]">
       {/* Header */}
       <div className="flex items-center gap-3 p-4 border-b bg-card sticky top-0 z-10">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -1441,8 +1441,8 @@ export default function GroupChatPage() {
         )}
       </div>
 
-      {/* Input */}
-      <div className="p-4 border-t bg-card">
+      {/* Input - Fixed at bottom above nav bar */}
+      <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] left-0 right-0 border-t py-3 px-4 bg-background z-40">
         <TypingIndicator typingUsers={typingUsers} />
         {replyTo && (
           <ReplyPreview
