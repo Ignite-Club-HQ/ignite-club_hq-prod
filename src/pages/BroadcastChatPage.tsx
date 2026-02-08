@@ -774,7 +774,7 @@ export default function BroadcastChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-10rem)] pb-safe">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(7rem+env(safe-area-inset-bottom,0px))]">
       {/* Header */}
       <div className="flex items-center gap-3 py-4 border-b">
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
