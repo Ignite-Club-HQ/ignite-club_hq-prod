@@ -21,8 +21,9 @@ workflows:
         script: npx cap sync android
       - name: Copy app icons
         script: |
-          # Remove Capacitor default icons
+          # Remove ALL Capacitor default icons first
           rm -rf android/app/src/main/res/mipmap-*
+          rm -rf android/app/src/main/res/drawable/ic_launcher*
           # Copy our mipmap directories (includes mipmap-anydpi-v26 for adaptive icons)
           cp -r android-assets/mipmap-* android/app/src/main/res/
           # Copy drawable assets (foreground icon and notification icon)
@@ -33,9 +34,10 @@ workflows:
           rm -f android/app/src/main/res/values/colors.xml
           rm -f android/app/src/main/res/values-night/colors.xml
           # Copy our colors.xml with uniquely named resources
-          rm -f android/app/src/main/res/values/colors.xml
           mkdir -p android/app/src/main/res/values
           cp android-assets/res-values/colors.xml android/app/src/main/res/values/colors.xml
+          # Verify icons were copied
+          echo "=== Copied mipmap contents ===" && ls -la android/app/src/main/res/mipmap-hdpi/
       - name: Configure notification icon
         script: |
           # Add meta-data for default notification icon and color to AndroidManifest.xml
