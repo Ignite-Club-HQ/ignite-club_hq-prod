@@ -601,7 +601,7 @@ export default function DirectMessagePage() {
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(7rem+env(safe-area-inset-bottom,0px))]" ref={pullRefreshRef as any}>
       {/* Header - Fixed at top */}
-      <div className="flex items-center justify-between gap-3 py-3 border-b shrink-0 bg-background z-10">
+      <div className="fixed top-0 left-0 right-0 flex items-center justify-between gap-3 px-4 py-3 border-b bg-background z-50">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
             <ArrowLeft className="h-5 w-5" />
@@ -636,6 +636,9 @@ export default function DirectMessagePage() {
           </Button>
         </div>
       </div>
+
+      {/* Spacer for fixed header */}
+      <div className="h-16 shrink-0" />
 
       <PullToRefreshIndicator isRefreshing={isRefreshing} pullDistance={pullDistance} pullProgress={pullProgress} />
 

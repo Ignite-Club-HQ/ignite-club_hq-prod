@@ -1010,7 +1010,7 @@ export default function ClubChatPage() {
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(7rem+env(safe-area-inset-bottom,0px))]">
       {/* Header - Fixed at top */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b bg-background z-10 shrink-0">
+      <div className="fixed top-0 left-0 right-0 flex items-center gap-3 px-4 py-3 border-b bg-background z-50">
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -1040,6 +1040,9 @@ export default function ClubChatPage() {
         </Button>
         <ChatSearch onSearch={setSearchQuery} />
       </div>
+
+      {/* Spacer for fixed header */}
+      <div className="h-16 shrink-0" />
 
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
         <PullToRefreshIndicator
