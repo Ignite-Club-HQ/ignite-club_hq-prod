@@ -79,7 +79,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
               <SelectTrigger>
                 <SelectValue placeholder="Select feedback type" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper" className="z-[9999]">
                 <SelectItem value="feature_request">Feature Request</SelectItem>
                 <SelectItem value="bug">Bug Report</SelectItem>
                 <SelectItem value="other">Other</SelectItem>
