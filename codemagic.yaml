@@ -29,7 +29,8 @@ workflows:
           mkdir -p android/app/src/main/res/drawable
           cp android-assets/drawable/ic_launcher_foreground.png android/app/src/main/res/drawable/
           cp android-assets/drawable/ic_notification.png android/app/src/main/res/drawable/
-          # Copy colors (includes adaptive icon background color)
+          # Remove Capacitor's default colors.xml to avoid duplicate resource error, then copy ours
+          rm -f android/app/src/main/res/values/colors.xml
           mkdir -p android/app/src/main/res/values
           cp android-assets/res-values/colors.xml android/app/src/main/res/values/colors.xml
       - name: Configure notification icon
