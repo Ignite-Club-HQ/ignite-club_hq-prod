@@ -293,6 +293,26 @@ export default function BroadcastChatPage() {
     }
   }, [messages, isLoading, queryClient]);
 
+  // Visibility change handler - refetch messages when app becomes visible (e.g., phone unlock)
+  useEffect(() => {
+    let lastRefresh = Date.now();
+    
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "visible") {
+        const timeSinceLastRefresh = Date.now() - lastRefresh;
+        // Only refresh if it's been more than 30 seconds
+        if (timeSinceLastRefresh > 30000) {
+          console.log("[BroadcastChat] App became visible, refreshing messages");
+          lastRefresh = Date.now();
+          await queryClient.invalidateQueries({ queryKey: ["broadcast-messages"] });
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [queryClient]);
+
   // Scroll to bottom on initial load - wait for content to render
   useEffect(() => {
     if (!localMessages?.length || hasInitialScrolled.current) return;

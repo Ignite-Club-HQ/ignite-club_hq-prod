@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   fetchProfilesWithCache, 
   getProfilesFromCache, 
@@ -11,18 +11,25 @@ import { supabase } from "@/integrations/supabase/client";
  * Hook to fetch and cache multiple profiles efficiently
  * Returns cached profiles immediately, then updates with fresh data
  * AGGRESSIVE CACHING: Prioritizes cached/stale data to avoid blocking on DB
+ * 
+ * NEW: Automatically refreshes profiles when app becomes visible (e.g., phone unlock)
  */
 export function useProfiles(ids: string[]) {
   const [profiles, setProfiles] = useState<Map<string, CachedProfile>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
+  const lastFetchRef = useRef<number>(0);
+  const idsRef = useRef<string[]>([]);
+  idsRef.current = ids;
 
-  useEffect(() => {
-    if (ids.length === 0) {
+  // Core fetch function - can be called on mount or visibility change
+  const fetchProfiles = useCallback(async (forceRefresh = false) => {
+    const currentIds = idsRef.current;
+    if (currentIds.length === 0) {
       setProfiles(new Map());
       return;
     }
 
-    const uniqueIds = [...new Set(ids.filter(Boolean))];
+    const uniqueIds = [...new Set(currentIds.filter(Boolean))];
     
     // Immediately set cached profiles (including stale ones)
     const { cached, missing, stale } = getProfilesFromCache(uniqueIds);
@@ -30,30 +37,61 @@ export function useProfiles(ids: string[]) {
       setProfiles(cached);
     }
     
-    // Only set loading if we have missing profiles (not just stale)
-    if (missing.length > 0) {
+    // Determine what needs fetching
+    const needsFetch = forceRefresh ? uniqueIds : missing;
+    const needsBackgroundRefresh = forceRefresh ? [] : stale;
+    
+    if (needsFetch.length > 0) {
       setIsLoading(true);
-      fetchProfilesWithCache(uniqueIds, { allowStale: true, timeout: 15000 })
-        .then(allProfiles => {
-          setProfiles(allProfiles);
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    } else if (stale.length > 0) {
+      try {
+        const allProfiles = await fetchProfilesWithCache(uniqueIds, { allowStale: true, timeout: 15000 });
+        setProfiles(allProfiles);
+        lastFetchRef.current = Date.now();
+      } finally {
+        setIsLoading(false);
+      }
+    } else if (needsBackgroundRefresh.length > 0) {
       // Stale profiles exist - refresh in background without loading state
       fetchProfilesWithCache(uniqueIds, { allowStale: true, timeout: 15000 })
         .then(allProfiles => {
           setProfiles(allProfiles);
+          lastFetchRef.current = Date.now();
         });
     }
-  }, [ids.join(",")]); // Join to create stable dependency
+  }, []);
+
+  // Initial fetch on mount/ids change
+  useEffect(() => {
+    fetchProfiles(false);
+  }, [ids.join(","), fetchProfiles]);
+
+  // Visibility change handler - refresh profiles when app becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        const timeSinceLastFetch = Date.now() - lastFetchRef.current;
+        // Only refresh if it's been more than 30 seconds since last fetch
+        if (timeSinceLastFetch > 30000 && idsRef.current.length > 0) {
+          console.log("[useProfiles] App became visible, refreshing profiles");
+          fetchProfiles(true);
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [fetchProfiles]);
 
   const getProfile = useCallback((id: string) => {
     return profiles.get(id) || null;
   }, [profiles]);
 
-  return { profiles, getProfile, isLoading };
+  // Manual refresh function for external use
+  const refreshProfiles = useCallback(() => {
+    fetchProfiles(true);
+  }, [fetchProfiles]);
+
+  return { profiles, getProfile, isLoading, refreshProfiles };
 }
 
 /**
