@@ -81,6 +81,7 @@ const NotificationPreferencesPage = lazy(() => import("./pages/NotificationPrefe
 const MiniLeaguesPage = lazy(() => import("./pages/MiniLeaguesPage"));
 const MiniLeagueDetailPage = lazy(() => import("./pages/MiniLeagueDetailPage"));
 const EventGroupPitchPage = lazy(() => import("./pages/EventGroupPitchPage"));
+const AppSettingsPage = lazy(() => import("./pages/AppSettingsPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -182,6 +183,7 @@ const App = () => (
                   <Route path="/admin/ads" element={<ManageAdsPage />} />
                   <Route path="/admin/push-analytics" element={<PushAnalyticsPage />} />
                   <Route path="/admin/notification-preferences" element={<NotificationPreferencesPage />} />
+                  <Route path="/admin/settings" element={<AppSettingsPage />} />
                   <Route path="/mini-leagues" element={<MiniLeaguesPage />} />
                   <Route path="/mini-leagues/:id" element={<MiniLeagueDetailPage />} />
                 </Route>
