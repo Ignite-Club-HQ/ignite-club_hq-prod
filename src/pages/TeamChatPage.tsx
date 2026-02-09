@@ -134,7 +134,7 @@ export default function TeamChatPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("*, clubs (name, id)")
+        .select("*, clubs (name, id, logo_url)")
         .eq("id", teamId!)
         .single();
       if (error) throw error;
@@ -971,7 +971,7 @@ export default function TeamChatPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <SecureAvatar 
-          src={team.logo_url} 
+          src={team.logo_url || team.clubs?.logo_url} 
           fallback={team.name?.charAt(0)?.toUpperCase() || "T"}
           className="h-10 w-10"
           fallbackClassName="bg-secondary text-secondary-foreground"
