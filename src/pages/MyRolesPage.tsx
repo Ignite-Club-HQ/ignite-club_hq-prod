@@ -16,6 +16,8 @@ const roleLabels: Record<string, string> = {
   player: "Player",
   parent: "Parent",
   basic_user: "Member",
+  committee_member: "Committee Member",
+  league_admin: "League Admin",
 };
 
 const roleColors: Record<string, string> = {
@@ -26,6 +28,8 @@ const roleColors: Record<string, string> = {
   player: "bg-accent/20 text-accent-foreground",
   parent: "bg-muted text-muted-foreground",
   basic_user: "bg-muted text-muted-foreground",
+  committee_member: "bg-purple-500/20 text-purple-700 dark:text-purple-300",
+  league_admin: "bg-orange-500/20 text-orange-700 dark:text-orange-300",
 };
 
 export default function MyRolesPage() {
