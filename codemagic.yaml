@@ -77,13 +77,12 @@ workflows:
       - name: Build web app
         script: npm run build
       - name: Add iOS platform
+        script: npx cap add ios
+      - name: Update dependencies and sync
         script: |
-          echo "Adding iOS platform..."
-          npx cap add ios
-          echo "Verifying iOS was created..."
+          npx cap sync ios
+          echo "=== iOS App contents ==="
           ls -la ios/App/
-      - name: Sync Capacitor
-        script: npx cap sync ios
       - name: Install CocoaPods
         script: |
           cd ios/App
