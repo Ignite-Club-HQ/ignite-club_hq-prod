@@ -87,10 +87,42 @@ workflows:
           echo "=== Checking ios folder structure ==="
           ls -la ios/ || echo "ERROR: ios folder not created!"
           ls -la ios/App/ || echo "ERROR: ios/App folder not found!"
-      - name: Copy Firebase config
+      - name: Copy Firebase config and add to Xcode project
         script: |
+          # Copy GoogleService-Info.plist to iOS app directory
           cp firebase/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
           echo "=== Copied Firebase config to iOS ==="
+          
+          # Add GoogleService-Info.plist to Xcode project using Ruby script
+          # This is necessary because just copying the file doesn't add it to the bundle
+          ruby << 'RUBY_SCRIPT'
+          require 'xcodeproj'
+          
+          project_path = 'ios/App/App.xcodeproj'
+          project = Xcodeproj::Project.open(project_path)
+          
+          # Find the App target
+          target = project.targets.find { |t| t.name == 'App' }
+          
+          # Find the App group
+          app_group = project.main_group.find_subpath('App', false)
+          
+          # Check if GoogleService-Info.plist already exists in project
+          existing_ref = app_group.files.find { |f| f.path == 'GoogleService-Info.plist' }
+          
+          if existing_ref.nil?
+            # Add file reference
+            file_ref = app_group.new_file('GoogleService-Info.plist')
+            
+            # Add to resources build phase
+            target.resources_build_phase.add_file_reference(file_ref)
+            
+            project.save
+            puts "=== Added GoogleService-Info.plist to Xcode project ==="
+          else
+            puts "=== GoogleService-Info.plist already in project ==="
+          end
+          RUBY_SCRIPT
       - name: Sync Capacitor
         script: |
           npx cap sync ios
