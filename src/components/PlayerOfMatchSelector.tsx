@@ -25,6 +25,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { recordPointsHistory } from "@/lib/pointsHistory";
 
 interface PlayerOfMatchSelectorProps {
   eventId: string;
@@ -150,6 +151,18 @@ export default function PlayerOfMatchSelector({
 
           if (updateError) throw updateError;
 
+          // Record in points history
+          await recordPointsHistory({
+            userId,
+            clubId,
+            amount: pointsToAward,
+            balanceAfter: newPoints,
+            sourceType: 'player_of_match',
+            sourceId: eventId,
+            description: 'Player of the Match award',
+            createdBy: user!.id,
+          });
+
           // Send notification with points
           await supabase.from("notifications").insert({
             user_id: userId,
@@ -172,6 +185,18 @@ export default function PlayerOfMatchSelector({
             .eq("id", childId);
 
           if (updateError) throw updateError;
+
+          // Record in points history for child
+          await recordPointsHistory({
+            childId,
+            clubId,
+            amount: pointsToAward,
+            balanceAfter: newPoints,
+            sourceType: 'player_of_match',
+            sourceId: eventId,
+            description: `Player of the Match award for ${child?.name}`,
+            createdBy: user!.id,
+          });
 
           // Notify parent with points
           if (child?.parent_id) {
@@ -225,6 +250,8 @@ export default function PlayerOfMatchSelector({
     mutationFn: async () => {
       if (!playerOfMatch) return;
 
+      const pointsToDeduct = Number((playerOfMatch as any).points_awarded) || 0;
+
       // Deduct points
       if (playerOfMatch.user_id) {
         const { data: profile } = await supabase
@@ -233,25 +260,53 @@ export default function PlayerOfMatchSelector({
           .eq("id", playerOfMatch.user_id)
           .single();
 
-        const newPoints = Math.max(0, (profile?.ignite_points || 0) - (Number((playerOfMatch as any).points_awarded) || 0));
+        const newPoints = Math.max(0, (profile?.ignite_points || 0) - pointsToDeduct);
 
         await supabase
           .from("profiles")
           .update({ ignite_points: newPoints })
           .eq("id", playerOfMatch.user_id);
+
+        // Record in points history (negative amount)
+        if (pointsToDeduct > 0) {
+          await recordPointsHistory({
+            userId: playerOfMatch.user_id,
+            clubId,
+            amount: -pointsToDeduct,
+            balanceAfter: newPoints,
+            sourceType: 'pom_removed',
+            sourceId: eventId,
+            description: 'Player of the Match award removed',
+            createdBy: user!.id,
+          });
+        }
       } else if (playerOfMatch.child_id) {
         const { data: child } = await supabase
           .from("children")
-          .select("ignite_points")
+          .select("ignite_points, name")
           .eq("id", playerOfMatch.child_id)
           .single();
 
-        const newPoints = Math.max(0, (child?.ignite_points || 0) - (Number((playerOfMatch as any).points_awarded) || 0));
+        const newPoints = Math.max(0, (child?.ignite_points || 0) - pointsToDeduct);
 
         await supabase
           .from("children")
           .update({ ignite_points: newPoints })
           .eq("id", playerOfMatch.child_id);
+
+        // Record in points history for child (negative amount)
+        if (pointsToDeduct > 0) {
+          await recordPointsHistory({
+            childId: playerOfMatch.child_id,
+            clubId,
+            amount: -pointsToDeduct,
+            balanceAfter: newPoints,
+            sourceType: 'pom_removed',
+            sourceId: eventId,
+            description: `Player of the Match award removed for ${child?.name}`,
+            createdBy: user!.id,
+          });
+        }
       }
 
       // Delete POM record

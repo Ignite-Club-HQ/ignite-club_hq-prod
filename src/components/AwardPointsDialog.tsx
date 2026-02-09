@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { recordPointsHistory } from "@/lib/pointsHistory";
+import { useAuth } from "@/hooks/useAuth";
 
 interface AwardPointsDialogProps {
   memberId: string;
@@ -32,6 +34,7 @@ export default function AwardPointsDialog({
   clubName,
   clubLogoUrl,
 }: AwardPointsDialogProps) {
+  const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -49,6 +52,17 @@ export default function AwardPointsDialog({
         .eq("id", memberId);
 
       if (updateError) throw updateError;
+
+      // Record in points history
+      await recordPointsHistory({
+        userId: memberId,
+        clubId,
+        amount: points,
+        balanceAfter: newPoints,
+        sourceType: 'admin_award',
+        description: reason || (points > 0 ? 'Points awarded by admin' : 'Points adjustment by admin'),
+        createdBy: user?.id,
+      });
 
       // Create a notification for the member
       const pointsText = points > 0 ? `+${points}` : `${points}`;

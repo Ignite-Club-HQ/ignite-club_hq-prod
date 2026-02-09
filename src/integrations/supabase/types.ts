@@ -3058,6 +3058,77 @@ export type Database = {
           },
         ]
       }
+      points_history: {
+        Row: {
+          amount: number
+          balance_after: number
+          child_id: string | null
+          club_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          source_id: string | null
+          source_type: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          child_id?: string | null
+          club_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description: string
+          id?: string
+          source_id?: string | null
+          source_type: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          child_id?: string | null
+          club_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          source_id?: string | null
+          source_type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "points_history_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "points_history_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "points_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "points_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           active_club_theme_id: string | null

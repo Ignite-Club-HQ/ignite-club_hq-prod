@@ -53,6 +53,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { recordPointsHistory } from "@/lib/pointsHistory";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { findNearbyGameEvent } from "@/hooks/useNearbyGameEvent";
@@ -669,6 +670,17 @@ export default function HomePage() {
           .update({ ignite_points: remainingPoints })
           .eq("id", pointsSource.id);
         if (updateError) throw updateError;
+
+        // Record in points history for child
+        await recordPointsHistory({
+          childId: pointsSource.id,
+          clubId: reward.club_id,
+          amount: -reward.points_required,
+          balanceAfter: remainingPoints,
+          sourceType: 'redemption',
+          sourceId: reward.id,
+          description: `Redeemed: ${reward.name}`,
+        });
       } else {
         const { error: updateError } = await supabase
           .from("profiles")
@@ -678,6 +690,17 @@ export default function HomePage() {
           })
           .eq("id", user!.id);
         if (updateError) throw updateError;
+
+        // Record in points history
+        await recordPointsHistory({
+          userId: user!.id,
+          clubId: reward.club_id,
+          amount: -reward.points_required,
+          balanceAfter: remainingPoints,
+          sourceType: 'redemption',
+          sourceId: reward.id,
+          description: `Redeemed: ${reward.name}`,
+        });
       }
 
       // Get club details for email

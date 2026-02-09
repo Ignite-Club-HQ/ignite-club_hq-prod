@@ -182,7 +182,41 @@ export default function ProfilePage() {
     enabled: !!user,
   });
 
-  const { data: dutyHistory, isLoading: dutiesLoading } = useQuery({
+  // Fetch points history from the new points_history table
+  const { data: pointsHistoryData, isLoading: pointsHistoryLoading } = useQuery({
+    queryKey: ["points-history", user?.id, activeClubFilter],
+    queryFn: async () => {
+      let query = supabase
+        .from("points_history")
+        .select(`
+          id,
+          amount,
+          balance_after,
+          source_type,
+          source_id,
+          description,
+          created_at,
+          club_id,
+          clubs:club_id (name)
+        `)
+        .eq("user_id", user!.id)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      
+      // Filter by active club if set
+      if (activeClubFilter) {
+        query = query.eq("club_id", activeClubFilter);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Legacy query for duties - kept for backward compatibility (duties may not have history yet)
+  const { data: dutyHistory } = useQuery({
     queryKey: ["duty-history", user?.id, activeClubFilter],
     queryFn: async () => {
       let query = supabase
@@ -191,6 +225,7 @@ export default function ProfilePage() {
           id,
           name,
           status,
+          points,
           points_awarded,
           created_at,
           events (
@@ -204,6 +239,7 @@ export default function ProfilePage() {
           )
         `)
         .eq("assigned_to", user!.id)
+        .eq("points_awarded", true)
         .order("created_at", { ascending: false });
       
       const { data, error } = await query;
@@ -214,7 +250,6 @@ export default function ProfilePage() {
         return data.filter((duty: any) => {
           const event = duty.events;
           if (!event) return false;
-          // Match if event belongs to active club or to a team in the active club
           return event.club_id === activeClubFilter || activeClubTeamIds.includes(event.team_id);
         });
       }
@@ -255,7 +290,7 @@ export default function ProfilePage() {
     enabled: !!user,
   });
 
-  // Combine duties and redemptions into unified points history
+  // Combine new points_history with legacy duties/redemptions for complete history
   const pointsHistory = useMemo(() => {
     const items: Array<{
       id: string;
@@ -267,13 +302,38 @@ export default function ProfilePage() {
       eventId?: string;
     }> = [];
 
-    // Add duties that awarded points
+    // Track IDs we've already added from points_history to avoid duplicates
+    const addedSourceIds = new Set<string>();
+
+    // Add entries from the new points_history table (primary source)
+    if (pointsHistoryData) {
+      pointsHistoryData.forEach((entry: any) => {
+        const isEarned = entry.amount > 0;
+        items.push({
+          id: entry.id,
+          type: isEarned ? 'earned' : 'spent',
+          points: Math.abs(entry.amount),
+          name: entry.description,
+          context: entry.clubs?.name || 'Club',
+          date: entry.created_at,
+          eventId: entry.source_type === 'early_rsvp' || entry.source_type === 'player_of_match' ? entry.source_id : undefined,
+        });
+        if (entry.source_id) {
+          addedSourceIds.add(entry.source_id);
+        }
+      });
+    }
+
+    // Add legacy duties that awarded points (for data before points_history was introduced)
     if (dutyHistory) {
       dutyHistory.forEach((duty: any) => {
+        // Skip if already in points_history
+        if (addedSourceIds.has(duty.id)) return;
+        
         if (duty.points_awarded && duty.points) {
           const event = duty.events;
           items.push({
-            id: duty.id,
+            id: `duty-${duty.id}`,
             type: 'earned',
             points: duty.points,
             name: duty.name,
@@ -285,11 +345,14 @@ export default function ProfilePage() {
       });
     }
 
-    // Add redemptions
+    // Add legacy redemptions (for data before points_history was introduced)
     if (redemptionHistory) {
       redemptionHistory.forEach((redemption: any) => {
+        // Skip if already in points_history
+        if (addedSourceIds.has(redemption.reward_id || redemption.id)) return;
+        
         items.push({
-          id: redemption.id,
+          id: `redemption-${redemption.id}`,
           type: 'spent',
           points: redemption.points_spent,
           name: redemption.club_rewards?.name || 'Reward',
@@ -303,7 +366,7 @@ export default function ProfilePage() {
     items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     return items;
-  }, [dutyHistory, redemptionHistory]);
+  }, [pointsHistoryData, dutyHistory, redemptionHistory]);
 
   // Calculate totals
   const pointsEarned = useMemo(() => {
@@ -755,7 +818,7 @@ export default function ProfilePage() {
 
             <CollapsibleContent>
               <CardContent className="space-y-3 pt-0">
-                {(dutiesLoading || redemptionsLoading) ? (
+                {(pointsHistoryLoading || redemptionsLoading) ? (
                   <div className="flex items-center justify-center py-4">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   </div>
