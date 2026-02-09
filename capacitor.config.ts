@@ -28,11 +28,9 @@ const config: CapacitorConfig = {
   },
   // Server configuration - keep navigation in app
   server: {
-    // Don't open links in external browser
+    // Use standard Capacitor schemes
     androidScheme: 'https',
-    iosScheme: 'ionic',
-    // Handle navigation internally
-    hostname: 'ignite.app',
+    iosScheme: 'capacitor',
   },
 };
 
