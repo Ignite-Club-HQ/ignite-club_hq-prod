@@ -62,10 +62,35 @@ workflows:
           ./gradlew assembleDebug
       - name: Launch on emulator and capture crash logs
         script: |
+          # Set up Android SDK paths for Codemagic
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          
+          # Debug: show available tools
+          echo "=== Android SDK root: $ANDROID_SDK_ROOT ==="
+          echo "=== Looking for sdkmanager ==="
+          find "$ANDROID_SDK_ROOT" -name "sdkmanager" 2>/dev/null || echo "sdkmanager not found"
+          find "$ANDROID_SDK_ROOT" -name "avdmanager" 2>/dev/null || echo "avdmanager not found"
+          find "$ANDROID_SDK_ROOT" -name "emulator" -type f 2>/dev/null || echo "emulator not found"
+          ls -la "$ANDROID_SDK_ROOT/" 2>/dev/null || echo "SDK_ROOT doesn't exist"
+          ls -la "$ANDROID_SDK_ROOT/cmdline-tools/" 2>/dev/null || echo "No cmdline-tools"
+          
+          # Install system image
+          echo "=== Installing system image ==="
+          yes | sdkmanager "system-images;android-34;google_apis;arm64-v8a" "emulator" "platform-tools" --verbose || {
+            echo "sdkmanager via PATH failed, trying direct path..."
+            yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "system-images;android-34;google_apis;arm64-v8a" "emulator" "platform-tools" --verbose
+          }
+          
+          # Create AVD
+          echo "=== Creating AVD ==="
+          echo "no" | avdmanager create avd -n test_device -k "system-images;android-34;google_apis;arm64-v8a" --force || {
+            echo "avdmanager via PATH failed, trying direct path..."
+            echo "no" | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" create avd -n test_device -k "system-images;android-34;google_apis;arm64-v8a" --force
+          }
+          
           # Start emulator
           echo "=== Starting Android emulator ==="
-          sdkmanager "system-images;android-34;google_apis;arm64-v8a" --verbose
-          echo "no" | avdmanager create avd -n test_device -k "system-images;android-34;google_apis;arm64-v8a" --force
           emulator -avd test_device -no-window -no-audio -no-boot-anim &
           EMULATOR_PID=$!
           
