@@ -79,6 +79,21 @@
   <body>
     <div id="root"></div>
     
+    <!-- Global error catcher for native app debugging -->
+    <script>
+      window.onerror = function(msg, url, line, col, err) {
+        var el = document.getElementById('root');
+        if (el && !el.children.length) {
+          el.innerHTML = '<pre style="padding:20px;font-size:12px;word-wrap:break-word;white-space:pre-wrap;">CRASH: ' + msg + '\nFile: ' + url + '\nLine: ' + line + ':' + col + '\n' + (err && err.stack ? err.stack : '') + '</pre>';
+        }
+      };
+      window.addEventListener('unhandledrejection', function(e) {
+        var el = document.getElementById('root');
+        if (el && !el.children.length) {
+          el.innerHTML = '<pre style="padding:20px;font-size:12px;word-wrap:break-word;white-space:pre-wrap;">UNHANDLED REJECTION:\n' + (e.reason && e.reason.stack ? e.reason.stack : e.reason) + '</pre>';
+        }
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
