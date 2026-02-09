@@ -807,10 +807,6 @@ export function AppHeader() {
                 <Building2 className="mr-3 h-5 w-5" />
                 <span className="text-sm">My Clubs and Teams</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); navigate("/children"); }} className="py-3 px-3">
-                <Users className="mr-3 h-5 w-5" />
-                <span className="text-sm">My Children</span>
-              </DropdownMenuItem>
               <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); setFeedbackOpen(true); }} className="py-3 px-3">
                 <HelpCircle className="mr-3 h-5 w-5" />
                 <span className="text-sm">Send Feedback</span>
