@@ -46,13 +46,6 @@ import "./index.css";
 import { initDeepLinkHandler } from "./lib/deepLinkHandler";
 import { initNotificationLaunchHandler } from "./lib/notificationLaunchHandler";
 
-// Initialize deep link handler for native OAuth callbacks
-initDeepLinkHandler();
-
-// Initialize notification launch handler for native push notification taps
-// This MUST be called early to catch the launch notification action
-initNotificationLaunchHandler();
-
 // Declare global types
 declare global {
   interface Window {
@@ -61,51 +54,62 @@ declare global {
   }
 }
 
-// Register service worker with simplified, robust handling
+// Detect native platform early (before any plugin calls)
+const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
+
+// Initialize native handlers (wrapped to prevent crashes)
+try {
+  initDeepLinkHandler();
+} catch (e) {
+  console.error('[Main] Deep link handler init failed:', e);
+}
+try {
+  initNotificationLaunchHandler();
+} catch (e) {
+  console.error('[Main] Notification launch handler init failed:', e);
+}
+
+// Register service worker - SKIP on native platforms (Capacitor bundles locally)
 const registerServiceWorker = (): Promise<ServiceWorkerRegistration | undefined> => {
   return new Promise((resolve) => {
+    // Native apps don't use service workers
+    if (isNative) {
+      console.log('[Main] Native platform - skipping SW registration');
+      resolve(undefined);
+      return;
+    }
+
     if (!('serviceWorker' in navigator)) {
       console.log('[Main] Service workers not supported');
       resolve(undefined);
       return;
     }
 
-    // Register the service worker with cache-busting version
     const SW_VERSION = '4.0.0';
     navigator.serviceWorker.register(`/sw.js?v=${SW_VERSION}`, { scope: '/' })
       .then((registration) => {
         console.log('[Main] SW registered, scope:', registration.scope, 'version:', SW_VERSION);
         
-        // If already active, we're done
         if (registration.active) {
-          console.log('[Main] SW already active, version check...');
           window.__swRegistration = registration;
           resolve(registration);
           return;
         }
         
-        // Wait for activation
         const worker = registration.installing || registration.waiting;
         if (worker) {
-          console.log('[Main] Waiting for SW activation, state:', worker.state);
-          
           const onStateChange = () => {
-            console.log('[Main] SW state:', worker.state);
             if (worker.state === 'activated') {
               window.__swRegistration = registration;
               resolve(registration);
             }
           };
-          
           worker.addEventListener('statechange', onStateChange);
-          
-          // Also check if it activated while we were setting up listener
           if (worker.state === 'activated') {
             window.__swRegistration = registration;
             resolve(registration);
           }
         } else {
-          // No worker at all, wait for ready
           navigator.serviceWorker.ready.then((reg) => {
             window.__swRegistration = reg;
             resolve(reg);
@@ -117,9 +121,7 @@ const registerServiceWorker = (): Promise<ServiceWorkerRegistration | undefined>
         resolve(undefined);
       });
       
-    // Also listen for ready as a backup
     navigator.serviceWorker.ready.then((registration) => {
-      console.log('[Main] SW ready event, active:', !!registration.active);
       if (!window.__swRegistration) {
         window.__swRegistration = registration;
       }
