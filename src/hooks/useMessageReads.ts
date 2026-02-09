@@ -148,13 +148,13 @@ export function useMessageReads(
         [messageIdField]: messageId,
       }));
 
-      const { error } = await supabase.from("message_reads").upsert(rows as any, {
-        onConflict: `user_id,${messageIdField}`,
-        ignoreDuplicates: true,
-      });
-
-      if (error && !error.message.includes("duplicate")) {
-        console.error("Error marking messages as read:", error);
+      // Use insert with conflict handling - partial unique indexes require explicit handling
+      for (const row of rows) {
+        const { error } = await supabase.from("message_reads").insert(row as any);
+        // Ignore duplicate key errors (23505 is unique_violation)
+        if (error && !error.message.includes("duplicate") && error.code !== "23505") {
+          console.error("Error marking message as read:", error);
+        }
       }
     },
     // Optimistic update - increment counts immediately
