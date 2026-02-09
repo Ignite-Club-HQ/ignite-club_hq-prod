@@ -91,7 +91,7 @@ workflows:
           
           # Start emulator
           echo "=== Starting Android emulator ==="
-          emulator -avd test_device -no-window -no-audio -no-boot-anim &
+          emulator -avd test_device -no-window -no-audio -no-boot-anim -no-accel -gpu swiftshader_indirect &
           EMULATOR_PID=$!
           
           # Wait for emulator to boot
