@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { differenceInDays, parseISO } from "date-fns";
+import { recordPointsHistory } from "@/lib/pointsHistory";
 
 const EARLY_RSVP_DAYS_THRESHOLD = 3;
 const EARLY_RSVP_POINTS = 1;
@@ -64,6 +65,17 @@ export async function awardEarlyRsvpPoints({
       console.error("Failed to award early RSVP points:", updateError);
       return false;
     }
+
+    // Record in points history
+    await recordPointsHistory({
+      userId,
+      clubId,
+      amount: EARLY_RSVP_POINTS,
+      balanceAfter: newPoints,
+      sourceType: 'early_rsvp',
+      sourceId: rsvpId,
+      description: `Early RSVP bonus (${daysUntilEvent} days before event)`,
+    });
 
     // Mark RSVP as having awarded points
     await supabase

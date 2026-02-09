@@ -135,6 +135,17 @@ Deno.serve(async (req) => {
         .update(updateData)
         .eq('id', duty.assigned_to);
 
+      // Record in points history
+      await supabase.from('points_history').insert({
+        user_id: duty.assigned_to,
+        club_id: club?.id || null,
+        amount: 10,
+        balance_after: newPoints,
+        source_type: 'duty',
+        source_id: duty.id,
+        description: 'Game duty completed',
+      });
+
       // Mark duty as points awarded
       await supabase
         .from('duties')

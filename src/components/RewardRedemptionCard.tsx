@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { recordPointsHistory } from "@/lib/pointsHistory";
 
 interface ClubReward {
   id: string;
@@ -299,6 +300,17 @@ export default function RewardRedemptionCard() {
           })
           .eq("id", pointsSource.id);
         if (updateError) throw updateError;
+
+        // Record in points history for child
+        await recordPointsHistory({
+          childId: pointsSource.id,
+          clubId: reward.club_id,
+          amount: -reward.points_required,
+          balanceAfter: remainingPoints,
+          sourceType: 'redemption',
+          sourceId: reward.id,
+          description: `Redeemed: ${reward.name}`,
+        });
       } else {
         const { error: updateError } = await supabase
           .from("profiles")
@@ -308,6 +320,17 @@ export default function RewardRedemptionCard() {
           })
           .eq("id", user!.id);
         if (updateError) throw updateError;
+
+        // Record in points history
+        await recordPointsHistory({
+          userId: user!.id,
+          clubId: reward.club_id,
+          amount: -reward.points_required,
+          balanceAfter: remainingPoints,
+          sourceType: 'redemption',
+          sourceId: reward.id,
+          description: `Redeemed: ${reward.name}`,
+        });
       }
 
       // Get club details for email
