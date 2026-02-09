@@ -94,7 +94,7 @@ export function BottomNav() {
   const showProLock = !isLoadingAccess && !hasProAccess && !isAppAdmin;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-lg">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-lg pb-safe">
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
         {navItems.map(({ to, icon: Icon, label, requiresPro }) => (
           <NavLink
