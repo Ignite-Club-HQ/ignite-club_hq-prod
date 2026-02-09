@@ -712,6 +712,11 @@ export default function ProfilePage() {
               label="Notification Preferences" 
               onClick={() => navigate("/admin/notification-preferences")}
             />
+            <MenuCard 
+              icon={Settings} 
+              label="App Settings" 
+              onClick={() => navigate("/admin/settings")}
+            />
           </>
         )}
       </div>
