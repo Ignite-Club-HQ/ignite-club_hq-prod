@@ -165,5 +165,4 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
-        beta_groups:
-          - Internal Testers
+        # Note: Internal testers are added directly in App Store Connect, not via beta_groups
