@@ -70,7 +70,6 @@ workflows:
     environment:
       xcode: latest
       node: 22
-      cocoapods: default
     scripts:
       - name: Install dependencies
         script: npm install
@@ -91,16 +90,12 @@ workflows:
       - name: Sync Capacitor
         script: |
           npx cap sync ios
-          echo "=== Verifying Podfile exists ==="
-          cat ios/App/Podfile | head -20 || echo "ERROR: Podfile not found!"
-      - name: Install CocoaPods
-        script: |
-          cd ios/App
-          pod install --repo-update
+          echo "=== Verifying SPM Package.swift exists ==="
+          cat ios/App/CapApp-SPM/Package.swift | head -20
       - name: Build iOS (Simulator)
         script: |
           cd ios/App
-          xcodebuild -workspace App.xcworkspace \
+          xcodebuild -project App.xcodeproj \
             -scheme App \
             -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
