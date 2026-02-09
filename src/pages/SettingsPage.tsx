@@ -61,6 +61,22 @@ export default function SettingsPage() {
   const { setTheme, theme } = useTheme();
   const { isAvailable: biometricsAvailable, isRegistered: hasPasskey, loading: passkeyLoading, registerPasskey } = usePasskey();
   const [passkeyDialogOpen, setPasskeyDialogOpen] = useState(false);
+  const [isAppAdmin, setIsAppAdmin] = useState(false);
+
+  // Check if user is app admin
+  useEffect(() => {
+    const checkAppAdmin = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "app_admin")
+        .maybeSingle();
+      setIsAppAdmin(!!data);
+    };
+    checkAppAdmin();
+  }, [user]);
   
   // Push notification state
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -578,15 +594,15 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {/* Push Diagnostics */}
-      {!SKIP_WEB_PUSH && pushSupported && user && (
+      {/* Push Diagnostics - App Admin Only */}
+      {isAppAdmin && !SKIP_WEB_PUSH && pushSupported && user && (
         <Suspense fallback={<Card><CardContent className="py-6"><div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div></CardContent></Card>}>
           <LazyPushDiagnosticsCard userId={user.id} pushEnabled={pushEnabled} onPushStatusChange={setPushEnabled} />
         </Suspense>
       )}
 
-      {/* Native Push Card */}
-      {SKIP_WEB_PUSH && user && (
+      {/* Native Push Card - App Admin Only */}
+      {isAppAdmin && SKIP_WEB_PUSH && user && (
         <Suspense fallback={<Card><CardContent className="py-6"><div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div></CardContent></Card>}>
           <LazyNativePushCard userId={user.id} />
         </Suspense>
