@@ -108,6 +108,97 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
     enabled: !!user && isOpen,
   });
 
+  // Check if current user can send DMs (has admin role or allowed by club settings)
+  const { data: canSendDMs, isLoading: checkingCanSend } = useQuery({
+    queryKey: ["can-send-dms", user?.id],
+    queryFn: async () => {
+      // First check if user is app_admin - they can always DM
+      const { data: isAppAdmin } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("role", "app_admin")
+        .maybeSingle();
+      
+      if (isAppAdmin) return { canSend: true, reason: null };
+
+      // Get user's club memberships with their roles
+      const { data: userRoles } = await supabase
+        .from("user_roles")
+        .select("club_id, team_id, role")
+        .eq("user_id", user!.id);
+
+      if (!userRoles?.length) return { canSend: false, reason: "no_membership" };
+
+      // Get unique club IDs from direct club roles
+      const directClubIds = userRoles.filter(r => r.club_id).map(r => r.club_id);
+      
+      // Also get club IDs from team memberships
+      const teamIds = userRoles.filter(r => r.team_id).map(r => r.team_id);
+      let teamClubIds: string[] = [];
+      if (teamIds.length > 0) {
+        const { data: teams } = await supabase
+          .from("teams")
+          .select("id, club_id")
+          .in("id", teamIds);
+        teamClubIds = (teams || []).map(t => t.club_id);
+      }
+
+      const allClubIds = [...new Set([...directClubIds, ...teamClubIds].filter(Boolean))] as string[];
+      if (allClubIds.length === 0) return { canSend: false, reason: "no_membership" };
+
+      // Check Pro status of these clubs
+      const { data: proClubs } = await supabase
+        .from("club_subscriptions")
+        .select("club_id")
+        .in("club_id", allClubIds)
+        .or("is_pro.eq.true,is_pro_football.eq.true,admin_pro_override.eq.true,admin_pro_football_override.eq.true");
+
+      const proClubIds = proClubs?.map(c => c.club_id) || [];
+      if (proClubIds.length === 0) return { canSend: false, reason: "no_pro" };
+
+      // Get DM settings for Pro clubs
+      const { data: dmSettings } = await supabase
+        .from("club_dm_settings")
+        .select("club_id, dm_enabled, allowed_roles")
+        .in("club_id", proClubIds);
+
+      // Check if user has permission in any Pro club
+      for (const clubId of proClubIds) {
+        const settings = dmSettings?.find(s => s.club_id === clubId);
+        const dmEnabled = settings?.dm_enabled ?? true;
+        const allowedRoles = settings?.allowed_roles ?? ['app_admin', 'club_admin', 'team_admin'];
+
+        if (!dmEnabled) continue;
+
+        // Check if user has an allowed role in this club
+        const userClubRoles = userRoles.filter(r => r.club_id === clubId).map(r => r.role);
+        if (userClubRoles.some(role => allowedRoles.includes(role))) {
+          return { canSend: true, reason: null };
+        }
+
+        // Check if user has an allowed role in any team of this club
+        const clubTeamIds = teamIds.filter(tid => {
+          const teamRole = userRoles.find(r => r.team_id === tid);
+          if (!teamRole) return false;
+          // Check if this team belongs to the club
+          return teamClubIds.includes(clubId);
+        });
+        
+        const userTeamRoles = userRoles
+          .filter(r => clubTeamIds.includes(r.team_id as string))
+          .map(r => r.role);
+        
+        if (userTeamRoles.some(role => allowedRoles.includes(role))) {
+          return { canSend: true, reason: null };
+        }
+      }
+
+      return { canSend: false, reason: "not_admin" };
+    },
+    enabled: !!user && isOpen && hasProAccess === true,
+  });
+
   // Fetch users that can be DMed (members of shared Pro clubs + mini-league parents) excluding app admins
   const { data: dmData, isLoading: loadingUsers } = useQuery({
     queryKey: ["dmable-users-with-filters", user?.id, activeClubFilter],
@@ -413,7 +504,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
         </ResponsiveDialogHeader>
 
         <div className="flex-1 flex flex-col min-h-0 px-4 pb-4">
-          {checkingPro || loadingUsers ? (
+          {checkingPro || checkingCanSend || loadingUsers ? (
             <div className="flex justify-center py-8 flex-1 items-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
@@ -426,6 +517,18 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                 <p className="font-medium">Pro Feature</p>
                 <p className="text-sm text-muted-foreground">
                   Direct messages require you to be a member of a Pro club
+                </p>
+              </div>
+            </div>
+          ) : !canSendDMs?.canSend ? (
+            <div className="flex flex-col items-center py-8 text-center gap-3 flex-1 justify-center">
+              <div className="p-3 rounded-full bg-muted">
+                <Lock className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="font-medium">Admin Feature</p>
+                <p className="text-sm text-muted-foreground">
+                  Direct messages are restricted to club administrators. Contact your club admin if you need this feature enabled.
                 </p>
               </div>
             </div>

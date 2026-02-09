@@ -531,6 +531,41 @@ export type Database = {
         }
         Relationships: []
       }
+      club_dm_settings: {
+        Row: {
+          allowed_roles: string[]
+          club_id: string
+          created_at: string
+          dm_enabled: boolean
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          allowed_roles?: string[]
+          club_id: string
+          created_at?: string
+          dm_enabled?: boolean
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          allowed_roles?: string[]
+          club_id?: string
+          created_at?: string
+          dm_enabled?: boolean
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_dm_settings_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: true
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_invites: {
         Row: {
           club_id: string
