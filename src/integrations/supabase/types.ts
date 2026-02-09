@@ -366,6 +366,7 @@ export type Database = {
           chat_type: string
           id: string
           muted_at: string
+          muted_until: string | null
           user_id: string
         }
         Insert: {
@@ -373,6 +374,7 @@ export type Database = {
           chat_type: string
           id?: string
           muted_at?: string
+          muted_until?: string | null
           user_id: string
         }
         Update: {
@@ -380,6 +382,7 @@ export type Database = {
           chat_type?: string
           id?: string
           muted_at?: string
+          muted_until?: string | null
           user_id?: string
         }
         Relationships: []
