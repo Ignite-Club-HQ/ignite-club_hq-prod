@@ -50,6 +50,9 @@ const WelcomeMessagePage = lazy(() => import("./pages/WelcomeMessagePage"));
 const MediaPage = lazy(() => import("./pages/MediaPage"));
 const VaultPage = lazy(() => import("./pages/VaultPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const AccountPage = lazy(() => import("./pages/AccountPage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
 const EditProfilePage = lazy(() => import("./pages/EditProfilePage"));
 const MyRolesPage = lazy(() => import("./pages/MyRolesPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
@@ -169,8 +172,12 @@ const App = () => (
                   <Route path="/vault" element={<VaultPage />} />
                   <Route path="/vault/folder/:folderId" element={<VaultPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/account" element={<AccountPage />} />
+                  <Route path="/admin" element={<AdminPage />} />
                   <Route path="/edit-profile" element={<EditProfilePage />} />
                   <Route path="/roles" element={<MyRolesPage />} />
+                  <Route path="/children" element={<ChildrenPage />} />
                   <Route path="/children" element={<ChildrenPage />} />
                   <Route path="/notifications" element={<NotificationsPage />} />
                   <Route path="/reports/player-stats" element={<PlayerStatsReportPage />} />
