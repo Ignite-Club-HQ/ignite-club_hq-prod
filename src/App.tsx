@@ -14,7 +14,7 @@ import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { IOSInstallPrompt } from "@/components/IOSInstallPrompt";
 import { PushNotificationManager } from "@/components/PushNotificationManager";
 import { PWAPendingInviteHandler } from "@/components/PWAPendingInviteHandler";
-import { BrowserCompatibilityCheck } from "@/components/BrowserCompatibilityCheck";
+
 import { StatusBarManager } from "@/components/StatusBarManager";
 import { Loader2 } from "lucide-react";
 
@@ -204,7 +204,7 @@ const App = () => (
             <IOSInstallPrompt />
             <PushNotificationManager />
             <StatusBarManager />
-            <BrowserCompatibilityCheck />
+            
           </BrowserRouter>
           </TooltipProvider>
         </ClubThemeProvider>
