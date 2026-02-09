@@ -145,10 +145,8 @@ workflows:
       - name: Increment build number
         script: |
           cd ios/App
-          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" || echo 0)
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number 6758928691 || echo 0)
           agvtool new-version -all $((LATEST_BUILD_NUMBER + 1))
-        env:
-          APP_STORE_APPLE_ID: "6758928691"
       - name: Build iOS Release
         script: |
           cd ios/App
