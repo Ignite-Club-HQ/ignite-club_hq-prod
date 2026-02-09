@@ -75,18 +75,28 @@ workflows:
       - name: Install dependencies
         script: npm install
       - name: Build web app
-        script: npm run build
+        script: |
+          npm run build
+          echo "=== Verifying dist folder exists ==="
+          ls -la dist/
       - name: Add iOS platform
-        script: npx cap add ios
-      - name: Update dependencies and sync
+        script: |
+          echo "=== Capacitor version ==="
+          npx cap --version
+          echo "=== Adding iOS platform ==="
+          npx cap add ios || echo "iOS platform may already exist"
+          echo "=== Checking ios folder structure ==="
+          ls -la ios/ || echo "ERROR: ios folder not created!"
+          ls -la ios/App/ || echo "ERROR: ios/App folder not found!"
+      - name: Sync Capacitor
         script: |
           npx cap sync ios
-          echo "=== iOS App contents ==="
-          ls -la ios/App/
+          echo "=== Verifying Podfile exists ==="
+          cat ios/App/Podfile | head -20 || echo "ERROR: Podfile not found!"
       - name: Install CocoaPods
         script: |
           cd ios/App
-          pod install
+          pod install --repo-update
       - name: Build iOS (Simulator)
         script: |
           cd ios/App
