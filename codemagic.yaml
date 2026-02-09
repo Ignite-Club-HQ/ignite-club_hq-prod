@@ -1,6 +1,6 @@
 workflows:
-  android-workflow:
-    name: Android Build
+  android-debug-workflow:
+    name: Android Debug Build
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
@@ -62,6 +62,80 @@ workflows:
           ./gradlew assembleDebug
     artifacts:
       - android/app/build/outputs/**/*.apk
+
+  android-workflow:
+    name: Android Build & Publish
+    max_build_duration: 90
+    instance_type: mac_mini_m2
+    environment:
+      java: 21
+      node: 22
+      groups:
+        - google_play_credentials
+    scripts:
+      - name: Install dependencies
+        script: npm install
+      - name: Build web app
+        script: npm run build
+      - name: Add Android platform
+        script: npx cap add android || true
+      - name: Copy Firebase config
+        script: |
+          mkdir -p android/app
+          cp firebase/google-services.json android/app/google-services.json
+      - name: Sync Capacitor
+        script: npx cap sync android
+      - name: Copy app icons
+        script: |
+          rm -rf android/app/src/main/res/mipmap-*
+          rm -rf android/app/src/main/res/drawable/ic_launcher*
+          rm -rf android/app/src/main/res/drawable-v24
+          rm -rf android/app/src/main/res/drawable-hdpi
+          rm -rf android/app/src/main/res/drawable-mdpi
+          rm -rf android/app/src/main/res/drawable-xhdpi
+          rm -rf android/app/src/main/res/drawable-xxhdpi
+          rm -rf android/app/src/main/res/drawable-xxxhdpi
+          rm -f android/app/src/main/res/drawable/ic_launcher_background.xml
+          rm -f android/app/src/main/res/drawable/splash.png
+          cp -r android-assets/mipmap-* android/app/src/main/res/
+          mkdir -p android/app/src/main/res/drawable
+          cp android-assets/drawable/ic_launcher_foreground.png android/app/src/main/res/drawable/
+          cp android-assets/drawable/ic_launcher_background.xml android/app/src/main/res/drawable/
+          cp android-assets/drawable/ic_notification.xml android/app/src/main/res/drawable/
+          rm -f android/app/src/main/res/values/colors.xml
+          rm -f android/app/src/main/res/values-night/colors.xml
+          mkdir -p android/app/src/main/res/values
+          cp android-assets/res-values/colors.xml android/app/src/main/res/values/colors.xml
+      - name: Configure notification icon
+        script: |
+          sed -i '' 's|</application>|<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification"/><meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/ignite_green"/></application>|' android/app/src/main/AndroidManifest.xml
+      - name: Set version code
+        script: |
+          cd android
+          LATEST_BUILD=$(google-play get-latest-build-number --package-name "app.lovable.igniteteamhub" --tracks internal || echo 0)
+          NEW_BUILD=$((LATEST_BUILD + 1))
+          echo "Setting versionCode to $NEW_BUILD"
+          sed -i '' "s/versionCode [0-9]*/versionCode $NEW_BUILD/" app/build.gradle
+      - name: Build Android Release Bundle
+        script: |
+          cd android
+          ./gradlew clean
+          ./gradlew bundleRelease
+      - name: Sign AAB
+        script: |
+          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
+            -keystore $CM_KEYSTORE_PATH \
+            -storepass $CM_KEYSTORE_PASSWORD \
+            -keypass $CM_KEY_PASSWORD \
+            android/app/build/outputs/bundle/release/app-release.aab \
+            $CM_KEY_ALIAS
+    artifacts:
+      - android/app/build/outputs/**/*.aab
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: true
 
   ios-debug-workflow:
     name: iOS Debug Build
