@@ -79,38 +79,6 @@
   <body>
     <div id="root"></div>
     
-    <!-- Browser compatibility check - runs before React loads -->
-    <script>
-      (function() {
-        try {
-          // Test for modern JavaScript features used in the app
-          // Optional chaining, nullish coalescing, async/await, Promises
-          eval('const test = {a:{b:1}}; test?.a?.b ?? 0; Promise.resolve();');
-        } catch (e) {
-          // Browser doesn't support modern JavaScript
-          document.getElementById('root').innerHTML = 
-            '<div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 400px; margin: 60px auto; padding: 24px; text-align: center;">' +
-              '<div style="font-size: 48px; margin-bottom: 16px;">📱</div>' +
-              '<h1 style="font-size: 20px; font-weight: 600; margin-bottom: 12px; color: #111;">Browser Update Required</h1>' +
-              '<p style="font-size: 14px; color: #666; line-height: 1.5; margin-bottom: 20px;">' +
-                'Ignite Club HQ requires a modern browser to work properly. ' +
-                'Please update your device or browser to continue.' +
-              '</p>' +
-              '<div style="background: #f3f4f6; border-radius: 8px; padding: 16px; text-align: left;">' +
-                '<p style="font-size: 13px; font-weight: 500; color: #111; margin-bottom: 8px;">Minimum Requirements:</p>' +
-                '<ul style="font-size: 13px; color: #666; margin: 0; padding-left: 20px; line-height: 1.6;">' +
-                  '<li>iOS 14+ / Safari 14+</li>' +
-                  '<li>Android 7+ / Chrome 80+</li>' +
-                  '<li>macOS Safari 14+</li>' +
-                  '<li>Windows Edge 80+ / Chrome 80+</li>' +
-                '</ul>' +
-              '</div>' +
-            '</div>';
-          throw new Error('Unsupported browser');
-        }
-      })();
-    </script>
-    
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
