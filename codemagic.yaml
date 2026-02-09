@@ -64,10 +64,15 @@ workflows:
       - android/app/build/outputs/**/*.apk
 
   ios-workflow:
-    name: iOS Build
-    max_build_duration: 60
+    name: iOS Build & Publish
+    max_build_duration: 90
     instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: Codemagic
     environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: app.lovable.igniteteamhub
       xcode: latest
       node: 22
     scripts:
@@ -135,14 +140,30 @@ workflows:
           cp android-assets/mipmap-xxxhdpi/ic_launcher.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
           echo "=== Copied Ignite icon to iOS ==="
           ls -la ios/App/App/Assets.xcassets/AppIcon.appiconset/
-      - name: Build iOS (Simulator)
+      - name: Set up code signing
+        script: xcode-project use-profiles
+      - name: Build iOS Release
         script: |
           cd ios/App
           xcodebuild -project App.xcodeproj \
             -scheme App \
-            -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build \
-            build
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/App.xcarchive \
+            CODE_SIGN_STYLE=Manual \
+            archive
+      - name: Export IPA
+        script: |
+          cd ios/App
+          xcodebuild -exportArchive \
+            -archivePath build/App.xcarchive \
+            -exportPath build/ipa \
+            -exportOptionsPlist ~/export_options.plist
     artifacts:
-      - ios/App/build/**/*.app
+      - ios/App/build/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        beta_groups:
+          - Internal Testers
