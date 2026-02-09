@@ -92,6 +92,13 @@ workflows:
           npx cap sync ios
           echo "=== Verifying SPM Package.swift exists ==="
           cat ios/App/CapApp-SPM/Package.swift | head -20
+      - name: Copy app icons
+        script: |
+          # Copy Ignite icon to iOS app icon (use the highest resolution Android icon)
+          # iOS requires 1024x1024 icon named appropriately
+          cp android-assets/mipmap-xxxhdpi/ic_launcher.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+          echo "=== Copied Ignite icon to iOS ==="
+          ls -la ios/App/App/Assets.xcassets/AppIcon.appiconset/
       - name: Build iOS (Simulator)
         script: |
           cd ios/App
