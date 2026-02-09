@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, HelpCircle, Building2, Lock, UserCog } from "lucide-react";
+import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, HelpCircle, Building2, Lock, UserCog, Settings } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -789,6 +789,10 @@ export function AppHeader() {
               <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); navigate("/profile"); }} className="py-3 px-3">
                 <User className="mr-3 h-5 w-5" />
                 <span className="text-sm">My Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); navigate("/settings"); }} className="py-3 px-3">
+                <Settings className="mr-3 h-5 w-5" />
+                <span className="text-sm">Settings</span>
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={(e) => { 
                 e.preventDefault(); 
