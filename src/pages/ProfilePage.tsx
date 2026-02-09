@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, Flame, Trophy, Users, Settings, ChevronRight, ChevronDown, Baby, Loader2, Ticket, Crown, CreditCard, MessageSquare, ClipboardList, Calendar, CheckCircle2, Building2, ShieldCheck, UserCog, FileText, Gift, MinusCircle, FileArchive, BarChart3, Lock, Video, Plus, Megaphone, Fingerprint, User, Bell } from "lucide-react";
+import { LogOut, Flame, Trophy, Users, Settings, ChevronRight, ChevronDown, Baby, Loader2, Crown, Building2, ShieldCheck, Gift, Plus, CheckCircle2, ClipboardList, Lock, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -18,8 +18,6 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 
 import igniteIcon from "@/assets/ignite-icon.png";
 import igniteIconLight from "@/assets/ignite-icon-light.png";
-import { usePasskey } from "@/hooks/usePasskey";
-import { PasskeyManagementDialog } from "@/components/PasskeyManagementDialog";
 
 export default function ProfilePage() {
   const { user, profile, signOut } = useAuth();
@@ -31,32 +29,24 @@ export default function ProfilePage() {
   const [clubPlansOpen, setClubPlansOpen] = useState(true);
   const [teamPlansOpen, setTeamPlansOpen] = useState(true);
   const [myClubsTeamsOpen, setMyClubsTeamsOpen] = useState(true);
-  const [passkeyDialogOpen, setPasskeyDialogOpen] = useState(false);
-  const { isAvailable: biometricsAvailable, isRegistered: hasPasskey, loading: passkeyLoading, registerPasskey } = usePasskey();
   
-  // Get active club filter from theme context
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
-  // Read theme from localStorage directly to prevent hydration flash
   const storedTheme = typeof window !== 'undefined' ? localStorage.getItem('app-theme') : 'light';
 
   const { data: isAppAdmin } = useQuery({
     queryKey: ["is-app-admin", user?.id],
     queryFn: async () => {
       if (!user?.id) return false;
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
         .eq("role", "app_admin")
         .maybeSingle();
-      if (error) {
-        console.error("Error checking app_admin role:", error);
-        return false;
-      }
       return !!data;
     },
     enabled: !!user?.id,
-    staleTime: 0, // Always check fresh on mount
+    staleTime: 0,
     refetchOnMount: true,
   });
 
@@ -76,11 +66,10 @@ export default function ProfilePage() {
     enabled: !!user,
   });
 
-  // Check if user has pro access through any club (or active club if filter set)
+  // Check if user has pro access
   const { data: hasProAccess } = useQuery({
     queryKey: ["has-pro-access", user?.id, activeClubFilter],
     queryFn: async () => {
-      // If active club filter, only check that club
       if (activeClubFilter) {
         const { data: subscription } = await supabase
           .from("club_subscriptions")
@@ -92,7 +81,6 @@ export default function ProfilePage() {
                   subscription?.admin_pro_override || subscription?.admin_pro_football_override);
       }
 
-      // Get all clubs user belongs to
       const { data: roles } = await supabase
         .from("user_roles")
         .select("club_id, team_id")
@@ -100,10 +88,7 @@ export default function ProfilePage() {
 
       if (!roles || roles.length === 0) return false;
 
-      // Get unique club IDs from direct roles
       const directClubIds = roles.map(r => r.club_id).filter(Boolean) as string[];
-      
-      // Get club IDs from team memberships
       const teamIds = roles.map(r => r.team_id).filter(Boolean) as string[];
       let teamClubIds: string[] = [];
       
@@ -118,7 +103,6 @@ export default function ProfilePage() {
       const allClubIds = [...new Set([...directClubIds, ...teamClubIds])];
       if (allClubIds.length === 0) return false;
 
-      // Check if any club has pro access
       const { data: subscriptions } = await supabase
         .from("club_subscriptions")
         .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
@@ -131,11 +115,10 @@ export default function ProfilePage() {
     enabled: !!user,
   });
 
-  // Fetch user's clubs and teams for "My Clubs and Teams" section
+  // Fetch user's clubs and teams
   const { data: myClubsAndTeams } = useQuery({
     queryKey: ["my-clubs-teams", user?.id, activeClubFilter],
     queryFn: async () => {
-      // Get user's roles
       const { data: roles } = await supabase
         .from("user_roles")
         .select("club_id, team_id")
@@ -143,11 +126,9 @@ export default function ProfilePage() {
 
       if (!roles || roles.length === 0) return { clubs: [], teams: [] };
 
-      // Get unique club and team IDs
       const directClubIds = [...new Set(roles.map(r => r.club_id).filter(Boolean))] as string[];
       const teamIds = [...new Set(roles.map(r => r.team_id).filter(Boolean))] as string[];
 
-      // Fetch teams with their club info
       let teams: any[] = [];
       if (teamIds.length > 0) {
         const { data: teamsData } = await supabase
@@ -157,11 +138,9 @@ export default function ProfilePage() {
         teams = teamsData || [];
       }
 
-      // Get club IDs from team memberships
       const teamClubIds = teams.map(t => t.club_id).filter(Boolean) as string[];
       const allClubIds = [...new Set([...directClubIds, ...teamClubIds])];
 
-      // Fetch clubs
       let clubs: any[] = [];
       if (allClubIds.length > 0) {
         const { data: clubsData } = await supabase
@@ -171,7 +150,6 @@ export default function ProfilePage() {
         clubs = clubsData || [];
       }
 
-      // Filter by active club if set
       if (activeClubFilter) {
         clubs = clubs.filter(c => c.id === activeClubFilter);
         teams = teams.filter(t => t.club_id === activeClubFilter);
@@ -182,28 +160,17 @@ export default function ProfilePage() {
     enabled: !!user,
   });
 
-  // Fetch points history from the new points_history table
+  // Fetch points history
   const { data: pointsHistoryData, isLoading: pointsHistoryLoading } = useQuery({
     queryKey: ["points-history", user?.id, activeClubFilter],
     queryFn: async () => {
       let query = supabase
         .from("points_history")
-        .select(`
-          id,
-          amount,
-          balance_after,
-          source_type,
-          source_id,
-          description,
-          created_at,
-          club_id,
-          clubs:club_id (name)
-        `)
+        .select(`id, amount, balance_after, source_type, source_id, description, created_at, club_id, clubs:club_id (name)`)
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(100);
       
-      // Filter by active club if set
       if (activeClubFilter) {
         query = query.eq("club_id", activeClubFilter);
       }
@@ -215,29 +182,13 @@ export default function ProfilePage() {
     enabled: !!user,
   });
 
-  // Legacy query for duties - kept for backward compatibility (duties may not have history yet)
+  // Legacy duty history
   const { data: dutyHistory } = useQuery({
     queryKey: ["duty-history", user?.id, activeClubFilter],
     queryFn: async () => {
       let query = supabase
         .from("duties")
-        .select(`
-          id,
-          name,
-          status,
-          points,
-          points_awarded,
-          created_at,
-          events (
-            id,
-            title,
-            event_date,
-            club_id,
-            team_id,
-            teams (name),
-            clubs (name)
-          )
-        `)
+        .select(`id, name, status, points, points_awarded, created_at, events (id, title, event_date, club_id, team_id, teams (name), clubs (name))`)
         .eq("assigned_to", user!.id)
         .eq("points_awarded", true)
         .order("created_at", { ascending: false });
@@ -245,7 +196,6 @@ export default function ProfilePage() {
       const { data, error } = await query;
       if (error) throw error;
       
-      // Filter by active club if set
       if (activeClubFilter && data) {
         return data.filter((duty: any) => {
           const event = duty.events;
@@ -259,26 +209,16 @@ export default function ProfilePage() {
     enabled: !!user,
   });
 
-  // Fetch reward redemptions for the user (filtered by active club if set)
+  // Redemption history
   const { data: redemptionHistory, isLoading: redemptionsLoading } = useQuery({
     queryKey: ["redemption-history", user?.id, activeClubFilter],
     queryFn: async () => {
       let query = supabase
         .from("reward_redemptions")
-        .select(`
-          id,
-          points_spent,
-          status,
-          redeemed_at,
-          created_at,
-          club_id,
-          club_rewards (name),
-          clubs (name)
-        `)
+        .select(`id, points_spent, status, redeemed_at, created_at, club_id, club_rewards (name), clubs (name)`)
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
       
-      // Filter by active club if set
       if (activeClubFilter) {
         query = query.eq("club_id", activeClubFilter);
       }
@@ -290,7 +230,7 @@ export default function ProfilePage() {
     enabled: !!user,
   });
 
-  // Combine new points_history with legacy duties/redemptions for complete history
+  // Combine points history
   const pointsHistory = useMemo(() => {
     const items: Array<{
       id: string;
@@ -302,10 +242,8 @@ export default function ProfilePage() {
       eventId?: string;
     }> = [];
 
-    // Track IDs we've already added from points_history to avoid duplicates
     const addedSourceIds = new Set<string>();
 
-    // Add entries from the new points_history table (primary source)
     if (pointsHistoryData) {
       pointsHistoryData.forEach((entry: any) => {
         const isEarned = entry.amount > 0;
@@ -324,12 +262,9 @@ export default function ProfilePage() {
       });
     }
 
-    // Add legacy duties that awarded points (for data before points_history was introduced)
     if (dutyHistory) {
       dutyHistory.forEach((duty: any) => {
-        // Skip if already in points_history
         if (addedSourceIds.has(duty.id)) return;
-        
         if (duty.points_awarded && duty.points) {
           const event = duty.events;
           items.push({
@@ -345,12 +280,9 @@ export default function ProfilePage() {
       });
     }
 
-    // Add legacy redemptions (for data before points_history was introduced)
     if (redemptionHistory) {
       redemptionHistory.forEach((redemption: any) => {
-        // Skip if already in points_history
         if (addedSourceIds.has(redemption.reward_id || redemption.id)) return;
-        
         items.push({
           id: `redemption-${redemption.id}`,
           type: 'spent',
@@ -362,13 +294,10 @@ export default function ProfilePage() {
       });
     }
 
-    // Sort by date descending
     items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
     return items;
   }, [pointsHistoryData, dutyHistory, redemptionHistory]);
 
-  // Calculate totals
   const pointsEarned = useMemo(() => {
     return pointsHistory.filter(p => p.type === 'earned').reduce((sum, p) => sum + p.points, 0);
   }, [pointsHistory]);
@@ -377,12 +306,10 @@ export default function ProfilePage() {
     return pointsHistory.filter(p => p.type === 'spent').reduce((sum, p) => sum + p.points, 0);
   }, [pointsHistory]);
 
-  // Fetch clubs where user is club_admin or app_admin (can manage club subscriptions)
-  // Filter by active club if set
+  // Fetch upgradable clubs
   const { data: upgradableClubs } = useQuery({
     queryKey: ["upgradable-clubs", user?.id, activeClubFilter],
     queryFn: async () => {
-      // Check if user is app_admin
       const { data: appAdminRole } = await supabase
         .from("user_roles")
         .select("role")
@@ -390,9 +317,8 @@ export default function ProfilePage() {
         .eq("role", "app_admin")
         .maybeSingle();
 
-      const isAppAdmin = !!appAdminRole;
+      const isAppAdminUser = !!appAdminRole;
 
-      // Get club_admin roles
       const { data: roles } = await supabase
         .from("user_roles")
         .select("club_id")
@@ -402,38 +328,26 @@ export default function ProfilePage() {
 
       let clubIds: string[] = [];
 
-      if (isAppAdmin && !activeClubFilter) {
-        // App admins can manage all clubs - fetch all clubs (only when no filter)
-        const { data: allClubs } = await supabase
-          .from("clubs")
-          .select("id, name, sport");
-        
+      if (isAppAdminUser && !activeClubFilter) {
+        const { data: allClubs } = await supabase.from("clubs").select("id, name, sport");
         if (!allClubs || allClubs.length === 0) return [];
         
-        // Fetch subscriptions separately to ensure fresh data
         const { data: subscriptions } = await supabase
           .from("club_subscriptions")
           .select("club_id, is_pro, is_pro_football, plan, team_limit, expires_at, storage_purchased_gb")
           .in("club_id", allClubs.map(c => c.id));
         
-        // Merge subscriptions into clubs
         return allClubs.map(club => ({
           ...club,
           subscription: subscriptions?.find(s => s.club_id === club.id) || null
         }));
       }
 
-      // If active club filter, only show that club (if user has admin access)
       if (activeClubFilter) {
-        const hasAccess = isAppAdmin || (roles?.some(r => r.club_id === activeClubFilter));
+        const hasAccess = isAppAdminUser || (roles?.some(r => r.club_id === activeClubFilter));
         if (!hasAccess) return [];
         
-        const { data: club } = await supabase
-          .from("clubs")
-          .select("id, name, sport")
-          .eq("id", activeClubFilter)
-          .single();
-        
+        const { data: club } = await supabase.from("clubs").select("id, name, sport").eq("id", activeClubFilter).single();
         if (!club) return [];
         
         const { data: subscription } = await supabase
@@ -446,38 +360,29 @@ export default function ProfilePage() {
       }
 
       if (!roles || roles.length === 0) return [];
-
       clubIds = roles.map(r => r.club_id).filter(Boolean) as string[];
       
-      const { data: clubs } = await supabase
-        .from("clubs")
-        .select("id, name, sport")
-        .in("id", clubIds);
-
+      const { data: clubs } = await supabase.from("clubs").select("id, name, sport").in("id", clubIds);
       if (!clubs || clubs.length === 0) return [];
 
-      // Fetch subscriptions separately to ensure fresh data
       const { data: subscriptions } = await supabase
         .from("club_subscriptions")
         .select("club_id, is_pro, is_pro_football, plan, team_limit, expires_at, storage_purchased_gb")
         .in("club_id", clubIds);
 
-      // Merge subscriptions into clubs
       return clubs.map(club => ({
         ...club,
         subscription: subscriptions?.find(s => s.club_id === club.id) || null
       }));
     },
     enabled: !!user,
-    staleTime: 0, // Always fetch fresh data
+    staleTime: 0,
   });
 
-  // Fetch teams where user is admin/coach (can upgrade)
-  // Filter by active club if set
+  // Fetch upgradable teams
   const { data: upgradableTeams } = useQuery({
     queryKey: ["upgradable-teams", user?.id, activeClubFilter],
     queryFn: async () => {
-      // Get user's admin roles
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role, team_id, club_id")
@@ -486,39 +391,27 @@ export default function ProfilePage() {
 
       if (!roles || roles.length === 0) return [];
 
-      // Get team IDs where user is team_admin or coach
       let directTeamIds = roles
         .filter(r => r.team_id && (r.role === "team_admin" || r.role === "coach"))
         .map(r => r.team_id);
 
-      // Get club IDs where user is club_admin
       let adminClubIds = roles
         .filter(r => r.club_id && r.role === "club_admin")
         .map(r => r.club_id);
 
-      // If active club filter, only include teams from that club
       if (activeClubFilter) {
         directTeamIds = directTeamIds.filter(teamId => activeClubTeamIds.includes(teamId!));
         adminClubIds = adminClubIds.filter(clubId => clubId === activeClubFilter);
       }
 
-      // Fetch teams with basic info
       let teamsQuery = supabase
         .from("teams")
-        .select(`
-          id,
-          name,
-          club_id,
-          clubs (name, sport),
-          team_subscriptions (is_pro, is_pro_football)
-        `);
+        .select(`id, name, club_id, clubs (name, sport), team_subscriptions (is_pro, is_pro_football)`);
 
-      // Apply active club filter if set
       if (activeClubFilter) {
         teamsQuery = teamsQuery.eq("club_id", activeClubFilter);
       }
 
-      // Build OR condition for teams
       if (directTeamIds.length > 0 && adminClubIds.length > 0) {
         teamsQuery = teamsQuery.or(`id.in.(${directTeamIds.join(',')}),club_id.in.(${adminClubIds.join(',')})`);
       } else if (directTeamIds.length > 0) {
@@ -532,16 +425,12 @@ export default function ProfilePage() {
       const { data: teams } = await teamsQuery;
       if (!teams || teams.length === 0) return [];
 
-      // Get unique club IDs from the teams
       const clubIds = [...new Set(teams.map(t => t.club_id).filter(Boolean))];
-      
-      // Fetch club subscriptions separately for reliable data
       const { data: clubSubs } = await supabase
         .from("club_subscriptions")
         .select("club_id, is_pro, is_pro_football, plan")
         .in("club_id", clubIds);
 
-      // Merge club subscription data into teams
       const clubSubMap = new Map(clubSubs?.map(cs => [cs.club_id, cs]) || []);
       
       return teams.map(team => ({
@@ -559,22 +448,6 @@ export default function ProfilePage() {
     navigate("/auth");
   };
 
-  const handleSetupBiometrics = async () => {
-    const result = await registerPasskey();
-    if (result.success) {
-      toast({
-        title: "Biometric login enabled!",
-        description: "You can now sign in with Face ID or Touch ID.",
-      });
-    } else {
-      toast({
-        title: "Setup failed",
-        description: result.error || "Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <div className="py-6 space-y-6">
       {/* Profile Header */}
@@ -582,13 +455,8 @@ export default function ProfilePage() {
         <Avatar className="h-20 w-20 border-4 border-primary/20">
           <AvatarImage src={profile?.avatar_url || undefined} />
           <AvatarFallback className="bg-muted flex items-center justify-center p-0">
-            {/* Show club logo in avatar when in club mode, otherwise show ignite icon */}
             {activeThemeData?.logoUrl ? (
-              <img 
-                src={activeThemeData.logoUrl} 
-                alt={activeThemeData.clubName}
-                className="h-14 w-14 object-contain"
-              />
+              <img src={activeThemeData.logoUrl} alt={activeThemeData.clubName} className="h-14 w-14 object-contain" />
             ) : (
               <img src={storedTheme === 'light' ? igniteIconLight : igniteIcon} alt="Profile" className="h-full w-full object-cover rounded-full" />
             )}
@@ -598,6 +466,9 @@ export default function ProfilePage() {
           <h1 className="text-2xl font-bold">{profile?.display_name}</h1>
           <p className="text-sm text-muted-foreground">{user?.email}</p>
         </div>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/settings")}>
+          <Settings className="h-5 w-5" />
+        </Button>
       </div>
 
       {/* Ignite Points & Rewards Card */}
@@ -617,7 +488,6 @@ export default function ProfilePage() {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <CardContent className="pt-0 space-y-4">
-              {/* Clubs */}
               {myClubsAndTeams?.clubs && myClubsAndTeams.clubs.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-muted-foreground">Clubs</p>
@@ -636,9 +506,7 @@ export default function ProfilePage() {
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{club.name}</p>
-                        {club.sport && (
-                          <p className="text-xs text-muted-foreground">{getSportEmoji(club.sport)} {club.sport}</p>
-                        )}
+                        {club.sport && <p className="text-xs text-muted-foreground">{getSportEmoji(club.sport)} {club.sport}</p>}
                       </div>
                       <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     </div>
@@ -646,7 +514,6 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {/* Teams */}
               {myClubsAndTeams?.teams && myClubsAndTeams.teams.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-muted-foreground">Teams</p>
@@ -673,19 +540,13 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {/* Empty state or create/join options */}
               {(!myClubsAndTeams?.clubs?.length && !myClubsAndTeams?.teams?.length) && (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   You're not a member of any clubs or teams yet.
                 </p>
               )}
 
-              {/* Create/Join Button */}
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => navigate("/clubs")}
-              >
+              <Button variant="outline" className="w-full" onClick={() => navigate("/clubs")}>
                 <Plus className="h-4 w-4 mr-2" />
                 Discover or Create Club
               </Button>
@@ -695,92 +556,10 @@ export default function ProfilePage() {
       </Collapsible>
 
       <div className="space-y-2">
-        <MenuCard 
-          icon={Baby} 
-          label="Manage Children" 
-          onClick={() => navigate("/children")}
-        />
-        <MenuCard 
-          icon={Users} 
-          label="My Roles" 
-          onClick={() => navigate("/roles")}
-        />
-        <MenuCard 
-          icon={Settings} 
-          label="Edit Profile" 
-          onClick={() => navigate("/edit-profile")}
-        />
-        {biometricsAvailable && !hasPasskey && (
-          <MenuCard 
-            icon={Fingerprint} 
-            label="Set up Face ID / Touch ID" 
-            onClick={handleSetupBiometrics}
-            loading={passkeyLoading}
-          />
-        )}
-        {biometricsAvailable && hasPasskey && (
-          <MenuCard 
-            icon={Fingerprint} 
-            label="Manage Passkeys" 
-            onClick={() => setPasskeyDialogOpen(true)}
-            badge="Active"
-          />
-        )}
-        {isTeamAdminOrCoach && (
-          <MenuCard 
-            icon={FileText} 
-            label="Player Stats Reports" 
-            onClick={() => navigate("/reports/player-stats")}
-          />
-        )}
-        {isAppAdmin && (
-          <>
-            <MenuCard 
-              icon={Ticket} 
-              label="Manage Promo Codes" 
-              onClick={() => navigate("/admin/promo-codes")}
-            />
-            <MenuCard 
-              icon={CreditCard} 
-              label="Stripe Settings" 
-              onClick={() => navigate("/admin/stripe")}
-            />
-            <MenuCard 
-              icon={MessageSquare} 
-              label="Manage Feedback" 
-              onClick={() => navigate("/admin/feedback")}
-            />
-            <MenuCard 
-              icon={UserCog} 
-              label="User Management" 
-              onClick={() => navigate("/admin/users")}
-            />
-            <MenuCard 
-              icon={FileArchive} 
-              label="Club Backups" 
-              onClick={() => navigate("/admin/backups")}
-            />
-            <MenuCard 
-              icon={BarChart3} 
-              label="Sponsor Analytics" 
-              onClick={() => navigate("/admin/sponsor-analytics")}
-            />
-            <MenuCard 
-              icon={Megaphone} 
-              label="Manage Ads" 
-              onClick={() => navigate("/admin/ads")}
-            />
-            <MenuCard 
-              icon={Bell} 
-              label="Notification Preferences" 
-              onClick={() => navigate("/admin/notification-preferences")}
-            />
-            <MenuCard 
-              icon={Settings} 
-              label="App Settings" 
-              onClick={() => navigate("/admin/settings")}
-            />
-          </>
+        <MenuCard icon={Baby} label="Manage Children" onClick={() => navigate("/children")} />
+        <MenuCard icon={Users} label="My Roles" onClick={() => navigate("/roles")} />
+        {(isAppAdmin || isTeamAdminOrCoach) && (
+          <MenuCard icon={ShieldCheck} label="Admin" onClick={() => navigate("/admin")} />
         )}
       </div>
 
@@ -798,7 +577,6 @@ export default function ProfilePage() {
               </CardHeader>
             </CollapsibleTrigger>
             
-            {/* Summary - Always visible */}
             <CardContent className="pt-0 pb-3">
               <div className="grid grid-cols-3 gap-2">
                 <div className="text-center p-3 bg-muted rounded-lg">
@@ -824,7 +602,6 @@ export default function ProfilePage() {
                   </div>
                 ) : pointsHistory.length > 0 ? (
                   <>
-                    {/* Points List */}
                     <div className="space-y-2">
                       {(showAllDuties ? pointsHistory : pointsHistory.slice(0, 5)).map((item) => {
                         const isEarned = item.type === 'earned';
@@ -899,7 +676,7 @@ export default function ProfilePage() {
         </Card>
       )}
 
-      {/* Manage Plans Section - Moved to bottom */}
+      {/* Manage Plans Section */}
       {((upgradableClubs && upgradableClubs.length > 0) || (upgradableTeams && upgradableTeams.length > 0)) && (
         <div id="manage-plans-section" className="space-y-3">
           <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -907,7 +684,6 @@ export default function ProfilePage() {
             Manage Plans
           </h2>
           
-          {/* Club Subscriptions */}
           {upgradableClubs && upgradableClubs.length > 0 && (
             <Collapsible open={clubPlansOpen} onOpenChange={setClubPlansOpen}>
               <CollapsibleTrigger className="flex items-center gap-1 w-full text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -917,28 +693,10 @@ export default function ProfilePage() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2 mt-2">
                 {upgradableClubs.map((club: any) => {
-                  const subscription = club.subscription;
-                  const isPro = subscription?.is_pro === true;
-                  const isProFootball = subscription?.is_pro_football === true;
-                  const plan = subscription?.plan || "starter";
-                  const planDisplay = plan.charAt(0).toUpperCase() + plan.slice(1);
+                  const sub = club.subscription;
+                  const currentPlan = sub?.is_pro_football ? "Pro Football" : sub?.is_pro ? "Pro" : "Free";
                   const sport = club.sport?.toLowerCase() || "";
-                  const isSoccerClub = sport.includes("soccer") || sport.includes("football") || sport.includes("futsal");
-                  
-                  // Determine current plan display
-                  let currentPlan = "Free";
-                  let planBadgeVariant: "default" | "outline" = "outline";
-                  
-                  if (isProFootball) {
-                    currentPlan = `Pro Football - ${planDisplay}`;
-                    planBadgeVariant = "default";
-                  } else if (isPro) {
-                    currentPlan = `Pro - ${planDisplay}`;
-                    planBadgeVariant = "default";
-                  }
-                  
-                  const hasActivePlan = isPro || isProFootball;
-                  const isHighestTier = isProFootball; // Pro Football is highest
+                  const isSoccer = sport.includes("soccer") || sport.includes("football") || sport.includes("futsal");
                   
                   return (
                     <Card 
@@ -948,46 +706,18 @@ export default function ProfilePage() {
                     >
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-2">
-                          <div className="flex-1">
-                            <span className="font-medium">{club.name}</span>
-                            <p className="text-sm text-muted-foreground flex items-center gap-1">
-                              <span>{getSportEmoji(club.sport)}</span>
-                              <span className="capitalize">{club.sport || "Sport not set"}</span>
-                            </p>
-                          </div>
+                          <span className="font-medium">{club.name}</span>
                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Badge 
-                            variant={planBadgeVariant}
-                            className={currentPlan === "Free" ? "text-muted-foreground" : ""}
-                          >
-                            {currentPlan === "Free" ? "No Plan" : currentPlan}
+                          <Badge variant={currentPlan === "Free" ? "outline" : "default"} className={currentPlan === "Free" ? "text-muted-foreground" : ""}>
+                            {currentPlan}
                           </Badge>
-                          {/* Only show upgrade options if no active plan */}
-                          {!hasActivePlan && (
+                          {currentPlan === "Free" && (
                             <>
-                              <Badge variant="outline" className="text-primary border-primary">
-                                Upgrade
-                              </Badge>
+                              <Badge variant="outline" className="text-primary border-primary">Pro $50/mo</Badge>
+                              {isSoccer && <Badge variant="outline" className="text-primary border-primary">Pro Football $75/mo</Badge>}
                             </>
-                          )}
-                          {/* Show upgrade to Pro Football if only on Pro (not highest tier) */}
-                          {isPro && !isProFootball && isSoccerClub && (
-                            <Badge variant="outline" className="text-primary border-primary">
-                              Upgrade to Pro Football
-                            </Badge>
-                          )}
-                          {/* Show downgrade option if has active plan */}
-                          {hasActivePlan && (
-                            <Badge variant="outline" className="text-destructive border-destructive">
-                              {isHighestTier ? "Downgrade" : "Manage Plan"}
-                            </Badge>
-                          )}
-                          {subscription?.storage_purchased_gb > 0 && (
-                            <Badge variant="secondary" className="text-xs">
-                              +{subscription.storage_purchased_gb}GB Storage
-                            </Badge>
                           )}
                         </div>
                       </CardContent>
@@ -998,7 +728,6 @@ export default function ProfilePage() {
             </Collapsible>
           )}
 
-          {/* Team Subscriptions */}
           {upgradableTeams && upgradableTeams.length > 0 && (
             <Collapsible open={teamPlansOpen} onOpenChange={setTeamPlansOpen}>
               <CollapsibleTrigger className="flex items-center gap-1 w-full text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -1014,16 +743,12 @@ export default function ProfilePage() {
                   const sport = team.clubs?.sport?.toLowerCase() || "";
                   const isSoccerTeam = sport.includes("soccer") || sport.includes("football") || sport.includes("futsal");
                   
-                  // Use the clubSubscription we fetched separately (more reliable)
                   const clubSub = team.clubSubscription;
                   const clubHasPro = clubSub?.is_pro === true;
                   const clubHasProFootball = clubSub?.is_pro_football === true;
                   
-                  // Effective plan considering club inheritance
-                  // If club has Pro Football, team is effectively Pro Football
-                  // If club has Pro, team is effectively Pro
                   const effectiveIsProFootball = teamIsProFootball || clubHasProFootball;
-                  const effectiveIsPro = teamIsPro || clubHasPro || clubHasProFootball; // Pro Football includes Pro
+                  const effectiveIsPro = teamIsPro || clubHasPro || clubHasProFootball;
                   
                   let currentPlan = "Free";
                   let planSource = "";
@@ -1035,7 +760,6 @@ export default function ProfilePage() {
                     planSource = ((clubHasPro || clubHasProFootball) && !teamIsPro) ? " (via Club)" : "";
                   }
                   
-                  // Check if access is from club (team shouldn't show individual upgrade/downgrade)
                   const hasClubAccess = clubHasPro || clubHasProFootball;
                   
                   return (
@@ -1053,42 +777,17 @@ export default function ProfilePage() {
                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Badge 
-                            variant={currentPlan === "Free" ? "outline" : "default"}
-                            className={currentPlan === "Free" ? "text-muted-foreground" : ""}
-                          >
+                          <Badge variant={currentPlan === "Free" ? "outline" : "default"} className={currentPlan === "Free" ? "text-muted-foreground" : ""}>
                             {currentPlan}{planSource}
                           </Badge>
-                          {/* Only show upgrade options if no club access */}
                           {!hasClubAccess && currentPlan === "Free" && (
                             <>
-                              <Badge variant="outline" className="text-primary border-primary">
-                                Pro $25/mo
-                              </Badge>
-                              {isSoccerTeam && (
-                                <Badge variant="outline" className="text-primary border-primary">
-                                  Pro Football $40/mo
-                                </Badge>
-                              )}
+                              <Badge variant="outline" className="text-primary border-primary">Pro $25/mo</Badge>
+                              {isSoccerTeam && <Badge variant="outline" className="text-primary border-primary">Pro Football $40/mo</Badge>}
                             </>
                           )}
-                          {/* Can upgrade to Pro Football if team has Pro but not Pro Football, and club doesn't have Pro Football */}
-                          {!hasClubAccess && currentPlan === "Pro" && isSoccerTeam && !teamIsProFootball && (
-                            <Badge variant="outline" className="text-primary border-primary">
-                              Upgrade to Pro Football
-                            </Badge>
-                          )}
-                          {/* Show downgrade only for team's own subscription, not club-inherited */}
-                          {!hasClubAccess && (teamIsPro || teamIsProFootball) && (
-                            <Badge variant="outline" className="text-destructive border-destructive">
-                              Downgrade
-                            </Badge>
-                          )}
-                          {/* Show managed by club notice */}
                           {hasClubAccess && (
-                            <Badge variant="outline" className="text-muted-foreground">
-                              Managed via Club
-                            </Badge>
+                            <Badge variant="outline" className="text-muted-foreground">Managed via Club</Badge>
                           )}
                         </div>
                       </CardContent>
@@ -1110,19 +809,9 @@ export default function ProfilePage() {
         onClick={handleSignOut}
         disabled={signingOut}
       >
-        {signingOut ? (
-          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-        ) : (
-          <LogOut className="h-4 w-4 mr-2" />
-        )}
+        {signingOut ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <LogOut className="h-4 w-4 mr-2" />}
         Sign Out
       </Button>
-
-      {/* Passkey Management Dialog */}
-      <PasskeyManagementDialog 
-        open={passkeyDialogOpen} 
-        onOpenChange={setPasskeyDialogOpen} 
-      />
     </div>
   );
 }
@@ -1148,16 +837,10 @@ function MenuCard({
       <CardContent className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10">
-            {loading ? (
-              <Loader2 className="h-5 w-5 text-primary animate-spin" />
-            ) : (
-              <Icon className="h-5 w-5 text-primary" />
-            )}
+            {loading ? <Loader2 className="h-5 w-5 text-primary animate-spin" /> : <Icon className="h-5 w-5 text-primary" />}
           </div>
           <span className="font-medium">{label}</span>
-          {badge && (
-            <Badge variant="secondary" className="text-xs">{badge}</Badge>
-          )}
+          {badge && <Badge variant="secondary" className="text-xs">{badge}</Badge>}
         </div>
         <ChevronRight className="h-5 w-5 text-muted-foreground" />
       </CardContent>

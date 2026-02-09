@@ -1,0 +1,216 @@
+import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Ticket, CreditCard, MessageSquare, UserCog, FileArchive, BarChart3, Megaphone, Bell, Settings, FileText, ShieldCheck, Video } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ChevronRight } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { PageLoading } from "@/components/ui/page-loading";
+
+export default function AdminPage() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Check if user is app admin
+  const { data: isAppAdmin, isLoading } = useQuery({
+    queryKey: ["is-app-admin", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return false;
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "app_admin")
+        .maybeSingle();
+      if (error) {
+        console.error("Error checking app_admin role:", error);
+        return false;
+      }
+      return !!data;
+    },
+    enabled: !!user?.id,
+    staleTime: 0,
+    refetchOnMount: true,
+  });
+
+  // Check if user is team admin or coach (for player stats access)
+  const { data: isTeamAdminOrCoach } = useQuery({
+    queryKey: ["is-team-admin-coach", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user!.id)
+        .in("role", ["team_admin", "coach"])
+        .not("team_id", "is", null)
+        .limit(1);
+      return data && data.length > 0;
+    },
+    enabled: !!user,
+  });
+
+  if (isLoading) {
+    return <PageLoading />;
+  }
+
+  if (!isAppAdmin && !isTeamAdminOrCoach) {
+    return (
+      <div className="py-6 space-y-6">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-2xl font-bold">Admin</h1>
+        </div>
+        <div className="flex-1 flex items-center justify-center p-4">
+          <p className="text-muted-foreground">Access denied. Admin role required.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-6 space-y-6">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold">Admin</h1>
+          <p className="text-sm text-muted-foreground">Management tools and settings</p>
+        </div>
+      </div>
+
+      {/* Team Admin Tools */}
+      {isTeamAdminOrCoach && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Team Tools</CardTitle>
+            <CardDescription>Tools available to team admins and coaches</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <AdminMenuItem
+              icon={FileText}
+              label="Player Stats Reports"
+              description="View player statistics and reports"
+              onClick={() => navigate("/reports/player-stats")}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* App Admin Tools */}
+      {isAppAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">App Administration</CardTitle>
+            <CardDescription>Global app management tools</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <AdminMenuItem
+              icon={Ticket}
+              label="Manage Promo Codes"
+              description="Create and manage promotional codes"
+              onClick={() => navigate("/admin/promo-codes")}
+            />
+            <AdminMenuItem
+              icon={CreditCard}
+              label="Stripe Settings"
+              description="Configure payment settings"
+              onClick={() => navigate("/admin/stripe")}
+            />
+            <AdminMenuItem
+              icon={MessageSquare}
+              label="Manage Feedback"
+              description="View and respond to user feedback"
+              onClick={() => navigate("/admin/feedback")}
+            />
+            <AdminMenuItem
+              icon={UserCog}
+              label="User Management"
+              description="Manage user accounts and roles"
+              onClick={() => navigate("/admin/users")}
+            />
+            <AdminMenuItem
+              icon={FileArchive}
+              label="Club Backups"
+              description="Backup and restore club data"
+              onClick={() => navigate("/admin/backups")}
+            />
+            <AdminMenuItem
+              icon={BarChart3}
+              label="Sponsor Analytics"
+              description="View sponsor performance metrics"
+              onClick={() => navigate("/admin/sponsor-analytics")}
+            />
+            <AdminMenuItem
+              icon={Megaphone}
+              label="Manage Ads"
+              description="Configure in-app advertisements"
+              onClick={() => navigate("/admin/ads")}
+            />
+            <AdminMenuItem
+              icon={Bell}
+              label="Notification Preferences"
+              description="Global notification settings"
+              onClick={() => navigate("/admin/notification-preferences")}
+            />
+            <AdminMenuItem
+              icon={Settings}
+              label="App Settings"
+              description="Global application settings"
+              onClick={() => navigate("/admin/settings")}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Push Analytics - App Admin Only */}
+      {isAppAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Analytics</CardTitle>
+            <CardDescription>Performance and usage analytics</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <AdminMenuItem
+              icon={Bell}
+              label="Push Analytics"
+              description="Push notification delivery metrics"
+              onClick={() => navigate("/admin/push-analytics")}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function AdminMenuItem({
+  icon: Icon,
+  label,
+  description,
+  onClick,
+}: {
+  icon: React.ElementType;
+  label: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <div
+      className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted cursor-pointer transition-colors"
+      onClick={onClick}
+    >
+      <div className="p-2 rounded-lg bg-primary/10">
+        <Icon className="h-5 w-5 text-primary" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+    </div>
+  );
+}

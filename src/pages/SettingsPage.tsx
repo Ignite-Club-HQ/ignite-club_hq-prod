@@ -1,0 +1,726 @@
+import { useState, useEffect, lazy, Suspense } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Loader2, User, Bell, Moon, Sun, Smartphone, Download, Send, MessageSquare, Calendar, Image, Users, LayoutGrid, Mail, Gift, Trophy, Settings, Fingerprint, ChevronRight } from "lucide-react";
+import { useTheme } from "next-themes";
+import { Capacitor } from "@capacitor/core";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { usePWAInstall } from "@/hooks/usePWAInstall";
+import { usePasskey } from "@/hooks/usePasskey";
+import { PasskeyManagementDialog } from "@/components/PasskeyManagementDialog";
+
+// Check if we're on native platform at module load time
+let isNativePlatform = false;
+try {
+  isNativePlatform = Capacitor.isNativePlatform();
+} catch (e) {
+  console.warn("[SettingsPage] Error checking native platform:", e);
+}
+
+const SKIP_WEB_PUSH = isNativePlatform;
+
+// Lazy load push-related components
+const LazyPushDiagnosticsCard = !SKIP_WEB_PUSH 
+  ? lazy(() => import("@/components/PushDiagnosticsCard").then(m => ({ default: m.PushDiagnosticsCard })))
+  : () => null;
+
+const LazyNativePushCard = SKIP_WEB_PUSH
+  ? lazy(() => import("@/components/NativePushCard").then(m => ({ default: m.NativePushCard })))
+  : () => null;
+
+interface NotificationPreferences {
+  messages_enabled: boolean;
+  events_enabled: boolean;
+  media_enabled: boolean;
+  membership_enabled: boolean;
+  pitch_board_enabled: boolean;
+}
+
+interface EmailPreferences {
+  email_messages_enabled: boolean;
+  email_events_enabled: boolean;
+  email_media_enabled: boolean;
+  email_membership_enabled: boolean;
+  email_admin_enabled: boolean;
+  email_pitch_board_enabled: boolean;
+  email_rewards_enabled: boolean;
+  email_pom_enabled: boolean;
+}
+
+export default function SettingsPage() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { canPrompt, isInstalled, isIOS, installApp } = usePWAInstall();
+  const { setTheme, theme } = useTheme();
+  const { isAvailable: biometricsAvailable, isRegistered: hasPasskey, loading: passkeyLoading, registerPasskey } = usePasskey();
+  const [passkeyDialogOpen, setPasskeyDialogOpen] = useState(false);
+  
+  // Push notification state
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(!SKIP_WEB_PUSH);
+  const [pushSupported, setPushSupported] = useState(!SKIP_WEB_PUSH);
+  const [testingPush, setTestingPush] = useState(false);
+  const [testPushDelay, setTestPushDelay] = useState(10);
+  
+  // Notification preferences
+  const [preferences, setPreferences] = useState<NotificationPreferences>({
+    messages_enabled: true,
+    events_enabled: true,
+    media_enabled: true,
+    membership_enabled: true,
+    pitch_board_enabled: true,
+  });
+  const [emailPreferences, setEmailPreferences] = useState<EmailPreferences>({
+    email_messages_enabled: true,
+    email_events_enabled: true,
+    email_media_enabled: true,
+    email_membership_enabled: true,
+    email_admin_enabled: true,
+    email_pitch_board_enabled: true,
+    email_rewards_enabled: true,
+    email_pom_enabled: true,
+  });
+  const [prefsLoading, setPrefsLoading] = useState(false);
+  const [emailPrefsLoading, setEmailPrefsLoading] = useState(false);
+  
+  const isMobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  // Load notification preferences
+  useEffect(() => {
+    const loadPreferences = async () => {
+      if (!user) return;
+      
+      const { data } = await supabase
+        .from("notification_preferences")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+      
+      if (data) {
+        setPreferences({
+          messages_enabled: data.messages_enabled,
+          events_enabled: data.events_enabled,
+          media_enabled: data.media_enabled,
+          membership_enabled: data.membership_enabled,
+          pitch_board_enabled: data.pitch_board_enabled ?? true,
+        });
+        setEmailPreferences({
+          email_messages_enabled: data.email_messages_enabled ?? true,
+          email_events_enabled: data.email_events_enabled ?? true,
+          email_media_enabled: data.email_media_enabled ?? true,
+          email_membership_enabled: data.email_membership_enabled ?? true,
+          email_admin_enabled: data.email_admin_enabled ?? true,
+          email_pitch_board_enabled: data.email_pitch_board_enabled ?? true,
+          email_rewards_enabled: data.email_rewards_enabled ?? true,
+          email_pom_enabled: data.email_pom_enabled ?? true,
+        });
+      }
+    };
+    
+    loadPreferences();
+  }, [user]);
+
+  // Check push notification status
+  useEffect(() => {
+    if (SKIP_WEB_PUSH) return;
+    
+    const checkPushStatus = async () => {
+      if (typeof window === 'undefined' || 
+          !('PushManager' in window) || 
+          !('serviceWorker' in navigator) ||
+          !('Notification' in window)) {
+        setPushSupported(false);
+        setPushLoading(false);
+        return;
+      }
+      
+      try {
+        const pushModule = await import("@/lib/pushNotifications");
+        const { checkPushSubscription, wasJustReset } = pushModule;
+        
+        if (wasJustReset()) {
+          toast({
+            title: "Push notifications reset",
+            description: "Wait a few seconds, then enable notifications again",
+          });
+        }
+        
+        const isSubscribed = await checkPushSubscription(user?.id);
+        setPushEnabled(isSubscribed);
+        setPushLoading(false);
+      } catch (err) {
+        console.error("[SettingsPage] Failed to load push modules:", err);
+        setPushSupported(false);
+        setPushLoading(false);
+      }
+    };
+    
+    checkPushStatus();
+  }, [toast, user?.id]);
+
+  const handlePushToggle = async (enabled: boolean) => {
+    if (SKIP_WEB_PUSH || !user) return;
+    
+    setPushLoading(true);
+    
+    try {
+      const pushModule = await import("@/lib/pushNotifications");
+      const { subscribeToPushNotifications, unsubscribeFromPushNotifications, forceUnlockPushSubscription } = pushModule;
+      
+      forceUnlockPushSubscription();
+      
+      if (enabled) {
+        toast({ title: "Enabling push notifications...", description: "Please allow notifications if prompted" });
+        const result = await subscribeToPushNotifications(user.id);
+        
+        if (result.success) {
+          setPushEnabled(true);
+          toast({ title: "Push notifications enabled" });
+        } else {
+          toast({ 
+            title: "Could not enable notifications", 
+            description: result.error || "Please check your browser permissions",
+            variant: "destructive",
+            duration: 20000
+          });
+        }
+      } else {
+        await unsubscribeFromPushNotifications(user.id);
+        setPushEnabled(false);
+        toast({ title: "Push notifications disabled" });
+      }
+    } catch (error) {
+      console.error('[SettingsPage] Push toggle error:', error);
+      toast({ 
+        title: "Error updating notification settings", 
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive" 
+      });
+    }
+    
+    setPushLoading(false);
+  };
+
+  const handlePreferenceChange = async (key: keyof NotificationPreferences, value: boolean) => {
+    if (!user) return;
+    
+    const newPrefs = { ...preferences, [key]: value };
+    setPreferences(newPrefs);
+    setPrefsLoading(true);
+    
+    try {
+      const { error } = await supabase
+        .from("notification_preferences")
+        .upsert({ user_id: user.id, ...newPrefs }, { onConflict: "user_id" });
+      
+      if (error) throw error;
+    } catch (error) {
+      setPreferences(preferences);
+      toast({ title: "Failed to update preference", variant: "destructive" });
+    }
+    
+    setPrefsLoading(false);
+  };
+
+  const handleEmailPreferenceChange = async (key: keyof EmailPreferences, value: boolean) => {
+    if (!user) return;
+    
+    const newPrefs = { ...emailPreferences, [key]: value };
+    setEmailPreferences(newPrefs);
+    setEmailPrefsLoading(true);
+    
+    try {
+      const { error } = await supabase
+        .from("notification_preferences")
+        .upsert({ user_id: user.id, ...newPrefs }, { onConflict: "user_id" });
+      
+      if (error) throw error;
+    } catch (error) {
+      setEmailPreferences(emailPreferences);
+      toast({ title: "Failed to update email preference", variant: "destructive" });
+    }
+    
+    setEmailPrefsLoading(false);
+  };
+
+  const handleTestPush = async () => {
+    if (!user) return;
+    
+    setTestingPush(true);
+    toast({
+      title: "Test notification scheduled",
+      description: `Notification will arrive in ${testPushDelay} seconds. Lock your phone now!`,
+    });
+    
+    try {
+      const { error } = await supabase.functions.invoke('test-push-notification', {
+        body: { delay: testPushDelay }
+      });
+      
+      if (error) {
+        toast({ title: "Test failed", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Test sent!", description: "If push is working, you should have received a notification" });
+      }
+    } catch (err) {
+      toast({ title: "Test failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+    }
+    setTestingPush(false);
+  };
+
+  const handleSetupBiometrics = async () => {
+    const result = await registerPasskey();
+    if (result.success) {
+      toast({
+        title: "Biometric login enabled!",
+        description: "You can now sign in with Face ID or Touch ID.",
+      });
+    } else {
+      toast({
+        title: "Setup failed",
+        description: result.error || "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <div className="py-6 space-y-6">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <h1 className="text-2xl font-bold">Settings</h1>
+      </div>
+
+      {/* Edit Profile Link */}
+      <Card 
+        className="cursor-pointer hover:border-primary/50 transition-colors"
+        onClick={() => navigate("/edit-profile")}
+      >
+        <CardContent className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <User className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <span className="font-medium">Edit Profile</span>
+              <p className="text-xs text-muted-foreground">Name, photo, and email</p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </CardContent>
+      </Card>
+
+      {/* Appearance Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            {theme === "dark" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            Appearance
+          </CardTitle>
+          <CardDescription>Choose your preferred theme</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {theme === "dark" ? (
+                <Moon className="h-5 w-5 text-muted-foreground" />
+              ) : (
+                <Sun className="h-5 w-5 text-muted-foreground" />
+              )}
+              <span className="text-sm font-medium">Dark Mode</span>
+            </div>
+            <Switch
+              checked={theme === "dark"}
+              onCheckedChange={async (checked) => {
+                const newTheme = checked ? "dark" : "light";
+                const root = window.document.documentElement;
+                root.classList.remove('light', 'dark');
+                root.classList.add(newTheme);
+                root.style.colorScheme = newTheme;
+                localStorage.setItem('app-theme', newTheme);
+                setTheme(newTheme);
+                
+                if (user) {
+                  try {
+                    await supabase.from('profiles').update({ theme_preference: newTheme }).eq('id', user.id);
+                  } catch (err) {
+                    console.error('[SettingsPage] Failed to save theme preference:', err);
+                  }
+                }
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Biometrics / Passkeys */}
+      {biometricsAvailable && (
+        <Card 
+          className="cursor-pointer hover:border-primary/50 transition-colors"
+          onClick={hasPasskey ? () => setPasskeyDialogOpen(true) : handleSetupBiometrics}
+        >
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                {passkeyLoading ? (
+                  <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                ) : (
+                  <Fingerprint className="h-5 w-5 text-primary" />
+                )}
+              </div>
+              <div>
+                <span className="font-medium">{hasPasskey ? "Manage Passkeys" : "Set up Face ID / Touch ID"}</span>
+                <p className="text-xs text-muted-foreground">
+                  {hasPasskey ? "View and manage your passkeys" : "Enable biometric login"}
+                </p>
+              </div>
+              {hasPasskey && <Badge variant="secondary" className="text-xs">Active</Badge>}
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Push Notifications Card */}
+      {pushSupported && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Push Notifications
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="push-notifications">Enable Push Notifications</Label>
+                <p className="text-xs text-muted-foreground">Receive notifications on your device</p>
+              </div>
+              <Switch
+                id="push-notifications"
+                checked={pushEnabled}
+                onCheckedChange={handlePushToggle}
+                disabled={pushLoading}
+              />
+            </div>
+
+            {pushEnabled && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="push-delay" className="text-sm whitespace-nowrap">Delay:</Label>
+                  <select
+                    id="push-delay"
+                    value={testPushDelay}
+                    onChange={(e) => setTestPushDelay(Number(e.target.value))}
+                    className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    disabled={testingPush}
+                  >
+                    <option value={5}>5 sec</option>
+                    <option value={10}>10 sec</option>
+                    <option value={15}>15 sec</option>
+                    <option value={30}>30 sec</option>
+                    <option value={60}>60 sec</option>
+                  </select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestPush}
+                    disabled={testingPush}
+                    className="flex-1"
+                  >
+                    {testingPush ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                    {testingPush ? `Sending in ${testPushDelay}s...` : 'Test Push'}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tap the button, then lock your phone. Notification arrives after the delay.
+                </p>
+              </div>
+            )}
+
+            <div className="text-xs text-muted-foreground flex items-center gap-2">
+              <span>Browser permission:</span>
+              <span className={
+                typeof Notification !== 'undefined' && Notification.permission === 'granted' 
+                  ? 'text-emerald-500 font-medium' 
+                  : typeof Notification !== 'undefined' && Notification.permission === 'denied'
+                  ? 'text-destructive font-medium'
+                  : 'text-muted-foreground'
+              }>
+                {typeof Notification !== 'undefined' ? (
+                  Notification.permission === 'granted' ? 'Allowed' : 
+                  Notification.permission === 'denied' ? 'Blocked' : 'Not set'
+                ) : 'N/A'}
+              </span>
+            </div>
+
+            {typeof Notification !== 'undefined' && Notification.permission === 'denied' && (
+              <div className="text-xs text-destructive/80 bg-destructive/10 p-3 rounded-md space-y-2">
+                <p className="font-medium">Notifications are blocked by your browser</p>
+                <div className="space-y-1">
+                  <p className="font-medium">To unblock:</p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>Click the <strong>lock/tune icon</strong> in the address bar</li>
+                    <li>Find <strong>"Notifications"</strong></li>
+                    <li>Change from "Block" to <strong>"Allow"</strong></li>
+                    <li>Reload the page</li>
+                  </ol>
+                </div>
+                <Button variant="outline" size="sm" className="mt-2" onClick={() => window.location.reload()}>
+                  Refresh after unblocking
+                </Button>
+              </div>
+            )}
+
+            {/* PWA Install Prompt */}
+            {isMobileBrowser && !isInstalled && (
+              <div className="bg-primary/10 p-4 rounded-lg space-y-3">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="h-5 w-5 text-primary" />
+                  <p className="font-medium text-sm">Install for Better Notifications</p>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  For reliable background notifications, install this app to your home screen.
+                </p>
+                {canPrompt ? (
+                  <Button variant="default" size="sm" className="w-full" onClick={installApp}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Install App
+                  </Button>
+                ) : isIOS ? (
+                  <div className="text-xs space-y-2 bg-background/50 p-3 rounded-md">
+                    <p className="font-medium">To install on iPhone/iPad:</p>
+                    <ol className="list-decimal list-inside space-y-1">
+                      <li>Tap the <strong>Share</strong> button (square with arrow)</li>
+                      <li>Scroll down and tap <strong>"Add to Home Screen"</strong></li>
+                      <li>Tap <strong>"Add"</strong> to confirm</li>
+                    </ol>
+                  </div>
+                ) : (
+                  <div className="text-xs space-y-2 bg-background/50 p-3 rounded-md">
+                    <p className="font-medium">To install on Android:</p>
+                    <ol className="list-decimal list-inside space-y-1">
+                      <li>Tap the <strong>menu</strong> (three dots) in your browser</li>
+                      <li>Tap <strong>"Install app"</strong> or <strong>"Add to Home Screen"</strong></li>
+                    </ol>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isMobileBrowser && isInstalled && (
+              <div className="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-500/10 p-3 rounded-md">
+                <Download className="h-4 w-4" />
+                <span>App installed - background notifications are enabled</span>
+              </div>
+            )}
+
+            {/* Category Preferences */}
+            {pushEnabled && (
+              <div className="space-y-4 pt-4 border-t">
+                <p className="text-sm font-medium">Notification Categories</p>
+                <p className="text-xs text-muted-foreground">Choose which types of notifications you want to receive</p>
+                
+                <div className="space-y-3">
+                  <NotificationToggle
+                    icon={MessageSquare}
+                    label="Messages"
+                    description="Team, club, group chats & broadcasts"
+                    checked={preferences.messages_enabled}
+                    onCheckedChange={(v) => handlePreferenceChange("messages_enabled", v)}
+                    disabled={prefsLoading}
+                  />
+                  <NotificationToggle
+                    icon={Calendar}
+                    label="Events"
+                    description="Invites, cancellations & duty assignments"
+                    checked={preferences.events_enabled}
+                    onCheckedChange={(v) => handlePreferenceChange("events_enabled", v)}
+                    disabled={prefsLoading}
+                  />
+                  <NotificationToggle
+                    icon={Image}
+                    label="Media"
+                    description="Photo uploads, reactions & comments"
+                    checked={preferences.media_enabled}
+                    onCheckedChange={(v) => handlePreferenceChange("media_enabled", v)}
+                    disabled={prefsLoading}
+                  />
+                  <NotificationToggle
+                    icon={Users}
+                    label="Membership"
+                    description="Join requests & approvals"
+                    checked={preferences.membership_enabled}
+                    onCheckedChange={(v) => handlePreferenceChange("membership_enabled", v)}
+                    disabled={prefsLoading}
+                  />
+                  <NotificationToggle
+                    icon={LayoutGrid}
+                    label="Pitch Board"
+                    description="Substitution alerts & game updates"
+                    checked={preferences.pitch_board_enabled}
+                    onCheckedChange={(v) => handlePreferenceChange("pitch_board_enabled", v)}
+                    disabled={prefsLoading}
+                  />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Push Diagnostics */}
+      {!SKIP_WEB_PUSH && pushSupported && user && (
+        <Suspense fallback={<Card><CardContent className="py-6"><div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div></CardContent></Card>}>
+          <LazyPushDiagnosticsCard userId={user.id} pushEnabled={pushEnabled} onPushStatusChange={setPushEnabled} />
+        </Suspense>
+      )}
+
+      {/* Native Push Card */}
+      {SKIP_WEB_PUSH && user && (
+        <Suspense fallback={<Card><CardContent className="py-6"><div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div></CardContent></Card>}>
+          <LazyNativePushCard userId={user.id} />
+        </Suspense>
+      )}
+
+      {/* Email Notifications Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            Email Notifications
+          </CardTitle>
+          <CardDescription>Choose which types of emails you want to receive</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
+            <NotificationToggle
+              icon={MessageSquare}
+              label="Messages"
+              description="Direct messages & chat notifications"
+              checked={emailPreferences.email_messages_enabled}
+              onCheckedChange={(v) => handleEmailPreferenceChange("email_messages_enabled", v)}
+              disabled={emailPrefsLoading}
+            />
+            <NotificationToggle
+              icon={Calendar}
+              label="Events & Reminders"
+              description="Event invites, reminders & duty assignments"
+              checked={emailPreferences.email_events_enabled}
+              onCheckedChange={(v) => handleEmailPreferenceChange("email_events_enabled", v)}
+              disabled={emailPrefsLoading}
+            />
+            <NotificationToggle
+              icon={Image}
+              label="Media"
+              description="Photo uploads & comments"
+              checked={emailPreferences.email_media_enabled}
+              onCheckedChange={(v) => handleEmailPreferenceChange("email_media_enabled", v)}
+              disabled={emailPrefsLoading}
+            />
+            <NotificationToggle
+              icon={Users}
+              label="Membership"
+              description="Team invites & join confirmations"
+              checked={emailPreferences.email_membership_enabled}
+              onCheckedChange={(v) => handleEmailPreferenceChange("email_membership_enabled", v)}
+              disabled={emailPrefsLoading}
+            />
+            <NotificationToggle
+              icon={Settings}
+              label="Account & Admin"
+              description="Subscription renewals & system alerts"
+              checked={emailPreferences.email_admin_enabled}
+              onCheckedChange={(v) => handleEmailPreferenceChange("email_admin_enabled", v)}
+              disabled={emailPrefsLoading}
+            />
+            <NotificationToggle
+              icon={LayoutGrid}
+              label="Pitch Board"
+              description="Substitution alerts & game updates"
+              checked={emailPreferences.email_pitch_board_enabled}
+              onCheckedChange={(v) => handleEmailPreferenceChange("email_pitch_board_enabled", v)}
+              disabled={emailPrefsLoading}
+            />
+            <NotificationToggle
+              icon={Gift}
+              label="Rewards"
+              description="Reward redemptions & point updates"
+              checked={emailPreferences.email_rewards_enabled}
+              onCheckedChange={(v) => handleEmailPreferenceChange("email_rewards_enabled", v)}
+              disabled={emailPrefsLoading}
+            />
+            <NotificationToggle
+              icon={Trophy}
+              label="Game Stats & Player of Match"
+              description="Player stats reports & POM award notifications"
+              checked={emailPreferences.email_pom_enabled}
+              onCheckedChange={(v) => handleEmailPreferenceChange("email_pom_enabled", v)}
+              disabled={emailPrefsLoading}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Account Link */}
+      <Card 
+        className="cursor-pointer hover:border-primary/50 transition-colors"
+        onClick={() => navigate("/account")}
+      >
+        <CardContent className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-muted">
+              <Settings className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <span className="font-medium">Account & Privacy</span>
+              <p className="text-xs text-muted-foreground">Legal, data export, delete account</p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </CardContent>
+      </Card>
+
+      {/* Passkey Management Dialog */}
+      <PasskeyManagementDialog open={passkeyDialogOpen} onOpenChange={setPasskeyDialogOpen} />
+    </div>
+  );
+}
+
+function NotificationToggle({
+  icon: Icon,
+  label,
+  description,
+  checked,
+  onCheckedChange,
+  disabled,
+}: {
+  icon: React.ElementType;
+  label: string;
+  description: string;
+  checked: boolean;
+  onCheckedChange: (value: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+        <div>
+          <Label>{label}</Label>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
+    </div>
+  );
+}
