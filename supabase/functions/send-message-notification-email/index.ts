@@ -127,7 +127,7 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    // Check if user has muted this chat
+    // Check if user has muted this chat (including timed mutes)
     let chatId = payload.contextId;
     let chatType: string = payload.messageType;
     if (chatType === 'direct') {
@@ -137,18 +137,24 @@ serve(async (req: Request): Promise<Response> => {
     if (chatId) {
       const { data: mutePrefs } = await supabase
         .from('chat_mute_preferences')
-        .select('id')
+        .select('id, muted_until')
         .eq('user_id', payload.recipientUserId)
         .eq('chat_id', chatId)
         .eq('chat_type', chatType)
         .single();
 
+      // Check if mute is active (indefinite or not yet expired)
       if (mutePrefs) {
-        console.log("Chat is muted for user:", payload.recipientUserId);
-        return new Response(JSON.stringify({ success: false, reason: "chat_muted" }), {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        const isActiveMute = mutePrefs.muted_until === null || 
+          new Date(mutePrefs.muted_until) > new Date();
+        
+        if (isActiveMute) {
+          console.log("Chat is muted for user:", payload.recipientUserId, "until:", mutePrefs.muted_until || "indefinite");
+          return new Response(JSON.stringify({ success: false, reason: "chat_muted" }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
     }
 
