@@ -54,15 +54,19 @@ declare global {
   }
 }
 
-// Detect native platform early (before any plugin calls)
 const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
 
-// Initialize native handlers (wrapped to prevent crashes)
-try {
-  initDeepLinkHandler();
-} catch (e) {
-  console.error('[Main] Deep link handler init failed:', e);
+// Initialize Crashlytics FIRST on native (dynamic import, no React dependency)
+if (isNative) {
+  import('@capacitor-firebase/crashlytics').then(({ FirebaseCrashlytics }) => {
+    FirebaseCrashlytics.setEnabled({ enabled: true }).then(() => {
+      console.log('[Main] Crashlytics enabled');
+      FirebaseCrashlytics.log({ message: 'App boot started' });
+    });
+  }).catch(e => console.warn('[Main] Crashlytics unavailable:', e));
 }
+
+// Initialize native handlers (wrapped to prevent crashes)
 try {
   initDeepLinkHandler();
 } catch (e) {
