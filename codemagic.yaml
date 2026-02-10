@@ -86,15 +86,12 @@ workflows:
       - name: Build Android
         script: |
           cd android
-          # Clean build to ensure no cached icons
           ./gradlew clean
           ./gradlew assembleDebug
-      # Emulator crash-test step removed — Codemagic M2 machines do not support
-      # the Apple Hypervisor Framework (HVF) required by the Android emulator.
-      # The debug APK is still built and available as an artifact for manual testing.
+          ./gradlew bundleRelease
     artifacts:
       - android/app/build/outputs/**/*.apk
-      - full_logcat.txt
+      - android/app/build/outputs/**/*.aab
 
 
   ios-debug-workflow:
