@@ -22,15 +22,21 @@ workflows:
       - name: Add Crashlytics Gradle plugin
         script: |
           cd android
-          # Add crashlytics classpath to project build.gradle
+          # Add crashlytics classpath to project build.gradle (macOS sed doesn't support \n)
           if ! grep -q "firebase-crashlytics-gradle" build.gradle 2>/dev/null; then
-            sed -i '' 's|dependencies {|dependencies {\n        classpath "com.google.firebase:firebase-crashlytics-gradle:3.0.3"|' build.gradle
+            sed -i '' '/dependencies {/a\
+                    classpath "com.google.firebase:firebase-crashlytics-gradle:3.0.3"
+            ' build.gradle
           fi
+          echo "=== Project build.gradle dependencies ==="
+          grep -A5 "dependencies {" build.gradle
           # Apply crashlytics plugin to app build.gradle
           if ! grep -q "firebase-crashlytics" app/build.gradle 2>/dev/null; then
             echo "" >> app/build.gradle
             echo "apply plugin: 'com.google.firebase.crashlytics'" >> app/build.gradle
           fi
+          echo "=== app/build.gradle tail ==="
+          tail -5 app/build.gradle
       - name: Copy app icons
         script: |
           # Remove ALL Capacitor default icons first (including vector drawables and all density folders)
@@ -105,12 +111,18 @@ workflows:
         script: |
           cd android
           if ! grep -q "firebase-crashlytics-gradle" build.gradle 2>/dev/null; then
-            sed -i '' 's|dependencies {|dependencies {\n        classpath "com.google.firebase:firebase-crashlytics-gradle:3.0.3"|' build.gradle
+            sed -i '' '/dependencies {/a\
+                    classpath "com.google.firebase:firebase-crashlytics-gradle:3.0.3"
+            ' build.gradle
           fi
+          echo "=== Project build.gradle dependencies ==="
+          grep -A5 "dependencies {" build.gradle
           if ! grep -q "firebase-crashlytics" app/build.gradle 2>/dev/null; then
             echo "" >> app/build.gradle
             echo "apply plugin: 'com.google.firebase.crashlytics'" >> app/build.gradle
           fi
+          echo "=== app/build.gradle tail ==="
+          tail -5 app/build.gradle
       - name: Copy app icons
         script: |
           rm -rf android/app/src/main/res/mipmap-*
