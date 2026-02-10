@@ -88,7 +88,7 @@ workflows:
           cd android
           ./gradlew clean
           ./gradlew assembleDebug
-          ./gradlew bundleRelease
+          ./gradlew bundleDebug
     artifacts:
       - android/app/build/outputs/**/*.apk
       - android/app/build/outputs/**/*.aab
