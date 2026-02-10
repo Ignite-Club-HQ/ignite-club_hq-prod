@@ -91,7 +91,7 @@ workflows:
           
           # Start emulator
           echo "=== Starting Android emulator ==="
-          QEMU_AUDIO_DRV=none emulator -avd test_device -no-window -no-audio -no-boot-anim -no-accel -gpu swiftshader_indirect -qemu -cpu max &
+          QEMU_AUDIO_DRV=none ANDROID_EMULATOR_USE_HVF=no emulator -avd test_device -no-window -no-audio -no-boot-anim -no-accel -gpu swiftshader_indirect -engine classic -qemu -cpu max &
           EMULATOR_PID=$!
           
           # Wait for emulator to boot
