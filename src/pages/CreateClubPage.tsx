@@ -220,9 +220,15 @@ export default function CreateClubPage() {
                   <Lock className="h-8 w-8 text-amber-600 dark:text-amber-400" />
                 </div>
               </div>
-              <h2 className="text-lg font-semibold text-foreground mb-2">Club Creation Temporarily Locked</h2>
+              <h2 className="text-lg font-semibold text-foreground mb-2">We're Currently in Beta</h2>
               <p className="text-sm text-muted-foreground mb-4">
-                New club creation is currently restricted during our pilot program. Please contact an administrator if you need to create a new club.
+                Club creation is not available while the app is in beta mode. If you'd like to join our beta program and get your club set up, we'd love to hear from you!
+              </p>
+              <p className="text-sm text-muted-foreground mb-4">
+                Get in touch at{" "}
+                <a href="mailto:support@igniteclubhq.app" className="text-primary font-medium underline underline-offset-2">
+                  support@igniteclubhq.app
+                </a>
               </p>
               <Button variant="outline" onClick={() => navigate(-1)}>
                 Go Back
