@@ -19,6 +19,17 @@ workflows:
           cp firebase/google-services.json android/app/google-services.json
       - name: Sync Capacitor
         script: npx cap sync android
+      - name: Add AdMob App ID to AndroidManifest
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "com.google.android.gms.ads.APPLICATION_ID" "$MANIFEST"; then
+            sed -i '' '/<\/application>/i\
+                <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713"/>
+            ' "$MANIFEST"
+            echo "AdMob App ID injected into AndroidManifest.xml"
+          else
+            echo "AdMob App ID already present"
+          fi
       - name: Add Crashlytics Gradle plugin
         script: |
           cd android
@@ -107,6 +118,17 @@ workflows:
           cp firebase/google-services.json android/app/google-services.json
       - name: Sync Capacitor
         script: npx cap sync android
+      - name: Add AdMob App ID to AndroidManifest
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "com.google.android.gms.ads.APPLICATION_ID" "$MANIFEST"; then
+            sed -i '' '/<\/application>/i\
+                <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713"/>
+            ' "$MANIFEST"
+            echo "AdMob App ID injected into AndroidManifest.xml"
+          else
+            echo "AdMob App ID already present"
+          fi
       - name: Add Crashlytics Gradle plugin
         script: |
           cd android
