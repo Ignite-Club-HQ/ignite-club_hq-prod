@@ -1129,7 +1129,7 @@ export default function ClubChatPage() {
 
       {/* Input (for users with Pro access: app_admin, club admin, or Pro team member) */}
       {canAccessClubChat && (
-        <div className="fixed left-0 right-0 border-t pt-3 pb-2 px-4 bg-background z-40" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
+        <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-40" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           <div className="flex gap-2 items-end">
