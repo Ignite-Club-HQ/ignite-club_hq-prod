@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
+import { Capacitor } from "@capacitor/core";
 import { useLazyFabric, prefetchFabric } from "@/hooks/useLazyFabric";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -3076,8 +3077,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Landscape layout: pitch full screen on left, controls stacked on right
   if (isLandscape) {
+    const isNative = Capacitor.isNativePlatform();
     return createPortal(
-      <div className="fixed inset-0 w-screen h-screen bg-background flex flex-col overflow-hidden" style={{ height: '100dvh', zIndex: 99999 }}>
+      <div className={cn("fixed inset-0 w-screen h-screen bg-background flex flex-col overflow-hidden", isNative && "pt-safe")} style={{ height: '100dvh', zIndex: 99999 }}>
         {/* LinkedEventHeader removed from top in landscape - now integrated into toolbar */}
         
         {/* Main content area */}
@@ -3821,7 +3823,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   : "bg-muted text-foreground hover:bg-muted/80 border border-border"
               )}
               style={{
-                bottom: toolbarCollapsed ? floatingSubsPosition.y : 16,
+                bottom: `calc(${toolbarCollapsed ? floatingSubsPosition.y : 16}px + env(safe-area-inset-bottom, 0px))`,
                 right: toolbarCollapsed ? floatingSubsPosition.x + 160 : isTabletLandscape ? 304 : isDesktopLandscape ? 336 : 240,
                 touchAction: "none",
               }}
@@ -4018,8 +4020,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }
 
   // Portrait layout (original)
+  const isNative = Capacitor.isNativePlatform();
   return createPortal(
-    <div className="fixed top-0 left-0 right-0 bottom-0 w-screen h-screen bg-background flex flex-col overflow-hidden" style={{ height: '100dvh', zIndex: 99999 }}>
+    <div className={cn("fixed top-0 left-0 right-0 bottom-0 w-screen h-screen bg-background flex flex-col overflow-hidden", isNative && "pt-safe")} style={{ height: '100dvh', zIndex: 99999 }}>
       {/* Linked event header - shows at top when match header is enabled */}
       {showMatchHeader && (
         <LinkedEventHeader 
@@ -4594,7 +4597,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
       {/* Swap Positions Button - Always visible below pitch (hidden in view mode) */}
       {!readOnly && playersOnPitch.length >= 2 && (
-        <div className="flex justify-center py-2 px-4 shrink-0">
+        <div className={cn("flex justify-center py-2 px-4 shrink-0", isNative && "pb-safe")}>
           <Button
             variant={swapMode ? "default" : "outline"}
             size="sm"

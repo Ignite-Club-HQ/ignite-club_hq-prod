@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { MessagesSponsorCarousel } from "@/components/MessagesSponsorCarousel";
 import { AppAdCarousel } from "@/components/AppAdCarousel";
+import { AdMobBannerZone } from "@/components/AdMobBannerZone";
 
 interface SponsorOrAdCarouselProps {
   location: "home" | "events" | "messages";
@@ -139,21 +140,37 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
     // Pro users never see app ads
     if (isProUser) return null;
     
+    // Show native AdMob banner for non-Pro on native
+    const isNative = !!(window as any).Capacitor;
+    
     // Only show ads if enabled AND (override is on OR no sponsors exist and show_only_when_no_sponsors is on)
-    if (!settings?.is_enabled) return null;
+    if (!settings?.is_enabled) {
+      return isNative ? <AdMobBannerZone show={true} /> : null;
+    }
     
     if (settings.override_sponsors) {
-      return <AppAdCarousel location={location} hasSponsorAds={!!hasSponsors} />;
+      return (
+        <>
+          <AppAdCarousel location={location} hasSponsorAds={!!hasSponsors} />
+          {isNative && <AdMobBannerZone show={true} />}
+        </>
+      );
     }
     
     if (settings.show_only_when_no_sponsors && !hasSponsors) {
-      return <AppAdCarousel location={location} hasSponsorAds={false} />;
+      return (
+        <>
+          <AppAdCarousel location={location} hasSponsorAds={false} />
+          {isNative && <AdMobBannerZone show={true} />}
+        </>
+      );
     }
     
-    return null;
+    return isNative ? <AdMobBannerZone show={true} /> : null;
   }
 
   // For EVENTS and MESSAGES pages: this component handles both sponsors and ads
+  const isNative = !!(window as any).Capacitor;
   
   // Pro users never see app ads, only sponsors
   if (isProUser) {
@@ -162,18 +179,38 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
   
   // If ads enabled and override sponsors, only show ads
   if (settings?.is_enabled && settings?.override_sponsors) {
-    return <AppAdCarousel location={location} hasSponsorAds={!!hasSponsors} />;
+    return (
+      <>
+        <AppAdCarousel location={location} hasSponsorAds={!!hasSponsors} />
+        {isNative && <AdMobBannerZone show={true} />}
+      </>
+    );
   }
 
   // If ads enabled and show only when no sponsors
   if (settings?.is_enabled && settings?.show_only_when_no_sponsors) {
     if (!hasSponsors) {
-      return <AppAdCarousel location={location} hasSponsorAds={false} />;
+      return (
+        <>
+          <AppAdCarousel location={location} hasSponsorAds={false} />
+          {isNative && <AdMobBannerZone show={true} />}
+        </>
+      );
     }
     // Has sponsors, show sponsor carousel
-    return <MessagesSponsorCarousel activeClubFilter={activeClubFilter} />;
+    return (
+      <>
+        <MessagesSponsorCarousel activeClubFilter={activeClubFilter} />
+        {isNative && <AdMobBannerZone show={true} />}
+      </>
+    );
   }
 
-  // Default: show sponsor carousel (it handles its own empty state)
-  return <MessagesSponsorCarousel activeClubFilter={activeClubFilter} />;
+  // Default: show sponsor carousel + native ads
+  return (
+    <>
+      <MessagesSponsorCarousel activeClubFilter={activeClubFilter} />
+      {isNative && <AdMobBannerZone show={true} />}
+    </>
+  );
 }

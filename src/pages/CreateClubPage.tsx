@@ -1,6 +1,7 @@
-import { useState } from "react"; // build trigger
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, Loader2, Building2, Sparkles } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Camera, Loader2, Building2, Sparkles, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { SPORT_EMOJIS, getSportEmoji } from "@/lib/sportEmojis";
+import { isCachedAppAdmin, getCachedRoles } from "@/lib/rolesCache";
 
 const SPORTS = Object.keys(SPORT_EMOJIS);
 
@@ -33,6 +35,39 @@ export default function CreateClubPage() {
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState("");
+
+  // Check if user is app admin
+  const cachedIsAppAdmin = isCachedAppAdmin();
+  const { data: isAppAdmin = cachedIsAppAdmin ?? false } = useQuery({
+    queryKey: ["isAppAdmin", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("role", "app_admin")
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!user && cachedIsAppAdmin === null,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Check if club creation is locked
+  const { data: isClubCreationLocked = true, isLoading: isLoadingSettings } = useQuery({
+    queryKey: ["appSettings", "club_creation_locked"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "club_creation_locked")
+        .maybeSingle();
+      return data?.value === true || data?.value === "true";
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const canCreateClub = isAppAdmin || !isClubCreationLocked;
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -177,129 +212,161 @@ export default function CreateClubPage() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="px-4 py-6 space-y-8 max-w-lg mx-auto">
-          {/* Hero Section with Logo */}
-          <div className="flex flex-col items-center text-center space-y-4">
-            <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 to-primary/30 rounded-full blur opacity-40 group-hover:opacity-60 transition-opacity" />
-              <Avatar className="relative h-32 w-32 border-4 border-background shadow-xl">
-                <AvatarImage src={logoPreview || undefined} className="object-cover" />
-                <AvatarFallback className="bg-muted text-muted-foreground text-4xl">
-                  {name.charAt(0)?.toUpperCase() || <Building2 className="h-12 w-12" />}
-                </AvatarFallback>
-              </Avatar>
-              <label className="absolute bottom-1 right-1 p-2.5 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-all shadow-lg hover:scale-105 active:scale-95">
-                <Camera className="h-4 w-4 text-primary-foreground" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleLogoUpload}
-                />
-              </label>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Add your club logo</p>
-              <p className="text-xs text-muted-foreground/70">Recommended: Square image, 400x400px</p>
-            </div>
-          </div>
-
-          {/* Form Fields */}
-          <div className="space-y-6">
-            {/* Club Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium">
-                Club Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="name"
-                placeholder="Enter your club name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={100}
-                className="h-12 text-base bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors"
-              />
-            </div>
-
-            {/* Sport Selection */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Sport</Label>
-              <Select value={sport} onValueChange={setSport}>
-                <SelectTrigger className="w-full h-12 text-base bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors">
-                  <SelectValue placeholder="Select a sport">
-                    {sport && (
-                      <span className="flex items-center gap-2">
-                        <span className="text-lg">{getSportEmoji(sport)}</span>
-                        <span>{sport}</span>
-                      </span>
-                    )}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="max-h-[40vh]" position="popper" sideOffset={4}>
-                  {SPORTS.map((s) => (
-                    <SelectItem key={s} value={s} className="py-3 text-base">
-                      <span className="flex items-center gap-3">
-                        <span className="text-lg">{getSportEmoji(s)}</span>
-                        <span>{s}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description" className="text-sm font-medium">
-                Description
-              </Label>
-              <Textarea
-                id="description"
-                placeholder="Tell members about your club..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                maxLength={500}
-                rows={4}
-                className="text-base resize-none bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors"
-              />
-              <p className="text-xs text-muted-foreground text-right">
-                {description.length}/500
+          {/* Locked Notice */}
+          {!canCreateClub && !isLoadingSettings && (
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-6 text-center">
+              <div className="flex justify-center mb-4">
+                <div className="p-3 rounded-full bg-amber-500/20">
+                  <Lock className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+                </div>
+              </div>
+              <h2 className="text-lg font-semibold text-foreground mb-2">We're Currently in Beta</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Club creation is not available while the app is in beta mode. If you'd like to join our beta program and get your club set up, we'd love to hear from you!
               </p>
+              <p className="text-sm text-muted-foreground mb-4">
+                Get in touch at{" "}
+                <a href="mailto:support@igniteclubhq.app" className="text-primary font-medium underline underline-offset-2">
+                  support@igniteclubhq.app
+                </a>
+              </p>
+              <Button variant="outline" onClick={() => navigate(-1)}>
+                Go Back
+              </Button>
             </div>
-          </div>
+          )}
 
-          {/* Info Card */}
-          <div className="rounded-xl bg-primary/5 border border-primary/10 p-4">
-            <div className="flex gap-3">
-              <div className="shrink-0 mt-0.5">
-                <Sparkles className="h-5 w-5 text-primary" />
+          {/* Hero Section with Logo - only show if can create */}
+          {canCreateClub && (
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-primary/50 to-primary/30 rounded-full blur opacity-40 group-hover:opacity-60 transition-opacity" />
+                <Avatar className="relative h-32 w-32 border-4 border-background shadow-xl">
+                  <AvatarImage src={logoPreview || undefined} className="object-cover" />
+                  <AvatarFallback className="bg-muted text-muted-foreground text-4xl">
+                    {name.charAt(0)?.toUpperCase() || <Building2 className="h-12 w-12" />}
+                  </AvatarFallback>
+                </Avatar>
+                <label className="absolute bottom-1 right-1 p-2.5 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-all shadow-lg hover:scale-105 active:scale-95">
+                  <Camera className="h-4 w-4 text-primary-foreground" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                  />
+                </label>
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">You'll be the club admin</p>
-                <p className="text-xs text-muted-foreground">
-                  As the creator, you'll have full control to manage teams, members, and settings.
-                </p>
+                <p className="text-sm text-muted-foreground">Add your club logo</p>
+                <p className="text-xs text-muted-foreground/70">Recommended: Square image, 400x400px</p>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Form Fields - only show if can create */}
+          {canCreateClub && (
+            <>
+              <div className="space-y-6">
+                {/* Club Name */}
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-sm font-medium">
+                    Club Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="name"
+                    placeholder="Enter your club name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    maxLength={100}
+                    className="h-12 text-base bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors"
+                  />
+                </div>
+
+                {/* Sport Selection */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Sport</Label>
+                  <Select value={sport} onValueChange={setSport}>
+                    <SelectTrigger className="w-full h-12 text-base bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors">
+                      <SelectValue placeholder="Select a sport">
+                        {sport && (
+                          <span className="flex items-center gap-2">
+                            <span className="text-lg">{getSportEmoji(sport)}</span>
+                            <span>{sport}</span>
+                          </span>
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[40vh]" position="popper" sideOffset={4}>
+                      {SPORTS.map((s) => (
+                        <SelectItem key={s} value={s} className="py-3 text-base">
+                          <span className="flex items-center gap-3">
+                            <span className="text-lg">{getSportEmoji(s)}</span>
+                            <span>{s}</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Description */}
+                <div className="space-y-2">
+                  <Label htmlFor="description" className="text-sm font-medium">
+                    Description
+                  </Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Tell members about your club..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    maxLength={500}
+                    rows={4}
+                    className="text-base resize-none bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors"
+                  />
+                  <p className="text-xs text-muted-foreground text-right">
+                    {description.length}/500
+                  </p>
+                </div>
+              </div>
+
+              {/* Info Card */}
+              <div className="rounded-xl bg-primary/5 border border-primary/10 p-4">
+                <div className="flex gap-3">
+                  <div className="shrink-0 mt-0.5">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">You'll be the club admin</p>
+                    <p className="text-xs text-muted-foreground">
+                      As the creator, you'll have full control to manage teams, members, and settings.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Fixed Bottom Button */}
-      <div className="sticky bottom-0 p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t">
-        <div className="max-w-lg mx-auto">
-          <Button 
-            className="w-full h-12 text-base font-semibold shadow-lg" 
-            onClick={handleSubmit}
-            disabled={saving || !name.trim()}
-          >
-            {saving ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              "Create Club"
-            )}
-          </Button>
+      {/* Fixed Bottom Button - only show if can create */}
+      {canCreateClub && (
+        <div className="sticky bottom-0 p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t">
+          <div className="max-w-lg mx-auto">
+            <Button 
+              className="w-full h-12 text-base font-semibold shadow-lg" 
+              onClick={handleSubmit}
+              disabled={saving || !name.trim()}
+            >
+              {saving ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                "Create Club"
+              )}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

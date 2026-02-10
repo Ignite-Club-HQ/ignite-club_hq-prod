@@ -1,16 +1,27 @@
 import { useTheme } from "next-themes";
 import { Toaster as Sonner, toast } from "sonner";
+import { Capacitor } from "@capacitor/core";
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme();
+  const isNative = Capacitor.isNativePlatform();
+
+  // Position toasts in the middle of the visible area (between header and bottom nav)
+  // Top header is ~64px, bottom nav is ~64px + safe area
+  // Use top positioning to avoid overlap with fixed headers
+  const topOffset = isNative ? "5rem" : "4rem";
 
   return (
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
-      style={{ zIndex: 50 }}
+      position="top-center"
+      style={{ 
+        zIndex: 9999,
+        top: topOffset,
+      }}
       toastOptions={{
         classNames: {
           toast:

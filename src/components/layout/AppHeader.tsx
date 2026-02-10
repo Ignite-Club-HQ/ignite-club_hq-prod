@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, HelpCircle, Building2, Lock, UserCog } from "lucide-react";
+import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, HelpCircle, Building2, Lock, UserCog, Settings } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -163,7 +163,7 @@ function LogoClubThemeDropdown() {
         />
         <div className="flex-1">
           <p className="text-sm font-medium">Default</p>
-          <p className="text-xs text-muted-foreground">Ignite emerald</p>
+          <p className="text-xs text-muted-foreground">Ignite Club HQ</p>
         </div>
         {!activeClubTheme && <Check className="h-4 w-4 text-primary" />}
       </DropdownMenuItem>
@@ -643,9 +643,11 @@ export function AppHeader() {
                 </>
               ) : (
                 <>
-                  <div className="p-1.5 rounded-lg bg-primary">
-                    <Flame className="h-5 w-5 text-primary-foreground" />
-                  </div>
+                  <img 
+                    src={effectiveTheme === 'dark' ? igniteIcon : igniteIconLight} 
+                    alt="Ignite" 
+                    className="h-8 w-8 object-contain"
+                  />
                   <div className="flex flex-col leading-tight items-start">
                     <div className="flex items-center gap-1.5">
                       <span className="font-bold text-lg text-gradient-emerald">Ignite</span>
@@ -788,6 +790,10 @@ export function AppHeader() {
                 <User className="mr-3 h-5 w-5" />
                 <span className="text-sm">My Profile</span>
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); navigate("/settings"); }} className="py-3 px-3">
+                <Settings className="mr-3 h-5 w-5" />
+                <span className="text-sm">Settings</span>
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={(e) => { 
                 e.preventDefault(); 
                 setProfileOpen(false); 
@@ -800,10 +806,6 @@ export function AppHeader() {
               }} className="py-3 px-3">
                 <Building2 className="mr-3 h-5 w-5" />
                 <span className="text-sm">My Clubs and Teams</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); navigate("/children"); }} className="py-3 px-3">
-                <Users className="mr-3 h-5 w-5" />
-                <span className="text-sm">My Children</span>
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); setFeedbackOpen(true); }} className="py-3 px-3">
                 <HelpCircle className="mr-3 h-5 w-5" />

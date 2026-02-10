@@ -14,7 +14,7 @@ import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { IOSInstallPrompt } from "@/components/IOSInstallPrompt";
 import { PushNotificationManager } from "@/components/PushNotificationManager";
 import { PWAPendingInviteHandler } from "@/components/PWAPendingInviteHandler";
-import { BrowserCompatibilityCheck } from "@/components/BrowserCompatibilityCheck";
+
 import { StatusBarManager } from "@/components/StatusBarManager";
 import { Loader2 } from "lucide-react";
 
@@ -50,6 +50,9 @@ const WelcomeMessagePage = lazy(() => import("./pages/WelcomeMessagePage"));
 const MediaPage = lazy(() => import("./pages/MediaPage"));
 const VaultPage = lazy(() => import("./pages/VaultPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const AccountPage = lazy(() => import("./pages/AccountPage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
 const EditProfilePage = lazy(() => import("./pages/EditProfilePage"));
 const MyRolesPage = lazy(() => import("./pages/MyRolesPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
@@ -81,6 +84,8 @@ const NotificationPreferencesPage = lazy(() => import("./pages/NotificationPrefe
 const MiniLeaguesPage = lazy(() => import("./pages/MiniLeaguesPage"));
 const MiniLeagueDetailPage = lazy(() => import("./pages/MiniLeagueDetailPage"));
 const EventGroupPitchPage = lazy(() => import("./pages/EventGroupPitchPage"));
+const AppSettingsPage = lazy(() => import("./pages/AppSettingsPage"));
+const AdMobSettingsPage = lazy(() => import("./pages/AdMobSettingsPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -168,8 +173,12 @@ const App = () => (
                   <Route path="/vault" element={<VaultPage />} />
                   <Route path="/vault/folder/:folderId" element={<VaultPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/account" element={<AccountPage />} />
+                  <Route path="/admin" element={<AdminPage />} />
                   <Route path="/edit-profile" element={<EditProfilePage />} />
                   <Route path="/roles" element={<MyRolesPage />} />
+                  <Route path="/children" element={<ChildrenPage />} />
                   <Route path="/children" element={<ChildrenPage />} />
                   <Route path="/notifications" element={<NotificationsPage />} />
                   <Route path="/reports/player-stats" element={<PlayerStatsReportPage />} />
@@ -182,6 +191,8 @@ const App = () => (
                   <Route path="/admin/ads" element={<ManageAdsPage />} />
                   <Route path="/admin/push-analytics" element={<PushAnalyticsPage />} />
                   <Route path="/admin/notification-preferences" element={<NotificationPreferencesPage />} />
+                  <Route path="/admin/settings" element={<AppSettingsPage />} />
+                  <Route path="/admin/admob" element={<AdMobSettingsPage />} />
                   <Route path="/mini-leagues" element={<MiniLeaguesPage />} />
                   <Route path="/mini-leagues/:id" element={<MiniLeagueDetailPage />} />
                 </Route>
@@ -193,7 +204,7 @@ const App = () => (
             <IOSInstallPrompt />
             <PushNotificationManager />
             <StatusBarManager />
-            <BrowserCompatibilityCheck />
+            
           </BrowserRouter>
           </TooltipProvider>
         </ClubThemeProvider>

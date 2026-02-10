@@ -619,7 +619,7 @@ export default function NotificationsPage() {
   return (
     <div 
       ref={containerRef}
-      className="py-6 space-y-6 min-h-full"
+      className="pt-2 pb-6 space-y-4 min-h-full"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}

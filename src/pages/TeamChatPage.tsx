@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, Loader2, RefreshCw } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { SecureAvatar } from "@/components/SecureAvatar";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
 import { PageLoading } from "@/components/ui/page-loading";
@@ -26,6 +26,7 @@ import { useMessageReads } from "@/hooks/useMessageReads";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCache, cacheProfiles } from "@/lib/profileCache";
+import { useProfiles } from "@/hooks/useProfiles";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget, type QueuedMessage } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
@@ -133,7 +134,7 @@ export default function TeamChatPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("*, clubs (name, id)")
+        .select("*, clubs (name, id, logo_url)")
         .eq("id", teamId!)
         .single();
       if (error) throw error;
@@ -305,6 +306,12 @@ export default function TeamChatPage() {
   const hasInitialScrolled = useRef(false);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   
+  // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
+  const authorIds = useMemo(() => {
+    return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
+  }, [localMessages]);
+  const { getProfile } = useProfiles(authorIds);
+  
   // Reset scroll state when teamId changes
   useEffect(() => {
     hasInitialScrolled.current = false;
@@ -353,6 +360,26 @@ export default function TeamChatPage() {
       queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
     }
   }, [teamId, messages, loadingMessages, isFetching, queryClient]);
+
+  // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
+  useEffect(() => {
+    let lastRefresh = Date.now();
+    
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "visible" && teamId) {
+        const timeSinceLastRefresh = Date.now() - lastRefresh;
+        // Only refresh if it's been more than 30 seconds
+        if (timeSinceLastRefresh > 30000) {
+          console.log("[TeamChat] App became visible, refreshing messages");
+          lastRefresh = Date.now();
+          await queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [teamId, queryClient]);
 
   // Always ensure profiles are loaded for messages with missing profile data
   useEffect(() => {
@@ -937,18 +964,18 @@ export default function TeamChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-8rem)] pb-safe">
-      {/* Header */}
-      <div className="flex items-center gap-3 py-4 border-b border-border">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(7rem+env(safe-area-inset-bottom,0px))]">
+      {/* Header - Fixed at top */}
+      <div className="fixed top-14 left-0 right-0 flex items-center gap-3 px-4 py-4 border-b border-border bg-background z-40">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <Avatar className="h-10 w-10">
-          <AvatarImage src={team.logo_url || undefined} />
-          <AvatarFallback className="bg-secondary text-secondary-foreground">
-            {team.name?.charAt(0)?.toUpperCase() || "T"}
-          </AvatarFallback>
-        </Avatar>
+        <SecureAvatar 
+          src={team.logo_url || team.clubs?.logo_url} 
+          fallback={team.name?.charAt(0)?.toUpperCase() || "T"}
+          className="h-10 w-10"
+          fallbackClassName="bg-secondary text-secondary-foreground"
+        />
         <div className="flex-1">
           <h1 className="font-semibold">{team.name}</h1>
           <p className="text-xs text-muted-foreground">{team.clubs?.name}</p>
@@ -971,8 +998,11 @@ export default function TeamChatPage() {
         <ChatSearch onSearch={setSearchQuery} />
       </div>
 
+      {/* Spacer for fixed header */}
+      <div className="h-[72px] shrink-0" />
+
       {/* Messages */}
-      <div className="flex-1 min-h-0 py-4 flex flex-col overscroll-contain relative" ref={pullRefreshRef}>
+      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
         <PullToRefreshIndicator
           pullDistance={pullDistance}
           pullProgress={pullProgress}
@@ -1020,8 +1050,8 @@ export default function TeamChatPage() {
                         text={msg.text}
                         imageUrl={msg.image_url}
                         authorId={msg.author_id}
-                        authorName={msg.profiles?.display_name}
-                        authorAvatar={msg.profiles?.avatar_url}
+                        authorName={getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || null}
+                        authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null}
                         timestamp={formatMessageDate(msg.created_at)}
                         isOwn={msg.author_id === user?.id}
                         isAdmin={isAdmin || false}
@@ -1049,8 +1079,8 @@ export default function TeamChatPage() {
          )}
        </div>
 
-      {/* Input */}
-      <div className="border-t border-border pt-4 pb-2">
+      {/* Input - Fixed at bottom above nav bar */}
+      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-40" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         <div className="flex gap-2 items-end">
@@ -1089,9 +1119,6 @@ export default function TeamChatPage() {
             )}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Long-press a message to react • Tap menu to reply
-        </p>
       </div>
     </div>
   );

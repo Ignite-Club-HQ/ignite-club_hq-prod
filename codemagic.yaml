@@ -1,6 +1,6 @@
 workflows:
-  android-workflow:
-    name: Android Build
+  android-debug-workflow:
+    name: Android Debug Build
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
@@ -19,40 +19,219 @@ workflows:
           cp firebase/google-services.json android/app/google-services.json
       - name: Sync Capacitor
         script: npx cap sync android
+      - name: Add AdMob App ID to AndroidManifest
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "com.google.android.gms.ads.APPLICATION_ID" "$MANIFEST"; then
+            sed -i '' '/<\/application>/i\
+                <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713"/>
+            ' "$MANIFEST"
+            echo "AdMob App ID injected into AndroidManifest.xml"
+          else
+            echo "AdMob App ID already present"
+          fi
+      - name: Add Crashlytics Gradle plugin
+        script: |
+          cd android
+          # Add crashlytics classpath to project build.gradle (macOS sed doesn't support \n)
+          if ! grep -q "firebase-crashlytics-gradle" build.gradle 2>/dev/null; then
+            sed -i '' '/dependencies {/a\
+                    classpath "com.google.firebase:firebase-crashlytics-gradle:3.0.3"
+            ' build.gradle
+          fi
+          echo "=== Project build.gradle dependencies ==="
+          grep -A5 "dependencies {" build.gradle
+          # Apply crashlytics plugin to app build.gradle
+          if ! grep -q "firebase-crashlytics" app/build.gradle 2>/dev/null; then
+            echo "" >> app/build.gradle
+            echo "apply plugin: 'com.google.firebase.crashlytics'" >> app/build.gradle
+          fi
+          echo "=== app/build.gradle tail ==="
+          tail -5 app/build.gradle
+      - name: Copy app icons
+        script: |
+          # Remove ALL Capacitor default icons first (including vector drawables and all density folders)
+          rm -rf android/app/src/main/res/mipmap-*
+          rm -rf android/app/src/main/res/drawable/ic_launcher*
+          rm -rf android/app/src/main/res/drawable-v24
+          rm -rf android/app/src/main/res/drawable-hdpi
+          rm -rf android/app/src/main/res/drawable-mdpi
+          rm -rf android/app/src/main/res/drawable-xhdpi
+          rm -rf android/app/src/main/res/drawable-xxhdpi
+          rm -rf android/app/src/main/res/drawable-xxxhdpi
+          rm -f android/app/src/main/res/drawable/ic_launcher_background.xml
+          rm -f android/app/src/main/res/drawable/splash.png
+          # Copy our mipmap directories (includes mipmap-anydpi-v26 for adaptive icons)
+          cp -r android-assets/mipmap-* android/app/src/main/res/
+          # Copy drawable assets (foreground icon and notification icon)
+          mkdir -p android/app/src/main/res/drawable
+          cp android-assets/drawable/ic_launcher_foreground.png android/app/src/main/res/drawable/
+          cp android-assets/drawable/ic_launcher_background.xml android/app/src/main/res/drawable/
+          cp android-assets/drawable/ic_notification.xml android/app/src/main/res/drawable/
+          # Remove ALL Capacitor default colors.xml files to avoid duplicate resource errors
+          rm -f android/app/src/main/res/values/colors.xml
+          rm -f android/app/src/main/res/values-night/colors.xml
+          # Copy our colors.xml with uniquely named resources
+          mkdir -p android/app/src/main/res/values
+          cp android-assets/res-values/colors.xml android/app/src/main/res/values/colors.xml
+          # Debug: List what we have
+          echo "=== drawable contents ===" && ls -la android/app/src/main/res/drawable/
+          echo "=== mipmap-hdpi contents ===" && ls -la android/app/src/main/res/mipmap-hdpi/
+          echo "=== mipmap-anydpi-v26 contents ===" && ls -la android/app/src/main/res/mipmap-anydpi-v26/
+      - name: Configure notification icon
+        script: |
+          # Add meta-data for default notification icon and color to AndroidManifest.xml
+          # macOS sed requires '' after -i for in-place editing without backup
+          sed -i '' 's|</application>|<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification"/><meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/ignite_green"/></application>|' android/app/src/main/AndroidManifest.xml
       - name: Build Android
         script: |
           cd android
+          ./gradlew clean
           ./gradlew assembleDebug
+          ./gradlew bundleDebug
     artifacts:
       - android/app/build/outputs/**/*.apk
+      - android/app/build/outputs/**/*.aab
 
-  ios-workflow:
-    name: iOS Build
+
+  ios-debug-workflow:
+    name: iOS Debug Build
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
       xcode: latest
       node: 22
-      cocoapods: default
     scripts:
       - name: Install dependencies
         script: npm install
       - name: Build web app
         script: npm run build
+      - name: Add iOS platform
+        script: npx cap add ios || true
       - name: Sync Capacitor
         script: npx cap sync ios
-      - name: Install CocoaPods
+      - name: Copy app icons
+        script: |
+          cp android-assets/mipmap-xxxhdpi/ic_launcher.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+      - name: Build iOS Debug
         script: |
           cd ios/App
-          pod install
-      - name: Build iOS (Simulator)
-        script: |
-          cd ios/App
-          xcodebuild -workspace App.xcworkspace \
+          xcodebuild -project App.xcodeproj \
             -scheme App \
             -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build \
-            build
+            -destination 'generic/platform=iOS' \
+            -archivePath build/App.xcarchive \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGNING_ALLOWED=NO \
+            archive
     artifacts:
       - ios/App/build/**/*.app
+
+  ios-workflow:
+    name: iOS Build & Publish
+    max_build_duration: 90
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: Codemagic
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: app.lovable.igniteteamhub
+      xcode: latest
+      node: 22
+    scripts:
+      - name: Install dependencies
+        script: npm install
+      - name: Build web app
+        script: |
+          npm run build
+          echo "=== Verifying dist folder exists ==="
+          ls -la dist/
+      - name: Add iOS platform
+        script: |
+          echo "=== Capacitor version ==="
+          npx cap --version
+          echo "=== Adding iOS platform ==="
+          npx cap add ios || echo "iOS platform may already exist"
+          echo "=== Checking ios folder structure ==="
+          ls -la ios/ || echo "ERROR: ios folder not created!"
+          ls -la ios/App/ || echo "ERROR: ios/App folder not found!"
+      - name: Copy Firebase config and add to Xcode project
+        script: |
+          # Copy GoogleService-Info.plist to iOS app directory
+          cp firebase/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
+          echo "=== Copied Firebase config to iOS ==="
+          
+          # Add GoogleService-Info.plist to Xcode project using Ruby script
+          # This is necessary because just copying the file doesn't add it to the bundle
+          ruby << 'RUBY_SCRIPT'
+          require 'xcodeproj'
+          
+          project_path = 'ios/App/App.xcodeproj'
+          project = Xcodeproj::Project.open(project_path)
+          
+          # Find the App target
+          target = project.targets.find { |t| t.name == 'App' }
+          
+          # Find the App group
+          app_group = project.main_group.find_subpath('App', false)
+          
+          # Check if GoogleService-Info.plist already exists in project
+          existing_ref = app_group.files.find { |f| f.path == 'GoogleService-Info.plist' }
+          
+          if existing_ref.nil?
+            # Add file reference
+            file_ref = app_group.new_file('GoogleService-Info.plist')
+            
+            # Add to resources build phase
+            target.resources_build_phase.add_file_reference(file_ref)
+            
+            project.save
+            puts "=== Added GoogleService-Info.plist to Xcode project ==="
+          else
+            puts "=== GoogleService-Info.plist already in project ==="
+          end
+          RUBY_SCRIPT
+      - name: Sync Capacitor
+        script: |
+          npx cap sync ios
+          echo "=== Verifying SPM Package.swift exists ==="
+          cat ios/App/CapApp-SPM/Package.swift | head -20
+      - name: Copy app icons
+        script: |
+          # Copy Ignite icon to iOS app icon (use the highest resolution Android icon)
+          # iOS requires 1024x1024 icon named appropriately
+          cp android-assets/mipmap-xxxhdpi/ic_launcher.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+          echo "=== Copied Ignite icon to iOS ==="
+          ls -la ios/App/App/Assets.xcassets/AppIcon.appiconset/
+      - name: Set up code signing
+        script: xcode-project use-profiles
+      - name: Increment build number
+        script: |
+          cd ios/App
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number 6758928691 || echo 0)
+          agvtool new-version -all $((LATEST_BUILD_NUMBER + 1))
+      - name: Build iOS Release
+        script: |
+          cd ios/App
+          xcodebuild -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/App.xcarchive \
+            CODE_SIGN_STYLE=Manual \
+            archive
+      - name: Export IPA
+        script: |
+          cd ios/App
+          xcodebuild -exportArchive \
+            -archivePath build/App.xcarchive \
+            -exportPath build/ipa \
+            -exportOptionsPlist ~/export_options.plist
+    artifacts:
+      - ios/App/build/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # Note: Internal testers are added directly in App Store Connect, not via beta_groups

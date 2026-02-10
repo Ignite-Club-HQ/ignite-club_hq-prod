@@ -1,0 +1,68 @@
+import { supabase } from "@/integrations/supabase/client";
+
+export type PointsSourceType = 
+  | 'early_rsvp'
+  | 'duty'
+  | 'player_of_match'
+  | 'admin_award'
+  | 'redemption'
+  | 'pom_removed';
+
+interface RecordPointsHistoryParams {
+  userId?: string | null;
+  childId?: string | null;
+  clubId?: string | null;
+  amount: number;
+  balanceAfter: number;
+  sourceType: PointsSourceType;
+  sourceId?: string | null;
+  description: string;
+  createdBy?: string | null;
+}
+
+/**
+ * Records a points transaction in the points_history table.
+ * Use positive amounts for awards, negative for redemptions/deductions.
+ */
+export async function recordPointsHistory({
+  userId,
+  childId,
+  clubId,
+  amount,
+  balanceAfter,
+  sourceType,
+  sourceId,
+  description,
+  createdBy,
+}: RecordPointsHistoryParams): Promise<boolean> {
+  try {
+    const { error } = await supabase.from("points_history").insert({
+      user_id: userId || null,
+      child_id: childId || null,
+      club_id: clubId || null,
+      amount,
+      balance_after: balanceAfter,
+      source_type: sourceType,
+      source_id: sourceId || null,
+      description,
+      created_by: createdBy || null,
+    });
+
+    if (error) {
+      console.error("Failed to record points history:", error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error recording points history:", error);
+    return false;
+  }
+}
+
+/**
+ * Formats a points amount for display with sign
+ */
+export function formatPointsAmount(amount: number): string {
+  return amount > 0 ? `+${amount}` : `${amount}`;
+}

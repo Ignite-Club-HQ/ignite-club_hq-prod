@@ -220,14 +220,26 @@ export default function AuthPage() {
       });
     } else {
       // Success! On native platforms, offer to save credentials for biometric login
-      if (mode === "signin" && Capacitor.isNativePlatform() && nativeBiometricInfo?.isAvailable && !nativeBiometricInfo.hasCredentials) {
-        // Store credentials for future biometric login
-        const stored = await storeCredentialsForNativeBiometric(email, password);
-        if (stored.success) {
-          toast({
-            title: "Biometric login enabled",
-            description: `You can now use ${getBiometricButtonText().replace('Sign in with ', '')} to sign in next time.`,
-          });
+      // Do a fresh check for biometric availability to avoid stale state issues on iOS
+      if (mode === "signin" && Capacitor.isNativePlatform()) {
+        try {
+          // Import dynamically to avoid issues
+          const { checkNativeBiometricAvailability } = await import('@/lib/nativeBiometrics');
+          const freshBiometricInfo = await checkNativeBiometricAvailability();
+          console.log('[AuthPage] Fresh biometric check:', freshBiometricInfo);
+          
+          if (freshBiometricInfo.isAvailable && !freshBiometricInfo.hasCredentials) {
+            // Store credentials for future biometric login
+            const stored = await storeCredentialsForNativeBiometric(email, password);
+            if (stored.success) {
+              toast({
+                title: "Biometric login enabled",
+                description: `You can now use ${getBiometricButtonText().replace('Sign in with ', '')} to sign in next time.`,
+              });
+            }
+          }
+        } catch (e) {
+          console.log('[AuthPage] Biometric enrollment check failed:', e);
         }
       } else if (mode === "signup") {
         toast({

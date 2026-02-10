@@ -293,6 +293,26 @@ export default function BroadcastChatPage() {
     }
   }, [messages, isLoading, queryClient]);
 
+  // Visibility change handler - refetch messages when app becomes visible (e.g., phone unlock)
+  useEffect(() => {
+    let lastRefresh = Date.now();
+    
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "visible") {
+        const timeSinceLastRefresh = Date.now() - lastRefresh;
+        // Only refresh if it's been more than 30 seconds
+        if (timeSinceLastRefresh > 30000) {
+          console.log("[BroadcastChat] App became visible, refreshing messages");
+          lastRefresh = Date.now();
+          await queryClient.invalidateQueries({ queryKey: ["broadcast-messages"] });
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [queryClient]);
+
   // Scroll to bottom on initial load - wait for content to render
   useEffect(() => {
     if (!localMessages?.length || hasInitialScrolled.current) return;
@@ -754,9 +774,9 @@ export default function BroadcastChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-8rem)] pb-safe">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(7rem+env(safe-area-inset-bottom,0px))]">
       {/* Header */}
-      <div className="flex items-center gap-3 py-4 border-b">
+      <div className="flex items-center gap-3 py-4 border-b bg-background sticky top-0 z-10 shrink-0">
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -780,7 +800,7 @@ export default function BroadcastChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 py-4 flex flex-col overscroll-contain relative" ref={pullRefreshRef}>
+      <div className="flex-1 min-h-0 py-4 flex flex-col relative" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
         <PullToRefreshIndicator
           pullDistance={pullDistance}
           pullProgress={pullProgress}

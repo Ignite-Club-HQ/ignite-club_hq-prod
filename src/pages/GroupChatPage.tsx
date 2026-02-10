@@ -22,6 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { MessageContent } from "@/components/chat/MessageContent";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
@@ -30,6 +31,7 @@ import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { MessageReadIndicator } from "@/components/chat/MessageReadIndicator";
 import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCache } from "@/lib/profileCache";
+import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages, removeMessageFromCache } from "@/lib/messageCache";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
@@ -326,6 +328,12 @@ export default function GroupChatPage() {
   const hasInitialScrolled = useRef(false);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   
+  // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
+  const authorIds = useMemo(() => {
+    return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
+  }, [localMessages]);
+  const { getProfile } = useProfiles(authorIds);
+  
   // Reset scroll state when groupId changes
   useEffect(() => {
     hasInitialScrolled.current = false;
@@ -374,6 +382,26 @@ export default function GroupChatPage() {
       queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
     }
   }, [groupId, messages, messagesLoading, queryClient]);
+
+  // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
+  useEffect(() => {
+    let lastRefresh = Date.now();
+    
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "visible" && groupId) {
+        const timeSinceLastRefresh = Date.now() - lastRefresh;
+        // Only refresh if it's been more than 30 seconds
+        if (timeSinceLastRefresh > 30000) {
+          console.log("[GroupChat] App became visible, refreshing messages");
+          lastRefresh = Date.now();
+          await queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [groupId, queryClient]);
 
   // Always ensure profiles are loaded for messages with missing author data
   useEffect(() => {
@@ -1206,9 +1234,9 @@ export default function GroupChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-8rem)] pb-safe">
-      {/* Header */}
-      <div className="flex items-center gap-3 p-4 border-b bg-card">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(7rem+env(safe-area-inset-bottom,0px))]">
+      {/* Header - Fixed at top */}
+      <div className="fixed top-14 left-0 right-0 flex items-center gap-3 p-4 border-b bg-background z-40">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -1236,12 +1264,11 @@ export default function GroupChatPage() {
         <ChatSearch onSearch={setSearchQuery} />
       </div>
 
+      {/* Spacer for fixed header */}
+      <div className="h-16 shrink-0" />
+
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 overscroll-contain relative" ref={(node) => {
-        // Combine refs for scrollAreaRef and pullRefreshRef
-        scrollAreaRef.current = node;
-        (pullRefreshRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-      }}>
+      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
         <PullToRefreshIndicator
           pullDistance={pullDistance}
           pullProgress={pullProgress}
@@ -1256,7 +1283,8 @@ export default function GroupChatPage() {
             isSearchResult={!!searchQuery}
           />
         ) : (
-          <>
+          <ScrollArea className="flex-1 h-full" ref={scrollAreaRef}>
+            <div className="space-y-4 p-4">
             {/* Invisible trigger for infinite scroll */}
             {hasOlderMessages && !searchQuery && (
               <div ref={loadTriggerRef} className="flex justify-center py-2">
@@ -1281,16 +1309,16 @@ export default function GroupChatPage() {
                 >
                   <div className={`flex gap-2 max-w-[85%] group ${isOwnMessage ? "flex-row-reverse" : ""}`}>
                     <Avatar className="h-8 w-8 shrink-0">
-                      <AvatarImage src={msg.author?.avatar_url || undefined} />
+                      <AvatarImage src={getProfile(msg.author_id)?.avatar_url || msg.author?.avatar_url || undefined} />
                       <AvatarFallback>
-                        {msg.author?.display_name?.[0]?.toUpperCase() || "?"}
+                        {(getProfile(msg.author_id)?.display_name || msg.author?.display_name)?.[0]?.toUpperCase() || "?"}
                       </AvatarFallback>
                     </Avatar>
                     
                     <div className={`flex flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-medium">
-                          {msg.author?.display_name || "Loading..."}
+                          {getProfile(msg.author_id)?.display_name || msg.author?.display_name || "Loading..."}
                         </span>
                         {msg.id.startsWith("queued-") && (
                           <span className="flex items-center text-amber-500" title="Pending sync">
@@ -1409,13 +1437,14 @@ export default function GroupChatPage() {
               </div>
             );
           })}
-          <div ref={messagesEndRef} />
-          </>
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
         )}
       </div>
 
-      {/* Input */}
-      <div className="p-4 border-t bg-card">
+      {/* Input - Fixed at bottom above nav bar */}
+      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-40" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
         <TypingIndicator typingUsers={typingUsers} />
         {replyTo && (
           <ReplyPreview

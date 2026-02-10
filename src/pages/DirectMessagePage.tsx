@@ -18,6 +18,7 @@ import { MentionInput } from "@/components/chat/MentionInput";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
+import { useProfiles } from "@/hooks/useProfiles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage } from "@/lib/messageCache";
@@ -284,6 +285,12 @@ export default function DirectMessagePage() {
   const hasInitialScrolled = useRef(false);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   
+  // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
+  const authorIds = useMemo(() => {
+    return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
+  }, [localMessages]);
+  const { getProfile } = useProfiles(authorIds);
+  
   useEffect(() => {
     hasInitialScrolled.current = false;
     setInfiniteScrollEnabled(false);
@@ -361,6 +368,26 @@ export default function DirectMessagePage() {
       setHasOlderMessages((messagesData as any).hasOlderMessages ?? false);
     }
   }, [messagesData]);
+
+  // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
+  useEffect(() => {
+    let lastRefresh = Date.now();
+    
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "visible" && conversationId) {
+        const timeSinceLastRefresh = Date.now() - lastRefresh;
+        // Only refresh if it's been more than 30 seconds
+        if (timeSinceLastRefresh > 30000) {
+          console.log("[DirectMessage] App became visible, refreshing messages");
+          lastRefresh = Date.now();
+          await queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [conversationId, queryClient]);
 
   // Send message mutation
   const sendMessageMutation = useMutation({
@@ -572,9 +599,9 @@ export default function DirectMessagePage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]" ref={pullRefreshRef as any}>
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 pb-4 border-b shrink-0">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(7rem+env(safe-area-inset-bottom,0px))]" ref={pullRefreshRef as any}>
+      {/* Header - Fixed at top */}
+      <div className="fixed top-14 left-0 right-0 flex items-center justify-between gap-3 px-4 py-3 border-b bg-background z-40">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
             <ArrowLeft className="h-5 w-5" />
@@ -610,10 +637,13 @@ export default function DirectMessagePage() {
         </div>
       </div>
 
+      {/* Spacer for fixed header */}
+      <div className="h-16 shrink-0" />
+
       <PullToRefreshIndicator isRefreshing={isRefreshing} pullDistance={pullDistance} pullProgress={pullProgress} />
 
       {/* Messages area */}
-      <ScrollArea ref={scrollAreaRef} className="flex-1 pr-4 -mr-4 relative">
+      <ScrollArea ref={scrollAreaRef} className="flex-1 pr-4 -mr-4 relative overflow-hidden">
         <div className="py-4 space-y-4 pb-2">
           {showLoading ? (
             <div className="flex justify-center py-8">
@@ -644,8 +674,8 @@ export default function DirectMessagePage() {
                       text={searchQuery ? highlightText(msg.text, searchQuery) as string : msg.text}
                       imageUrl={msg.image_url}
                       authorId={msg.author_id}
-                      authorName={isIgniteSupportUser(msg.author_id) ? "Ignite Support" : (msg.author?.display_name || null)}
-                      authorAvatar={msg.author?.avatar_url || null}
+                      authorName={isIgniteSupportUser(msg.author_id) ? "Ignite Support" : (getProfile(msg.author_id)?.display_name || msg.author?.display_name || null)}
+                      authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.author?.avatar_url || null}
                       timestamp={format(new Date(msg.created_at), "h:mm a")}
                       isOwn={msg.author_id === user?.id}
                       isAdmin={false}
@@ -677,15 +707,15 @@ export default function DirectMessagePage() {
         />
       )}
 
-      {/* Input area - hidden for Ignite Support conversations */}
+      {/* Input area - Fixed at bottom above nav bar */}
       {isIgniteSupportConversation ? (
-        <div className="pt-4 border-t shrink-0">
+         <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-40" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
           <div className="text-center text-sm text-muted-foreground py-3 bg-muted/50 rounded-lg">
             This is a welcome message from Ignite Support. Replies are not available.
           </div>
         </div>
       ) : (
-        <div className="pt-4 border-t shrink-0">
+        <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-40" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
           <div className="flex gap-2 items-end">
             <MentionInput
               value={message}
@@ -707,9 +737,6 @@ export default function DirectMessagePage() {
               )}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Long-press a message to react • Tap menu to reply
-          </p>
         </div>
       )}
     </div>

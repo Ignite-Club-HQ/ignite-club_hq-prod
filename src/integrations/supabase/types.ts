@@ -79,6 +79,39 @@ export type Database = {
         }
         Relationships: []
       }
+      admob_config: {
+        Row: {
+          app_id: string
+          banner_ad_unit_id: string
+          created_at: string
+          id: string
+          interstitial_ad_unit_id: string
+          is_enabled: boolean
+          platform: string
+          updated_at: string
+        }
+        Insert: {
+          app_id?: string
+          banner_ad_unit_id?: string
+          created_at?: string
+          id?: string
+          interstitial_ad_unit_id?: string
+          is_enabled?: boolean
+          platform: string
+          updated_at?: string
+        }
+        Update: {
+          app_id?: string
+          banner_ad_unit_id?: string
+          created_at?: string
+          id?: string
+          interstitial_ad_unit_id?: string
+          is_enabled?: boolean
+          platform?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       app_ad_analytics: {
         Row: {
           ad_id: string
@@ -177,6 +210,33 @@ export type Database = {
           link_url?: string | null
           name?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      app_settings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: Json
         }
         Relationships: []
       }
@@ -339,6 +399,7 @@ export type Database = {
           chat_type: string
           id: string
           muted_at: string
+          muted_until: string | null
           user_id: string
         }
         Insert: {
@@ -346,6 +407,7 @@ export type Database = {
           chat_type: string
           id?: string
           muted_at?: string
+          muted_until?: string | null
           user_id: string
         }
         Update: {
@@ -353,6 +415,7 @@ export type Database = {
           chat_type?: string
           id?: string
           muted_at?: string
+          muted_until?: string | null
           user_id?: string
         }
         Relationships: []
@@ -503,6 +566,41 @@ export type Database = {
           year_of_birth?: number | null
         }
         Relationships: []
+      }
+      club_dm_settings: {
+        Row: {
+          allowed_roles: string[]
+          club_id: string
+          created_at: string
+          dm_enabled: boolean
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          allowed_roles?: string[]
+          club_id: string
+          created_at?: string
+          dm_enabled?: boolean
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          allowed_roles?: string[]
+          club_id?: string
+          created_at?: string
+          dm_enabled?: boolean
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_dm_settings_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: true
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       club_invites: {
         Row: {
@@ -2458,6 +2556,7 @@ export type Database = {
       }
       notification_preferences: {
         Row: {
+          admin_enabled: boolean | null
           created_at: string
           email_admin_enabled: boolean
           email_events_enabled: boolean
@@ -2473,10 +2572,13 @@ export type Database = {
           membership_enabled: boolean
           messages_enabled: boolean
           pitch_board_enabled: boolean
+          pom_enabled: boolean | null
+          rewards_enabled: boolean | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          admin_enabled?: boolean | null
           created_at?: string
           email_admin_enabled?: boolean
           email_events_enabled?: boolean
@@ -2492,10 +2594,13 @@ export type Database = {
           membership_enabled?: boolean
           messages_enabled?: boolean
           pitch_board_enabled?: boolean
+          pom_enabled?: boolean | null
+          rewards_enabled?: boolean | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          admin_enabled?: boolean | null
           created_at?: string
           email_admin_enabled?: boolean
           email_events_enabled?: boolean
@@ -2511,6 +2616,8 @@ export type Database = {
           membership_enabled?: boolean
           messages_enabled?: boolean
           pitch_board_enabled?: boolean
+          pom_enabled?: boolean | null
+          rewards_enabled?: boolean | null
           updated_at?: string
           user_id?: string
         }
@@ -2983,6 +3090,77 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: true
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      points_history: {
+        Row: {
+          amount: number
+          balance_after: number
+          child_id: string | null
+          club_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          source_id: string | null
+          source_type: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          child_id?: string | null
+          club_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description: string
+          id?: string
+          source_id?: string | null
+          source_type: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          child_id?: string | null
+          club_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          source_id?: string | null
+          source_type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "points_history_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "points_history_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "points_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "points_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

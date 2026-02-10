@@ -11,6 +11,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^8.0.0",
+    "@capacitor-firebase/crashlytics": "^8.0.1",
     "@capacitor-firebase/messaging": "^8.0.1",
     "@capacitor/android": "^8.0.0",
     "@capacitor/app": "^8.0.0",

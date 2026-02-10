@@ -1,0 +1,43 @@
+name: Add iOS Platform
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+permissions:
+  contents: write
+
+jobs:
+  add-ios:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Add iOS platform
+        run: |
+          npx cap add ios
+          echo "=== iOS folder contents ==="
+          ls -la ios/
+          ls -la ios/App/
+
+      - name: Commit and push iOS folder
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ios/
+          git commit -m "Add iOS platform via GitHub Actions"
+          git push

@@ -75,6 +75,7 @@ import ClubRewardsManager from "@/components/ClubRewardsManager";
 import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import { ClubTeamSponsorAllocator } from "@/components/ClubTeamSponsorAllocator";
 import { ClubThemeEditor } from "@/components/ClubThemeEditor";
+import { ClubDMSettings } from "@/components/ClubDMSettings";
 import { Palette } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
 
@@ -1749,6 +1750,23 @@ export default function ClubDetailPage() {
               </div>
             </AccordionContent>
           )}
+        </AccordionItem>
+      )}
+
+      {/* Direct Messages - Pro only, Admin only */}
+      {isAdmin && (clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override) && (
+        <AccordionItem value="dm-settings" className="border rounded-lg px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-primary" />
+              <span className="text-lg font-semibold">Direct Messages</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="pt-2">
+              <ClubDMSettings clubId={id!} />
+            </div>
+          </AccordionContent>
         </AccordionItem>
       )}
 

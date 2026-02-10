@@ -9,7 +9,7 @@ interface UsePullToRefreshOptions {
 
 export function usePullToRefresh({
   onRefresh,
-  threshold = 80,
+  threshold = 100, // Increased threshold to require more intentional pull
   disabled = false,
   scrollableRef,
 }: UsePullToRefreshOptions) {
@@ -20,53 +20,77 @@ export function usePullToRefresh({
   const startY = useRef(0);
   const currentY = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isAtTopRef = useRef(false);
+  const initialScrollTopRef = useRef(0);
+
+  const getScrollTop = useCallback(() => {
+    if (scrollableRef?.current) {
+      // For ScrollArea, find the viewport element
+      const viewport = scrollableRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      return viewport?.scrollTop ?? scrollableRef.current.scrollTop ?? 0;
+    } else {
+      const container = containerRef.current;
+      return container?.scrollTop ?? 0;
+    }
+  }, [scrollableRef]);
 
   const handleTouchStart = useCallback((e: TouchEvent) => {
     if (disabled || isRefreshing) return;
     
-    // Find the scrollable element - either the provided scrollableRef's viewport or the container
-    let scrollTop = 0;
+    const scrollTop = getScrollTop();
+    initialScrollTopRef.current = scrollTop;
     
-    if (scrollableRef?.current) {
-      // For ScrollArea, find the viewport element
-      const viewport = scrollableRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      scrollTop = viewport?.scrollTop ?? scrollableRef.current.scrollTop ?? 0;
-    } else {
-      const container = containerRef.current;
-      if (!container) return;
-      scrollTop = container.scrollTop;
-    }
+    // Only allow pull-to-refresh if scrolled to the very top (within 5px tolerance)
+    isAtTopRef.current = scrollTop <= 5;
     
-    // Only trigger if scrolled to very top (increase threshold to prevent accidental triggers)
-    if (scrollTop > 10) return;
+    if (!isAtTopRef.current) return;
     
     startY.current = e.touches[0].clientY;
-    setIsPulling(true);
-  }, [disabled, isRefreshing, scrollableRef]);
+    currentY.current = e.touches[0].clientY;
+  }, [disabled, isRefreshing, getScrollTop]);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (!isPulling || disabled || isRefreshing) return;
+    if (disabled || isRefreshing) return;
+    
+    // Re-check scroll position - user might have scrolled since touch start
+    const scrollTop = getScrollTop();
+    
+    // If not at top anymore, reset and allow normal scrolling
+    if (scrollTop > 5) {
+      isAtTopRef.current = false;
+      setIsPulling(false);
+      setPullDistance(0);
+      return;
+    }
+    
+    if (!isAtTopRef.current) return;
     
     currentY.current = e.touches[0].clientY;
-    const distance = Math.max(0, currentY.current - startY.current);
+    const distance = currentY.current - startY.current;
     
-    // Only prevent default and show pull indicator if pulling down significantly
-    // This allows normal scrolling to work
-    if (distance > 20) {
-      e.preventDefault();
-      // Apply resistance as user pulls further
-      const resistedDistance = Math.min((distance - 20) * 0.5, threshold * 1.5);
+    // Only trigger pull-to-refresh for significant downward pulls (> 30px)
+    // This prevents accidental triggers during normal scroll attempts
+    if (distance > 30) {
+      // Now we're definitely pulling down - prevent default scroll only if we can
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      setIsPulling(true);
+      
+      // Apply strong resistance as user pulls further
+      const resistedDistance = Math.min((distance - 30) * 0.4, threshold * 1.2);
       setPullDistance(resistedDistance);
     } else {
-      // Reset if not pulling enough - allow normal scroll
+      // Not a significant pull - allow normal behavior
+      setIsPulling(false);
       setPullDistance(0);
     }
-  }, [isPulling, disabled, isRefreshing, threshold]);
+  }, [disabled, isRefreshing, threshold, getScrollTop]);
 
   const handleTouchEnd = useCallback(async () => {
-    if (!isPulling || disabled) return;
+    if (disabled) return;
     
-    if (pullDistance >= threshold && !isRefreshing) {
+    if (isPulling && pullDistance >= threshold && !isRefreshing) {
       setIsRefreshing(true);
       try {
         await onRefresh();
@@ -79,6 +103,7 @@ export function usePullToRefresh({
     
     setIsPulling(false);
     setPullDistance(0);
+    isAtTopRef.current = false;
   }, [isPulling, pullDistance, threshold, isRefreshing, onRefresh, disabled]);
 
   useEffect(() => {

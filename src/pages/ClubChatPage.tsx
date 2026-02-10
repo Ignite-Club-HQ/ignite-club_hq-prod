@@ -26,6 +26,7 @@ import { useMessageReads } from "@/hooks/useMessageReads";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCache } from "@/lib/profileCache";
+import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
@@ -319,6 +320,12 @@ export default function ClubChatPage() {
   const hasInitialScrolled = useRef(false);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   
+  // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
+  const authorIds = useMemo(() => {
+    return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
+  }, [localMessages]);
+  const { getProfile } = useProfiles(authorIds);
+  
   // Reset scroll state when clubId changes
   useEffect(() => {
     hasInitialScrolled.current = false;
@@ -367,6 +374,26 @@ export default function ClubChatPage() {
       queryClient.invalidateQueries({ queryKey: ["club-messages", clubId] });
     }
   }, [clubId, messages, isLoading, queryClient]);
+
+  // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
+  useEffect(() => {
+    let lastRefresh = Date.now();
+    
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "visible" && clubId) {
+        const timeSinceLastRefresh = Date.now() - lastRefresh;
+        // Only refresh if it's been more than 30 seconds
+        if (timeSinceLastRefresh > 30000) {
+          console.log("[ClubChat] App became visible, refreshing messages");
+          lastRefresh = Date.now();
+          await queryClient.invalidateQueries({ queryKey: ["club-messages", clubId] });
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [clubId, queryClient]);
 
   // Always ensure profiles are loaded for messages with missing profile data
   useEffect(() => {
@@ -943,9 +970,9 @@ export default function ClubChatPage() {
 
   // Block access for non-Pro users - show full page blocker
   if (!isLoadingClubSubscription && !canAccessClubChat) {
-    return (
-      <div className="flex flex-col h-[calc(100dvh-8rem)] pb-safe">
-        <div className="flex items-center gap-3 py-4 border-b">
+  return (
+    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))]">
+        <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">
           <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -981,9 +1008,9 @@ export default function ClubChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-8rem)] pb-safe">
-      {/* Header */}
-      <div className="flex items-center gap-3 py-4 border-b">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(7rem+env(safe-area-inset-bottom,0px))]">
+      {/* Header - Fixed at top */}
+      <div className="fixed top-14 left-0 right-0 flex items-center gap-3 px-4 py-3 border-b bg-background z-40">
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -1014,7 +1041,10 @@ export default function ClubChatPage() {
         <ChatSearch onSearch={setSearchQuery} />
       </div>
 
-      <div className="flex-1 min-h-0 py-4 flex flex-col overscroll-contain relative" ref={pullRefreshRef}>
+      {/* Spacer for fixed header */}
+      <div className="h-16 shrink-0" />
+
+      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
         <PullToRefreshIndicator
           pullDistance={pullDistance}
           pullProgress={pullProgress}
@@ -1068,8 +1098,8 @@ export default function ClubChatPage() {
                         text={msg.text}
                         imageUrl={msg.image_url}
                         authorId={msg.author_id}
-                        authorName={msg.profiles?.display_name}
-                        authorAvatar={msg.profiles?.avatar_url}
+                        authorName={getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || null}
+                        authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null}
                         timestamp={formatTimestamp(msg.created_at)}
                         isOwn={msg.author_id === user?.id}
                         isAdmin={isClubAdmin || isAppAdmin || false}
@@ -1099,7 +1129,7 @@ export default function ClubChatPage() {
 
       {/* Input (for users with Pro access: app_admin, club admin, or Pro team member) */}
       {canAccessClubChat && (
-        <div className="border-t py-4">
+        <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-40" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           <div className="flex gap-2 items-end">
