@@ -709,13 +709,13 @@ export default function DirectMessagePage() {
 
       {/* Input area - Fixed at bottom above nav bar */}
       {isIgniteSupportConversation ? (
-         <div className="fixed left-0 right-0 border-t pt-3 pb-2 px-4 bg-background z-40" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
+         <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-40" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
           <div className="text-center text-sm text-muted-foreground py-3 bg-muted/50 rounded-lg">
             This is a welcome message from Ignite Support. Replies are not available.
           </div>
         </div>
       ) : (
-        <div className="fixed left-0 right-0 border-t pt-3 pb-2 px-4 bg-background z-40" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
+        <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-40" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
           <div className="flex gap-2 items-end">
             <MentionInput
               value={message}
