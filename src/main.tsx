@@ -45,7 +45,6 @@ import App from "./App.tsx";
 import "./index.css";
 import { initDeepLinkHandler } from "./lib/deepLinkHandler";
 import { initNotificationLaunchHandler } from "./lib/notificationLaunchHandler";
-import { initCrashlytics } from "./lib/crashlytics";
 
 // Declare global types
 declare global {
@@ -58,14 +57,12 @@ declare global {
 // Detect native platform early (before any plugin calls)
 const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
 
-// Initialize Crashlytics first (so it catches crashes from other inits)
-try {
-  initCrashlytics();
-} catch (e) {
-  console.error('[Main] Crashlytics init failed:', e);
-}
-
 // Initialize native handlers (wrapped to prevent crashes)
+try {
+  initDeepLinkHandler();
+} catch (e) {
+  console.error('[Main] Deep link handler init failed:', e);
+}
 try {
   initDeepLinkHandler();
 } catch (e) {
