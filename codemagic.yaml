@@ -210,6 +210,49 @@ workflows:
           cd ios/App
           LATEST_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number 6758928691 || echo 0)
           agvtool new-version -all $((LATEST_BUILD_NUMBER + 1))
+      - name: Add Crashlytics dSYM upload script to Xcode project
+        script: |
+          cd ios/App
+          # Find the FirebaseCrashlytics upload-symbols binary from SPM build
+          # Add a Run Script build phase via Ruby to upload dSYMs
+          ruby << 'RUBY_SCRIPT'
+          require 'xcodeproj'
+          
+          project_path = 'App.xcodeproj'
+          project = Xcodeproj::Project.open(project_path)
+          target = project.targets.find { |t| t.name == 'App' }
+          
+          # Check if we already added it
+          existing = target.shell_script_build_phases.find { |p| p.name == 'Upload Crashlytics dSYMs' }
+          if existing.nil?
+            phase = target.new_shell_script_build_phase('Upload Crashlytics dSYMs')
+            phase.shell_script = <<~SCRIPT
+              # Find the upload-symbols binary from SPM checkouts
+              UPLOAD_SYMBOLS=$(find "${BUILD_DIR%/Build/*}" -name "upload-symbols" -type f | head -1)
+              if [ -z "$UPLOAD_SYMBOLS" ]; then
+                echo "warning: upload-symbols not found, trying run script"
+                UPLOAD_SYMBOLS=$(find "$(BUILD_DIR)" -path "*/FirebaseCrashlytics/upload-symbols" | head -1)
+              fi
+              if [ -n "$UPLOAD_SYMBOLS" ]; then
+                echo "Found upload-symbols at: $UPLOAD_SYMBOLS"
+                "$UPLOAD_SYMBOLS" -gsp "${SRCROOT}/App/GoogleService-Info.plist" -p ios "${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}"
+              else
+                echo "warning: Could not find upload-symbols binary"
+              fi
+            SCRIPT
+            phase.input_paths = [
+              '${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}',
+              '${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${PRODUCT_NAME}',
+              '${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Info.plist',
+              '$(SRCROOT)/App/GoogleService-Info.plist',
+              '$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/GoogleService-Info.plist'
+            ]
+            project.save
+            puts "=== Added Crashlytics dSYM upload build phase ==="
+          else
+            puts "=== Crashlytics dSYM upload phase already exists ==="
+          end
+          RUBY_SCRIPT
       - name: Build iOS Release
         script: |
           cd ios/App
