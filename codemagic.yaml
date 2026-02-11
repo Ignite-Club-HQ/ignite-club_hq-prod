@@ -119,13 +119,12 @@ workflows:
           xcodebuild -project App.xcodeproj \
             -scheme App \
             -configuration Debug \
-            -destination 'generic/platform=iOS' \
-            -archivePath build/App.xcarchive \
-            CODE_SIGN_IDENTITY=- \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
-            archive
+            build
     artifacts:
-      - ios/App/build/**/*.app
+      - ios/App/build/Build/Products/Debug-iphonesimulator/*.app
 
   ios-workflow:
     name: iOS Build & Publish
