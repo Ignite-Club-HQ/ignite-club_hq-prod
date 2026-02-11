@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { SPORT_EMOJIS, getSportEmoji } from "@/lib/sportEmojis";
@@ -33,6 +34,7 @@ export default function EditClubPage() {
   const [description, setDescription] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [sport, setSport] = useState("");
+  const [classModeEnabled, setClassModeEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const { data: club, isLoading } = useQuery({
@@ -58,6 +60,7 @@ export default function EditClubPage() {
       setDescription(club.description || "");
       setLogoUrl(club.logo_url || "");
       setSport(club.sport || "");
+      setClassModeEnabled(club.class_mode_enabled || false);
     }
   }, [club]);
 
@@ -121,6 +124,7 @@ export default function EditClubPage() {
         description: description.trim() || null,
         logo_url: logoUrl || null,
         sport: sport || null,
+        class_mode_enabled: classModeEnabled,
       })
       .eq("id", id!);
 
@@ -242,6 +246,15 @@ export default function EditClubPage() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Class Mode */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label className="text-base">Class Mode</Label>
+              <p className="text-sm text-muted-foreground">Enable for academies & schools (swimming, dance, etc.)</p>
+            </div>
+            <Switch checked={classModeEnabled} onCheckedChange={setClassModeEnabled} />
           </div>
 
           {/* Description */}
