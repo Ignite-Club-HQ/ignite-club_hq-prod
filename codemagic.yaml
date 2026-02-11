@@ -196,6 +196,65 @@ workflows:
           npx cap sync ios
           echo "=== Verifying SPM Package.swift exists ==="
           cat ios/App/CapApp-SPM/Package.swift | head -20
+      - name: Patch AppDelegate for Firebase & Crashlytics
+        script: |
+          DELEGATE="ios/App/App/AppDelegate.swift"
+          echo "=== Patching AppDelegate.swift for Firebase + Crashlytics ==="
+          cat > "$DELEGATE" << 'SWIFT'
+          import UIKit
+          import Capacitor
+          import FirebaseCore
+          import FirebaseCrashlytics
+
+          @UIApplicationMain
+          class AppDelegate: UIResponder, UIApplicationDelegate {
+
+              var window: UIWindow?
+
+              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  FirebaseApp.configure()
+                  Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+                  return true
+              }
+
+              func applicationWillResignActive(_ application: UIApplication) {}
+              func applicationDidEnterBackground(_ application: UIApplication) {}
+              func applicationWillEnterForeground(_ application: UIApplication) {}
+              func applicationDidBecomeActive(_ application: UIApplication) {}
+              func applicationWillTerminate(_ application: UIApplication) {}
+
+              func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+              }
+
+              func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+              }
+          }
+          SWIFT
+          echo "=== Patched AppDelegate.swift ==="
+          cat "$DELEGATE"
+      - name: Ensure FirebaseCrashlytics in SPM Package.swift
+        script: |
+          PACKAGE="ios/App/CapApp-SPM/Package.swift"
+          if ! grep -q "FirebaseCrashlytics" "$PACKAGE"; then
+            echo "=== Adding FirebaseCrashlytics to Package.swift ==="
+            # Add firebase-ios-sdk dependency if missing
+            if ! grep -q "firebase-ios-sdk" "$PACKAGE"; then
+              sed -i '' '/dependencies: \[/a\
+                  .package(url: "https:\/\/github.com\/firebase\/firebase-ios-sdk.git", .upToNextMajor(from: "12.7.0")),
+              ' "$PACKAGE"
+            fi
+            # Add FirebaseCrashlytics product to target dependencies
+            sed -i '' '/.product(name: "Capacitor"/a\
+                          .product(name: "FirebaseCore", package: "firebase-ios-sdk"),\
+                          .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
+            ' "$PACKAGE"
+            echo "=== Updated Package.swift ==="
+          else
+            echo "=== FirebaseCrashlytics already in Package.swift ==="
+          fi
+          cat "$PACKAGE"
       - name: Copy app icons
         script: |
           # Copy Ignite icon to iOS app icon (use the highest resolution Android icon)
