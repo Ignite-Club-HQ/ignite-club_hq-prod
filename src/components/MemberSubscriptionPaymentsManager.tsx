@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { isNativePlatform } from "@/lib/nativePush";
 import { Check, CreditCard, X, Loader2, ExternalLink, Shirt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -184,7 +185,14 @@ export default function MemberSubscriptionPaymentsManager({
 
   const handlePayOnline = async () => {
     if (!user || !canPayOnline) return;
-    
+    if (isNativePlatform()) {
+      toast({ 
+        title: "Not Available on Mobile App", 
+        description: "Please use the web app to make this payment.",
+        variant: "destructive" 
+      });
+      return;
+    }
     setIsProcessingPayment(true);
     try {
       const { data, error } = await supabase.functions.invoke("create-member-payment-checkout", {
