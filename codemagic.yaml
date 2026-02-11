@@ -110,6 +110,68 @@ workflows:
         script: npx cap add ios || true
       - name: Sync Capacitor
         script: npx cap sync ios
+      - name: Ensure GADApplicationIdentifier in Info.plist
+        script: |
+          PLIST="ios/App/App/Info.plist"
+          if ! /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST" 2>/dev/null; then
+            echo "=== Injecting GADApplicationIdentifier into Info.plist ==="
+            /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string ca-app-pub-3940256099942544~3347511713" "$PLIST"
+          else
+            echo "=== GADApplicationIdentifier already present ==="
+          fi
+          /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST"
+      - name: Patch AppDelegate for Firebase & Crashlytics
+        script: |
+          DELEGATE="ios/App/App/AppDelegate.swift"
+          cat > "$DELEGATE" << 'SWIFT'
+          import UIKit
+          import Capacitor
+          import FirebaseCore
+          import FirebaseCrashlytics
+
+          @UIApplicationMain
+          class AppDelegate: UIResponder, UIApplicationDelegate {
+
+              var window: UIWindow?
+
+              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  FirebaseApp.configure()
+                  Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+                  return true
+              }
+
+              func applicationWillResignActive(_ application: UIApplication) {}
+              func applicationDidEnterBackground(_ application: UIApplication) {}
+              func applicationWillEnterForeground(_ application: UIApplication) {}
+              func applicationDidBecomeActive(_ application: UIApplication) {}
+              func applicationWillTerminate(_ application: UIApplication) {}
+
+              func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+              }
+
+              func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+              }
+          }
+          SWIFT
+      - name: Ensure FirebaseCrashlytics in SPM Package.swift
+        script: |
+          PACKAGE="ios/App/CapApp-SPM/Package.swift"
+          if ! grep -q "FirebaseCrashlytics" "$PACKAGE"; then
+            if ! grep -q "firebase-ios-sdk" "$PACKAGE"; then
+              sed -i '' '/dependencies: \[/a\
+                  .package(url: "https:\/\/github.com\/firebase\/firebase-ios-sdk.git", .upToNextMajor(from: "12.7.0")),
+              ' "$PACKAGE"
+            fi
+            sed -i '' '/.product(name: "Capacitor"/a\
+                          .product(name: "FirebaseCore", package: "firebase-ios-sdk"),\
+                          .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
+            ' "$PACKAGE"
+          fi
+      - name: Copy Firebase config
+        script: |
+          cp firebase/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
       - name: Copy app icons
         script: |
           cp android-assets/mipmap-xxxhdpi/ic_launcher.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
