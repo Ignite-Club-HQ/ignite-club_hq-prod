@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { isNativePlatform } from "@/lib/nativePush";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Check, Crown, Loader2, Ticket, Target, ArrowDown, Calendar, AlertCircle, Building2, Users, CreditCard, Clock } from "lucide-react";
 import { isPast, parseISO, format, addMonths, addYears, differenceInDays } from "date-fns";
@@ -389,17 +388,7 @@ export default function ClubUpgradePage() {
     }
   };
 
-  const isNative = isNativePlatform();
-
   const handleStripeCheckout = async (tier: "pro" | "pro_football", withTrial: boolean = false) => {
-    if (isNative) {
-      toast({
-        title: "Not Available on Mobile App",
-        description: "Please subscribe via the App Store or Google Play, or use the web app to upgrade.",
-        variant: "destructive",
-      });
-      return;
-    }
     const plan = tier === "pro" ? selectedPlan : selectedPlanFootball;
     const isAnnual = tier === "pro" ? isAnnualPro : isAnnualProFootball;
     setIsCheckingOut(true);

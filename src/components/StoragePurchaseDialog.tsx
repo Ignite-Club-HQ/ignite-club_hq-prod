@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { isNativePlatform } from "@/lib/nativePush";
 import { HardDrive, Loader2, Check, Crown, Package, Ticket, Minus, AlertTriangle, Calendar, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -232,10 +231,6 @@ export function StoragePurchaseDialog({
   const handlePurchase = () => {
     if (!selectedPack) {
       toast.error("Please select a storage pack");
-      return;
-    }
-    if (isNativePlatform()) {
-      toast.error("Storage purchases are not available on the mobile app. Please use the web app.");
       return;
     }
     purchaseMutation.mutate(selectedPack);
