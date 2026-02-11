@@ -17,7 +17,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { SPORT_EMOJIS, getSportEmoji } from "@/lib/sportEmojis";
+import { SPORT_EMOJIS, getSportEmoji, isClassModeSport } from "@/lib/sportEmojis";
 import { isCachedAppAdmin, getCachedRoles } from "@/lib/rolesCache";
 
 const SPORTS = Object.keys(SPORT_EMOJIS);
@@ -122,6 +122,7 @@ export default function CreateClubPage() {
         logo_url: null, // Will be updated after upload
         sport: sport || null,
         created_by: user!.id,
+        class_mode_enabled: isClassModeSport(sport),
       })
       .select()
       .single();

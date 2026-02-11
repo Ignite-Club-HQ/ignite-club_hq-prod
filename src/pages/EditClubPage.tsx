@@ -19,7 +19,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { SPORT_EMOJIS, getSportEmoji } from "@/lib/sportEmojis";
+import { SPORT_EMOJIS, getSportEmoji, isClassModeSport } from "@/lib/sportEmojis";
 
 
 const SPORTS = Object.keys(SPORT_EMOJIS);
@@ -224,7 +224,16 @@ export default function EditClubPage() {
           {/* Sport */}
           <div className="space-y-2">
             <Label className="text-base">Sport</Label>
-            <Select value={sport} onValueChange={setSport}>
+            <Select value={sport} onValueChange={(val) => {
+              setSport(val);
+              // Auto-toggle class mode when switching to/from a class-default sport
+              if (isClassModeSport(val) && !classModeEnabled) {
+                setClassModeEnabled(true);
+              } else if (!isClassModeSport(val) && classModeEnabled && isClassModeSport(sport)) {
+                // Only auto-disable if previous sport was class-default (user didn't manually enable)
+                setClassModeEnabled(false);
+              }
+            }}>
               <SelectTrigger className="w-full h-12 text-base">
                 <SelectValue placeholder="Select a sport">
                   {sport && (
