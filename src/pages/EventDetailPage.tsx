@@ -1,6 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
-import { isNativePlatform } from "@/lib/nativePush";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame } from "lucide-react";
@@ -690,14 +689,7 @@ export default function EventDetailPage() {
 
   const handlePayNow = async () => {
     if (!event || !user) return;
-    if (isNativePlatform()) {
-      toast({
-        title: "Not Available on Mobile App",
-        description: "Please use the web app to make this payment.",
-        variant: "destructive",
-      });
-      return;
-    }
+    
     setIsProcessingPayment(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-event-checkout', {
