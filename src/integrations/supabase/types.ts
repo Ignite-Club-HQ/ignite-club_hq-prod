@@ -2059,6 +2059,45 @@ export type Database = {
           },
         ]
       }
+      iap_transactions: {
+        Row: {
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          original_transaction_id: string | null
+          platform: string
+          product_id: string
+          status: string
+          transaction_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          original_transaction_id?: string | null
+          platform: string
+          product_id: string
+          status?: string
+          transaction_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          original_transaction_id?: string | null
+          platform?: string
+          product_id?: string
+          status?: string
+          transaction_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       member_subscription_payments: {
         Row: {
           amount: number

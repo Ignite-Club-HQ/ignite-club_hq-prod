@@ -391,11 +391,8 @@ export default function ClubUpgradePage() {
 
   const handleStripeCheckout = async (tier: "pro" | "pro_football", withTrial: boolean = false) => {
     if (isNativePlatform()) {
-      toast({
-        title: "Not Available on Mobile App",
-        description: "Please upgrade via the App Store or Google Play, or use the web app.",
-        variant: "destructive",
-      });
+      // On native, use In-App Purchases
+      handleNativeIAP(tier, withTrial);
       return;
     }
     const plan = tier === "pro" ? selectedPlan : selectedPlanFootball;
@@ -427,6 +424,55 @@ export default function ClubUpgradePage() {
         description: "Failed to start checkout. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
+  const handleNativeIAP = async (tier: "pro" | "pro_football", _withTrial: boolean = false) => {
+    const { useInAppPurchase, getClubUpgradeProductId } = await import("@/hooks/useInAppPurchase");
+    // We can't use hooks dynamically, so we'll handle it inline
+    const { Capacitor } = await import("@capacitor/core");
+    if (!Capacitor.isNativePlatform()) return;
+
+    const plan = tier === "pro" ? selectedPlan : selectedPlanFootball;
+    const isAnnual = tier === "pro" ? isAnnualPro : isAnnualProFootball;
+    const productId = getClubUpgradeProductId(tier, plan, isAnnual);
+
+    setIsCheckingOut(true);
+    try {
+      const { NativePurchases, PURCHASE_TYPE } = await import("@capgo/native-purchases");
+      const purchaseResult = await NativePurchases.purchaseProduct({
+        productIdentifier: productId,
+        productType: PURCHASE_TYPE.SUBS,
+        ...(Capacitor.getPlatform() === "android" ? { planIdentifier: productId } : {}),
+      });
+
+      if (!purchaseResult?.transactionId) {
+        throw new Error("Purchase was cancelled");
+      }
+
+      // Verify on server
+      const { data, error } = await supabase.functions.invoke("verify-iap-receipt", {
+        body: {
+          platform: Capacitor.getPlatform(),
+          transactionId: purchaseResult.transactionId,
+          productId,
+          entityId: clubId,
+          entityType: "club",
+          receipt: purchaseResult.receipt || purchaseResult.purchaseToken || purchaseResult.transactionId,
+        },
+      });
+
+      if (error || data?.error) throw new Error(data?.error || "Verification failed");
+
+      queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+      queryClient.invalidateQueries({ queryKey: ["club", clubId] });
+      toast({ title: "Upgrade Successful!", description: "Your club subscription is now active." });
+    } catch (err: any) {
+      if (err?.message?.toLowerCase().includes("cancel")) return;
+      console.error("[IAP] Error:", err);
+      toast({ title: "Purchase Failed", description: err?.message || "Please try again.", variant: "destructive" });
     } finally {
       setIsCheckingOut(false);
     }

@@ -229,16 +229,60 @@ export function StoragePurchaseDialog({
     },
   });
 
-  const handlePurchase = () => {
+  const handlePurchase = async () => {
     if (!selectedPack) {
       toast.error("Please select a storage pack");
       return;
     }
     if (isNativePlatform()) {
-      toast.error("Storage purchases are not available on the mobile app. Please use the web app or purchase via the App Store / Google Play.");
+      // On native, use In-App Purchases
+      handleNativeStoragePurchase();
       return;
     }
     purchaseMutation.mutate(selectedPack);
+  };
+
+  const handleNativeStoragePurchase = async () => {
+    if (!selectedPack) return;
+    const { getStorageProductId } = await import("@/hooks/useInAppPurchase");
+    const { Capacitor } = await import("@capacitor/core");
+    if (!Capacitor.isNativePlatform()) return;
+
+    const productId = getStorageProductId(selectedPack, isAnnual);
+
+    try {
+      const { NativePurchases, PURCHASE_TYPE } = await import("@capgo/native-purchases");
+      const purchaseResult = await NativePurchases.purchaseProduct({
+        productIdentifier: productId,
+        productType: PURCHASE_TYPE.INAPP,
+      });
+
+      if (!purchaseResult?.transactionId) {
+        throw new Error("Purchase was cancelled");
+      }
+
+      const { data, error } = await supabase.functions.invoke("verify-iap-receipt", {
+        body: {
+          platform: Capacitor.getPlatform(),
+          transactionId: purchaseResult.transactionId,
+          productId,
+          entityId: clubId,
+          entityType: "club",
+          receipt: purchaseResult.receipt || purchaseResult.purchaseToken || purchaseResult.transactionId,
+        },
+      });
+
+      if (error || data?.error) throw new Error(data?.error || "Verification failed");
+
+      queryClient.invalidateQueries({ queryKey: ["purchased-storage", clubId] });
+      queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+      toast.success("Storage purchased successfully!");
+      onOpenChange(false);
+    } catch (err: any) {
+      if (err?.message?.toLowerCase().includes("cancel")) return;
+      console.error("[IAP] Error:", err);
+      toast.error(err?.message || "Purchase failed. Please try again.");
+    }
   };
 
   const handleApplyPromo = async () => {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { isNativePlatform } from "@/lib/nativePush";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Check, Crown, Loader2, Ticket, Target, ArrowDown, Calendar, AlertCircle, Building2, CreditCard, Clock } from "lucide-react";
 import { isPast, parseISO, format, addMonths, addYears, differenceInDays } from "date-fns";
@@ -338,6 +339,11 @@ export default function UpgradeProPage() {
   };
 
   const handleStripeCheckout = async (tier: "pro" | "pro_football", withTrial: boolean = false) => {
+    if (isNativePlatform()) {
+      // On native, use In-App Purchases
+      handleNativeIAP(tier);
+      return;
+    }
     const isAnnual = tier === "pro" ? isAnnualPro : isAnnualProFootball;
     setIsCheckingOut(true);
 
@@ -365,6 +371,51 @@ export default function UpgradeProPage() {
         description: "Failed to start checkout. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
+  const handleNativeIAP = async (tier: "pro" | "pro_football") => {
+    const { getTeamUpgradeProductId } = await import("@/hooks/useInAppPurchase");
+    const { Capacitor } = await import("@capacitor/core");
+    if (!Capacitor.isNativePlatform()) return;
+
+    const isAnnual = tier === "pro" ? isAnnualPro : isAnnualProFootball;
+    const productId = getTeamUpgradeProductId(tier, isAnnual);
+
+    setIsCheckingOut(true);
+    try {
+      const { NativePurchases, PURCHASE_TYPE } = await import("@capgo/native-purchases");
+      const purchaseResult = await NativePurchases.purchaseProduct({
+        productIdentifier: productId,
+        productType: PURCHASE_TYPE.SUBS,
+        ...(Capacitor.getPlatform() === "android" ? { planIdentifier: productId } : {}),
+      });
+
+      if (!purchaseResult?.transactionId) {
+        throw new Error("Purchase was cancelled");
+      }
+
+      const { data, error } = await supabase.functions.invoke("verify-iap-receipt", {
+        body: {
+          platform: Capacitor.getPlatform(),
+          transactionId: purchaseResult.transactionId,
+          productId,
+          entityId: teamId,
+          entityType: "team",
+          receipt: purchaseResult.receipt || purchaseResult.purchaseToken || purchaseResult.transactionId,
+        },
+      });
+
+      if (error || data?.error) throw new Error(data?.error || "Verification failed");
+
+      queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
+      toast({ title: "Upgrade Successful!", description: "Your team subscription is now active." });
+    } catch (err: any) {
+      if (err?.message?.toLowerCase().includes("cancel")) return;
+      console.error("[IAP] Error:", err);
+      toast({ title: "Purchase Failed", description: err?.message || "Please try again.", variant: "destructive" });
     } finally {
       setIsCheckingOut(false);
     }
