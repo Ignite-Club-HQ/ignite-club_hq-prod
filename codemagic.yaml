@@ -196,6 +196,16 @@ workflows:
           npx cap sync ios
           echo "=== Verifying SPM Package.swift exists ==="
           cat ios/App/CapApp-SPM/Package.swift | head -20
+      - name: Ensure GADApplicationIdentifier in Info.plist
+        script: |
+          PLIST="ios/App/App/Info.plist"
+          if ! /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST" 2>/dev/null; then
+            echo "=== Injecting GADApplicationIdentifier into Info.plist ==="
+            /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string ca-app-pub-3940256099942544~3347511713" "$PLIST"
+          else
+            echo "=== GADApplicationIdentifier already present ==="
+          fi
+          /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST"
       - name: Patch AppDelegate for Firebase & Crashlytics
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
