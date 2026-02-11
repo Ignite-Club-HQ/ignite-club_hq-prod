@@ -19,6 +19,7 @@ import {
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { ClassFieldsSection } from "@/components/ClassFieldsSection";
 
 export default function EditTeamPage() {
   const { id } = useParams<{ id: string }>();
@@ -34,12 +35,18 @@ export default function EditTeamPage() {
   const [teamType, setTeamType] = useState<"junior" | "senior" | "mixed">("mixed");
   const [saving, setSaving] = useState(false);
 
+  // Class mode fields
+  const [classDay, setClassDay] = useState("");
+  const [classTime, setClassTime] = useState("");
+  const [classDuration, setClassDuration] = useState<number | null>(null);
+  const [classCapacity, setClassCapacity] = useState<number | null>(null);
+
   const { data: team, isLoading } = useQuery({
     queryKey: ["team", id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("*, clubs (id, name, sport)")
+        .select("*, clubs (id, name, sport, class_mode_enabled)")
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -71,6 +78,10 @@ export default function EditTeamPage() {
       setLogoUrl(team.logo_url || "");
       setFolderId(team.folder_id || null);
       setTeamType((team as any).team_type || "mixed");
+      setClassDay((team as any).class_day || "");
+      setClassTime((team as any).class_time || "");
+      setClassDuration((team as any).class_duration_minutes ?? null);
+      setClassCapacity((team as any).class_capacity ?? null);
     }
   }, [team]);
 
@@ -133,6 +144,12 @@ export default function EditTeamPage() {
         logo_url: logoUrl || null,
         folder_id: folderId || null,
         team_type: teamType,
+        ...((team?.clubs as any)?.class_mode_enabled ? {
+          class_day: classDay || null,
+          class_time: classTime || null,
+          class_duration_minutes: classDuration,
+          class_capacity: classCapacity,
+        } : {}),
       })
       .eq("id", id!);
 
@@ -334,6 +351,20 @@ export default function EditTeamPage() {
                 Organize this team into a folder (e.g., Junior Teams, Senior Teams)
               </p>
             </div>
+          )}
+
+          {/* Class Mode Fields */}
+          {(team?.clubs as any)?.class_mode_enabled && (
+            <ClassFieldsSection
+              classDay={classDay}
+              setClassDay={setClassDay}
+              classTime={classTime}
+              setClassTime={setClassTime}
+              classDuration={classDuration}
+              setClassDuration={setClassDuration}
+              classCapacity={classCapacity}
+              setClassCapacity={setClassCapacity}
+            />
           )}
         </CardContent>
       </Card>

@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { AssignTeamAdminSection, TeamAdminAssignment } from "@/components/AssignTeamAdminSection";
+import { ClassFieldsSection } from "@/components/ClassFieldsSection";
 // TeamAdminInviteDialog now shown on TeamDetailPage via navigation state
 import type { Database } from "@/integrations/supabase/types";
 
@@ -38,6 +39,12 @@ export default function CreateTeamPage() {
   const [teamType, setTeamType] = useState<"junior" | "senior" | "mixed">("mixed");
   const [saving, setSaving] = useState(false);
   const [adminAssignment, setAdminAssignment] = useState<TeamAdminAssignment | null>(null);
+
+  // Class mode fields
+  const [classDay, setClassDay] = useState("");
+  const [classTime, setClassTime] = useState("");
+  const [classDuration, setClassDuration] = useState<number | null>(null);
+  const [classCapacity, setClassCapacity] = useState<number | null>(null);
   
   // Invite dialog state no longer needed - we navigate immediately with state
 
@@ -46,7 +53,7 @@ export default function CreateTeamPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clubs")
-        .select("name, logo_url")
+        .select("name, logo_url, class_mode_enabled")
         .eq("id", clubId!)
         .single();
       if (error) throw error;
@@ -176,6 +183,12 @@ export default function CreateTeamPage() {
         folder_id: folderId || null,
         team_type: teamType,
         created_by: user!.id,
+        ...(club?.class_mode_enabled ? {
+          class_day: classDay || null,
+          class_time: classTime || null,
+          class_duration_minutes: classDuration,
+          class_capacity: classCapacity,
+        } : {}),
       })
       .select()
       .single();
@@ -582,6 +595,20 @@ export default function CreateTeamPage() {
                   Organize this team into a folder (e.g., Junior Teams, Senior Teams)
                 </p>
               </div>
+            )}
+
+            {/* Class Mode Fields */}
+            {club?.class_mode_enabled && (
+              <ClassFieldsSection
+                classDay={classDay}
+                setClassDay={setClassDay}
+                classTime={classTime}
+                setClassTime={setClassTime}
+                classDuration={classDuration}
+                setClassDuration={setClassDuration}
+                classCapacity={classCapacity}
+                setClassCapacity={setClassCapacity}
+              />
             )}
           </div>
 
