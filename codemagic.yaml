@@ -95,44 +95,11 @@ workflows:
               }
           }
           GRADLE
-      - name: Set up keystore
-        script: |
-          echo $CM_KEYSTORE | base64 --decode > /tmp/ignite-upload.keystore
-          cat > android/key.properties << EOF
-          storeFile=/tmp/ignite-upload.keystore
-          storePassword=$CM_KEYSTORE_PASSWORD
-          keyAlias=$CM_KEY_ALIAS
-          keyPassword=$CM_KEY_PASSWORD
-          EOF
-      - name: Configure signing in build.gradle
-        script: |
-          cd android/app
-          # Insert signing config before the existing android block or at the end
-          cat >> build.gradle << 'GRADLE'
-
-          android {
-              signingConfigs {
-                  release {
-                      def props = new Properties()
-                      props.load(new FileInputStream(rootProject.file("key.properties")))
-                      storeFile file(props['storeFile'])
-                      storePassword props['storePassword']
-                      keyAlias props['keyAlias']
-                      keyPassword props['keyPassword']
-                  }
-              }
-              buildTypes {
-                  release {
-                      signingConfig signingConfigs.release
-                  }
-              }
-          }
-          GRADLE
       - name: Build Android Release
         script: |
           cd android
           ./gradlew clean
-          ./gradlew bundleRelease
+          ./gradlew bundleDebug
     artifacts:
       - android/app/build/outputs/**/*.aab
 
