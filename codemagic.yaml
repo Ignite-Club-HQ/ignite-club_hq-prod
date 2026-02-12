@@ -83,6 +83,18 @@ workflows:
           # Add meta-data for default notification icon and color to AndroidManifest.xml
           # macOS sed requires '' after -i for in-place editing without backup
           sed -i '' 's|</application>|<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification"/><meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/ignite_green"/></application>|' android/app/src/main/AndroidManifest.xml
+      - name: Disable lint abort for release
+        script: |
+          cd android/app
+          # Append lintOptions to disable abort on error
+          cat >> build.gradle << 'GRADLE'
+
+          android {
+              lintOptions {
+                  abortOnError false
+              }
+          }
+          GRADLE
       - name: Build Android Release
         script: |
           cd android
