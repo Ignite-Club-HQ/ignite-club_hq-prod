@@ -567,6 +567,67 @@ export type Database = {
         }
         Relationships: []
       }
+      class_enrolments: {
+        Row: {
+          child_id: string
+          created_at: string
+          enrolled_at: string
+          id: string
+          status: Database["public"]["Enums"]["enrolment_status"]
+          team_id: string
+          term_id: string
+          updated_at: string
+          waitlist_position: number | null
+          withdrawn_at: string | null
+        }
+        Insert: {
+          child_id: string
+          created_at?: string
+          enrolled_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["enrolment_status"]
+          team_id: string
+          term_id: string
+          updated_at?: string
+          waitlist_position?: number | null
+          withdrawn_at?: string | null
+        }
+        Update: {
+          child_id?: string
+          created_at?: string
+          enrolled_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["enrolment_status"]
+          team_id?: string
+          term_id?: string
+          updated_at?: string
+          waitlist_position?: number | null
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_enrolments_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_enrolments_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_enrolments_term_id_fkey"
+            columns: ["term_id"]
+            isOneToOne: false
+            referencedRelation: "terms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_dm_settings: {
         Row: {
           allowed_roles: string[]
@@ -909,6 +970,7 @@ export type Database = {
       clubs: {
         Row: {
           auto_reward_threshold: number | null
+          class_mode_enabled: boolean
           created_at: string
           created_by: string | null
           description: string | null
@@ -945,6 +1007,7 @@ export type Database = {
         }
         Insert: {
           auto_reward_threshold?: number | null
+          class_mode_enabled?: boolean
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -981,6 +1044,7 @@ export type Database = {
         }
         Update: {
           auto_reward_threshold?: number | null
+          class_mode_enabled?: boolean
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -1994,6 +2058,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      iap_transactions: {
+        Row: {
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          original_transaction_id: string | null
+          platform: string
+          product_id: string
+          status: string
+          transaction_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          original_transaction_id?: string | null
+          platform: string
+          product_id: string
+          status?: string
+          transaction_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          original_transaction_id?: string | null
+          platform?: string
+          product_id?: string
+          status?: string
+          transaction_id?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       member_subscription_payments: {
         Row: {
@@ -4139,6 +4242,10 @@ export type Database = {
       }
       teams: {
         Row: {
+          class_capacity: number | null
+          class_day: string | null
+          class_duration_minutes: number | null
+          class_time: string | null
           club_id: string | null
           created_at: string
           created_by: string | null
@@ -4157,6 +4264,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          class_capacity?: number | null
+          class_day?: string | null
+          class_duration_minutes?: number | null
+          class_time?: string | null
           club_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -4175,6 +4286,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          class_capacity?: number | null
+          class_day?: string | null
+          class_duration_minutes?: number | null
+          class_time?: string | null
           club_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -4212,6 +4327,47 @@ export type Database = {
             columns: ["sponsor_id"]
             isOneToOne: false
             referencedRelation: "sponsors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      terms: {
+        Row: {
+          club_id: string
+          created_at: string
+          end_date: string
+          id: string
+          is_active: boolean
+          name: string
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          club_id: string
+          created_at?: string
+          end_date: string
+          id?: string
+          is_active?: boolean
+          name: string
+          start_date: string
+          updated_at?: string
+        }
+        Update: {
+          club_id?: string
+          created_at?: string
+          end_date?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "terms_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
             referencedColumns: ["id"]
           },
         ]
@@ -4704,6 +4860,7 @@ export type Database = {
         | "committee_member"
       club_subscription_plan: "starter" | "standard" | "unlimited"
       duty_status: "open" | "completed"
+      enrolment_status: "enrolled" | "waitlisted" | "withdrawn"
       event_type: "game" | "training" | "social" | "mini_league"
       feedback_status: "open" | "in_progress" | "resolved"
       role_request_status: "pending" | "approved" | "denied"
@@ -4848,6 +5005,7 @@ export const Constants = {
       ],
       club_subscription_plan: ["starter", "standard", "unlimited"],
       duty_status: ["open", "completed"],
+      enrolment_status: ["enrolled", "waitlisted", "withdrawn"],
       event_type: ["game", "training", "social", "mini_league"],
       feedback_status: ["open", "in_progress", "resolved"],
       role_request_status: ["pending", "approved", "denied"],

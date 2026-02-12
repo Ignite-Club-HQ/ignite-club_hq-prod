@@ -14,6 +14,19 @@ export const SPORT_EMOJIS: Record<string, string> = {
   "Other": "🎯",
 };
 
+// Sports/activities that default to class mode instead of team mode
+export const CLASS_MODE_SPORTS: Set<string> = new Set([
+  "Swimming",
+  "Tennis",
+]);
+
+export function isClassModeSport(sport: string | null | undefined): boolean {
+  if (!sport) return false;
+  if (CLASS_MODE_SPORTS.has(sport)) return true;
+  const lower = sport.toLowerCase();
+  return lower.includes("swim") || lower.includes("tennis") || lower.includes("dance") || lower.includes("martial") || lower.includes("gymnast") || lower.includes("yoga") || lower.includes("pilates");
+}
+
 export function getSportEmoji(sport: string | null | undefined): string {
   if (!sport) return "🏆";
   

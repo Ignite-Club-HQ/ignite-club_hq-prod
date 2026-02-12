@@ -16,9 +16,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { SPORT_EMOJIS, getSportEmoji } from "@/lib/sportEmojis";
+import { SPORT_EMOJIS, getSportEmoji, isClassModeSport } from "@/lib/sportEmojis";
 
 
 const SPORTS = Object.keys(SPORT_EMOJIS);
@@ -33,6 +34,7 @@ export default function EditClubPage() {
   const [description, setDescription] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [sport, setSport] = useState("");
+  const [classModeEnabled, setClassModeEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const { data: club, isLoading } = useQuery({
@@ -58,6 +60,7 @@ export default function EditClubPage() {
       setDescription(club.description || "");
       setLogoUrl(club.logo_url || "");
       setSport(club.sport || "");
+      setClassModeEnabled(club.class_mode_enabled || false);
     }
   }, [club]);
 
@@ -121,6 +124,7 @@ export default function EditClubPage() {
         description: description.trim() || null,
         logo_url: logoUrl || null,
         sport: sport || null,
+        class_mode_enabled: classModeEnabled,
       })
       .eq("id", id!);
 
@@ -220,7 +224,16 @@ export default function EditClubPage() {
           {/* Sport */}
           <div className="space-y-2">
             <Label className="text-base">Sport</Label>
-            <Select value={sport} onValueChange={setSport}>
+            <Select value={sport} onValueChange={(val) => {
+              setSport(val);
+              // Auto-toggle class mode when switching to/from a class-default sport
+              if (isClassModeSport(val) && !classModeEnabled) {
+                setClassModeEnabled(true);
+              } else if (!isClassModeSport(val) && classModeEnabled && isClassModeSport(sport)) {
+                // Only auto-disable if previous sport was class-default (user didn't manually enable)
+                setClassModeEnabled(false);
+              }
+            }}>
               <SelectTrigger className="w-full h-12 text-base">
                 <SelectValue placeholder="Select a sport">
                   {sport && (
@@ -242,6 +255,15 @@ export default function EditClubPage() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Class Mode */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label className="text-base">Class Mode</Label>
+              <p className="text-sm text-muted-foreground">Enable for academies & schools (swimming, dance, etc.)</p>
+            </div>
+            <Switch checked={classModeEnabled} onCheckedChange={setClassModeEnabled} />
           </div>
 
           {/* Description */}

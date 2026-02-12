@@ -86,6 +86,7 @@ const MiniLeagueDetailPage = lazy(() => import("./pages/MiniLeagueDetailPage"));
 const EventGroupPitchPage = lazy(() => import("./pages/EventGroupPitchPage"));
 const AppSettingsPage = lazy(() => import("./pages/AppSettingsPage"));
 const AdMobSettingsPage = lazy(() => import("./pages/AdMobSettingsPage"));
+const ClassEnrolmentPage = lazy(() => import("./pages/ClassEnrolmentPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -157,6 +158,7 @@ const App = () => (
                   <Route path="/clubs/:clubId/rewards/report" element={<ClubRewardsReportPage />} />
                   <Route path="/clubs/:clubId/upgrade" element={<ClubUpgradePage />} />
                   <Route path="/clubs/:clubId/stripe" element={<StripeSettingsPage />} />
+                  <Route path="/clubs/:clubId/enrol" element={<ClassEnrolmentPage />} />
                   <Route path="/teams/:id" element={<TeamDetailPage />} />
                   <Route path="/teams/:id/edit" element={<EditTeamPage />} />
                   <Route path="/teams/:teamId/roles" element={<ManageTeamRolesPage />} />

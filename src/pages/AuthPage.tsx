@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 import { Flame, Mail, Lock, Loader2, Eye, EyeOff, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
@@ -45,6 +46,7 @@ export default function AuthPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
@@ -189,6 +191,14 @@ export default function AuthPage() {
         });
         return;
       }
+      
+      if (!acceptedTerms) {
+        toast({
+          title: "Terms & Privacy Policy",
+          description: "You must accept the Terms of Service and Privacy Policy to create an account.",
+        });
+        return;
+      }
     }
 
     setLoading(true);
@@ -313,10 +323,7 @@ export default function AuthPage() {
           <div className="p-4 rounded-2xl bg-primary glow-emerald">
             <Flame className="h-10 w-10 text-primary-foreground" />
           </div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide">Beta</span>
-          </div>
+          <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
           <p className="text-sm font-medium text-muted-foreground">Club HQ</p>
         </div>
 
@@ -542,6 +549,21 @@ export default function AuthPage() {
                       </button>
                     </div>
                   </div>
+                  
+                  <div className="flex items-start gap-2 pt-1">
+                    <Checkbox
+                      id="accept-terms"
+                      checked={acceptedTerms}
+                      onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+                    />
+                    <label htmlFor="accept-terms" className="text-xs text-muted-foreground leading-tight cursor-pointer">
+                      I agree to the{" "}
+                      <Link to="/terms" target="_blank" className="text-primary hover:underline">Terms of Service</Link>
+                      {" "}and{" "}
+                      <Link to="/privacy" target="_blank" className="text-primary hover:underline">Privacy Policy</Link>
+                    </label>
+                  </div>
+
                   <Button 
                     className="w-full" 
                     onClick={() => handleAuth("signup")}
