@@ -672,9 +672,10 @@ export default function MessagesPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("chat_mute_preferences")
-        .select("chat_id, chat_type")
+        .select("chat_id, chat_type, muted_until")
         .eq("user_id", user!.id);
       
+      const now = new Date();
       const muted = {
         teams: new Set<string>(),
         clubs: new Set<string>(),
@@ -682,6 +683,10 @@ export default function MessagesPage() {
       };
       
       data?.forEach((pref) => {
+        // Only treat as muted if indefinite (null) or not yet expired
+        const isActive = pref.muted_until === null || new Date(pref.muted_until) > now;
+        if (!isActive) return;
+        
         if (pref.chat_type === "team") muted.teams.add(pref.chat_id);
         else if (pref.chat_type === "club") muted.clubs.add(pref.chat_id);
         else if (pref.chat_type === "group") muted.groups.add(pref.chat_id);
