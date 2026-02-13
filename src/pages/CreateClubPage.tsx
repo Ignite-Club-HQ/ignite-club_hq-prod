@@ -67,7 +67,23 @@ export default function CreateClubPage() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const canCreateClub = isAppAdmin || !isClubCreationLocked;
+  // Check if user's profile name is "Reviewer"
+  const { data: isReviewerProfile = false } = useQuery({
+    queryKey: ["isReviewerProfile", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", user!.id)
+        .maybeSingle();
+      return data?.display_name === "Reviewer";
+    },
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const isExemptUser = user?.email === "pbjcranwell@gmail.com" || isReviewerProfile;
+  const canCreateClub = isAppAdmin || isExemptUser || !isClubCreationLocked;
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
