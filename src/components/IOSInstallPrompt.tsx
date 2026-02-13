@@ -1,31 +1,32 @@
 import { useState, useEffect } from "react";
-import { X, Share, Plus } from "lucide-react";
+import { X, Smartphone, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import igniteIcon from "@/assets/ignite-icon.png";
+import { APP_STORE_URL, PLAY_STORE_URL } from "@/components/AppStoreDownloadGuide";
 
 const STORAGE_KEY = "ios-install-prompt-dismissed";
 const DISMISS_DURATION_DAYS = 7;
 
+function detectPlatform(): "ios" | "android" | "unknown" {
+  const ua = navigator.userAgent;
+  if (/iPad|iPhone|iPod/.test(ua)) return "ios";
+  if (/Android/.test(ua)) return "android";
+  return "unknown";
+}
+
 export function IOSInstallPrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
+  const platform = detectPlatform();
 
   useEffect(() => {
     try {
       // Skip if running as native Capacitor app
       const isNativeApp = !!(window as any).Capacitor?.isNativePlatform?.();
-      if (isNativeApp) {
-        return;
-      }
+      if (isNativeApp) return;
 
-      // Check if iOS Safari (not in standalone mode)
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      // Check if already in standalone mode
       const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
-      const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
-      
-      if (!isIOS || isStandalone || !isSafari) {
-        return;
-      }
+      if (isStandalone) return;
 
       // Check if user has dismissed recently
       try {
@@ -33,21 +34,14 @@ export function IOSInstallPrompt() {
         if (dismissed) {
           const dismissedAt = parseInt(dismissed, 10);
           const daysSinceDismiss = (Date.now() - dismissedAt) / (1000 * 60 * 60 * 24);
-          if (daysSinceDismiss < DISMISS_DURATION_DAYS) {
-            return;
-          }
+          if (daysSinceDismiss < DISMISS_DURATION_DAYS) return;
         }
       } catch {
-        // localStorage not available (Safari private mode)
+        // localStorage not available
       }
 
       // Show prompt after a short delay
-      const timer = setTimeout(() => {
-        setShowPrompt(true);
-        // Start animation after prompt shows
-        setTimeout(() => setIsAnimating(true), 300);
-      }, 2000);
-
+      const timer = setTimeout(() => setShowPrompt(true), 2000);
       return () => clearTimeout(timer);
     } catch (error) {
       console.warn('IOSInstallPrompt check failed:', error);
@@ -94,40 +88,37 @@ export function IOSInstallPrompt() {
               className="h-16 w-16 rounded-2xl shadow-lg mb-3"
             />
             <h3 className="text-xl font-bold text-foreground">
-              Install Ignite Club HQ
+              Get the Ignite Club HQ App
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Add to your home screen for the best experience
+              Download for the best experience
             </p>
           </div>
 
-          {/* Steps */}
-          <div className="space-y-4 mb-6">
-            <div className="flex items-center gap-4 p-3 rounded-xl bg-muted/50">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-primary-foreground font-bold">
-                1
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-foreground">Tap the Share button</p>
-                <p className="text-xs text-muted-foreground">In Safari's bottom toolbar</p>
-              </div>
-              <div className={`p-2 rounded-lg bg-primary/10 ${isAnimating ? 'animate-bounce' : ''}`}>
-                <Share className="h-5 w-5 text-primary" />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4 p-3 rounded-xl bg-muted/50">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-primary-foreground font-bold">
-                2
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-foreground">Add to Home Screen</p>
-                <p className="text-xs text-muted-foreground">Scroll down and tap the option</p>
-              </div>
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Plus className="h-5 w-5 text-primary" />
-              </div>
-            </div>
+          {/* Store buttons */}
+          <div className="space-y-3 mb-6">
+            {(platform === "ios" || platform === "unknown") && (
+              <Button className="w-full h-12 text-base" asChild>
+                <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer">
+                  <Smartphone className="h-5 w-5 mr-2" />
+                  Download on the App Store
+                  <ExternalLink className="h-4 w-4 ml-2" />
+                </a>
+              </Button>
+            )}
+            {(platform === "android" || platform === "unknown") && (
+              <Button 
+                className="w-full h-12 text-base" 
+                variant={platform === "android" ? "default" : "outline"}
+                asChild
+              >
+                <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">
+                  <Smartphone className="h-5 w-5 mr-2" />
+                  Get it on Google Play
+                  <ExternalLink className="h-4 w-4 ml-2" />
+                </a>
+              </Button>
+            )}
           </div>
 
           {/* Benefits */}
@@ -153,11 +144,6 @@ export function IOSInstallPrompt() {
           >
             Maybe later
           </button>
-        </div>
-
-        {/* Arrow pointing to share button */}
-        <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 transition-opacity duration-500 ${isAnimating ? 'opacity-100' : 'opacity-0'}`}>
-          <div className="text-primary text-2xl animate-bounce">↓</div>
         </div>
       </div>
     </>
