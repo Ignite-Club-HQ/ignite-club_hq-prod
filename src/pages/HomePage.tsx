@@ -27,7 +27,7 @@ const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 import GameTimerWidget from "@/components/pitch/GameTimerWidget";
 import PendingSubWidget from "@/components/pitch/PendingSubWidget";
 import { MiniLeagueGameWidgets } from "@/components/MiniLeagueGameWidgets";
-import { usePWAInstall } from "@/hooks/usePWAInstall";
+import { APP_STORE_URL, PLAY_STORE_URL } from "@/components/AppStoreDownloadGuide";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -139,7 +139,7 @@ export default function HomePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { canPrompt, isInstalled, isIOS, isReady, installApp } = usePWAInstall();
+  const isNativeApp = Capacitor.isNativePlatform();
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
   
   // Use cached theme state to prevent gradient flash on initial render
@@ -1535,17 +1535,10 @@ export default function HomePage() {
         />
       )}
       {/* Hide install card on native apps */}
-      {!Capacitor.isNativePlatform() && !isInstalled && showInstallCard && isReady && (
+      {!isNativeApp && showInstallCard && (
         <Card 
           className="border-primary/30 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors"
-          onClick={() => {
-            if (canPrompt) {
-              installApp();
-              dismissInstallCard();
-            } else {
-              setInstallDialogOpen(true);
-            }
-          }}
+          onClick={() => setInstallDialogOpen(true)}
         >
           <CardContent className="p-4">
             <div className="flex items-center gap-4">
@@ -1553,97 +1546,59 @@ export default function HomePage() {
                 <Smartphone className="h-6 w-6 text-foreground" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold">Install Ignite App</p>
+                <p className="font-semibold">Download Ignite Club HQ</p>
                 <p className="text-sm text-muted-foreground">
-                  {isIOS 
-                    ? "Tap to see how to install" 
-                    : canPrompt 
-                      ? "Tap to add to your home screen"
-                      : "Tap to see how to install"}
+                  Get the app for the best experience
                 </p>
               </div>
               <Button 
                 size="sm" 
-                variant={canPrompt ? "default" : "outline"}
+                variant="outline"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (canPrompt) {
-                    installApp();
-                    dismissInstallCard();
-                  } else {
-                    setInstallDialogOpen(true);
-                  }
+                  setInstallDialogOpen(true);
                 }} 
                 className="shrink-0"
               >
-                {canPrompt ? (
-                  <><Download className="h-4 w-4 mr-1" /> Install</>
-                ) : (
-                  "How to Install"
-                )}
+                <Download className="h-4 w-4 mr-1" /> Download
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Install Instructions Dialog */}
+      {/* App Store Download Dialog */}
       <ResponsiveDialog open={installDialogOpen} onOpenChange={setInstallDialogOpen}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader>
-            <ResponsiveDialogTitle>Install Ignite App</ResponsiveDialogTitle>
+            <ResponsiveDialogTitle>Download Ignite Club HQ</ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
-              Add Ignite to your home screen for quick access
+              Get the native app for the best experience
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
-          <div className="space-y-4 py-4">
-            {isIOS ? (
-              <>
-                <p className="text-sm text-muted-foreground">Follow these steps to install on your iPhone/iPad:</p>
-                <ol className="list-decimal list-inside space-y-3 text-sm">
-                  <li className="flex items-start gap-2">
-                    <span className="font-medium">1.</span>
-                    <span>Tap the <strong>Share</strong> button (square with arrow) at the bottom of Safari</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="font-medium">2.</span>
-                    <span>Scroll down and tap <strong>"Add to Home Screen"</strong></span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="font-medium">3.</span>
-                    <span>Tap <strong>"Add"</strong> in the top right corner</span>
-                  </li>
-                </ol>
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-muted-foreground">Follow these steps to install:</p>
-                <ol className="list-decimal list-inside space-y-3 text-sm">
-                  <li className="flex items-start gap-2">
-                    <span className="font-medium">1.</span>
-                    <span>Tap the <strong>menu icon</strong> (three dots) in your browser</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="font-medium">2.</span>
-                    <span>Tap <strong>"Install app"</strong> or <strong>"Add to Home Screen"</strong></span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="font-medium">3.</span>
-                    <span>Confirm by tapping <strong>"Install"</strong></span>
-                  </li>
-                </ol>
-              </>
-            )}
+          <div className="space-y-3 py-4">
+            <Button className="w-full h-12 text-base" asChild>
+              <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer">
+                <Smartphone className="h-5 w-5 mr-2" />
+                Download on the App Store
+              </a>
+            </Button>
+            <Button className="w-full h-12 text-base" variant="outline" asChild>
+              <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">
+                <Smartphone className="h-5 w-5 mr-2" />
+                Get it on Google Play
+              </a>
+            </Button>
           </div>
           <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-row">
             <Button variant="outline" onClick={() => {
               setInstallDialogOpen(false);
-              setShowInstallCard(false);
+              dismissInstallCard();
             }}>
               Don't show again
             </Button>
             <Button onClick={() => setInstallDialogOpen(false)}>
-              Got it
+              Close
             </Button>
           </ResponsiveDialogFooter>
         </ResponsiveDialogContent>
