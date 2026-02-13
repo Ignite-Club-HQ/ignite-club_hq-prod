@@ -253,7 +253,6 @@ serve(async (req) => {
                     channel_id: 'default',
                     icon: 'ic_notification',
                     sound: 'default',
-                    click_action: 'FLUTTER_NOTIFICATION_CLICK',
                   },
                 },
                 apns: {
