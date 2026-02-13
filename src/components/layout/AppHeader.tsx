@@ -547,6 +547,9 @@ export function AppHeader() {
       case "broadcast":
         navigate(`/messages/broadcast?message=${relatedId}`);
         return;
+      case "direct_message":
+        navigate(`/messages/dm/${relatedId}`);
+        return;
       case "event_invite":
       case "event_cancelled":
       case "event_reminder":

@@ -555,7 +555,7 @@ export default function NotificationsPage() {
         break;
       case "direct_message":
         // related_id is the conversation_id
-        navigate(`/dm/${relatedId}`);
+        navigate(`/messages/dm/${relatedId}`);
         break;
       case "event_invite":
       case "event_cancelled":
