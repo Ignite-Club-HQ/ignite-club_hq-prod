@@ -380,11 +380,8 @@ export function setupNativePushListeners(
       (notification: any) => {
         console.log('[NativePush] Notification action:', notification);
         onNotificationAction?.(notification);
-        
-        const data = notification.notification?.data;
-        if (data?.url) {
-          window.location.href = data.url;
-        }
+        // Navigation is handled by onNotificationAction callback via React Router
+        // Do NOT use window.location.href here - it bypasses the SPA router and causes 404s
       }
     );
   } catch (err) {
