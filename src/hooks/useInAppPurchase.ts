@@ -11,13 +11,9 @@ export const IAP_PRODUCT_IDS = {
   pro_standard_monthly: "ignite_pro_standard_monthly",
   pro_standard_annual: "ignite_pro_standard_annual",
   pro_unlimited_monthly: "ignite_pro_unlimited_monthly",
-  pro_unlimited_annual: "ignite_pro_unlimited_annual",
   pro_football_starter_monthly: "ignite_pf_starter_monthly",
-  pro_football_starter_annual: "ignite_pf_starter_annual",
   pro_football_standard_monthly: "ignite_pf_standard_monthly",
-  pro_football_standard_annual: "ignite_pf_standard_annual",
   pro_football_unlimited_monthly: "ignite_pf_unlimited_monthly",
-  pro_football_unlimited_annual: "ignite_pf_unlimited_annual",
   // Team upgrades
   team_pro_monthly: "ignite_team_pro_monthly",
   team_pro_annual: "ignite_team_pro_annual",
