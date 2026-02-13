@@ -62,11 +62,21 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
           setIsNative(native);
           
           // On native, check for any pending notification navigation
+          // Use a small delay to allow the launch handler to store the URL first
           if (native && !pendingNavProcessed.current) {
             pendingNavProcessed.current = true;
+            // Check immediately, then retry after a short delay for cold start timing
             const wasProcessed = processPendingNotificationNavigation(navigate);
             if (wasProcessed) {
               console.log('[useNativePush] Processed pending notification navigation');
+            } else {
+              // Retry after 500ms for cold start where launch handler may not have fired yet
+              setTimeout(() => {
+                const wasProcessedRetry = processPendingNotificationNavigation(navigate);
+                if (wasProcessedRetry) {
+                  console.log('[useNativePush] Processed pending notification navigation (retry)');
+                }
+              }, 500);
             }
           }
         } catch {
