@@ -62,7 +62,7 @@ const CLUB_PRICING = {
   pro: {
     starter: { monthly: 99, teamLimit: 10 },
     standard: { monthly: 149, teamLimit: 20 },
-    unlimited: { monthly: 199, teamLimit: null },
+    unlimited: { monthly: 155, teamLimit: null },
   },
   proFootball: {
     starter: { monthly: 149, teamLimit: 10 },
