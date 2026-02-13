@@ -114,11 +114,13 @@ export const ChatMessage = memo(function ChatMessage({
       }
       
       // Then add the new reaction
-      const { error } = await supabase.from("message_reactions").insert({
+      console.log('[Reactions] Inserting reaction:', { field: getMessageIdField(), messageId: id, userId: currentUserId, type: reactionType });
+      const { error, data } = await supabase.from("message_reactions").insert({
         [getMessageIdField()]: id,
         user_id: currentUserId!,
         reaction_type: reactionType,
-      });
+      }).select();
+      console.log('[Reactions] Insert result:', { error, data });
       if (error) throw error;
     },
     onMutate: async ({ reactionType }) => {
