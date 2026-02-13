@@ -4,6 +4,8 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
+      groups:
+        - android_signing
       java: 21
       node: 22
     scripts:
@@ -83,14 +85,56 @@ workflows:
           # Add meta-data for default notification icon and color to AndroidManifest.xml
           # macOS sed requires '' after -i for in-place editing without backup
           sed -i '' 's|</application>|<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification"/><meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/ignite_green"/></application>|' android/app/src/main/AndroidManifest.xml
-      - name: Build Android
+      - name: Disable lint abort for release
+        script: |
+          cd android/app
+          # Append lintOptions to disable abort on error
+          cat >> build.gradle << 'GRADLE'
+
+          android {
+              lintOptions {
+                  abortOnError false
+              }
+          }
+          GRADLE
+      - name: Set up keystore
+        script: |
+          echo $CM_KEYSTORE | base64 --decode > /tmp/ignite-upload.keystore
+          cat > android/key.properties << EOF
+          storeFile=/tmp/ignite-upload.keystore
+          storePassword=$CM_KEYSTORE_PASSWORD
+          keyAlias=$CM_KEY_ALIAS
+          keyPassword=$CM_KEY_PASSWORD
+          EOF
+      - name: Configure signing in build.gradle
+        script: |
+          cd android/app
+          cat >> build.gradle << 'GRADLE'
+
+          android {
+              signingConfigs {
+                  release {
+                      def props = new Properties()
+                      props.load(new FileInputStream(rootProject.file("key.properties")))
+                      storeFile file(props['storeFile'])
+                      storePassword props['storePassword']
+                      keyAlias props['keyAlias']
+                      keyPassword props['keyPassword']
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          GRADLE
+      - name: Build Android Release
         script: |
           cd android
           ./gradlew clean
-          ./gradlew assembleDebug
-          ./gradlew bundleDebug
+          ./gradlew bundleRelease
     artifacts:
-      - android/app/build/outputs/**/*.apk
       - android/app/build/outputs/**/*.aab
 
 

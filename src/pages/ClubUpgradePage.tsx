@@ -62,7 +62,7 @@ const CLUB_PRICING = {
   pro: {
     starter: { monthly: 99, teamLimit: 10 },
     standard: { monthly: 149, teamLimit: 20 },
-    unlimited: { monthly: 199, teamLimit: null },
+    unlimited: { monthly: 155, teamLimit: null },
   },
   proFootball: {
     starter: { monthly: 149, teamLimit: 10 },
@@ -372,7 +372,8 @@ export default function ClubUpgradePage() {
   const handleApplyPromo = async (tier: "pro" | "pro_football") => {
     const code = tier === "pro" ? promoCode : promoCodeFootball;
     const plan = tier === "pro" ? selectedPlan : selectedPlanFootball;
-    const isAnnual = tier === "pro" ? isAnnualPro : isAnnualProFootball;
+    const annualDisabled = tier === "pro_football" || (tier === "pro" && plan === "unlimited");
+    const isAnnual = annualDisabled ? false : (tier === "pro" ? isAnnualPro : isAnnualProFootball);
     if (!code.trim()) return;
     setIsValidating(true);
     try {
@@ -396,7 +397,8 @@ export default function ClubUpgradePage() {
       return;
     }
     const plan = tier === "pro" ? selectedPlan : selectedPlanFootball;
-    const isAnnual = tier === "pro" ? isAnnualPro : isAnnualProFootball;
+    const annualDisabledCheckout = tier === "pro_football" || (tier === "pro" && plan === "unlimited");
+    const isAnnual = annualDisabledCheckout ? false : (tier === "pro" ? isAnnualPro : isAnnualProFootball);
     setIsCheckingOut(true);
 
     try {
@@ -436,7 +438,8 @@ export default function ClubUpgradePage() {
     if (!Capacitor.isNativePlatform()) return;
 
     const plan = tier === "pro" ? selectedPlan : selectedPlanFootball;
-    const isAnnual = tier === "pro" ? isAnnualPro : isAnnualProFootball;
+    const annualDisabledIAP = tier === "pro_football" || (tier === "pro" && plan === "unlimited");
+    const isAnnual = annualDisabledIAP ? false : (tier === "pro" ? isAnnualPro : isAnnualProFootball);
     const productId = getClubUpgradeProductId(tier, plan, isAnnual);
 
     setIsCheckingOut(true);
@@ -691,7 +694,8 @@ export default function ClubUpgradePage() {
     );
   };
 
-  const renderPricingToggle = (isAnnual: boolean, setIsAnnual: (val: boolean) => void) => {
+  const renderPricingToggle = (isAnnual: boolean, setIsAnnual: (val: boolean) => void, hideToggle?: boolean) => {
+    if (hideToggle) return null;
     return (
       <div className="space-y-3 mb-4">
         <div className="flex items-center justify-center gap-3">
@@ -837,6 +841,10 @@ export default function ClubUpgradePage() {
     const badgeClass = isPro ? "bg-yellow-500 text-yellow-950" : "bg-emerald-500 text-emerald-950";
     const checkClass = isPro ? "bg-primary/20 text-primary" : "bg-emerald-500/20 text-emerald-500";
 
+    // Annual billing not available for Pro Unlimited or any Pro Football plan
+    const annualDisabled = (!isPro) || (isPro && plan === "unlimited");
+    const effectiveIsAnnual = annualDisabled ? false : isAnnual;
+
     const monthlyPrice = pricing[plan].monthly;
     const annualPrice = Math.round(monthlyPrice * 12 * 0.8);
     const annualSavings = Math.round(monthlyPrice * 12 - annualPrice);
@@ -858,15 +866,15 @@ export default function ClubUpgradePage() {
             </div>
 
             {renderPlanSelector(plan, setPlan, isPro ? "pro" : "proFootball")}
-            {renderPricingToggle(isAnnual, setIsAnnual)}
+            {renderPricingToggle(effectiveIsAnnual, setIsAnnual, annualDisabled)}
             
             <CardTitle className="text-3xl">
-              ${isAnnual ? annualPrice : monthlyPrice}{" "}
+              ${effectiveIsAnnual ? annualPrice : monthlyPrice}{" "}
               <span className="text-lg font-normal text-muted-foreground">
-                AUD/{isAnnual ? "year" : "month"}
+                AUD/{effectiveIsAnnual ? "year" : "month"}
               </span>
             </CardTitle>
-            {isAnnual && (
+            {effectiveIsAnnual && (
               <p className="text-sm text-green-600 font-medium">
                 Save ${annualSavings} per year
               </p>
@@ -911,7 +919,7 @@ export default function ClubUpgradePage() {
                 Start 14-Day Free Trial
               </Button>
               <p className="text-xs text-center text-muted-foreground">
-                Payment details required • Then ${isAnnual ? annualPrice : monthlyPrice}/{isAnnual ? 'year' : 'month'} • Cancel anytime
+                Payment details required • Then ${effectiveIsAnnual ? annualPrice : monthlyPrice}/{effectiveIsAnnual ? 'year' : 'month'} • Cancel anytime
               </p>
             </div>
           </CardContent>
