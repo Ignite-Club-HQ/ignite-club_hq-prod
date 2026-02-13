@@ -129,6 +129,13 @@ workflows:
               }
           }
           GRADLE
+      - name: Increment version code
+        script: |
+          GRADLE_FILE="android/app/build.gradle"
+          CURRENT_VC=$(grep -o 'versionCode [0-9]*' "$GRADLE_FILE" | awk '{print $2}')
+          NEW_VC=$((CURRENT_VC + 1))
+          sed -i '' "s/versionCode $CURRENT_VC/versionCode $NEW_VC/" "$GRADLE_FILE"
+          echo "Bumped versionCode from $CURRENT_VC to $NEW_VC"
       - name: Build Android Release
         script: |
           cd android
