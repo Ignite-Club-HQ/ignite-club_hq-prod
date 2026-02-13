@@ -68,18 +68,10 @@ export function initNotificationLaunchHandler() {
           if (url) {
             console.log('[NotificationLaunch] Found URL in notification:', url);
             
-            // If we're still in early startup, store for later navigation
-            // Otherwise, navigate immediately
-            if (document.readyState === 'loading') {
-              console.log('[NotificationLaunch] App still loading, storing URL for later');
-              pendingNavigationUrl = url;
-            } else {
-              console.log('[NotificationLaunch] Navigating immediately to:', url);
-              // Give the app a moment to finish any initialization
-              setTimeout(() => {
-                navigateToUrl(url);
-              }, 100);
-            }
+            // Always store for React Router to handle via processPendingNotificationNavigation
+            // Do NOT use window.location.href - it bypasses the SPA router and causes 404s on Capacitor
+            console.log('[NotificationLaunch] Storing URL for React Router navigation');
+            pendingNavigationUrl = url;
           } else {
             console.log('[NotificationLaunch] No URL found in notification data:', JSON.stringify(data));
           }
