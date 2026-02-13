@@ -132,13 +132,15 @@ workflows:
       - name: Increment version code
         script: |
           GRADLE_FILE="android/app/build.gradle"
-          # Use CM_BUILD_NUMBER (auto-incrementing per workflow in Codemagic)
-          # Add a floor offset to ensure we're above any previously uploaded versionCode
           FLOOR=10
           NEW_VC=$((FLOOR + ${BUILD_NUMBER:-1}))
-          CURRENT_VC=$(grep -o 'versionCode [0-9]*' "$GRADLE_FILE" | awk '{print $2}')
-          sed -i "s/versionCode $CURRENT_VC/versionCode $NEW_VC/" "$GRADLE_FILE"
-          echo "Set versionCode to $NEW_VC (was $CURRENT_VC, BUILD_NUMBER=${BUILD_NUMBER:-unknown})"
+          echo "=== Target versionCode: $NEW_VC (BUILD_NUMBER=${BUILD_NUMBER:-unknown}) ==="
+          echo "=== Before replacement ==="
+          grep -n "versionCode" "$GRADLE_FILE" || echo "WARNING: no versionCode found!"
+          # Use a broad regex to replace any versionCode value
+          sed -i -E "s/versionCode\s+[0-9]+/versionCode $NEW_VC/" "$GRADLE_FILE"
+          echo "=== After replacement ==="
+          grep -n "versionCode" "$GRADLE_FILE"
       - name: Build Android Release
         script: |
           cd android
