@@ -21,14 +21,10 @@ const PRODUCT_MAP: Record<string, {
   ignite_pro_standard_monthly: { entityType: "club", tier: "pro", plan: "standard", isAnnual: false },
   ignite_pro_standard_annual: { entityType: "club", tier: "pro", plan: "standard", isAnnual: true },
   ignite_pro_unlimited_monthly: { entityType: "club", tier: "pro", plan: "unlimited", isAnnual: false },
-  ignite_pro_unlimited_annual: { entityType: "club", tier: "pro", plan: "unlimited", isAnnual: true },
-  // Club Pro Football plans
+  // Club Pro Football plans (monthly only)
   ignite_pf_starter_monthly: { entityType: "club", tier: "pro_football", plan: "starter", isAnnual: false },
-  ignite_pf_starter_annual: { entityType: "club", tier: "pro_football", plan: "starter", isAnnual: true },
   ignite_pf_standard_monthly: { entityType: "club", tier: "pro_football", plan: "standard", isAnnual: false },
-  ignite_pf_standard_annual: { entityType: "club", tier: "pro_football", plan: "standard", isAnnual: true },
   ignite_pf_unlimited_monthly: { entityType: "club", tier: "pro_football", plan: "unlimited", isAnnual: false },
-  ignite_pf_unlimited_annual: { entityType: "club", tier: "pro_football", plan: "unlimited", isAnnual: true },
   // Team Pro plans
   ignite_team_pro_monthly: { entityType: "team", tier: "pro", isAnnual: false },
   ignite_team_pro_annual: { entityType: "team", tier: "pro", isAnnual: true },
