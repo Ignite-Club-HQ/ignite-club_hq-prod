@@ -9,10 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { PWAInstallDialog } from "@/components/PWAInstallDialog";
-import { usePWAInstall } from "@/hooks/usePWAInstall";
-import { IOSInstallGuide } from "@/components/IOSInstallGuide";
-import { PWAInstalledGuide } from "@/components/PWAInstalledGuide";
+import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
 import { InviteFlowProgress, setInviteFlowContext, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -37,20 +34,7 @@ export default function JoinClubPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [joined, setJoined] = useState(false);
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const [showInstalledGuide, setShowInstalledGuide] = useState(false);
-  const [isInstalling, setIsInstalling] = useState(false);
   const autoJoinAttempted = useRef(false);
-  const shouldPromptInstall = searchParams.get("install") === "true";
-  const { canPrompt, isInstalled, isIOS, installApp } = usePWAInstall();
-  
-  // Watch for installation completion - show guide only after app is actually installed
-  useEffect(() => {
-    if (isInstalling && isInstalled) {
-      setIsInstalling(false);
-      setShowInstalledGuide(true);
-    }
-  }, [isInstalling, isInstalled]);
   
   // Check if we should auto-join (returning from auth after install flow)
   const shouldAutoJoin = sessionStorage.getItem("autoJoinAfterAuth") === "true";
@@ -136,11 +120,10 @@ export default function JoinClubPage() {
         teamName: undefined,
         role: invite.role,
         inviteToken: token,
-        isIOS: isIOS,
         currentStep: resumeStep || "view",
       });
     }
-  }, [invite, token, isIOS]);
+  }, [invite, token]);
 
   // Clear invite flow context on successful join
   useEffect(() => {
@@ -203,10 +186,6 @@ export default function JoinClubPage() {
     onSuccess: (role) => {
       setJoined(true);
       toast({ title: `Successfully joined as ${roleLabels[role]}!` });
-      // Show PWA install prompt after successful join if install param was set
-      if (shouldPromptInstall) {
-        setShowInstallPrompt(true);
-      }
     },
     onError: (error: Error) => {
       toast({ title: error.message || "Failed to join club", variant: "destructive" });
@@ -248,39 +227,8 @@ export default function JoinClubPage() {
     }
   }, [shouldAutoJoin, user, invite, userProfile, joined, joinMutation, token, navigate, profileLoading, inviteLoading]);
 
-  // Handle join action - show install prompt first, then redirect to auth if not logged in
+  // Handle join action - redirect to auth if not logged in
   const handleJoinClick = async () => {
-    // On iOS, skip PWA install flow entirely
-    if (!isIOS) {
-      // Try to install PWA first - await the user's choice before proceeding
-      if (canPrompt && !isInstalled) {
-        setIsInstalling(true);
-        // Store invite data and update flow context for install step
-        localStorage.setItem("pwa_pending_invite", `/join-club/${token}`);
-        sessionStorage.setItem("autoJoinAfterAuth", "true");
-        
-        // Update invite flow context to track we're at install step
-        const existingContext = getInviteFlowContext();
-        setInviteFlowContext({
-          ...existingContext,
-          active: true,
-          currentStep: "install",
-        });
-        
-        const accepted = await installApp();
-        
-        if (accepted) {
-          // User accepted - keep isInstalling true, wait for appinstalled event
-          // The useEffect watching isInstalled will handle showing the guide
-          return;
-        } else {
-          // User declined - clean up and continue normal flow
-          setIsInstalling(false);
-          localStorage.removeItem("pwa_pending_invite");
-        }
-      }
-    }
-    
     // If not logged in, redirect to auth with auto-join flag
     if (!user) {
       sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
@@ -293,11 +241,6 @@ export default function JoinClubPage() {
     if (!userProfile?.display_name) {
       sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
       sessionStorage.setItem("autoJoinAfterAuth", "true");
-      // Store the club name as a label hint for profile completion
-      if (invite?.clubs?.name) {
-        // For club invites, we don't have an invited_label, but we could use user's Google name if available
-        // Just ensure the redirect flow works - user will enter their own name
-      }
       navigate("/complete-profile");
       return;
     }
@@ -305,64 +248,6 @@ export default function JoinClubPage() {
     // User is logged in with complete profile - proceed with join
     joinMutation.mutate();
   };
-
-  // Handle "continue in browser" from installed guide
-  const handleContinueInBrowser = () => {
-    setShowInstalledGuide(false);
-    localStorage.removeItem("pwa_pending_invite");
-    // Keep auto-join flag so they auto-join after auth or profile completion
-    if (!user) {
-      sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
-      navigate("/auth");
-    } else if (!userProfile?.display_name) {
-      sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
-      sessionStorage.setItem("autoJoinAfterAuth", "true");
-      navigate("/complete-profile");
-    } else {
-      joinMutation.mutate();
-    }
-  };
-
-  // Show installing state while app is being installed
-  if (isInstalling && !isInstalled) {
-    return (
-      <div className="min-h-screen flex flex-col bg-background">
-        <InviteFlowProgress 
-          currentStep="install" 
-          isIOS={isIOS}
-          isExistingUser={false}
-          className="fixed top-0 left-0 right-0"
-        />
-        <div className="flex-1 flex items-center justify-center p-4 pt-16">
-          <Card className="w-full max-w-md">
-            <CardContent className="p-8 text-center space-y-6">
-              <div className="relative mx-auto w-24 h-24">
-                <img 
-                  src="/ignite-logo.png" 
-                  alt="Ignite" 
-                  className="w-full h-full object-contain"
-                />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-28 h-28 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold">Installing App...</h2>
-                <p className="text-muted-foreground">
-                  Please wait while Ignite is added to your home screen.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  // Show installed guide if user just installed the PWA
-  if (showInstalledGuide) {
-    return <PWAInstalledGuide appName="Ignite" onDismiss={handleContinueInBrowser} />;
-  }
 
   if (inviteLoading) {
     return (

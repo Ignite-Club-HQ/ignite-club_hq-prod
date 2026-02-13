@@ -105,21 +105,35 @@ export const ChatMessage = memo(function ChatMessage({
 
   const addReactionMutation = useMutation({
     mutationFn: async ({ reactionType, existingReactionId }: { reactionType: string; existingReactionId?: string }) => {
-      // First, remove any existing reaction from this user on this message
-      if (existingReactionId && !existingReactionId.startsWith("temp-")) {
-        await supabase
-          .from("message_reactions")
-          .delete()
-          .eq("id", existingReactionId);
-      }
+      const messageIdField = getMessageIdField();
+      
+      // Remove any existing reaction from this user on this message
+      // Use the message ID field + user_id to avoid race conditions with unique constraints
+      await supabase
+        .from("message_reactions")
+        .delete()
+        .eq(messageIdField, id)
+        .eq("user_id", currentUserId!);
       
       // Then add the new reaction
       const { error } = await supabase.from("message_reactions").insert({
-        [getMessageIdField()]: id,
+        [messageIdField]: id,
         user_id: currentUserId!,
         reaction_type: reactionType,
       });
-      if (error) throw error;
+      if (error) {
+        // If we still hit a duplicate (race condition), update instead
+        if (error.code === '23505') {
+          const { error: updateError } = await supabase
+            .from("message_reactions")
+            .update({ reaction_type: reactionType })
+            .eq(messageIdField, id)
+            .eq("user_id", currentUserId!);
+          if (updateError) throw updateError;
+        } else {
+          throw error;
+        }
+      }
     },
     onMutate: async ({ reactionType }) => {
       await queryClient.cancelQueries({ queryKey });

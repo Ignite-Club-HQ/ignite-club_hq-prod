@@ -23,7 +23,7 @@ const EXISTING_USER_STEPS: InviteStep[] = ["view", "done"];
 
 const STEP_LABELS: Record<InviteStep, string> = {
   "view": "View Invite",
-  "install": "Install App",
+  "install": "Download App",
   "auth": "Create Account",
   "profile": "Complete Profile",
   "done": "Done"

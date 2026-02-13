@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Loader2, CheckCircle, XCircle, Users, AlertTriangle, Download, Share, PlusSquare, Smartphone } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Users, AlertTriangle, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,9 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { PhotoConsentDialog } from "@/components/PhotoConsentDialog";
-import { usePWAInstall } from "@/hooks/usePWAInstall";
-import { IOSInstallGuide } from "@/components/IOSInstallGuide";
-import { PWAInstalledGuide } from "@/components/PWAInstalledGuide";
+import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
 import { InviteFlowProgress, setInviteFlowContext, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -50,22 +48,8 @@ export default function JoinTeamPage() {
   const [showPhotoConsent, setShowPhotoConsent] = useState(false);
   const [pendingJoinRoles, setPendingJoinRoles] = useState<AppRole[]>([]);
   const [nameValidationError, setNameValidationError] = useState<string | null>(null);
-  const [showInstalledGuide, setShowInstalledGuide] = useState(false);
-  const [isInstalling, setIsInstalling] = useState(false);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
   const autoJoinAttempted = useRef(false);
-  const { canPrompt, isInstalled, isIOS, installApp } = usePWAInstall();
-  
-  // Watch for installation completion - show guide only after app is actually installed
-  useEffect(() => {
-    console.log("[JoinTeam] Install state check - isInstalling:", isInstalling, "isInstalled:", isInstalled);
-    if (isInstalling && isInstalled) {
-      // App finished installing - show the installed guide
-      console.log("[JoinTeam] Installation complete, showing guide");
-      setIsInstalling(false);
-      setShowInstalledGuide(true);
-    }
-  }, [isInstalling, isInstalled]);
   
   // Check if we should auto-join (returning from auth after install flow)
   const shouldAutoJoin = sessionStorage.getItem("autoJoinAfterAuth") === "true";
@@ -254,12 +238,10 @@ export default function JoinTeamPage() {
         teamName: invite.teams?.name || undefined,
         role: invite.role,
         inviteToken: token,
-        isIOS: isIOS,
-        // Preserve current step if resuming, otherwise start at 'view'
         currentStep: resumeStep || "view",
       });
     }
-  }, [invite, token, isIOS]);
+  }, [invite, token]);
 
   // Clear invite flow context on successful join
   useEffect(() => {
@@ -743,43 +725,10 @@ export default function JoinTeamPage() {
 
   // Handle join action - redirect to auth if not logged in
   const handleJoinClick = async () => {
-    // On iOS, skip PWA install flow entirely - go straight to auth
-    // iOS can't programmatically trigger install, so we'll show IOSInstallPrompt after signup
-    if (!isIOS) {
-      // Try to install PWA first - await the user's choice before proceeding
-      if (canPrompt && !isInstalled) {
-        setIsInstalling(true);
-        // Store invite data and update flow context for install step
-        localStorage.setItem("pwa_pending_invite", location.pathname);
-        sessionStorage.setItem("autoJoinAfterAuth", "true");
-        
-        // Update invite flow context to track we're at install step
-        const existingContext = getInviteFlowContext();
-        setInviteFlowContext({
-          ...existingContext,
-          active: true,
-          currentStep: "install",
-        });
-        
-        const accepted = await installApp();
-        
-        if (accepted) {
-          // User accepted - keep isInstalling true, wait for appinstalled event
-          // The useEffect watching isInstalled will handle showing the guide
-          return;
-        } else {
-          // User declined - clean up and continue normal flow
-          setIsInstalling(false);
-          localStorage.removeItem("pwa_pending_invite");
-        }
-      }
-    }
-    
     // If not logged in, redirect to auth with auto-join flag
     if (!user) {
       sessionStorage.setItem("redirectAfterAuth", location.pathname);
       sessionStorage.setItem("autoJoinAfterAuth", "true");
-      // Signal to auth page that this is a new user (coming from invite)
       sessionStorage.setItem("authDefaultTab", "signup");
       navigate("/auth");
       return;
@@ -789,7 +738,6 @@ export default function JoinTeamPage() {
     if (!userProfile?.display_name) {
       sessionStorage.setItem("redirectAfterAuth", location.pathname);
       sessionStorage.setItem("autoJoinAfterAuth", "true");
-      // Store the invited_label for profile prefill if available (pending invite)
       if (pendingInviteData?.invited_label) {
         sessionStorage.setItem("inviteLabel", pendingInviteData.invited_label);
       }
@@ -800,110 +748,6 @@ export default function JoinTeamPage() {
     // User is logged in with complete profile - proceed with join (may need photo consent for parent role)
     joinMutation.mutate();
   };
-
-  // Handle "continue in browser" from installed guide
-  const handleContinueInBrowser = () => {
-    setShowInstalledGuide(false);
-    localStorage.removeItem("pwa_pending_invite");
-    // Keep auto-join flag so they auto-join after auth or profile completion
-    if (!user) {
-      sessionStorage.setItem("redirectAfterAuth", location.pathname);
-      navigate("/auth");
-    } else if (!userProfile?.display_name) {
-      sessionStorage.setItem("redirectAfterAuth", location.pathname);
-      sessionStorage.setItem("autoJoinAfterAuth", "true");
-      // Store the invited_label for profile prefill if available (pending invite)
-      if (pendingInviteData?.invited_label) {
-        sessionStorage.setItem("inviteLabel", pendingInviteData.invited_label);
-      }
-      navigate("/complete-profile");
-    } else {
-      joinMutation.mutate();
-    }
-  };
-
-  // Show installing progress screen
-  if (isInstalling) {
-    return (
-      <div className="min-h-screen flex flex-col bg-background">
-        <InviteFlowProgress currentStep="install" isIOS={isIOS} className="fixed top-0 left-0 right-0 z-50" />
-        <div className="flex-1 flex items-center justify-center p-4 pt-16">
-          <Card className="w-full max-w-md">
-            <CardContent className="p-6 text-center space-y-6">
-              {/* App icon with loading overlay */}
-              <div className="flex flex-col items-center gap-3">
-                <div className="relative">
-                  <div className="p-3 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
-                    <img 
-                      src="/ignite-logo.png" 
-                      alt="Ignite app icon"
-                      className="h-16 w-16 rounded-xl"
-                    />
-                  </div>
-                  {/* Loading spinner overlay */}
-                  <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-background border-2 border-primary flex items-center justify-center">
-                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold">Installing Ignite...</h2>
-                <p className="text-muted-foreground">
-                  Please wait while the app is being added to your home screen.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <Download className="h-4 w-4 animate-bounce" />
-                <span>This will only take a moment...</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-  // Show installing state while app is being installed
-  if (isInstalling && !isInstalled) {
-    return (
-      <div className="min-h-screen flex flex-col bg-background">
-        <InviteFlowProgress 
-          currentStep="install" 
-          isIOS={isIOS}
-          isExistingUser={false}
-          className="fixed top-0 left-0 right-0"
-        />
-        <div className="flex-1 flex items-center justify-center p-4 pt-16">
-          <Card className="w-full max-w-md">
-            <CardContent className="p-8 text-center space-y-6">
-              <div className="relative mx-auto w-24 h-24">
-                <img 
-                  src="/ignite-logo.png" 
-                  alt="Ignite" 
-                  className="w-full h-full object-contain"
-                />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-28 h-28 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold">Installing App...</h2>
-                <p className="text-muted-foreground">
-                  Please wait while Ignite is added to your home screen.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  // Show installed guide if user just installed the PWA
-  if (showInstalledGuide) {
-    return <PWAInstalledGuide appName="Ignite" onDismiss={handleContinueInBrowser} />;
-  }
 
   if (isLoading && !loadingTimeout) {
     return (
@@ -1011,9 +855,7 @@ export default function JoinTeamPage() {
 
   // Joined successfully
   if (joined) {
-    const handleInstall = async () => {
-      await installApp();
-    };
+    const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -1028,54 +870,10 @@ export default function JoinTeamPage() {
               </p>
             </div>
 
-            {/* App install instructions - only show if not already installed */}
-            {!isInstalled && (
-              <div className="border-t border-border pt-4 space-y-4">
-                <div className="flex items-center justify-center gap-2">
-                  <Smartphone className="h-5 w-5 text-primary" />
-                  <h3 className="font-medium">Install the App</h3>
-                </div>
-                <p className="text-sm text-muted-foreground text-center">
-                  Get the best experience with push notifications and offline access!
-                </p>
-
-                {isIOS ? (
-                  // iOS instructions
-                  <div className="space-y-2 bg-muted/50 rounded-lg p-4">
-                    <p className="text-sm font-medium text-center mb-3">Add to your home screen:</p>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-3 text-sm">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium">1</span>
-                        <span className="flex items-center gap-2">
-                          Tap the <Share className="h-4 w-4 text-primary" /> Share button
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium">2</span>
-                        <span className="flex items-center gap-2">
-                          Tap <PlusSquare className="h-4 w-4 text-primary" /> "Add to Home Screen"
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium">3</span>
-                        <span>Tap "Add" to install</span>
-                      </div>
-                    </div>
-                  </div>
-                ) : canPrompt ? (
-                  // Android/Chrome can prompt directly
-                  <Button onClick={handleInstall} className="w-full" variant="outline">
-                    <Download className="h-4 w-4 mr-2" />
-                    Install App
-                  </Button>
-                ) : (
-                  // Fallback instructions for other browsers
-                  <div className="space-y-2 bg-muted/50 rounded-lg p-4">
-                    <p className="text-sm text-muted-foreground text-center">
-                      Look for "Add to Home Screen" or "Install App" in your browser menu.
-                    </p>
-                  </div>
-                )}
+            {/* App store download - only show if not a native app */}
+            {!isNative && (
+              <div className="border-t border-border pt-4">
+                <AppStoreDownloadGuide compact />
               </div>
             )}
 
@@ -1090,16 +888,6 @@ export default function JoinTeamPage() {
 
   // Determine current step for progress indicator
   const getCurrentStep = (): "view" | "install" | "auth" | "profile" | "done" => {
-    if (showInstalledGuide) return "install";
-    if (isInstalling) return "install";
-    
-    // Check if we're in standalone mode (PWA) and should show auth step
-    const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
-    if (isStandalone && !user) {
-      // User opened PWA and needs to sign up
-      return "auth";
-    }
-    
     // Check stored context for resume step
     const storedContext = getInviteFlowContext();
     if (storedContext?.currentStep && storedContext.currentStep !== "view") {
@@ -1114,7 +902,6 @@ export default function JoinTeamPage() {
       {/* Fixed progress indicator at top */}
       <InviteFlowProgress 
         currentStep={getCurrentStep()} 
-        isIOS={isIOS}
         isExistingUser={!!user}
         className="fixed top-0 left-0 right-0"
       />
@@ -1216,28 +1003,16 @@ export default function JoinTeamPage() {
 
           <Button 
             onClick={handleJoinClick} 
-            disabled={isInstalling || joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError)}
+            disabled={joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError)}
             className="w-full"
             size="lg"
           >
-            {isInstalling ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Installing App...
-              </>
-            ) : isInstalled && !user ? (
-              <>
-                <CheckCircle className="h-4 w-4 mr-2 text-primary-foreground" />
-                App Installed - Create Account
-              </>
-            ) : (joinMutation.isPending || (user && profileLoading)) ? (
+            {(joinMutation.isPending || (user && profileLoading)) ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : null}
-            {!isInstalling && !(isInstalled && !user) && !joinMutation.isPending && !(user && profileLoading) && (
+            {!joinMutation.isPending && !(user && profileLoading) && (
               !user 
-                ? (canPrompt && !isInstalled 
-                    ? "Install App & Create Account"
-                    : "Create Account to Join")
+                ? "Create Account to Join"
                 : nameValidationError 
                   ? "Cannot Join - Name Mismatch"
                   : needsProfileCompletion
@@ -1257,17 +1032,10 @@ export default function JoinTeamPage() {
             Cancel
           </Button>
 
-          {/* iOS install instructions - show on join form if not installed (iOS can't prompt directly) */}
-          {!isInstalled && isIOS && (
-            <div className="border-t border-border pt-4 mt-4 space-y-3">
-              <div className="flex items-center justify-center gap-2">
-                <Smartphone className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-medium">Install the App</h3>
-              </div>
-              <p className="text-xs text-muted-foreground text-center">
-                For the best experience with push notifications and offline access
-              </p>
-              <IOSInstallGuide compact />
+          {/* App store download instructions - show on join form if not a native app */}
+          {!(window as any).Capacitor?.isNativePlatform?.() && (
+            <div className="border-t border-border pt-4 mt-4">
+              <AppStoreDownloadGuide compact />
             </div>
           )}
         </CardContent>
