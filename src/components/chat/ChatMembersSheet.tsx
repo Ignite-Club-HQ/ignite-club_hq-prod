@@ -143,14 +143,13 @@ export function ChatMembersSheet({
   const memberIds = useMemo(() => uniqueMembers.map(m => m.id), [uniqueMembers]);
 
   // Fetch notification preferences (push messages_enabled) for all members
+  // Uses security definer RPC to bypass RLS (users can only read their own prefs)
   const { data: notifPrefs } = useQuery({
     queryKey: ["chat-members-notif-prefs", chatType, chatId, memberIds],
     queryFn: async () => {
       if (memberIds.length === 0) return {};
       const { data } = await supabase
-        .from("notification_preferences")
-        .select("user_id, messages_enabled")
-        .in("user_id", memberIds);
+        .rpc("get_members_messages_enabled", { member_ids: memberIds });
       
       const map: Record<string, boolean> = {};
       for (const row of data || []) {
