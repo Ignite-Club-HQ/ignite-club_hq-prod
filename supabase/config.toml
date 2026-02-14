@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.send-welcome-dm]
 verify_jwt = false
+
+[functions.retry-missed-push-notifications]
+verify_jwt = false
