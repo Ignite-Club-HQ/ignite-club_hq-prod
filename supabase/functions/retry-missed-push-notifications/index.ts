@@ -1,0 +1,170 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+/**
+ * Fallback cron function that retries push notifications for recent notifications
+ * that were missed by the pg_net trigger (which can silently drop requests).
+ * 
+ * Logic:
+ * 1. Find notifications created in the last 5 minutes
+ * 2. Check which ones have NO entry in push_notification_logs
+ * 3. Re-dispatch those via the send-push-notification edge function
+ */
+serve(async (req: Request): Promise<Response> => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Look for notifications from the last 5 minutes that have no push log entry
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    // Don't retry very recent ones (< 30s) — give pg_net time to process
+    const thirtySecAgo = new Date(Date.now() - 30 * 1000).toISOString();
+
+    const { data: recentNotifications, error: notifError } = await supabase
+      .from('notifications')
+      .select('id, user_id, type, message, related_id')
+      .gte('created_at', fiveMinAgo)
+      .lte('created_at', thirtySecAgo)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (notifError) {
+      console.error('[RETRY-PUSH] Error fetching notifications:', notifError);
+      return new Response(
+        JSON.stringify({ error: notifError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!recentNotifications || recentNotifications.length === 0) {
+      return new Response(
+        JSON.stringify({ message: 'No recent notifications to check', retried: 0 }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const notifIds = recentNotifications.map(n => n.id);
+
+    // Check which ones already have push logs
+    const { data: existingLogs, error: logError } = await supabase
+      .from('push_notification_logs')
+      .select('notification_id')
+      .in('notification_id', notifIds);
+
+    if (logError) {
+      console.error('[RETRY-PUSH] Error fetching push logs:', logError);
+      return new Response(
+        JSON.stringify({ error: logError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const loggedIds = new Set((existingLogs || []).map(l => l.notification_id));
+    const missedNotifications = recentNotifications.filter(n => !loggedIds.has(n.id));
+
+    if (missedNotifications.length === 0) {
+      return new Response(
+        JSON.stringify({ message: 'All recent notifications have push logs', checked: notifIds.length, retried: 0 }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[RETRY-PUSH] Found ${missedNotifications.length} notifications without push logs, retrying...`);
+
+    // Build URL for each notification (same logic as the DB trigger)
+    const buildUrl = (type: string, relatedId: string | null): string => {
+      switch (type) {
+        case 'direct_message':
+          return `/messages/dm/${relatedId || ''}`;
+        case 'team_message':
+        case 'message_reply':
+        case 'message_reaction':
+        case 'message_mention':
+          return relatedId ? `/messages/${relatedId}` : '/messages';
+        case 'club_message':
+          return relatedId ? `/messages/club/${relatedId}` : '/messages';
+        case 'group_message':
+          return relatedId ? `/messages/group/${relatedId}` : '/messages';
+        case 'broadcast':
+          return '/messages/broadcast';
+        case 'event_invite':
+        case 'event_cancelled':
+        case 'event_reminder':
+        case 'event_updated':
+        case 'rsvp_reminder':
+        case 'duty_assigned':
+          return relatedId ? `/events/${relatedId}` : '/events';
+        case 'photo_uploaded':
+        case 'photo_reaction':
+        case 'photo_comment':
+        case 'comment_reaction':
+        case 'comment_reply':
+          return '/media';
+        default:
+          return '/notifications';
+      }
+    };
+
+    let retriedCount = 0;
+    let errorCount = 0;
+
+    // Dispatch each missed notification (sequentially to avoid overloading)
+    for (const notif of missedNotifications) {
+      try {
+        const url = buildUrl(notif.type, notif.related_id);
+
+        const { error: invokeError } = await supabase.functions.invoke('send-push-notification', {
+          body: {
+            userId: notif.user_id,
+            title: 'Ignite Club HQ',
+            body: notif.message,
+            url,
+            notificationId: notif.id,
+            tag: `${notif.type}-${notif.id}`,
+            notificationType: notif.type,
+          },
+        });
+
+        if (invokeError) {
+          console.error(`[RETRY-PUSH] Failed to retry notification ${notif.id}:`, invokeError);
+          errorCount++;
+        } else {
+          retriedCount++;
+          console.log(`[RETRY-PUSH] Successfully retried notification ${notif.id} (${notif.type})`);
+        }
+      } catch (err) {
+        console.error(`[RETRY-PUSH] Error retrying notification ${notif.id}:`, err);
+        errorCount++;
+      }
+    }
+
+    console.log(`[RETRY-PUSH] Complete: ${retriedCount} retried, ${errorCount} errors`);
+
+    return new Response(
+      JSON.stringify({
+        message: 'Retry complete',
+        checked: notifIds.length,
+        missed: missedNotifications.length,
+        retried: retriedCount,
+        errors: errorCount,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('[RETRY-PUSH] Fatal error:', error);
+    return new Response(
+      JSON.stringify({ error: String(error) }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
