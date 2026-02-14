@@ -1,8 +1,14 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Bell, BellOff, Loader2, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Eye, EyeOff, Bell, BellOff, Loader2, Check, ChevronDown, ChevronUp, Mail, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -123,15 +129,15 @@ export function EventViewsAdminSection({
 
   const memberIds = useMemo(() => membersWithStatus.map(m => m.id), [membersWithStatus]);
 
-  // Fetch notification preferences (events_enabled) for all members
+  // Fetch notification preferences (events_enabled) for all members via RPC to bypass RLS
   const { data: notifPrefs } = useQuery({
     queryKey: ["event-members-notif-prefs", eventId, memberIds],
     queryFn: async () => {
       if (memberIds.length === 0) return {};
-      const { data } = await supabase
-        .from("notification_preferences")
-        .select("user_id, events_enabled")
-        .in("user_id", memberIds);
+      const { data, error } = await supabase
+        .rpc("get_members_events_enabled", { member_ids: memberIds });
+      
+      if (error) console.error("[EventViews] notif prefs RPC error:", error);
       
       const map: Record<string, boolean> = {};
       for (const row of data || []) {
@@ -145,18 +151,21 @@ export function EventViewsAdminSection({
 
   // Send reminder mutation
   const sendReminderMutation = useMutation({
-    mutationFn: async (userIds: string[]) => {
+    mutationFn: async ({ userIds, channels }: { userIds: string[]; channels: "push" | "email" | "both" }) => {
       const { data, error } = await supabase.functions.invoke("send-event-view-reminder", {
-        body: { eventId, userIds },
+        body: { eventId, userIds, channels },
       });
       
       if (error) throw error;
       return data;
     },
     onSuccess: (data) => {
+      const parts: string[] = [];
+      if (data.emailsSent > 0) parts.push(`${data.emailsSent} email${data.emailsSent === 1 ? "" : "s"}`);
+      if (data.pushSent > 0) parts.push(`${data.pushSent} push notification${data.pushSent === 1 ? "" : "s"}`);
       toast({
         title: "Reminders sent!",
-        description: `Sent ${data.emailsSent || 0} emails and ${data.pushSent || 0} push notifications.`,
+        description: parts.length > 0 ? `Sent ${parts.join(" and ")}.` : "No reminders could be delivered.",
       });
     },
     onError: (error: any) => {
@@ -168,12 +177,12 @@ export function EventViewsAdminSection({
     },
   });
 
-  const handleSendReminders = async () => {
+  const handleSendReminders = async (channels: "push" | "email" | "both") => {
     if (notViewedMembers.length === 0) return;
     
     setIsSending(true);
     try {
-      await sendReminderMutation.mutateAsync(notViewedMembers.map(m => m.id));
+      await sendReminderMutation.mutateAsync({ userIds: notViewedMembers.map(m => m.id), channels });
     } finally {
       setIsSending(false);
     }
@@ -280,19 +289,37 @@ export function EventViewsAdminSection({
                       <EyeOff className="h-4 w-4" />
                       Haven't Viewed ({notViewedCount})
                     </h4>
-                    <Button
-                      size="sm"
-                      onClick={handleSendReminders}
-                      disabled={isSending}
-                      className="gap-1.5"
-                    >
-                      {isSending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Bell className="h-4 w-4" />
-                      )}
-                      Send Reminder
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="sm"
+                          disabled={isSending}
+                          className="gap-1.5"
+                        >
+                          {isSending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Bell className="h-4 w-4" />
+                          )}
+                          Send Reminder
+                          <ChevronDown className="h-3 w-3 ml-0.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleSendReminders("push")}>
+                          <Smartphone className="h-4 w-4 mr-2" />
+                          Push Notification
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleSendReminders("email")}>
+                          <Mail className="h-4 w-4 mr-2" />
+                          Email
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleSendReminders("both")}>
+                          <Bell className="h-4 w-4 mr-2" />
+                          Both (Push + Email)
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                   <div className="grid gap-2">
                     {notViewedMembers.map((member) => renderMemberRow(member, "not-viewed"))}
