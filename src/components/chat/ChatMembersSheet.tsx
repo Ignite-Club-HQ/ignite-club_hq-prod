@@ -243,8 +243,8 @@ export function ChatMembersSheet({
                 <TooltipProvider delayDuration={300}>
                   <div className="space-y-2">
                     {uniqueMembers.map((member) => {
-                      // Default to true if no preference row exists (new users haven't opted out)
-                      const pushDisabled = notifPrefs && member.id in notifPrefs ? !notifPrefs[member.id] : false;
+                      // Show indicator if no preference row exists (never set up) or explicitly disabled
+                      const pushDisabled = notifPrefs ? (!(member.id in notifPrefs) || !notifPrefs[member.id]) : false;
                       const chatMuted = mutePrefs?.[member.id] ?? false;
 
                       return (
