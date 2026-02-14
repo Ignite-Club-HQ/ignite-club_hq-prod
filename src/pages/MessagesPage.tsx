@@ -951,8 +951,8 @@ export default function MessagesPage() {
   const hasNoMessages = !displayTeams?.length && !displayMemberClubs?.length && displayChatGroups.length === 0;
 
   // Check if user has admin role but no Pro access (show upgrade prompt)
-  // Only show after Pro status is confirmed (hasAnyProAccess === false, not undefined)
-  const hasAdminRoleButNoPro = !!(adminTeamIds?.length || adminClubs?.length) && hasAnyProAccess === false && !isAppAdmin;
+  // Only show after ALL relevant queries have loaded to prevent flash of upgrade banner
+  const hasAdminRoleButNoPro = !!(adminTeamIds?.length || adminClubs?.length) && hasAnyProAccess === false && isAppAdmin === false;
 
   return (
     <div className="py-6 space-y-6">
