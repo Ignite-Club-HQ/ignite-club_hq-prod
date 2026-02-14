@@ -148,8 +148,10 @@ export function ChatMembersSheet({
     queryKey: ["chat-members-notif-prefs", chatType, chatId, memberIds],
     queryFn: async () => {
       if (memberIds.length === 0) return {};
-      const { data } = await supabase
+      const { data, error } = await supabase
         .rpc("get_members_messages_enabled", { member_ids: memberIds });
+      
+      if (error) console.error("[ChatMembers] notif prefs RPC error:", error);
       
       const map: Record<string, boolean> = {};
       for (const row of data || []) {
