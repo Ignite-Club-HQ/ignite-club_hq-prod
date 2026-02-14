@@ -2,7 +2,7 @@ import { useEffect, useCallback, useMemo, useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-type MessageType = "team" | "club" | "group" | "broadcast";
+type MessageType = "team" | "club" | "group" | "broadcast" | "dm";
 
 const getMessageIdField = (type: MessageType) => {
   switch (type) {
@@ -14,6 +14,8 @@ const getMessageIdField = (type: MessageType) => {
       return "group_message_id";
     case "broadcast":
       return "broadcast_message_id";
+    case "dm":
+      return "direct_message_id";
   }
 };
 

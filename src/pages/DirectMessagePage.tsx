@@ -25,6 +25,7 @@ import { getCachedMessages, cacheMessages, CachedMessage } from "@/lib/messageCa
 import { ChatSearch, highlightText } from "@/components/chat/ChatSearch";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
 import { IGNITE_SUPPORT_USER_ID, isIgniteSupportUser } from "@/lib/systemUser";
+import { useMessageReads } from "@/hooks/useMessageReads";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -290,7 +291,21 @@ export default function DirectMessagePage() {
     return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
   }, [localMessages]);
   const { getProfile } = useProfiles(authorIds);
-  
+
+  // Read tracking for DMs
+  const messageIds = useMemo(() => (localMessages || []).map(m => m.id).filter(id => !id.startsWith("temp-")), [localMessages]);
+  const { readCounts, markMessagesAsRead } = useMessageReads("dm", conversationId || "", messageIds, user?.id);
+
+  // Mark visible messages as read when they appear
+  useEffect(() => {
+    if (!localMessages?.length || !user?.id) return;
+    const otherUserMessages = localMessages
+      .filter(m => m.author_id !== user.id && !m.id.startsWith("temp-"))
+      .map(m => m.id);
+    if (otherUserMessages.length > 0) {
+      markMessagesAsRead(otherUserMessages);
+    }
+  }, [localMessages, user?.id, markMessagesAsRead]);
   useEffect(() => {
     hasInitialScrolled.current = false;
     setInfiniteScrollEnabled(false);
@@ -682,6 +697,7 @@ export default function DirectMessagePage() {
                       reactions={msg.reactions || []}
                       currentUserId={user?.id}
                       messageType="dm"
+                      readCount={readCounts[msg.id] || 0}
                       queryKey={["dm-messages", conversationId]}
                       replyToMessage={
                         msg.reply_to

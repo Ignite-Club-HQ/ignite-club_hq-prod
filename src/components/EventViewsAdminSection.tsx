@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Bell, Loader2, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Eye, EyeOff, Bell, BellOff, Loader2, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -120,6 +121,28 @@ export function EventViewsAdminSection({
   const viewedMembers = membersWithStatus.filter(m => m.hasViewed);
   const notViewedMembers = membersWithStatus.filter(m => !m.hasViewed);
 
+  const memberIds = useMemo(() => membersWithStatus.map(m => m.id), [membersWithStatus]);
+
+  // Fetch notification preferences (events_enabled) for all members
+  const { data: notifPrefs } = useQuery({
+    queryKey: ["event-members-notif-prefs", eventId, memberIds],
+    queryFn: async () => {
+      if (memberIds.length === 0) return {};
+      const { data } = await supabase
+        .from("notification_preferences")
+        .select("user_id, events_enabled")
+        .in("user_id", memberIds);
+      
+      const map: Record<string, boolean> = {};
+      for (const row of data || []) {
+        map[row.user_id] = row.events_enabled;
+      }
+      return map;
+    },
+    enabled: isOpen && memberIds.length > 0,
+    staleTime: 1000 * 60 * 2,
+  });
+
   // Send reminder mutation
   const sendReminderMutation = useMutation({
     mutationFn: async (userIds: string[]) => {
@@ -173,6 +196,46 @@ export function EventViewsAdminSection({
   const viewedCount = viewedMembers.length;
   const notViewedCount = notViewedMembers.length;
 
+  const renderMemberRow = (member: MemberWithViewStatus, variant: "viewed" | "not-viewed") => {
+    const pushDisabled = notifPrefs && member.id in notifPrefs ? !notifPrefs[member.id] : false;
+
+    return (
+      <div
+        key={member.id}
+        className={`flex items-center gap-2 p-2 rounded-lg ${
+          variant === "viewed" ? "bg-primary/5" : "bg-muted/50"
+        }`}
+      >
+        <Avatar className="h-7 w-7">
+          <AvatarImage src={member.avatar_url || undefined} />
+          <AvatarFallback className="text-xs">
+            {member.display_name?.charAt(0)?.toUpperCase() || "?"}
+          </AvatarFallback>
+        </Avatar>
+        <span className="text-sm truncate flex-1">{member.display_name || "Unknown"}</span>
+        <div className="flex items-center gap-1 shrink-0">
+          {pushDisabled && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="p-0.5 rounded text-destructive/70">
+                  <BellOff className="h-3.5 w-3.5" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                <p>Event push notifications disabled</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {variant === "viewed" && member.viewedAt && (
+            <span className="text-xs text-muted-foreground">
+              {new Date(member.viewedAt).toLocaleDateString()}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Card>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -208,75 +271,52 @@ export function EventViewsAdminSection({
         
         <CollapsibleContent>
           <CardContent className="pt-0 space-y-4">
-            {/* Not Viewed Section */}
-            {notViewedMembers.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium flex items-center gap-2 text-warning">
-                    <EyeOff className="h-4 w-4" />
-                    Haven't Viewed ({notViewedCount})
-                  </h4>
-                  <Button
-                    size="sm"
-                    onClick={handleSendReminders}
-                    disabled={isSending}
-                    className="gap-1.5"
-                  >
-                    {isSending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Bell className="h-4 w-4" />
-                    )}
-                    Send Reminder
-                  </Button>
-                </div>
-                <div className="grid gap-2">
-                  {notViewedMembers.map((member) => (
-                    <div key={member.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
-                      <Avatar className="h-7 w-7">
-                        <AvatarImage src={member.avatar_url || undefined} />
-                        <AvatarFallback className="text-xs">
-                          {member.display_name?.charAt(0)?.toUpperCase() || "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm truncate">{member.display_name || "Unknown"}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {notViewedMembers.length > 0 && viewedMembers.length > 0 && (
-              <Separator />
-            )}
-
-            {/* Viewed Section */}
-            {viewedMembers.length > 0 && (
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium flex items-center gap-2 text-primary">
-                  <Check className="h-4 w-4" />
-                  Viewed ({viewedCount})
-                </h4>
-                <div className="grid gap-2">
-                  {viewedMembers.map((member) => (
-                    <div key={member.id} className="flex items-center gap-2 p-2 rounded-lg bg-primary/5">
-                      <Avatar className="h-7 w-7">
-                        <AvatarImage src={member.avatar_url || undefined} />
-                        <AvatarFallback className="text-xs">
-                          {member.display_name?.charAt(0)?.toUpperCase() || "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm truncate flex-1">{member.display_name || "Unknown"}</span>
-                      {member.viewedAt && (
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(member.viewedAt).toLocaleDateString()}
-                        </span>
+            <TooltipProvider delayDuration={300}>
+              {/* Not Viewed Section */}
+              {notViewedMembers.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium flex items-center gap-2 text-warning">
+                      <EyeOff className="h-4 w-4" />
+                      Haven't Viewed ({notViewedCount})
+                    </h4>
+                    <Button
+                      size="sm"
+                      onClick={handleSendReminders}
+                      disabled={isSending}
+                      className="gap-1.5"
+                    >
+                      {isSending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Bell className="h-4 w-4" />
                       )}
-                    </div>
-                  ))}
+                      Send Reminder
+                    </Button>
+                  </div>
+                  <div className="grid gap-2">
+                    {notViewedMembers.map((member) => renderMemberRow(member, "not-viewed"))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {notViewedMembers.length > 0 && viewedMembers.length > 0 && (
+                <Separator />
+              )}
+
+              {/* Viewed Section */}
+              {viewedMembers.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium flex items-center gap-2 text-primary">
+                    <Check className="h-4 w-4" />
+                    Viewed ({viewedCount})
+                  </h4>
+                  <div className="grid gap-2">
+                    {viewedMembers.map((member) => renderMemberRow(member, "viewed"))}
+                  </div>
+                </div>
+              )}
+            </TooltipProvider>
 
             {totalMembers === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
