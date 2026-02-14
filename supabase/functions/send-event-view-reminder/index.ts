@@ -14,6 +14,7 @@ const corsHeaders = {
 interface RequestBody {
   eventId: string;
   userIds: string[]; // Users who haven't viewed the event
+  channels?: "push" | "email" | "both"; // Delivery channel selection
 }
 
 serve(async (req) => {
@@ -46,7 +47,7 @@ serve(async (req) => {
       });
     }
 
-    const { eventId, userIds } = await req.json() as RequestBody;
+    const { eventId, userIds, channels = "both" } = await req.json() as RequestBody;
 
     if (!eventId || !userIds || userIds.length === 0) {
       return new Response(JSON.stringify({ error: "Missing eventId or userIds" }), {
@@ -170,8 +171,11 @@ serve(async (req) => {
     let emailsSent = 0;
     let pushSent = 0;
 
-    // Send emails if Resend is configured
-    if (resendApiKey) {
+    const sendEmail = channels === "email" || channels === "both";
+    const sendPush = channels === "push" || channels === "both";
+
+    // Send emails if Resend is configured and email channel selected
+    if (sendEmail && resendApiKey) {
       const resend = new Resend(resendApiKey);
 
       for (const userId of userIds) {
@@ -209,38 +213,39 @@ serve(async (req) => {
       }
     }
 
-    // Send push notifications
-    for (const userId of userIds) {
-      try {
-        // Insert notification
-        await supabase.from("notifications").insert({
-          user_id: userId,
-          type: "event_view_reminder",
-          message: `Reminder: Please RSVP to "${event.title}" - ${eventDate}`,
-          related_id: event.id,
-        });
-
-        // Try to send push notification
-        const { data: subscriptions } = await supabase
-          .from("push_subscriptions")
-          .select("*")
-          .eq("user_id", userId);
-
-        if (subscriptions && subscriptions.length > 0) {
-          // Call push notification function
-          await supabase.functions.invoke("send-push-notification", {
-            body: {
-              userId,
-              title: "📅 Event Reminder",
-              body: `You haven't RSVP'd to "${event.title}" - tap to respond`,
-              url: `/events/${event.id}`,
-              tag: `event-view-${event.id}`,
-            },
+    // Send push notifications if push channel selected
+    if (sendPush) {
+      for (const userId of userIds) {
+        try {
+          // Insert notification
+          await supabase.from("notifications").insert({
+            user_id: userId,
+            type: "event_view_reminder",
+            message: `Reminder: Please RSVP to "${event.title}" - ${eventDate}`,
+            related_id: event.id,
           });
-          pushSent++;
+
+          // Try to send push notification
+          const { data: subscriptions } = await supabase
+            .from("push_subscriptions")
+            .select("*")
+            .eq("user_id", userId);
+
+          if (subscriptions && subscriptions.length > 0) {
+            await supabase.functions.invoke("send-push-notification", {
+              body: {
+                userId,
+                title: "📅 Event Reminder",
+                body: `You haven't RSVP'd to "${event.title}" - tap to respond`,
+                url: `/events/${event.id}`,
+                tag: `event-view-${event.id}`,
+              },
+            });
+            pushSent++;
+          }
+        } catch (pushError) {
+          console.error(`Failed to send push to ${userId}:`, pushError);
         }
-      } catch (pushError) {
-        console.error(`Failed to send push to ${userId}:`, pushError);
       }
     }
 
