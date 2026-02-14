@@ -53,37 +53,72 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
   const [isNative, setIsNative] = useState(false);
   const pendingNavProcessed = useRef(false);
 
-  // Check if we're on native platform and handle pending notification navigation
+  // Check if we're on native platform and set up early notification action listener
   useEffect(() => {
+    let actionCleanup: (() => void) | null = null;
+    
     loadNativePushModule().then(mod => {
       if (mod) {
         try {
           const native = mod.isNativePlatform();
           setIsNative(native);
           
-          // On native, check for any pending notification navigation
-          // Use a small delay to allow the launch handler to store the URL first
-          if (native && !pendingNavProcessed.current) {
-            pendingNavProcessed.current = true;
-            // Check immediately, then retry after a short delay for cold start timing
-            const wasProcessed = processPendingNotificationNavigation(navigate);
-            if (wasProcessed) {
-              console.log('[useNativePush] Processed pending notification navigation');
-            } else {
-              // Retry after 500ms for cold start where launch handler may not have fired yet
-              setTimeout(() => {
-                const wasProcessedRetry = processPendingNotificationNavigation(navigate);
-                if (wasProcessedRetry) {
-                  console.log('[useNativePush] Processed pending notification navigation (retry)');
-                }
-              }, 500);
+          if (native) {
+            // First check for any pending navigation from the launch handler
+            if (!pendingNavProcessed.current) {
+              pendingNavProcessed.current = true;
+              const wasProcessed = processPendingNotificationNavigation(navigate);
+              if (wasProcessed) {
+                console.log('[useNativePush] Processed pending notification navigation');
+              } else {
+                // Retry with increasing delays for cold start timing
+                const retryDelays = [500, 1500, 3000];
+                retryDelays.forEach(delay => {
+                  setTimeout(() => {
+                    const wasProcessedRetry = processPendingNotificationNavigation(navigate);
+                    if (wasProcessedRetry) {
+                      console.log(`[useNativePush] Processed pending notification navigation (retry ${delay}ms)`);
+                    }
+                  }, delay);
+                });
+              }
             }
+            
+            // Register a direct pushNotificationActionPerformed listener
+            // This catches notification taps for both warm and cold starts
+            // independent of the setupNativePushListeners call (which requires auth)
+            import('@capacitor/push-notifications').then(({ PushNotifications }) => {
+              PushNotifications.addListener(
+                'pushNotificationActionPerformed',
+                (notification: any) => {
+                  console.log('[useNativePush] Early action listener fired:', JSON.stringify(notification));
+                  const data = notification.notification?.data;
+                  const url = data?.url || data?.link || data?.path;
+                  if (url) {
+                    try {
+                      const parsed = new URL(url, window.location.origin);
+                      navigate(parsed.pathname + parsed.search);
+                    } catch {
+                      navigate(url);
+                    }
+                  }
+                }
+              ).then(handle => {
+                actionCleanup = () => handle.remove();
+              });
+            }).catch(err => {
+              console.warn('[useNativePush] Failed to set up early action listener:', err);
+            });
           }
         } catch {
           setIsNative(false);
         }
       }
     });
+    
+    return () => {
+      actionCleanup?.();
+    };
   }, [navigate]);
 
   // Save refreshed token to database
