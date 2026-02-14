@@ -665,7 +665,7 @@ export default function AutoSubPlanDialog({
         <DialogPrimitive.Content
           className={cn(
             "fixed inset-0 z-[99999] flex flex-col",
-            "bg-background duration-200 overflow-hidden",
+            "bg-background duration-200 overflow-hidden pt-safe",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
           )}
