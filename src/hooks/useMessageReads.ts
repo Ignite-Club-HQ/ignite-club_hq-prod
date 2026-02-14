@@ -89,15 +89,10 @@ export function useMessageReads(
   useEffect(() => {
     if (messageIds.length === 0) return;
 
-    // Check cache first
+    // Use cache as optimistic initial state, but ALWAYS fetch fresh data
     const cached = getReadCountsFromCache(contextId);
     if (cached) {
-      // Only fetch for messages not in cache
-      const uncachedIds = messageIds.filter(id => !(id in cached));
-      if (uncachedIds.length === 0) {
-        setReadCounts(prev => ({ ...prev, ...cached }));
-        return;
-      }
+      setReadCounts(prev => ({ ...prev, ...cached }));
     }
 
     const fetchReadCounts = async () => {
