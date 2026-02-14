@@ -4655,6 +4655,13 @@ export type Database = {
         }[]
       }
       get_club_team_count: { Args: { _club_id: string }; Returns: number }
+      get_members_events_enabled: {
+        Args: { member_ids: string[] }
+        Returns: {
+          events_enabled: boolean
+          user_id: string
+        }[]
+      }
       get_members_messages_enabled: {
         Args: { member_ids: string[] }
         Returns: {
