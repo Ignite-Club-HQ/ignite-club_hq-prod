@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Users, Loader2 } from "lucide-react";
+import { Users, Loader2, BellOff, VolumeOff } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ChatMembersSheetProps {
   chatType: "team" | "club" | "group";
@@ -39,7 +40,7 @@ export function ChatMembersSheet({
   // Check if this is a personal group (no team_id or club_id)
   const isPersonalGroup = chatType === "group" && !teamId && !clubId;
 
-  // Fetch members based on chat type - exclude avatar_url initially for speed
+  // Fetch members based on chat type
   const { data: members, isLoading: membersLoading } = useQuery({
     queryKey: ["chat-members", chatType, chatId, teamId, clubId],
     queryFn: async () => {
@@ -63,7 +64,7 @@ export function ChatMembersSheet({
           id: p.id,
           display_name: p.display_name,
           avatar_url: p.avatar_url,
-          role: undefined, // Personal groups don't have roles
+          role: undefined,
         })) as Member[];
       }
       
@@ -103,10 +104,8 @@ export function ChatMembersSheet({
       const { data: roles } = await roleQuery;
       if (!roles?.length) return [];
 
-      // Get unique user_ids
       const userIds = [...new Set(roles.map(r => r.user_id))] as string[];
       
-      // Fetch profiles separately - only id and display_name (fast)
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, display_name, avatar_url")
@@ -114,7 +113,6 @@ export function ChatMembersSheet({
 
       const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
       
-      // Build unique members with roles
       const memberMap = new Map<string, Member>();
       for (const r of roles) {
         if (!memberMap.has(r.user_id)) {
@@ -131,12 +129,8 @@ export function ChatMembersSheet({
       return Array.from(memberMap.values());
     },
     enabled: open,
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    staleTime: 1000 * 60 * 5,
   });
-
-  const formatRole = (role: string) => {
-    return role.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-  };
 
   // Deduplicate members by id
   const uniqueMembers = members?.reduce((acc, member) => {
@@ -146,6 +140,59 @@ export function ChatMembersSheet({
     return acc;
   }, [] as Member[]) || [];
 
+  const memberIds = useMemo(() => uniqueMembers.map(m => m.id), [uniqueMembers]);
+
+  // Fetch notification preferences (push messages_enabled) for all members
+  const { data: notifPrefs } = useQuery({
+    queryKey: ["chat-members-notif-prefs", chatType, chatId, memberIds],
+    queryFn: async () => {
+      if (memberIds.length === 0) return {};
+      const { data } = await supabase
+        .from("notification_preferences")
+        .select("user_id, messages_enabled")
+        .in("user_id", memberIds);
+      
+      const map: Record<string, boolean> = {};
+      for (const row of data || []) {
+        map[row.user_id] = row.messages_enabled;
+      }
+      return map;
+    },
+    enabled: open && memberIds.length > 0,
+    staleTime: 1000 * 60 * 2,
+  });
+
+  // Fetch chat mute preferences for this specific chat
+  const { data: mutePrefs } = useQuery({
+    queryKey: ["chat-members-mute-prefs", chatType, chatId, memberIds],
+    queryFn: async () => {
+      if (memberIds.length === 0) return {};
+      const { data } = await supabase
+        .from("chat_mute_preferences")
+        .select("user_id, muted_until")
+        .eq("chat_type", chatType)
+        .eq("chat_id", chatId)
+        .in("user_id", memberIds);
+      
+      const now = new Date();
+      const map: Record<string, boolean> = {};
+      for (const row of data || []) {
+        // Muted if muted_until is null (indefinite) or in the future
+        const isMuted = !row.muted_until || new Date(row.muted_until) > now;
+        if (isMuted) {
+          map[row.user_id] = true;
+        }
+      }
+      return map;
+    },
+    enabled: open && memberIds.length > 0,
+    staleTime: 1000 * 60 * 2,
+  });
+
+  const formatRole = (role: string) => {
+    return role.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+  };
+
   // Check if member count decreased and trigger refresh
   useEffect(() => {
     if (!membersLoading && uniqueMembers.length > 0) {
@@ -153,11 +200,9 @@ export function ChatMembersSheet({
       const previousCount = storedCount ? parseInt(storedCount, 10) : null;
       
       if (previousCount !== null && uniqueMembers.length < previousCount) {
-        // Member count decreased, refetch to ensure we have latest data
         queryClient.invalidateQueries({ queryKey: ["chat-members", chatType, chatId] });
       }
       
-      // Update stored count
       localStorage.setItem(cacheKey, uniqueMembers.length.toString());
       previousCountRef.current = uniqueMembers.length;
     }
@@ -181,7 +226,6 @@ export function ChatMembersSheet({
         </SheetHeader>
         
         <div className="mt-6">
-          {/* Members List */}
           <div>
             <h3 className="text-sm font-medium mb-3">
               Members {uniqueMembers.length > 0 && `(${uniqueMembers.length})`}
@@ -196,31 +240,65 @@ export function ChatMembersSheet({
                   No members found
                 </p>
               ) : (
-                <div className="space-y-2">
-                  {uniqueMembers.map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50"
-                    >
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage src={member.avatar_url || undefined} />
-                        <AvatarFallback>
-                          {member.display_name?.[0]?.toUpperCase() || "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {member.display_name || "Unknown"}
-                        </p>
-                        {member.role && (
-                          <p className="text-xs text-muted-foreground">
-                            {formatRole(member.role)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <TooltipProvider delayDuration={300}>
+                  <div className="space-y-2">
+                    {uniqueMembers.map((member) => {
+                      // Default to true if no preference row exists (new users haven't opted out)
+                      const pushDisabled = notifPrefs && member.id in notifPrefs ? !notifPrefs[member.id] : false;
+                      const chatMuted = mutePrefs?.[member.id] ?? false;
+
+                      return (
+                        <div
+                          key={member.id}
+                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50"
+                        >
+                          <Avatar className="h-9 w-9">
+                            <AvatarImage src={member.avatar_url || undefined} />
+                            <AvatarFallback>
+                              {member.display_name?.[0]?.toUpperCase() || "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {member.display_name || "Unknown"}
+                            </p>
+                            {member.role && (
+                              <p className="text-xs text-muted-foreground">
+                                {formatRole(member.role)}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {pushDisabled && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="p-1 rounded text-destructive/70">
+                                    <BellOff className="h-3.5 w-3.5" />
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="left">
+                                  <p>Push notifications disabled for messages</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                            {chatMuted && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="p-1 rounded text-muted-foreground">
+                                    <VolumeOff className="h-3.5 w-3.5" />
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="left">
+                                  <p>Chat notifications muted</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </TooltipProvider>
               )}
             </ScrollArea>
           </div>
