@@ -1798,18 +1798,18 @@ export default function ManageUsersPage() {
               <label className="text-sm font-medium">
                 Club <span className="text-destructive">*</span>
               </label>
-              <Select value={awardClubId || undefined} onValueChange={setAwardClubId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a club" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allClubs?.map(club => (
-                    <SelectItem key={club.id} value={club.id}>
-                      {club.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select
+                value={awardClubId}
+                onChange={(e) => setAwardClubId(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="">Select a club</option>
+                {allClubs?.map(club => (
+                  <option key={club.id} value={club.id}>
+                    {club.name}
+                  </option>
+                ))}
+              </select>
               <p className="text-xs text-muted-foreground">Points are associated with a club</p>
             </div>
 
