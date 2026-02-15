@@ -257,6 +257,11 @@ export function ChatMembersSheet({
                       const pushDisabled = notifPrefs ? (notifPrefs[member.id] === false) : false;
                       const chatMuted = mutePrefs?.[member.id] ?? false;
 
+                      // Debug logging for Android icon visibility issue
+                      if (pushDisabled || chatMuted) {
+                        console.log('[ChatMembers] Icon state for', member.display_name, ':', { pushDisabled, chatMuted, notifPrefsLoaded: !!notifPrefs, mutePrefsLoaded: !!mutePrefs });
+                      }
+
                       return (
                         <div
                           key={member.id}
@@ -280,14 +285,14 @@ export function ChatMembersSheet({
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             {pushDisabled && (
-                              <div className="p-1 rounded text-destructive/70" title="Push notifications disabled for messages">
-                                <BellOff className="h-3.5 w-3.5" />
-                              </div>
+                              <span style={{ display: "inline-flex", padding: 2, color: "red" }} title="Push notifications disabled for messages">
+                                <BellOff style={{ width: 14, height: 14 }} />
+                              </span>
                             )}
                             {chatMuted && (
-                              <div className="p-1 rounded text-muted-foreground" title="Chat notifications muted">
-                                <VolumeOff className="h-3.5 w-3.5" />
-                              </div>
+                              <span style={{ display: "inline-flex", padding: 2, color: "gray" }} title="Chat notifications muted">
+                                <VolumeOff style={{ width: 14, height: 14 }} />
+                              </span>
                             )}
                           </div>
                         </div>
