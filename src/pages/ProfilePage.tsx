@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { LogOut, Flame, Trophy, Users, Settings, ChevronRight, ChevronDown, Baby, Loader2, Crown, Building2, ShieldCheck, Gift, Plus, CheckCircle2, ClipboardList, Lock, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ export default function ProfilePage() {
   const { user, profile, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const pointsHistoryRef = useRef<HTMLDivElement>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [showAllDuties, setShowAllDuties] = useState(false);
   const [pointsHistoryOpen, setPointsHistoryOpen] = useState(true);
@@ -32,6 +34,16 @@ export default function ProfilePage() {
   
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
   const storedTheme = typeof window !== 'undefined' ? localStorage.getItem('app-theme') : 'light';
+
+  // Auto-scroll to points history when navigated from notification
+  useEffect(() => {
+    if (searchParams.get('section') === 'points-history') {
+      setPointsHistoryOpen(true);
+      setTimeout(() => {
+        pointsHistoryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 300);
+    }
+  }, [searchParams]);
 
   const { data: isAppAdmin } = useQuery({
     queryKey: ["is-app-admin", user?.id],
@@ -564,6 +576,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Points History Section */}
+      <div ref={pointsHistoryRef}>
       {hasProAccess ? (
         <Collapsible open={pointsHistoryOpen} onOpenChange={setPointsHistoryOpen}>
           <Card>
@@ -675,6 +688,7 @@ export default function ProfilePage() {
           </CardHeader>
         </Card>
       )}
+      </div>
 
       {/* Manage Plans Section */}
       {((upgradableClubs && upgradableClubs.length > 0) || (upgradableTeams && upgradableTeams.length > 0)) && (
