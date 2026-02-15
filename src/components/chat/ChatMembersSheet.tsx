@@ -251,6 +251,7 @@ export function ChatMembersSheet({
                 </p>
               ) : (
                 <div className="space-y-2">
+                    {(() => { console.log('[ChatMembers] Rendering members:', uniqueMembers.length, 'notifPrefs:', JSON.stringify(notifPrefs), 'mutePrefs:', JSON.stringify(mutePrefs)); return null; })()}
                     {uniqueMembers.map((member) => {
                       const pushDisabled = notifPrefs ? (notifPrefs[member.id] === false) : false;
                       const chatMuted = mutePrefs?.[member.id] ?? false;
@@ -277,10 +278,10 @@ export function ChatMembersSheet({
                             )}
                           </div>
                           {pushDisabled && (
-                            <span style={{ fontSize: 10, color: "#ef4444", marginLeft: 4, whiteSpace: "nowrap" }}>🔕</span>
+                            <span style={{ fontSize: 16, lineHeight: '16px', marginLeft: 4, flexShrink: 0, display: 'inline-block', width: 20, height: 20, textAlign: 'center' }}>🔕</span>
                           )}
                           {chatMuted && (
-                            <span style={{ fontSize: 10, color: "#6b7280", marginLeft: 2, whiteSpace: "nowrap" }}>🔇</span>
+                            <span style={{ fontSize: 16, lineHeight: '16px', marginLeft: 2, flexShrink: 0, display: 'inline-block', width: 20, height: 20, textAlign: 'center' }}>🔇</span>
                           )}
                         </div>
                       );
