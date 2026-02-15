@@ -245,7 +245,8 @@ export function ChatMembersSheet({
                   <div className="space-y-2">
                     {uniqueMembers.map((member) => {
                       // Show indicator if no preference row exists (never set up) or explicitly disabled
-                      const pushDisabled = notifPrefs ? (!(member.id in notifPrefs) || !notifPrefs[member.id]) : false;
+                      // Users without a notification_preferences row default to enabled
+                      const pushDisabled = notifPrefs ? (member.id in notifPrefs && !notifPrefs[member.id]) : false;
                       const chatMuted = mutePrefs?.[member.id] ?? false;
 
                       return (
