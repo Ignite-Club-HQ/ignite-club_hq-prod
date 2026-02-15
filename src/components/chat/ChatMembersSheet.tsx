@@ -252,8 +252,6 @@ export function ChatMembersSheet({
               ) : (
                 <div className="space-y-2">
                     {uniqueMembers.map((member) => {
-                      // Show indicator if no preference row exists (never set up) or explicitly disabled
-                      // Users without a notification_preferences row default to enabled
                       const pushDisabled = notifPrefs ? (notifPrefs[member.id] === false) : false;
                       const chatMuted = mutePrefs?.[member.id] ?? false;
 
@@ -278,18 +276,12 @@ export function ChatMembersSheet({
                               </p>
                             )}
                           </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            {pushDisabled && (
-                              <div className="p-1 rounded text-destructive/70" title="Push notifications disabled for messages">
-                                <BellOff className="h-3.5 w-3.5" />
-                              </div>
-                            )}
-                            {chatMuted && (
-                              <div className="p-1 rounded text-muted-foreground" title="Chat notifications muted">
-                                <VolumeOff className="h-3.5 w-3.5" />
-                              </div>
-                            )}
-                          </div>
+                          {pushDisabled && (
+                            <span style={{ fontSize: 10, color: "#ef4444", marginLeft: 4, whiteSpace: "nowrap" }}>🔕</span>
+                          )}
+                          {chatMuted && (
+                            <span style={{ fontSize: 10, color: "#6b7280", marginLeft: 2, whiteSpace: "nowrap" }}>🔇</span>
+                          )}
                         </div>
                       );
                     })}
