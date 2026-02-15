@@ -118,6 +118,26 @@ serve(async (req: Request): Promise<Response> => {
     let retriedCount = 0;
     let errorCount = 0;
 
+    // Pre-insert placeholder logs to prevent duplicate retries across runs
+    const missedIds = missedNotifications.map(n => n.id);
+    if (missedIds.length > 0) {
+      const placeholders = missedNotifications.map(n => ({
+        notification_id: n.id,
+        user_id: n.user_id,
+        endpoint: 'retry-placeholder',
+        status: 'sent',
+        status_code: null,
+        error_message: 'Queued by retry-missed-push-notifications',
+      }));
+      const { error: placeholderError } = await supabase
+        .from('push_notification_logs')
+        .insert(placeholders);
+      if (placeholderError) {
+        console.error('[RETRY-PUSH] Failed to insert placeholder logs:', placeholderError);
+        // Continue anyway — better to risk a duplicate than skip entirely
+      }
+    }
+
     // Dispatch each missed notification (sequentially to avoid overloading)
     for (const notif of missedNotifications) {
       try {
