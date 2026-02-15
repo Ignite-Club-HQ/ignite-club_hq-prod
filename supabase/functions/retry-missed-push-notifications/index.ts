@@ -110,6 +110,10 @@ serve(async (req: Request): Promise<Response> => {
         case 'comment_reaction':
         case 'comment_reply':
           return '/media';
+        case 'points_awarded':
+        case 'reward_redeemed':
+        case 'player_of_match':
+          return '/profile?section=points-history';
         default:
           return '/notifications';
       }
