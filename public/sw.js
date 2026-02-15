@@ -213,12 +213,17 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clients) => {
-        // Try to find an existing window and focus it
+        // Try to find an existing window and use postMessage for SPA navigation
         for (const client of clients) {
           if (client.url.startsWith(self.location.origin) && 'focus' in client) {
             return client.focus().then((focusedClient) => {
-              if (focusedClient && 'navigate' in focusedClient) {
-                return focusedClient.navigate(fullUrl);
+              if (focusedClient) {
+                // Use postMessage so React Router handles navigation (no full page reload)
+                focusedClient.postMessage({
+                  type: 'NOTIFICATION_CLICK_NAVIGATE',
+                  url: url,
+                });
+                console.log('[SW v' + SW_VERSION + '] Sent navigate message to client:', url);
               }
               return focusedClient;
             }).catch(() => {
@@ -226,6 +231,7 @@ self.addEventListener('notificationclick', (event) => {
             });
           }
         }
+        // No existing window - open new one
         return self.clients.openWindow(fullUrl);
       })
       .catch((error) => {
