@@ -251,6 +251,7 @@ export function ChatMembersSheet({
                 </p>
               ) : (
                 <div className="space-y-2">
+                    {(() => { console.log('[ChatMembers] Rendering members:', uniqueMembers.length, 'notifPrefs:', JSON.stringify(notifPrefs), 'mutePrefs:', JSON.stringify(mutePrefs)); return null; })()}
                     {uniqueMembers.map((member) => {
                       const pushDisabled = notifPrefs ? (notifPrefs[member.id] === false) : false;
                       const chatMuted = mutePrefs?.[member.id] ?? false;
