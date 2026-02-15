@@ -218,7 +218,19 @@ self.addEventListener('notificationclick', (event) => {
           if (client.url.startsWith(self.location.origin) && 'focus' in client) {
             return client.focus().then((focusedClient) => {
               if (focusedClient) {
-                // Use postMessage so React Router handles navigation (no full page reload)
+                // Write to a broadcast channel AND postMessage as dual delivery
+                // postMessage can be lost if client is resuming from suspension
+                try {
+                  // Use BroadcastChannel as primary - more reliable than postMessage for suspended tabs
+                  const bc = new BroadcastChannel('push-nav');
+                  bc.postMessage({ url: url });
+                  bc.close();
+                  console.log('[SW v' + SW_VERSION + '] Sent navigate via BroadcastChannel:', url);
+                } catch (e) {
+                  console.warn('[SW v' + SW_VERSION + '] BroadcastChannel failed:', e);
+                }
+                
+                // Also send postMessage as backup
                 focusedClient.postMessage({
                   type: 'NOTIFICATION_CLICK_NAVIGATE',
                   url: url,
