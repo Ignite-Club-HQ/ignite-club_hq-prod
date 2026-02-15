@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { usePushSubscriptionHealth } from "@/hooks/usePushSubscriptionHealth";
 import { useMissedNotificationSync } from "@/hooks/useMissedNotificationSync";
@@ -14,9 +15,36 @@ import { isNativePlatform } from "@/lib/nativePush";
 export function PushNotificationManager() {
   // Safely get auth context - component must be inside AuthProvider
   const { user } = useAuth();
+  const navigate = useNavigate();
   
   // Initialize native push for Capacitor apps (no-op on web)
   useNativePush(user?.id);
+  
+  // Listen for SW postMessage navigation (when user taps a web push notification)
+  useEffect(() => {
+    if (isNativePlatform()) return;
+    
+    const handleSWMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'NOTIFICATION_CLICK_NAVIGATE' && event.data?.url) {
+        console.log('[PushManager] SW navigation message received:', event.data.url);
+        try {
+          const url = event.data.url;
+          if (url.startsWith('http://') || url.startsWith('https://')) {
+            const parsed = new URL(url);
+            navigate(parsed.pathname + parsed.search + parsed.hash);
+          } else {
+            navigate(url);
+          }
+        } catch (err) {
+          console.error('[PushManager] Error navigating from SW message:', err);
+          navigate(event.data.url);
+        }
+      }
+    };
+    
+    navigator.serviceWorker?.addEventListener('message', handleSWMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', handleSWMessage);
+  }, [navigate]);
   
   // Clear stale push locks on startup and visibility change (web only)
   useEffect(() => {
