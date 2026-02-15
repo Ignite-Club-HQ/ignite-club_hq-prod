@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Shield, Trash2, Search, Loader2, Users, AlertTriangle, UserPlus, UserMinus, X, Filter, History, UserX, UserCheck, Download, Mail } from "lucide-react";
+import { ArrowLeft, Shield, Trash2, Search, Loader2, Users, AlertTriangle, UserPlus, UserMinus, X, Filter, History, UserX, UserCheck, Download, Mail, Flame } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,6 +51,7 @@ import { GenerateDemoDataButton } from "@/components/GenerateDemoDataButton";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { invalidateRolesCache } from "@/lib/rolesCache";
+import { recordPointsHistory } from "@/lib/pointsHistory";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -93,6 +94,12 @@ export default function ManageUsersPage() {
   const [bulkClubId, setBulkClubId] = useState<string>("");
   const [bulkTeamId, setBulkTeamId] = useState<string>("");
   
+  // Award points state
+  const [awardPointsTarget, setAwardPointsTarget] = useState<{ id: string; name: string } | null>(null);
+  const [awardPoints, setAwardPoints] = useState(10);
+  const [awardReason, setAwardReason] = useState("");
+  const [awardClubId, setAwardClubId] = useState<string>("");
+
   // App Admins tab state
   const [adminSearchQuery, setAdminSearchQuery] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -521,6 +528,83 @@ export default function ManageUsersPage() {
         description: error.message,
         variant: "destructive" 
       });
+    },
+  });
+
+  const awardPointsMutation = useMutation({
+    mutationFn: async ({ userId, userName, points, reason, clubId }: {
+      userId: string;
+      userName: string;
+      points: number;
+      reason: string;
+      clubId: string;
+    }) => {
+      // Get current points
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("ignite_points")
+        .eq("id", userId)
+        .single();
+      if (profileError) throw profileError;
+
+      const currentPoints = profile?.ignite_points || 0;
+      const newPoints = Math.max(0, currentPoints + points);
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ ignite_points: newPoints })
+        .eq("id", userId);
+      if (updateError) throw updateError;
+
+      const clubName = allClubs?.find(c => c.id === clubId)?.name || "Admin";
+
+      await recordPointsHistory({
+        userId,
+        clubId,
+        amount: points,
+        balanceAfter: newPoints,
+        sourceType: 'admin_award',
+        description: reason || (points > 0 ? 'Points awarded by admin' : 'Points adjustment by admin'),
+        createdBy: user?.id,
+      });
+
+      const pointsText = points > 0 ? `+${points}` : `${points}`;
+      await supabase.from("notifications").insert({
+        user_id: userId,
+        type: "points_awarded",
+        message: reason
+          ? `You received ${pointsText} Ignite points from ${clubName}: "${reason}"`
+          : `You received ${pointsText} Ignite points from ${clubName}`,
+        related_id: clubId,
+      });
+
+      try {
+        await supabase.functions.invoke('send-points-notification-email', {
+          body: {
+            recipientUserId: userId,
+            pointsAwarded: points,
+            reason: reason || (points > 0 ? 'Points awarded by admin' : 'Points adjustment'),
+            totalPoints: newPoints,
+            clubName,
+            rewardUnlocked: false,
+          },
+        });
+      } catch (e) {
+        console.error("Failed to send points email:", e);
+      }
+    },
+    onSuccess: () => {
+      toast({
+        title: awardPoints > 0 ? "Points Awarded!" : "Points Deducted",
+        description: `${awardPoints > 0 ? "+" : ""}${awardPoints} points ${awardPoints > 0 ? "awarded to" : "deducted from"} ${awardPointsTarget?.name}`,
+      });
+      setAwardPointsTarget(null);
+      setAwardPoints(10);
+      setAwardReason("");
+      setAwardClubId("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update points", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1198,6 +1282,15 @@ export default function ManageUsersPage() {
                         variant="ghost" 
                         size="icon" 
                         className="h-8 w-8 shrink-0"
+                        title="Award Points"
+                        onClick={() => setAwardPointsTarget({ id: profile.id, name: profile.display_name || "Unknown User" })}
+                      >
+                        <Flame className="h-4 w-4 text-amber-500" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 shrink-0"
                         onClick={() => setDeleteTarget({ id: profile.id, name: profile.display_name || "Unknown User" })}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
@@ -1679,6 +1772,117 @@ export default function ManageUsersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Award Points Dialog */}
+      <ResponsiveDialog open={!!awardPointsTarget} onOpenChange={(open) => {
+        if (!open) {
+          setAwardPointsTarget(null);
+          setAwardPoints(10);
+          setAwardReason("");
+          setAwardClubId("");
+        }
+      }}>
+        <ResponsiveDialogContent>
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle className="flex items-center gap-2">
+              <Flame className="h-5 w-5 text-amber-500" />
+              Award Points
+            </ResponsiveDialogTitle>
+            <ResponsiveDialogDescription>
+              Award or deduct Ignite points for {awardPointsTarget?.name}
+            </ResponsiveDialogDescription>
+          </ResponsiveDialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Club <span className="text-destructive">*</span>
+              </label>
+              <Select value={awardClubId || undefined} onValueChange={setAwardClubId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a club" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allClubs?.map(club => (
+                    <SelectItem key={club.id} value={club.id}>
+                      {club.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Points are associated with a club</p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Points to Award/Deduct</label>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setAwardPoints(Math.max(-100, awardPoints - 5))}
+                >
+                  <UserMinus className="h-4 w-4" />
+                </Button>
+                <Input
+                  type="number"
+                  value={awardPoints}
+                  onChange={(e) => setAwardPoints(parseInt(e.target.value) || 0)}
+                  className="text-center text-lg font-bold"
+                  min={-100}
+                  max={100}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setAwardPoints(Math.min(100, awardPoints + 5))}
+                >
+                  <UserPlus className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                Use negative values to deduct points
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Reason (optional)</label>
+              <Input
+                placeholder="e.g., Extra help at training"
+                value={awardReason}
+                onChange={(e) => setAwardReason(e.target.value)}
+                maxLength={200}
+              />
+            </div>
+          </div>
+
+          <ResponsiveDialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setAwardPointsTarget(null)} className="w-full sm:w-auto">
+              Cancel
+            </Button>
+            <Button
+              className="w-full sm:w-auto"
+              disabled={!awardClubId || awardPoints === 0 || awardPointsMutation.isPending}
+              onClick={() => {
+                if (!awardPointsTarget || !awardClubId) return;
+                awardPointsMutation.mutate({
+                  userId: awardPointsTarget.id,
+                  userName: awardPointsTarget.name,
+                  points: awardPoints,
+                  reason: awardReason,
+                  clubId: awardClubId,
+                });
+              }}
+            >
+              {awardPointsMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              {awardPoints > 0 ? `Award +${awardPoints} Points` : `Deduct ${awardPoints} Points`}
+            </Button>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </div>
   );
 }

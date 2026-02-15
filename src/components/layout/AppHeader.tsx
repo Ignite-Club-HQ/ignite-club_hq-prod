@@ -248,7 +248,7 @@ function LogoClubThemeDropdown() {
 export function AppHeader() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { profile, unreadCount, user } = useAuth();
+  const { profile, unreadCount, user, clearUnreadCount, refreshUnreadCount } = useAuth();
   const { activeThemeData, activeClubTheme } = useClubTheme();
   const { setTheme, theme, resolvedTheme } = useTheme();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -428,11 +428,16 @@ export function AppHeader() {
         .eq("user_id", user.id);
       if (error) throw error;
     },
+    onMutate: () => {
+      // Optimistically clear the badge immediately
+      clearUnreadCount();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
       queryClient.invalidateQueries({ queryKey: ["unread-count"] });
       setNotificationsOpen(false);
+      refreshUnreadCount();
     },
   });
 
