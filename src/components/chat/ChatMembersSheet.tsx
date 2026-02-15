@@ -153,9 +153,18 @@ export function ChatMembersSheet({
       
       if (error) console.error("[ChatMembers] notif prefs RPC error:", error);
       
+      // Build map: true = enabled, false = disabled, missing = no prefs row
       const map: Record<string, boolean> = {};
+      const returnedIds = new Set<string>();
       for (const row of data || []) {
         map[row.user_id] = row.messages_enabled;
+        returnedIds.add(row.user_id);
+      }
+      // Members with NO notification_preferences row → treat as not configured (disabled)
+      for (const id of memberIds) {
+        if (!returnedIds.has(id)) {
+          map[id] = false;
+        }
       }
       return map;
     },
@@ -246,7 +255,7 @@ export function ChatMembersSheet({
                     {uniqueMembers.map((member) => {
                       // Show indicator if no preference row exists (never set up) or explicitly disabled
                       // Users without a notification_preferences row default to enabled
-                      const pushDisabled = notifPrefs ? (member.id in notifPrefs && !notifPrefs[member.id]) : false;
+                      const pushDisabled = notifPrefs ? (notifPrefs[member.id] === false) : false;
                       const chatMuted = mutePrefs?.[member.id] ?? false;
 
                       return (
