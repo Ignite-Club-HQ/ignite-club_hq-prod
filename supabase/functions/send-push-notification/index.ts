@@ -587,6 +587,10 @@ serve(async (req) => {
     if (!subscriptions || subscriptions.length === 0) {
       console.log(`[PUSH] No web push subscriptions found for user ${userId}`);
       const fcmResult = await fcmPromise;
+      
+      // Log that we processed this notification (so retry-missed doesn't re-dispatch)
+      await logDeliveryStatus(supabase, notificationId, userId, 'fcm-only', fcmResult.sent > 0 ? 'sent' : 'skipped', null, fcmResult.sent > 0 ? null : 'No web push subs, FCM handled');
+      
       return new Response(
         JSON.stringify({ 
           message: 'Push notifications processed',
