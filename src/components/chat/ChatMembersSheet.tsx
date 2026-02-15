@@ -278,10 +278,10 @@ export function ChatMembersSheet({
                             )}
                           </div>
                           {pushDisabled && (
-                            <span style={{ fontSize: 16, lineHeight: '16px', marginLeft: 4, flexShrink: 0, display: 'inline-block', width: 20, height: 20, textAlign: 'center' }}>🔕</span>
+                            <span style={{ fontSize: 10, lineHeight: '14px', marginLeft: 4, flexShrink: 0, padding: '2px 6px', borderRadius: 4, backgroundColor: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>Push off</span>
                           )}
                           {chatMuted && (
-                            <span style={{ fontSize: 16, lineHeight: '16px', marginLeft: 2, flexShrink: 0, display: 'inline-block', width: 20, height: 20, textAlign: 'center' }}>🔇</span>
+                            <span style={{ fontSize: 10, lineHeight: '14px', marginLeft: 2, flexShrink: 0, padding: '2px 6px', borderRadius: 4, backgroundColor: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>Muted</span>
                           )}
                         </div>
                       );
