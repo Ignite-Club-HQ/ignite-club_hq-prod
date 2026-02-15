@@ -27,14 +27,14 @@ serve(async (req: Request): Promise<Response> => {
 
     // Look for notifications from the last 5 minutes that have no push log entry
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    // Don't retry very recent ones (< 30s) — give pg_net time to process
-    const thirtySecAgo = new Date(Date.now() - 30 * 1000).toISOString();
+    // Don't retry very recent ones (< 10s) — give pg_net time to process
+    const tenSecAgo = new Date(Date.now() - 10 * 1000).toISOString();
 
     const { data: recentNotifications, error: notifError } = await supabase
       .from('notifications')
       .select('id, user_id, type, message, related_id')
       .gte('created_at', fiveMinAgo)
-      .lte('created_at', thirtySecAgo)
+      .lte('created_at', tenSecAgo)
       .order('created_at', { ascending: false })
       .limit(50);
 

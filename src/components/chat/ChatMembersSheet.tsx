@@ -6,7 +6,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, Loader2, BellOff, VolumeOff } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 interface ChatMembersSheetProps {
   chatType: "team" | "club" | "group";
@@ -250,8 +250,7 @@ export function ChatMembersSheet({
                   No members found
                 </p>
               ) : (
-                <TooltipProvider delayDuration={300}>
-                  <div className="space-y-2">
+                <div className="space-y-2">
                     {uniqueMembers.map((member) => {
                       // Show indicator if no preference row exists (never set up) or explicitly disabled
                       // Users without a notification_preferences row default to enabled
@@ -281,35 +280,20 @@ export function ChatMembersSheet({
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             {pushDisabled && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="p-1 rounded text-destructive/70">
-                                    <BellOff className="h-3.5 w-3.5" />
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent side="left">
-                                  <p>Push notifications disabled for messages</p>
-                                </TooltipContent>
-                              </Tooltip>
+                              <div className="p-1 rounded text-destructive/70" title="Push notifications disabled for messages">
+                                <BellOff className="h-3.5 w-3.5" />
+                              </div>
                             )}
                             {chatMuted && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="p-1 rounded text-muted-foreground">
-                                    <VolumeOff className="h-3.5 w-3.5" />
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent side="left">
-                                  <p>Chat notifications muted</p>
-                                </TooltipContent>
-                              </Tooltip>
+                              <div className="p-1 rounded text-muted-foreground" title="Chat notifications muted">
+                                <VolumeOff className="h-3.5 w-3.5" />
+                              </div>
                             )}
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                </TooltipProvider>
               )}
             </ScrollArea>
           </div>
