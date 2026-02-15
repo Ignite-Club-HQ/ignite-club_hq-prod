@@ -276,15 +276,11 @@ export function ChatMembersSheet({
                               </p>
                             )}
                           </div>
-                          {(pushDisabled || chatMuted) && (
-                            <div className="flex items-center gap-1 shrink-0">
-                              {pushDisabled && (
-                                <BellOff size={14} color="red" />
-                              )}
-                              {chatMuted && (
-                                <VolumeOff size={14} color="gray" />
-                              )}
-                            </div>
+                          {pushDisabled && (
+                            <span style={{ fontSize: 10, color: "#ef4444", marginLeft: 4, whiteSpace: "nowrap" }}>🔕</span>
+                          )}
+                          {chatMuted && (
+                            <span style={{ fontSize: 10, color: "#6b7280", marginLeft: 2, whiteSpace: "nowrap" }}>🔇</span>
                           )}
                         </div>
                       );
