@@ -717,6 +717,7 @@ export default function DirectMessagePage() {
                       currentUserId={user?.id}
                       messageType="dm"
                       readCount={readCounts[msg.id] || 0}
+                      readerName={msg.author_id === user?.id ? (otherUser?.display_name || null) : null}
                       queryKey={["dm-messages", conversationId]}
                       replyToMessage={
                         msg.reply_to

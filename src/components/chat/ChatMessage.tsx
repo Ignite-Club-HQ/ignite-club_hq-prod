@@ -48,6 +48,7 @@ export interface ChatMessageProps {
   onReply?: (message: { id: string; text: string; authorName: string | null }) => void;
   searchQuery?: string;
   readCount?: number;
+  readerName?: string | null;
   isPending?: boolean;
   isSystemMessage?: boolean;
 }
@@ -70,6 +71,7 @@ export const ChatMessage = memo(function ChatMessage({
   onReply,
   searchQuery,
   readCount = 0,
+  readerName,
   isPending = false,
   isSystemMessage = false,
 }: ChatMessageProps) {
@@ -576,7 +578,7 @@ export const ChatMessage = memo(function ChatMessage({
             </span>
           )}
           {timestamp}
-          {!isPending && <MessageReadIndicator readCount={readCount} isOwn={isOwn} />}
+          {!isPending && <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />}
         </p>
       </div>
     </div>
