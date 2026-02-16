@@ -60,14 +60,14 @@ const PRO_FOOTBALL_FEATURES = [
 // Club pricing in AUD
 const CLUB_PRICING = {
   pro: {
-    starter: { monthly: 99, teamLimit: 10 },
-    standard: { monthly: 149, teamLimit: 20 },
-    unlimited: { monthly: 155, teamLimit: null },
+    starter: { monthly: 89.99, annual: 949.99, teamLimit: 10 },
+    standard: { monthly: 149.99, annual: 1449.99, teamLimit: 20 },
+    unlimited: { monthly: 199, annual: null, teamLimit: null },
   },
   proFootball: {
-    starter: { monthly: 149, teamLimit: 10 },
-    standard: { monthly: 229, teamLimit: 20 },
-    unlimited: { monthly: 299, teamLimit: null },
+    starter: { monthly: 149, annual: null, teamLimit: 10 },
+    standard: { monthly: 229.99, annual: null, teamLimit: 20 },
+    unlimited: { monthly: 299, annual: null, teamLimit: null },
   },
 };
 
@@ -846,8 +846,8 @@ export default function ClubUpgradePage() {
     const effectiveIsAnnual = annualDisabled ? false : isAnnual;
 
     const monthlyPrice = pricing[plan].monthly;
-    const annualPrice = Math.round(monthlyPrice * 12 * 0.8);
-    const annualSavings = Math.round(monthlyPrice * 12 - annualPrice);
+    const annualPrice = pricing[plan].annual;
+    const annualSavings = annualPrice ? Math.round(monthlyPrice * 12 - annualPrice) : 0;
 
     return (
       <>

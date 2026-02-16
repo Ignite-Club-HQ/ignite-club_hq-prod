@@ -50,12 +50,12 @@ const PRO_FOOTBALL_FEATURES = [
 // Pricing in AUD
 const PRICING = {
   pro: {
-    monthly: 25,
-    annual: 240, // 20% off ($25 * 12 * 0.8)
+    monthly: 24.99,
+    annual: 239,
   },
   proFootball: {
-    monthly: 40,
-    annual: 384, // 20% off ($40 * 12 * 0.8)
+    monthly: 39.99,
+    annual: 379.99,
   },
 };
 
