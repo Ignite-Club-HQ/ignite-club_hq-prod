@@ -796,7 +796,7 @@ export default function GroupChatPage() {
         },
         (payload) => {
           const deletedReaction = payload.old as any;
-          if (!deletedReaction.group_message_id) return;
+          if (!deletedReaction.id) return;
           queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
             if (!old) return { messages: [], reactions: [] };
             return { ...old, reactions: old.reactions.filter(r => r.id !== deletedReaction.id) };
