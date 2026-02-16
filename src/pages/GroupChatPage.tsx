@@ -1352,7 +1352,13 @@ export default function GroupChatPage() {
                       
                       {/* Read indicator */}
                       {isOwnMessage && index === arr.length - 1 ? (
-                        <MessageReadAvatars readers={readFrontier[msg.id] || []} isOwn={true} />
+                        (readFrontier[msg.id] || []).length > 0 ? (
+                          <MessageReadAvatars readers={readFrontier[msg.id]} isOwn={true} />
+                        ) : (
+                          <div className="mt-0.5">
+                            <span className="text-[10px] text-muted-foreground">Sent</span>
+                          </div>
+                        )
                       ) : isOwnMessage ? (
                         <div className="mt-0.5">
                           <span className="text-[10px] text-muted-foreground">
