@@ -6,6 +6,7 @@ workflows:
     environment:
       groups:
         - android_signing
+        - google_play
       java: 21
       node: 22
     scripts:
@@ -151,7 +152,11 @@ workflows:
           ./gradlew bundleRelease
     artifacts:
       - android/app/build/outputs/**/*.aab
-
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: true
 
   ios-debug-workflow:
     name: iOS Debug Build
