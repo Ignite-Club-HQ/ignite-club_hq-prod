@@ -4,22 +4,23 @@ import { supabase } from "@/integrations/supabase/client";
 
 type MessageType = "team" | "club" | "group" | "broadcast" | "dm";
 
+export interface ReaderInfo {
+  user_id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
 const getMessageIdField = (type: MessageType) => {
   switch (type) {
-    case "team":
-      return "team_message_id";
-    case "club":
-      return "club_message_id";
-    case "group":
-      return "group_message_id";
-    case "broadcast":
-      return "broadcast_message_id";
-    case "dm":
-      return "direct_message_id";
+    case "team": return "team_message_id";
+    case "club": return "club_message_id";
+    case "group": return "group_message_id";
+    case "broadcast": return "broadcast_message_id";
+    case "dm": return "direct_message_id";
   }
 };
 
-// Debounce delay in ms - increased for better batching
+// Debounce delay in ms
 const DEBOUNCE_DELAY = 1000;
 
 // Session-level cache for messages already marked as read by current user
@@ -50,9 +51,49 @@ function setReadCountsToCache(contextId: string, counts: Record<string, number>)
       `${READ_COUNTS_CACHE_KEY}_${contextId}`,
       JSON.stringify({ data: counts, timestamp: Date.now() })
     );
-  } catch {
-    // Ignore storage errors
+  } catch {}
+}
+
+/**
+ * Compute read frontier: for each reader, find the latest message they've read
+ * (based on message order in the messageIds array).
+ * Returns a map: messageId -> array of readers whose frontier is that message.
+ */
+function computeReadFrontier(
+  readersByMessage: Record<string, ReaderInfo[]>,
+  messageIds: string[],
+  currentUserId?: string
+): Record<string, ReaderInfo[]> {
+  // Build messageId -> index map for ordering
+  const messageIndexMap = new Map<string, number>();
+  messageIds.forEach((id, idx) => messageIndexMap.set(id, idx));
+
+  // For each reader, find the highest-index message they've read
+  const readerFrontier = new Map<string, { messageId: string; index: number; info: ReaderInfo }>();
+
+  for (const [msgId, readers] of Object.entries(readersByMessage)) {
+    const msgIndex = messageIndexMap.get(msgId);
+    if (msgIndex === undefined) continue;
+
+    for (const reader of readers) {
+      // Skip current user's own reads
+      if (reader.user_id === currentUserId) continue;
+
+      const existing = readerFrontier.get(reader.user_id);
+      if (!existing || msgIndex > existing.index) {
+        readerFrontier.set(reader.user_id, { messageId: msgId, index: msgIndex, info: reader });
+      }
+    }
   }
+
+  // Group by frontier messageId
+  const frontier: Record<string, ReaderInfo[]> = {};
+  for (const { messageId, info } of readerFrontier.values()) {
+    if (!frontier[messageId]) frontier[messageId] = [];
+    frontier[messageId].push(info);
+  }
+
+  return frontier;
 }
 
 export function useMessageReads(
@@ -63,42 +104,46 @@ export function useMessageReads(
 ) {
   const messageIdField = getMessageIdField(messageType);
 
-  // Local state for read counts - updated directly from realtime, no refetch
-  const [readCounts, setReadCounts] = useState<Record<string, number>>(() => 
+  const [readCounts, setReadCounts] = useState<Record<string, number>>(() =>
     getReadCountsFromCache(contextId) || {}
   );
 
-  // Debounce queue for batching reads
+  // Track per-message readers (userId -> profile info)
+  const [readersByMessage, setReadersByMessage] = useState<Record<string, ReaderInfo[]>>({});
+
+  // Computed read frontier
+  const readFrontier = useMemo(
+    () => computeReadFrontier(readersByMessage, messageIds, currentUserId),
+    [readersByMessage, messageIds, currentUserId]
+  );
+
   const pendingReadsRef = useRef<Set<string>>(new Set());
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
-  // Track message IDs as a Set for O(1) lookups
   const messageIdsSetRef = useRef<Set<string>>(new Set());
-  
+
   useEffect(() => {
     messageIdsSetRef.current = new Set(messageIds);
   }, [messageIds]);
 
-  // Stable key for initial fetch - only fetch when message list significantly changes
   const messageIdsKey = useMemo(() => {
     if (messageIds.length === 0) return "";
     return `${messageIds.length}:${messageIds[0]}:${messageIds[messageIds.length - 1]}`;
   }, [messageIds]);
 
-  // Fetch initial read counts once when messages load
+  // Fetch initial read counts and reader profiles
   useEffect(() => {
     if (messageIds.length === 0) return;
 
-    // Use cache as optimistic initial state, but ALWAYS fetch fresh data
     const cached = getReadCountsFromCache(contextId);
     if (cached) {
       setReadCounts(prev => ({ ...prev, ...cached }));
     }
 
     const fetchReadCounts = async () => {
+      // Fetch reads with profile info via a join
       const { data, error } = await supabase
         .from("message_reads")
-        .select(`${messageIdField}, user_id`)
+        .select(`${messageIdField}, user_id, profiles:user_id(display_name, avatar_url)`)
         .in(messageIdField, messageIds);
 
       if (error) {
@@ -106,23 +151,30 @@ export function useMessageReads(
         return;
       }
 
-      const readers: Record<string, Set<string>> = {};
+      const readers: Record<string, Map<string, ReaderInfo>> = {};
       for (const read of data || []) {
         const msgId = (read as any)[messageIdField] as string | null;
         const userId = (read as any).user_id as string;
+        const profile = (read as any).profiles as { display_name: string | null; avatar_url: string | null } | null;
         if (!msgId) continue;
-        if (!readers[msgId]) readers[msgId] = new Set();
-        readers[msgId].add(userId);
-        
-        // Track that current user has already read these messages
+
+        if (!readers[msgId]) readers[msgId] = new Map();
+        readers[msgId].set(userId, {
+          user_id: userId,
+          display_name: profile?.display_name || null,
+          avatar_url: profile?.avatar_url || null,
+        });
+
         if (currentUserId && userId === currentUserId) {
           markedAsReadCache.add(`${messageType}:${msgId}`);
         }
       }
 
       const counts: Record<string, number> = {};
-      for (const [msgId, readerSet] of Object.entries(readers)) {
-        counts[msgId] = readerSet.size;
+      const readersMap: Record<string, ReaderInfo[]> = {};
+      for (const [msgId, readerMap] of Object.entries(readers)) {
+        counts[msgId] = readerMap.size;
+        readersMap[msgId] = Array.from(readerMap.values());
       }
 
       setReadCounts((prev) => {
@@ -130,6 +182,7 @@ export function useMessageReads(
         setReadCountsToCache(contextId, updated);
         return updated;
       });
+      setReadersByMessage(readersMap);
     };
 
     fetchReadCounts();
@@ -145,16 +198,13 @@ export function useMessageReads(
         [messageIdField]: messageId,
       }));
 
-      // Use insert with conflict handling - partial unique indexes require explicit handling
       for (const row of rows) {
         const { error } = await supabase.from("message_reads").insert(row as any);
-        // Ignore duplicate key errors (23505 is unique_violation)
         if (error && !error.message.includes("duplicate") && error.code !== "23505") {
           console.error("Error marking message as read:", error);
         }
       }
     },
-    // Optimistic update - increment counts immediately
     onMutate: (ids: string[]) => {
       if (!currentUserId) return;
       setReadCounts((prev) => {
@@ -168,50 +218,38 @@ export function useMessageReads(
     },
   });
 
-  // Flush pending reads - sends all queued message IDs at once
   const flushPendingReads = useCallback(() => {
     if (pendingReadsRef.current.size === 0 || !currentUserId) return;
-    
     const idsToMark = Array.from(pendingReadsRef.current);
     pendingReadsRef.current.clear();
     markAsReadMutation.mutate(idsToMark);
   }, [currentUserId, markAsReadMutation]);
 
-  // Debounced mark as read - queues IDs and flushes after delay
   const markMessagesAsRead = useCallback(
     (visibleMessageIds: string[]) => {
       if (!currentUserId || visibleMessageIds.length === 0) return;
-      
-      // Filter out messages already marked as read by this user
       const newIds = visibleMessageIds.filter(
         id => !markedAsReadCache.has(`${messageType}:${id}`)
       );
-      
       if (newIds.length === 0) return;
-      
-      // Add to pending queue and mark in cache
+
       for (const id of newIds) {
         pendingReadsRef.current.add(id);
         markedAsReadCache.add(`${messageType}:${id}`);
       }
-      
-      // Clear existing timer
+
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      
-      // Set new debounce timer
       debounceTimerRef.current = setTimeout(flushPendingReads, DEBOUNCE_DELAY);
     },
     [currentUserId, messageType, flushPendingReads]
   );
 
-  // Cleanup timer on unmount
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
-        // Flush any pending reads on unmount
         if (pendingReadsRef.current.size > 0 && currentUserId) {
           flushPendingReads();
         }
@@ -219,7 +257,7 @@ export function useMessageReads(
     };
   }, [currentUserId, flushPendingReads]);
 
-  // Realtime: update counts directly from payload, no refetch
+  // Realtime: update counts and reader info from payload
   useEffect(() => {
     if (messageIds.length === 0) return;
 
@@ -232,20 +270,40 @@ export function useMessageReads(
           schema: "public",
           table: "message_reads",
         },
-        (payload) => {
+        async (payload) => {
           const newRead = payload.new as Record<string, any>;
           const msgId = newRead[messageIdField] as string | null;
+          const userId = newRead.user_id as string;
           if (!msgId || !messageIdsSetRef.current.has(msgId)) return;
 
-          // Increment count directly in state
+          // Increment count
           setReadCounts((prev) => {
-            const updated = {
-              ...prev,
-              [msgId]: (prev[msgId] || 0) + 1,
-            };
+            const updated = { ...prev, [msgId]: (prev[msgId] || 0) + 1 };
             setReadCountsToCache(contextId, updated);
             return updated;
           });
+
+          // Fetch the reader's profile for avatar display
+          if (userId !== currentUserId) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("display_name, avatar_url")
+              .eq("id", userId)
+              .maybeSingle();
+
+            setReadersByMessage((prev) => {
+              const existing = prev[msgId] || [];
+              if (existing.some(r => r.user_id === userId)) return prev;
+              return {
+                ...prev,
+                [msgId]: [...existing, {
+                  user_id: userId,
+                  display_name: profile?.display_name || null,
+                  avatar_url: profile?.avatar_url || null,
+                }],
+              };
+            });
+          }
         }
       )
       .subscribe();
@@ -253,10 +311,11 @@ export function useMessageReads(
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [messageType, contextId, messageIdField, messageIdsKey]);
+  }, [messageType, contextId, messageIdField, messageIdsKey, currentUserId]);
 
   return {
     readCounts,
+    readFrontier,
     markMessagesAsRead,
   };
 }

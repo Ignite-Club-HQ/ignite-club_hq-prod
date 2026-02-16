@@ -923,7 +923,7 @@ export default function TeamChatPage() {
   );
 
   // Read tracking
-  const { readCounts, markMessagesAsRead } = useMessageReads(
+  const { readFrontier, markMessagesAsRead } = useMessageReads(
     "team",
     teamId || "",
     messageIds,
@@ -1066,7 +1066,7 @@ export default function TeamChatPage() {
                         }
                         onReply={handleReply}
                         searchQuery={searchQuery}
-                        readCount={readCounts[msg.id] || 0}
+                        readFrontierReaders={readFrontier[msg.id] || []}
                         isPending={msg.id.startsWith("queued-")}
                       />
                     </div>

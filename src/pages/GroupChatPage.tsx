@@ -29,7 +29,7 @@ import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { useMessageReads } from "@/hooks/useMessageReads";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
-import { MessageReadIndicator } from "@/components/chat/MessageReadIndicator";
+import { MessageReadAvatars } from "@/components/chat/MessageReadAvatars";
 import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCache } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages, removeMessageFromCache } from "@/lib/messageCache";
@@ -1178,7 +1178,7 @@ export default function GroupChatPage() {
   );
 
   // Read tracking
-  const { readCounts, markMessagesAsRead } = useMessageReads(
+  const { readFrontier, markMessagesAsRead } = useMessageReads(
     "group",
     groupId || "",
     messageIds,
@@ -1350,11 +1350,9 @@ export default function GroupChatPage() {
                         <MessageContent text={msg.text} />
                       </div>
                       
-                      {/* Read indicator for own messages */}
+                      {/* Read avatars - Messenger style */}
                       {isOwnMessage && (
-                        <div className="mt-1">
-                          <MessageReadIndicator isOwn={true} readCount={readCounts[msg.id] || 0} />
-                        </div>
+                        <MessageReadAvatars readers={readFrontier[msg.id] || []} isOwn={true} />
                       )}
                       
                       {/* Reactions */}
