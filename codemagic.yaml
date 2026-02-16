@@ -152,11 +152,6 @@ workflows:
           ./gradlew bundleRelease
     artifacts:
       - android/app/build/outputs/**/*.aab
-    publishing:
-      email:
-        notify:
-          success: false
-          failure: true
 
   ios-debug-workflow:
     name: iOS Debug Build
