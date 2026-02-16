@@ -69,6 +69,26 @@ export function initDeepLinkHandler() {
       } else {
         // Not an OAuth callback, handle as regular deep link navigation
         const path = url.pathname;
+        const fullSearch = url.search;
+        
+        // Check for Google Drive OAuth callback (code param on /vault path)
+        if (path === '/vault' && searchParams.get('code')) {
+          const driveCode = searchParams.get('code');
+          console.log('[DeepLink] Google Drive OAuth code detected, saving for VaultPage');
+          sessionStorage.setItem('googleDriveOAuthCode', driveCode!);
+          window.location.href = '/vault';
+          return;
+        }
+        
+        // Check for Google Drive OAuth error
+        if (path === '/vault' && searchParams.get('error')) {
+          const driveError = searchParams.get('error');
+          console.log('[DeepLink] Google Drive OAuth error:', driveError);
+          sessionStorage.setItem('googleDriveOAuthError', driveError!);
+          window.location.href = '/vault';
+          return;
+        }
+        
         if (path && path !== '/') {
           console.log('[DeepLink] Navigating to path:', path);
           window.location.href = path;
