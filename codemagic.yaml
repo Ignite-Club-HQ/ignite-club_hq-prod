@@ -6,7 +6,6 @@ workflows:
     environment:
       groups:
         - android_signing
-        - google_play
       java: 21
       node: 22
     scripts:
