@@ -14,17 +14,17 @@ export const MessageReadAvatars = memo(function MessageReadAvatars({
   if (readers.length === 0) return null;
 
   return (
-    <div className={`flex items-center gap-0.5 mt-0.5 ${isOwn ? "justify-end" : ""}`}>
+    <div className={`flex items-center gap-1 mt-1 ${isOwn ? "justify-end" : ""}`}>
       {readers.slice(0, 5).map((reader) => (
-        <Avatar key={reader.user_id} className="h-4 w-4" title={reader.display_name || undefined}>
+        <Avatar key={reader.user_id} className="h-5 w-5" title={reader.display_name || undefined}>
           <AvatarImage src={reader.avatar_url || undefined} />
-          <AvatarFallback className="text-[8px] bg-muted text-muted-foreground">
+          <AvatarFallback className="text-[9px] bg-muted text-muted-foreground">
             {(reader.display_name || "?").charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
       ))}
       {readers.length > 5 && (
-        <span className="text-[9px] text-muted-foreground ml-0.5">
+        <span className="text-[10px] text-muted-foreground ml-0.5">
           +{readers.length - 5}
         </span>
       )}
