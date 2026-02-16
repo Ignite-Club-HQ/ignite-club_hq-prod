@@ -152,7 +152,6 @@ workflows:
           ./gradlew bundleRelease
     artifacts:
       - android/app/build/outputs/**/*.aab
-
   ios-debug-workflow:
     name: iOS Debug Build
     max_build_duration: 60
