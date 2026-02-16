@@ -60,13 +60,13 @@ const PRO_FOOTBALL_FEATURES = [
 // Club pricing in AUD
 const CLUB_PRICING = {
   pro: {
-    starter: { monthly: 99, teamLimit: 10 },
-    standard: { monthly: 149, teamLimit: 20 },
-    unlimited: { monthly: 155, teamLimit: null },
+    starter: { monthly: 89.99, teamLimit: 10 },
+    standard: { monthly: 149.99, teamLimit: 20 },
+    unlimited: { monthly: 199, teamLimit: null },
   },
   proFootball: {
     starter: { monthly: 149, teamLimit: 10 },
-    standard: { monthly: 229, teamLimit: 20 },
+    standard: { monthly: 229.99, teamLimit: 20 },
     unlimited: { monthly: 299, teamLimit: null },
   },
 };

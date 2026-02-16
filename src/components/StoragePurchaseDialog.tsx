@@ -28,8 +28,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const STORAGE_PACKS = [
-  { id: '10gb', gb: 10, priceMonthly: 2, priceAnnual: 20, popular: false },
-  { id: '50gb', gb: 50, priceMonthly: 10, priceAnnual: 100, popular: true },
+  { id: '10gb', gb: 10, priceMonthly: 4.99, priceAnnual: 49.99, popular: false },
+  { id: '50gb', gb: 50, priceMonthly: 14.99, priceAnnual: 149.99, popular: true },
 ];
 
 interface StoragePurchaseDialogProps {
