@@ -1178,7 +1178,7 @@ export default function GroupChatPage() {
   );
 
   // Read tracking
-  const { readFrontier, markMessagesAsRead } = useMessageReads(
+  const { readCounts, readFrontier, markMessagesAsRead } = useMessageReads(
     "group",
     groupId || "",
     messageIds,
@@ -1350,10 +1350,16 @@ export default function GroupChatPage() {
                         <MessageContent text={msg.text} />
                       </div>
                       
-                      {/* Read avatars - Messenger style */}
-                      {isOwnMessage && (
+                      {/* Read indicator */}
+                      {isOwnMessage && index === arr.length - 1 ? (
                         <MessageReadAvatars readers={readFrontier[msg.id] || []} isOwn={true} />
-                      )}
+                      ) : isOwnMessage ? (
+                        <div className="mt-0.5">
+                          <span className="text-[10px] text-muted-foreground">
+                            {(readCounts[msg.id] || 0) > 0 ? `Read by ${readCounts[msg.id]}` : "Sent"}
+                          </span>
+                        </div>
+                      ) : null}
                       
                       {/* Reactions */}
                       <div className="flex items-center gap-1 mt-1">
