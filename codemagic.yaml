@@ -154,8 +154,9 @@ workflows:
       - android/app/build/outputs/**/*.aab
     publishing:
       email:
-        recipients:
-          - null
+        notify:
+          success: false
+          failure: true
 
   ios-debug-workflow:
     name: iOS Debug Build
