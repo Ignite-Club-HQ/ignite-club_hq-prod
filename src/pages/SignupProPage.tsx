@@ -494,7 +494,7 @@ export default function SignupProPage() {
     const pricing = effectivePlan === "pro" ? PRICING.pro : PRICING.proFootball;
     const features = effectivePlan === "pro" ? PRO_FEATURES : PRO_FOOTBALL_FEATURES;
     const price = isAnnual ? pricing.annual : pricing.monthly;
-    const annualSavings = Math.round(pricing.monthly * 12 - pricing.annual);
+    const annualSavings = effectivePlan === "pro" ? 61 : 100;
 
     return (
       <div className="space-y-6">
