@@ -298,7 +298,8 @@ export default function VaultPage() {
       
       const exchangeCode = async () => {
         try {
-          const redirectUri = `${window.location.origin}/vault`;
+          const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.();
+          const redirectUri = isNative ? 'https://igniteclubhq.app/vault' : `${window.location.origin}/vault`;
           console.log("[GoogleDrive OAuth] Exchanging code with redirectUri:", redirectUri);
           
           const { data, error: exchangeError } = await supabase.functions.invoke('google-drive-import?action=exchange-code', {

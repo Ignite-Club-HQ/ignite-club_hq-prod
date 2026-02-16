@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
 import { HardDrive, Folder, FileText, Image, Loader2, ChevronRight, ChevronLeft, Check, ArrowLeft, X, RefreshCw, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -53,7 +54,11 @@ export function GoogleDriveImportDialog({
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0, currentFile: "" });
 
   // Get the redirect URI based on current origin
+  // On native platforms, use production URL since the system browser handles OAuth
   const getRedirectUri = useCallback(() => {
+    if (Capacitor.isNativePlatform()) {
+      return 'https://igniteclubhq.app/vault';
+    }
     return `${window.location.origin}/vault`;
   }, []);
 
@@ -109,8 +114,12 @@ export function GoogleDriveImportDialog({
         targetClubId,
       }));
 
-      // Redirect to Google OAuth (works better than popup in iframe environments)
-      window.location.href = data.authUrl;
+      // On native, open system browser for OAuth; on web, redirect
+      if (Capacitor.isNativePlatform()) {
+        window.open(data.authUrl, '_blank');
+      } else {
+        window.location.href = data.authUrl;
+      }
 
     } catch (err) {
       console.error("OAuth start error:", err);

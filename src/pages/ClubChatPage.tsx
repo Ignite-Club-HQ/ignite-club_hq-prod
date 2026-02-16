@@ -784,13 +784,13 @@ export default function ClubChatPage() {
         },
         (payload) => {
           const deletedReaction = payload.old as any;
-          if (!deletedReaction.club_message_id) return;
+          if (!deletedReaction.id) return;
           queryClient.setQueryData(["club-messages", clubId], (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
-            const updatedMessages = existingMessages.map(m => m.id === deletedReaction.club_message_id
-              ? { ...m, reactions: m.reactions.filter(r => r.id !== deletedReaction.id) }
-              : m
-            );
+            const updatedMessages = existingMessages.map(m => ({
+              ...m,
+              reactions: m.reactions.filter(r => r.id !== deletedReaction.id)
+            }));
             return { ...old, messages: updatedMessages };
           });
         }

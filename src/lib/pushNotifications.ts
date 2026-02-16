@@ -730,6 +730,31 @@ export async function subscribeToPushNotifications(userId: string, silent = fals
     }
 
     console.log('[Push] === Subscription saved to database ===');
+    
+    // Auto-disable email for messages and media when push is first enabled
+    // Users can always re-enable these in their notification settings
+    try {
+      const { data: existingPrefs } = await supabase
+        .from('notification_preferences')
+        .select('user_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      if (!existingPrefs) {
+        // First time - create preferences with messages & media email disabled
+        await supabase
+          .from('notification_preferences')
+          .upsert({
+            user_id: userId,
+            email_messages_enabled: false,
+            email_media_enabled: false,
+          }, { onConflict: 'user_id' });
+        console.log('[Push] Auto-disabled email for messages & media (push enabled)');
+      }
+    } catch (prefError) {
+      console.warn('[Push] Failed to auto-set email preferences:', prefError);
+    }
+    
     console.log('[Push] === Subscription complete ===');
     return { success: true };
 
