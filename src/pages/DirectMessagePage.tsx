@@ -512,6 +512,25 @@ export default function DirectMessagePage() {
       // Invalidate other related queries
       queryClient.invalidateQueries({ queryKey: ["dm-conversations"] });
       queryClient.invalidateQueries({ queryKey: ["hidden-dm-conversations"] });
+      
+      // Fire-and-forget: directly invoke push notification for instant delivery
+      // This bypasses pg_net trigger delays; tag-based deduplication prevents duplicates
+      if (otherUserId) {
+        const senderName = profileRef.current?.display_name || 'Someone';
+        supabase.functions.invoke('send-push-notification', {
+          body: {
+            userId: otherUserId,
+            title: 'Ignite Club HQ',
+            body: `${senderName} sent you a message`,
+            url: `/messages/dm/${conversationId}`,
+            notificationId: newMessage.id,
+            tag: `direct_message-${newMessage.id}`,
+            notificationType: 'direct_message',
+          },
+        }).catch((err) => {
+          console.warn('[DM] Direct push invocation failed (trigger fallback exists):', err);
+        });
+      }
     },
     onError: (error) => {
       toast.error("Failed to send message: " + error.message);
