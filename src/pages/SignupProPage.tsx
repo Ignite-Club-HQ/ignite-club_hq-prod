@@ -51,8 +51,8 @@ const PRO_FOOTBALL_FEATURES = [
 ];
 
 const PRICING = {
-  pro: { monthly: 25, annual: 240 },
-  proFootball: { monthly: 40, annual: 384 },
+  pro: { monthly: 24.99, annual: 239 },
+  proFootball: { monthly: 39.99, annual: 379.99 },
 };
 
 const authSchema = z.object({
@@ -494,7 +494,7 @@ export default function SignupProPage() {
     const pricing = effectivePlan === "pro" ? PRICING.pro : PRICING.proFootball;
     const features = effectivePlan === "pro" ? PRO_FEATURES : PRO_FOOTBALL_FEATURES;
     const price = isAnnual ? pricing.annual : pricing.monthly;
-    const annualSavings = effectivePlan === "pro" ? 60 : 96;
+    const annualSavings = Math.round(pricing.monthly * 12 - pricing.annual);
 
     return (
       <div className="space-y-6">
