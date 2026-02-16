@@ -586,7 +586,11 @@ export const ChatMessage = memo(function ChatMessage({
           {timestamp}
           {!isPending && !isLastMessage && <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />}
         </p>
-        {!isPending && isLastMessage && <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />}
+        {!isPending && isLastMessage && isOwn && (
+          readFrontierReaders.length > 0
+            ? <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
+            : <p className={`text-[10px] text-muted-foreground mt-0.5 ${isOwn ? "text-right" : ""}`}>Sent</p>
+        )}
       </div>
     </div>
   );
