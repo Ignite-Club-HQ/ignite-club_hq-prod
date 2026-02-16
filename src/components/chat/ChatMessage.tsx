@@ -16,7 +16,9 @@ import { removeMessageFromCache } from "@/lib/messageCache";
 import { MessageContent } from "./MessageContent";
 import { MessageReactionsPopover, MessageReactionsDisplay } from "./MessageReactions";
 import { ReplyIndicator } from "./ReplyPreview";
+import { MessageReadAvatars } from "./MessageReadAvatars";
 import { MessageReadIndicator } from "./MessageReadIndicator";
+import type { ReaderInfo } from "@/hooks/useMessageReads";
 import { toast } from "sonner";
 
 interface Reaction {
@@ -47,7 +49,10 @@ export interface ChatMessageProps {
   replyToMessage?: ReplyToMessage | null;
   onReply?: (message: { id: string; text: string; authorName: string | null }) => void;
   searchQuery?: string;
+  readFrontierReaders?: ReaderInfo[];
   readCount?: number;
+  readerName?: string | null;
+  isLastMessage?: boolean;
   isPending?: boolean;
   isSystemMessage?: boolean;
 }
@@ -69,7 +74,10 @@ export const ChatMessage = memo(function ChatMessage({
   replyToMessage,
   onReply,
   searchQuery,
+  readFrontierReaders = [],
   readCount = 0,
+  readerName,
+  isLastMessage = false,
   isPending = false,
   isSystemMessage = false,
 }: ChatMessageProps) {
@@ -576,8 +584,13 @@ export const ChatMessage = memo(function ChatMessage({
             </span>
           )}
           {timestamp}
-          {!isPending && <MessageReadIndicator readCount={readCount} isOwn={isOwn} />}
+          {!isPending && !isLastMessage && <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />}
         </p>
+        {!isPending && isLastMessage && isOwn && (
+          readFrontierReaders.length > 0
+            ? <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
+            : <p className={`text-[10px] text-muted-foreground mt-0.5 ${isOwn ? "text-right" : ""}`}>Sent</p>
+        )}
       </div>
     </div>
   );

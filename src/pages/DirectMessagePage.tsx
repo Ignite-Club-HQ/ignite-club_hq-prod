@@ -294,7 +294,7 @@ export default function DirectMessagePage() {
 
   // Read tracking for DMs
   const messageIds = useMemo(() => (localMessages || []).map(m => m.id).filter(id => !id.startsWith("temp-")), [localMessages]);
-  const { readCounts, markMessagesAsRead } = useMessageReads("dm", conversationId || "", messageIds, user?.id);
+  const { readCounts, readFrontier, markMessagesAsRead } = useMessageReads("dm", conversationId || "", messageIds, user?.id);
 
   // Mark visible messages as read when they appear
   useEffect(() => {
@@ -716,7 +716,10 @@ export default function DirectMessagePage() {
                       reactions={msg.reactions || []}
                       currentUserId={user?.id}
                       messageType="dm"
+                      readFrontierReaders={readFrontier[msg.id] || []}
                       readCount={readCounts[msg.id] || 0}
+                      readerName={msg.author_id === user?.id ? (otherUser?.display_name || null) : null}
+                      isLastMessage={index === filteredMessages.length - 1}
                       queryKey={["dm-messages", conversationId]}
                       replyToMessage={
                         msg.reply_to
