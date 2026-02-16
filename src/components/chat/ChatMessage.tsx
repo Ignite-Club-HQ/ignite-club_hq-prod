@@ -17,6 +17,7 @@ import { MessageContent } from "./MessageContent";
 import { MessageReactionsPopover, MessageReactionsDisplay } from "./MessageReactions";
 import { ReplyIndicator } from "./ReplyPreview";
 import { MessageReadAvatars } from "./MessageReadAvatars";
+import { MessageReadIndicator } from "./MessageReadIndicator";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
 import { toast } from "sonner";
 
@@ -49,6 +50,9 @@ export interface ChatMessageProps {
   onReply?: (message: { id: string; text: string; authorName: string | null }) => void;
   searchQuery?: string;
   readFrontierReaders?: ReaderInfo[];
+  readCount?: number;
+  readerName?: string | null;
+  isLastMessage?: boolean;
   isPending?: boolean;
   isSystemMessage?: boolean;
 }
@@ -71,6 +75,9 @@ export const ChatMessage = memo(function ChatMessage({
   onReply,
   searchQuery,
   readFrontierReaders = [],
+  readCount = 0,
+  readerName,
+  isLastMessage = false,
   isPending = false,
   isSystemMessage = false,
 }: ChatMessageProps) {
@@ -577,8 +584,9 @@ export const ChatMessage = memo(function ChatMessage({
             </span>
           )}
           {timestamp}
+          {!isPending && !isLastMessage && <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />}
         </p>
-        {!isPending && <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />}
+        {!isPending && isLastMessage && <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />}
       </div>
     </div>
   );

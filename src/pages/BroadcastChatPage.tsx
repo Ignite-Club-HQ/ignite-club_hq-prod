@@ -737,7 +737,7 @@ export default function BroadcastChatPage() {
   );
 
   // Read tracking
-  const { readFrontier, markMessagesAsRead } = useMessageReads(
+  const { readCounts, readFrontier, markMessagesAsRead } = useMessageReads(
     "broadcast",
     "broadcast",
     messageIds,
@@ -856,6 +856,8 @@ export default function BroadcastChatPage() {
                         onReply={isAppAdmin ? handleReply : undefined}
                         searchQuery={searchQuery}
                         readFrontierReaders={readFrontier[msg.id] || []}
+                        readCount={readCounts[msg.id] || 0}
+                        isLastMessage={index === filteredMessages.length - 1}
                         isPending={msg.id.startsWith("queued-")}
                       />
                     </div>

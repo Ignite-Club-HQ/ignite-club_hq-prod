@@ -140,10 +140,10 @@ export function useMessageReads(
     }
 
     const fetchReadCounts = async () => {
-      // Fetch reads with profile info via a join
+      // Fetch reads (no join - message_reads has no FK to profiles)
       const { data, error } = await supabase
         .from("message_reads")
-        .select(`${messageIdField}, user_id, profiles:user_id(display_name, avatar_url)`)
+        .select(`${messageIdField}, user_id`)
         .in(messageIdField, messageIds);
 
       if (error) {
@@ -151,23 +151,43 @@ export function useMessageReads(
         return;
       }
 
-      const readers: Record<string, Map<string, ReaderInfo>> = {};
+      // Collect unique user IDs for profile fetch
+      const userIds = new Set<string>();
+      const readsData: Array<{ msgId: string; userId: string }> = [];
+
       for (const read of data || []) {
         const msgId = (read as any)[messageIdField] as string | null;
         const userId = (read as any).user_id as string;
-        const profile = (read as any).profiles as { display_name: string | null; avatar_url: string | null } | null;
         if (!msgId) continue;
+        readsData.push({ msgId, userId });
+        userIds.add(userId);
 
+        if (currentUserId && userId === currentUserId) {
+          markedAsReadCache.add(`${messageType}:${msgId}`);
+        }
+      }
+
+      // Fetch profiles for all readers
+      const profileMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
+      if (userIds.size > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", Array.from(userIds));
+        for (const p of profiles || []) {
+          profileMap.set(p.id, { display_name: p.display_name, avatar_url: p.avatar_url });
+        }
+      }
+
+      const readers: Record<string, Map<string, ReaderInfo>> = {};
+      for (const { msgId, userId } of readsData) {
         if (!readers[msgId]) readers[msgId] = new Map();
+        const profile = profileMap.get(userId);
         readers[msgId].set(userId, {
           user_id: userId,
           display_name: profile?.display_name || null,
           avatar_url: profile?.avatar_url || null,
         });
-
-        if (currentUserId && userId === currentUserId) {
-          markedAsReadCache.add(`${messageType}:${msgId}`);
-        }
       }
 
       const counts: Record<string, number> = {};
