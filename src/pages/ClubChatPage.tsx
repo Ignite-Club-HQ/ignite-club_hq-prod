@@ -933,7 +933,7 @@ export default function ClubChatPage() {
   );
 
   // Read tracking
-  const { readCounts, markMessagesAsRead } = useMessageReads(
+  const { readFrontier, markMessagesAsRead } = useMessageReads(
     "club",
     clubId || "",
     messageIds,
@@ -1114,7 +1114,7 @@ export default function ClubChatPage() {
                         }
                         onReply={handleReply}
                         searchQuery={searchQuery}
-                        readCount={readCounts[msg.id] || 0}
+                        readFrontierReaders={readFrontier[msg.id] || []}
                         isPending={msg.id.startsWith("queued-")}
                       />
                     </div>

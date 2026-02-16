@@ -16,7 +16,8 @@ import { removeMessageFromCache } from "@/lib/messageCache";
 import { MessageContent } from "./MessageContent";
 import { MessageReactionsPopover, MessageReactionsDisplay } from "./MessageReactions";
 import { ReplyIndicator } from "./ReplyPreview";
-import { MessageReadIndicator } from "./MessageReadIndicator";
+import { MessageReadAvatars } from "./MessageReadAvatars";
+import type { ReaderInfo } from "@/hooks/useMessageReads";
 import { toast } from "sonner";
 
 interface Reaction {
@@ -47,8 +48,7 @@ export interface ChatMessageProps {
   replyToMessage?: ReplyToMessage | null;
   onReply?: (message: { id: string; text: string; authorName: string | null }) => void;
   searchQuery?: string;
-  readCount?: number;
-  readerName?: string | null;
+  readFrontierReaders?: ReaderInfo[];
   isPending?: boolean;
   isSystemMessage?: boolean;
 }
@@ -70,8 +70,7 @@ export const ChatMessage = memo(function ChatMessage({
   replyToMessage,
   onReply,
   searchQuery,
-  readCount = 0,
-  readerName,
+  readFrontierReaders = [],
   isPending = false,
   isSystemMessage = false,
 }: ChatMessageProps) {
@@ -578,8 +577,8 @@ export const ChatMessage = memo(function ChatMessage({
             </span>
           )}
           {timestamp}
-          {!isPending && <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />}
         </p>
+        {!isPending && <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />}
       </div>
     </div>
   );
