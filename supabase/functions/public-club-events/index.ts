@@ -55,17 +55,24 @@ Deno.serve(async (req) => {
       resolvedClubId = club.id;
     }
 
+    const includePast = url.searchParams.get('include_past') === 'true';
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const { data: events, error: eventsError } = await supabase
+    let query = supabase
       .from('events')
       .select('id, title, description, event_date, start_time, end_time, location, location_name, address, type')
       .eq('club_id', resolvedClubId)
-      .gte('event_date', today.toISOString())
       .eq('is_cancelled', false)
-      .in('type', ['game', 'social', 'training'])
-      .order('event_date', { ascending: true })
+      .in('type', ['game', 'social', 'training']);
+
+    if (!includePast) {
+      query = query.gte('event_date', today.toISOString());
+    }
+
+    const { data: events, error: eventsError } = await query
+      .order('event_date', { ascending: !includePast ? true : false })
       .limit(50);
 
     if (eventsError) {
