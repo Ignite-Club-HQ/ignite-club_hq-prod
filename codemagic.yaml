@@ -80,6 +80,23 @@ workflows:
           echo "=== drawable contents ===" && ls -la android/app/src/main/res/drawable/
           echo "=== mipmap-hdpi contents ===" && ls -la android/app/src/main/res/mipmap-hdpi/
           echo "=== mipmap-anydpi-v26 contents ===" && ls -la android/app/src/main/res/mipmap-anydpi-v26/
+      - name: Add custom URL scheme intent-filter
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q 'android:scheme="igniteclubhq"' "$MANIFEST"; then
+            # Insert intent-filter before the closing </activity> tag (first occurrence)
+            sed -i '' '/<\/activity>/i\
+                <intent-filter>\
+                    <action android:name="android.intent.action.VIEW" />\
+                    <category android:name="android.intent.category.DEFAULT" />\
+                    <category android:name="android.intent.category.BROWSABLE" />\
+                    <data android:scheme="igniteclubhq" />\
+                </intent-filter>
+            ' "$MANIFEST"
+            echo "=== igniteclubhq:// intent-filter injected ==="
+          else
+            echo "=== igniteclubhq:// intent-filter already present ==="
+          fi
       - name: Configure notification icon
         script: |
           # Add meta-data for default notification icon and color to AndroidManifest.xml
