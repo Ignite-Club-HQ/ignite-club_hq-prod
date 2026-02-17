@@ -7,6 +7,9 @@ const config: CapacitorConfig = {
   // Remove server.url to bundle web app locally for offline support
   // Only use server.url during development for hot-reload
   plugins: {
+    App: {
+      url: "igniteclubhq" // registers igniteclubhq:// scheme
+    },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
