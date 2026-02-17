@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.lovable.igniteteamhub",
+      "sha256_cert_fingerprints": [
+        "4E:9D:EA:50:A8:14:78:A3:D7:AB:15:0E:C2:17:77:69:5B:99:E0:BB:7B:DC:6C:9E:B1:23:EE:71:5E:57:50:3C"
+      ]
+    }
+  }
+]
