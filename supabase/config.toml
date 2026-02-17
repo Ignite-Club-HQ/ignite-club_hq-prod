@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.public-club-events]
 verify_jwt = false
+
+[functions.public-club-teams]
+verify_jwt = false
