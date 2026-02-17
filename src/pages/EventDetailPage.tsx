@@ -1601,7 +1601,26 @@ export default function EventDetailPage() {
   }
 
   if (!event) {
-    return <div className="py-6 text-center text-muted-foreground">Event not found</div>;
+    const roastMessages = [
+      "🚫 Nice try, but you're not on the guest list. This event is more exclusive than your playlist.",
+      "🔒 Whoa there! You don't have access to this event. Maybe try making some friends first?",
+      "🙅 Access denied! This event is invitation-only, and clearly... you weren't invited.",
+      "😬 Awkward... You're trying to crash a party you weren't invited to. Bold move.",
+      "🫣 Plot twist: you need to actually be a member to see this. Wild concept, right?",
+      "🏟️ You can't just walk into any event like you own the place. Get invited first!",
+      "🚷 Hold up! This area is members-only. No ticket, no entry, no exceptions.",
+    ];
+    const roast = roastMessages[Math.floor(Math.random() * roastMessages.length)];
+    return (
+      <div className="py-12 text-center space-y-4 px-6">
+        <div className="text-5xl">🚫</div>
+        <h2 className="text-xl font-bold text-foreground">No Access</h2>
+        <p className="text-muted-foreground max-w-sm mx-auto">{roast}</p>
+        <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
+          Go Home
+        </Button>
+      </div>
+    );
   }
 
   return (
