@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.retry-missed-push-notifications]
 verify_jwt = false
+
+[functions.public-club-events]
+verify_jwt = false
