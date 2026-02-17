@@ -51,5 +51,16 @@
 	<false/>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-3940256099942544~3347511713</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>app.lovable.igniteteamhub</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>igniteclubhq</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
