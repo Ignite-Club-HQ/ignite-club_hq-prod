@@ -1,1 +1,3 @@
+/.well-known/apple-app-site-association /.well-known/apple-app-site-association 200! Content-Type=application/json
+/.well-known/assetlinks.json /.well-known/assetlinks.json 200! Content-Type=application/json
 /* /index.html 200
