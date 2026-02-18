@@ -26,6 +26,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 
 const PRO_FEATURES = [
   "Team Chat & Messaging",
@@ -760,6 +761,7 @@ export default function UpgradeProPage() {
               <p className="text-xs text-center text-muted-foreground">
                 Payment details required • Then {isAnnual ? `$${isPro ? 240 : 384}/year` : `$${isPro ? 25 : 40}/month`} • Cancel anytime
               </p>
+              <SubscriptionLegalLinks />
             </div>
           </CardContent>
         </Card>

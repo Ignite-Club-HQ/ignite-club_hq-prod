@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { SPORT_EMOJIS, getSportEmoji } from "@/lib/sportEmojis";
+import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 import { z } from "zod";
 import { addMonths, addYears, isPast, parseISO } from "date-fns";
 
@@ -574,6 +575,8 @@ export default function SignupProPage() {
           Get Started
           <ChevronRight className="h-4 w-4 ml-2" />
         </Button>
+
+        <SubscriptionLegalLinks />
       </div>
     );
   };
