@@ -3,7 +3,8 @@ import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3 } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore } from "lucide-react";
+import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -514,13 +515,30 @@ export default function TeamDetailPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-2xl font-bold flex-1 truncate">{team.name}</h1>
-        {isAdmin && (
+          {isAdmin && (
           <>
             <Link to={`/teams/${id}/edit`}>
               <Button variant="ghost" size="icon">
                 <Pencil className="h-5 w-5" />
               </Button>
             </Link>
+            <ArchiveTeamDialog
+              teamId={id!}
+              teamName={team?.name || ""}
+              clubId={team?.club_id || ""}
+              isArchived={(team as any)?.is_archived || false}
+              currentSeasonLabel={(team as any)?.season_label}
+              onSuccess={() => navigate(`/clubs/${team?.club_id}`)}
+              trigger={
+                <Button variant="ghost" size="icon" className="text-amber-600">
+                  {(team as any)?.is_archived ? (
+                    <ArchiveRestore className="h-5 w-5" />
+                  ) : (
+                    <Archive className="h-5 w-5" />
+                  )}
+                </Button>
+              }
+            />
             <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="icon" className="text-destructive">
@@ -545,6 +563,36 @@ export default function TeamDetailPage() {
           </>
         )}
       </div>
+
+      {/* Archived Banner */}
+      {(team as any)?.is_archived && (
+        <Card className="border-amber-500/40 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="p-3 flex items-center gap-3">
+            <Archive className="h-5 w-5 text-amber-600 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                This team is archived{(team as any)?.season_label ? ` · ${(team as any).season_label}` : ""}
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-400">Only admins can see this team</p>
+            </div>
+            {isAdmin && (
+              <ArchiveTeamDialog
+                teamId={id!}
+                teamName={team.name || ""}
+                clubId={team.club_id || ""}
+                isArchived={true}
+                currentSeasonLabel={(team as any)?.season_label}
+                onSuccess={() => queryClient.invalidateQueries({ queryKey: ["team", id] })}
+                trigger={
+                  <Button size="sm" variant="outline" className="shrink-0 border-amber-600/40 text-amber-700">
+                    <ArchiveRestore className="h-4 w-4 mr-1" /> Reinstate
+                  </Button>
+                }
+              />
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Team Info */}
       <Card>

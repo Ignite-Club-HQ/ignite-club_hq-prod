@@ -4242,6 +4242,7 @@ export type Database = {
       }
       teams: {
         Row: {
+          archived_at: string | null
           class_capacity: number | null
           class_day: string | null
           class_duration_minutes: number | null
@@ -4256,14 +4257,17 @@ export type Database = {
           description: string | null
           folder_id: string | null
           id: string
+          is_archived: boolean
           level_age: string | null
           logo_url: string | null
           name: string
+          season_label: string | null
           sponsor_id: string | null
           team_type: string | null
           updated_at: string
         }
         Insert: {
+          archived_at?: string | null
           class_capacity?: number | null
           class_day?: string | null
           class_duration_minutes?: number | null
@@ -4278,14 +4282,17 @@ export type Database = {
           description?: string | null
           folder_id?: string | null
           id?: string
+          is_archived?: boolean
           level_age?: string | null
           logo_url?: string | null
           name: string
+          season_label?: string | null
           sponsor_id?: string | null
           team_type?: string | null
           updated_at?: string
         }
         Update: {
+          archived_at?: string | null
           class_capacity?: number | null
           class_day?: string | null
           class_duration_minutes?: number | null
@@ -4300,9 +4307,11 @@ export type Database = {
           description?: string | null
           folder_id?: string | null
           id?: string
+          is_archived?: boolean
           level_age?: string | null
           logo_url?: string | null
           name?: string
+          season_label?: string | null
           sponsor_id?: string | null
           team_type?: string | null
           updated_at?: string
