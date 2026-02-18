@@ -35,6 +35,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 
 const PRO_FEATURES = [
   "Club Chat (club-wide messaging)",
@@ -921,6 +922,7 @@ export default function ClubUpgradePage() {
               <p className="text-xs text-center text-muted-foreground">
                 Payment details required • Then ${effectiveIsAnnual ? annualPrice : monthlyPrice}/{effectiveIsAnnual ? 'year' : 'month'} • Cancel anytime
               </p>
+              <SubscriptionLegalLinks />
             </div>
           </CardContent>
         </Card>
