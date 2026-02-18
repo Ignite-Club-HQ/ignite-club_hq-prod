@@ -5,7 +5,7 @@ import igniteIcon from "@/assets/ignite-icon.png";
 
 // Placeholder URLs - replace with actual store URLs once published
 export const APP_STORE_URL = "#"; // e.g. "https://apps.apple.com/app/ignite-club-hq/id..."
-export const PLAY_STORE_URL = "#"; // e.g. "https://play.google.com/store/apps/details?id=..."
+export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub&pcampaignid=web_share";
 
 interface AppStoreDownloadGuideProps {
   onContinueInBrowser?: () => void;
