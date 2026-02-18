@@ -4,10 +4,16 @@ import { Cookie, X } from "lucide-react";
 
 const COOKIE_CONSENT_KEY = "cookie-consent";
 
+// Native apps (iOS/Android) don't use browser cookies - banner is web-only
+const isNativePlatform = !!(window as any).Capacitor?.isNativePlatform?.();
+
 export function CookieConsentBanner() {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    // Never show on native platforms - no browser cookies are used
+    if (isNativePlatform) return;
+    
     const consent = localStorage.getItem(COOKIE_CONSENT_KEY);
     if (!consent) {
       // Small delay to prevent flash on page load
