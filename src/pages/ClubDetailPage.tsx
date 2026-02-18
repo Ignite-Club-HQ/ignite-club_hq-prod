@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, MoreVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy } from "lucide-react";
+import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, MoreVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore } from "lucide-react";
+import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -395,18 +396,20 @@ export default function ClubDetailPage() {
     setDragOverFolderId(null);
   };
 
-  // Group teams by folder
+  // Separate active vs archived teams
+  const activeTeams = useMemo(() => teams?.filter(t => !(t as any).is_archived) || [], [teams]);
+  const archivedTeams = useMemo(() => teams?.filter(t => (t as any).is_archived) || [], [teams]);
+
+  // Group ACTIVE teams by folder
   const groupedTeams = useMemo(() => {
-    if (!teams) return { uncategorized: [], byFolder: {} as Record<string, typeof teams> };
-    
-    const byFolder: Record<string, typeof teams> = {};
-    const uncategorized: typeof teams = [];
+    const byFolder: Record<string, typeof activeTeams> = {};
+    const uncategorized: typeof activeTeams = [];
     
     teamFolders.forEach(folder => {
       byFolder[folder.id] = [];
     });
     
-    teams.forEach(team => {
+    activeTeams.forEach(team => {
       if (team.folder_id && byFolder[team.folder_id]) {
         byFolder[team.folder_id].push(team);
       } else {
@@ -415,7 +418,7 @@ export default function ClubDetailPage() {
     });
     
     return { uncategorized, byFolder };
-  }, [teams, teamFolders]);
+  }, [activeTeams, teamFolders]);
   
   // Helper to check if team should be visible based on showAllTeams toggle
   const shouldShowTeam = (teamId: string) => {
@@ -425,8 +428,8 @@ export default function ClubDetailPage() {
   
   // Count user's teams for display
   const myTeamsCount = useMemo(() => {
-    return teams?.filter(t => userTeamIds.includes(t.id)).length || 0;
-  }, [teams, userTeamIds]);
+    return activeTeams.filter(t => userTeamIds.includes(t.id)).length;
+  }, [activeTeams, userTeamIds]);
 
   const { data: userRole } = useQuery({
     queryKey: ["user-club-role", id, user?.id],
@@ -950,7 +953,7 @@ export default function ClubDetailPage() {
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" />
               <span className="text-lg font-semibold">Teams</span>
-              {teams && <Badge variant="secondary" className="ml-2">{teams.length}</Badge>}
+              {activeTeams && <Badge variant="secondary" className="ml-2">{activeTeams.length}</Badge>}
             </div>
           </AccordionTrigger>
           <AccordionContent>
@@ -977,7 +980,7 @@ export default function ClubDetailPage() {
               )}
 
               {/* Team Search and Show All Toggle */}
-              {teams && teams.length > 0 && (
+              {activeTeams && activeTeams.length > 0 && (
                 <div className="space-y-3">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1000,10 +1003,10 @@ export default function ClubDetailPage() {
                   </div>
                   
                   {/* Show All Teams Toggle - show for non-admins when there are teams they don't belong to */}
-                  {!isAdmin && teams.length > 0 && (myTeamsCount === 0 || teams.length > myTeamsCount) && (
+                  {!isAdmin && activeTeams.length > 0 && (myTeamsCount === 0 || activeTeams.length > myTeamsCount) && (
                     <div className="flex items-center justify-between px-1">
                       <Label htmlFor="show-all-teams" className="text-sm text-muted-foreground cursor-pointer">
-                        Show all teams ({teams.length})
+                        Show all teams ({activeTeams.length})
                       </Label>
                       <Switch
                         id="show-all-teams"
@@ -1015,7 +1018,7 @@ export default function ClubDetailPage() {
                 </div>
               )}
 
-              {teams?.length === 0 ? (
+              {activeTeams?.length === 0 ? (
                 <Card className="border-dashed">
                   <CardContent className="p-6 text-center">
                     <Users className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
@@ -1386,13 +1389,13 @@ export default function ClubDetailPage() {
                     })}
                   
                   {/* No teams message */}
-                  {teams?.length > 0 && teams.filter(team => shouldShowTeam(team.id)).length === 0 && !effectiveShowAllTeams && (
+                  {activeTeams.length > 0 && activeTeams.filter(team => shouldShowTeam(team.id)).length === 0 && !effectiveShowAllTeams && (
                     <p className="text-muted-foreground text-sm text-center py-4">
                       You haven't joined any teams yet. Toggle "Show all teams" to see all teams in this club.
                     </p>
                   )}
-                  {teams?.length > 0 && teamSearchQuery && 
-                    teams.filter((team) => {
+                  {activeTeams.length > 0 && teamSearchQuery && 
+                    activeTeams.filter((team) => {
                       if (!shouldShowTeam(team.id)) return false;
                       const query = teamSearchQuery.toLowerCase().trim();
                       return (
@@ -1409,6 +1412,69 @@ export default function ClubDetailPage() {
           </AccordionContent>
         </AccordionItem>
       </Accordion>
+
+      {/* Archived Teams Section - admins only */}
+      {isAdmin && archivedTeams.length > 0 && (
+        <Accordion type="multiple" defaultValue={[]} className="space-y-4">
+          <AccordionItem value="archived-teams" className="border border-amber-500/30 rounded-lg px-4 bg-amber-50/30 dark:bg-amber-950/10">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-2">
+                <Archive className="h-5 w-5 text-amber-600" />
+                <span className="text-lg font-semibold text-amber-800 dark:text-amber-300">Archived Teams</span>
+                <Badge variant="secondary" className="ml-2">{archivedTeams.length}</Badge>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-3 pt-2">
+                {archivedTeams.map((team) => (
+                  <Card key={team.id} className="border-amber-500/20 bg-amber-50/50 dark:bg-amber-950/10 opacity-80">
+                    <CardContent className="p-4 flex items-center gap-3">
+                      <Link to={`/teams/${team.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                        <Avatar className="h-10 w-10 shrink-0 grayscale">
+                          <AvatarImage src={team.logo_url || undefined} />
+                          <AvatarFallback className="bg-muted text-muted-foreground">
+                            {team.name?.charAt(0)?.toUpperCase() || "T"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-medium truncate text-muted-foreground">{team.name}</h4>
+                            <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-700">
+                              <Archive className="h-3 w-3 mr-1" />
+                              Archived
+                            </Badge>
+                            {(team as any).season_label && (
+                              <Badge variant="secondary" className="text-xs">
+                                {(team as any).season_label}
+                              </Badge>
+                            )}
+                          </div>
+                          {team.level_age && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{team.level_age}</p>
+                          )}
+                        </div>
+                      </Link>
+                      <ArchiveTeamDialog
+                        teamId={team.id}
+                        teamName={team.name}
+                        clubId={id!}
+                        isArchived={true}
+                        currentSeasonLabel={(team as any).season_label}
+                        trigger={
+                          <Button variant="outline" size="sm" className="shrink-0">
+                            <ArchiveRestore className="h-4 w-4 mr-1" />
+                            Reinstate
+                          </Button>
+                        }
+                      />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      )}
 
       {/* Mini Leagues Section */}
       {(isAdmin || miniLeagues.length > 0) && (
