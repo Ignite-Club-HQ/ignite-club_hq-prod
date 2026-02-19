@@ -213,7 +213,7 @@ export default function AuthPage() {
       let title = "Something went wrong";
       if (message.includes("already registered")) {
         title = "Account already exists";
-        message = "This email is already registered — you may have previously signed in with Google. Please sign in instead.";
+        message = "This email is already registered. Please sign in using the form below. If you've forgotten your password, tap 'Forgot password?' to reset it.";
         switchToSignIn();
       } else if (message.includes("Invalid login")) {
         title = "Unable to sign in";
