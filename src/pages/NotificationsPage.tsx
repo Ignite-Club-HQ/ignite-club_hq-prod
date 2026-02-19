@@ -587,6 +587,22 @@ export default function NotificationsPage() {
           }
         }
         break;
+      case "team_invite": {
+        // related_id is the pending_invite id — look up the token to build the join URL
+        const { data: inviteData } = await supabase
+          .from("pending_invites")
+          .select("invite_token, team_id, club_id")
+          .eq("id", relatedId)
+          .maybeSingle();
+        if (inviteData?.invite_token) {
+          if (inviteData.team_id) {
+            navigate(`/join/${inviteData.invite_token}`);
+          } else {
+            navigate(`/join-club/${inviteData.invite_token}`);
+          }
+        }
+        break;
+      }
       case "join_request":
         // Just mark as read - admin can approve/deny from notification buttons
         // Don't navigate away since they can take action right here
