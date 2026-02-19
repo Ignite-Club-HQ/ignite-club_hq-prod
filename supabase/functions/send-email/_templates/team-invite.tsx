@@ -160,7 +160,7 @@ export const TeamInviteEmail = ({
               <Section style={stepRow}>
                 <Text style={stepNumber}>2</Text>
                 <Text style={stepText}>
-                  <strong>Create your account</strong> — sign up with this email address{invitedEmail ? ` (${invitedEmail})` : ''} and complete your profile
+                  <strong>Create your account</strong> — open the app and tap <strong>Sign Up</strong>. Enter{invitedEmail ? <> <strong>{invitedEmail}</strong> as your email address</> : ' this email address'}, choose a password, then tap <strong>Create Account</strong>. Complete your profile when prompted.
                 </Text>
               </Section>
 
