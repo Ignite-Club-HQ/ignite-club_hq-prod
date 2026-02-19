@@ -276,11 +276,6 @@ export default function AuthPage() {
         } catch (e) {
           console.log('[AuthPage] Biometric enrollment check failed:', e);
         }
-      } else if (mode === "signup") {
-        toast({
-          title: "Welcome to Ignite Club HQ!",
-          description: "Your account has been created successfully.",
-        });
       }
     }
   };
