@@ -212,8 +212,9 @@ export default function AuthPage() {
       let message = error.message;
       let title = "Something went wrong";
       if (message.includes("already registered")) {
-        title = "Account exists";
-        message = "This email is already registered. Please sign in instead.";
+        title = "Account already exists";
+        message = "This email is already registered — you may have previously signed in with Google. Please sign in instead.";
+        switchToSignIn();
       } else if (message.includes("Invalid login")) {
         title = "Unable to sign in";
         message = "Invalid email or password. Please try again.";
