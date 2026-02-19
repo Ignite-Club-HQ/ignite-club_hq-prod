@@ -22,6 +22,8 @@ const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
 const IGNITE_BRAND_COLOR = "#10b981";
 const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-email-icon.png`;
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub&pcampaignid=web_share";
+// TODO: replace with real App Store URL when published, e.g. "https://apps.apple.com/app/ignite-club-hq/idXXXXXXXXX"
+const APP_STORE_URL = "";
 
 // Check if URL is valid
 const isValidExternalUrl = (url?: string): boolean => {
@@ -109,11 +111,20 @@ const generateEmailHtml = ({
         </table>
 
         <!-- Google Play Button -->
-        <div style="text-align: center; margin: 12px 0 18px 0;">
+        <!-- Store buttons -->
+        <div style="text-align: center; margin: 12px 0 8px 0;">
           <a href="${PLAY_STORE_URL}" style="background-color: ${primaryColor}; border-radius: 8px; color: #ffffff; font-size: 15px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 12px 28px;">
-            Download on Google Play
+            📱 Download on Google Play
           </a>
         </div>
+        ${APP_STORE_URL
+          ? `<div style="text-align: center; margin: 8px 0 18px 0;">
+              <a href="${APP_STORE_URL}" style="background-color: #555555; border-radius: 8px; color: #ffffff; font-size: 15px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 12px 28px;">
+                🍎 Download on the App Store
+              </a>
+             </div>`
+          : `<p style="color: #94a3b8; font-size: 13px; text-align: center; margin: 4px 0 18px 0; font-style: italic;">🍎 App Store — coming soon</p>`
+        }
 
         <!-- Step 2 -->
         <table cellpadding="0" cellspacing="0" style="margin-bottom: 14px; width: 100%;">

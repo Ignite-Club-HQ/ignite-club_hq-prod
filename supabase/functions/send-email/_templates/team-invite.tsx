@@ -55,8 +55,10 @@ const normalizeInviteLink = (link: string): string => {
   }
 };
 
-// Google Play Store link (App Store pending)
+// Store links — update APP_STORE_URL when iOS listing is live
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub&pcampaignid=web_share";
+// TODO: replace with real App Store URL when published, e.g. "https://apps.apple.com/app/ignite-club-hq/idXXXXXXXXX"
+const APP_STORE_URL = "";
 
 export const TeamInviteEmail = ({
   recipientName = "Member",
@@ -136,9 +138,22 @@ export const TeamInviteEmail = ({
 
               <Section style={buttonSection}>
                 <Button style={{ ...button, backgroundColor: primaryColor }} href={PLAY_STORE_URL}>
-                  Download on Google Play
+                  📱 Download on Google Play
                 </Button>
               </Section>
+
+              {/* App Store placeholder — remove condition when APP_STORE_URL is set */}
+              {APP_STORE_URL ? (
+                <Section style={{ ...buttonSection, marginTop: '-8px' }}>
+                  <Button style={{ ...button, backgroundColor: '#555555' }} href={APP_STORE_URL}>
+                    🍎 Download on the App Store
+                  </Button>
+                </Section>
+              ) : (
+                <Section style={{ ...buttonSection, marginTop: '-8px' }}>
+                  <Text style={comingSoonText}>🍎 App Store — coming soon</Text>
+                </Section>
+              )}
 
               <Section style={stepRow}>
                 <Text style={stepNumber}>2</Text>
@@ -390,4 +405,12 @@ const footerBrandTextLink = {
   color: IGNITE_BRAND_COLOR,
   fontSize: '12px',
   textDecoration: 'none',
+};
+
+const comingSoonText = {
+  color: '#94a3b8',
+  fontSize: '13px',
+  textAlign: 'center' as const,
+  margin: '0',
+  fontStyle: 'italic' as const,
 };
