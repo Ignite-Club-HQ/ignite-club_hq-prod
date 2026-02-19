@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Bell, CheckCircle } from "lucide-react";
 
-const NATIVE_NOTIFICATION_PROMPTED_KEY = "native-notification-prompted";
+const NATIVE_NOTIFICATION_PROMPTED_KEY_PREFIX = "native-notification-prompted-";
 
 // Check if native at module load - wrapped in try/catch
 let isNative = false;
@@ -51,11 +51,12 @@ export function NativeNotificationPrompt({ userId }: NativeNotificationPromptPro
       return;
     }
     
-    // Check if we've already prompted
-    const hasPrompted = localStorage.getItem(NATIVE_NOTIFICATION_PROMPTED_KEY);
-    console.log("[NativeNotificationPrompt] hasPrompted:", hasPrompted);
+    // Check if we've already prompted for THIS user
+    const promptKey = `${NATIVE_NOTIFICATION_PROMPTED_KEY_PREFIX}${userId}`;
+    const hasPrompted = localStorage.getItem(promptKey);
+    console.log("[NativeNotificationPrompt] hasPrompted:", hasPrompted, "key:", promptKey);
     if (hasPrompted) {
-      console.log("[NativeNotificationPrompt] Already prompted, skipping");
+      console.log("[NativeNotificationPrompt] Already prompted for this user, skipping");
       return;
     }
     
@@ -66,7 +67,7 @@ export function NativeNotificationPrompt({ userId }: NativeNotificationPromptPro
       console.log("[NativeNotificationPrompt] Timer fired, requesting permission");
       
       // Mark as prompted immediately to prevent re-triggering
-      localStorage.setItem(NATIVE_NOTIFICATION_PROMPTED_KEY, "true");
+      localStorage.setItem(promptKey, "true");
       
       try {
         // Dynamically import to avoid issues on web
