@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
   try {
     const { userId, secret } = await req.json();
     const expectedSecret = Deno.env.get("ADMIN_DELETE_SECRET");
-
+    console.log("Secret received:", !!secret, "Expected set:", !!expectedSecret, "Match:", secret === expectedSecret);
     if (!secret || secret !== expectedSecret) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
