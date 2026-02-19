@@ -63,14 +63,14 @@ export default function CompleteProfilePage() {
   // Check if we're in an invite flow
   const inviteFlowContext = getInviteFlowContext();
 
-  // Ensure the DOM reflects the correct theme on mount (prevents flicker to dark)
+  // New users completing their profile always see light mode.
+  // We also update localStorage so next-themes ThemeProvider doesn't re-override the DOM.
   useEffect(() => {
-    const stored = localStorage.getItem('app-theme');
     const root = document.documentElement;
-    const isDark = stored === 'dark';
     root.classList.remove('light', 'dark');
-    root.classList.add(isDark ? 'dark' : 'light');
-    root.style.colorScheme = isDark ? 'dark' : 'light';
+    root.classList.add('light');
+    root.style.colorScheme = 'light';
+    localStorage.setItem('app-theme', 'light');
   }, []);
 
   // Check if push notifications and biometrics are supported
