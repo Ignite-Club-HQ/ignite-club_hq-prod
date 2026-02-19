@@ -89,12 +89,12 @@ const generateEmailHtml = ({
       </p>
 
       <p style="color: #4a4a4a; font-size: 16px; line-height: 26px; margin: 0 0 24px 0;">
-        Your invitation is still waiting for you in the app. Here's how to accept it:
+        Your invitation is ready and waiting — here's all you need to do:
       </p>
 
       <!-- Steps -->
       <div style="background-color: #f8fafc; border-radius: 10px; padding: 20px 24px; margin: 0 0 24px 0;">
-        <p style="color: #1a1a1a; font-size: 15px; font-weight: 600; margin: 0 0 16px 0;">How to accept your invite:</p>
+        <p style="color: #1a1a1a; font-size: 15px; font-weight: 600; margin: 0 0 16px 0;">How to get started:</p>
 
         <!-- Step 1 -->
         <table cellpadding="0" cellspacing="0" style="margin-bottom: 14px; width: 100%;">
@@ -110,7 +110,6 @@ const generateEmailHtml = ({
           </tr>
         </table>
 
-        <!-- Google Play Button -->
         <!-- Store buttons -->
         <div style="text-align: center; margin: 12px 0 8px 0;">
           <a href="${PLAY_STORE_URL}" style="background-color: ${primaryColor}; border-radius: 8px; color: #ffffff; font-size: 15px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 12px 28px;">
@@ -134,7 +133,7 @@ const generateEmailHtml = ({
             </td>
             <td style="vertical-align: top; padding-left: 10px;">
               <p style="color: #4a4a4a; font-size: 14px; line-height: 22px; margin: 0;">
-                <strong>Create your account</strong> using this email address and complete your profile
+                <strong>Create your account</strong> — tap <strong>"Sign up here"</strong>, enter this email address, set a password, and complete your profile
               </p>
             </td>
           </tr>
@@ -148,7 +147,7 @@ const generateEmailHtml = ({
             </td>
             <td style="vertical-align: top; padding-left: 10px;">
               <p style="color: #4a4a4a; font-size: 14px; line-height: 22px; margin: 0;">
-                <strong>Accept your invite</strong> — it will be waiting for you the moment you log in
+                <strong>You're in! 🎉</strong> — your invitation to join <strong>${teamName}</strong> is applied automatically the moment you log in. No extra steps needed.
               </p>
             </td>
           </tr>
@@ -156,7 +155,7 @@ const generateEmailHtml = ({
       </div>
 
       <p style="color: #64748b; font-size: 14px; line-height: 22px; text-align: center; font-style: italic; margin: 0;">
-        💡 No need to come back to this email — your invite will be ready and waiting in the app.
+        ✅ Your invite is applied automatically when you log in — no tapping required.
       </p>
     </div>
 
