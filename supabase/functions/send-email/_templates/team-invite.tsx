@@ -127,9 +127,9 @@ export const TeamInviteEmail = ({
               </Section>
             )}
 
-            {/* How to accept */}
+            {/* How to join */}
             <Section style={stepsSection}>
-              <Text style={stepsHeading}>Here's how to accept your invitation:</Text>
+              <Text style={stepsHeading}>Here's how to get started:</Text>
 
               <Section style={stepRow}>
                 <Text style={stepNumber}>1</Text>
@@ -160,20 +160,20 @@ export const TeamInviteEmail = ({
               <Section style={stepRow}>
                 <Text style={stepNumber}>2</Text>
                 <Text style={stepText}>
-                  <strong>Create your account</strong> — on the sign-in screen, tap <strong>"Sign up here"</strong>. Enter{invitedEmail ? <> <strong>{invitedEmail}</strong> as your email</> : ' this email address'}, set a password, then tap <strong>Create Account</strong>. Complete your profile when prompted.
+                  <strong>Create your account</strong> — tap <strong>"Sign up here"</strong> on the sign-in screen. Enter{invitedEmail ? <> <strong>{invitedEmail}</strong> as your email</> : ' this email address'}, set a password, then complete your profile when prompted.
                 </Text>
               </Section>
 
               <Section style={stepRow}>
                 <Text style={stepNumber}>3</Text>
                 <Text style={stepText}>
-                  <strong>Accept your invite</strong> — once you're logged in, your invitation to join {teamName} will be waiting for you in the app. Simply tap to accept!
+                  <strong>You're in! 🎉</strong> — your invitation to join <strong>{teamName}</strong> is applied automatically the moment you log in. No extra steps needed.
                 </Text>
               </Section>
             </Section>
 
             <Text style={noteText}>
-              💡 Your invite will be ready and waiting the moment you log in — no need to come back to this email.
+              ✅ Your invite is applied automatically when you log in — no need to come back to this email or tap anything extra.
             </Text>
           </Section>
 
