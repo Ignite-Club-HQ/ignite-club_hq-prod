@@ -21,22 +21,12 @@ const MAX_REMINDERS = 5;
 const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
 const IGNITE_BRAND_COLOR = "#10b981";
 const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-email-icon.png`;
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub&pcampaignid=web_share";
 
 // Check if URL is valid
 const isValidExternalUrl = (url?: string): boolean => {
   if (!url) return false;
   return url.startsWith('http://') || url.startsWith('https://');
-};
-
-// Normalize invite link
-const normalizeInviteLink = (link: string): string => {
-  try {
-    const url = new URL(link);
-    return `${PRODUCTION_DOMAIN}${url.pathname}`;
-  } catch {
-    if (link.startsWith('/')) return `${PRODUCTION_DOMAIN}${link}`;
-    return link;
-  }
 };
 
 // Generate HTML email template
@@ -45,7 +35,6 @@ const generateEmailHtml = ({
   teamName,
   clubName,
   roleName,
-  inviteLink,
   clubLogoUrl,
   primaryColor = IGNITE_BRAND_COLOR,
   reminderNumber = 1,
@@ -54,12 +43,10 @@ const generateEmailHtml = ({
   teamName: string;
   clubName: string;
   roleName: string;
-  inviteLink: string;
   clubLogoUrl?: string;
   primaryColor?: string;
   reminderNumber?: number;
 }): string => {
-  const normalizedInviteLink = normalizeInviteLink(inviteLink);
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
 
   const logoHtml = validClubLogoUrl
@@ -74,7 +61,7 @@ const generateEmailHtml = ({
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reminder: Join ${teamName}</title>
+  <title>Reminder: Join ${teamName} on Ignite Club HQ</title>
 </head>
 <body style="background-color: #f6f9fc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif; margin: 0; padding: 20px;">
   <div style="background-color: #ffffff; margin: 0 auto; padding: 0; margin-bottom: 40px; border-radius: 12px; overflow: hidden; max-width: 560px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);">
@@ -89,31 +76,76 @@ const generateEmailHtml = ({
 
     <!-- Main Content -->
     <div style="padding: 32px 40px;">
-      <h1 style="color: #1a1a1a; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: center;">Friendly Reminder 👋</h1>
+      <h1 style="color: #1a1a1a; font-size: 28px; font-weight: bold; margin: 0 0 24px 0; text-align: center;">Still waiting for you! 👋</h1>
       
       <p style="color: #4a4a4a; font-size: 16px; line-height: 26px; margin: 0 0 16px 0;">
         Hi ${recipientName},
       </p>
       
       <p style="color: #4a4a4a; font-size: 16px; line-height: 26px; margin: 0 0 16px 0;">
-        We noticed you haven't accepted your invitation to join <strong style="color: ${primaryColor};">${teamName}</strong> as a <strong>${roleName}</strong> yet.
+        Just a reminder — <strong style="color: ${primaryColor};">${clubName}</strong> has invited you to join <strong>${teamName}</strong> as a <strong>${roleName}</strong>.
       </p>
 
-      <p style="color: #4a4a4a; font-size: 16px; line-height: 26px; margin: 0 0 16px 0;">
-        Your spot is still waiting for you! Click the button below to complete your registration.
+      <p style="color: #4a4a4a; font-size: 16px; line-height: 26px; margin: 0 0 24px 0;">
+        Your invitation is still waiting for you in the app. Here's how to accept it:
       </p>
 
-      <div style="text-align: center; margin: 32px 0;">
-        <a href="${normalizedInviteLink}" style="background-color: ${primaryColor}; border-radius: 8px; color: #ffffff; font-size: 16px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 14px 32px;">
-          Accept Invitation
-        </a>
+      <!-- Steps -->
+      <div style="background-color: #f8fafc; border-radius: 10px; padding: 20px 24px; margin: 0 0 24px 0;">
+        <p style="color: #1a1a1a; font-size: 15px; font-weight: 600; margin: 0 0 16px 0;">How to accept your invite:</p>
+
+        <!-- Step 1 -->
+        <table cellpadding="0" cellspacing="0" style="margin-bottom: 14px; width: 100%;">
+          <tr>
+            <td style="width: 28px; vertical-align: top; padding-top: 1px;">
+              <div style="background-color: ${primaryColor}; color: #ffffff; border-radius: 50%; width: 22px; height: 22px; font-size: 12px; font-weight: bold; text-align: center; line-height: 22px;">1</div>
+            </td>
+            <td style="vertical-align: top; padding-left: 10px;">
+              <p style="color: #4a4a4a; font-size: 14px; line-height: 22px; margin: 0;">
+                <strong>Download Ignite Club HQ</strong> from the Google Play Store
+              </p>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Google Play Button -->
+        <div style="text-align: center; margin: 12px 0 18px 0;">
+          <a href="${PLAY_STORE_URL}" style="background-color: ${primaryColor}; border-radius: 8px; color: #ffffff; font-size: 15px; font-weight: bold; text-decoration: none; text-align: center; display: inline-block; padding: 12px 28px;">
+            Download on Google Play
+          </a>
+        </div>
+
+        <!-- Step 2 -->
+        <table cellpadding="0" cellspacing="0" style="margin-bottom: 14px; width: 100%;">
+          <tr>
+            <td style="width: 28px; vertical-align: top; padding-top: 1px;">
+              <div style="background-color: ${primaryColor}; color: #ffffff; border-radius: 50%; width: 22px; height: 22px; font-size: 12px; font-weight: bold; text-align: center; line-height: 22px;">2</div>
+            </td>
+            <td style="vertical-align: top; padding-left: 10px;">
+              <p style="color: #4a4a4a; font-size: 14px; line-height: 22px; margin: 0;">
+                <strong>Create your account</strong> using this email address and complete your profile
+              </p>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Step 3 -->
+        <table cellpadding="0" cellspacing="0" style="width: 100%;">
+          <tr>
+            <td style="width: 28px; vertical-align: top; padding-top: 1px;">
+              <div style="background-color: ${primaryColor}; color: #ffffff; border-radius: 50%; width: 22px; height: 22px; font-size: 12px; font-weight: bold; text-align: center; line-height: 22px;">3</div>
+            </td>
+            <td style="vertical-align: top; padding-left: 10px;">
+              <p style="color: #4a4a4a; font-size: 14px; line-height: 22px; margin: 0;">
+                <strong>Accept your invite</strong> — it will be waiting for you the moment you log in
+              </p>
+            </td>
+          </tr>
+        </table>
       </div>
 
-      <p style="color: #8898aa; font-size: 13px; text-align: center; margin: 24px 0 8px 0;">
-        Or copy and paste this link into your browser:
-      </p>
-      <p style="font-size: 13px; text-align: center; margin: 0; word-break: break-all;">
-        <a href="${normalizedInviteLink}" style="color: ${primaryColor};">${normalizedInviteLink}</a>
+      <p style="color: #64748b; font-size: 14px; line-height: 22px; text-align: center; font-style: italic; margin: 0;">
+        💡 No need to come back to this email — your invite will be ready and waiting in the app.
       </p>
     </div>
 
@@ -237,7 +269,6 @@ serve(async (req) => {
         const recipientName = invite.invited_label || invite.invited_email?.split("@")[0] || "Member";
         const roleName = invite.role || "Member";
         const reminderNumber = (invite.reminder_count || 0) + 1;
-        const inviteLink = `https://igniteclubhq.app/join/${invite.invite_token}`;
 
         console.log(`Sending reminder #${reminderNumber} to ${invite.invited_email} for ${teamName}`);
 
@@ -246,7 +277,6 @@ serve(async (req) => {
           teamName,
           clubName,
           roleName,
-          inviteLink,
           clubLogoUrl,
           reminderNumber,
         });

@@ -55,6 +55,9 @@ const normalizeInviteLink = (link: string): string => {
   }
 };
 
+// Google Play Store link (App Store pending)
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub&pcampaignid=web_share";
+
 export const TeamInviteEmail = ({
   recipientName = "Member",
   teamName = "The Team",
@@ -65,8 +68,7 @@ export const TeamInviteEmail = ({
   primaryColor = IGNITE_BRAND_COLOR,
   childrenNames = [],
 }: TeamInviteEmailProps) => {
-  const previewText = `You're invited to join ${teamName}!`;
-  const normalizedInviteLink = normalizeInviteLink(inviteLink);
+  const previewText = `You've been invited to join ${teamName} on Ignite Club HQ!`;
   // Only use club logo if it's a valid external URL (not base64)
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
 
@@ -103,11 +105,11 @@ export const TeamInviteEmail = ({
             <Heading style={heading}>You're Invited! 🎉</Heading>
             
             <Text style={paragraph}>
-              Dear {recipientName},
+              Hi {recipientName},
             </Text>
             
             <Text style={paragraph}>
-              You've been invited to join <strong style={{ color: primaryColor }}>{teamName}</strong> as a <strong>{roleName}</strong>.
+              <strong style={{ color: primaryColor }}>{clubName}</strong> has invited you to join <strong>{teamName}</strong> as a <strong>{roleName}</strong> on Ignite Club HQ.
             </Text>
 
             {childrenNames.length > 0 && (
@@ -121,19 +123,40 @@ export const TeamInviteEmail = ({
               </Section>
             )}
 
-            <Section style={buttonSection}>
-              <Button style={{ ...button, backgroundColor: primaryColor }} href={normalizedInviteLink}>
-                Accept Invitation
-              </Button>
+            {/* How to accept */}
+            <Section style={stepsSection}>
+              <Text style={stepsHeading}>Here's how to accept your invitation:</Text>
+
+              <Section style={stepRow}>
+                <Text style={stepNumber}>1</Text>
+                <Text style={stepText}>
+                  <strong>Download Ignite Club HQ</strong> from the Google Play Store
+                </Text>
+              </Section>
+
+              <Section style={buttonSection}>
+                <Button style={{ ...button, backgroundColor: primaryColor }} href={PLAY_STORE_URL}>
+                  Download on Google Play
+                </Button>
+              </Section>
+
+              <Section style={stepRow}>
+                <Text style={stepNumber}>2</Text>
+                <Text style={stepText}>
+                  <strong>Create your account</strong> — sign up with this email address ({recipientName}) and complete your profile
+                </Text>
+              </Section>
+
+              <Section style={stepRow}>
+                <Text style={stepNumber}>3</Text>
+                <Text style={stepText}>
+                  <strong>Accept your invite</strong> — once you're logged in, your invitation to join {teamName} will be waiting for you in the app. Simply tap to accept!
+                </Text>
+              </Section>
             </Section>
 
-            <Text style={orText}>
-              Or copy and paste this link into your browser:
-            </Text>
-            <Text style={linkText}>
-              <Link href={normalizedInviteLink} style={{ color: primaryColor }}>
-                {normalizedInviteLink}
-              </Link>
+            <Text style={noteText}>
+              💡 Your invite will be ready and waiting the moment you log in — no need to come back to this email.
             </Text>
           </Section>
 
@@ -269,34 +292,71 @@ const childrenText = {
   margin: '0 0 4px 0',
 };
 
+const stepsSection = {
+  backgroundColor: '#f8fafc',
+  borderRadius: '10px',
+  padding: '20px 24px',
+  margin: '24px 0',
+};
+
+const stepsHeading = {
+  color: '#1a1a1a',
+  fontSize: '15px',
+  fontWeight: '600',
+  margin: '0 0 16px 0',
+};
+
+const stepRow = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  margin: '0 0 14px 0',
+};
+
+const stepNumber = {
+  backgroundColor: '#10b981',
+  color: '#ffffff',
+  borderRadius: '50%',
+  width: '24px',
+  height: '24px',
+  fontSize: '13px',
+  fontWeight: 'bold',
+  textAlign: 'center' as const,
+  lineHeight: '24px',
+  margin: '0 12px 0 0',
+  flexShrink: 0,
+  display: 'inline-block',
+};
+
+const stepText = {
+  color: '#4a4a4a',
+  fontSize: '14px',
+  lineHeight: '22px',
+  margin: '0',
+};
+
+const noteText = {
+  color: '#64748b',
+  fontSize: '14px',
+  lineHeight: '22px',
+  margin: '16px 0 0 0',
+  textAlign: 'center' as const,
+  fontStyle: 'italic' as const,
+};
+
 const buttonSection = {
   textAlign: 'center' as const,
-  margin: '32px 0',
+  margin: '16px 0 20px 0',
 };
 
 const button = {
   borderRadius: '8px',
   color: '#ffffff',
-  fontSize: '16px',
+  fontSize: '15px',
   fontWeight: 'bold',
   textDecoration: 'none',
   textAlign: 'center' as const,
   display: 'inline-block',
-  padding: '14px 32px',
-};
-
-const orText = {
-  color: '#8898aa',
-  fontSize: '13px',
-  textAlign: 'center' as const,
-  margin: '24px 0 8px 0',
-};
-
-const linkText = {
-  fontSize: '13px',
-  textAlign: 'center' as const,
-  margin: '0',
-  wordBreak: 'break-all' as const,
+  padding: '12px 28px',
 };
 
 const footerSection = {
