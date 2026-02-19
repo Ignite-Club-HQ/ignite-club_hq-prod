@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Flame, Lock, Loader2, CheckCircle } from "lucide-react";
+import { Flame, Lock, Loader2, CheckCircle, CheckCircle2, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -170,14 +170,20 @@ export default function ResetPasswordPage() {
               </div>
               {password && (
                 <div className="space-y-1 mt-2">
-                  {passwordRequirements.map((req, idx) => (
-                    <div key={idx} className="flex items-center gap-2 text-xs">
-                      <div className={`w-1.5 h-1.5 rounded-full ${req.test(password) ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
-                      <span className={req.test(password) ? 'text-primary' : 'text-muted-foreground'}>
-                        {req.label}
-                      </span>
-                    </div>
-                  ))}
+                  {passwordRequirements.map((req, idx) => {
+                    const met = req.test(password);
+                    return (
+                      <div key={idx} className="flex items-center gap-2 text-xs">
+                        {met
+                          ? <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                          : <Circle className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />
+                        }
+                        <span className={met ? 'text-primary' : 'text-muted-foreground'}>
+                          {req.label}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
