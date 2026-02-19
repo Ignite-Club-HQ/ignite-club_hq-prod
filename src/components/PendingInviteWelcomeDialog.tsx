@@ -1,52 +1,21 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import {
-  ResponsiveDialog,
-  ResponsiveDialogContent,
-  ResponsiveDialogHeader,
-  ResponsiveDialogTitle,
-  ResponsiveDialogDescription,
-  ResponsiveDialogFooter,
-} from "@/components/ui/responsive-dialog";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Users } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
-const STORAGE_KEY = "invite_welcome_shown";
-
-const roleLabels: Record<string, string> = {
-  basic_user: "Basic User",
-  club_admin: "Club Admin",
-  team_admin: "Team Admin",
-  coach: "Coach",
-  player: "Player",
-  parent: "Parent",
-  app_admin: "App Admin",
-  league_admin: "League Admin",
-  committee_member: "Committee Member",
-};
-
+/**
+ * Silently auto-accepts any pending invites for the logged-in user.
+ * No dialog is shown — invites are processed automatically in the background.
+ */
 export function PendingInviteWelcomeDialog() {
   const { user } = useAuth();
-  const { toast } = useToast();
-  const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  const [acceptingId, setAcceptingId] = useState<string | null>(null);
-  const [dismissed, setDismissed] = useState(false);
+  const queryClient = useQueryClient();
 
-  // Only show once per session
-  const sessionKey = user ? `${STORAGE_KEY}_${user.id}` : null;
-
-  const { data: pendingInvites = [], isLoading } = useQuery({
+  const { data: pendingInvites = [] } = useQuery({
     queryKey: ["pending-invites-for-user", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      // Fetch pending invites where the current user is the invited user
       const { data, error } = await supabase
         .from("pending_invites")
         .select(`
@@ -56,140 +25,145 @@ export function PendingInviteWelcomeDialog() {
           team_id,
           club_id,
           invited_label,
+          metadata,
           teams:team_id (
             name,
-            logo_url,
+            club_id,
             clubs:club_id (
-              name,
-              logo_url
+              name
             )
           ),
           clubs:club_id (
-            name,
-            logo_url
+            name
           )
         `)
         .eq("invited_user_id", user.id)
         .eq("status", "pending")
-        .limit(5);
+        .limit(10);
 
       if (error) {
-        console.error("[InviteWelcome] Error fetching invites:", error);
+        console.error("[InviteAutoAccept] Error fetching invites:", error);
         return [];
       }
       return data || [];
     },
-    enabled: !!user && !dismissed,
-    staleTime: 0,
+    enabled: !!user,
+    staleTime: 30_000,
   });
 
   useEffect(() => {
-    if (!user || !sessionKey) return;
-    // Only show once per session
-    const alreadyShown = sessionStorage.getItem(sessionKey);
-    if (alreadyShown) return;
+    if (!user || pendingInvites.length === 0) return;
 
-    if (!isLoading && pendingInvites.length > 0) {
-      // Small delay to let the page settle after login
-      const timer = setTimeout(() => {
-        setOpen(true);
-        sessionStorage.setItem(sessionKey, "true");
-      }, 1200);
-      return () => clearTimeout(timer);
-    }
-  }, [user, sessionKey, isLoading, pendingInvites.length]);
+    const autoAcceptInvites = async () => {
+      for (const invite of pendingInvites) {
+        try {
+          // Resolve club_id
+          let clubId: string | null = invite.club_id ?? null;
+          if (!clubId && invite.team_id) {
+            clubId = (invite.teams as any)?.club_id ?? null;
+          }
 
-  const handleAccept = (invite: any) => {
-    setOpen(false);
-    // Navigate to join page with the invite token
-    if (invite.invite_token) {
-      navigate(`/join/p/${invite.invite_token}`);
-    }
-  };
+          // Check if role already exists
+          const roleQuery = supabase
+            .from("user_roles")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("role", invite.role as any);
 
-  const handleAcceptAll = async () => {
-    if (pendingInvites.length === 1) {
-      handleAccept(pendingInvites[0]);
-      return;
-    }
-    // For multiple invites, navigate to first one — they can accept others via notifications
-    handleAccept(pendingInvites[0]);
-  };
+          if (invite.team_id) {
+            roleQuery.eq("team_id", invite.team_id);
+          } else if (clubId) {
+            roleQuery.eq("club_id", clubId).is("team_id", null);
+          }
 
-  const handleDismiss = () => {
-    setOpen(false);
-    setDismissed(true);
-  };
+          const { data: existingRole } = await roleQuery.maybeSingle();
 
-  if (!user || pendingInvites.length === 0) return null;
+          if (existingRole) {
+            // Already a member — just mark invite as accepted
+            await supabase
+              .from("pending_invites")
+              .update({ status: "accepted", accepted_at: new Date().toISOString() })
+              .eq("id", invite.id);
+            console.log("[InviteAutoAccept] Invite already fulfilled, marked accepted:", invite.id);
+            continue;
+          }
 
-  const invite = pendingInvites[0];
-  const teamName = (invite.teams as any)?.name;
-  const clubName = (invite.teams as any)?.clubs?.name || (invite.clubs as any)?.name;
-  const logoUrl = (invite.teams as any)?.logo_url || (invite.teams as any)?.clubs?.logo_url || (invite.clubs as any)?.logo_url;
-  const entityName = teamName || clubName || "a team";
-  const roleName = roleLabels[invite.role] || invite.role;
-  const hasMultiple = pendingInvites.length > 1;
+          // Insert the role
+          const { error: roleError } = await supabase
+            .from("user_roles")
+            .insert({
+              user_id: user.id,
+              role: invite.role as any,
+              team_id: invite.team_id || null,
+              club_id: clubId || null,
+            });
 
-  return (
-    <ResponsiveDialog open={open} onOpenChange={(v) => { if (!v) handleDismiss(); }}>
-      <ResponsiveDialogContent className="max-w-sm">
-        <ResponsiveDialogHeader>
-          <div className="flex flex-col items-center gap-3 pt-2">
-            <Avatar className="h-16 w-16">
-              <AvatarImage src={logoUrl} alt={entityName} />
-              <AvatarFallback className="bg-primary/10 text-primary text-xl font-bold">
-                <Users className="h-8 w-8" />
-              </AvatarFallback>
-            </Avatar>
-            <ResponsiveDialogTitle className="text-center">
-              You've been invited! 🎉
-            </ResponsiveDialogTitle>
-          </div>
-          <ResponsiveDialogDescription className="text-center">
-            {hasMultiple ? (
-              <>You have <strong>{pendingInvites.length} pending invitations</strong>. Your first invite is to join <strong>{entityName}</strong> as a <strong>{roleName}</strong>.</>
-            ) : (
-              <>{clubName && teamName ? <><strong>{clubName}</strong> has invited</> : <>You've been invited</>} you to join <strong>{entityName}</strong> as a <strong>{roleName}</strong>.</>
-            )}
-          </ResponsiveDialogDescription>
-        </ResponsiveDialogHeader>
+          if (roleError) {
+            console.error("[InviteAutoAccept] Failed to assign role:", roleError);
+            continue;
+          }
 
-        {hasMultiple && (
-          <div className="px-1">
-            <p className="text-xs text-muted-foreground text-center mb-2">All pending invitations:</p>
-            <div className="flex flex-col gap-1">
-              {pendingInvites.map((inv: any) => {
-                const tName = inv.teams?.name;
-                const cName = inv.teams?.clubs?.name || inv.clubs?.name;
-                return (
-                  <div key={inv.id} className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-2 text-sm">
-                    <span className="font-medium">{tName || cName || "Invite"}</span>
-                    <Badge variant="secondary" className="text-xs">{roleLabels[inv.role] || inv.role}</Badge>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+          // Mark invite as accepted
+          await supabase
+            .from("pending_invites")
+            .update({
+              status: "accepted",
+              accepted_at: new Date().toISOString(),
+              invited_user_id: user.id,
+            })
+            .eq("id", invite.id);
 
-        <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-col">
-          <Button
-            className="w-full"
-            onClick={handleAcceptAll}
-            disabled={!!acceptingId}
-          >
-            {acceptingId ? (
-              <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Accepting...</>
-            ) : (
-              hasMultiple ? `Accept First Invite` : `Accept Invitation`
-            )}
-          </Button>
-          <Button variant="ghost" className="w-full" onClick={handleDismiss}>
-            I'll do this later
-          </Button>
-        </ResponsiveDialogFooter>
-      </ResponsiveDialogContent>
-    </ResponsiveDialog>
-  );
+          const entityName =
+            (invite.teams as any)?.name ||
+            (invite.teams as any)?.clubs?.name ||
+            (invite.clubs as any)?.name ||
+            "organization";
+
+          console.log("[InviteAutoAccept] Auto-accepted invite for:", entityName, "role:", invite.role);
+
+          // Create children from invite metadata (if parent role with children)
+          if (
+            invite.metadata &&
+            (invite.metadata as any)?.children?.length > 0 &&
+            invite.role === "parent"
+          ) {
+            for (const childData of (invite.metadata as any).children) {
+              const { data: newChild, error: childError } = await supabase
+                .from("children")
+                .insert({
+                  parent_id: user.id,
+                  name: childData.name,
+                  year_of_birth: childData.yearOfBirth,
+                })
+                .select("id")
+                .single();
+
+              if (childError) {
+                console.error("[InviteAutoAccept] Failed to create child:", childError.message);
+                continue;
+              }
+
+              if (newChild?.id && invite.team_id) {
+                await supabase.from("child_team_assignments").insert({
+                  child_id: newChild.id,
+                  team_id: invite.team_id,
+                });
+              }
+            }
+          }
+        } catch (err) {
+          console.error("[InviteAutoAccept] Unexpected error for invite:", invite.id, err);
+        }
+      }
+
+      // Refresh roles/membership queries after processing
+      queryClient.invalidateQueries({ queryKey: ["user-roles"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-invites-for-user"] });
+    };
+
+    autoAcceptInvites();
+  }, [user, pendingInvites, queryClient]);
+
+  // No UI rendered — purely background logic
+  return null;
 }

@@ -272,11 +272,15 @@ export default function CompleteProfilePage() {
         return;
       }
 
-      // Set light theme as default for new users
-      localStorage.setItem('app-theme', 'light');
-      const root = window.document.documentElement;
-      root.classList.remove('dark');
-      root.style.colorScheme = 'light';
+      // Set light theme as default for new users (only if no theme is already active)
+      const existingTheme = localStorage.getItem('app-theme');
+      if (!existingTheme) {
+        localStorage.setItem('app-theme', 'light');
+        const root = window.document.documentElement;
+        root.classList.remove('dark');
+        root.classList.add('light');
+        root.style.colorScheme = 'light';
+      }
 
       // Send welcome DM from Ignite Support (fire and forget - don't block on this)
       supabase.functions.invoke("send-welcome-dm", {
@@ -360,10 +364,7 @@ export default function CompleteProfilePage() {
                 console.error("[CompleteProfile] Failed to update invite status:", updateError);
               } else {
                 const entityName = invite.team_name || invite.club_name || "organization";
-                toast({
-                  title: "Invite accepted!",
-                  description: `You've joined ${entityName} as ${invite.role.replace("_", " ")}.`,
-                });
+                console.log("[CompleteProfile] Invite accepted for:", entityName);
                 
                 // Create children from invite metadata (if parent role with children)
                 if (invite.metadata?.children && invite.metadata.children.length > 0 && invite.role === "parent") {
@@ -693,19 +694,7 @@ export default function CompleteProfilePage() {
       if (biometricsEnabled && biometricsAvailable) {
         setBiometricsLoading(true);
         try {
-          const result = await registerPasskey();
-          if (result.success) {
-            toast({
-              title: "Biometrics enabled!",
-              description: "You can now sign in with Face ID / Touch ID.",
-            });
-          } else {
-            console.warn("Passkey registration failed:", result.error);
-            toast({
-              title: "Biometrics setup skipped",
-              description: "You can enable it later in your profile settings.",
-            });
-          }
+          await registerPasskey();
         } catch (err) {
           console.warn("Passkey registration error:", err);
         }
@@ -728,10 +717,7 @@ export default function CompleteProfilePage() {
       markProfileCompleted(user.id);
       clearInviteFlowContext();
 
-      toast({
-        title: "Profile completed!",
-        description: "Welcome to Ignite Club HQ!",
-      });
+      // Profile completed - no toast needed, navigating to home
       
       // Invalidate club theme queries so they refetch with new user roles
       await queryClient.invalidateQueries({ queryKey: ["club-themes"] });
