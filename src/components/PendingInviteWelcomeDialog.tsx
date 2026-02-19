@@ -77,7 +77,31 @@ export function PendingInviteWelcomeDialog() {
         console.error("[InviteWelcome] Error fetching invites:", error);
         return [];
       }
-      return data || [];
+
+      const invites = data || [];
+
+      // Filter out invites where the user already has the role (already a member)
+      const filtered: typeof invites = [];
+      for (const invite of invites) {
+        const roleQuery = supabase
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("role", invite.role as any);
+
+        if (invite.team_id) {
+          roleQuery.eq("team_id", invite.team_id);
+        } else if (invite.club_id) {
+          roleQuery.eq("club_id", invite.club_id).is("team_id", null);
+        }
+
+        const { data: existing } = await roleQuery.maybeSingle();
+        if (!existing) {
+          filtered.push(invite);
+        }
+      }
+
+      return filtered;
     },
     enabled: !!user && !dismissed,
     staleTime: 0,
