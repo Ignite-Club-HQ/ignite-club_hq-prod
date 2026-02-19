@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Navigate, Link } from "react-router-dom";
-import { Flame, Mail, Lock, Loader2, Eye, EyeOff, Fingerprint } from "lucide-react";
+import { Flame, Mail, Lock, Loader2, Eye, EyeOff, Fingerprint, CheckCircle2, Circle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,6 +51,7 @@ export default function AuthPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
+  const [hibpStatus, setHibpStatus] = useState<'idle' | 'checking' | 'safe' | 'compromised'>('idle');
   
   // Check if we should default to signup view (new user from invite)
   const defaultView = sessionStorage.getItem("authDefaultTab") || "signin";
@@ -73,6 +74,32 @@ export default function AuthPage() {
   // User is not logged in on AuthPage, so we can't check profile completion yet
   const isInInviteFlow = inviteFlowContext?.active === true && !!redirectAfterAuth;
   
+  // HIBP compromised password check (k-anonymity — only first 5 chars of SHA1 sent)
+  useEffect(() => {
+    if (authMode !== 'signup' || !password || password.length < 8) {
+      setHibpStatus('idle');
+      return;
+    }
+    setHibpStatus('checking');
+    const timer = setTimeout(async () => {
+      try {
+        const buffer = new TextEncoder().encode(password);
+        const hashBuffer = await crypto.subtle.digest('SHA-1', buffer);
+        const hash = Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+        const prefix = hash.slice(0, 5);
+        const suffix = hash.slice(5);
+        const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
+        const text = await res.text();
+        const found = text.split('\n').some(line => line.split(':')[0] === suffix);
+        setHibpStatus(found ? 'compromised' : 'safe');
+      } catch {
+        setHibpStatus('idle'); // Don't block user if API is unavailable
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [password, authMode]);
+
   // Clear stale invite flow context and session storage on mount
   useEffect(() => {
     sessionStorage.removeItem("authDefaultTab");
@@ -212,8 +239,9 @@ export default function AuthPage() {
       let message = error.message;
       let title = "Something went wrong";
       if (message.includes("already registered")) {
-        title = "Account exists";
-        message = "This email is already registered. Please sign in instead.";
+        title = "Account already exists";
+        message = "This email is already registered. Please sign in using the form below. If you've forgotten your password, tap 'Forgot password?' to reset it.";
+        switchToSignIn();
       } else if (message.includes("Invalid login")) {
         title = "Unable to sign in";
         message = "Invalid email or password. Please try again.";
@@ -223,6 +251,9 @@ export default function AuthPage() {
       } else if (message.includes("Network") || message.includes("fetch")) {
         title = "Connection issue";
         message = "Please check your internet connection and try again.";
+      } else if (message.toLowerCase().includes("weak") || message.toLowerCase().includes("easy to guess") || message.toLowerCase().includes("pwned")) {
+        title = "Password not accepted";
+        message = "This password is too common or has appeared in data breaches. Please choose a more unique password (e.g. add symbols or a random word).";
       }
       toast({
         title,
@@ -510,14 +541,34 @@ export default function AuthPage() {
                     </div>
                     {password && (
                       <div className="space-y-1 mt-2">
-                        {passwordRequirements.map((req, idx) => (
-                          <div key={idx} className="flex items-center gap-2 text-xs">
-                            <div className={`w-1.5 h-1.5 rounded-full ${req.test(password) ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
-                            <span className={req.test(password) ? 'text-primary' : 'text-muted-foreground'}>
-                              {req.label}
-                            </span>
-                          </div>
-                        ))}
+                        {passwordRequirements.map((req, idx) => {
+                          const met = req.test(password);
+                          return (
+                            <div key={idx} className="flex items-center gap-2 text-xs">
+                              {met
+                                ? <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                                : <Circle className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />
+                              }
+                              <span className={met ? 'text-primary' : 'text-muted-foreground'}>
+                                {req.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {/* HIBP compromised password check */}
+                        <div className="flex items-center gap-2 text-xs">
+                          {hibpStatus === 'checking' && <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin flex-shrink-0" />}
+                          {hibpStatus === 'safe' && <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+                          {hibpStatus === 'compromised' && <XCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />}
+                          {hibpStatus === 'idle' && <Circle className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />}
+                          <span className={
+                            hibpStatus === 'safe' ? 'text-primary' :
+                            hibpStatus === 'compromised' ? 'text-destructive' :
+                            'text-muted-foreground'
+                          }>
+                            {hibpStatus === 'compromised' ? 'Password found in data breaches — choose another' : 'Not a known compromised password'}
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
