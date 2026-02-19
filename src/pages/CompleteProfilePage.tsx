@@ -63,6 +63,16 @@ export default function CompleteProfilePage() {
   // Check if we're in an invite flow
   const inviteFlowContext = getInviteFlowContext();
 
+  // New users completing their profile always see light mode.
+  // We also update localStorage so next-themes ThemeProvider doesn't re-override the DOM.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add('light');
+    root.style.colorScheme = 'light';
+    localStorage.setItem('app-theme', 'light');
+  }, []);
+
   // Check if push notifications and biometrics are supported
   useEffect(() => {
     const checkFeatures = async () => {
