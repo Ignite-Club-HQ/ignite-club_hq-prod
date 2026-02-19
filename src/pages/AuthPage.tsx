@@ -223,6 +223,9 @@ export default function AuthPage() {
       } else if (message.includes("Network") || message.includes("fetch")) {
         title = "Connection issue";
         message = "Please check your internet connection and try again.";
+      } else if (message.toLowerCase().includes("weak") || message.toLowerCase().includes("easy to guess") || message.toLowerCase().includes("pwned")) {
+        title = "Password not accepted";
+        message = "This password is too common or has appeared in data breaches. Please choose a more unique password (e.g. add symbols or a random word).";
       }
       toast({
         title,
