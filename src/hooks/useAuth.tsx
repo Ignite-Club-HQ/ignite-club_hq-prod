@@ -211,7 +211,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // CRITICAL FIX: Apply theme when applyTheme=true (passed by caller)
           // The caller determines if this is a fresh login, not React state
           // This fixes Google OAuth where the closure captured stale isFreshLogin state
-          if (applyTheme) {
+          // Only apply if profile has display_name - skip for incomplete profiles going to CompleteProfilePage
+          if (applyTheme && profileData.display_name) {
             const root = window.document.documentElement;
             const themeToApply = profileData.theme_preference || 'light'; // Default to light for new users
             root.classList.remove('light', 'dark');
