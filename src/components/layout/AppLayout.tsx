@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
+import { PendingInviteWelcomeDialog } from "@/components/PendingInviteWelcomeDialog";
 import { useAdMobInit } from "@/hooks/useAdMob";
 import igniteIconLight from "@/assets/ignite-icon-light.png";
 import igniteIcon from "@/assets/ignite-icon.png";
@@ -204,6 +205,7 @@ export function AppLayout() {
       <BottomNav />
       <OfflineIndicator />
       <NativeNotificationPrompt userId={user?.id} />
+      <PendingInviteWelcomeDialog />
     </div>
   );
 }

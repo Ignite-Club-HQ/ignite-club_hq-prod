@@ -273,6 +273,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               template: "team-invite",
               templateData: {
                 recipientName: customName.trim(),
+                invitedEmail: email,
                 teamName,
                 clubName: clubBranding?.name || "The Club",
                 roleName: roleOptions.find(r => r.value === selectedRole)?.label || "Member",
@@ -397,6 +398,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 template: "team-invite",
                 templateData: {
                   recipientName: member.name.trim(),
+                  invitedEmail: member.email.trim(),
                   teamName,
                   clubName: clubBranding?.name || "The Club",
                   roleName: roleOptions.find(r => r.value === memberRole)?.label || "Member",

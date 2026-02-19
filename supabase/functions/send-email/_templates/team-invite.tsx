@@ -16,6 +16,7 @@ import * as React from 'npm:react@18.3.1'
 
 interface TeamInviteEmailProps {
   recipientName: string;
+  invitedEmail?: string;
   teamName: string;
   clubName: string;
   roleName: string;
@@ -62,6 +63,7 @@ const APP_STORE_URL = "";
 
 export const TeamInviteEmail = ({
   recipientName = "Member",
+  invitedEmail,
   teamName = "The Team",
   clubName = "The Club",
   roleName = "Player",
@@ -158,7 +160,7 @@ export const TeamInviteEmail = ({
               <Section style={stepRow}>
                 <Text style={stepNumber}>2</Text>
                 <Text style={stepText}>
-                  <strong>Create your account</strong> — sign up with this email address ({recipientName}) and complete your profile
+                  <strong>Create your account</strong> — on the sign-in screen, tap <strong>"Sign up here"</strong>. Enter{invitedEmail ? <> <strong>{invitedEmail}</strong> as your email</> : ' this email address'}, set a password, then tap <strong>Create Account</strong>. Complete your profile when prompted.
                 </Text>
               </Section>
 

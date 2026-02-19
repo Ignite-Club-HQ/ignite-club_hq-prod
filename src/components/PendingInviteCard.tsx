@@ -247,6 +247,7 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
           template: "team-invite",
           templateData: {
             recipientName,
+            invitedEmail: invite.invited_email,
             teamName,
             clubName,
             roleName: roleLabels[invite.role] || invite.role.replace("_", " "),
