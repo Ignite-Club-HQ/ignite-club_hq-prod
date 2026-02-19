@@ -36,15 +36,6 @@ export default function CancellationPolicyPage() {
           </p>
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-xl font-semibold">3. Free Trials</h2>
-          <p className="text-muted-foreground">
-            We may offer free trials for new subscribers. During the trial period, you can access premium features at no cost. If you do not cancel before the trial ends, your subscription will automatically convert to a paid plan and you will be charged the applicable fee.
-          </p>
-          <p className="text-muted-foreground">
-            You can cancel your trial at any time through your account settings before the trial period ends to avoid being charged.
-          </p>
-        </section>
 
         <section className="space-y-4">
           <h2 className="text-xl font-semibold">4. Cancellation Policy</h2>
