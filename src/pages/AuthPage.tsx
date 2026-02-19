@@ -239,14 +239,8 @@ export default function AuthPage() {
           console.log('[AuthPage] Fresh biometric check:', freshBiometricInfo);
           
           if (freshBiometricInfo.isAvailable && !freshBiometricInfo.hasCredentials) {
-            // Store credentials for future biometric login
-            const stored = await storeCredentialsForNativeBiometric(email, password);
-            if (stored.success) {
-              toast({
-                title: "Biometric login enabled",
-                description: `You can now use ${getBiometricButtonText().replace('Sign in with ', '')} to sign in next time.`,
-              });
-            }
+            // Store credentials for future biometric login (silently)
+            await storeCredentialsForNativeBiometric(email, password);
           }
         } catch (e) {
           console.log('[AuthPage] Biometric enrollment check failed:', e);
