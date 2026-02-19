@@ -192,6 +192,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
               template: "team-invite",
               templateData: {
                 recipientName: customName.trim(),
+                invitedEmail: email,
                 teamName: clubName, // Using teamName field for club name
                 clubName: clubName,
                 roleName: roleConfig[selectedRole].label,

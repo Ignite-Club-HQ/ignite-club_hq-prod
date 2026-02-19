@@ -297,6 +297,7 @@ export default function CreateTeamPage() {
             template: "team-invite",
             templateData: {
               recipientName: adminAssignment.inviteName,
+              invitedEmail: adminAssignment.inviteEmail,
               teamName: team.name,
               clubName: club?.name || "The Club",
               roleName: "Team Admin",
