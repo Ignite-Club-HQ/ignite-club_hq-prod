@@ -183,6 +183,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
               template: "team-invite",
               templateData: {
                 recipientName: parentName.trim() || email,
+                invitedEmail: email,
                 teamName: miniLeagueName,
                 clubName: clubBranding?.name || "The Club",
                 roleName: "Parent",

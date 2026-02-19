@@ -74,6 +74,7 @@ interface EmailRequest {
 
 interface TeamInviteTemplateData {
   recipientName: string;
+  invitedEmail?: string;
   teamName: string;
   clubName: string;
   roleName: string;
@@ -350,6 +351,7 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
       return await renderAsync(
         React.createElement(TeamInviteEmail, {
           recipientName: data.recipientName,
+          invitedEmail: data.invitedEmail,
           teamName: data.teamName,
           clubName: data.clubName,
           roleName: data.roleName,
