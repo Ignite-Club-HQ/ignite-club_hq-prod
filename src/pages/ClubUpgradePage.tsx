@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isNativePlatform } from "@/lib/nativePush";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Check, Crown, Loader2, Ticket, Target, ArrowDown, Calendar, AlertCircle, Building2, Users, CreditCard, Clock } from "lucide-react";
-import { isPast, parseISO, format, addMonths, addYears, differenceInDays } from "date-fns";
+import { ArrowLeft, Check, Crown, Loader2, Ticket, Target, ArrowDown, Calendar, AlertCircle, Building2, Users, CreditCard } from "lucide-react";
+import { isPast, parseISO, format, addMonths, addYears } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 
 const PRO_FEATURES = [
   "Club Chat (club-wide messaging)",
@@ -202,11 +203,6 @@ export default function ClubUpgradePage() {
   const currentPlan = subscription?.plan as PlanTier | undefined;
   const currentTeamLimit = subscription?.team_limit;
 
-  // Trial state
-  const isTrial = subscription?.is_trial || false;
-  const trialEndsAt = subscription?.trial_ends_at ? parseISO(subscription.trial_ends_at) : null;
-  const trialDaysLeft = trialEndsAt ? differenceInDays(trialEndsAt, new Date()) : 0;
-  const isTrialExpired = trialEndsAt ? isPast(trialEndsAt) : false;
 
   // Determine recommended plan based on team count
   const getRecommendedPlan = (count: number): PlanTier => {
@@ -583,43 +579,6 @@ export default function ClubUpgradePage() {
     );
   };
 
-  const renderTrialBanner = () => {
-    if (!isTrial || !trialEndsAt) return null;
-    
-    if (isTrialExpired) {
-      return (
-        <Card className="border-destructive/50 bg-destructive/10 mb-4">
-          <CardContent className="p-4 flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-semibold text-destructive">Trial Expired</p>
-              <p className="text-sm text-muted-foreground">
-                Your trial ended on {format(trialEndsAt, "dd MMM yyyy")}. 
-                Subscribe now to continue accessing Pro features.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      );
-    }
-
-    return (
-      <Card className="border-blue-500/50 bg-blue-500/10 mb-4">
-        <CardContent className="p-4 flex items-center gap-3">
-          <Clock className="h-5 w-5 text-blue-500 shrink-0" />
-          <div className="flex-1">
-            <p className="font-medium text-blue-600">
-              Trial Active - {trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'} left
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Ends on {format(trialEndsAt, "dd MMMM yyyy")}. Your subscription will start automatically.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
-
   const renderTeamCountBanner = () => {
     if (isOverLimit) {
       return (
@@ -916,11 +875,12 @@ export default function ClubUpgradePage() {
                 ) : (
                   <CreditCard className="h-4 w-4 mr-2" />
                 )}
-                Start 14-Day Free Trial
+                Subscribe Now
               </Button>
               <p className="text-xs text-center text-muted-foreground">
-                Payment details required • Then ${effectiveIsAnnual ? annualPrice : monthlyPrice}/{effectiveIsAnnual ? 'year' : 'month'} • Cancel anytime
+                ${effectiveIsAnnual ? annualPrice : monthlyPrice}/{effectiveIsAnnual ? 'year' : 'month'} AUD • Cancel anytime
               </p>
+              <SubscriptionLegalLinks />
             </div>
           </CardContent>
         </Card>
@@ -977,11 +937,8 @@ export default function ClubUpgradePage() {
       {/* Team Limit Warning */}
       {renderTeamCountBanner()}
 
-      {/* Trial Banner */}
-      {isTrial && renderTrialBanner()}
-
-      {/* Expiry Banner for active subscriptions (non-trial) */}
-      {(isProActive || isProFootballActive) && !isTrial && renderExpiryBanner()}
+      {/* Expiry Banner for active subscriptions */}
+      {(isProActive || isProFootballActive) && renderExpiryBanner()}
 
       {/* Info Card */}
       <Card className="bg-muted/50">
