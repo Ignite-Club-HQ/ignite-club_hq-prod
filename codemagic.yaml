@@ -97,6 +97,23 @@ workflows:
           else
             echo "=== igniteclubhq:// intent-filter already present ==="
           fi
+      - name: Add App Links intent-filter for igniteclubhq.app
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q 'android:host="igniteclubhq.app"' "$MANIFEST"; then
+            # Insert App Links intent-filter before the closing </activity> tag
+            sed -i '' '/<\/activity>/i\
+                <intent-filter android:autoVerify="true">\
+                    <action android:name="android.intent.action.VIEW" />\
+                    <category android:name="android.intent.category.DEFAULT" />\
+                    <category android:name="android.intent.category.BROWSABLE" />\
+                    <data android:scheme="https" android:host="igniteclubhq.app" />\
+                </intent-filter>
+            ' "$MANIFEST"
+            echo "=== App Links intent-filter for igniteclubhq.app injected ==="
+          else
+            echo "=== App Links intent-filter for igniteclubhq.app already present ==="
+          fi
       - name: Configure notification icon
         script: |
           # Add meta-data for default notification icon and color to AndroidManifest.xml
