@@ -446,6 +446,7 @@ function getPreferenceColumn(notificationType: string | undefined): string | nul
     'member_joined': 'membership_enabled',
     'invite_accepted': 'membership_enabled',
     'join_request': 'membership_enabled',
+    'team_invite': 'membership_enabled',
     // Admin types
     'admin_alert': 'admin_enabled',
     'system_update': 'admin_enabled',
