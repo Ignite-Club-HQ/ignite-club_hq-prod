@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isNativePlatform } from "@/lib/nativePush";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Check, Crown, Loader2, Ticket, Target, ArrowDown, Calendar, AlertCircle, Building2, Users, CreditCard } from "lucide-react";
+import { ArrowLeft, Check, Crown, Loader2, Ticket, Target, ArrowDown, Calendar, AlertCircle, Building2, Users, CreditCard, Heart, ExternalLink } from "lucide-react";
+import { differenceInDays } from "date-fns";
 import { isPast, parseISO, format, addMonths, addYears } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -198,11 +199,61 @@ export default function ClubUpgradePage() {
   const isProActive = subscription?.is_pro;
   const isProFootballActive = subscription?.is_pro_football;
   const showFootballOption = isSoccerClub(club?.sport);
+
   const expiresAt = subscription?.expires_at ? parseISO(subscription.expires_at) : null;
   const isExpired = expiresAt ? isPast(expiresAt) : false;
   const currentPlan = subscription?.plan as PlanTier | undefined;
   const currentTeamLimit = subscription?.team_limit;
 
+  // Check if subscription is near expiry (within 30 days) or expired
+  const daysUntilExpiry = expiresAt ? differenceInDays(expiresAt, new Date()) : null;
+  const isNearExpiry = daysUntilExpiry !== null && daysUntilExpiry <= 30 && daysUntilExpiry > 0;
+  const showSponsorOption = isExpired || isNearExpiry;
+
+  // Query active sponsors for this club to determine if sponsor-funded
+  const { data: activeSponsors = [] } = useQuery({
+    queryKey: ["club-active-sponsors", clubId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("sponsors")
+        .select("id, name, logo_url, is_active")
+        .eq("club_id", clubId!)
+        .eq("is_active", true)
+        .order("display_order");
+      return data || [];
+    },
+    enabled: !!clubId,
+  });
+
+  const isSponsorFunded = activeSponsors.length > 0 && (isProActive || isProFootballActive);
+
+  // Realtime listener for subscription changes (e.g. sponsor payment on website)
+  useEffect(() => {
+    if (!clubId) return;
+    const channel = supabase
+      .channel(`club-sub-${clubId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "club_subscriptions",
+          filter: `club_id=eq.${clubId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+          queryClient.invalidateQueries({ queryKey: ["club", clubId] });
+          queryClient.invalidateQueries({ queryKey: ["club-active-sponsors", clubId] });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [clubId, queryClient]);
+
+  const handleGetSponsored = () => {
+    const sponsorUrl = `https://ignite-club-heart.lovable.app/sponsor/${clubId}`;
+    window.open(sponsorUrl, "_blank", "noopener,noreferrer");
+  };
 
   // Determine recommended plan based on team count
   const getRecommendedPlan = (count: number): PlanTier => {
@@ -550,14 +601,23 @@ export default function ClubUpgradePage() {
     if (isExpired) {
       return (
         <Card className="border-destructive/50 bg-destructive/10 mb-4">
-          <CardContent className="p-4 flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-destructive">Subscription Expired</p>
-              <p className="text-sm text-muted-foreground">
-                Your subscription expired on {format(expiresAt, "dd MMM yyyy")}. 
-                Renew now to continue accessing Pro features.
-              </p>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-destructive">Subscription Expired</p>
+                <p className="text-sm text-muted-foreground">
+                  Your subscription expired on {format(expiresAt, "dd MMM yyyy")}. 
+                  Renew now to continue accessing Pro features.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={handleGetSponsored} className="flex-1">
+                <Heart className="h-4 w-4 mr-2 text-pink-500" />
+                Get Sponsored
+                <ExternalLink className="h-3 w-3 ml-1" />
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -565,15 +625,31 @@ export default function ClubUpgradePage() {
     }
 
     return (
-      <Card className="border-primary/30 bg-primary/5 mb-4">
-        <CardContent className="p-4 flex items-center gap-3">
-          <Calendar className="h-5 w-5 text-primary shrink-0" />
-          <div>
-            <p className="text-sm">
-              <span className="font-medium">Paid until:</span>{" "}
-              <span className="text-primary font-semibold">{format(expiresAt, "dd MMMM yyyy")}</span>
-            </p>
+      <Card className={`mb-4 ${isNearExpiry ? "border-amber-500/50 bg-amber-500/10" : "border-primary/30 bg-primary/5"}`}>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <Calendar className={`h-5 w-5 ${isNearExpiry ? "text-amber-500" : "text-primary"} shrink-0`} />
+            <div className="flex-1">
+              <p className="text-sm">
+                <span className="font-medium">{isSponsorFunded ? "Sponsored until:" : "Paid until:"}</span>{" "}
+                <span className={`font-semibold ${isNearExpiry ? "text-amber-600" : "text-primary"}`}>
+                  {format(expiresAt, "dd MMMM yyyy")}
+                </span>
+              </p>
+              {isNearExpiry && (
+                <p className="text-xs text-amber-600 mt-0.5">
+                  Expiring in {daysUntilExpiry} days — renew or find a sponsor
+                </p>
+              )}
+            </div>
           </div>
+          {showSponsorOption && (
+            <Button size="sm" variant="outline" onClick={handleGetSponsored} className="w-full">
+              <Heart className="h-4 w-4 mr-2 text-pink-500" />
+              Get Sponsored
+              <ExternalLink className="h-3 w-3 ml-1" />
+            </Button>
+          )}
         </CardContent>
       </Card>
     );
@@ -696,10 +772,32 @@ export default function ClubUpgradePage() {
           </div>
 
           {currentPlan && (
-            <Badge variant="outline" className="text-base px-4 py-1">
-              {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan
-              {currentTeamLimit ? ` (${teamCount}/${currentTeamLimit} teams)` : " (Unlimited teams)"}
-            </Badge>
+            <div className="flex flex-col items-center gap-1">
+              <Badge variant="outline" className="text-base px-4 py-1">
+                {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan
+                {currentTeamLimit ? ` (${teamCount}/${currentTeamLimit} teams)` : " (Unlimited teams)"}
+              </Badge>
+              <Badge variant="secondary" className="text-xs">
+                {isSponsorFunded ? "Sponsor-funded" : "Self-paid"}
+              </Badge>
+            </div>
+          )}
+
+          {/* Sponsor attribution logos */}
+          {isSponsorFunded && activeSponsors.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Sponsored by</p>
+              <div className="flex items-center justify-center gap-3 flex-wrap">
+                {activeSponsors.slice(0, 4).map((s) => (
+                  <div key={s.id} className="flex items-center gap-1.5">
+                    {s.logo_url && (
+                      <img src={s.logo_url} alt={s.name} className="h-6 w-6 rounded object-contain" />
+                    )}
+                    <span className="text-xs font-medium">{s.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
           
           {expiresAt && (
@@ -707,11 +805,11 @@ export default function ClubUpgradePage() {
               <div className="flex items-center gap-2">
                 <Calendar className={`h-4 w-4 ${isExpired ? 'text-destructive' : 'text-muted-foreground'}`} />
                 <span className={`text-sm ${isExpired ? 'text-destructive font-semibold' : ''}`}>
-                  {isExpired ? 'Payment failed on ' : 'Auto-renews on '}
+                  {isExpired ? 'Payment failed on ' : (isSponsorFunded ? 'Sponsored until ' : 'Auto-renews on ')}
                   <strong>{format(expiresAt, "dd MMMM yyyy")}</strong>
                 </span>
               </div>
-              {!isExpired && (
+              {!isExpired && !isSponsorFunded && (
                 <p className="text-xs text-muted-foreground">
                   You'll receive a reminder 7 days before renewal
                 </p>
@@ -720,9 +818,24 @@ export default function ClubUpgradePage() {
           )}
 
           {isExpired && (
-            <p className="text-sm text-destructive text-center">
-              Your payment failed. Please update your payment method to continue accessing Pro features.
-            </p>
+            <div className="space-y-2">
+              <p className="text-sm text-destructive text-center">
+                Your payment failed. Please update your payment method or find a sponsor.
+              </p>
+              <Button variant="outline" size="sm" onClick={handleGetSponsored} className="w-full">
+                <Heart className="h-4 w-4 mr-2 text-pink-500" />
+                Get Sponsored
+                <ExternalLink className="h-3 w-3 ml-1" />
+              </Button>
+            </div>
+          )}
+
+          {showSponsorOption && !isExpired && (
+            <Button variant="outline" size="sm" onClick={handleGetSponsored} className="w-full">
+              <Heart className="h-4 w-4 mr-2 text-pink-500" />
+              Get Sponsored
+              <ExternalLink className="h-3 w-3 ml-1" />
+            </Button>
           )}
 
           <div className="flex flex-col gap-2">
@@ -879,6 +992,19 @@ export default function ClubUpgradePage() {
               </Button>
               <p className="text-xs text-center text-muted-foreground">
                 ${effectiveIsAnnual ? annualPrice : monthlyPrice}/{effectiveIsAnnual ? 'year' : 'month'} AUD • Cancel anytime
+              </p>
+              <div className="relative flex items-center justify-center gap-2 py-1">
+                <div className="flex-1 border-t border-border" />
+                <span className="text-xs text-muted-foreground px-2">or</span>
+                <div className="flex-1 border-t border-border" />
+              </div>
+              <Button variant="outline" className="w-full" size="lg" onClick={handleGetSponsored}>
+                <Heart className="h-4 w-4 mr-2 text-pink-500" />
+                Get Sponsored
+                <ExternalLink className="h-3 w-3 ml-1" />
+              </Button>
+              <p className="text-xs text-center text-muted-foreground">
+                Let a local sponsor pay for your subscription
               </p>
               <SubscriptionLegalLinks />
             </div>
