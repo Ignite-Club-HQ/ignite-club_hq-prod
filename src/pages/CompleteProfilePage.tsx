@@ -18,6 +18,7 @@ import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
 import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext, markProfileCompleted } from "@/components/InviteFlowProgress";
 import { useQueryClient } from "@tanstack/react-query";
+import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
 
 interface PendingInvite {
   id: string;
@@ -760,6 +761,7 @@ export default function CompleteProfilePage() {
   const isInInviteFlow = inviteFlowContext?.active === true;
 
   return (
+    <>
     <div className="min-h-screen flex flex-col bg-background pt-safe" style={{ paddingTop: Capacitor.isNativePlatform() ? 'max(env(safe-area-inset-top, 0px), 24px)' : undefined }}>
       {/* Show progress indicator if in invite flow */}
       {isInInviteFlow && (
@@ -1063,5 +1065,7 @@ export default function CompleteProfilePage() {
       </div>
       </div>
     </div>
+    <NativeNotificationPrompt userId={user?.id} />
+    </>
   );
 }
