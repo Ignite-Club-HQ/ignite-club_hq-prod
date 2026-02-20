@@ -90,6 +90,35 @@ serve(async (req) => {
       });
     }
 
+    // Role-based access control
+    if (productConfig.isStorage || (entityType === "club" && !productConfig.isStorage)) {
+      // Club plans and storage require club_admin role
+      const { data: isClubAdmin } = await supabase
+        .rpc("has_role", { _user_id: user.id, _role: "club_admin", _club_id: entityId, _team_id: null });
+      const { data: isAppAdmin } = await supabase
+        .rpc("has_role", { _user_id: user.id, _role: "app_admin", _club_id: null, _team_id: null });
+      if (!isClubAdmin && !isAppAdmin) {
+        return new Response(JSON.stringify({ error: "Only club administrators can purchase this plan" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else if (entityType === "team") {
+      // Team plans require team_admin or coach role
+      const { data: isTeamAdmin } = await supabase
+        .rpc("has_role", { _user_id: user.id, _role: "team_admin", _club_id: null, _team_id: entityId });
+      const { data: isCoach } = await supabase
+        .rpc("has_role", { _user_id: user.id, _role: "coach", _club_id: null, _team_id: entityId });
+      const { data: isAppAdmin } = await supabase
+        .rpc("has_role", { _user_id: user.id, _role: "app_admin", _club_id: null, _team_id: null });
+      if (!isTeamAdmin && !isCoach && !isAppAdmin) {
+        return new Response(JSON.stringify({ error: "Only team administrators or coaches can purchase this plan" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     // TODO: Add proper receipt validation with Apple/Google servers
     // For Apple: Verify with App Store Server API (https://developer.apple.com/documentation/appstoreserverapi)
     // For Google: Verify with Google Play Developer API (https://developers.google.com/android-publisher)
