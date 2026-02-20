@@ -52,7 +52,7 @@ const PRO_FOOTBALL_FEATURES = [
 const PRICING = {
   pro: {
     monthly: 24.99,
-    annual: 239,
+    annual: 239.00,
   },
   proFootball: {
     monthly: 39.99,
