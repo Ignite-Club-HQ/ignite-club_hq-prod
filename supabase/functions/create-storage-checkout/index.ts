@@ -9,8 +9,8 @@ const corsHeaders = {
 
 // Storage pack pricing
 const STORAGE_PACKS = {
-  '10gb': { gb: 10, priceMonthly: 200, priceAnnual: 2000, name: '10GB Storage Pack' },
-  '50gb': { gb: 50, priceMonthly: 1000, priceAnnual: 10000, name: '50GB Storage Pack' },
+  '10gb': { gb: 10, priceMonthly: 499, priceAnnual: 4999, name: '10GB Storage Pack' },
+  '50gb': { gb: 50, priceMonthly: 1499, priceAnnual: 14999, name: '50GB Storage Pack' },
 };
 
 serve(async (req) => {
