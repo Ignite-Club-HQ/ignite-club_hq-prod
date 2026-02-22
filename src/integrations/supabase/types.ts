@@ -4258,11 +4258,15 @@ export type Database = {
           folder_id: string | null
           id: string
           is_archived: boolean
+          is_pro: boolean
           level_age: string | null
           logo_url: string | null
           name: string
+          pro_activated_at: string | null
+          pro_expires_at: string | null
           season_label: string | null
           sponsor_id: string | null
+          stripe_subscription_id: string | null
           team_type: string | null
           updated_at: string
         }
@@ -4283,11 +4287,15 @@ export type Database = {
           folder_id?: string | null
           id?: string
           is_archived?: boolean
+          is_pro?: boolean
           level_age?: string | null
           logo_url?: string | null
           name: string
+          pro_activated_at?: string | null
+          pro_expires_at?: string | null
           season_label?: string | null
           sponsor_id?: string | null
+          stripe_subscription_id?: string | null
           team_type?: string | null
           updated_at?: string
         }
@@ -4308,11 +4316,15 @@ export type Database = {
           folder_id?: string | null
           id?: string
           is_archived?: boolean
+          is_pro?: boolean
           level_age?: string | null
           logo_url?: string | null
           name?: string
+          pro_activated_at?: string | null
+          pro_expires_at?: string | null
           season_label?: string | null
           sponsor_id?: string | null
+          stripe_subscription_id?: string | null
           team_type?: string | null
           updated_at?: string
         }
