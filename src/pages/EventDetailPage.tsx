@@ -707,8 +707,19 @@ export default function EventDetailPage() {
       }
 
       if (result.url) {
-        listenForPaymentStatus(result.payment_id, (status) => {
+        listenForPaymentStatus(result.payment_id, async (status) => {
           if (status === "paid") {
+            try {
+              await supabase.functions.invoke("confirm-event-payment", {
+                body: {
+                  event_id: event.id,
+                  amount: eventPrice,
+                  payment_id: result.payment_id,
+                },
+              });
+            } catch (err) {
+              console.error("Failed to confirm event payment server-side:", err);
+            }
             queryClient.invalidateQueries({ queryKey: ["event-payments", id] });
             toast({ title: "Payment successful!" });
           } else {
