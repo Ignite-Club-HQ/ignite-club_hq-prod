@@ -1,4 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from "react";
+import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
+import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -663,48 +665,60 @@ export default function EventDetailPage() {
   const paidUserIds = new Set(payments?.map(p => p.user_id) || []);
 
   // Check if event has a price (social events only)
-  const eventPrice = event?.type === "social" ? (event as any)?.price : null;
+  const eventPrice = event?.type === "social" ? event?.amount : null;
   const showPaymentStatus = eventPrice && eventPrice > 0;
 
   // Check if user has paid
   const userHasPaid = user ? paidUserIds.has(user.id) : false;
 
-  // Check if club has Stripe configured
-  const { data: hasStripeConfig } = useQuery({
-    queryKey: ["club-stripe-config-check", event?.club_id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("club_stripe_configs")
-        .select("id, is_enabled")
-        .eq("club_id", event!.club_id)
-        .eq("is_enabled", true)
-        .maybeSingle();
-      return !!data;
-    },
-    enabled: !!event?.club_id && !!showPaymentStatus,
-  });
-
   // Payment checkout state
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   const handlePayNow = async () => {
-    if (!event || !user) return;
+    if (!event || !user || !eventPrice) return;
     
     setIsProcessingPayment(true);
     try {
-      const { data, error } = await supabase.functions.invoke('create-event-checkout', {
-        body: {
-          eventId: event.id,
-          successUrl: `${window.location.origin}/events/${event.id}?payment=success`,
-          cancelUrl: `${window.location.origin}/events/${event.id}?payment=cancelled`,
+      const amountCents = Math.round(eventPrice * 100);
+      const isNative = Capacitor.isNativePlatform();
+
+      const result = await createMemberCheckout({
+        club_id: event.club_id,
+        title: event.title,
+        amount_cents: amountCents,
+        type: "event",
+        payer_email: user.email || undefined,
+        description: `Event payment: ${event.title}`,
+        success_url: isNative
+          ? "igniteclubhq://payment-success"
+          : `${window.location.origin}/events/${event.id}?payment=success`,
+        cancel_url: isNative
+          ? "igniteclubhq://payment-cancel"
+          : `${window.location.origin}/events/${event.id}?payment=cancelled`,
+        metadata: {
+          event_id: event.id,
+          club_id: event.club_id,
+          ...(event.team_id ? { team_id: event.team_id } : {}),
         },
       });
 
-      if (error) throw error;
-      if (data?.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      if (result.url) {
+        listenForPaymentStatus(result.payment_id, (status) => {
+          if (status === "paid") {
+            queryClient.invalidateQueries({ queryKey: ["event-payments", id] });
+            toast({ title: "Payment successful!" });
+          } else {
+            toast({ title: "Payment failed", variant: "destructive" });
+          }
+        });
+
+        window.location.href = result.url;
       } else {
-        throw new Error('No checkout URL returned');
+        throw new Error("No checkout URL returned");
       }
     } catch (error: any) {
       console.error('Payment error:', error);
@@ -1952,7 +1966,7 @@ export default function EventDetailPage() {
                     <p className="text-sm text-muted-foreground">You've paid ${Number(eventPrice).toFixed(2)} for this event</p>
                   </div>
                 </div>
-              ) : hasStripeConfig ? (
+              ) : (
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-full bg-warning/20">
@@ -1980,16 +1994,6 @@ export default function EventDetailPage() {
                       </>
                     )}
                   </Button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-full bg-muted">
-                    <DollarSign className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-muted-foreground">Payment Pending</p>
-                    <p className="text-sm text-muted-foreground">${Number(eventPrice).toFixed(2)} - Contact organizer to pay</p>
-                  </div>
                 </div>
               )}
             </CardContent>

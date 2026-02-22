@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, CreditCard, CheckCircle2, XCircle, Eye, EyeOff, Users, Loader2, Shield } from "lucide-react";
+import { ArrowLeft, CreditCard, Loader2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,27 +9,12 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@/components/ui/switch";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-
-interface StripeConfigStatus {
-  configured: boolean;
-  isEnabled: boolean;
-  publishableKey: string | null;
-  hasSecretKey: boolean;
-}
 
 export default function StripeSettingsPage() {
   const { clubId } = useParams<{ clubId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
-  // Form state - secret key is write-only, never displayed
-  const [secretKey, setSecretKey] = useState("");
-  const [publishableKey, setPublishableKey] = useState("");
-  const [isEnabled, setIsEnabled] = useState(true);
-  const [showSecretKey, setShowSecretKey] = useState(false);
   
   // Member payment settings state
   const [memberPaymentsEnabled, setMemberPaymentsEnabled] = useState(false);
@@ -45,20 +30,6 @@ export default function StripeSettingsPage() {
         .select('id, name')
         .eq('id', clubId)
         .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!clubId
-  });
-
-  // Fetch Stripe config status via secure edge function
-  const { data: stripeConfig, isLoading } = useQuery<StripeConfigStatus | null>({
-    queryKey: ['club-stripe-config-status', clubId],
-    queryFn: async () => {
-      if (!clubId) return null;
-      const { data, error } = await supabase.functions.invoke('manage-stripe-config', {
-        body: { action: 'get', configType: 'club', clubId }
-      });
       if (error) throw error;
       return data;
     },
@@ -81,16 +52,6 @@ export default function StripeSettingsPage() {
     enabled: !!clubId
   });
 
-  // Populate form with existing config (secret key is never returned)
-  useEffect(() => {
-    if (stripeConfig) {
-      setPublishableKey(stripeConfig.publishableKey || "");
-      setIsEnabled(stripeConfig.isEnabled);
-      // Secret key is NEVER returned from the server - always start empty
-      setSecretKey("");
-    }
-  }, [stripeConfig]);
-
   // Populate member payment settings
   useEffect(() => {
     if (clubSubscription) {
@@ -99,62 +60,6 @@ export default function StripeSettingsPage() {
     }
   }, [clubSubscription]);
 
-  // Save mutation via secure edge function
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      // If updating existing config and no new secret key provided, error
-      if (stripeConfig?.configured && !secretKey) {
-        throw new Error("Please enter a new secret key to update the configuration");
-      }
-
-      const { data, error } = await supabase.functions.invoke('manage-stripe-config', {
-        body: {
-          action: 'save',
-          configType: 'club',
-          clubId,
-          secretKey: secretKey.trim(),
-          publishableKey: publishableKey.trim(),
-          isEnabled,
-        }
-      });
-      
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['club-stripe-config-status', clubId] });
-      setSecretKey(""); // Clear secret key after save
-      toast({ title: "Stripe configuration saved successfully" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to save configuration", description: error.message, variant: "destructive" });
-    }
-  });
-
-  // Delete mutation via secure edge function
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('manage-stripe-config', {
-        body: { action: 'delete', configType: 'club', clubId }
-      });
-      
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['club-stripe-config-status', clubId] });
-      setSecretKey("");
-      setPublishableKey("");
-      setIsEnabled(true);
-      toast({ title: "Stripe configuration removed" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to remove configuration", description: error.message, variant: "destructive" });
-    }
-  });
-
   // Save member payment settings mutation
   const saveMemberPaymentSettingsMutation = useMutation({
     mutationFn: async () => {
@@ -162,7 +67,6 @@ export default function StripeSettingsPage() {
       
       const amount = memberSubscriptionAmount ? parseFloat(memberSubscriptionAmount) : null;
       
-      // Check if club subscription exists
       if (clubSubscription) {
         const { error } = await supabase
           .from('club_subscriptions')
@@ -173,7 +77,6 @@ export default function StripeSettingsPage() {
           .eq('club_id', clubId);
         if (error) throw error;
       } else {
-        // Create a new subscription record if it doesn't exist
         const { error } = await supabase
           .from('club_subscriptions')
           .insert({
@@ -192,26 +95,6 @@ export default function StripeSettingsPage() {
       toast({ title: "Failed to save settings", description: error.message, variant: "destructive" });
     }
   });
-
-  const handleSave = () => {
-    if (!secretKey.trim() && !stripeConfig?.configured) {
-      toast({ title: "Please enter a Stripe secret key", variant: "destructive" });
-      return;
-    }
-    if (!publishableKey.trim()) {
-      toast({ title: "Please enter a Stripe publishable key", variant: "destructive" });
-      return;
-    }
-    if (secretKey && !secretKey.startsWith('sk_')) {
-      toast({ title: "Invalid secret key format", description: "Secret key should start with 'sk_'", variant: "destructive" });
-      return;
-    }
-    if (!publishableKey.startsWith('pk_')) {
-      toast({ title: "Invalid publishable key format", description: "Publishable key should start with 'pk_'", variant: "destructive" });
-      return;
-    }
-    saveMutation.mutate();
-  };
 
   const handleSaveMemberPaymentSettings = () => {
     if (memberPaymentsEnabled && !memberSubscriptionAmount) {
@@ -233,8 +116,6 @@ export default function StripeSettingsPage() {
     );
   }
 
-  const hasStripeConfig = stripeConfig?.configured;
-
   return (
     <div className="py-6 space-y-6">
       <div className="flex items-center gap-4">
@@ -247,172 +128,35 @@ export default function StripeSettingsPage() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-primary" />
-              <CardTitle>Stripe Configuration</CardTitle>
-            </div>
-            {stripeConfig?.configured && (
-              <div className="flex items-center gap-2">
-                {stripeConfig.isEnabled ? (
-                  <span className="flex items-center gap-1 text-sm text-green-600">
-                    <CheckCircle2 className="h-4 w-4" /> Active
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <XCircle className="h-4 w-4" /> Disabled
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-          <CardDescription>
-            Configure your Stripe API keys to accept payments for social events. Payments go directly to your Stripe account.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {isLoading ? (
-            <div className="space-y-4">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : (
-            <>
-              <Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950">
-                <Shield className="h-4 w-4 text-blue-600" />
-                <AlertDescription className="text-blue-800 dark:text-blue-200">
-                  <strong>Security:</strong> Your secret key is stored securely on the server and is never exposed to the browser.
-                  {stripeConfig?.configured && " Enter a new secret key only if you want to replace the existing one."}
-                </AlertDescription>
-              </Alert>
-
-              <Alert>
-                <AlertDescription>
-                  Get your API keys from the{" "}
-                  <a 
-                    href="https://dashboard.stripe.com/apikeys" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-primary underline font-medium"
-                  >
-                    Stripe Dashboard
-                  </a>. Use test keys (sk_test_*, pk_test_*) for testing.
-                </AlertDescription>
-              </Alert>
-
-              <div className="space-y-2">
-                <Label htmlFor="publishable-key">Publishable Key</Label>
-                <Input
-                  id="publishable-key"
-                  type="text"
-                  placeholder="pk_live_... or pk_test_..."
-                  value={publishableKey}
-                  onChange={(e) => setPublishableKey(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="secret-key">
-                  Secret Key {stripeConfig?.configured && <span className="text-muted-foreground font-normal">(leave empty to keep current)</span>}
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="secret-key"
-                    type={showSecretKey ? "text" : "password"}
-                    placeholder={stripeConfig?.configured ? "Enter new secret key to replace..." : "sk_live_... or sk_test_..."}
-                    value={secretKey}
-                    onChange={(e) => setSecretKey(e.target.value)}
-                    className="pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-full"
-                    onClick={() => setShowSecretKey(!showSecretKey)}
-                  >
-                    {showSecretKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Your secret key is validated with Stripe before being securely stored.
-                </p>
-              </div>
-
-              {stripeConfig?.configured && (
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="enabled">Enable payments</Label>
-                  <Switch
-                    id="enabled"
-                    checked={isEnabled}
-                    onCheckedChange={setIsEnabled}
-                  />
-                </div>
-              )}
-
-              <div className="flex gap-3">
-                <Button 
-                  onClick={handleSave} 
-                  disabled={saveMutation.isPending} 
-                  className="flex-1"
-                >
-                  {saveMutation.isPending ? "Saving..." : stripeConfig?.configured ? "Update Configuration" : "Save Configuration"}
-                </Button>
-                {stripeConfig?.configured && (
-                  <Button 
-                    variant="outline" 
-                    onClick={() => deleteMutation.mutate()}
-                    disabled={deleteMutation.isPending}
-                  >
-                    {deleteMutation.isPending ? "Removing..." : "Remove"}
-                  </Button>
-                )}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Member Subscription Payments Settings */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-primary" />
-            <CardTitle>Member Subscription Payments</CardTitle>
+            <CardTitle>Member Payment Settings</CardTitle>
           </div>
           <CardDescription>
-            Allow club members to pay their subscription fees online via Stripe.
+            Allow club members to pay their subscription and uniform fees online via Stripe. Payments are processed through the Ignite platform.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {!hasStripeConfig && (
-            <Alert>
-              <AlertDescription>
-                Configure your Stripe API keys above before enabling member payments.
-              </AlertDescription>
-            </Alert>
-          )}
-
           <div className="flex items-center justify-between">
             <div>
               <Label htmlFor="member-payments-enabled" className="font-medium">Enable Online Payments</Label>
               <p className="text-sm text-muted-foreground">
-                Members can pay their subscription fees via Stripe
+                Members can pay their fees via Stripe checkout
               </p>
             </div>
             <Switch
               id="member-payments-enabled"
               checked={memberPaymentsEnabled}
               onCheckedChange={setMemberPaymentsEnabled}
-              disabled={!hasStripeConfig}
             />
           </div>
 
           {memberPaymentsEnabled && (
             <div className="space-y-2">
-              <Label htmlFor="subscription-amount">Subscription Fee Amount ($)</Label>
+              <Label htmlFor="subscription-amount">Fee Amount ($)</Label>
               <Input
                 id="subscription-amount"
                 type="number"
@@ -423,14 +167,14 @@ export default function StripeSettingsPage() {
                 onChange={(e) => setMemberSubscriptionAmount(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                The amount members will pay for their club subscription
+                The amount members will pay for subscriptions and uniforms
               </p>
             </div>
           )}
 
           <Button
             onClick={handleSaveMemberPaymentSettings}
-            disabled={saveMemberPaymentSettingsMutation.isPending || (!hasStripeConfig && memberPaymentsEnabled)}
+            disabled={saveMemberPaymentSettingsMutation.isPending}
             className="w-full"
           >
             {saveMemberPaymentSettingsMutation.isPending ? (
@@ -439,7 +183,7 @@ export default function StripeSettingsPage() {
                 Saving...
               </>
             ) : (
-              "Save Member Payment Settings"
+              "Save Payment Settings"
             )}
           </Button>
         </CardContent>
