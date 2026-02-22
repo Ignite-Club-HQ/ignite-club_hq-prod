@@ -30,6 +30,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
+import { Capacitor } from "@capacitor/core";
 
 type PaymentType = "subscription" | "uniform";
 
@@ -110,8 +112,7 @@ export default function MemberSubscriptionPaymentsManager({
 
   // Check if current user has paid for current tab type
   const currentUserPayment = payments.find(p => p.user_id === user?.id);
-  const canPayOnline = activeTab === "subscription" && 
-    clubPaymentSettings?.member_payments_enabled && 
+  const canPayOnline = clubPaymentSettings?.member_payments_enabled && 
     clubPaymentSettings?.member_subscription_amount && 
     clubPaymentSettings.member_subscription_amount > 0;
 
@@ -187,18 +188,49 @@ export default function MemberSubscriptionPaymentsManager({
     
     setIsProcessingPayment(true);
     try {
-      const { data, error } = await supabase.functions.invoke("create-member-payment-checkout", {
-        body: {
-          clubId,
-          paymentPeriod,
-          successUrl: `${window.location.origin}/teams/${teamId || ""}?payment=success`,
-          cancelUrl: `${window.location.origin}/teams/${teamId || ""}?payment=cancelled`,
+      const amountCents = Math.round((clubPaymentSettings?.member_subscription_amount || 0) * 100);
+      const isNative = Capacitor.isNativePlatform();
+      const title = activeTab === "subscription" 
+        ? `Club Subscription - ${paymentPeriod}` 
+        : `Uniform Fee - ${paymentPeriod}`;
+
+      const result = await createMemberCheckout({
+        club_id: clubId,
+        title,
+        amount_cents: amountCents,
+        type: activeTab === "subscription" ? "subscription" : "event",
+        payer_email: user.email || undefined,
+        description: `${activeTab === "subscription" ? "Subscription" : "Uniform"} payment for ${paymentPeriod}`,
+        success_url: isNative 
+          ? "igniteclubhq://payment-success" 
+          : `${window.location.origin}/teams/${teamId || ""}?payment=success`,
+        cancel_url: isNative 
+          ? "igniteclubhq://payment-cancel" 
+          : `${window.location.origin}/teams/${teamId || ""}?payment=cancelled`,
+        metadata: { 
+          payment_type: activeTab,
+          payment_period: paymentPeriod,
+          club_id: clubId,
+          ...(teamId ? { team_id: teamId } : {}),
         },
       });
 
-      if (error) throw error;
-      if (data?.url) {
-        window.location.href = data.url;
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      if (result.url) {
+        // Listen for payment completion via Realtime
+        listenForPaymentStatus(result.payment_id, (status) => {
+          if (status === "paid") {
+            queryClient.invalidateQueries({ queryKey: ["member-subscription-payments", clubId] });
+            toast({ title: `${paymentTypeLabel} payment successful!` });
+          } else {
+            toast({ title: "Payment failed", variant: "destructive" });
+          }
+        });
+
+        window.location.href = result.url;
       } else {
         throw new Error("No checkout URL returned");
       }
@@ -277,8 +309,8 @@ export default function MemberSubscriptionPaymentsManager({
             </div>
           </div>
 
-          {/* Pay Online Button for current user (subscription only) */}
-          {activeTab === "subscription" && isPayableMember && !hasCurrentUserPaid && canPayOnline && (
+          {/* Pay Online Button for current user */}
+          {isPayableMember && !hasCurrentUserPaid && canPayOnline && (
             <Card className="border-primary/30 bg-primary/5">
               <CardContent className="p-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
