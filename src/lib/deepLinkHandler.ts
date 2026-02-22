@@ -70,6 +70,21 @@ export function initDeepLinkHandler() {
         // Not an OAuth callback, handle as regular deep link navigation
         const path = url.pathname;
         const fullSearch = url.search;
+
+        // Handle payment deep link callbacks
+        if (path === '/payment-success' || url.host === 'payment-success') {
+          console.log('[DeepLink] Payment success callback received');
+          sessionStorage.setItem('paymentDeepLinkResult', 'success');
+          // Navigate to home — Realtime listener handles actual status
+          window.location.href = '/';
+          return;
+        }
+        if (path === '/payment-cancel' || url.host === 'payment-cancel') {
+          console.log('[DeepLink] Payment cancel callback received');
+          sessionStorage.setItem('paymentDeepLinkResult', 'cancel');
+          window.location.href = '/';
+          return;
+        }
         
         // Check for Google Drive OAuth callback (code param on /vault path)
         if (path === '/vault' && searchParams.get('code')) {
