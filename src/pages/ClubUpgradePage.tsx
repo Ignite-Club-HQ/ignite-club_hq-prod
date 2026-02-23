@@ -251,7 +251,7 @@ export default function ClubUpgradePage() {
   }, [clubId, queryClient]);
 
   const handleGetSponsored = () => {
-    const sponsorUrl = `https://ignite-club-heart.lovable.app/sponsor/${clubId}`;
+    const sponsorUrl = `https://igniteclubhq.com/club/${clubId}`;
     window.open(sponsorUrl, "_blank", "noopener,noreferrer");
   };
 
