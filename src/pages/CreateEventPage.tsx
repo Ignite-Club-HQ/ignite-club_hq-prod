@@ -163,12 +163,15 @@ export default function CreateEventPage() {
     ? clubs?.filter(c => c.id === activeClubFilter) 
     : clubs;
   
-  // Auto-select the filtered club when active
+  // Auto-select club: prefer activeClubFilter, fallback to single club
   useEffect(() => {
-    if (activeClubFilter && clubs?.some(c => c.id === activeClubFilter) && !clubId) {
+    if (clubId) return; // Already selected
+    if (activeClubFilter && clubs?.some(c => c.id === activeClubFilter)) {
       setClubId(activeClubFilter);
+    } else if (filteredClubs?.length === 1) {
+      setClubId(filteredClubs[0].id);
     }
-  }, [activeClubFilter, clubs, clubId]);
+  }, [activeClubFilter, clubs, filteredClubs, clubId]);
 
   // Check if user is a club admin for the selected club
   const { data: isClubAdminForSelectedClub } = useQuery({
@@ -672,8 +675,8 @@ export default function CreateEventPage() {
         <h1 className="text-xl font-bold">New Event</h1>
       </div>
 
-      {/* Event Type Selection - wait for Pro Football check to prevent icon pop-in */}
-      {isLoadingProFootball ? (
+      {/* Event Type Selection - wait for club + Pro Football check */}
+      {(!clubId || isLoadingProFootball) ? (
         <div className="grid grid-cols-4 gap-2">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="flex flex-col items-center gap-1 p-3 rounded-xl border-2 border-border animate-pulse">
