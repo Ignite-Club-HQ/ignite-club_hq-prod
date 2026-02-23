@@ -4513,8 +4513,9 @@ function downloadAndOpenExternal(
   });
   
   // Open the service after a brief delay
-  setTimeout(() => {
-    window.open(serviceUrl, "_blank");
+  setTimeout(async () => {
+    const { safeOpenUrl } = await import("@/lib/safeOpenUrl");
+    safeOpenUrl(serviceUrl);
   }, 500);
 }
 
@@ -4650,7 +4651,7 @@ function ContentSection({
                 onClick={() => {
                   if (isExternalLink) {
                     // Open external link directly
-                    window.open(file.file_url, "_blank");
+                    import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url));
                   }
                 }}
               >
@@ -4728,7 +4729,7 @@ function ContentSection({
                             {isExternalLink ? (
                               <DropdownMenuItem onClick={(e) => {
                                 e.stopPropagation();
-                                window.open(file.file_url, "_blank");
+                                import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url));
                               }}>
                                 <ExternalLink className="h-4 w-4 mr-2" />
                                 Open {externalLinkInfo?.type || 'Link'}
@@ -4736,7 +4737,7 @@ function ContentSection({
                             ) : (
                               <DropdownMenuItem onClick={(e) => {
                                 e.stopPropagation();
-                                window.open(file.file_url, "_blank");
+                                import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url));
                               }}>
                                 <Download className="h-4 w-4 mr-2" />
                                 Download
