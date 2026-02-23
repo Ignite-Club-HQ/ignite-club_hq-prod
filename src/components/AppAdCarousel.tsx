@@ -147,7 +147,7 @@ export function AppAdCarousel({ location, hasSponsorAds }: AppAdCarouselProps) {
       if (currentAd.link_url.startsWith("/")) {
         navigate(currentAd.link_url);
       } else {
-        window.open(currentAd.link_url, "_blank");
+        import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(currentAd.link_url!));
       }
     }
   };
