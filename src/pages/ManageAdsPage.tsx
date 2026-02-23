@@ -404,7 +404,7 @@ export default function ManageAdsPage() {
                           <input
                             type="file"
                             ref={newAdFileRef}
-                            accept="image/*"
+                            accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
                             onChange={handleNewAdImageUpload}
                             className="hidden"
                           />
@@ -590,7 +590,7 @@ export default function ManageAdsPage() {
                         <input
                           type="file"
                           ref={editAdFileRef}
-                          accept="image/*"
+                          accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
                           onChange={handleEditAdImageUpload}
                           className="hidden"
                         />

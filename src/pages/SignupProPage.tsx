@@ -700,7 +700,7 @@ export default function SignupProPage() {
               </Avatar>
               <label className="absolute bottom-0 right-0 p-2 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors shadow-lg">
                 <Camera className="h-4 w-4 text-primary-foreground" />
-                <input type="file" accept="image/*" className="hidden" onChange={handleClubLogoUpload} />
+                <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif" className="hidden" onChange={handleClubLogoUpload} />
               </label>
             </div>
             <p className="text-sm text-muted-foreground">Tap to add logo</p>
@@ -796,7 +796,7 @@ export default function SignupProPage() {
               </Avatar>
               <label className="absolute bottom-0 right-0 p-2 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors shadow-lg">
                 <Camera className="h-4 w-4 text-primary-foreground" />
-                <input type="file" accept="image/*" className="hidden" onChange={handleTeamLogoUpload} />
+                <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif" className="hidden" onChange={handleTeamLogoUpload} />
               </label>
             </div>
             <p className="text-sm text-muted-foreground">Tap to add logo</p>

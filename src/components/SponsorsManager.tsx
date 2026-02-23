@@ -464,7 +464,7 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
                 </Avatar>
                 <Input
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
                   onChange={handleLogoChange}
                   className="max-w-[200px]"
                 />

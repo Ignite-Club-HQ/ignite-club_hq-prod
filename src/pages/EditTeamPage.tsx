@@ -224,7 +224,7 @@ export default function EditTeamPage() {
                 )}
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
                   className="hidden"
                   onChange={handleLogoUpload}
                   disabled={uploading}

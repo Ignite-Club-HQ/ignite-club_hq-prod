@@ -787,7 +787,7 @@ export default function MiniLeagueDetailPage() {
                 <input
                   ref={logoInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
                   className="hidden"
                   onChange={handleLogoUpload}
                   disabled={uploadingLogo}

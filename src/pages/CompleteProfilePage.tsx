@@ -807,7 +807,7 @@ export default function CompleteProfilePage() {
                   <Camera className="h-4 w-4 text-primary-foreground" />
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
                     className="hidden"
                     onChange={handleAvatarUpload}
                     disabled={uploading}
