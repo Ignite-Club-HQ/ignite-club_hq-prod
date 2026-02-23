@@ -384,31 +384,33 @@ export function StoragePurchaseDialog({
               </div>
             </div>
 
-            {/* Promo Code Section */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <Ticket className="h-4 w-4" />
-                Redeem Promo Code
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter code"
-                  value={promoCode}
-                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                  className="uppercase"
-                />
-                <Button 
-                  onClick={handleApplyPromo}
-                  disabled={!promoCode.trim() || applyPromoMutation.isPending}
-                >
-                  {applyPromoMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Apply"
-                  )}
-                </Button>
+            {/* Promo Code Section - hidden on native per App Store Guideline 3.1.1 */}
+            {!isNativePlatform() && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Ticket className="h-4 w-4" />
+                  Redeem Promo Code
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter code"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                    className="uppercase"
+                  />
+                  <Button 
+                    onClick={handleApplyPromo}
+                    disabled={!promoCode.trim() || applyPromoMutation.isPending}
+                  >
+                    {applyPromoMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Apply"
+                    )}
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
 
             <Separator />
 

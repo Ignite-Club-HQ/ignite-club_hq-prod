@@ -598,9 +598,9 @@ export default function AuthPage() {
                     />
                     <label htmlFor="accept-terms" className="text-xs text-muted-foreground leading-tight cursor-pointer">
                       I agree to the{" "}
-                      <Link to="/terms" target="_blank" className="text-primary hover:underline">Terms of Service</Link>
+                      <Link to="/terms" {...(!Capacitor.isNativePlatform() ? { target: "_blank" } : {})} className="text-primary hover:underline">Terms of Service</Link>
                       {" "}and{" "}
-                      <Link to="/privacy" target="_blank" className="text-primary hover:underline">Privacy Policy</Link>
+                      <Link to="/privacy" {...(!Capacitor.isNativePlatform() ? { target: "_blank" } : {})} className="text-primary hover:underline">Privacy Policy</Link>
                     </label>
                   </div>
 
@@ -688,14 +688,25 @@ export default function AuthPage() {
         {/* Footer Links */}
         <div className="text-center text-xs text-muted-foreground space-y-2">
           <div className="flex justify-center gap-4">
-            <a href="https://igniteclubhq.com/terms" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">Terms</a>
-            <a href="https://igniteclubhq.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">Privacy</a>
-            <a href="https://igniteclubhq.com/refunds" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">Cancellation</a>
+            {Capacitor.isNativePlatform() ? (
+              <>
+                <Link to="/terms" className="hover:text-foreground hover:underline">Terms</Link>
+                <Link to="/privacy" className="hover:text-foreground hover:underline">Privacy</Link>
+              </>
+            ) : (
+              <>
+                <a href="https://igniteclubhq.com/terms" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">Terms</a>
+                <a href="https://igniteclubhq.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">Privacy</a>
+                <a href="https://igniteclubhq.com/refunds" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">Cancellation</a>
+              </>
+            )}
           </div>
-          <div className="flex justify-center gap-4">
-            <a href="mailto:contact@igniteclubhq.app" className="hover:text-foreground hover:underline">Contact</a>
-            <a href="mailto:support@igniteclubhq.app" className="hover:text-foreground hover:underline">Support</a>
-          </div>
+          {!Capacitor.isNativePlatform() && (
+            <div className="flex justify-center gap-4">
+              <a href="mailto:contact@igniteclubhq.app" className="hover:text-foreground hover:underline">Contact</a>
+              <a href="mailto:support@igniteclubhq.app" className="hover:text-foreground hover:underline">Support</a>
+            </div>
+          )}
         </div>
       </div>
       </div>

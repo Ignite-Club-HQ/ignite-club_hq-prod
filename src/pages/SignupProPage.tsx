@@ -26,6 +26,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { SPORT_EMOJIS, getSportEmoji } from "@/lib/sportEmojis";
 import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
+import { isNativePlatform } from "@/lib/nativePush";
 import { z } from "zod";
 import { addMonths, addYears, isPast, parseISO } from "date-fns";
 
@@ -699,7 +700,7 @@ export default function SignupProPage() {
               </Avatar>
               <label className="absolute bottom-0 right-0 p-2 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors shadow-lg">
                 <Camera className="h-4 w-4 text-primary-foreground" />
-                <input type="file" accept="image/*" className="hidden" onChange={handleClubLogoUpload} />
+                <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif" className="hidden" onChange={handleClubLogoUpload} />
               </label>
             </div>
             <p className="text-sm text-muted-foreground">Tap to add logo</p>
@@ -795,7 +796,7 @@ export default function SignupProPage() {
               </Avatar>
               <label className="absolute bottom-0 right-0 p-2 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors shadow-lg">
                 <Camera className="h-4 w-4 text-primary-foreground" />
-                <input type="file" accept="image/*" className="hidden" onChange={handleTeamLogoUpload} />
+                <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif" className="hidden" onChange={handleTeamLogoUpload} />
               </label>
             </div>
             <p className="text-sm text-muted-foreground">Tap to add logo</p>
@@ -857,6 +858,32 @@ export default function SignupProPage() {
     const pricing = effectivePlan === "pro" ? PRICING.pro : PRICING.proFootball;
     const price = isAnnual ? pricing.annual : pricing.monthly;
     const tierName = effectivePlan === "pro" ? "Pro" : "Pro Football";
+
+    // On native platforms, skip promo code step per App Store Guideline 3.1.1
+    if (isNativePlatform()) {
+      return (
+        <div className="space-y-6">
+          <Button variant="ghost" size="sm" onClick={() => setStep(4)} className="mb-2">
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl font-bold">Setup Complete!</h2>
+            <p className="text-muted-foreground">Your club and team have been created. You can upgrade to {tierName} from your team settings.</p>
+          </div>
+
+          <Button 
+            className="w-full" 
+            size="lg" 
+            onClick={() => navigate(createdTeamId ? `/team/${createdTeamId}` : "/")}
+          >
+            <Check className="h-4 w-4 mr-2" />
+            Go to {createdTeamId ? "Team" : "Home"}
+          </Button>
+        </div>
+      );
+    }
 
     return (
       <div className="space-y-6">

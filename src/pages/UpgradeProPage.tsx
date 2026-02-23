@@ -52,7 +52,7 @@ const PRO_FOOTBALL_FEATURES = [
 const PRICING = {
   pro: {
     monthly: 24.99,
-    annual: 239,
+    annual: 239.00,
   },
   proFootball: {
     monthly: 39.99,
@@ -692,6 +692,10 @@ export default function UpgradeProPage() {
                 className={`w-full ${!isPro ? "bg-emerald-600 hover:bg-emerald-700" : ""}`} 
                 size="lg" 
                 onClick={() => {
+                  if (isNativePlatform()) {
+                    handleNativeIAP(tier);
+                    return;
+                  }
                   if (!hasStripeConfig) {
                     toast({
                       title: "Payment Not Configured",
@@ -719,37 +723,39 @@ export default function UpgradeProPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Ticket className="h-5 w-5" />
-              Have a Promo Code?
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor={`promo-${tier}`}>Enter promo code</Label>
-              <div className="flex gap-2">
-                <Input
-                  id={`promo-${tier}`}
-                  placeholder={isPro ? "PROMO2024" : "FOOTBALL2024"}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  className="uppercase"
-                />
-                <Button 
-                  onClick={() => handleApplyPromo(tier)} 
-                  disabled={!code.trim() || isValidating || applyPromoMutation.isPending}
-                >
-                  {(isValidating || applyPromoMutation.isPending) && (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  )}
-                  Apply
-                </Button>
+        {!isNativePlatform() && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Ticket className="h-5 w-5" />
+                Have a Promo Code?
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor={`promo-${tier}`}>Enter promo code</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id={`promo-${tier}`}
+                    placeholder={isPro ? "PROMO2024" : "FOOTBALL2024"}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                    className="uppercase"
+                  />
+                  <Button 
+                    onClick={() => handleApplyPromo(tier)} 
+                    disabled={!code.trim() || isValidating || applyPromoMutation.isPending}
+                  >
+                    {(isValidating || applyPromoMutation.isPending) && (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    )}
+                    Apply
+                  </Button>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </>
     );
   };

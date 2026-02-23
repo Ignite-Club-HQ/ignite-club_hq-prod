@@ -563,7 +563,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                   </div>
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
                     multiple
                     className="hidden"
                     onChange={handleFileSelect}
@@ -638,7 +638,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                         <ImagePlus className="h-6 w-6 text-muted-foreground" />
                         <input
                           type="file"
-                          accept="image/*"
+                          accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
                           multiple
                           className="hidden"
                           onChange={handleFileSelect}

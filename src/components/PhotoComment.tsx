@@ -1,6 +1,6 @@
 import { useState, memo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreVertical, Pencil, Trash2, Check, X, Smile, Reply } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, Check, X, Smile, Reply, ShieldAlert } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useBlockedUsers } from "@/hooks/useBlockedUsers";
+import { BlockUserDialog } from "@/components/BlockUserDialog";
 
 const REACTION_EMOJIS = [
   { type: "like", emoji: "❤️" },
@@ -129,8 +131,10 @@ export const PhotoComment = memo(function PhotoComment({
   const [editText, setEditText] = useState(text);
   const [displayText, setDisplayText] = useState(text);
   const [reactionPopoverOpen, setReactionPopoverOpen] = useState(false);
+  const [showBlockDialog, setShowBlockDialog] = useState(false);
   const queryClient = useQueryClient();
   const isOwn = userId === currentUserId;
+  const { isBlocked } = useBlockedUsers();
 
   // Fetch reactions for this comment
   const { data: reactions = [] } = useQuery({
@@ -316,6 +320,9 @@ export const PhotoComment = memo(function PhotoComment({
     );
   }
 
+  // Hide comments from blocked users
+  if (!isOwn && isBlocked(userId)) return null;
+
   return (
     <div className={`flex flex-col gap-1 ${isReply ? "ml-8" : ""}`}>
       <div className="flex gap-2 group">
@@ -428,8 +435,37 @@ export const PhotoComment = memo(function PhotoComment({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          {!isOwn && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <MoreVertical className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-popover border">
+                <DropdownMenuItem
+                  onClick={() => setShowBlockDialog(true)}
+                  className="text-destructive"
+                >
+                  <ShieldAlert className="h-3 w-3 mr-2" /> Block User
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
+      {showBlockDialog && (
+        <BlockUserDialog
+          open={showBlockDialog}
+          onOpenChange={setShowBlockDialog}
+          userId={userId}
+          userName={displayName || "this user"}
+        />
+      )}
     </div>
   );
 });

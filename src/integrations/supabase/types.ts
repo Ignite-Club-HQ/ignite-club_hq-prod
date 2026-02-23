@@ -297,6 +297,30 @@ export type Database = {
         }
         Relationships: []
       }
+      blocked_users: {
+        Row: {
+          blocked_id: string
+          blocker_id: string
+          created_at: string
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          blocked_id: string
+          blocker_id: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          blocked_id?: string
+          blocker_id?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+        }
+        Relationships: []
+      }
       broadcast_messages: {
         Row: {
           author_id: string
@@ -4258,11 +4282,15 @@ export type Database = {
           folder_id: string | null
           id: string
           is_archived: boolean
+          is_pro: boolean
           level_age: string | null
           logo_url: string | null
           name: string
+          pro_activated_at: string | null
+          pro_expires_at: string | null
           season_label: string | null
           sponsor_id: string | null
+          stripe_subscription_id: string | null
           team_type: string | null
           updated_at: string
         }
@@ -4283,11 +4311,15 @@ export type Database = {
           folder_id?: string | null
           id?: string
           is_archived?: boolean
+          is_pro?: boolean
           level_age?: string | null
           logo_url?: string | null
           name: string
+          pro_activated_at?: string | null
+          pro_expires_at?: string | null
           season_label?: string | null
           sponsor_id?: string | null
+          stripe_subscription_id?: string | null
           team_type?: string | null
           updated_at?: string
         }
@@ -4308,11 +4340,15 @@ export type Database = {
           folder_id?: string | null
           id?: string
           is_archived?: boolean
+          is_pro?: boolean
           level_age?: string | null
           logo_url?: string | null
           name?: string
+          pro_activated_at?: string | null
+          pro_expires_at?: string | null
           season_label?: string | null
           sponsor_id?: string | null
+          stripe_subscription_id?: string | null
           team_type?: string | null
           updated_at?: string
         }
@@ -4752,6 +4788,10 @@ export type Database = {
         Returns: boolean
       }
       hash_email: { Args: { email: string }; Returns: string }
+      is_blocked_by: {
+        Args: { _blocked_id: string; _blocker_id: string }
+        Returns: boolean
+      }
       is_child_guardian: {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean

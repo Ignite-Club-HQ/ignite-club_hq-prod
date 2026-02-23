@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Flame, User, Camera, Loader2, Bell, Download, Fingerprint, UserPlus, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
 import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext, markProfileCompleted } from "@/components/InviteFlowProgress";
 import { useQueryClient } from "@tanstack/react-query";
+import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
 
 interface PendingInvite {
   id: string;
@@ -189,7 +191,7 @@ export default function CompleteProfilePage() {
   // Show loading while auth, profile, or PWA detection is loading
   if (authLoading || profileLoading || !pwaReady) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4 pt-safe">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4 pt-safe" style={{ paddingTop: Capacitor.isNativePlatform() ? 'max(env(safe-area-inset-top, 0px), 24px)' : undefined }}>
         <div className="p-4 rounded-2xl bg-primary">
           <Flame className="h-10 w-10 text-primary-foreground" />
         </div>
@@ -759,7 +761,8 @@ export default function CompleteProfilePage() {
   const isInInviteFlow = inviteFlowContext?.active === true;
 
   return (
-    <div className="min-h-screen flex flex-col bg-background pt-safe">
+    <>
+    <div className="min-h-screen flex flex-col bg-background pt-safe" style={{ paddingTop: Capacitor.isNativePlatform() ? 'max(env(safe-area-inset-top, 0px), 24px)' : undefined }}>
       {/* Show progress indicator if in invite flow */}
       {isInInviteFlow && (
         <InviteFlowProgress 
@@ -804,7 +807,7 @@ export default function CompleteProfilePage() {
                   <Camera className="h-4 w-4 text-primary-foreground" />
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
                     className="hidden"
                     onChange={handleAvatarUpload}
                     disabled={uploading}
@@ -1062,5 +1065,7 @@ export default function CompleteProfilePage() {
       </div>
       </div>
     </div>
+    <NativeNotificationPrompt userId={user?.id} />
+    </>
   );
 }

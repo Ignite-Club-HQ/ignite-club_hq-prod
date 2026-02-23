@@ -95,25 +95,25 @@ async function checkRateLimit(
 // These are placeholder product configurations
 const TEAM_PRICING = {
   pro: {
-    monthly: 2500, // $25 AUD in cents
-    annual: 24000, // $240 AUD in cents
+    monthly: 2499, // $24.99 AUD in cents
+    annual: 23900, // $239 AUD in cents
   },
   pro_football: {
-    monthly: 4000, // $40 AUD in cents
-    annual: 38400, // $384 AUD in cents
+    monthly: 3999, // $39.99 AUD in cents
+    annual: 37999, // $379.99 AUD in cents
   },
 };
 
 const CLUB_PRICING = {
   pro: {
-    starter: { monthly: 9900, teamLimit: 10 },
-    standard: { monthly: 14900, teamLimit: 20 },
-    unlimited: { monthly: 19900, teamLimit: null },
+    starter: { monthly: 8999, annual: 94999, teamLimit: 10 },
+    standard: { monthly: 14999, annual: 144999, teamLimit: 20 },
+    unlimited: { monthly: 19999, annual: null, teamLimit: null },
   },
   pro_football: {
-    starter: { monthly: 14900, teamLimit: 10 },
-    standard: { monthly: 22900, teamLimit: 20 },
-    unlimited: { monthly: 29900, teamLimit: null },
+    starter: { monthly: 14900, annual: null, teamLimit: 10 },
+    standard: { monthly: 22999, annual: null, teamLimit: 20 },
+    unlimited: { monthly: 29900, annual: null, teamLimit: null },
   },
 };
 
@@ -329,9 +329,13 @@ serve(async (req) => {
     } else {
       const tierPricing = tier === 'pro' ? CLUB_PRICING.pro : CLUB_PRICING.pro_football;
       const planPricing = tierPricing[plan as keyof typeof tierPricing];
-      unitAmount = isAnnual 
-        ? Math.round(planPricing.monthly * 12 * 0.8) // 20% discount for annual
-        : planPricing.monthly;
+      if (isAnnual && !planPricing.annual) {
+        return new Response(
+          JSON.stringify({ error: 'Annual billing is not available for this plan' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      unitAmount = isAnnual ? planPricing.annual! : planPricing.monthly;
       teamLimit = planPricing.teamLimit;
       const planName = plan.charAt(0).toUpperCase() + plan.slice(1);
       productName = tier === 'pro' 
