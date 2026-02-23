@@ -297,6 +297,30 @@ export type Database = {
         }
         Relationships: []
       }
+      blocked_users: {
+        Row: {
+          blocked_id: string
+          blocker_id: string
+          created_at: string
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          blocked_id: string
+          blocker_id: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          blocked_id?: string
+          blocker_id?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+        }
+        Relationships: []
+      }
       broadcast_messages: {
         Row: {
           author_id: string
@@ -4764,6 +4788,10 @@ export type Database = {
         Returns: boolean
       }
       hash_email: { Args: { email: string }; Returns: string }
+      is_blocked_by: {
+        Args: { _blocked_id: string; _blocker_id: string }
+        Returns: boolean
+      }
       is_child_guardian: {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
