@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { MoreVertical, Pencil, Trash2, X, Check, Reply, Clock } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, X, Check, Reply, Clock, ShieldAlert } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,8 @@ import { MessageReadAvatars } from "./MessageReadAvatars";
 import { MessageReadIndicator } from "./MessageReadIndicator";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
 import { toast } from "sonner";
+import { BlockUserDialog } from "@/components/BlockUserDialog";
+import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 
 interface Reaction {
   id: string;
@@ -84,8 +86,11 @@ export const ChatMessage = memo(function ChatMessage({
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(text);
+  const [showBlockDialog, setShowBlockDialog] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const queryClient = useQueryClient();
+  const { isBlocked } = useBlockedUsers();
+
 
   const getMessageIdField = () => {
     switch (messageType) {
@@ -426,6 +431,9 @@ export const ChatMessage = memo(function ChatMessage({
     }
   }, [editText]);
 
+  // Hide messages from blocked users (after all hooks)
+  if (!isOwn && isBlocked(authorId)) return null;
+
   if (isEditing) {
     return (
       <div className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}>
@@ -564,6 +572,14 @@ export const ChatMessage = memo(function ChatMessage({
                     <Trash2 className="h-4 w-4 mr-2" /> Delete
                   </DropdownMenuItem>
                 )}
+                {!isOwn && !isSystemMessage && (
+                  <DropdownMenuItem 
+                    onClick={() => setShowBlockDialog(true)}
+                    className="text-destructive"
+                  >
+                    <ShieldAlert className="h-4 w-4 mr-2" /> Block User
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -592,6 +608,14 @@ export const ChatMessage = memo(function ChatMessage({
             : <p className={`text-[10px] text-muted-foreground mt-0.5 ${isOwn ? "text-right" : ""}`}>Sent</p>
         )}
       </div>
+      {showBlockDialog && (
+        <BlockUserDialog
+          open={showBlockDialog}
+          onOpenChange={setShowBlockDialog}
+          userId={authorId}
+          userName={authorName || "this user"}
+        />
+      )}
     </div>
   );
 });
