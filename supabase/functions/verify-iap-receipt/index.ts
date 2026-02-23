@@ -104,15 +104,24 @@ serve(async (req) => {
         });
       }
     } else if (entityType === "team") {
-      // Team plans require team_admin or coach role
+      // Team plans require team_admin, coach, or club_admin role
       const { data: isTeamAdmin } = await supabase
         .rpc("has_role", { _user_id: user.id, _role: "team_admin", _club_id: null, _team_id: entityId });
       const { data: isCoach } = await supabase
         .rpc("has_role", { _user_id: user.id, _role: "coach", _club_id: null, _team_id: entityId });
+      // Also allow club admins to purchase team plans for teams in their club
+      const { data: team } = await supabase
+        .from("teams")
+        .select("club_id")
+        .eq("id", entityId)
+        .maybeSingle();
+      const { data: isClubAdmin } = team?.club_id
+        ? await supabase.rpc("has_role", { _user_id: user.id, _role: "club_admin", _club_id: team.club_id, _team_id: null })
+        : { data: false };
       const { data: isAppAdmin } = await supabase
         .rpc("has_role", { _user_id: user.id, _role: "app_admin", _club_id: null, _team_id: null });
-      if (!isTeamAdmin && !isCoach && !isAppAdmin) {
-        return new Response(JSON.stringify({ error: "Only team administrators or coaches can purchase this plan" }), {
+      if (!isTeamAdmin && !isCoach && !isClubAdmin && !isAppAdmin) {
+        return new Response(JSON.stringify({ error: "Only team administrators, coaches, or club administrators can purchase this plan" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
