@@ -406,9 +406,9 @@ export const ChatMessage = memo(function ChatMessage({
     };
   }, [showReactionPicker]);
 
-  // Get display name - show ellipsis if profile not yet loaded
-  // IMPORTANT: Never show fake placeholder names - they confuse users
-  const displayName = authorName || "...";
+  // Get display name - use "Member" fallback to avoid showing "..." in UI
+  // Apple review flagged ellipsis as looking broken; "Member" is a safe default
+  const displayName = authorName || "Member";
   const hasName = !!authorName;
 
   // Handle inserting emoji at cursor position
