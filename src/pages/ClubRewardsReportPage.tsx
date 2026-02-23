@@ -67,7 +67,7 @@ export default function ClubRewardsReportPage() {
     enabled: !!clubId,
   });
 
-  // Check if app admin
+  // Check if app admin or club admin
   const { data: isAppAdmin } = useQuery({
     queryKey: ["is-app-admin", user?.id],
     queryFn: async () => {
@@ -80,6 +80,21 @@ export default function ClubRewardsReportPage() {
       return !!data;
     },
     enabled: !!user,
+  });
+
+  const { data: isClubAdmin } = useQuery({
+    queryKey: ["is-club-admin-rewards-report", user?.id, clubId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user!.id)
+        .eq("role", "club_admin")
+        .eq("club_id", clubId!)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!user && !!clubId,
   });
 
   const hasPro = isAppAdmin || clubSubscription?.is_pro || clubSubscription?.is_pro_football || 
@@ -285,12 +300,18 @@ export default function ClubRewardsReportPage() {
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-xs">Pro Only</Badge>
             </div>
-            <Button 
-              className="mt-4"
-              onClick={() => navigate(`/clubs/${clubId}/upgrade`)}
-            >
-              Upgrade to Pro
-            </Button>
+            {(isAppAdmin || isClubAdmin) ? (
+              <Button 
+                className="mt-4"
+                onClick={() => navigate(`/clubs/${clubId}/upgrade`)}
+              >
+                Upgrade to Pro
+              </Button>
+            ) : (
+              <p className="text-sm text-muted-foreground mt-4">
+                Contact your club administrator to upgrade.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
