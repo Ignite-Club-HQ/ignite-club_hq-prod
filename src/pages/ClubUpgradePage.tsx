@@ -208,7 +208,8 @@ export default function ClubUpgradePage() {
   // Check if subscription is near expiry (within 30 days) or expired
   const daysUntilExpiry = expiresAt ? differenceInDays(expiresAt, new Date()) : null;
   const isNearExpiry = daysUntilExpiry !== null && daysUntilExpiry <= 30 && daysUntilExpiry > 0;
-  const showSponsorOption = isExpired || isNearExpiry;
+  const isNative = isNativePlatform();
+  const showSponsorOption = (isExpired || isNearExpiry) && !isNative;
 
   // Query active sponsors for this club to determine if sponsor-funded
   const { data: activeSponsors = [] } = useQuery({
@@ -612,13 +613,15 @@ export default function ClubUpgradePage() {
                 </p>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={handleGetSponsored} className="flex-1">
-                <Heart className="h-4 w-4 mr-2 text-pink-500" />
-                Get Sponsored
-                <ExternalLink className="h-3 w-3 ml-1" />
-              </Button>
-            </div>
+            {!isNative && (
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={handleGetSponsored} className="flex-1">
+                  <Heart className="h-4 w-4 mr-2 text-pink-500" />
+                  Get Sponsored
+                  <ExternalLink className="h-3 w-3 ml-1" />
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       );
@@ -820,13 +823,15 @@ export default function ClubUpgradePage() {
           {isExpired && (
             <div className="space-y-2">
               <p className="text-sm text-destructive text-center">
-                Your payment failed. Please update your payment method or find a sponsor.
+                Your payment failed. Please update your payment method{!isNative ? " or find a sponsor" : ""}.
               </p>
-              <Button variant="outline" size="sm" onClick={handleGetSponsored} className="w-full">
-                <Heart className="h-4 w-4 mr-2 text-pink-500" />
-                Get Sponsored
-                <ExternalLink className="h-3 w-3 ml-1" />
-              </Button>
+              {!isNative && (
+                <Button variant="outline" size="sm" onClick={handleGetSponsored} className="w-full">
+                  <Heart className="h-4 w-4 mr-2 text-pink-500" />
+                  Get Sponsored
+                  <ExternalLink className="h-3 w-3 ml-1" />
+                </Button>
+              )}
             </div>
           )}
 
@@ -997,19 +1002,23 @@ export default function ClubUpgradePage() {
               <p className="text-xs text-center text-muted-foreground">
                 ${effectiveIsAnnual ? annualPrice : monthlyPrice}/{effectiveIsAnnual ? 'year' : 'month'} AUD • Cancel anytime
               </p>
-              <div className="relative flex items-center justify-center gap-2 py-1">
-                <div className="flex-1 border-t border-border" />
-                <span className="text-xs text-muted-foreground px-2">or</span>
-                <div className="flex-1 border-t border-border" />
-              </div>
-              <Button variant="outline" className="w-full" size="lg" onClick={handleGetSponsored}>
-                <Heart className="h-4 w-4 mr-2 text-pink-500" />
-                Get Sponsored
-                <ExternalLink className="h-3 w-3 ml-1" />
-              </Button>
-              <p className="text-xs text-center text-muted-foreground">
-                Let a local sponsor pay for your subscription
-              </p>
+              {!isNative && (
+                <>
+                  <div className="relative flex items-center justify-center gap-2 py-1">
+                    <div className="flex-1 border-t border-border" />
+                    <span className="text-xs text-muted-foreground px-2">or</span>
+                    <div className="flex-1 border-t border-border" />
+                  </div>
+                  <Button variant="outline" className="w-full" size="lg" onClick={handleGetSponsored}>
+                    <Heart className="h-4 w-4 mr-2 text-pink-500" />
+                    Get Sponsored
+                    <ExternalLink className="h-3 w-3 ml-1" />
+                  </Button>
+                  <p className="text-xs text-center text-muted-foreground">
+                    Let a local sponsor pay for your subscription
+                  </p>
+                </>
+              )}
               <SubscriptionLegalLinks />
             </div>
           </CardContent>
