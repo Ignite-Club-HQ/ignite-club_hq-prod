@@ -88,6 +88,7 @@ export const ChatMessage = memo(function ChatMessage({
   const [editText, setEditText] = useState(text);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
 
@@ -120,22 +121,18 @@ export const ChatMessage = memo(function ChatMessage({
     mutationFn: async ({ reactionType, existingReactionId }: { reactionType: string; existingReactionId?: string }) => {
       const messageIdField = getMessageIdField();
       
-      // Remove any existing reaction from this user on this message
-      // Use the message ID field + user_id to avoid race conditions with unique constraints
       await supabase
         .from("message_reactions")
         .delete()
         .eq(messageIdField, id)
         .eq("user_id", currentUserId!);
       
-      // Then add the new reaction
       const { error } = await supabase.from("message_reactions").insert({
         [messageIdField]: id,
         user_id: currentUserId!,
         reaction_type: reactionType,
       });
       if (error) {
-        // If we still hit a duplicate (race condition), update instead
         if (error.code === '23505') {
           const { error: updateError } = await supabase
             .from("message_reactions")
@@ -171,7 +168,6 @@ export const ChatMessage = memo(function ChatMessage({
         });
       };
 
-      // Optimistically update - remove old reaction, add new one
       updateMessages((msgs) =>
         msgs.map((msg: any) => {
           if (msg.id === id) {
@@ -199,12 +195,10 @@ export const ChatMessage = memo(function ChatMessage({
       }
       toast.error("Failed to add reaction");
     },
-    // Don't invalidate - optimistic update is sufficient, realtime handles sync
   });
 
   const removeReactionMutation = useMutation({
     mutationFn: async (reactionId: string) => {
-      // Skip deletion for temp IDs (optimistic reactions not yet persisted)
       if (reactionId.startsWith("temp-")) {
         return;
       }
@@ -218,7 +212,6 @@ export const ChatMessage = memo(function ChatMessage({
       await queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
       
-      // Optimistically remove the reaction - handle both array and object cache shapes
       queryClient.setQueryData(queryKey, (old: any) => {
         if (!old) return old;
         
@@ -236,7 +229,6 @@ export const ChatMessage = memo(function ChatMessage({
           return msg;
         });
         
-        // Preserve the original cache shape
         if (Array.isArray(old)) {
           return updatedMessages;
         }
@@ -251,7 +243,6 @@ export const ChatMessage = memo(function ChatMessage({
       }
     },
     onSettled: () => {
-      // Don't invalidate - optimistic update is sufficient
     },
   });
 
@@ -275,7 +266,6 @@ export const ChatMessage = memo(function ChatMessage({
 
   const deleteMessageMutation = useMutation({
     mutationFn: async () => {
-      // Hard delete - permanently remove from database
       const { error } = await supabase
         .from(getTableName())
         .delete()
@@ -283,11 +273,9 @@ export const ChatMessage = memo(function ChatMessage({
       if (error) throw error;
     },
     onMutate: async () => {
-      // Optimistically hide the message from the UI
       await queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
       
-      // Update query cache - this triggers re-render via messages -> localMessages sync
       queryClient.setQueryData(queryKey, (old: any) => {
         if (!old) return old;
         const existingMessages: any[] = Array.isArray(old) ? old : old?.messages || [];
@@ -299,12 +287,10 @@ export const ChatMessage = memo(function ChatMessage({
       return { previousMessages };
     },
     onSuccess: () => {
-      // Remove from localStorage cache to prevent reappearing on navigation
       const targetId = queryKey[1] as string;
       if (targetId) {
         removeMessageFromCache(messageType, targetId, id);
       }
-      // Clear the messagesPage cache to ensure deleted message doesn't show in previews
       try {
         localStorage.removeItem('messages-page-cache');
       } catch {}
@@ -318,10 +304,24 @@ export const ChatMessage = memo(function ChatMessage({
     },
   });
 
-  const handleLongPressStart = useCallback(() => {
+  const handleLongPressStart = useCallback((e: React.TouchEvent) => {
+    touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
       setShowReactionPicker(true);
-    }, 500);
+    }, 600);
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (longPressTimer.current && touchStartPos.current) {
+      const dx = e.touches[0].clientX - touchStartPos.current.x;
+      const dy = e.touches[0].clientY - touchStartPos.current.y;
+      // Cancel long press if finger moved more than 10px (scrolling)
+      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+        touchStartPos.current = null;
+      }
+    }
   }, []);
 
   const handleLongPressEnd = useCallback(() => {
@@ -329,6 +329,7 @@ export const ChatMessage = memo(function ChatMessage({
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
+    touchStartPos.current = null;
   }, []);
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
@@ -491,7 +492,7 @@ export const ChatMessage = memo(function ChatMessage({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-8 w-8 min-h-[32px] min-w-[32px] opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <MoreVertical className="h-3 w-3" />
                 </Button>
@@ -520,10 +521,8 @@ export const ChatMessage = memo(function ChatMessage({
                 ? "bg-primary text-primary-foreground rounded-br-sm"
                 : "bg-muted rounded-bl-sm"
             }`}
-            onMouseDown={handleLongPressStart}
-            onMouseUp={handleLongPressEnd}
-            onMouseLeave={handleLongPressEnd}
             onTouchStart={handleLongPressStart}
+            onTouchMove={handleTouchMove}
             onTouchEnd={handleLongPressEnd}
             onContextMenu={handleContextMenu}
           >
@@ -549,7 +548,7 @@ export const ChatMessage = memo(function ChatMessage({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-8 w-8 min-h-[32px] min-w-[32px] opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <MoreVertical className="h-3 w-3" />
                 </Button>
