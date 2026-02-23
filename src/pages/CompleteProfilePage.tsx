@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { subscribeToPushNotifications, checkPushSubscription } from "@/lib/pushNotifications";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
@@ -938,25 +939,21 @@ export default function CompleteProfilePage() {
               />
               <Label htmlFor="policies" className="text-sm text-muted-foreground leading-relaxed cursor-pointer">
                 I have read and agree to the{" "}
-                <a 
-                  href="https://igniteclubhq.com/terms" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                  onClick={(e) => e.stopPropagation()}
+                <button 
+                  type="button"
+                  className="text-primary hover:underline inline"
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); safeOpenUrl("https://igniteclubhq.com/terms"); }}
                 >
                   Terms of Service
-                </a>
+                </button>
                 {" "}and{" "}
-                <a 
-                  href="https://igniteclubhq.com/privacy" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                  onClick={(e) => e.stopPropagation()}
+                <button 
+                  type="button"
+                  className="text-primary hover:underline inline"
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); safeOpenUrl("https://igniteclubhq.com/privacy"); }}
                 >
                   Privacy Policy
-                </a>
+                </button>
               </Label>
             </div>
 

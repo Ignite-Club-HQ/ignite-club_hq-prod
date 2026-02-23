@@ -7,6 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { safeOpenUrl } from "@/lib/safeOpenUrl";
 
 export default function AccountPage() {
   const { user, signOut } = useAuth();
@@ -116,30 +117,26 @@ export default function AccountPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <a 
-            href="https://igniteclubhq.com/privacy"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
+          <button 
+            onClick={() => safeOpenUrl("https://igniteclubhq.com/privacy")}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors w-full text-left"
           >
             <Shield className="h-5 w-5 text-muted-foreground" />
             <div>
               <p className="font-medium">Privacy Policy</p>
               <p className="text-xs text-muted-foreground">How we handle your data</p>
             </div>
-          </a>
-          <a 
-            href="https://igniteclubhq.com/terms"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
+          </button>
+          <button 
+            onClick={() => safeOpenUrl("https://igniteclubhq.com/terms")}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors w-full text-left"
           >
             <FileText className="h-5 w-5 text-muted-foreground" />
             <div>
               <p className="font-medium">Terms of Service</p>
               <p className="text-xs text-muted-foreground">Usage terms and conditions</p>
             </div>
-          </a>
+          </button>
         </CardContent>
       </Card>
 
