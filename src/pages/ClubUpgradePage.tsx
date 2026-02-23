@@ -971,6 +971,10 @@ export default function ClubUpgradePage() {
                 className={`w-full ${!isPro ? "bg-emerald-600 hover:bg-emerald-700" : ""}`} 
                 size="lg" 
                 onClick={() => {
+                  if (isNativePlatform()) {
+                    handleNativeIAP(tier);
+                    return;
+                  }
                   if (!hasStripeConfig) {
                     toast({
                       title: "Payment Not Configured",
