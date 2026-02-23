@@ -4,6 +4,7 @@ import { YouTubeEmbed, extractYouTubeId } from "./YouTubeEmbed";
 import { highlightText } from "./ChatSearch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
+import { safeOpenUrl } from "@/lib/safeOpenUrl";
 
 interface MessageContentProps {
   text: string;
@@ -138,7 +139,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   const handleImageClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     if (effectiveImageUrl) {
-      window.open(effectiveImageUrl, "_blank");
+      safeOpenUrl(effectiveImageUrl);
     }
   }, [effectiveImageUrl]);
 
@@ -210,7 +211,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary underline hover:opacity-80"
-                    onClick={handleLinkClick}
+                    onClick={(e) => { e.preventDefault(); handleLinkClick(e); safeOpenUrl(part.content); }}
                   >
                     {part.linkText}
                   </a>
@@ -228,7 +229,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary underline hover:opacity-80"
-                    onClick={handleLinkClick}
+                    onClick={(e) => { e.preventDefault(); handleLinkClick(e); safeOpenUrl(ensureProtocol(part.content)); }}
                   >
                     {part.content}
                   </a>

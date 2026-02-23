@@ -406,9 +406,8 @@ export const ChatMessage = memo(function ChatMessage({
     };
   }, [showReactionPicker]);
 
-  // Get display name - show ellipsis if profile not yet loaded
-  // IMPORTANT: Never show fake placeholder names - they confuse users
-  const displayName = authorName || "...";
+  // Get display name - never show placeholder text; hide name until profile loads
+  const displayName = authorName || "";
   const hasName = !!authorName;
 
   // Handle inserting emoji at cursor position
@@ -481,7 +480,7 @@ export const ChatMessage = memo(function ChatMessage({
         </AvatarFallback>
       </Avatar>
       <div className={`max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
-        {!isOwn && (
+        {!isOwn && hasName && (
           <p className="text-xs text-muted-foreground mb-1">{displayName}</p>
         )}
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />

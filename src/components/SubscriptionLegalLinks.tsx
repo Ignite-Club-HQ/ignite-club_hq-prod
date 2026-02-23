@@ -2,6 +2,7 @@ import { ExternalLink, RotateCcw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { safeOpenUrl } from "@/lib/safeOpenUrl";
 
 const PRIVACY_POLICY_URL = "https://www.igniteclubhq.com/privacy";
 const TERMS_URL = "https://www.igniteclubhq.com/terms";
@@ -65,25 +66,21 @@ export function SubscriptionLegalLinks({ showRestorePurchases = true }: Subscrip
       )}
 
       <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-        <a
-          href={PRIVACY_POLICY_URL}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={() => safeOpenUrl(PRIVACY_POLICY_URL)}
           className="flex items-center gap-1 hover:text-foreground underline underline-offset-2 transition-colors"
         >
           Privacy Policy
           <ExternalLink className="h-3 w-3" />
-        </a>
+        </button>
         <span>·</span>
-        <a
-          href={TERMS_URL}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={() => safeOpenUrl(TERMS_URL)}
           className="flex items-center gap-1 hover:text-foreground underline underline-offset-2 transition-colors"
         >
           Terms of Use
           <ExternalLink className="h-3 w-3" />
-        </a>
+        </button>
       </div>
 
       <p className="text-xs text-center text-muted-foreground leading-relaxed px-2">
