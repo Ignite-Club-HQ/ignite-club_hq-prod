@@ -253,7 +253,7 @@ export default function ClubUpgradePage() {
 
   const handleGetSponsored = () => {
     const sponsorUrl = `https://igniteclubhq.com/club/${clubId}`;
-    window.open(sponsorUrl, "_blank", "noopener,noreferrer");
+    import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(sponsorUrl));
   };
 
   // Determine recommended plan based on team count
