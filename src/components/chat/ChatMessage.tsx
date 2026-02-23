@@ -406,9 +406,8 @@ export const ChatMessage = memo(function ChatMessage({
     };
   }, [showReactionPicker]);
 
-  // Get display name - use "Member" fallback to avoid showing "..." in UI
-  // Apple review flagged ellipsis as looking broken; "Member" is a safe default
-  const displayName = authorName || "Member";
+  // Get display name - never show placeholder text; hide name until profile loads
+  const displayName = authorName || "";
   const hasName = !!authorName;
 
   // Handle inserting emoji at cursor position
@@ -481,7 +480,7 @@ export const ChatMessage = memo(function ChatMessage({
         </AvatarFallback>
       </Avatar>
       <div className={`max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
-        {!isOwn && (
+        {!isOwn && hasName && (
           <p className="text-xs text-muted-foreground mb-1">{displayName}</p>
         )}
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
