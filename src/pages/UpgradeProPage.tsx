@@ -130,6 +130,11 @@ export default function UpgradeProPage() {
         return { isTeamAdmin: true, isClubAdmin: !!isClubAdmin };
       }
       
+      // Coach for this team can also purchase team plans
+      if (roles.some(r => r.role === "coach" && r.team_id === teamId)) {
+        return { isTeamAdmin: true, isClubAdmin: !!isClubAdmin };
+      }
+      
       // Club admin for the team's club can also upgrade team plans
       if (isClubAdmin) {
         return { isTeamAdmin: true, isClubAdmin: true };
@@ -472,7 +477,7 @@ export default function UpgradeProPage() {
             </div>
             <h3 className="font-semibold text-lg mb-2">Admin Access Required</h3>
             <p className="text-muted-foreground text-sm">
-              Only team administrators can purchase team subscriptions.
+              Only team administrators, coaches, or club administrators can purchase team subscriptions.
             </p>
           </CardContent>
         </Card>
