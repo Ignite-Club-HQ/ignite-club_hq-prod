@@ -19,7 +19,7 @@ import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { ChatSearch } from "@/components/chat/ChatSearch";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { useMessageReads } from "@/hooks/useMessageReads";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
@@ -87,16 +87,13 @@ export default function BroadcastChatPage() {
   const scrollToBottom = useCallback(() => {
     if (!scrollAreaRef.current) return;
     
-    const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-    if (!viewport) return;
-    
+    const el = scrollAreaRef.current;
     const doScroll = () => {
-      if (viewport.scrollHeight > viewport.clientHeight) {
-        viewport.scrollTop = viewport.scrollHeight;
+      if (el.scrollHeight > el.clientHeight) {
+        el.scrollTop = el.scrollHeight;
       }
     };
     
-    // Try immediately and with increasing delays for first load
     doScroll();
     setTimeout(doScroll, 50);
     setTimeout(doScroll, 150);
@@ -812,7 +809,7 @@ export default function BroadcastChatPage() {
             isSearchResult={!!searchQuery}
           />
         ) : (
-          <ScrollArea className="flex-1 h-full" ref={scrollAreaRef}>
+          <div className="flex-1 h-full overflow-y-auto overscroll-contain scrollbar-hide" ref={scrollAreaRef} style={{ WebkitOverflowScrolling: 'touch' }}>
             <div className="space-y-4 pr-4">
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
@@ -866,7 +863,7 @@ export default function BroadcastChatPage() {
               })}
               <div ref={messagesEndRef} />
             </div>
-          </ScrollArea>
+          </div>
         )}
       </div>
 

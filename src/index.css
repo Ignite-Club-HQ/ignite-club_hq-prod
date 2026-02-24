@@ -161,6 +161,14 @@
   .overscroll-contain {
     overscroll-behavior-y: contain;
   }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Remove react-day-picker default today indicator dot */
