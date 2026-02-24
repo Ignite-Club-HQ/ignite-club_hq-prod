@@ -1219,7 +1219,7 @@ export default function GroupChatPage() {
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] overflow-hidden overscroll-none">
       {/* Header - Fixed at top */}
-      <div className="fixed top-14 left-0 right-0 flex items-center gap-3 p-4 border-b bg-background z-40">
+      <div className="fixed left-0 right-0 flex items-center gap-3 p-4 border-b bg-background z-40" style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -1248,7 +1248,7 @@ export default function GroupChatPage() {
       </div>
 
       {/* Spacer for fixed header */}
-      <div className="h-[72px] shrink-0" />
+      <div className="shrink-0" style={{ height: 'calc(72px + env(safe-area-inset-top, 0px))' }} />
 
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
