@@ -1248,7 +1248,7 @@ export default function GroupChatPage() {
       </div>
 
       {/* Spacer for fixed header */}
-      <div className="h-16 shrink-0" />
+      <div className="h-[72px] shrink-0" />
 
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
