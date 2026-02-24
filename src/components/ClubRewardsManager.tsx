@@ -472,7 +472,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
                     {reward.logo_url ? (
                       <img 
                         src={reward.logo_url} 
-                        alt="" 
+                        alt={reward.name || "Reward logo"} 
                         className="h-12 w-12 rounded-xl object-cover border" 
                       />
                     ) : (
@@ -739,7 +739,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
                       <SelectItem key={sponsor.id} value={sponsor.id}>
                         <span className="flex items-center gap-2">
                           {sponsor.logo_url && (
-                            <img src={sponsor.logo_url} alt="" className="h-5 w-5 rounded object-cover" />
+                            <img src={sponsor.logo_url} alt={sponsor.name || "Sponsor logo"} className="h-5 w-5 rounded object-cover" />
                           )}
                           {sponsor.name}
                         </span>

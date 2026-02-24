@@ -629,7 +629,7 @@ export default function DirectMessagePage() {
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] overflow-hidden overscroll-none" ref={pullRefreshRef as any}>
       {/* Header - Fixed at top */}
-      <div className="fixed top-14 left-0 right-0 flex items-center justify-between gap-3 px-4 py-3 border-b bg-background z-40">
+      <div className="fixed left-0 right-0 flex items-center justify-between gap-3 px-4 py-3 border-b bg-background z-40" style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
             <ArrowLeft className="h-5 w-5" />
@@ -672,7 +672,7 @@ export default function DirectMessagePage() {
 
       {/* Messages area */}
       <div ref={scrollAreaRef} className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-contain scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div className="py-4 space-y-4 pb-2">
+        <div className="py-4 space-y-4 pb-20">
           {showLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

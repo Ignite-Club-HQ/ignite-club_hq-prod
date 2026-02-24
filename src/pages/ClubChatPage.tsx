@@ -997,7 +997,7 @@ export default function ClubChatPage() {
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] overflow-hidden overscroll-none">
       {/* Header - Fixed at top */}
-      <div className="fixed top-14 left-0 right-0 flex items-center gap-3 px-4 py-3 border-b bg-background z-40">
+      <div className="fixed left-0 right-0 flex items-center gap-3 px-4 py-3 border-b bg-background z-40" style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -1029,7 +1029,7 @@ export default function ClubChatPage() {
       </div>
 
       {/* Spacer for fixed header */}
-      <div className="h-[72px] shrink-0" />
+      <div className="shrink-0" style={{ height: 'calc(72px + env(safe-area-inset-top, 0px))' }} />
 
       <div className="flex-1 min-h-0 pb-4 flex flex-col relative overflow-hidden" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
         <PullToRefreshIndicator
@@ -1057,7 +1057,7 @@ export default function ClubChatPage() {
           />
         ) : (
           <div className="flex-1 h-full overflow-y-auto overscroll-contain scrollbar-hide" ref={scrollAreaRef} style={{ WebkitOverflowScrolling: 'touch' }}>
-            <div className="space-y-4 pr-4">
+            <div className="space-y-4 pr-4 pb-20">
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
                 <div ref={loadTriggerRef} className="flex justify-center py-2">
