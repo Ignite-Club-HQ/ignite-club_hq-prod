@@ -2,6 +2,11 @@ import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+// ──────────────────────────────────────────────
+// ADMOB KILL SWITCH — set to true to re-enable
+// ──────────────────────────────────────────────
+const ADMOB_ENABLED = false;
+
 interface AdMobConfig {
   platform: string;
   app_id: string;
@@ -37,7 +42,7 @@ export function useAdMobConfig() {
       if (error) return null;
       return data as AdMobConfig;
     },
-    enabled: isNative(),
+    enabled: ADMOB_ENABLED && isNative(),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -47,7 +52,7 @@ export function useAdMobInit() {
   const { data: config } = useAdMobConfig();
 
   useEffect(() => {
-    if (!config?.is_enabled || !config.app_id || initialized.current || !isNative()) return;
+    if (!ADMOB_ENABLED || !config?.is_enabled || !config.app_id || initialized.current || !isNative()) return;
 
     const init = async () => {
       try {
@@ -71,7 +76,7 @@ export function useAdMobBanner(show: boolean) {
   const { data: config } = useAdMobConfig();
 
   useEffect(() => {
-    if (!show || !config?.is_enabled || !config.banner_ad_unit_id || !isNative()) {
+    if (!ADMOB_ENABLED || !show || !config?.is_enabled || !config.banner_ad_unit_id || !isNative()) {
       // Hide banner if conditions not met
       if (shown.current) {
         import("@capacitor-community/admob").then(({ AdMob }) => {
