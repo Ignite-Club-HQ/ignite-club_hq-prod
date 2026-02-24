@@ -627,7 +627,7 @@ export default function DirectMessagePage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))]" ref={pullRefreshRef as any}>
+    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] overflow-hidden overscroll-none" ref={pullRefreshRef as any}>
       {/* Header - Fixed at top */}
       <div className="fixed top-14 left-0 right-0 flex items-center justify-between gap-3 px-4 py-3 border-b bg-background z-40">
         <div className="flex items-center gap-3">

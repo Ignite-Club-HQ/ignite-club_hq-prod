@@ -995,7 +995,7 @@ export default function ClubChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))]">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] overflow-hidden overscroll-none">
       {/* Header - Fixed at top */}
       <div className="fixed top-14 left-0 right-0 flex items-center gap-3 px-4 py-3 border-b bg-background z-40">
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
@@ -1029,9 +1029,9 @@ export default function ClubChatPage() {
       </div>
 
       {/* Spacer for fixed header */}
-      <div className="h-16 shrink-0" />
+      <div className="h-[72px] shrink-0" />
 
-      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
+      <div className="flex-1 min-h-0 pb-4 flex flex-col relative overflow-hidden" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
         <PullToRefreshIndicator
           pullDistance={pullDistance}
           pullProgress={pullProgress}
