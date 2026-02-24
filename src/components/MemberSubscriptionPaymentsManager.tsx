@@ -230,7 +230,11 @@ export default function MemberSubscriptionPaymentsManager({
           }
         });
 
-        window.location.href = result.url;
+        if (isNative) {
+          import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(result.url));
+        } else {
+          window.location.href = result.url;
+        }
       } else {
         throw new Error("No checkout URL returned");
       }

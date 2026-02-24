@@ -115,7 +115,7 @@ export function EventSponsorsSection({ eventId, clubId }: EventSponsorsSectionPr
                 className="shrink-0"
                 onClick={() => {
                   handleSponsorClick(sponsor.id);
-                  window.open(sponsor.website_url!, "_blank");
+                  import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(sponsor.website_url!));
                 }}
               >
                 <ExternalLink className="h-4 w-4" />

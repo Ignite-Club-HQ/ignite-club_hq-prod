@@ -66,7 +66,7 @@ export default function CancellationPolicyPage() {
             <h3 className="text-lg font-medium">4.3 Data Retention</h3>
             <p className="text-muted-foreground">
               After cancellation, your data will be retained in accordance with our{" "}
-              <a href="https://igniteclubhq.com/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Privacy Policy</a>. 
+              <a href="https://igniteclubhq.com/privacy" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/privacy")); }} className="text-primary hover:underline cursor-pointer">Privacy Policy</a>. 
               You may request deletion of your data by contacting us.
             </p>
           </div>

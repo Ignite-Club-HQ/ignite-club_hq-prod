@@ -269,14 +269,8 @@ export default function MiniLeaguesPage() {
           </div>
           <h3 className="text-lg font-semibold mb-1">Pro Football Required</h3>
           <p className="text-muted-foreground text-sm max-w-xs mb-6">
-            Mini Leagues is a Pro Football feature. Upgrade your club to access ability-based player grouping.
+            Mini Leagues is a Pro Football feature. Contact your club administrator to upgrade.
           </p>
-          {clubIdFromUrl && (
-            <Button onClick={() => navigate(`/clubs/${clubIdFromUrl}/upgrade`)}>
-              <Crown className="h-4 w-4 mr-2" />
-              Upgrade to Pro Football
-            </Button>
-          )}
         </div>
       ) : miniLeagues?.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 px-4 text-center">

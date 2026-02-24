@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ExternalLink } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
+import { safeOpenUrl } from "@/lib/safeOpenUrl";
 
 interface Sponsor {
   id: string;
@@ -66,15 +67,12 @@ export function PrimarySponsorDisplay({ sponsorId, variant = "compact", context 
         </Avatar>
         <span className="text-sm font-medium">{sponsor.name}</span>
         {sponsor.website_url && (
-          <a 
-            href={sponsor.website_url}
-            onClick={(e) => { e.stopPropagation(); handleClick(); }}
-            target="_blank" 
-            rel="noopener noreferrer"
+          <button 
+            onClick={(e) => { e.stopPropagation(); handleClick(); safeOpenUrl(sponsor.website_url!); }}
             className="ml-auto text-muted-foreground hover:text-primary transition-colors"
           >
             <ExternalLink className="h-3.5 w-3.5" />
-          </a>
+          </button>
         )}
       </div>
     );
@@ -99,15 +97,12 @@ export function PrimarySponsorDisplay({ sponsorId, variant = "compact", context 
           )}
         </div>
         {sponsor.website_url && (
-          <a 
-            href={sponsor.website_url} 
-            target="_blank" 
-            rel="noopener noreferrer"
+          <button 
             className="shrink-0 p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-            onClick={(e) => { e.stopPropagation(); handleClick(); }}
+            onClick={(e) => { e.stopPropagation(); handleClick(); safeOpenUrl(sponsor.website_url!); }}
           >
             <ExternalLink className="h-5 w-5" />
-          </a>
+          </button>
         )}
       </div>
     </div>

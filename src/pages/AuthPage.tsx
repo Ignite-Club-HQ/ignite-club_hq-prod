@@ -695,9 +695,9 @@ export default function AuthPage() {
               </>
             ) : (
               <>
-                <a href="https://igniteclubhq.com/terms" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">Terms</a>
-                <a href="https://igniteclubhq.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">Privacy</a>
-                <a href="https://igniteclubhq.com/refunds" target="_blank" rel="noopener noreferrer" className="hover:text-foreground hover:underline">Cancellation</a>
+                <a href="https://igniteclubhq.com/terms" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/terms")); }} className="hover:text-foreground hover:underline cursor-pointer">Terms</a>
+                <a href="https://igniteclubhq.com/privacy" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/privacy")); }} className="hover:text-foreground hover:underline cursor-pointer">Privacy</a>
+                <a href="https://igniteclubhq.com/refunds" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/refunds")); }} className="hover:text-foreground hover:underline cursor-pointer">Cancellation</a>
               </>
             )}
           </div>

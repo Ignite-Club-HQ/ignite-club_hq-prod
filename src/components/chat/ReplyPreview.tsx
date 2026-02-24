@@ -18,7 +18,7 @@ export const ReplyPreview = memo(function ReplyPreview({ replyingTo, onCancel }:
     <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-muted rounded-lg border-l-4 border-primary">
       <div className="flex-1 min-w-0">
         <p className="text-xs text-primary font-semibold">
-          Replying to {replyingTo.authorName || "..."}
+          Replying to {replyingTo.authorName || "message"}
         </p>
         <p className="text-xs text-muted-foreground truncate">
           {replyingTo.text}
@@ -45,7 +45,7 @@ export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, isO
   return (
     <div className={`text-xs p-2 mb-1 rounded-lg bg-background/50 border-l-2 border-primary/50 ${isOwn ? 'ml-auto' : ''}`}>
       <p className="text-muted-foreground font-medium truncate">
-        {replyToMessage.authorName || "..."}
+        {replyToMessage.authorName || ""}
       </p>
       <p className="text-muted-foreground/70 truncate">{replyToMessage.text}</p>
     </div>

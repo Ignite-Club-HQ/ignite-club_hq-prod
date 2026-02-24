@@ -70,6 +70,18 @@ export function useInAppPurchase(): UseInAppPurchaseReturn {
       setError(null);
 
       try {
+        // Pre-validate authorization before triggering native payment
+        const { data: authCheck, error: authCheckError } = await supabase.functions.invoke(
+          "check-iap-authorization",
+          {
+            body: { productId, entityId, entityType },
+          }
+        );
+
+        if (authCheckError || authCheck?.error) {
+          throw new Error(authCheck?.error || authCheckError?.message || "You don't have permission to make this purchase");
+        }
+
         const { NativePurchases, PURCHASE_TYPE } = await import("@capgo/native-purchases");
 
         // Determine if this is a subscription or consumable
