@@ -188,7 +188,7 @@ export function UploadFilesDialog({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept={uploadType === "photo" ? "image/*" : "*"}
+                accept={uploadType === "photo" ? "image/png,image/jpeg,image/jpg,image/gif,image/webp,image/heic,image/heif,image/svg+xml,image/bmp,image/tiff" : "*"}
                 className="hidden"
                 onChange={handleInputChange}
               />
