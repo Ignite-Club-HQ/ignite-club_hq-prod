@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { App } from '@capacitor/app';
 
 /**
  * Get theme synchronously from DOM/localStorage (authoritative source)
@@ -27,31 +28,26 @@ const getThemeSync = (): 'light' | 'dark' => {
 export function StatusBarManager() {
   const lastAppliedTheme = useRef<string | null>(null);
 
-  const applyStatusBarStyle = async (theme: 'light' | 'dark') => {
+  const applyStatusBarStyle = async (theme: 'light' | 'dark', force = false) => {
     if (!Capacitor.isNativePlatform()) return;
-    if (lastAppliedTheme.current === theme) return; // Skip if already applied
+    if (!force && lastAppliedTheme.current === theme) return;
     
     lastAppliedTheme.current = theme;
-    console.log('[StatusBar] Applying style for theme:', theme);
+    console.log('[StatusBar] Applying style for theme:', theme, force ? '(forced)' : '');
 
     try {
-      // Set status bar style based on current theme
-      // Dark theme = light icons, Light theme = dark icons
       if (theme === 'dark') {
         await StatusBar.setStyle({ style: Style.Dark });
-        // On Android, also set the background color
         if (Capacitor.getPlatform() === 'android') {
-          await StatusBar.setBackgroundColor({ color: '#0f1512' }); // dark background color
+          await StatusBar.setBackgroundColor({ color: '#0f1512' });
         }
       } else {
         await StatusBar.setStyle({ style: Style.Light });
-        // On Android, also set the background color
         if (Capacitor.getPlatform() === 'android') {
-          await StatusBar.setBackgroundColor({ color: '#f5f7f6' }); // light background color
+          await StatusBar.setBackgroundColor({ color: '#f5f7f6' });
         }
       }
 
-      // Don't overlay - let the native platform handle status bar spacing
       await StatusBar.setOverlaysWebView({ overlay: false });
     } catch (error) {
       console.log('[StatusBar] Error configuring status bar:', error);
@@ -59,11 +55,21 @@ export function StatusBarManager() {
   };
 
   useEffect(() => {
-    // Apply immediately on mount using synchronous theme detection
     const initialTheme = getThemeSync();
     applyStatusBarStyle(initialTheme);
 
-    // Watch for theme changes via DOM class mutations (authoritative source)
+    // Re-apply on app resume (Android can reset status bar on background/foreground)
+    let appListener: { remove: () => void } | undefined;
+    if (Capacitor.isNativePlatform()) {
+      App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) {
+          const currentTheme = getThemeSync();
+          applyStatusBarStyle(currentTheme, true); // force reapply
+        }
+      }).then(handle => { appListener = handle; });
+    }
+
+    // Watch for theme changes via DOM class mutations
     const observer = new MutationObserver(() => {
       const currentTheme = getThemeSync();
       applyStatusBarStyle(currentTheme);
@@ -74,7 +80,10 @@ export function StatusBarManager() {
       attributeFilter: ['class'],
     });
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      appListener?.remove();
+    };
   }, []);
 
   return null;
