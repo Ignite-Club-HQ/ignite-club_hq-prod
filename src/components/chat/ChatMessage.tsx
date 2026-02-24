@@ -409,6 +409,26 @@ export const ChatMessage = memo(function ChatMessage({
     };
   }, [showReactionPicker]);
 
+  // Close three-dot menu when tapping outside
+  useEffect(() => {
+    if (!showMenu) return;
+    
+    const handleClickOutside = () => {
+      setShowMenu(false);
+    };
+    
+    const timer = setTimeout(() => {
+      document.addEventListener('touchstart', handleClickOutside);
+      document.addEventListener('click', handleClickOutside);
+    }, 0);
+    
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showMenu]);
+
   // Get display name - never show placeholder text; hide name until profile loads
   const displayName = authorName || "";
   const hasName = !!authorName;
