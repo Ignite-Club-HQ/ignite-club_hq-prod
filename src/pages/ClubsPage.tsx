@@ -388,11 +388,8 @@ function ClubCard({ club, subscription, sponsors = [], isMember = false }: {
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground">Sponsored by</span>
                   {primarySponsor.website_url ? (
-                    <a
-                      href={primarySponsor.website_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={handleSponsorClick}
+                    <button
+                      onClick={(e) => { handleSponsorClick(e); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(primarySponsor.website_url!)); }}
                       className="hover:opacity-80 transition-opacity"
                     >
                       <img
@@ -401,7 +398,7 @@ function ClubCard({ club, subscription, sponsors = [], isMember = false }: {
                         className="h-10 w-auto max-w-[100px] object-contain rounded-sm"
                         title={primarySponsor.name}
                       />
-                    </a>
+                    </button>
                   ) : (
                     <img
                       src={primarySponsor.logo_url!}

@@ -8,6 +8,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { useMemo } from "react";
+import { safeOpenUrl } from "@/lib/safeOpenUrl";
 
 // Helper to convert URLs and markdown-style links in text to clickable links
 function renderTextWithLinks(text: string) {
@@ -28,28 +29,24 @@ function renderTextWithLinks(text: string) {
       const linkText = match[2];
       const url = match[3];
       result.push(
-        <a
+        <button
           key={match.index}
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
+          onClick={() => safeOpenUrl(url)}
           className="text-primary underline hover:text-primary/80"
         >
           {linkText}
-        </a>
+        </button>
       );
     } else if (match[4]) {
       // Plain URL
       result.push(
-        <a
+        <button
           key={match.index}
-          href={match[4]}
-          target="_blank"
-          rel="noopener noreferrer"
+          onClick={() => safeOpenUrl(match[4])}
           className="text-primary underline hover:text-primary/80"
         >
           {match[4]}
-        </a>
+        </button>
       );
     }
 

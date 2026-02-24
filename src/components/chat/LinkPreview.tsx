@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { safeOpenUrl } from "@/lib/safeOpenUrl";
 
 interface LinkPreviewData {
   url: string;
@@ -114,15 +115,12 @@ export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps
         {!compact && preview.description && (
           <p className="text-xs text-muted-foreground line-clamp-2">{preview.description}</p>
         )}
-        <a
-          href={url.startsWith('http') ? url : `https://${url}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-muted-foreground truncate hover:underline mt-0.5"
-          onClick={(e) => e.stopPropagation()}
+        <button
+          className="text-xs text-muted-foreground truncate hover:underline mt-0.5 text-left"
+          onClick={(e) => { e.stopPropagation(); safeOpenUrl(url.startsWith('http') ? url : `https://${url}`); }}
         >
           {url}
-        </a>
+        </button>
       </div>
       {onRemove && (
         <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={onRemove}>

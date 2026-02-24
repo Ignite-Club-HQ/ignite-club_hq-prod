@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 
 const STORAGE_PACKS = [
   { id: '10gb', gb: 10, priceMonthly: 4.99, priceAnnual: 49.99, popular: false },
@@ -561,6 +562,8 @@ export function StoragePurchaseDialog({
             <p className="text-xs text-center text-muted-foreground">
               Storage add-ons are billed as recurring subscriptions and can be cancelled anytime.
             </p>
+
+            <SubscriptionLegalLinks />
           </div>
         </DialogContent>
       </Dialog>

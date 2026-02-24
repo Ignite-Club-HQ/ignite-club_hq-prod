@@ -1172,11 +1172,8 @@ export default function ClubDetailPage() {
                                               <div className="flex items-center gap-1.5">
                                                 <span className="text-xs text-muted-foreground">Sponsored by</span>
                                                 {teamSponsor.website_url ? (
-                                                  <a
-                                                    href={teamSponsor.website_url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    onClick={(e) => e.stopPropagation()}
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(teamSponsor.website_url!)); }}
                                                     className="hover:opacity-80 transition-opacity"
                                                   >
                                                     <img
@@ -1185,7 +1182,7 @@ export default function ClubDetailPage() {
                                                       className="h-10 w-auto max-w-[100px] object-contain rounded-sm"
                                                       title={teamSponsor.name}
                                                     />
-                                                  </a>
+                                                  </button>
                                                 ) : (
                                                   <img
                                                     src={teamSponsor.logo_url}
@@ -1324,11 +1321,8 @@ export default function ClubDetailPage() {
                                       <div className="flex items-center gap-1.5">
                                         <span className="text-xs text-muted-foreground">Sponsored by</span>
                                         {teamSponsor.website_url ? (
-                                          <a
-                                            href={teamSponsor.website_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            onClick={(e) => e.stopPropagation()}
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(teamSponsor.website_url!)); }}
                                             className="hover:opacity-80 transition-opacity"
                                           >
                                             <img
@@ -1337,7 +1331,7 @@ export default function ClubDetailPage() {
                                               className="h-10 w-auto max-w-[100px] object-contain rounded-sm"
                                               title={teamSponsor.name}
                                             />
-                                          </a>
+                                          </button>
                                         ) : (
                                           <img
                                             src={teamSponsor.logo_url}

@@ -116,7 +116,7 @@ export function GoogleDriveImportDialog({
 
       // On native, open system browser for OAuth; on web, redirect
       if (Capacitor.isNativePlatform()) {
-        window.open(data.authUrl, '_blank');
+        import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(data.authUrl));
       } else {
         window.location.href = data.authUrl;
       }
