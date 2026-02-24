@@ -1031,7 +1031,7 @@ export default function ClubChatPage() {
       {/* Spacer for fixed header */}
       <div className="h-[72px] shrink-0" />
 
-      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
+      <div className="flex-1 min-h-0 pb-4 flex flex-col relative overflow-hidden" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
         <PullToRefreshIndicator
           pullDistance={pullDistance}
           pullProgress={pullProgress}
