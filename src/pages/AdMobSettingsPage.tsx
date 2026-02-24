@@ -58,9 +58,9 @@ export default function AdMobSettingsPage() {
           </CardTitle>
           <CardDescription>
             Create an AdMob account at{" "}
-            <a href="https://admob.google.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+            <button onClick={() => import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://admob.google.com"))} className="text-primary underline cursor-pointer">
               admob.google.com
-            </a>
+            </button>
             , register your app for each platform, then create ad units and paste the IDs below.
             Ads only show on native mobile apps for non-Pro users.
           </CardDescription>
