@@ -218,14 +218,12 @@ export default function AppStripeSettingsPage() {
               <Alert>
                 <AlertDescription>
                   Get your API keys from the{" "}
-                  <a 
-                    href="https://dashboard.stripe.com/apikeys" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-primary underline font-medium"
+                  <button 
+                    onClick={() => import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://dashboard.stripe.com/apikeys"))}
+                    className="text-primary underline font-medium cursor-pointer"
                   >
                     Stripe Dashboard
-                  </a>. Use test keys (sk_test_*, pk_test_*) for testing.
+                  </button>. Use test keys (sk_test_*, pk_test_*) for testing.
                 </AlertDescription>
               </Alert>
 

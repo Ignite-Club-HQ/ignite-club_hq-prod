@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { Capacitor } from "@capacitor/core";
 import { useQuery } from "@tanstack/react-query";
 import { Download, Loader2, Flame } from "lucide-react";
 import { format } from "date-fns";
@@ -167,6 +168,16 @@ export default function PlayerStatsReportView({
 
   const handleDownload = async () => {
     if (!reportRef.current) return;
+
+    // Print-to-PDF is not available on native platforms
+    if (Capacitor.isNativePlatform()) {
+      toast({
+        title: "Not available",
+        description: "Report downloads are available on the web version.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       // Create a printable version

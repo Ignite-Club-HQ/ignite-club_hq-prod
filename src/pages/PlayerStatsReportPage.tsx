@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Calendar, FileText, Users, Loader2, Check, Lock } from "lucide-react";
@@ -238,6 +239,8 @@ export default function PlayerStatsReportPage() {
   };
 
   const handleDownloadSampleReport = (type: 'game' | 'season') => {
+    if (Capacitor.isNativePlatform()) return;
+    
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
