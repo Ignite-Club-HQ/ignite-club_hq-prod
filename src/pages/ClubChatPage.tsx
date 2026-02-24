@@ -1029,7 +1029,7 @@ export default function ClubChatPage() {
       </div>
 
       {/* Spacer for fixed header */}
-      <div className="shrink-0" style={{ height: 'calc(72px + env(safe-area-inset-top, 0px))' }} />
+      <div className="shrink-0" style={{ height: '72px' }} />
 
       <div className="flex-1 min-h-0 pb-4 flex flex-col relative overflow-hidden" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
         <PullToRefreshIndicator
