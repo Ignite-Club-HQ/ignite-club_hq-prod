@@ -782,7 +782,7 @@ export default function RewardRedemptionCard() {
                       </div>
                       <div className="flex items-start justify-between gap-3">
                         {reward.logo_url && (
-                          <img src={reward.logo_url} alt="" className="h-12 w-12 rounded-lg object-cover shrink-0" />
+                          <img src={reward.logo_url} alt={reward.name || "Reward logo"} className="h-12 w-12 rounded-lg object-cover shrink-0" />
                         )}
                         <div className="flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -833,7 +833,7 @@ export default function RewardRedemptionCard() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         {reward.logo_url && (
-                          <img src={reward.logo_url} alt="" className="h-12 w-12 rounded-lg object-cover shrink-0" />
+                          <img src={reward.logo_url} alt={reward.name || "Reward logo"} className="h-12 w-12 rounded-lg object-cover shrink-0" />
                         )}
                         <div className="flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
