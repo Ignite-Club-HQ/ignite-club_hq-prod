@@ -671,7 +671,7 @@ export default function DirectMessagePage() {
       <PullToRefreshIndicator isRefreshing={isRefreshing} pullDistance={pullDistance} pullProgress={pullProgress} />
 
       {/* Messages area */}
-      <div ref={scrollAreaRef} className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div ref={scrollAreaRef} className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-contain scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="py-4 space-y-4 pb-2">
           {showLoading ? (
             <div className="flex justify-center py-8">

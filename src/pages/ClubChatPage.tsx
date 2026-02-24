@@ -1056,7 +1056,7 @@ export default function ClubChatPage() {
             isSearchResult={!!searchQuery}
           />
         ) : (
-          <div className="flex-1 h-full overflow-y-auto overscroll-contain" ref={scrollAreaRef} style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="flex-1 h-full overflow-y-auto overscroll-contain scrollbar-hide" ref={scrollAreaRef} style={{ WebkitOverflowScrolling: 'touch' }}>
             <div className="space-y-4 pr-4">
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
