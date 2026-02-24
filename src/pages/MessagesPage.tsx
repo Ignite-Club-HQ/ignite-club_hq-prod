@@ -109,7 +109,7 @@ const MessagePreview = ({
       {isImageOnly && imageUrl && (
         <img 
           src={imageUrl} 
-          alt="" 
+          alt="Message attachment" 
           className="h-5 w-5 rounded object-cover shrink-0"
         />
       )}

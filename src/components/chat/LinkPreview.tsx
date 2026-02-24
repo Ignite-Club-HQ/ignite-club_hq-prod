@@ -99,7 +99,7 @@ export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps
         <div className="w-16 h-16 shrink-0 rounded overflow-hidden">
           <img
             src={preview.image}
-            alt=""
+            alt={preview.title || "Link preview"}
             className="w-full h-full object-cover"
             onError={(e) => (e.currentTarget.style.display = "none")}
           />
