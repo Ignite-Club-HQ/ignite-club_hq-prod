@@ -3,6 +3,8 @@ import { ImagePlus, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Capacitor } from "@capacitor/core";
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 
 interface ChatImageInputProps {
   onImageUploaded: (imageUrl: string | null) => void;
@@ -65,59 +67,84 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const uploadBlob = async (blob: Blob) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const compressedBlob = await compressImage(new File([blob], "photo.jpg", { type: blob.type }));
+    
+    const timestamp = Date.now();
+    let fileName: string;
+    if (teamId && clubId) {
+      fileName = `clubs/${clubId}/teams/${teamId}/${user.id}/${timestamp}.jpg`;
+    } else if (clubId) {
+      fileName = `clubs/${clubId}/${user.id}/${timestamp}.jpg`;
+    } else {
+      fileName = `general/${user.id}/${timestamp}.jpg`;
+    }
+
+    const { error: uploadError } = await supabase.storage
+      .from("chat-attachments")
+      .upload(fileName, compressedBlob, { contentType: "image/jpeg" });
+
+    if (uploadError) throw uploadError;
+
+    const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
+    return `${supabaseUrl}/storage/v1/object/public/chat-attachments/${fileName}`;
+  };
+
+  const handleNativePhotoPick = async () => {
+    setUploading(true);
+    try {
+      const photo = await Camera.getPhoto({
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Photos,
+        quality: 80,
+      });
+
+      if (!photo.webPath) throw new Error("No photo selected");
+
+      setLocalPreview(photo.webPath);
+
+      const response = await fetch(photo.webPath);
+      const blob = await response.blob();
+
+      const storageUrl = await uploadBlob(blob);
+      setLocalPreview(null);
+      onImageUploaded(storageUrl);
+    } catch (error: any) {
+      if (error?.message?.includes("cancelled") || error?.message?.includes("canceled")) {
+        // User cancelled - do nothing
+      } else {
+        console.error("Upload error:", error);
+        toast.error("Failed to upload image");
+      }
+      setLocalPreview(null);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith("image/")) {
       toast.error("Please select an image file");
       return;
     }
 
-    // Validate file size (max 10MB for original, will be compressed)
     if (file.size > 10 * 1024 * 1024) {
       toast.error("Image must be less than 10MB");
       return;
     }
 
-    // Show local preview immediately for instant feedback
     const localUrl = URL.createObjectURL(file);
     setLocalPreview(localUrl);
     setUploading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      // Compress image before uploading
-      const compressedBlob = await compressImage(file);
-      
-      // Structure path with club/team context for easier backup identification
-      const timestamp = Date.now();
-      let fileName: string;
-      if (teamId && clubId) {
-        fileName = `clubs/${clubId}/teams/${teamId}/${user.id}/${timestamp}.jpg`;
-      } else if (clubId) {
-        fileName = `clubs/${clubId}/${user.id}/${timestamp}.jpg`;
-      } else {
-        // Fallback for broadcast or unassociated chats
-        fileName = `general/${user.id}/${timestamp}.jpg`;
-      }
-
-      const { error: uploadError } = await supabase.storage
-        .from("chat-attachments")
-        .upload(fileName, compressedBlob, {
-          contentType: "image/jpeg"
-        });
-
-      if (uploadError) throw uploadError;
-
-      // Store the storage URL format (will be converted to signed URL when displayed)
-      const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
-      const storageUrl = `${supabaseUrl}/storage/v1/object/public/chat-attachments/${fileName}`;
-
-      // Clean up local preview
+      const storageUrl = await uploadBlob(file);
       URL.revokeObjectURL(localUrl);
       setLocalPreview(null);
       onImageUploaded(storageUrl);
@@ -131,6 +158,14 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+    }
+  };
+
+  const handleImageButtonClick = () => {
+    if (Capacitor.getPlatform() === 'ios') {
+      handleNativePhotoPick();
+    } else {
+      fileInputRef.current?.click();
     }
   };
 
@@ -182,7 +217,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           type="button"
           variant="ghost"
           size="icon"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={handleImageButtonClick}
           disabled={disabled || uploading}
         >
           {uploading ? (
