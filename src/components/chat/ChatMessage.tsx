@@ -87,6 +87,7 @@ export const ChatMessage = memo(function ChatMessage({
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(text);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const queryClient = useQueryClient();
@@ -307,7 +308,7 @@ export const ChatMessage = memo(function ChatMessage({
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
-      setShowReactionPicker(true);
+      setShowMenu(true);
     }, 600);
   }, []);
 
@@ -361,7 +362,7 @@ export const ChatMessage = memo(function ChatMessage({
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    setShowReactionPicker(true);
+    setShowMenu(true);
   }, []);
 
   const handleReply = useCallback(() => {
@@ -492,12 +493,12 @@ export const ChatMessage = memo(function ChatMessage({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 min-h-[32px] min-w-[32px] opacity-0 group-hover:opacity-100 transition-opacity"
+                  className={`h-8 w-8 min-h-[32px] min-w-[32px] transition-opacity ${showMenu ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 >
                   <MoreVertical className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-popover border">
+              <DropdownMenuContent align="end" className="bg-popover border" onCloseAutoFocus={() => setShowMenu(false)}>
                 {canReply && (
                   <DropdownMenuItem onClick={handleReply}>
                     <Reply className="h-4 w-4 mr-2" /> Reply
@@ -548,12 +549,12 @@ export const ChatMessage = memo(function ChatMessage({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 min-h-[32px] min-w-[32px] opacity-0 group-hover:opacity-100 transition-opacity"
+                  className={`h-8 w-8 min-h-[32px] min-w-[32px] transition-opacity ${showMenu ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 >
                   <MoreVertical className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="bg-popover border">
+              <DropdownMenuContent align="start" className="bg-popover border" onCloseAutoFocus={() => setShowMenu(false)}>
                 {canReply && (
                   <DropdownMenuItem onClick={handleReply}>
                     <Reply className="h-4 w-4 mr-2" /> Reply
