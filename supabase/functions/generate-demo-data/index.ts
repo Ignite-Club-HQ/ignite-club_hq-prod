@@ -2473,57 +2473,177 @@ serve(async (req) => {
       // Realistic conversation threads where messages get replies
       const teamConversations = [
         [
-          { text: "Who's bringing oranges for Saturday? 🍊", delay: 48 },
-          { text: "I can bring them!", delay: 47 },
-          { text: "Thanks! That's a huge help 🙏", delay: 46 },
+          { text: "Who's bringing oranges for Saturday? 🍊", delay: 120 },
+          { text: "I can bring them!", delay: 119 },
+          { text: "Thanks! That's a huge help 🙏", delay: 118 },
+          { text: "I'll bring some water bottles too", delay: 117 },
         ],
         [
-          { text: "Great practice today everyone! 🏃‍♂️", delay: 24 },
-          { text: "The passing drills were really good today", delay: 23 },
-          { text: "Agreed! Felt like we really clicked as a team", delay: 22 },
+          { text: "Great practice today everyone! 🏃‍♂️", delay: 110 },
+          { text: "The passing drills were really good today", delay: 109 },
+          { text: "Agreed! Felt like we really clicked as a team", delay: 108 },
+          { text: "Coach wants us to keep working on those through the week", delay: 107 },
         ],
         [
-          { text: "What time is warmup on Saturday?", delay: 36 },
-          { text: "Coach said 9:30am, kickoff at 10", delay: 35 },
-          { text: "Perfect, see you all there!", delay: 34 },
+          { text: "What time is warmup on Saturday?", delay: 100 },
+          { text: "Coach said 9:30am, kickoff at 10", delay: 99 },
+          { text: "Perfect, see you all there!", delay: 98 },
+          { text: "Don't forget your blue kit!", delay: 97 },
+          { text: "Thanks for the reminder 👍", delay: 96 },
         ],
         [
-          { text: "Does anyone have a spare shin pad? My son lost his", delay: 12 },
-          { text: "We have an extra pair you can borrow", delay: 11 },
-          { text: "Amazing, thank you so much!", delay: 10 },
+          { text: "Does anyone have a spare shin pad? My son lost his", delay: 90 },
+          { text: "We have an extra pair you can borrow", delay: 89 },
+          { text: "Amazing, thank you so much!", delay: 88 },
         ],
         [
-          { text: "Training cancelled due to rain ☔", delay: 6 },
-          { text: "Oh no! Hopefully next week is better", delay: 5 },
+          { text: "Training cancelled due to rain ☔", delay: 80 },
+          { text: "Oh no! Hopefully next week is better", delay: 79 },
+          { text: "Any chance of an indoor session?", delay: 78 },
+          { text: "I'll check with the sports centre and let you know", delay: 77 },
         ],
         [
-          { text: "Well played today team! 👏 What a game!", delay: 2 },
-          { text: "That second goal was incredible!", delay: 1.5 },
-          { text: "Thanks everyone for the support from the sidelines", delay: 1 },
+          { text: "Well played today team! 👏 What a game!", delay: 70 },
+          { text: "That second goal was incredible!", delay: 69 },
+          { text: "Thanks everyone for the support from the sidelines", delay: 68 },
+          { text: "Best game of the season so far 🔥", delay: 67 },
+          { text: "The defence was solid today", delay: 66 },
+        ],
+        [
+          { text: "Anyone free for a friendly match next Sunday?", delay: 60 },
+          { text: "Count us in! What time?", delay: 59 },
+          { text: "Thinking 2pm at the main pitch", delay: 58 },
+          { text: "Works for us 👍", delay: 57 },
+          { text: "I'll bring the bibs", delay: 56 },
+          { text: "Perfect, I'll confirm numbers by Thursday", delay: 55 },
+        ],
+        [
+          { text: "Photos from Saturday's match are up! 📸", delay: 50 },
+          { text: "Great shots! Love the one of the celebration", delay: 49 },
+          { text: "Can you send me the team photo?", delay: 48 },
+          { text: "Sure, I'll share it in a bit", delay: 47 },
+        ],
+        [
+          { text: "Reminder: Subs are due by end of the month 💷", delay: 40 },
+          { text: "Paid mine yesterday", delay: 39 },
+          { text: "How much is it this term?", delay: 38 },
+          { text: "£40 for the quarter", delay: 37 },
+          { text: "Thanks, I'll get it sorted today", delay: 36 },
+        ],
+        [
+          { text: "New training schedule for next term is ready", delay: 30 },
+          { text: "Will training still be Tuesdays and Thursdays?", delay: 29 },
+          { text: "Yes, same days but moving to 6pm start", delay: 28 },
+          { text: "That works better for us actually!", delay: 27 },
+          { text: "Same here, the later time is much easier", delay: 26 },
+          { text: "Great feedback, I'll confirm it then 👍", delay: 25 },
+        ],
+        [
+          { text: "Lost property: Anyone missing a black water bottle?", delay: 20 },
+          { text: "That might be ours! Has it got a sticker on it?", delay: 19 },
+          { text: "Yes! A dinosaur sticker", delay: 18 },
+          { text: "That's definitely ours 😂 I'll grab it next session", delay: 17 },
+        ],
+        [
+          { text: "End of season presentation ideas? 🏆", delay: 14 },
+          { text: "How about a BBQ at the club?", delay: 13 },
+          { text: "Love that idea! We could do awards too", delay: 12 },
+          { text: "I can organise the food if someone does trophies", delay: 11 },
+          { text: "I'll handle the trophies 🏅", delay: 10 },
+          { text: "Amazing teamwork as always!", delay: 9 },
+        ],
+        [
+          { text: "Just a heads up - pitch 3 is waterlogged this week", delay: 7 },
+          { text: "We've been moved to pitch 1 instead", delay: 6 },
+          { text: "Thanks for letting us know!", delay: 5 },
+        ],
+        [
+          { text: "Can we do some goalkeeping drills next session?", delay: 4 },
+          { text: "Great idea, I'll work some into the plan", delay: 3 },
+          { text: "My son would love that, he's been practising at home!", delay: 2 },
+          { text: "Love the enthusiasm! We'll definitely cover it 💪", delay: 1 },
         ],
       ];
 
       const clubConversations = [
         [
-          { text: "Volunteer helpers needed for the tournament next month", delay: 72 },
-          { text: "I can help set up on Friday evening", delay: 70 },
-          { text: "Put me down for the BBQ on Saturday", delay: 68 },
-          { text: "Thanks so much! Really appreciate the support 🙌", delay: 66 },
+          { text: "Volunteer helpers needed for the tournament next month", delay: 144 },
+          { text: "I can help set up on Friday evening", delay: 142 },
+          { text: "Put me down for the BBQ on Saturday", delay: 140 },
+          { text: "Thanks so much! Really appreciate the support 🙌", delay: 138 },
+          { text: "I can help with parking if needed", delay: 136 },
         ],
         [
-          { text: "Club AGM next Thursday at 7pm - all welcome!", delay: 48 },
-          { text: "Will there be an online option?", delay: 46 },
-          { text: "Yes, we'll send the Zoom link closer to the date", delay: 44 },
+          { text: "Club AGM next Thursday at 7pm - all welcome!", delay: 130 },
+          { text: "Will there be an online option?", delay: 128 },
+          { text: "Yes, we'll send the Zoom link closer to the date", delay: 126 },
+          { text: "Can we discuss the new kit supplier?", delay: 124 },
+          { text: "That's on the agenda already 👍", delay: 122 },
         ],
         [
-          { text: "Congratulations to our U12s on their win! 🏆", delay: 24 },
-          { text: "Amazing result! The kids played so well", delay: 22 },
-          { text: "Well done to the coaches too!", delay: 20 },
+          { text: "Congratulations to our U12s on their win! 🏆", delay: 115 },
+          { text: "Amazing result! The kids played so well", delay: 113 },
+          { text: "Well done to the coaches too!", delay: 111 },
+          { text: "What a way to end the season!", delay: 109 },
         ],
         [
-          { text: "New merchandise available in the club shop", delay: 96 },
-          { text: "Are the new training tops in yet?", delay: 94 },
-          { text: "Yes! All sizes available now", delay: 92 },
+          { text: "New merchandise available in the club shop", delay: 100 },
+          { text: "Are the new training tops in yet?", delay: 98 },
+          { text: "Yes! All sizes available now", delay: 96 },
+          { text: "Do they come in kids sizes too?", delay: 94 },
+          { text: "Yes, from age 5 upwards", delay: 92 },
+          { text: "Brilliant, I'll pop by this weekend", delay: 90 },
+        ],
+        [
+          { text: "Pitch maintenance update: new goals being installed! ⚽", delay: 85 },
+          { text: "Finally! The old ones were in a state", delay: 83 },
+          { text: "They look great, seen them being put in today", delay: 81 },
+          { text: "Nets too?", delay: 79 },
+          { text: "Yes, brand new nets as well 🎉", delay: 77 },
+        ],
+        [
+          { text: "Fundraiser update: We've raised £2,500 so far! 🎉", delay: 70 },
+          { text: "Wow that's brilliant! Well done everyone", delay: 68 },
+          { text: "The raffle alone brought in £800", delay: 66 },
+          { text: "Should we do another one next month?", delay: 64 },
+          { text: "Definitely! I'll start organising prizes", delay: 62 },
+          { text: "I can get some donations from local businesses", delay: 60 },
+        ],
+        [
+          { text: "Welcome to our new coaches who joined this week! 👋", delay: 55 },
+          { text: "Great to have you on board!", delay: 53 },
+          { text: "Thanks! Really excited to get started", delay: 51 },
+          { text: "The club has a fantastic setup", delay: 49 },
+        ],
+        [
+          { text: "Safeguarding training reminder - all coaches need to complete by month end", delay: 42 },
+          { text: "Is it the online course or in-person?", delay: 40 },
+          { text: "Online this time, I'll send the link", delay: 38 },
+          { text: "Done mine last night, only takes about an hour", delay: 36 },
+          { text: "Thanks for the heads up, I'll do it this week", delay: 34 },
+        ],
+        [
+          { text: "Club Christmas party date - Saturday 14th December 🎄", delay: 28 },
+          { text: "Can't wait! Will there be a Santa again?", delay: 26 },
+          { text: "Of course! 🎅 Already booked", delay: 24 },
+          { text: "The kids loved it last year", delay: 22 },
+          { text: "Is it at the clubhouse?", delay: 20 },
+          { text: "Yes, 2pm-5pm. Food and drinks included", delay: 18 },
+          { text: "Perfect, we'll be there!", delay: 16 },
+        ],
+        [
+          { text: "Anyone know a good pitch line marker?", delay: 12 },
+          { text: "We used SportLine last season, they were great", delay: 10 },
+          { text: "How much roughly?", delay: 8 },
+          { text: "About £150 per marking. Worth every penny", delay: 6 },
+          { text: "Thanks, I'll give them a call", delay: 4 },
+        ],
+        [
+          { text: "Don't forget clocks go back this weekend! ⏰", delay: 3 },
+          { text: "Extra hour in bed! 😴", delay: 2.5 },
+          { text: "Means it'll be dark earlier for training though", delay: 2 },
+          { text: "We've got the floodlights sorted 💡", delay: 1.5 },
+          { text: "Great planning as always 👏", delay: 1 },
         ],
       ];
 
@@ -2553,9 +2673,9 @@ serve(async (req) => {
         
         // Team messages - using conversation threads
         for (const team of teamsToUse.slice(0, 4)) {
-          // Pick 2 random conversations for each team
+          // Pick 6-8 random conversations for each team for lots of scroll content
           const shuffledConvos = [...teamConversations].sort(() => Math.random() - 0.5);
-          const selectedConvos = shuffledConvos.slice(0, 2);
+          const selectedConvos = shuffledConvos.slice(0, Math.min(8, shuffledConvos.length));
           
           for (const conversation of selectedConvos) {
             // Assign different users to each message in the thread
@@ -2584,9 +2704,9 @@ serve(async (req) => {
         // Club messages - using conversation threads
         const clubIds = [...new Set(teamsToUse.map(t => t.club_id))];
         for (const clubId of clubIds.slice(0, 3)) {
-          // Pick 1-2 conversations for each club
+          // Pick 6-8 conversations for each club for lots of scroll content
           const shuffledConvos = [...clubConversations].sort(() => Math.random() - 0.5);
-          const selectedConvos = shuffledConvos.slice(0, 2);
+          const selectedConvos = shuffledConvos.slice(0, Math.min(8, shuffledConvos.length));
           
           for (const conversation of selectedConvos) {
             const shuffledUsers = [...usersForMessages].sort(() => Math.random() - 0.5);
