@@ -309,6 +309,7 @@ export const ChatMessage = memo(function ChatMessage({
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
       setShowMenu(true);
+      setShowReactionPicker(true);
     }, 600);
   }, []);
 
