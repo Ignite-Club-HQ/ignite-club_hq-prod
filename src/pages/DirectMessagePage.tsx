@@ -8,7 +8,7 @@ import { ArrowLeft, Send, Loader2, RefreshCw, Crown, Lock, Flame } from "lucide-
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -83,9 +83,7 @@ export default function DirectMessagePage() {
   
   const scrollToBottom = useCallback(() => {
     if (!scrollAreaRef.current) return;
-    const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
-    if (!viewport) return;
-    viewport.scrollTop = viewport.scrollHeight;
+    scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
   }, []);
   
   const targetMessageId = searchParams.get("message");
@@ -364,16 +362,12 @@ export default function DirectMessagePage() {
         if (attempts < maxAttempts) setTimeout(tryScroll, 100);
         return;
       }
-      const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
-      if (!viewport) {
-        if (attempts < maxAttempts) setTimeout(tryScroll, 100);
-        return;
-      }
+      const el = scrollAreaRef.current;
       hasInitialScrolled.current = true;
       setInfiniteScrollEnabled(true);
-      viewport.scrollTop = viewport.scrollHeight;
-      setTimeout(() => { viewport.scrollTop = viewport.scrollHeight; }, 50);
-      setTimeout(() => { viewport.scrollTop = viewport.scrollHeight; }, 150);
+      el.scrollTop = el.scrollHeight;
+      setTimeout(() => { el.scrollTop = el.scrollHeight; }, 50);
+      setTimeout(() => { el.scrollTop = el.scrollHeight; }, 150);
     };
     tryScroll();
   }, [localMessages]);
@@ -677,7 +671,7 @@ export default function DirectMessagePage() {
       <PullToRefreshIndicator isRefreshing={isRefreshing} pullDistance={pullDistance} pullProgress={pullProgress} />
 
       {/* Messages area */}
-      <ScrollArea ref={scrollAreaRef} className="flex-1 pr-4 -mr-4 relative overflow-hidden">
+      <div ref={scrollAreaRef} className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="py-4 space-y-4 pb-2">
           {showLoading ? (
             <div className="flex justify-center py-8">
@@ -735,7 +729,7 @@ export default function DirectMessagePage() {
           )}
           <div ref={messagesEndRef} />
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Reply preview */}
       {replyTo && (
