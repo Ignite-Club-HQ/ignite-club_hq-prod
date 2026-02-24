@@ -220,7 +220,7 @@ export default function TermsOfServicePage() {
           <h2 className="text-xl font-semibold">14. Privacy</h2>
           <p className="text-muted-foreground">
             Your use of the Service is also governed by our{" "}
-            <a href="https://igniteclubhq.com/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Privacy Policy</a>.
+            <a href="https://igniteclubhq.com/privacy" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/privacy")); }} className="text-primary hover:underline cursor-pointer">Privacy Policy</a>.
           </p>
         </section>
 
