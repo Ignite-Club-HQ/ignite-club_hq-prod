@@ -675,8 +675,8 @@ export default function CreateEventPage() {
         <h1 className="text-xl font-bold">New Event</h1>
       </div>
 
-      {/* Event Type Selection - wait for club + Pro Football check */}
-      {(!clubId || isLoadingProFootball) ? (
+      {/* Event Type Selection - show skeletons only while pro football check is loading for selected club */}
+      {(clubId && isLoadingProFootball) ? (
         <div className="grid grid-cols-4 gap-2">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="flex flex-col items-center gap-1 p-3 rounded-xl border-2 border-border animate-pulse">
@@ -688,9 +688,9 @@ export default function CreateEventPage() {
       ) : (
       <div className="grid grid-cols-4 gap-2">
         {EVENT_TYPES.map((eventType) => {
-          // Hide pro football items if user doesn't have access
+          // Hide pro football items if user doesn't have access (or no club selected yet)
           const isProFeature = eventType.proFootballOnly;
-          const showItem = !isProFeature || hasProFootball;
+          const showItem = !isProFeature || (clubId && hasProFootball);
           
           if (!showItem) return null;
           
