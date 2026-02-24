@@ -22,7 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { MessageContent } from "@/components/chat/MessageContent";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
@@ -123,11 +123,7 @@ export default function GroupChatPage() {
   const scrollToBottom = useCallback(() => {
     if (!scrollAreaRef.current) return;
     
-    const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
-    if (!viewport) return;
-    
-    // Set scrollTop to scrollHeight to scroll to bottom
-    viewport.scrollTop = viewport.scrollHeight;
+    scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
   }, []);
   
   const targetMessageId = searchParams.get("message");
@@ -453,23 +449,14 @@ export default function GroupChatPage() {
         return;
       }
       
-      const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
-      if (!viewport) {
-        if (attempts < maxAttempts) {
-          setTimeout(tryScroll, 100);
-        }
-        return;
-      }
-      
-      // ScrollArea is ready - mark as scrolled and perform scroll
       hasInitialScrolled.current = true;
       setInfiniteScrollEnabled(true);
       
-      // Scroll multiple times to ensure content is fully rendered
-      viewport.scrollTop = viewport.scrollHeight;
-      setTimeout(() => { viewport.scrollTop = viewport.scrollHeight; }, 50);
-      setTimeout(() => { viewport.scrollTop = viewport.scrollHeight; }, 150);
-      setTimeout(() => { viewport.scrollTop = viewport.scrollHeight; }, 300);
+      const el = scrollAreaRef.current;
+      el.scrollTop = el.scrollHeight;
+      setTimeout(() => { el.scrollTop = el.scrollHeight; }, 50);
+      setTimeout(() => { el.scrollTop = el.scrollHeight; }, 150);
+      setTimeout(() => { el.scrollTop = el.scrollHeight; }, 300);
     };
     
     // Start polling
@@ -810,10 +797,6 @@ export default function GroupChatPage() {
     };
   }, [groupId, queryClient]);
 
-  // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   // Send message mutation
   const sendMessageMutation = useMutation({
@@ -1283,7 +1266,7 @@ export default function GroupChatPage() {
             isSearchResult={!!searchQuery}
           />
         ) : (
-          <ScrollArea className="flex-1 h-full" ref={scrollAreaRef}>
+          <div className="flex-1 h-full overflow-y-auto overscroll-contain" ref={scrollAreaRef} style={{ WebkitOverflowScrolling: 'touch' }}>
             <div className="space-y-4 p-4">
             {/* Invisible trigger for infinite scroll */}
             {hasOlderMessages && !searchQuery && (
@@ -1449,7 +1432,7 @@ export default function GroupChatPage() {
           })}
               <div ref={messagesEndRef} />
             </div>
-          </ScrollArea>
+          </div>
         )}
       </div>
 
