@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw, ExternalLink, Sheet, FileSpreadsheet, Link2, CloudDownload, MoreVertical } from "lucide-react";
@@ -3266,7 +3267,7 @@ export default function VaultPage() {
                           <Link2 className="h-4 w-4 mr-2" />
                           Add Link
                         </DropdownMenuItem>
-                        {isClubAdmin && (
+                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && (
                           <DropdownMenuItem onClick={() => setGoogleDriveImportOpen(true)}>
                             <CloudDownload className="h-4 w-4 mr-2" />
                             Import from Drive
