@@ -107,11 +107,11 @@ export function UploadFilesDialog({
       handleFileSelect(file);
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
-        const message = getReadableUploadError(error);
-        console.error("[UploadFilesDialog] iOS photo picker error:", error);
-        console.error("[UploadFilesDialog] Error type:", typeof error, "constructor:", (error as any)?.constructor?.name);
-        if (error instanceof Error) console.error("[UploadFilesDialog] Stack:", error.stack);
-        toast.error(`Photo select failed: ${message || "Unknown error – check Xcode console"}`);
+        console.warn("[UploadFilesDialog] Native picker failed, falling back to file input:", error);
+        // Silent fallback: open the hidden file input
+        setIsPickingNativePhoto(false);
+        fileInputRef.current?.click();
+        return;
       }
     } finally {
       setIsPickingNativePhoto(false);

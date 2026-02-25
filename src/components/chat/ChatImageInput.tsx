@@ -123,13 +123,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       if (isCancelledSelectionError(error)) {
         // User cancelled - do nothing
       } else {
-        const message = getReadableUploadError(error);
-        console.error("[ChatImageInput] iOS upload error:", error);
-        console.error("[ChatImageInput] Error type:", typeof error, "constructor:", error?.constructor?.name);
-        if (error instanceof Error) {
-          console.error("[ChatImageInput] Stack:", error.stack);
-        }
-        toast.error(`Upload failed: ${message || "Unknown error – check Xcode console"}`);
+        console.warn("[ChatImageInput] Native picker failed, falling back to file input:", error);
+        // Silent fallback: open the hidden file input instead of showing an error
+        setUploading(false);
+        setLocalPreview(null);
+        fileInputRef.current?.click();
+        return;
       }
       setLocalPreview(null);
     } finally {
