@@ -952,7 +952,10 @@ export default function MediaPage() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        onClick={() => setDeletePhotoId(photo.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletePhotoId(photo.id);
+                        }}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -1119,11 +1122,8 @@ export default function MediaPage() {
       )}
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deletePhotoId} onOpenChange={(open) => {
-        if (!open) {
-          setDeletePhotoId(null);
-          setSelectedDeleteOption(null);
-        }
+      <AlertDialog open={!!deletePhotoId} onOpenChange={() => {
+        // Keep dialog stable on mobile; close only through explicit Cancel/Confirm actions.
       }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1163,7 +1163,10 @@ export default function MediaPage() {
             </Button>
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setSelectedDeleteOption(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => {
+              setDeletePhotoId(null);
+              setSelectedDeleteOption(null);
+            }}>Cancel</AlertDialogCancel>
             <Button
               variant={selectedDeleteOption === 'vault' ? 'destructive' : 'default'}
               disabled={!selectedDeleteOption}

@@ -88,10 +88,16 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         ? blob
         : new File([blob], `photo.${mimeToExtension(originalMimeType)}`, { type: originalMimeType });
 
-      // Compression can fail for some iOS-native formats (e.g. HEIC) so we fail open.
-      const { file: compressedFile } = await compressImageFile(sourceFile);
-      fileToUpload = compressedFile;
-      contentType = compressedFile.type || originalMimeType || "image/jpeg";
+      // Compression can fail for some iOS-native formats or webview edge-cases, so fail open.
+      try {
+        const { file: compressedFile } = await compressImageFile(sourceFile);
+        fileToUpload = compressedFile;
+        contentType = compressedFile.type || originalMimeType || "image/jpeg";
+      } catch (compressionError) {
+        console.warn("[ChatImageInput] Compression failed, uploading original file:", compressionError);
+        fileToUpload = sourceFile;
+        contentType = sourceFile.type || originalMimeType || "image/jpeg";
+      }
     }
 
     const extension = mimeToExtension(contentType);
@@ -158,7 +164,18 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       setLocalPreview(`data:${mimeType};base64,${photo.base64String}`);
 
       const skipCompression = !IOS_SAFE_COMPRESSION_MIME_TYPES.has(mimeType);
-      const storageUrl = await uploadBlob(blob, { skipCompression });
+      let storageUrl: string;
+
+      try {
+        storageUrl = await uploadBlob(blob, { skipCompression });
+      } catch (primaryUploadError) {
+        if (!skipCompression) {
+          console.warn("[ChatImageInput] Retrying native upload without compression:", primaryUploadError);
+          storageUrl = await uploadBlob(blob, { skipCompression: true });
+        } else {
+          throw primaryUploadError;
+        }
+      }
       setLocalPreview(null);
       onImageUploaded(storageUrl);
     } catch (error: unknown) {
