@@ -38,21 +38,28 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   onOpenChange,
   isOwnMessage = false,
 }: MessageReactionsProps) {
-  const [showBelow, setShowBelow] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{ top: number; left: number; showBelow: boolean } | null>(null);
+  const parentRef = useRef<HTMLDivElement>(null);
   
-  // Check if popover would be cut off at top of screen
+  // Calculate fixed position when opening
   useEffect(() => {
-    if (isOpen && popoverRef.current) {
-      const rect = popoverRef.current.getBoundingClientRect();
-      // If the popover top is above the viewport (negative or very close to 0), show below instead
-      if (rect.top < 10) {
-        setShowBelow(true);
-      } else {
-        setShowBelow(false);
+    if (isOpen && parentRef.current) {
+      const parent = parentRef.current.parentElement;
+      if (parent) {
+        const rect = parent.getBoundingClientRect();
+        const pickerHeight = 100; // approximate height of picker
+        const showBelow = rect.top < pickerHeight + 10;
+        
+        setPosition({
+          top: showBelow ? rect.bottom + 4 : rect.top - pickerHeight - 4,
+          left: isOwnMessage ? rect.right : rect.left,
+          showBelow,
+        });
       }
+    } else {
+      setPosition(null);
     }
-  }, [isOpen]);
+  }, [isOpen, isOwnMessage]);
   
   const handleEmojiClick = (type: string) => {
     const userReaction = reactions.find(
@@ -60,63 +67,69 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     );
     
     if (userReaction) {
-      // Clicking the same reaction they already have - remove it
       onRemove(userReaction.id);
     } else {
-      // Clicking a different reaction - onReact will handle removing old and adding new
       onReact(type);
     }
     onOpenChange(false);
   };
 
-  // Use conditional rendering instead of a controlled popover with invisible trigger
-  if (!isOpen) return null;
+  // Invisible anchor to measure position
+  if (!isOpen) return <div ref={parentRef} className="hidden" />;
 
   return (
-    <div 
-      ref={popoverRef}
-      className={`absolute z-50 ${isOwnMessage ? 'right-0' : 'left-0'} ${
-        showBelow ? 'top-full mt-2' : 'bottom-full mb-2'
-      }`}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="bg-popover border rounded-lg p-2 shadow-lg">
-        <div className="flex gap-1.5">
-          {REACTION_EMOJIS.map(({ type, emoji }) => {
-            const userHasReaction = reactions.some(
-              (r) => r.user_id === currentUserId && r.reaction_type === type
-            );
-            return (
-              <Button
-                key={type}
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleEmojiClick(type);
-                }}
-                className={`h-9 w-9 p-0 text-lg shrink-0 ${
-                  userHasReaction ? "bg-primary/20" : ""
-                }`}
-              >
-                {emoji}
-              </Button>
-            );
-          })}
+    <>
+      <div ref={parentRef} className="hidden" />
+      <div 
+        className="fixed z-[9999]"
+        style={{
+          top: position?.top ?? 0,
+          ...(isOwnMessage 
+            ? { right: position ? window.innerWidth - position.left : 0 }
+            : { left: position?.left ?? 0 }
+          ),
+        }}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+      >
+        <div className="bg-popover border rounded-lg p-2 shadow-lg">
+          <div className="flex gap-1.5">
+            {REACTION_EMOJIS.map(({ type, emoji }) => {
+              const userHasReaction = reactions.some(
+                (r) => r.user_id === currentUserId && r.reaction_type === type
+              );
+              return (
+                <Button
+                  key={type}
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEmojiClick(type);
+                  }}
+                  className={`h-9 w-9 p-0 text-lg shrink-0 ${
+                    userHasReaction ? "bg-primary/20" : ""
+                  }`}
+                >
+                  {emoji}
+                </Button>
+              );
+            })}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full mt-1 text-xs text-muted-foreground"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenChange(false);
+            }}
+          >
+            Cancel
+          </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full mt-1 text-xs text-muted-foreground"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenChange(false);
-          }}
-        >
-          Cancel
-        </Button>
       </div>
-    </div>
+    </>
   );
 });
 
