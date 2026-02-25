@@ -53,6 +53,8 @@
 	<string>Ignite needs access to your camera to take photos for your profile, team, and club.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Ignite needs access to your photo library to upload photos for your profile, team, and club.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Ignite needs permission to add photos when sharing and uploading images in chat.</string>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-3940256099942544~3347511713</string>
 	<key>CFBundleURLTypes</key>
