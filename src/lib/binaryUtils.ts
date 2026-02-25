@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+
 /**
  * Chunked base64-to-Blob conversion.
  * Processes data in 8 KB slices so large iOS photos (HEIC, 10 MB+)
@@ -43,3 +45,77 @@ export function mimeToExtension(mimeType: string): string {
   if (t.includes("heif")) return "heif";
   return "jpg";
 }
+
+const normalizeBase64String = (base64String: string): string => {
+  const withoutDataUrlPrefix = base64String.includes(",")
+    ? base64String.split(",")[1]
+    : base64String;
+
+  const normalized = withoutDataUrlPrefix
+    .replace(/\s+/g, "")
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+
+  const paddingNeeded = normalized.length % 4;
+  if (paddingNeeded === 0) return normalized;
+
+  return normalized.padEnd(normalized.length + (4 - paddingNeeded), "=");
+};
+
+interface CameraPhotoLike {
+  base64String?: string | null;
+  webPath?: string;
+  path?: string;
+  format?: string | null;
+}
+
+export async function cameraPhotoToBlob(photo: CameraPhotoLike): Promise<{
+  blob: Blob;
+  mimeType: string;
+  extension: string;
+  previewUrl: string;
+}> {
+  const normalizedFormat = (photo.format || "jpeg").toLowerCase();
+  const fallbackMimeType = PHOTO_FORMAT_TO_MIME[normalizedFormat] || "image/jpeg";
+
+  if (photo.base64String) {
+    try {
+      const normalizedBase64 = normalizeBase64String(photo.base64String);
+      const blob = base64ToBlob(normalizedBase64, fallbackMimeType);
+
+      return {
+        blob,
+        mimeType: fallbackMimeType,
+        extension: mimeToExtension(fallbackMimeType),
+        previewUrl: `data:${fallbackMimeType};base64,${normalizedBase64}`,
+      };
+    } catch (base64Error) {
+      console.warn("[binaryUtils] Base64 conversion failed, trying webPath fallback", base64Error);
+    }
+  }
+
+  const sourcePath = photo.webPath || (photo.path ? Capacitor.convertFileSrc(photo.path) : undefined);
+
+  if (sourcePath) {
+    const response = await fetch(sourcePath);
+    if (!response.ok) {
+      throw new Error(`Failed to read selected photo (${response.status})`);
+    }
+
+    const fetchedBlob = await response.blob();
+    const mimeType = fetchedBlob.type || fallbackMimeType;
+    const blob = fetchedBlob.type
+      ? fetchedBlob
+      : new Blob([await fetchedBlob.arrayBuffer()], { type: mimeType });
+
+    return {
+      blob,
+      mimeType,
+      extension: mimeToExtension(mimeType),
+      previewUrl: sourcePath,
+    };
+  }
+
+  throw new Error("Selected photo data is unavailable");
+}
+

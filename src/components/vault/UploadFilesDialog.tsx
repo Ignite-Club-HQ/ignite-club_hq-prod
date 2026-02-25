@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { toast } from "sonner";
-import { base64ToBlob, PHOTO_FORMAT_TO_MIME, mimeToExtension } from "@/lib/binaryUtils";
+import { cameraPhotoToBlob } from "@/lib/binaryUtils";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -34,6 +34,20 @@ const isCancelledSelectionError = (error: unknown) => {
         : "";
 
   return message.toLowerCase().includes("cancel");
+};
+
+const getReadableUploadError = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+  return "";
 };
 
 export function UploadFilesDialog({
@@ -98,21 +112,18 @@ export function UploadFilesDialog({
       }
 
       const photo = await Camera.getPhoto({
-        resultType: CameraResultType.Base64,
+        resultType: CameraResultType.Uri,
         source: CameraSource.Photos,
         quality: 80,
         width: 1600,
         height: 1600,
       });
 
-      if (!photo.base64String) {
+      if (!photo.base64String && !photo.webPath) {
         throw new Error("No photo selected");
       }
 
-      const normalizedFormat = (photo.format || "jpeg").toLowerCase();
-      const mimeType = PHOTO_FORMAT_TO_MIME[normalizedFormat] || "image/jpeg";
-      const extension = mimeToExtension(mimeType);
-      const blob = base64ToBlob(photo.base64String, mimeType);
+      const { blob, mimeType, extension } = await cameraPhotoToBlob(photo);
       const file = new File([blob], `photo-${Date.now()}.${extension}`, {
         type: mimeType,
         lastModified: Date.now(),
@@ -121,8 +132,9 @@ export function UploadFilesDialog({
       handleFileSelect(file);
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
+        const message = getReadableUploadError(error);
         console.error("[UploadFilesDialog] iOS photo picker error:", error);
-        toast.error("Failed to select photo");
+        toast.error(message ? `Failed to select photo: ${message}` : "Failed to select photo");
       }
     } finally {
       setIsPickingNativePhoto(false);
