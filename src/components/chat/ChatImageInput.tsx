@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { compressImage as compressImageFile } from "@/lib/imageCompression";
 
 interface ChatImageInputProps {
   onImageUploaded: (imageUrl: string | null) => void;
@@ -14,52 +15,16 @@ interface ChatImageInputProps {
   teamId?: string;
 }
 
-const MAX_WIDTH = 1200;
-const MAX_HEIGHT = 1200;
-const QUALITY = 0.8;
+const mimeToExtension = (mimeType: string) => {
+  const normalizedType = mimeType.toLowerCase();
 
-const compressImage = (file: File): Promise<Blob> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
+  if (normalizedType.includes("png")) return "png";
+  if (normalizedType.includes("gif")) return "gif";
+  if (normalizedType.includes("webp")) return "webp";
+  if (normalizedType.includes("heic")) return "heic";
+  if (normalizedType.includes("heif")) return "heif";
 
-    img.onload = () => {
-      let { width, height } = img;
-
-      // Calculate new dimensions maintaining aspect ratio
-      if (width > MAX_WIDTH || height > MAX_HEIGHT) {
-        const ratio = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height);
-        width = Math.round(width * ratio);
-        height = Math.round(height * ratio);
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-
-      if (!ctx) {
-        reject(new Error("Could not get canvas context"));
-        return;
-      }
-
-      ctx.drawImage(img, 0, 0, width, height);
-
-      canvas.toBlob(
-        (blob) => {
-          if (blob) {
-            resolve(blob);
-          } else {
-            reject(new Error("Failed to compress image"));
-          }
-        },
-        "image/jpeg",
-        QUALITY
-      );
-    };
-
-    img.onerror = () => reject(new Error("Failed to load image"));
-    img.src = URL.createObjectURL(file);
-  });
+  return "jpg";
 };
 
 export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId }: ChatImageInputProps) {
@@ -71,26 +36,36 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    const compressedBlob = await compressImage(new File([blob], "photo.jpg", { type: blob.type }));
-    
+    const originalMimeType = blob.type || "image/jpeg";
+    const sourceFile = new File(
+      [blob],
+      `photo.${mimeToExtension(originalMimeType)}`,
+      { type: originalMimeType }
+    );
+
+    // Compression can fail for some iOS-native formats (e.g. HEIC) so we fail open.
+    const { file: fileToUpload } = await compressImageFile(sourceFile);
+    const contentType = fileToUpload.type || originalMimeType || "image/jpeg";
+    const extension = mimeToExtension(contentType);
+
     const timestamp = Date.now();
     let fileName: string;
     if (teamId && clubId) {
-      fileName = `clubs/${clubId}/teams/${teamId}/${user.id}/${timestamp}.jpg`;
+      fileName = `clubs/${clubId}/teams/${teamId}/${user.id}/${timestamp}.${extension}`;
     } else if (clubId) {
-      fileName = `clubs/${clubId}/${user.id}/${timestamp}.jpg`;
+      fileName = `clubs/${clubId}/${user.id}/${timestamp}.${extension}`;
     } else {
-      fileName = `general/${user.id}/${timestamp}.jpg`;
+      fileName = `general/${user.id}/${timestamp}.${extension}`;
     }
 
     const { error: uploadError } = await supabase.storage
       .from("chat-attachments")
-      .upload(fileName, compressedBlob, { contentType: "image/jpeg" });
+      .upload(fileName, fileToUpload, { contentType });
 
     if (uploadError) throw uploadError;
 
-    const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
-    return `${supabaseUrl}/storage/v1/object/public/chat-attachments/${fileName}`;
+    const { data } = supabase.storage.from("chat-attachments").getPublicUrl(fileName);
+    return data.publicUrl;
   };
 
   const handleNativePhotoPick = async () => {
@@ -104,6 +79,18 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
       if (!photo.base64String) throw new Error("No photo selected");
 
+      const normalizedFormat = (photo.format || "jpeg").toLowerCase();
+      const formatToMime: Record<string, string> = {
+        jpeg: "image/jpeg",
+        jpg: "image/jpeg",
+        png: "image/png",
+        gif: "image/gif",
+        webp: "image/webp",
+        heic: "image/heic",
+        heif: "image/heif",
+      };
+      const mimeType = formatToMime[normalizedFormat] || "image/jpeg";
+
       // Convert base64 to blob
       const byteString = atob(photo.base64String);
       const ab = new ArrayBuffer(byteString.length);
@@ -111,7 +98,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       for (let i = 0; i < byteString.length; i++) {
         ia[i] = byteString.charCodeAt(i);
       }
-      const mimeType = photo.format === 'png' ? 'image/png' : 'image/jpeg';
       const blob = new Blob([ab], { type: mimeType });
 
       setLocalPreview(`data:${mimeType};base64,${photo.base64String}`);
@@ -177,10 +163,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const handleRemoveImage = () => {
-    if (localPreview) {
+    if (localPreview?.startsWith("blob:")) {
       URL.revokeObjectURL(localPreview);
-      setLocalPreview(null);
     }
+    setLocalPreview(null);
     onImageUploaded(null);
   };
 
