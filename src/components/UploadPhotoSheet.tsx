@@ -451,11 +451,11 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       await addPhotosToSelection([file]);
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
-        const message = getReadableUploadError(error);
-        console.error("[UploadPhotoSheet] iOS photo picker error:", error);
-        console.error("[UploadPhotoSheet] Error type:", typeof error, "constructor:", (error as any)?.constructor?.name);
-        if (error instanceof Error) console.error("[UploadPhotoSheet] Stack:", error.stack);
-        toast.error(`Photo select failed: ${message || "Unknown error – check Xcode console"}`);
+        console.warn("[UploadPhotoSheet] Native picker failed, falling back to file input:", error);
+        // Silent fallback: open the hidden file input
+        setIsPickingNativePhoto(false);
+        primaryFileInputRef.current?.click();
+        return;
       }
     } finally {
       setIsPickingNativePhoto(false);
