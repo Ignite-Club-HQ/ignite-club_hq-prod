@@ -256,22 +256,6 @@ export function UploadFilesDialog({
                   <p className="text-sm text-muted-foreground mt-1">
                     or drag and drop
                   </p>
-                  {shouldUseNativePhotoPicker && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-3"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        fileInputRef.current?.click();
-                      }}
-                      disabled={isUploading || isPickingNativePhoto}
-                    >
-                      Upload file instead
-                    </Button>
-                  )}
                 </div>
               </div>
               <input

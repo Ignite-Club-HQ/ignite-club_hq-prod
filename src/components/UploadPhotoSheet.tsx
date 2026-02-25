@@ -639,22 +639,6 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                     <div className="text-center">
                       <p className="font-medium">{isPickingNativePhoto ? "Opening photo library..." : "Tap to select photos"}</p>
                       <p className="text-sm text-muted-foreground mt-1">Select multiple photos at once</p>
-                      {shouldUseNativePhotoPicker && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="mt-3"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            primaryFileInputRef.current?.click();
-                          }}
-                          disabled={uploading || isPickingNativePhoto}
-                        >
-                          Upload file instead
-                        </Button>
-                      )}
                     </div>
                   </div>
                   <input
