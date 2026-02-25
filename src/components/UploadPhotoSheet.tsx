@@ -473,29 +473,52 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     if (!shouldUseNativePhotoPicker || uploading || isPickingNativePhoto) return;
 
     setIsPickingNativePhoto(true);
+    console.log("[UploadPhotoSheet] handleNativePhotoPick START");
     try {
       let permissions = await CapacitorCamera.checkPermissions();
+      console.log("[UploadPhotoSheet] permissions.photos:", permissions.photos);
       if (permissions.photos !== "granted" && permissions.photos !== "limited") {
         permissions = await CapacitorCamera.requestPermissions();
+        console.log("[UploadPhotoSheet] after request, permissions.photos:", permissions.photos);
       }
 
       if (permissions.photos !== "granted" && permissions.photos !== "limited") {
         throw new Error(`Photo library access is ${permissions.photos}`);
       }
 
-      const photo = await CapacitorCamera.getPhoto({
-        resultType: CameraResultType.Uri,
-        source: CameraSource.Photos,
-        quality: 80,
-        width: 2000,
-        height: 2000,
-      });
+      const pickPhotoFromLibrary = () =>
+        CapacitorCamera.getPhoto({
+          resultType: CameraResultType.Uri,
+          source: CameraSource.Photos,
+          quality: 80,
+          width: 2000,
+          height: 2000,
+        });
+
+      let photo: Awaited<ReturnType<typeof pickPhotoFromLibrary>>;
+      try {
+        console.log("[UploadPhotoSheet] calling getPhoto (attempt 1)...");
+        photo = await pickPhotoFromLibrary();
+        console.log("[UploadPhotoSheet] getPhoto OK", { webPath: photo.webPath, path: photo.path, format: photo.format, hasBase64: !!photo.base64String });
+      } catch (pickerError) {
+        console.warn("[UploadPhotoSheet] getPhoto attempt 1 failed:", pickerError);
+        if (isCancelledSelectionError(pickerError)) {
+          throw pickerError;
+        }
+
+        await new Promise<void>((resolve) => setTimeout(resolve, 250));
+        console.log("[UploadPhotoSheet] calling getPhoto (attempt 2)...");
+        photo = await pickPhotoFromLibrary();
+        console.log("[UploadPhotoSheet] getPhoto attempt 2 OK", { webPath: photo.webPath, path: photo.path, format: photo.format });
+      }
 
       if (!hasCameraPhotoSource(photo)) {
         throw new Error("No photo selected (missing base64String/webPath/path)");
       }
 
+      console.log("[UploadPhotoSheet] calling cameraPhotoToBlob...");
       const { blob, mimeType, extension } = await cameraPhotoToBlob(photo);
+      console.log("[UploadPhotoSheet] blob ready, size:", blob.size, "mime:", mimeType);
       const file = new File([blob], `photo-${Date.now()}.${extension}`, {
         type: mimeType,
         lastModified: Date.now(),
@@ -504,8 +527,11 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       await addPhotosToSelection([file]);
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
-        console.warn("[UploadPhotoSheet] Native picker failed:", error);
-        toast.error("Could not load photo. Please try again.");
+        const errMsg = getReadableUploadError(error);
+        console.warn("[UploadPhotoSheet] Native picker failed:", errMsg, error);
+        toast.error(`Could not load photo: ${errMsg || "Unknown error"}`);
+      } else {
+        console.log("[UploadPhotoSheet] user cancelled");
       }
     } finally {
       setIsPickingNativePhoto(false);

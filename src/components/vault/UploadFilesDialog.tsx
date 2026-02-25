@@ -76,29 +76,52 @@ export function UploadFilesDialog({
     if (!shouldUseNativePhotoPicker || isUploading || isPickingNativePhoto) return;
 
     setIsPickingNativePhoto(true);
+    console.log("[UploadFilesDialog] handleNativePhotoPick START");
     try {
       let permissions = await Camera.checkPermissions();
+      console.log("[UploadFilesDialog] permissions.photos:", permissions.photos);
       if (permissions.photos !== "granted" && permissions.photos !== "limited") {
         permissions = await Camera.requestPermissions();
+        console.log("[UploadFilesDialog] after request, permissions.photos:", permissions.photos);
       }
 
       if (permissions.photos !== "granted" && permissions.photos !== "limited") {
         throw new Error(`Photo library access is ${permissions.photos}`);
       }
 
-      const photo = await Camera.getPhoto({
-        resultType: CameraResultType.Uri,
-        source: CameraSource.Photos,
-        quality: 80,
-        width: 1600,
-        height: 1600,
-      });
+      const pickPhotoFromLibrary = () =>
+        Camera.getPhoto({
+          resultType: CameraResultType.Uri,
+          source: CameraSource.Photos,
+          quality: 80,
+          width: 1600,
+          height: 1600,
+        });
+
+      let photo: Awaited<ReturnType<typeof pickPhotoFromLibrary>>;
+      try {
+        console.log("[UploadFilesDialog] calling getPhoto (attempt 1)...");
+        photo = await pickPhotoFromLibrary();
+        console.log("[UploadFilesDialog] getPhoto OK", { webPath: photo.webPath, path: photo.path, format: photo.format, hasBase64: !!photo.base64String });
+      } catch (pickerError) {
+        console.warn("[UploadFilesDialog] getPhoto attempt 1 failed:", pickerError);
+        if (isCancelledSelectionError(pickerError)) {
+          throw pickerError;
+        }
+
+        await new Promise<void>((resolve) => setTimeout(resolve, 250));
+        console.log("[UploadFilesDialog] calling getPhoto (attempt 2)...");
+        photo = await pickPhotoFromLibrary();
+        console.log("[UploadFilesDialog] getPhoto attempt 2 OK", { webPath: photo.webPath, path: photo.path, format: photo.format });
+      }
 
       if (!hasCameraPhotoSource(photo)) {
         throw new Error("No photo selected (missing base64String/webPath/path)");
       }
 
+      console.log("[UploadFilesDialog] calling cameraPhotoToBlob...");
       const { blob, mimeType, extension } = await cameraPhotoToBlob(photo);
+      console.log("[UploadFilesDialog] blob ready, size:", blob.size, "mime:", mimeType);
       const file = new File([blob], `photo-${Date.now()}.${extension}`, {
         type: mimeType,
         lastModified: Date.now(),
@@ -107,8 +130,11 @@ export function UploadFilesDialog({
       handleFileSelect(file);
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
-        console.warn("[UploadFilesDialog] Native picker failed:", error);
-        toast.error("Could not load photo. Please try again.");
+        const errMsg = getReadableUploadError(error);
+        console.warn("[UploadFilesDialog] Native picker failed:", errMsg, error);
+        toast.error(`Could not load photo: ${errMsg || "Unknown error"}`);
+      } else {
+        console.log("[UploadFilesDialog] user cancelled");
       }
     } finally {
       setIsPickingNativePhoto(false);
