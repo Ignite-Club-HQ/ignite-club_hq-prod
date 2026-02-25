@@ -1,9 +1,12 @@
 import { useState, useRef } from "react";
-import { Upload, Image, FileText, Loader2, X, File } from "lucide-react";
+import { Upload, Image, FileText, Loader2, X, File as FileIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { Capacitor } from "@capacitor/core";
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { toast } from "sonner";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -20,6 +23,50 @@ interface UploadFilesDialogProps {
   targetName: string;
 }
 
+const PHOTO_FORMAT_TO_MIME: Record<string, string> = {
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+};
+
+const mimeToExtension = (mimeType: string) => {
+  const normalizedType = mimeType.toLowerCase();
+
+  if (normalizedType.includes("png")) return "png";
+  if (normalizedType.includes("gif")) return "gif";
+  if (normalizedType.includes("webp")) return "webp";
+  if (normalizedType.includes("heic")) return "heic";
+  if (normalizedType.includes("heif")) return "heif";
+
+  return "jpg";
+};
+
+const base64ToBlob = (base64String: string, mimeType: string) => {
+  const binaryString = atob(base64String);
+  const bytes = new Uint8Array(binaryString.length);
+
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+
+  return new Blob([bytes], { type: mimeType });
+};
+
+const isCancelledSelectionError = (error: unknown) => {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "";
+
+  return message.toLowerCase().includes("cancel");
+};
+
 export function UploadFilesDialog({
   open,
   onOpenChange,
@@ -32,11 +79,19 @@ export function UploadFilesDialog({
   const [fileName, setFileName] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isPickingNativePhoto, setIsPickingNativePhoto] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const shouldUseNativePhotoPicker =
+    uploadType === "photo" && Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+
   const handleFileSelect = (file: File) => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
     setSelectedFile(file);
-    
+
     // Create preview for images
     if (file.type.startsWith("image/")) {
       const url = URL.createObjectURL(file);
@@ -44,7 +99,7 @@ export function UploadFilesDialog({
     } else {
       setPreviewUrl(null);
     }
-    
+
     // Set default filename for files
     if (uploadType === "file" && !fileName) {
       const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
@@ -57,6 +112,59 @@ export function UploadFilesDialog({
     if (file) {
       handleFileSelect(file);
     }
+  };
+
+  const handleNativePhotoPick = async () => {
+    if (!shouldUseNativePhotoPicker || isUploading || isPickingNativePhoto) return;
+
+    setIsPickingNativePhoto(true);
+    try {
+      let permissions = await Camera.checkPermissions();
+      if (permissions.photos === "denied") {
+        permissions = await Camera.requestPermissions();
+      }
+
+      if (permissions.photos === "denied") {
+        throw new Error("Photo library access is denied");
+      }
+
+      const photo = await Camera.getPhoto({
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Photos,
+        quality: 80,
+        width: 1600,
+        height: 1600,
+      });
+
+      if (!photo.base64String) {
+        throw new Error("No photo selected");
+      }
+
+      const normalizedFormat = (photo.format || "jpeg").toLowerCase();
+      const mimeType = PHOTO_FORMAT_TO_MIME[normalizedFormat] || "image/jpeg";
+      const extension = mimeToExtension(mimeType);
+      const blob = base64ToBlob(photo.base64String, mimeType);
+      const file = new File([blob], `photo-${Date.now()}.${extension}`, {
+        type: mimeType,
+        lastModified: Date.now(),
+      });
+
+      handleFileSelect(file);
+    } catch (error) {
+      if (!isCancelledSelectionError(error)) {
+        console.error("[UploadFilesDialog] iOS photo picker error:", error);
+        toast.error("Failed to select photo");
+      }
+    } finally {
+      setIsPickingNativePhoto(false);
+    }
+  };
+
+  const handleUploadAreaClick = (e: React.MouseEvent<HTMLLabelElement>) => {
+    if (!shouldUseNativePhotoPicker) return;
+
+    e.preventDefault();
+    void handleNativePhotoPick();
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -158,7 +266,8 @@ export function UploadFilesDialog({
           {/* Upload Area */}
           {!selectedFile ? (
             <label
-              className="block cursor-pointer"
+              className={cn("block cursor-pointer", (isUploading || isPickingNativePhoto) && "pointer-events-none opacity-70")}
+              onClick={handleUploadAreaClick}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -172,13 +281,19 @@ export function UploadFilesDialog({
                 )}
               >
                 <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Upload className="h-8 w-8 text-primary" />
+                  {isPickingNativePhoto ? (
+                    <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                  ) : (
+                    <Upload className="h-8 w-8 text-primary" />
+                  )}
                 </div>
                 <div className="text-center px-4">
                   <p className="font-medium">
-                    {isDragging
-                      ? `Drop ${uploadType === "photo" ? "photo" : "file"} here`
-                      : `Tap to select ${uploadType === "photo" ? "photo" : "file"}`}
+                    {isPickingNativePhoto
+                      ? "Opening photo library..."
+                      : isDragging
+                        ? `Drop ${uploadType === "photo" ? "photo" : "file"} here`
+                        : `Tap to select ${uploadType === "photo" ? "photo" : "file"}`}
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">
                     or drag and drop
@@ -191,6 +306,7 @@ export function UploadFilesDialog({
                 accept={uploadType === "photo" ? "image/png,image/jpeg,image/jpg,image/gif,image/webp,image/heic,image/heif,image/svg+xml,image/bmp,image/tiff" : "*"}
                 className="hidden"
                 onChange={handleInputChange}
+                disabled={isUploading || isPickingNativePhoto || shouldUseNativePhotoPicker}
               />
             </label>
           ) : (
@@ -205,7 +321,7 @@ export function UploadFilesDialog({
                   />
                 ) : (
                   <div className="w-full aspect-[4/3] flex flex-col items-center justify-center gap-3">
-                    <File className="h-16 w-16 text-muted-foreground" />
+                    <FileIcon className="h-16 w-16 text-muted-foreground" />
                     <p className="text-sm text-muted-foreground font-medium">
                       {selectedFile.name}
                     </p>
@@ -256,7 +372,7 @@ export function UploadFilesDialog({
           </Button>
           <Button
             onClick={handleUpload}
-            disabled={!selectedFile || isUploading}
+            disabled={!selectedFile || isUploading || isPickingNativePhoto}
             className="flex-1 sm:flex-none"
           >
             {isUploading ? (
