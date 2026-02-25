@@ -12,6 +12,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { compressImage, formatFileSize } from "@/lib/imageCompression";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { Capacitor } from "@capacitor/core";
+import { Camera as CapacitorCamera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { base64ToBlob, PHOTO_FORMAT_TO_MIME, mimeToExtension } from "@/lib/binaryUtils";
 
 interface UploadPhotoSheetProps {
   open: boolean;
@@ -48,6 +51,18 @@ interface SelectedPhoto {
   compressedSize: number;
 }
 
+
+const isCancelledSelectionError = (error: unknown) => {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "";
+
+  return message.toLowerCase().includes("cancel");
+};
+
 export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }: UploadPhotoSheetProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -59,6 +74,8 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const [uploading, setUploading] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isPickingNativePhoto, setIsPickingNativePhoto] = useState(false);
+  const shouldUseNativePhotoPicker = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
   // Get user roles
   const { data: userRoles } = useQuery({
@@ -357,12 +374,11 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     onOpenChange(false);
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    
+  const addPhotosToSelection = async (files: File[]) => {
+    if (files.length === 0) return;
+
     // Create initial photos with compressing status
-    const newPhotos: SelectedPhoto[] = Array.from(files).map(file => ({
+    const newPhotos: SelectedPhoto[] = files.map(file => ({
       id: `${Date.now()}-${Math.random().toString(36).substring(7)}`,
       file,
       originalFile: file,
@@ -371,32 +387,85 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       originalSize: file.size,
       compressedSize: file.size,
     }));
-    
+
     setSelectedPhotos(prev => [...prev, ...newPhotos]);
-    
-    // Reset the input so the same files can be selected again
-    e.target.value = '';
-    
+
     // Compress each photo
     for (const photo of newPhotos) {
       try {
         const result = await compressImage(photo.originalFile);
-        setSelectedPhotos(prev => prev.map(p => 
-          p.id === photo.id 
-            ? { 
-                ...p, 
-                file: result.file, 
+        setSelectedPhotos(prev => prev.map(p =>
+          p.id === photo.id
+            ? {
+                ...p,
+                file: result.file,
                 status: 'pending' as const,
                 compressedSize: result.compressedSize,
-              } 
+              }
             : p
         ));
       } catch (error) {
         // If compression fails, use original file
-        setSelectedPhotos(prev => prev.map(p => 
+        setSelectedPhotos(prev => prev.map(p =>
           p.id === photo.id ? { ...p, status: 'pending' as const } : p
         ));
       }
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    await addPhotosToSelection(Array.from(files));
+
+    // Reset the input so the same files can be selected again
+    e.target.value = '';
+  };
+
+  const handleNativePhotoPick = async () => {
+    if (!shouldUseNativePhotoPicker || uploading || isPickingNativePhoto) return;
+
+    setIsPickingNativePhoto(true);
+    try {
+      let permissions = await CapacitorCamera.checkPermissions();
+      if (permissions.photos === "denied") {
+        permissions = await CapacitorCamera.requestPermissions();
+      }
+
+      if (permissions.photos === "denied") {
+        throw new Error("Photo library access is denied");
+      }
+
+      const photo = await CapacitorCamera.getPhoto({
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Photos,
+        quality: 80,
+        width: 2000,
+        height: 2000,
+      });
+
+      if (!photo.base64String) {
+        throw new Error("No photo selected");
+      }
+
+      const normalizedFormat = (photo.format || "jpeg").toLowerCase();
+      const mimeType = PHOTO_FORMAT_TO_MIME[normalizedFormat] || "image/jpeg";
+      const extension = mimeToExtension(mimeType);
+      const blob = base64ToBlob(photo.base64String, mimeType);
+      const file = new File([blob], `photo-${Date.now()}.${extension}`, {
+        type: mimeType,
+        lastModified: Date.now(),
+      });
+
+      await addPhotosToSelection([file]);
+    } catch (error) {
+      if (!isCancelledSelectionError(error)) {
+        console.error("[UploadPhotoSheet] iOS photo picker error:", error);
+        toast.error("Failed to select photo");
+      }
+    } finally {
+      setIsPickingNativePhoto(false);
     }
   };
 
@@ -528,9 +597,9 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
               <Button 
                 size="sm" 
                 onClick={handleUpload}
-                disabled={selectedPhotos.length === 0 || !selectedClubId || uploading || compressingCount > 0}
+                disabled={selectedPhotos.length === 0 || !selectedClubId || uploading || compressingCount > 0 || isPickingNativePhoto}
               >
-                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : compressingCount > 0 ? "Compressing..." : "Upload"}
+                {uploading || isPickingNativePhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : compressingCount > 0 ? "Compressing..." : "Upload"}
               </Button>
             </div>
           </SheetHeader>
@@ -551,13 +620,27 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
             {/* Photo Grid / Select Area */}
             <div className="p-4">
               {selectedPhotos.length === 0 ? (
-                <label className="block cursor-pointer">
+                <label
+                  className={cn(
+                    "block cursor-pointer",
+                    (uploading || isPickingNativePhoto) && "pointer-events-none opacity-70"
+                  )}
+                  onClick={(e) => {
+                    if (!shouldUseNativePhotoPicker) return;
+                    e.preventDefault();
+                    void handleNativePhotoPick();
+                  }}
+                >
                   <div className="aspect-[4/3] rounded-2xl border-2 border-dashed border-muted-foreground/25 bg-muted/50 flex flex-col items-center justify-center gap-4 transition-colors hover:border-muted-foreground/50 hover:bg-muted">
                     <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Camera className="h-8 w-8 text-primary" />
+                      {isPickingNativePhoto ? (
+                        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                      ) : (
+                        <Camera className="h-8 w-8 text-primary" />
+                      )}
                     </div>
                     <div className="text-center">
-                      <p className="font-medium">Tap to select photos</p>
+                      <p className="font-medium">{isPickingNativePhoto ? "Opening photo library..." : "Tap to select photos"}</p>
                       <p className="text-sm text-muted-foreground mt-1">Select multiple photos at once</p>
                     </div>
                   </div>
@@ -567,6 +650,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                     multiple
                     className="hidden"
                     onChange={handleFileSelect}
+                    disabled={uploading || isPickingNativePhoto || shouldUseNativePhotoPicker}
                   />
                 </label>
               ) : (
@@ -634,14 +718,29 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                     
                     {/* Add More Button */}
                     {!uploading && (
-                      <label className="aspect-square rounded-xl border-2 border-dashed border-muted-foreground/25 bg-muted/50 flex items-center justify-center cursor-pointer hover:border-muted-foreground/50 hover:bg-muted transition-colors">
-                        <ImagePlus className="h-6 w-6 text-muted-foreground" />
+                      <label
+                        className={cn(
+                          "aspect-square rounded-xl border-2 border-dashed border-muted-foreground/25 bg-muted/50 flex items-center justify-center cursor-pointer hover:border-muted-foreground/50 hover:bg-muted transition-colors",
+                          isPickingNativePhoto && "pointer-events-none opacity-70"
+                        )}
+                        onClick={(e) => {
+                          if (!shouldUseNativePhotoPicker) return;
+                          e.preventDefault();
+                          void handleNativePhotoPick();
+                        }}
+                      >
+                        {isPickingNativePhoto ? (
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        ) : (
+                          <ImagePlus className="h-6 w-6 text-muted-foreground" />
+                        )}
                         <input
                           type="file"
                           accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
                           multiple
                           className="hidden"
                           onChange={handleFileSelect}
+                          disabled={uploading || isPickingNativePhoto || shouldUseNativePhotoPicker}
                         />
                       </label>
                     )}
