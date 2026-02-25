@@ -504,11 +504,8 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       await addPhotosToSelection([file]);
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
-        console.warn("[UploadPhotoSheet] Native picker failed, falling back to file input:", error);
-        // Silent fallback: open the hidden file input
-        setIsPickingNativePhoto(false);
-        primaryFileInputRef.current?.click();
-        return;
+        console.warn("[UploadPhotoSheet] Native picker failed:", error);
+        toast.error("Could not load photo. Please try again.");
       }
     } finally {
       setIsPickingNativePhoto(false);
