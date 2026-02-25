@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
+import { base64ToBlob, PHOTO_FORMAT_TO_MIME, mimeToExtension } from "@/lib/binaryUtils";
 
 interface ChatImageInputProps {
   onImageUploaded: (imageUrl: string | null) => void;
@@ -14,18 +15,6 @@ interface ChatImageInputProps {
   clubId?: string;
   teamId?: string;
 }
-
-const mimeToExtension = (mimeType: string) => {
-  const normalizedType = mimeType.toLowerCase();
-
-  if (normalizedType.includes("png")) return "png";
-  if (normalizedType.includes("gif")) return "gif";
-  if (normalizedType.includes("webp")) return "webp";
-  if (normalizedType.includes("heic")) return "heic";
-  if (normalizedType.includes("heif")) return "heif";
-
-  return "jpg";
-};
 
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const IOS_SAFE_COMPRESSION_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
@@ -37,14 +26,12 @@ const isCancelledSelectionError = (error: unknown) => {
       : typeof error === "string"
         ? error
         : "";
-
   return message.toLowerCase().includes("cancel");
 };
 
 const getReadableUploadError = (error: unknown) => {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
-
   if (
     typeof error === "object" &&
     error !== null &&
@@ -53,19 +40,7 @@ const getReadableUploadError = (error: unknown) => {
   ) {
     return (error as { message: string }).message;
   }
-
   return "";
-};
-
-const base64ToBlob = (base64String: string, mimeType: string) => {
-  const binaryString = atob(base64String);
-  const bytes = new Uint8Array(binaryString.length);
-
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-
-  return new Blob([bytes], { type: mimeType });
 };
 
 export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId }: ChatImageInputProps) {
@@ -145,16 +120,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       if (!photo.base64String) throw new Error("No photo selected");
 
       const normalizedFormat = (photo.format || "jpeg").toLowerCase();
-      const formatToMime: Record<string, string> = {
-        jpeg: "image/jpeg",
-        jpg: "image/jpeg",
-        png: "image/png",
-        gif: "image/gif",
-        webp: "image/webp",
-        heic: "image/heic",
-        heif: "image/heif",
-      };
-      const mimeType = formatToMime[normalizedFormat] || "image/jpeg";
+      const mimeType = PHOTO_FORMAT_TO_MIME[normalizedFormat] || "image/jpeg";
 
       const blob = base64ToBlob(photo.base64String, mimeType);
       if (blob.size > MAX_UPLOAD_SIZE_BYTES) {
