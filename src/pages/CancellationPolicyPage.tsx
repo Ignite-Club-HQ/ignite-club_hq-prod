@@ -1,13 +1,18 @@
 import { ArrowLeft, Mail, Flame } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
 
 export default function CancellationPolicyPage() {
   const navigate = useNavigate();
+  const isNative = Capacitor.isNativePlatform();
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="sticky top-0 z-10 bg-background border-b border-border p-4 flex items-center gap-3">
+      <div
+        className="sticky top-0 z-10 bg-background border-b border-border px-4 pb-4 flex items-center gap-3"
+        style={{ paddingTop: isNative ? "max(env(safe-area-inset-top, 0px), 24px)" : undefined }}
+      >
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-5 w-5" />
         </Button>

@@ -697,6 +697,7 @@ export default function AuthPage() {
               <>
                 <Link to="/terms" className="hover:text-foreground hover:underline">Terms</Link>
                 <Link to="/privacy" className="hover:text-foreground hover:underline">Privacy</Link>
+                <Link to="/cancellation" className="hover:text-foreground hover:underline">Cancellation</Link>
               </>
             ) : (
               <>
