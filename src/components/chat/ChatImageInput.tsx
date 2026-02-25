@@ -97,17 +97,24 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     setUploading(true);
     try {
       const photo = await Camera.getPhoto({
-        resultType: CameraResultType.Uri,
+        resultType: CameraResultType.Base64,
         source: CameraSource.Photos,
         quality: 80,
       });
 
-      if (!photo.webPath) throw new Error("No photo selected");
+      if (!photo.base64String) throw new Error("No photo selected");
 
-      setLocalPreview(photo.webPath);
+      // Convert base64 to blob
+      const byteString = atob(photo.base64String);
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      const mimeType = photo.format === 'png' ? 'image/png' : 'image/jpeg';
+      const blob = new Blob([ab], { type: mimeType });
 
-      const response = await fetch(photo.webPath);
-      const blob = await response.blob();
+      setLocalPreview(`data:${mimeType};base64,${photo.base64String}`);
 
       const storageUrl = await uploadBlob(blob);
       setLocalPreview(null);
