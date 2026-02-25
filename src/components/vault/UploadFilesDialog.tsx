@@ -36,6 +36,20 @@ const isCancelledSelectionError = (error: unknown) => {
   return message.toLowerCase().includes("cancel");
 };
 
+const getReadableUploadError = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+  return "";
+};
+
 export function UploadFilesDialog({
   open,
   onOpenChange,
@@ -98,7 +112,7 @@ export function UploadFilesDialog({
       }
 
       const photo = await Camera.getPhoto({
-        resultType: CameraResultType.Base64,
+        resultType: CameraResultType.Uri,
         source: CameraSource.Photos,
         quality: 80,
         width: 1600,
@@ -118,8 +132,9 @@ export function UploadFilesDialog({
       handleFileSelect(file);
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
+        const message = getReadableUploadError(error);
         console.error("[UploadFilesDialog] iOS photo picker error:", error);
-        toast.error("Failed to select photo");
+        toast.error(message ? `Failed to select photo: ${message}` : "Failed to select photo");
       }
     } finally {
       setIsPickingNativePhoto(false);

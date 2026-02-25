@@ -110,7 +110,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       }
 
       const photo = await Camera.getPhoto({
-        resultType: CameraResultType.Base64,
+        resultType: CameraResultType.Uri,
         source: CameraSource.Photos,
         quality: 80,
         width: 1280,

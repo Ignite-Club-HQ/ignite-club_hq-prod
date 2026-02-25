@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+
 /**
  * Chunked base64-to-Blob conversion.
  * Processes data in 8 KB slices so large iOS photos (HEIC, 10 MB+)
@@ -63,6 +65,7 @@ const normalizeBase64String = (base64String: string): string => {
 interface CameraPhotoLike {
   base64String?: string | null;
   webPath?: string;
+  path?: string;
   format?: string | null;
 }
 
@@ -91,8 +94,10 @@ export async function cameraPhotoToBlob(photo: CameraPhotoLike): Promise<{
     }
   }
 
-  if (photo.webPath) {
-    const response = await fetch(photo.webPath);
+  const sourcePath = photo.webPath || (photo.path ? Capacitor.convertFileSrc(photo.path) : undefined);
+
+  if (sourcePath) {
+    const response = await fetch(sourcePath);
     if (!response.ok) {
       throw new Error(`Failed to read selected photo (${response.status})`);
     }
@@ -107,7 +112,7 @@ export async function cameraPhotoToBlob(photo: CameraPhotoLike): Promise<{
       blob,
       mimeType,
       extension: mimeToExtension(mimeType),
-      previewUrl: photo.webPath,
+      previewUrl: sourcePath,
     };
   }
 
