@@ -130,10 +130,12 @@ export default function MediaPage() {
   const { data: userRoles, isLoading: loadingRoles } = useQuery({
     queryKey: ["user-roles-media", user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("user_roles")
         .select("role, club_id, team_id")
         .eq("user_id", user!.id);
+
+      if (error) throw error;
       return data || [];
     },
     enabled: !!user,
@@ -147,7 +149,7 @@ export default function MediaPage() {
 
   // Quick Pro check - check if user has any Pro club/team membership
   // Logic: Club Pro → all teams inherit Pro; Free club → check team subscription
-  const { data: hasProClub, isLoading: loadingProAccess } = useQuery({
+  const { data: hasProClub, isLoading: loadingProAccess, error: proAccessError } = useQuery({
     queryKey: ["has-pro-access", user?.id, userRoles?.map(r => r.club_id).filter(Boolean).join(","), userRoles?.map(r => r.team_id).filter(Boolean).join(",")],
     queryFn: async () => {
       if (!userRoles || userRoles.length === 0) return false;
@@ -161,11 +163,14 @@ export default function MediaPage() {
       const [clubSubResult, teamInfoResult] = await Promise.all([
         clubIds.length > 0
           ? supabase.from("club_subscriptions").select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("club_id", clubIds)
-          : Promise.resolve({ data: [] }),
+          : Promise.resolve({ data: [], error: null }),
         teamIds.length > 0
           ? supabase.from("teams").select("id, club_id").in("id", teamIds)
-          : Promise.resolve({ data: [] }),
+          : Promise.resolve({ data: [], error: null }),
       ]);
+
+      if (clubSubResult.error) throw clubSubResult.error;
+      if (teamInfoResult.error) throw teamInfoResult.error;
       
       // Build map of club_id -> has Pro
       const clubProMap = new Map<string, boolean>();
@@ -182,10 +187,12 @@ export default function MediaPage() {
         // First check if any team's parent club has Pro
         const teamClubIds = (teamInfoResult.data || []).map(t => t.club_id).filter(Boolean);
         if (teamClubIds.length > 0) {
-          const { data: parentClubSubs } = await supabase
+          const { data: parentClubSubs, error: parentClubSubsError } = await supabase
             .from("club_subscriptions")
             .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
             .in("club_id", teamClubIds);
+
+          if (parentClubSubsError) throw parentClubSubsError;
           
           const parentHasPro = (parentClubSubs || []).some(sub => 
             sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override
@@ -195,10 +202,12 @@ export default function MediaPage() {
         }
         
         // Check team-level subscriptions (only matters for teams in free clubs)
-        const { data: teamSubs } = await supabase
+        const { data: teamSubs, error: teamSubsError } = await supabase
           .from("team_subscriptions")
           .select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
           .in("team_id", teamIds);
+
+        if (teamSubsError) throw teamSubsError;
         
         const teamHasPro = (teamSubs || []).some(sub => 
           sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override
@@ -438,9 +447,10 @@ export default function MediaPage() {
   // Also treat as loading if user exists but roles haven't been fetched yet (prevents flash on app open)
   // Additionally, if roles are loaded but pro-access query hasn't resolved yet (enabled but no data), keep loading
   const proQueryShouldBeEnabled = !!user && !!userRoles && userRoles.length > 0;
-  const proQueryNotYetResolved = proQueryShouldBeEnabled && hasProClub === undefined;
+  const hasProAccessQueryFailed = !!proAccessError;
+  const proQueryNotYetResolved = proQueryShouldBeEnabled && hasProClub === undefined && !hasProAccessQueryFailed;
   const isCheckingProAccess = !user || loadingProAccess || loadingRoles || (!userRoles && !!user) || proQueryNotYetResolved;
-  const hasProAccess = isAppAdmin || hasProClub;
+  const hasProAccess = isAppAdmin || hasProClub === true;
 
   // Get ALL loaded photo IDs (not filtered) for fetching reactions/comments
   const allPhotoIds = useMemo(() => allPhotos?.map(p => p.id) || [], [allPhotos]);
@@ -850,6 +860,19 @@ export default function MediaPage() {
         <div className="max-w-lg mx-auto space-y-6">
           {[...Array(3)].map((_, i) => <PhotoSkeleton key={i} />)}
         </div>
+      ) : hasProAccessQueryFailed ? (
+        <Card className="border-dashed max-w-lg mx-auto">
+          <CardContent className="p-8 text-center">
+            <p className="text-muted-foreground">We couldn’t verify Pro access right now.</p>
+            <Button
+              variant="outline"
+              className="mt-3"
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["has-pro-access", user?.id] })}
+            >
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
       ) : !hasProAccess ? (
         <ProFeatureGate feature="Photos" clubId={adminUpgradeInfo.clubId} teamId={adminUpgradeInfo.teamId} />
       ) : photos.length === 0 && !hasActiveFilters ? (
