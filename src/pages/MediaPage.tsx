@@ -436,7 +436,10 @@ export default function MediaPage() {
 
   // Pro access check - don't show content until we've confirmed Pro status
   // Also treat as loading if user exists but roles haven't been fetched yet (prevents flash on app open)
-  const isCheckingProAccess = !user || loadingProAccess || loadingRoles || (!userRoles && !!user);
+  // Additionally, if roles are loaded but pro-access query hasn't resolved yet (enabled but no data), keep loading
+  const proQueryShouldBeEnabled = !!user && !!userRoles && userRoles.length > 0;
+  const proQueryNotYetResolved = proQueryShouldBeEnabled && hasProClub === undefined;
+  const isCheckingProAccess = !user || loadingProAccess || loadingRoles || (!userRoles && !!user) || proQueryNotYetResolved;
   const hasProAccess = isAppAdmin || hasProClub;
 
   // Get ALL loaded photo IDs (not filtered) for fetching reactions/comments
