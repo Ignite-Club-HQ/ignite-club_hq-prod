@@ -79,12 +79,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     setUploading(true);
     try {
       let permissions = await Camera.checkPermissions();
-      if (permissions.photos === "denied") {
+      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
         permissions = await Camera.requestPermissions();
       }
 
-      if (permissions.photos === "denied") {
-        throw new Error("Photo library access is denied");
+      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
+        throw new Error(`Photo library access is ${permissions.photos}`);
       }
 
       const photo = await Camera.getPhoto({

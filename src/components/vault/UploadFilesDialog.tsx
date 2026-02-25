@@ -78,12 +78,12 @@ export function UploadFilesDialog({
     setIsPickingNativePhoto(true);
     try {
       let permissions = await Camera.checkPermissions();
-      if (permissions.photos === "denied") {
+      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
         permissions = await Camera.requestPermissions();
       }
 
-      if (permissions.photos === "denied") {
-        throw new Error("Photo library access is denied");
+      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
+        throw new Error(`Photo library access is ${permissions.photos}`);
       }
 
       const photo = await Camera.getPhoto({
@@ -107,11 +107,8 @@ export function UploadFilesDialog({
       handleFileSelect(file);
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
-        console.warn("[UploadFilesDialog] Native picker failed, falling back to file input:", error);
-        // Silent fallback: open the hidden file input
-        setIsPickingNativePhoto(false);
-        fileInputRef.current?.click();
-        return;
+        console.warn("[UploadFilesDialog] Native picker failed:", error);
+        toast.error("Could not load photo. Please try again.");
       }
     } finally {
       setIsPickingNativePhoto(false);
