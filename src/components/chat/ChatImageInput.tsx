@@ -27,25 +27,73 @@ const mimeToExtension = (mimeType: string) => {
   return "jpg";
 };
 
+const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const IOS_SAFE_COMPRESSION_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+
+const isCancelledSelectionError = (error: unknown) => {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "";
+
+  return message.toLowerCase().includes("cancel");
+};
+
+const getReadableUploadError = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+
+  return "";
+};
+
+const base64ToBlob = (base64String: string, mimeType: string) => {
+  const binaryString = atob(base64String);
+  const bytes = new Uint8Array(binaryString.length);
+
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+
+  return new Blob([bytes], { type: mimeType });
+};
+
 export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId }: ChatImageInputProps) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const uploadBlob = async (blob: Blob) => {
+  const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
+    const { skipCompression = false } = options ?? {};
+
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
     const originalMimeType = blob.type || "image/jpeg";
-    const sourceFile = new File(
-      [blob],
-      `photo.${mimeToExtension(originalMimeType)}`,
-      { type: originalMimeType }
-    );
+    let fileToUpload: Blob | File = blob;
+    let contentType = originalMimeType;
 
-    // Compression can fail for some iOS-native formats (e.g. HEIC) so we fail open.
-    const { file: fileToUpload } = await compressImageFile(sourceFile);
-    const contentType = fileToUpload.type || originalMimeType || "image/jpeg";
+    if (!skipCompression) {
+      const sourceFile = blob instanceof File
+        ? blob
+        : new File([blob], `photo.${mimeToExtension(originalMimeType)}`, { type: originalMimeType });
+
+      // Compression can fail for some iOS-native formats (e.g. HEIC) so we fail open.
+      const { file: compressedFile } = await compressImageFile(sourceFile);
+      fileToUpload = compressedFile;
+      contentType = compressedFile.type || originalMimeType || "image/jpeg";
+    }
+
     const extension = mimeToExtension(contentType);
 
     const timestamp = Date.now();
@@ -60,9 +108,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
     const { error: uploadError } = await supabase.storage
       .from("chat-attachments")
-      .upload(fileName, fileToUpload, { contentType });
+      .upload(fileName, fileToUpload, { contentType, upsert: false });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) throw new Error(uploadError.message || "Failed to upload image");
 
     const { data } = supabase.storage.from("chat-attachments").getPublicUrl(fileName);
     return data.publicUrl;
@@ -71,10 +119,21 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const handleNativePhotoPick = async () => {
     setUploading(true);
     try {
+      let permissions = await Camera.checkPermissions();
+      if (permissions.photos === "denied") {
+        permissions = await Camera.requestPermissions();
+      }
+
+      if (permissions.photos === "denied") {
+        throw new Error("Photo library access is denied");
+      }
+
       const photo = await Camera.getPhoto({
         resultType: CameraResultType.Base64,
         source: CameraSource.Photos,
         quality: 80,
+        width: 1280,
+        height: 1280,
       });
 
       if (!photo.base64String) throw new Error("No photo selected");
@@ -91,26 +150,24 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       };
       const mimeType = formatToMime[normalizedFormat] || "image/jpeg";
 
-      // Convert base64 to blob
-      const byteString = atob(photo.base64String);
-      const ab = new ArrayBuffer(byteString.length);
-      const ia = new Uint8Array(ab);
-      for (let i = 0; i < byteString.length; i++) {
-        ia[i] = byteString.charCodeAt(i);
+      const blob = base64ToBlob(photo.base64String, mimeType);
+      if (blob.size > MAX_UPLOAD_SIZE_BYTES) {
+        throw new Error("Image must be less than 10MB");
       }
-      const blob = new Blob([ab], { type: mimeType });
 
       setLocalPreview(`data:${mimeType};base64,${photo.base64String}`);
 
-      const storageUrl = await uploadBlob(blob);
+      const skipCompression = !IOS_SAFE_COMPRESSION_MIME_TYPES.has(mimeType);
+      const storageUrl = await uploadBlob(blob, { skipCompression });
       setLocalPreview(null);
       onImageUploaded(storageUrl);
-    } catch (error: any) {
-      if (error?.message?.includes("cancelled") || error?.message?.includes("canceled")) {
+    } catch (error: unknown) {
+      if (isCancelledSelectionError(error)) {
         // User cancelled - do nothing
       } else {
-        console.error("Upload error:", error);
-        toast.error("Failed to upload image");
+        const message = getReadableUploadError(error);
+        console.error("[ChatImageInput] iOS upload error:", error);
+        toast.error(message ? `Failed to upload image: ${message}` : "Failed to upload image");
       }
       setLocalPreview(null);
     } finally {
@@ -127,7 +184,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
       toast.error("Image must be less than 10MB");
       return;
     }
@@ -155,7 +212,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const handleImageButtonClick = () => {
-    if (Capacitor.getPlatform() === 'ios') {
+    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios") {
       handleNativePhotoPick();
     } else {
       fileInputRef.current?.click();
