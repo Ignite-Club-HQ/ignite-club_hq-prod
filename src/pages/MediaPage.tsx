@@ -147,79 +147,99 @@ export default function MediaPage() {
     [userRoles]
   );
 
+  const roleClubIds = useMemo(
+    () => [...new Set((userRoles ?? []).map((r) => r.club_id).filter(Boolean) as string[])].sort(),
+    [userRoles]
+  );
+
+  const roleTeamIds = useMemo(
+    () => [...new Set((userRoles ?? []).map((r) => r.team_id).filter(Boolean) as string[])].sort(),
+    [userRoles]
+  );
+
   // Quick Pro check - check if user has any Pro club/team membership
   // Logic: Club Pro → all teams inherit Pro; Free club → check team subscription
   const { data: hasProClub, isLoading: loadingProAccess, error: proAccessError } = useQuery({
-    queryKey: ["has-pro-access", user?.id, userRoles?.map(r => r.club_id).filter(Boolean).join(","), userRoles?.map(r => r.team_id).filter(Boolean).join(",")],
+    queryKey: ["has-pro-access", user?.id, roleClubIds.join(","), roleTeamIds.join(","), activeClubFilter ?? ""],
     queryFn: async () => {
-      if (!userRoles || userRoles.length === 0) return false;
-      
-      const clubIds = [...new Set(userRoles.map(r => r.club_id).filter(Boolean))] as string[];
-      const teamIds = [...new Set(userRoles.map(r => r.team_id).filter(Boolean))] as string[];
-      
-      if (clubIds.length === 0 && teamIds.length === 0) return false;
-      
+      const candidateClubIds = activeClubFilter
+        ? [...new Set([...roleClubIds, activeClubFilter])]
+        : roleClubIds;
+
+      if (candidateClubIds.length === 0 && roleTeamIds.length === 0) return false;
+
       // Fetch club subscriptions and team info in parallel
       const [clubSubResult, teamInfoResult] = await Promise.all([
-        clubIds.length > 0
-          ? supabase.from("club_subscriptions").select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("club_id", clubIds)
+        candidateClubIds.length > 0
+          ? supabase
+              .from("club_subscriptions")
+              .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+              .in("club_id", candidateClubIds)
           : Promise.resolve({ data: [], error: null }),
-        teamIds.length > 0
-          ? supabase.from("teams").select("id, club_id").in("id", teamIds)
+        roleTeamIds.length > 0
+          ? supabase.from("teams").select("id, club_id").in("id", roleTeamIds)
           : Promise.resolve({ data: [], error: null }),
       ]);
 
       if (clubSubResult.error) throw clubSubResult.error;
       if (teamInfoResult.error) throw teamInfoResult.error;
-      
-      // Build map of club_id -> has Pro
-      const clubProMap = new Map<string, boolean>();
-      (clubSubResult.data || []).forEach(sub => {
-        const hasPro = sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override;
-        if (hasPro) clubProMap.set(sub.club_id, true);
-      });
-      
-      // Check if any club directly has Pro
-      if (clubProMap.size > 0) return true;
-      
-      // For teams in free clubs, check team-level subscriptions
-      if (teamIds.length > 0) {
-        // First check if any team's parent club has Pro
-        const teamClubIds = (teamInfoResult.data || []).map(t => t.club_id).filter(Boolean);
-        if (teamClubIds.length > 0) {
-          const { data: parentClubSubs, error: parentClubSubsError } = await supabase
-            .from("club_subscriptions")
-            .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-            .in("club_id", teamClubIds);
 
-          if (parentClubSubsError) throw parentClubSubsError;
-          
-          const parentHasPro = (parentClubSubs || []).some(sub => 
-            sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override
-          );
-          
-          if (parentHasPro) return true;
-        }
-        
-        // Check team-level subscriptions (only matters for teams in free clubs)
+      const hasCandidateClubPro = (clubSubResult.data || []).some(
+        (sub) => sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override
+      );
+
+      if (hasCandidateClubPro) return true;
+
+      const teamParentClubIds = [...new Set((teamInfoResult.data || []).map((t) => t.club_id).filter(Boolean) as string[])];
+      const missingParentClubIds = teamParentClubIds.filter((clubId) => !candidateClubIds.includes(clubId));
+
+      if (missingParentClubIds.length > 0) {
+        const { data: parentClubSubs, error: parentClubSubsError } = await supabase
+          .from("club_subscriptions")
+          .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+          .in("club_id", missingParentClubIds);
+
+        if (parentClubSubsError) throw parentClubSubsError;
+
+        const parentHasPro = (parentClubSubs || []).some(
+          (sub) => sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override
+        );
+
+        if (parentHasPro) return true;
+      }
+
+      if (roleTeamIds.length > 0) {
         const { data: teamSubs, error: teamSubsError } = await supabase
           .from("team_subscriptions")
           .select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-          .in("team_id", teamIds);
+          .in("team_id", roleTeamIds);
 
         if (teamSubsError) throw teamSubsError;
-        
-        const teamHasPro = (teamSubs || []).some(sub => 
-          sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override
+
+        const teamHasPro = (teamSubs || []).some(
+          (sub) => sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override
         );
-        
+
         if (teamHasPro) return true;
       }
-      
+
+      const allResolvedClubIds = [...new Set([...candidateClubIds, ...teamParentClubIds])];
+      if (allResolvedClubIds.length > 0) {
+        const { data: clubs, error: clubsError } = await supabase
+          .from("clubs")
+          .select("id")
+          .in("id", allResolvedClubIds)
+          .eq("is_pro", true);
+
+        if (clubsError) throw clubsError;
+        if ((clubs || []).length > 0) return true;
+      }
+
       return false;
     },
-    enabled: !!user && !!userRoles && userRoles.length > 0,
-    staleTime: 60000, // Cache for 1 minute
+    enabled: !!user,
+    staleTime: 0,
+    gcTime: 300000,
   });
 
   const { data: userProfile } = useQuery({
@@ -446,10 +466,11 @@ export default function MediaPage() {
   // Pro access check - don't show content until we've confirmed Pro status
   // Also treat as loading if user exists but roles haven't been fetched yet (prevents flash on app open)
   // Additionally, if roles are loaded but pro-access query hasn't resolved yet (enabled but no data), keep loading
-  const proQueryShouldBeEnabled = !!user && !!userRoles && userRoles.length > 0;
+  const proQueryShouldBeEnabled = !!user && (roleClubIds.length > 0 || roleTeamIds.length > 0 || !!activeClubFilter);
   const hasProAccessQueryFailed = !!proAccessError;
   const proQueryNotYetResolved = proQueryShouldBeEnabled && hasProClub === undefined && !hasProAccessQueryFailed;
-  const isCheckingProAccess = !user || loadingProAccess || loadingRoles || (!userRoles && !!user) || proQueryNotYetResolved;
+  const waitingOnRolesWithoutFallback = !!user && !userRoles && !activeClubFilter;
+  const isCheckingProAccess = !user || loadingProAccess || loadingRoles || waitingOnRolesWithoutFallback || proQueryNotYetResolved;
   const hasProAccess = isAppAdmin || hasProClub === true;
 
   // Get ALL loaded photo IDs (not filtered) for fetching reactions/comments

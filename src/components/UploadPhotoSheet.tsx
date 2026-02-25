@@ -90,10 +90,10 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
 
   // Fetch clubs
   const { data: userClubs, isLoading: isLoadingClubs } = useQuery({
-    queryKey: ["user-clubs-upload-sheet", user?.id, isAppAdmin, JSON.stringify(userRoles)],
+    queryKey: ["user-clubs-upload-sheet", user?.id, isAppAdmin, JSON.stringify(userRoles), activeClubFilter ?? ""],
     queryFn: async () => {
       let clubs: Club[] = [];
-      
+
       if (isAppAdmin) {
         const { data, error } = await supabase
           .from("clubs")
@@ -102,12 +102,22 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
 
         if (error) throw error;
         clubs = data || [];
-      } else {
-        if (!userRoles || userRoles.length === 0) return [];
+      } else if (!userRoles || userRoles.length === 0) {
+        // Fallback for transient role-loading issues: verify the currently active club directly
+        if (!activeClubFilter) return [];
 
+        const { data: activeClub, error: activeClubError } = await supabase
+          .from("clubs")
+          .select("id, name, is_pro")
+          .eq("id", activeClubFilter)
+          .maybeSingle();
+
+        if (activeClubError) throw activeClubError;
+        clubs = activeClub ? [activeClub] : [];
+      } else {
         const clubIdsFromRoles = userRoles.map((r) => r.club_id).filter(Boolean) as string[];
         const teamIds = userRoles.map((r) => r.team_id).filter(Boolean) as string[];
-        
+
         let clubIdsFromTeams: string[] = [];
         if (teamIds.length > 0) {
           const { data: teamsData, error: teamsError } = await supabase
@@ -116,16 +126,19 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
             .in("id", teamIds);
 
           if (teamsError) throw teamsError;
-          clubIdsFromTeams = (teamsData || []).map(t => t.club_id).filter(Boolean) as string[];
+          clubIdsFromTeams = (teamsData || []).map((t) => t.club_id).filter(Boolean) as string[];
         }
-        
+
         const allClubIds = [...new Set([...clubIdsFromRoles, ...clubIdsFromTeams])];
-        if (allClubIds.length === 0) return [];
-        
+        const clubIdsToFetch =
+          allClubIds.length === 0 && activeClubFilter ? [activeClubFilter] : allClubIds;
+
+        if (clubIdsToFetch.length === 0) return [];
+
         const { data: clubsData, error: clubsError } = await supabase
           .from("clubs")
           .select("id, name, is_pro")
-          .in("id", allClubIds)
+          .in("id", clubIdsToFetch)
           .order("name");
 
         if (clubsError) throw clubsError;
@@ -134,10 +147,13 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
 
       if (clubs.length === 0) return [];
 
-      const clubIdList = clubs.map(c => c.id);
+      const clubIdList = clubs.map((c) => c.id);
       const [teamsData, clubSubscriptionsData] = await Promise.all([
         supabase.from("teams").select("id, club_id").in("club_id", clubIdList),
-        supabase.from("club_subscriptions").select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("club_id", clubIdList),
+        supabase
+          .from("club_subscriptions")
+          .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
+          .in("club_id", clubIdList),
       ]);
 
       if (teamsData.error) throw teamsData.error;
@@ -146,7 +162,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       const teams = teamsData.data || [];
       const clubSubscriptions = clubSubscriptionsData.data || [];
 
-      const teamIds = teams.map(t => t.id);
+      const teamIds = teams.map((t) => t.id);
       const { data: teamSubscriptions, error: teamSubscriptionsError } = teamIds.length > 0
         ? await supabase
             .from("team_subscriptions")
@@ -156,23 +172,28 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
 
       if (teamSubscriptionsError) throw teamSubscriptionsError;
 
-      return clubs.map(club => {
-        const clubSub = clubSubscriptions.find(cs => cs.club_id === club.id);
-        const hasClubPro = clubSub?.is_pro || clubSub?.is_pro_football || clubSub?.admin_pro_override || clubSub?.admin_pro_football_override || club.is_pro;
-        
-        const clubTeams = teams.filter(t => t.club_id === club.id);
-        const hasProTeam = clubTeams.some(team => {
-          const teamSub = teamSubscriptions?.find(s => s.team_id === team.id);
+      return clubs.map((club) => {
+        const clubSub = clubSubscriptions.find((cs) => cs.club_id === club.id);
+        const hasClubPro =
+          clubSub?.is_pro ||
+          clubSub?.is_pro_football ||
+          clubSub?.admin_pro_override ||
+          clubSub?.admin_pro_football_override ||
+          club.is_pro;
+
+        const clubTeams = teams.filter((t) => t.club_id === club.id);
+        const hasProTeam = clubTeams.some((team) => {
+          const teamSub = teamSubscriptions?.find((s) => s.team_id === team.id);
           return teamSub?.is_pro || teamSub?.is_pro_football || teamSub?.admin_pro_override || teamSub?.admin_pro_football_override;
         });
-        
+
         return {
           ...club,
-          has_pro_access: hasClubPro || hasProTeam
+          has_pro_access: hasClubPro || hasProTeam,
         };
       });
     },
-    enabled: !!user && userRoles !== undefined,
+    enabled: !!user,
   });
 
   // Fetch teams for selected club - only teams where user has a role
