@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
-import { cameraPhotoToBlob, mimeToExtension } from "@/lib/binaryUtils";
+import { cameraPhotoToBlob, hasCameraPhotoSource, mimeToExtension } from "@/lib/binaryUtils";
+import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 
 interface ChatImageInputProps {
   onImageUploaded: (imageUrl: string | null) => void;
@@ -19,34 +20,11 @@ interface ChatImageInputProps {
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const IOS_SAFE_COMPRESSION_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
-const isCancelledSelectionError = (error: unknown) => {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : "";
-  return message.toLowerCase().includes("cancel");
-};
-
-const getReadableUploadError = (error: unknown) => {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof (error as { message?: unknown }).message === "string"
-  ) {
-    return (error as { message: string }).message;
-  }
-  return "";
-};
-
 export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId }: ChatImageInputProps) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
   const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
     const { skipCompression = false } = options ?? {};
@@ -117,7 +95,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         height: 1280,
       });
 
-      if (!photo.base64String && !photo.webPath) throw new Error("No photo selected");
+      if (!hasCameraPhotoSource(photo)) throw new Error("No photo selected (missing base64String/webPath/path)");
 
       const { blob, mimeType, previewUrl } = await cameraPhotoToBlob(photo);
       if (blob.size > MAX_UPLOAD_SIZE_BYTES) {
@@ -196,7 +174,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const handleImageButtonClick = () => {
-    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios") {
+    if (isNativeIOS) {
       handleNativePhotoPick();
     } else {
       fileInputRef.current?.click();

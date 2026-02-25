@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { toast } from "sonner";
-import { cameraPhotoToBlob } from "@/lib/binaryUtils";
+import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
+import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -23,32 +24,6 @@ interface UploadFilesDialogProps {
   isUploading?: boolean;
   targetName: string;
 }
-
-
-const isCancelledSelectionError = (error: unknown) => {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : "";
-
-  return message.toLowerCase().includes("cancel");
-};
-
-const getReadableUploadError = (error: unknown) => {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof (error as { message?: unknown }).message === "string"
-  ) {
-    return (error as { message: string }).message;
-  }
-  return "";
-};
 
 export function UploadFilesDialog({
   open,
@@ -119,8 +94,8 @@ export function UploadFilesDialog({
         height: 1600,
       });
 
-      if (!photo.base64String && !photo.webPath) {
-        throw new Error("No photo selected");
+      if (!hasCameraPhotoSource(photo)) {
+        throw new Error("No photo selected (missing base64String/webPath/path)");
       }
 
       const { blob, mimeType, extension } = await cameraPhotoToBlob(photo);
@@ -289,7 +264,7 @@ export function UploadFilesDialog({
                 accept={uploadType === "photo" ? "image/png,image/jpeg,image/jpg,image/gif,image/webp,image/heic,image/heif,image/svg+xml,image/bmp,image/tiff" : "*"}
                 className="hidden"
                 onChange={handleInputChange}
-                disabled={isUploading || isPickingNativePhoto || shouldUseNativePhotoPicker}
+                disabled={isUploading || isPickingNativePhoto}
               />
             </label>
           ) : (
