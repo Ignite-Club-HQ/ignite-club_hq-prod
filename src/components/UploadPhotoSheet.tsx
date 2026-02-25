@@ -63,6 +63,20 @@ const isCancelledSelectionError = (error: unknown) => {
   return message.toLowerCase().includes("cancel");
 };
 
+const getReadableUploadError = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+  return "";
+};
+
 export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }: UploadPhotoSheetProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -438,7 +452,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       }
 
       const photo = await CapacitorCamera.getPhoto({
-        resultType: CameraResultType.Base64,
+        resultType: CameraResultType.Uri,
         source: CameraSource.Photos,
         quality: 80,
         width: 2000,
@@ -458,8 +472,9 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       await addPhotosToSelection([file]);
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
+        const message = getReadableUploadError(error);
         console.error("[UploadPhotoSheet] iOS photo picker error:", error);
-        toast.error("Failed to select photo");
+        toast.error(message ? `Failed to select photo: ${message}` : "Failed to select photo");
       }
     } finally {
       setIsPickingNativePhoto(false);
@@ -497,6 +512,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     
     let successCount = 0;
     let errorCount = 0;
+    let firstErrorMessage: string | null = null;
     const uploadedUrls: string[] = [];
     
     for (let i = 0; i < photosToUpload.length; i++) {
@@ -512,8 +528,11 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         const url = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId);
         uploadedUrls.push(url);
         successCount++;
-      } catch (error: any) {
+      } catch (error: unknown) {
         errorCount++;
+        if (!firstErrorMessage) {
+          firstErrorMessage = getReadableUploadError(error) || null;
+        }
         console.error("Upload error:", error);
       }
     }
@@ -563,7 +582,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     } else if (successCount > 0 && errorCount > 0) {
       toast.warning(`${successCount} uploaded, ${errorCount} failed`);
     } else {
-      toast.error("Failed to upload photos");
+      toast.error(firstErrorMessage ? `Failed to upload photos: ${firstErrorMessage}` : "Failed to upload photos");
     }
   };
 
