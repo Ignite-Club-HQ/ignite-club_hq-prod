@@ -86,13 +86,26 @@ export function UploadFilesDialog({
         throw new Error(`Photo library access is ${permissions.photos}`);
       }
 
-      const photo = await Camera.getPhoto({
-        resultType: CameraResultType.Uri,
-        source: CameraSource.Photos,
-        quality: 80,
-        width: 1600,
-        height: 1600,
-      });
+      const pickPhotoFromLibrary = () =>
+        Camera.getPhoto({
+          resultType: CameraResultType.Uri,
+          source: CameraSource.Photos,
+          quality: 80,
+          width: 1600,
+          height: 1600,
+        });
+
+      let photo: Awaited<ReturnType<typeof pickPhotoFromLibrary>>;
+      try {
+        photo = await pickPhotoFromLibrary();
+      } catch (pickerError) {
+        if (isCancelledSelectionError(pickerError)) {
+          throw pickerError;
+        }
+
+        await new Promise<void>((resolve) => setTimeout(resolve, 250));
+        photo = await pickPhotoFromLibrary();
+      }
 
       if (!hasCameraPhotoSource(photo)) {
         throw new Error("No photo selected (missing base64String/webPath/path)");
@@ -107,7 +120,7 @@ export function UploadFilesDialog({
       handleFileSelect(file);
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
-        console.warn("[UploadFilesDialog] Native picker failed:", error);
+        console.warn("[UploadFilesDialog] Native picker failed:", getReadableUploadError(error), error);
         toast.error("Could not load photo. Please try again.");
       }
     } finally {

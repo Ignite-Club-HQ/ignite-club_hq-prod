@@ -483,13 +483,26 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         throw new Error(`Photo library access is ${permissions.photos}`);
       }
 
-      const photo = await CapacitorCamera.getPhoto({
-        resultType: CameraResultType.Uri,
-        source: CameraSource.Photos,
-        quality: 80,
-        width: 2000,
-        height: 2000,
-      });
+      const pickPhotoFromLibrary = () =>
+        CapacitorCamera.getPhoto({
+          resultType: CameraResultType.Uri,
+          source: CameraSource.Photos,
+          quality: 80,
+          width: 2000,
+          height: 2000,
+        });
+
+      let photo: Awaited<ReturnType<typeof pickPhotoFromLibrary>>;
+      try {
+        photo = await pickPhotoFromLibrary();
+      } catch (pickerError) {
+        if (isCancelledSelectionError(pickerError)) {
+          throw pickerError;
+        }
+
+        await new Promise<void>((resolve) => setTimeout(resolve, 250));
+        photo = await pickPhotoFromLibrary();
+      }
 
       if (!hasCameraPhotoSource(photo)) {
         throw new Error("No photo selected (missing base64String/webPath/path)");
