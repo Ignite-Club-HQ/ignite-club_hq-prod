@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { toast } from "sonner";
+import { base64ToBlob, PHOTO_FORMAT_TO_MIME, mimeToExtension } from "@/lib/binaryUtils";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -23,38 +24,6 @@ interface UploadFilesDialogProps {
   targetName: string;
 }
 
-const PHOTO_FORMAT_TO_MIME: Record<string, string> = {
-  jpeg: "image/jpeg",
-  jpg: "image/jpeg",
-  png: "image/png",
-  gif: "image/gif",
-  webp: "image/webp",
-  heic: "image/heic",
-  heif: "image/heif",
-};
-
-const mimeToExtension = (mimeType: string) => {
-  const normalizedType = mimeType.toLowerCase();
-
-  if (normalizedType.includes("png")) return "png";
-  if (normalizedType.includes("gif")) return "gif";
-  if (normalizedType.includes("webp")) return "webp";
-  if (normalizedType.includes("heic")) return "heic";
-  if (normalizedType.includes("heif")) return "heif";
-
-  return "jpg";
-};
-
-const base64ToBlob = (base64String: string, mimeType: string) => {
-  const binaryString = atob(base64String);
-  const bytes = new Uint8Array(binaryString.length);
-
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-
-  return new Blob([bytes], { type: mimeType });
-};
 
 const isCancelledSelectionError = (error: unknown) => {
   const message =
