@@ -134,7 +134,9 @@ export function UploadFilesDialog({
       if (!isCancelledSelectionError(error)) {
         const message = getReadableUploadError(error);
         console.error("[UploadFilesDialog] iOS photo picker error:", error);
-        toast.error(message ? `Failed to select photo: ${message}` : "Failed to select photo");
+        console.error("[UploadFilesDialog] Error type:", typeof error, "constructor:", (error as any)?.constructor?.name);
+        if (error instanceof Error) console.error("[UploadFilesDialog] Stack:", error.stack);
+        toast.error(`Photo select failed: ${message || "Unknown error – check Xcode console"}`);
       }
     } finally {
       setIsPickingNativePhoto(false);
