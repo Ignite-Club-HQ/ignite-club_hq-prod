@@ -107,7 +107,7 @@ export async function cameraPhotoToBlob(photo: CameraPhotoLike): Promise<{
         blob,
         mimeType: fallbackMimeType,
         extension: mimeToExtension(fallbackMimeType),
-        previewUrl: `data:${fallbackMimeType};base64,${normalizedBase64.substring(0, 50)}...`,
+        previewUrl: `data:${fallbackMimeType};base64,${normalizedBase64}`,
       };
     } catch (base64Error) {
       console.error("[cameraPhotoToBlob] Base64 conversion FAILED:", base64Error);

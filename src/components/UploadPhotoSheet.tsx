@@ -475,12 +475,12 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     setIsPickingNativePhoto(true);
     try {
       let permissions = await CapacitorCamera.checkPermissions();
-      if (permissions.photos === "denied") {
+      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
         permissions = await CapacitorCamera.requestPermissions();
       }
 
-      if (permissions.photos === "denied") {
-        throw new Error("Photo library access is denied");
+      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
+        throw new Error(`Photo library access is ${permissions.photos}`);
       }
 
       const photo = await CapacitorCamera.getPhoto({
