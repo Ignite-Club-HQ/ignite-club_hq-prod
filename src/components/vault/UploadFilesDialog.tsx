@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { toast } from "sonner";
-import { base64ToBlob, PHOTO_FORMAT_TO_MIME, mimeToExtension } from "@/lib/binaryUtils";
+import { cameraPhotoToBlob } from "@/lib/binaryUtils";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -105,14 +105,11 @@ export function UploadFilesDialog({
         height: 1600,
       });
 
-      if (!photo.base64String) {
+      if (!photo.base64String && !photo.webPath) {
         throw new Error("No photo selected");
       }
 
-      const normalizedFormat = (photo.format || "jpeg").toLowerCase();
-      const mimeType = PHOTO_FORMAT_TO_MIME[normalizedFormat] || "image/jpeg";
-      const extension = mimeToExtension(mimeType);
-      const blob = base64ToBlob(photo.base64String, mimeType);
+      const { blob, mimeType, extension } = await cameraPhotoToBlob(photo);
       const file = new File([blob], `photo-${Date.now()}.${extension}`, {
         type: mimeType,
         lastModified: Date.now(),
