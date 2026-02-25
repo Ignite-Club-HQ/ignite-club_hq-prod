@@ -130,8 +130,9 @@ export function UploadFilesDialog({
       handleFileSelect(file);
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
-        console.warn("[UploadFilesDialog] Native picker failed:", getReadableUploadError(error), error);
-        toast.error("Could not load photo. Please try again.");
+        const errMsg = getReadableUploadError(error);
+        console.warn("[UploadFilesDialog] Native picker failed:", errMsg, error);
+        toast.error(`Could not load photo: ${errMsg || "Unknown error"}`);
       } else {
         console.log("[UploadFilesDialog] user cancelled");
       }

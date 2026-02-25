@@ -527,8 +527,9 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       await addPhotosToSelection([file]);
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
-        console.warn("[UploadPhotoSheet] Native picker failed:", error);
-        toast.error("Could not load photo. Please try again.");
+        const errMsg = getReadableUploadError(error);
+        console.warn("[UploadPhotoSheet] Native picker failed:", errMsg, error);
+        toast.error(`Could not load photo: ${errMsg || "Unknown error"}`);
       } else {
         console.log("[UploadPhotoSheet] user cancelled");
       }

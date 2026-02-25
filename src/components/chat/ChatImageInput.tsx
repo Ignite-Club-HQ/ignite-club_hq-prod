@@ -148,8 +148,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       if (isCancelledSelectionError(error)) {
         console.log("[ChatImageInput] user cancelled");
       } else {
-        console.warn("[ChatImageInput] Native picker failed:", getReadableUploadError(error), error);
-        toast.error("Could not load photo. Please try again.");
+        const errMsg = getReadableUploadError(error);
+        console.warn("[ChatImageInput] Native picker failed:", errMsg, error);
+        toast.error(`Could not load photo: ${errMsg || "Unknown error"}`);
       }
       setLocalPreview(null);
     } finally {
