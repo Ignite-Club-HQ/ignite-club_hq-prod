@@ -225,32 +225,19 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           </Button>
         </div>
       ) : (
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={handleImageButtonClick}
-            disabled={disabled || uploading}
-          >
-            {uploading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <ImagePlus className="h-5 w-5" />
-            )}
-          </Button>
-          {isNativeIOS && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={disabled || uploading}
-            >
-              Upload file
-            </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={handleImageButtonClick}
+          disabled={disabled || uploading}
+        >
+          {uploading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <ImagePlus className="h-5 w-5" />
           )}
-        </div>
+        </Button>
       )}
     </div>
   );
