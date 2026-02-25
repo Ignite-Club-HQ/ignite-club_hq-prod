@@ -62,11 +62,19 @@ const normalizeBase64String = (base64String: string): string => {
   return normalized.padEnd(normalized.length + (4 - paddingNeeded), "=");
 };
 
-interface CameraPhotoLike {
+export interface CameraPhotoLike {
   base64String?: string | null;
   webPath?: string;
   path?: string;
   format?: string | null;
+}
+
+export function hasCameraPhotoSource(photo: CameraPhotoLike): boolean {
+  return Boolean(photo.base64String || photo.webPath || photo.path);
+}
+
+export function describeCameraPhotoSource(photo: CameraPhotoLike): string {
+  return `base64=${Boolean(photo.base64String)} webPath=${Boolean(photo.webPath)} path=${Boolean(photo.path)}`;
 }
 
 export async function cameraPhotoToBlob(photo: CameraPhotoLike): Promise<{

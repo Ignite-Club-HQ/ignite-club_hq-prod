@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Upload, X, Check, Loader2, Camera, Crown, ImagePlus, CheckCircle2, XCircle, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,8 @@ import { compressImage, formatFileSize } from "@/lib/imageCompression";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from "@capacitor/camera";
-import { cameraPhotoToBlob } from "@/lib/binaryUtils";
+import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
+import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 
 interface UploadPhotoSheetProps {
   open: boolean;
@@ -52,30 +53,6 @@ interface SelectedPhoto {
 }
 
 
-const isCancelledSelectionError = (error: unknown) => {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : "";
-
-  return message.toLowerCase().includes("cancel");
-};
-
-const getReadableUploadError = (error: unknown) => {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof (error as { message?: unknown }).message === "string"
-  ) {
-    return (error as { message: string }).message;
-  }
-  return "";
-};
 
 export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }: UploadPhotoSheetProps) {
   const { user } = useAuth();
@@ -90,6 +67,8 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPickingNativePhoto, setIsPickingNativePhoto] = useState(false);
   const shouldUseNativePhotoPicker = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const primaryFileInputRef = useRef<HTMLInputElement>(null);
+  const addMoreFileInputRef = useRef<HTMLInputElement>(null);
 
   // Get user roles
   const { data: userRoles } = useQuery({
@@ -459,8 +438,8 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         height: 2000,
       });
 
-      if (!photo.base64String && !photo.webPath) {
-        throw new Error("No photo selected");
+      if (!hasCameraPhotoSource(photo)) {
+        throw new Error("No photo selected (missing base64String/webPath/path)");
       }
 
       const { blob, mimeType, extension } = await cameraPhotoToBlob(photo);
@@ -660,15 +639,32 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                     <div className="text-center">
                       <p className="font-medium">{isPickingNativePhoto ? "Opening photo library..." : "Tap to select photos"}</p>
                       <p className="text-sm text-muted-foreground mt-1">Select multiple photos at once</p>
+                      {shouldUseNativePhotoPicker && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="mt-3"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            primaryFileInputRef.current?.click();
+                          }}
+                          disabled={uploading || isPickingNativePhoto}
+                        >
+                          Upload file instead
+                        </Button>
+                      )}
                     </div>
                   </div>
                   <input
+                    ref={primaryFileInputRef}
                     type="file"
                     accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
                     multiple
                     className="hidden"
                     onChange={handleFileSelect}
-                    disabled={uploading || isPickingNativePhoto || shouldUseNativePhotoPicker}
+                    disabled={uploading || isPickingNativePhoto}
                   />
                 </label>
               ) : (
@@ -753,12 +749,13 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                           <ImagePlus className="h-6 w-6 text-muted-foreground" />
                         )}
                         <input
+                          ref={addMoreFileInputRef}
                           type="file"
                           accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
                           multiple
                           className="hidden"
                           onChange={handleFileSelect}
-                          disabled={uploading || isPickingNativePhoto || shouldUseNativePhotoPicker}
+                          disabled={uploading || isPickingNativePhoto}
                         />
                       </label>
                     )}
