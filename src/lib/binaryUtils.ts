@@ -75,47 +75,68 @@ export async function cameraPhotoToBlob(photo: CameraPhotoLike): Promise<{
   extension: string;
   previewUrl: string;
 }> {
+  console.log("[cameraPhotoToBlob] START", {
+    hasBase64: !!photo.base64String,
+    base64Length: photo.base64String?.length ?? 0,
+    webPath: photo.webPath ?? "(none)",
+    path: photo.path ?? "(none)",
+    format: photo.format ?? "(none)",
+  });
+
   const normalizedFormat = (photo.format || "jpeg").toLowerCase();
   const fallbackMimeType = PHOTO_FORMAT_TO_MIME[normalizedFormat] || "image/jpeg";
+  console.log("[cameraPhotoToBlob] format →", normalizedFormat, "mime →", fallbackMimeType);
 
   if (photo.base64String) {
     try {
+      console.log("[cameraPhotoToBlob] Attempting base64 path...");
       const normalizedBase64 = normalizeBase64String(photo.base64String);
+      console.log("[cameraPhotoToBlob] Base64 normalized, length:", normalizedBase64.length);
       const blob = base64ToBlob(normalizedBase64, fallbackMimeType);
+      console.log("[cameraPhotoToBlob] Base64 → Blob OK, size:", blob.size);
 
       return {
         blob,
         mimeType: fallbackMimeType,
         extension: mimeToExtension(fallbackMimeType),
-        previewUrl: `data:${fallbackMimeType};base64,${normalizedBase64}`,
+        previewUrl: `data:${fallbackMimeType};base64,${normalizedBase64.substring(0, 50)}...`,
       };
     } catch (base64Error) {
-      console.warn("[binaryUtils] Base64 conversion failed, trying webPath fallback", base64Error);
+      console.error("[cameraPhotoToBlob] Base64 conversion FAILED:", base64Error);
     }
   }
 
   const sourcePath = photo.webPath || (photo.path ? Capacitor.convertFileSrc(photo.path) : undefined);
+  console.log("[cameraPhotoToBlob] Trying fetch path:", sourcePath ?? "(none)");
 
   if (sourcePath) {
-    const response = await fetch(sourcePath);
-    if (!response.ok) {
-      throw new Error(`Failed to read selected photo (${response.status})`);
+    try {
+      const response = await fetch(sourcePath);
+      console.log("[cameraPhotoToBlob] fetch status:", response.status, response.statusText);
+      if (!response.ok) {
+        throw new Error(`Failed to read selected photo (HTTP ${response.status} ${response.statusText})`);
+      }
+
+      const fetchedBlob = await response.blob();
+      console.log("[cameraPhotoToBlob] fetched blob size:", fetchedBlob.size, "type:", fetchedBlob.type);
+      const mimeType = fetchedBlob.type || fallbackMimeType;
+      const blob = fetchedBlob.type
+        ? fetchedBlob
+        : new Blob([await fetchedBlob.arrayBuffer()], { type: mimeType });
+
+      return {
+        blob,
+        mimeType,
+        extension: mimeToExtension(mimeType),
+        previewUrl: sourcePath,
+      };
+    } catch (fetchError) {
+      console.error("[cameraPhotoToBlob] fetch path FAILED:", fetchError);
+      throw fetchError;
     }
-
-    const fetchedBlob = await response.blob();
-    const mimeType = fetchedBlob.type || fallbackMimeType;
-    const blob = fetchedBlob.type
-      ? fetchedBlob
-      : new Blob([await fetchedBlob.arrayBuffer()], { type: mimeType });
-
-    return {
-      blob,
-      mimeType,
-      extension: mimeToExtension(mimeType),
-      previewUrl: sourcePath,
-    };
   }
 
-  throw new Error("Selected photo data is unavailable");
+  console.error("[cameraPhotoToBlob] No data source available at all");
+  throw new Error("Selected photo data is unavailable (no base64, webPath, or path)");
 }
 
