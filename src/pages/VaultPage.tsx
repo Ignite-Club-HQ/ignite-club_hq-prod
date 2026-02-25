@@ -3263,10 +3263,12 @@ export default function VaultPage() {
                           <FolderPlus className="h-4 w-4 mr-2" />
                           New Folder
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setAddLinkDialogOpen(true)}>
-                          <Link2 className="h-4 w-4 mr-2" />
-                          Add Link
-                        </DropdownMenuItem>
+                        {Capacitor.getPlatform() !== 'ios' && (
+                          <DropdownMenuItem onClick={() => setAddLinkDialogOpen(true)}>
+                            <Link2 className="h-4 w-4 mr-2" />
+                            Add Link
+                          </DropdownMenuItem>
+                        )}
                         {isClubAdmin && Capacitor.getPlatform() !== 'ios' && (
                           <DropdownMenuItem onClick={() => setGoogleDriveImportOpen(true)}>
                             <CloudDownload className="h-4 w-4 mr-2" />
