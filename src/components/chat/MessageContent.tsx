@@ -1,6 +1,7 @@
 import { useMemo, memo, useState, useCallback, useRef, useEffect } from "react";
 import { LinkPreview } from "./LinkPreview";
 import { YouTubeEmbed, extractYouTubeId } from "./YouTubeEmbed";
+import { FullscreenImageViewer } from "./FullscreenImageViewer";
 import { highlightText } from "./ChatSearch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
@@ -136,10 +137,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     setImageLoaded(true); // Hide skeleton on error too
   }, []);
 
+  const [showFullscreen, setShowFullscreen] = useState(false);
+
   const handleImageClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     if (effectiveImageUrl) {
-      safeOpenUrl(effectiveImageUrl);
+      setShowFullscreen(true);
     }
   }, [effectiveImageUrl]);
 
@@ -192,6 +195,15 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
             />
           )}
         </div>
+      )}
+
+      {/* Fullscreen image viewer */}
+      {showFullscreen && effectiveImageUrl && (
+        <FullscreenImageViewer
+          src={effectiveImageUrl}
+          alt="Attachment"
+          onClose={() => setShowFullscreen(false)}
+        />
       )}
 
       {/* Text content */}
