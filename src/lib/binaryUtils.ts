@@ -69,8 +69,8 @@ export interface CameraPhotoLike {
   format?: string | null;
 }
 
-const NATIVE_READ_RETRY_ATTEMPTS = 2;
-const NATIVE_READ_RETRY_DELAY_MS = 180;
+const NATIVE_READ_RETRY_ATTEMPTS = 3;
+const NATIVE_READ_RETRY_DELAY_MS = 300;
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -113,6 +113,11 @@ const fetchPhotoBlobFromSource = async (
 ): Promise<{ blob: Blob; mimeType: string }> => {
   let lastError: unknown;
 
+  // On native iOS, add a small initial delay to let the OS finalize the temp file
+  if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios") {
+    await wait(150);
+  }
+
   for (let attempt = 0; attempt <= NATIVE_READ_RETRY_ATTEMPTS; attempt += 1) {
     try {
       console.log(`[cameraPhotoToBlob] fetch attempt ${attempt + 1}/${NATIVE_READ_RETRY_ATTEMPTS + 1} for: ${sourcePath.substring(0, 120)}`);
@@ -123,6 +128,12 @@ const fetchPhotoBlobFromSource = async (
       }
 
       const result = await readBlobFromResponse(response, fallbackMimeType);
+      
+      // Validate that the blob actually has content
+      if (result.blob.size === 0) {
+        throw new Error("Photo data is empty (0 bytes)");
+      }
+      
       console.log(`[cameraPhotoToBlob] blob OK: size=${result.blob.size} type=${result.mimeType}`);
       return result;
     } catch (error) {
