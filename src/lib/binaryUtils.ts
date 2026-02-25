@@ -115,16 +115,23 @@ const fetchPhotoBlobFromSource = async (
 
   for (let attempt = 0; attempt <= NATIVE_READ_RETRY_ATTEMPTS; attempt += 1) {
     try {
+      console.log(`[cameraPhotoToBlob] fetch attempt ${attempt + 1}/${NATIVE_READ_RETRY_ATTEMPTS + 1} for: ${sourcePath.substring(0, 120)}`);
       const response = await fetch(sourcePath, { cache: "no-store" });
+      console.log(`[cameraPhotoToBlob] fetch response: ${response.status} ${response.statusText}`);
       if (!response.ok) {
         throw new Error(`Failed to read selected photo (HTTP ${response.status} ${response.statusText})`);
       }
 
-      return await readBlobFromResponse(response, fallbackMimeType);
+      const result = await readBlobFromResponse(response, fallbackMimeType);
+      console.log(`[cameraPhotoToBlob] blob OK: size=${result.blob.size} type=${result.mimeType}`);
+      return result;
     } catch (error) {
+      console.warn(`[cameraPhotoToBlob] fetch attempt ${attempt + 1} failed:`, getErrorMessage(error));
       lastError = error;
       if (attempt < NATIVE_READ_RETRY_ATTEMPTS) {
-        await wait(NATIVE_READ_RETRY_DELAY_MS * (attempt + 1));
+        const delay = NATIVE_READ_RETRY_DELAY_MS * (attempt + 1);
+        console.log(`[cameraPhotoToBlob] retrying in ${delay}ms...`);
+        await wait(delay);
         continue;
       }
     }
@@ -147,14 +154,24 @@ export async function cameraPhotoToBlob(photo: CameraPhotoLike): Promise<{
   extension: string;
   previewUrl: string;
 }> {
+  console.log("[cameraPhotoToBlob] START", {
+    hasBase64: !!photo.base64String,
+    base64Length: photo.base64String?.length ?? 0,
+    webPath: photo.webPath ?? "(none)",
+    path: photo.path ?? "(none)",
+    format: photo.format ?? "(none)",
+  });
+
   const normalizedFormat = (photo.format || "jpeg").toLowerCase();
   const fallbackMimeType = PHOTO_FORMAT_TO_MIME[normalizedFormat] || "image/jpeg";
   let lastError: unknown;
 
   if (photo.base64String) {
     try {
+      console.log("[cameraPhotoToBlob] trying base64 path, length:", photo.base64String.length);
       const normalizedBase64 = normalizeBase64String(photo.base64String);
       const blob = base64ToBlob(normalizedBase64, fallbackMimeType);
+      console.log("[cameraPhotoToBlob] base64 → blob OK, size:", blob.size);
 
       return {
         blob,
@@ -163,11 +180,13 @@ export async function cameraPhotoToBlob(photo: CameraPhotoLike): Promise<{
         previewUrl: `data:${fallbackMimeType};base64,${normalizedBase64}`,
       };
     } catch (error) {
+      console.error("[cameraPhotoToBlob] base64 conversion FAILED:", getErrorMessage(error));
       lastError = error;
     }
   }
 
   const sourceCandidates = getPhotoSourceCandidates(photo);
+  console.log("[cameraPhotoToBlob] URI candidates:", sourceCandidates.length, sourceCandidates.map(s => s.substring(0, 80)));
 
   for (const sourcePath of sourceCandidates) {
     try {
@@ -180,15 +199,16 @@ export async function cameraPhotoToBlob(photo: CameraPhotoLike): Promise<{
         previewUrl: sourcePath,
       };
     } catch (error) {
+      console.warn("[cameraPhotoToBlob] candidate failed:", sourcePath.substring(0, 80), getErrorMessage(error));
       lastError = error;
     }
   }
 
-  if (lastError) {
-    throw new Error(`Selected photo data is unavailable (${getErrorMessage(lastError)})`);
-  }
-
-  throw new Error("Selected photo data is unavailable (no base64, webPath, or path)");
+  const finalMsg = lastError
+    ? `Selected photo data is unavailable (${getErrorMessage(lastError)})`
+    : "Selected photo data is unavailable (no base64, webPath, or path)";
+  console.error("[cameraPhotoToBlob] ALL paths exhausted:", finalMsg);
+  throw new Error(finalMsg);
 }
 
 

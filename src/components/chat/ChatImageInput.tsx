@@ -77,10 +77,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
   const handleNativePhotoPick = async () => {
     setUploading(true);
+    console.log("[ChatImageInput] handleNativePhotoPick START");
     try {
       let permissions = await Camera.checkPermissions();
+      console.log("[ChatImageInput] permissions.photos:", permissions.photos);
       if (permissions.photos !== "granted" && permissions.photos !== "limited") {
         permissions = await Camera.requestPermissions();
+        console.log("[ChatImageInput] after request, permissions.photos:", permissions.photos);
       }
 
       if (permissions.photos !== "granted" && permissions.photos !== "limited") {
@@ -98,19 +101,27 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
       let photo: Awaited<ReturnType<typeof pickPhotoFromLibrary>>;
       try {
+        console.log("[ChatImageInput] calling getPhoto (attempt 1)...");
         photo = await pickPhotoFromLibrary();
+        console.log("[ChatImageInput] getPhoto OK", { webPath: photo.webPath, path: photo.path, format: photo.format, hasBase64: !!photo.base64String });
       } catch (pickerError) {
+        console.warn("[ChatImageInput] getPhoto attempt 1 failed:", pickerError);
         if (isCancelledSelectionError(pickerError)) {
           throw pickerError;
         }
 
         await new Promise<void>((resolve) => setTimeout(resolve, 250));
+        console.log("[ChatImageInput] calling getPhoto (attempt 2)...");
         photo = await pickPhotoFromLibrary();
+        console.log("[ChatImageInput] getPhoto attempt 2 OK", { webPath: photo.webPath, path: photo.path, format: photo.format });
       }
 
       if (!hasCameraPhotoSource(photo)) throw new Error("No photo selected (missing base64String/webPath/path)");
 
+      console.log("[ChatImageInput] calling cameraPhotoToBlob...");
       const { blob, mimeType, previewUrl } = await cameraPhotoToBlob(photo);
+      console.log("[ChatImageInput] blob ready, size:", blob.size, "mime:", mimeType);
+
       if (blob.size > MAX_UPLOAD_SIZE_BYTES) {
         throw new Error("Image must be less than 10MB");
       }
@@ -130,11 +141,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           throw primaryUploadError;
         }
       }
+      console.log("[ChatImageInput] upload complete:", storageUrl.substring(0, 80));
       setLocalPreview(null);
       onImageUploaded(storageUrl);
     } catch (error: unknown) {
       if (isCancelledSelectionError(error)) {
-        // User cancelled - do nothing
+        console.log("[ChatImageInput] user cancelled");
       } else {
         console.warn("[ChatImageInput] Native picker failed:", getReadableUploadError(error), error);
         toast.error("Could not load photo. Please try again.");
