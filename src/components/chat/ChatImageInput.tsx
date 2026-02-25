@@ -147,7 +147,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       } else {
         const message = getReadableUploadError(error);
         console.error("[ChatImageInput] iOS upload error:", error);
-        toast.error(message ? `Failed to upload image: ${message}` : "Failed to upload image");
+        console.error("[ChatImageInput] Error type:", typeof error, "constructor:", error?.constructor?.name);
+        if (error instanceof Error) {
+          console.error("[ChatImageInput] Stack:", error.stack);
+        }
+        toast.error(`Upload failed: ${message || "Unknown error – check Xcode console"}`);
       }
       setLocalPreview(null);
     } finally {
