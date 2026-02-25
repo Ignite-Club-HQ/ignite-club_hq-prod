@@ -701,8 +701,8 @@ function PitchToolbar({
   if (collapsed) {
     return (
       <>
-        <div className="flex items-center justify-between px-2 py-1.5 bg-muted/30">
-          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+        <div className="flex items-center justify-between px-2 py-1.5 bg-muted/30 gap-1">
+          <div className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto scrollbar-none">
             <Button
               variant="outline"
               className={collapsedTimerClass}
@@ -848,8 +848,8 @@ function PitchToolbar({
   return (
     <div className="space-y-2 px-2 py-2">
       {/* Row 1: Timer + Play/Pause + Sub + Plan + Undo + Sync + Settings + Collapse */}
-      <div className="flex items-center justify-between gap-1.5">
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-center justify-between gap-1">
+        <div className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto scrollbar-none">
           <Button
             variant="outline"
             className={timerButtonClass}
@@ -940,7 +940,7 @@ function PitchToolbar({
             </TooltipProvider>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1 shrink-0">
           <SyncStatusIndicator />
           <PitchSettingsDialog
             soundEnabled={soundEnabled}

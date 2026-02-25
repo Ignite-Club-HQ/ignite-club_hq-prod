@@ -437,7 +437,8 @@ export function AppHeader() {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
       queryClient.invalidateQueries({ queryKey: ["unread-count"] });
       setNotificationsOpen(false);
-      refreshUnreadCount();
+      // Force refresh to get accurate count from server
+      setTimeout(() => refreshUnreadCount(), 300);
     },
   });
 

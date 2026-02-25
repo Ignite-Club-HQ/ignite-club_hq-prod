@@ -48,10 +48,16 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       if (parent) {
         const rect = parent.getBoundingClientRect();
         const pickerHeight = 100; // approximate height of picker
-        const showBelow = rect.top < pickerHeight + 10;
+        // Account for fixed headers: ensure picker doesn't render behind them
+        const headerSafeZone = 140; // AppHeader + chat header height
+        const showBelow = rect.top < headerSafeZone + pickerHeight;
+        
+        const top = showBelow 
+          ? Math.max(rect.bottom + 4, headerSafeZone) 
+          : rect.top - pickerHeight - 4;
         
         setPosition({
-          top: showBelow ? rect.bottom + 4 : rect.top - pickerHeight - 4,
+          top,
           left: isOwnMessage ? rect.right : rect.left,
           showBelow,
         });
@@ -81,7 +87,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     <>
       <div ref={parentRef} className="hidden" />
       <div 
-        className="fixed z-[9999]"
+        className="fixed z-[100001]"
         style={{
           top: position?.top ?? 0,
           ...(isOwnMessage 

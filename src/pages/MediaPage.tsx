@@ -1172,17 +1172,17 @@ export default function MediaPage() {
       <AlertDialog open={!!deletePhotoId} onOpenChange={() => {
         // Keep dialog stable on mobile; close only through explicit Cancel/Confirm actions.
       }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Photo</AlertDialogTitle>
-            <AlertDialogDescription>
+        <AlertDialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl p-4">
+          <AlertDialogHeader className="pb-2">
+            <AlertDialogTitle className="text-center text-base">Delete Photo</AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-sm">
               How would you like to delete this photo?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="flex flex-col gap-3 py-4">
+          <div className="flex flex-col gap-2">
             <Button
               variant="outline"
-              className={`w-full justify-start h-auto py-3 px-4 transition-all ${
+              className={`w-full justify-start h-auto py-3 px-3 transition-all rounded-lg ${
                 selectedDeleteOption === 'feed' 
                   ? 'ring-2 ring-primary bg-primary/10' 
                   : ''
@@ -1190,13 +1190,13 @@ export default function MediaPage() {
               onClick={() => setSelectedDeleteOption('feed')}
             >
               <div className="text-left">
-                <p className="font-medium">Remove from feed only</p>
+                <p className="font-medium text-sm">Remove from feed only</p>
                 <p className="text-xs text-muted-foreground">Photo will be removed from the feed but remain in the vault</p>
               </div>
             </Button>
             <Button
               variant="outline"
-              className={`w-full justify-start h-auto py-3 px-4 transition-all ${
+              className={`w-full justify-start h-auto py-3 px-3 transition-all rounded-lg ${
                 selectedDeleteOption === 'vault' 
                   ? 'ring-2 ring-destructive bg-destructive/10' 
                   : ''
@@ -1204,17 +1204,14 @@ export default function MediaPage() {
               onClick={() => setSelectedDeleteOption('vault')}
             >
               <div className="text-left">
-                <p className={`font-medium ${selectedDeleteOption === 'vault' ? 'text-destructive' : ''}`}>Delete from feed and vault</p>
+                <p className={`font-medium text-sm ${selectedDeleteOption === 'vault' ? 'text-destructive' : ''}`}>Delete from feed and vault</p>
                 <p className="text-xs text-muted-foreground">Photo will be moved to trash</p>
               </div>
             </Button>
           </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
-              setDeletePhotoId(null);
-              setSelectedDeleteOption(null);
-            }}>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="flex-col gap-2 pt-2 sm:flex-col">
             <Button
+              className="w-full"
               variant={selectedDeleteOption === 'vault' ? 'destructive' : 'default'}
               disabled={!selectedDeleteOption}
               onClick={() => {
@@ -1227,6 +1224,10 @@ export default function MediaPage() {
             >
               Confirm
             </Button>
+            <AlertDialogCancel className="w-full mt-0" onClick={() => {
+              setDeletePhotoId(null);
+              setSelectedDeleteOption(null);
+            }}>Cancel</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

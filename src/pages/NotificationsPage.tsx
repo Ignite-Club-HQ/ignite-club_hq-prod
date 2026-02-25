@@ -257,12 +257,22 @@ export default function NotificationsPage() {
       if (error) throw error;
     },
     onMutate: async () => {
+      // Cancel any in-flight queries to prevent stale data overwriting
+      await queryClient.cancelQueries({ queryKey: ["notifications", user?.id] });
+      await queryClient.cancelQueries({ queryKey: ["recent-notifications"] });
+      await queryClient.cancelQueries({ queryKey: ["unread-count"] });
       // Optimistic update - clear all
       queryClient.setQueryData<Notification[]>(["notifications", user?.id], []);
     },
     onSuccess: () => {
       clearUnreadCount();
       setDisplayCount(NOTIFICATIONS_PER_PAGE);
+      // Invalidate all notification-related queries for consistency
+      queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["unread-count"] });
+      // Force refresh to get accurate count from server
+      setTimeout(() => refreshUnreadCount(), 300);
     },
   });
 
