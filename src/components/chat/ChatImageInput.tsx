@@ -123,12 +123,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       if (isCancelledSelectionError(error)) {
         // User cancelled - do nothing
       } else {
-        console.warn("[ChatImageInput] Native picker failed, falling back to file input:", error);
-        // Silent fallback: open the hidden file input instead of showing an error
-        setUploading(false);
-        setLocalPreview(null);
-        fileInputRef.current?.click();
-        return;
+        console.warn("[ChatImageInput] Native picker failed:", error);
+        toast.error("Could not load photo. Please try again.");
       }
       setLocalPreview(null);
     } finally {
