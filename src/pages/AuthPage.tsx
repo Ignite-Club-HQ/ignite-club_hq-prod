@@ -53,9 +53,14 @@ export default function AuthPage() {
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const [hibpStatus, setHibpStatus] = useState<'idle' | 'checking' | 'safe' | 'compromised'>('idle');
   
-  // Check if we should default to signup view (new user from invite)
+  // Check if we should default to signup view (new user from invite, or returning from terms/privacy)
   const defaultView = sessionStorage.getItem("authDefaultTab") || "signin";
   const [authMode, setAuthMode] = useState<"signin" | "signup">(defaultView as "signin" | "signup");
+
+  // Persist auth mode so navigating to terms/privacy and back preserves the tab
+  useEffect(() => {
+    sessionStorage.setItem("authDefaultTab", authMode);
+  }, [authMode]);
   
   // Check if we're actively in an invite flow - only valid if there's a pending redirect
   const redirectAfterAuth = sessionStorage.getItem("redirectAfterAuth");
