@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
-import { base64ToBlob, PHOTO_FORMAT_TO_MIME, mimeToExtension } from "@/lib/binaryUtils";
+import { cameraPhotoToBlob, mimeToExtension } from "@/lib/binaryUtils";
 
 interface ChatImageInputProps {
   onImageUploaded: (imageUrl: string | null) => void;
@@ -117,17 +117,14 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         height: 1280,
       });
 
-      if (!photo.base64String) throw new Error("No photo selected");
+      if (!photo.base64String && !photo.webPath) throw new Error("No photo selected");
 
-      const normalizedFormat = (photo.format || "jpeg").toLowerCase();
-      const mimeType = PHOTO_FORMAT_TO_MIME[normalizedFormat] || "image/jpeg";
-
-      const blob = base64ToBlob(photo.base64String, mimeType);
+      const { blob, mimeType, previewUrl } = await cameraPhotoToBlob(photo);
       if (blob.size > MAX_UPLOAD_SIZE_BYTES) {
         throw new Error("Image must be less than 10MB");
       }
 
-      setLocalPreview(`data:${mimeType};base64,${photo.base64String}`);
+      setLocalPreview(previewUrl);
 
       const skipCompression = !IOS_SAFE_COMPRESSION_MIME_TYPES.has(mimeType);
       let storageUrl: string;
