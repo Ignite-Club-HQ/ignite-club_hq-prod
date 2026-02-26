@@ -96,9 +96,15 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
       let photo: Awaited<ReturnType<typeof pickPhotoFromLibrary>>;
       try {
-        console.log("[ChatImageInput] calling getPhoto (URI mode, attempt 1)...");
-        photo = await pickPhotoFromLibrary(CameraResultType.Uri);
-        console.log("[ChatImageInput] getPhoto OK", { webPath: photo.webPath, path: photo.path, format: photo.format, hasBase64: !!photo.base64String });
+        console.log("[ChatImageInput] calling getPhoto (Base64 mode, attempt 1)...");
+        photo = await pickPhotoFromLibrary(CameraResultType.Base64);
+        console.log("[ChatImageInput] getPhoto OK", {
+          webPath: photo.webPath,
+          path: photo.path,
+          format: photo.format,
+          hasBase64: !!photo.base64String,
+          hasDataUrl: !!photo.dataUrl,
+        });
       } catch (pickerError) {
         console.warn("[ChatImageInput] getPhoto attempt 1 failed:", pickerError);
         if (isCancelledSelectionError(pickerError)) {
@@ -106,28 +112,30 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         }
 
         await new Promise<void>((resolve) => setTimeout(resolve, 250));
-        console.log("[ChatImageInput] calling getPhoto (attempt 2)...");
-        photo = await pickPhotoFromLibrary(CameraResultType.Uri);
-        console.log("[ChatImageInput] getPhoto attempt 2 OK", { webPath: photo.webPath, path: photo.path, format: photo.format });
+        console.log("[ChatImageInput] calling getPhoto (Base64 mode, attempt 2)...");
+        photo = await pickPhotoFromLibrary(CameraResultType.Base64);
+        console.log("[ChatImageInput] getPhoto attempt 2 OK", {
+          webPath: photo.webPath,
+          path: photo.path,
+          format: photo.format,
+          hasBase64: !!photo.base64String,
+          hasDataUrl: !!photo.dataUrl,
+        });
       }
 
-      if (!hasCameraPhotoSource(photo)) throw new Error("No photo selected (missing base64String/webPath/path)");
+      if (!hasCameraPhotoSource(photo) && !photo.dataUrl) {
+        throw new Error("No photo selected (missing base64String/dataUrl/webPath/path)");
+      }
 
       console.log("[ChatImageInput] calling cameraPhotoToBlob...");
       let blobResult: { blob: Blob; mimeType: string; previewUrl: string };
       try {
         const result = await cameraPhotoToBlob(photo);
         blobResult = { blob: result.blob, mimeType: result.mimeType, previewUrl: result.previewUrl };
-      } catch (uriFetchError) {
-        console.warn("[ChatImageInput] URI-based fetch failed, retrying with Base64 mode:", uriFetchError);
+      } catch (base64FirstError) {
+        console.warn("[ChatImageInput] Base64-first conversion failed, retrying with DataUrl mode:", base64FirstError);
 
         try {
-          const base64Photo = await pickPhotoFromLibrary(CameraResultType.Base64);
-          if (!base64Photo.base64String) throw new Error("Base64 fallback returned no data");
-          const result = await cameraPhotoToBlob(base64Photo);
-          blobResult = { blob: result.blob, mimeType: result.mimeType, previewUrl: result.previewUrl };
-        } catch (base64Error) {
-          console.warn("[ChatImageInput] Base64 fallback failed, retrying with DataUrl mode:", base64Error);
           const dataUrlPhoto = await pickPhotoFromLibrary(CameraResultType.DataUrl);
           if (!dataUrlPhoto.dataUrl) throw new Error("DataUrl fallback returned no data");
           const result = await cameraPhotoToBlob({
@@ -136,6 +144,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             webPath: dataUrlPhoto.webPath,
             path: dataUrlPhoto.path,
           });
+          blobResult = { blob: result.blob, mimeType: result.mimeType, previewUrl: result.previewUrl };
+        } catch (dataUrlError) {
+          console.warn("[ChatImageInput] DataUrl fallback failed, retrying with URI mode:", dataUrlError);
+          const uriPhoto = await pickPhotoFromLibrary(CameraResultType.Uri);
+          if (!hasCameraPhotoSource(uriPhoto)) throw new Error("URI fallback returned no photo source");
+          const result = await cameraPhotoToBlob(uriPhoto);
           blobResult = { blob: result.blob, mimeType: result.mimeType, previewUrl: result.previewUrl };
         }
       }
