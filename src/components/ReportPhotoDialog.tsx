@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Flag, Loader2 } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -79,19 +79,19 @@ export function ReportPhotoDialog({ isOpen, onClose, photoId }: ReportPhotoDialo
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto mx-4 rounded-xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
+    <ResponsiveDialog open={isOpen} onOpenChange={handleClose}>
+      <ResponsiveDialogContent className="sm:max-w-md">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle className="flex items-center gap-2 text-base">
             <Flag className="h-5 w-5 text-destructive shrink-0" />
             Report Photo
-          </DialogTitle>
-          <DialogDescription className="text-sm">
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription className="text-sm">
             Help us maintain a safe community by reporting inappropriate content.
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 px-4">
           <div className="space-y-3">
             <Label className="text-sm font-medium">Why are you reporting this photo?</Label>
             <RadioGroup value={reason} onValueChange={setReason} className="space-y-2">
@@ -123,10 +123,10 @@ export function ReportPhotoDialog({ isOpen, onClose, photoId }: ReportPhotoDialo
           </div>
         </div>
 
-        <DialogFooter className="flex-col gap-2 sm:flex-col pt-1">
-          <Button 
-            variant="destructive" 
-            onClick={handleSubmit} 
+        <ResponsiveDialogFooter className="flex-col gap-2 px-4 pb-4">
+          <Button
+            variant="destructive"
+            onClick={handleSubmit}
             disabled={!reason || submitting}
             className="w-full"
           >
@@ -145,8 +145,8 @@ export function ReportPhotoDialog({ isOpen, onClose, photoId }: ReportPhotoDialo
           <Button variant="outline" onClick={handleClose} disabled={submitting} className="w-full">
             Cancel
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
