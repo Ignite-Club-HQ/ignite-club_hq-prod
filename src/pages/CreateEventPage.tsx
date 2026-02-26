@@ -642,7 +642,7 @@ export default function CreateEventPage() {
     return (
       <div className="pb-6 space-y-4">
         <div className="flex items-center gap-3 py-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <Button variant="ghost" size="icon" onClick={() => navigate("/events")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-xl font-bold">New Event</h1>
@@ -656,7 +656,7 @@ export default function CreateEventPage() {
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
               Only club admins, team admins, and coaches can create events. Contact your club administrator if you need access.
             </p>
-            <Button variant="outline" onClick={() => navigate(-1)} className="mt-2">
+            <Button variant="outline" onClick={() => navigate("/events")} className="mt-2">
               Go Back
             </Button>
           </CardContent>
@@ -669,7 +669,7 @@ export default function CreateEventPage() {
     <div className="pb-6 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3 py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/events")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-xl font-bold">New Event</h1>
