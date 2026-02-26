@@ -475,15 +475,10 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     setIsPickingNativePhoto(true);
     console.log("[UploadPhotoSheet] handleNativePhotoPick START");
     try {
-      let permissions = await CapacitorCamera.checkPermissions();
-      console.log("[UploadPhotoSheet] permissions.photos:", permissions.photos);
-      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
-        permissions = await CapacitorCamera.requestPermissions({ permissions: ["photos"] });
-        console.log("[UploadPhotoSheet] after request, permissions.photos:", permissions.photos);
-      }
-
-      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
-        throw new Error(`Photo library access is ${permissions.photos}`);
+      const permissions = await CapacitorCamera.checkPermissions();
+      console.log("[UploadPhotoSheet] permissions.photos (pre-pick):", permissions.photos);
+      if (permissions.photos === "denied") {
+        throw new Error("Photo library access denied. Please allow Photos access in Settings.");
       }
 
       const pickPhotoFromLibrary = (resultType: CameraResultType = CameraResultType.Uri) =>
@@ -523,10 +518,24 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         blobResult = { blob: result.blob, mimeType: result.mimeType, extension: result.extension };
       } catch (uriFetchError) {
         console.warn("[UploadPhotoSheet] URI-based fetch failed, retrying with Base64 mode:", uriFetchError);
-        const base64Photo = await pickPhotoFromLibrary(CameraResultType.Base64);
-        if (!base64Photo.base64String) throw new Error("Base64 fallback returned no data");
-        const result = await cameraPhotoToBlob(base64Photo);
-        blobResult = { blob: result.blob, mimeType: result.mimeType, extension: result.extension };
+
+        try {
+          const base64Photo = await pickPhotoFromLibrary(CameraResultType.Base64);
+          if (!base64Photo.base64String) throw new Error("Base64 fallback returned no data");
+          const result = await cameraPhotoToBlob(base64Photo);
+          blobResult = { blob: result.blob, mimeType: result.mimeType, extension: result.extension };
+        } catch (base64Error) {
+          console.warn("[UploadPhotoSheet] Base64 fallback failed, retrying with DataUrl mode:", base64Error);
+          const dataUrlPhoto = await pickPhotoFromLibrary(CameraResultType.DataUrl);
+          if (!dataUrlPhoto.dataUrl) throw new Error("DataUrl fallback returned no data");
+          const result = await cameraPhotoToBlob({
+            base64String: dataUrlPhoto.dataUrl,
+            format: dataUrlPhoto.format,
+            webPath: dataUrlPhoto.webPath,
+            path: dataUrlPhoto.path,
+          });
+          blobResult = { blob: result.blob, mimeType: result.mimeType, extension: result.extension };
+        }
       }
       const { blob, mimeType, extension } = blobResult;
       console.log("[UploadPhotoSheet] blob ready, size:", blob.size, "mime:", mimeType);
