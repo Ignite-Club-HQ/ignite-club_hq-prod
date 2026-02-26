@@ -131,6 +131,13 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
       if (!mod) return;
       
       const platform = mod.getPlatform();
+      // Remove this token from any other users first (prevents cross-user notifications)
+      await supabase
+        .from('fcm_tokens' as any)
+        .delete()
+        .eq('token', token)
+        .neq('user_id', userId);
+      
       // Use 'as any' since table may not be in generated types yet
       await supabase
         .from('fcm_tokens' as any)
