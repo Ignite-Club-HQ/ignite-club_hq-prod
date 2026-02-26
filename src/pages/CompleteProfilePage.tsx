@@ -226,6 +226,34 @@ export default function CompleteProfilePage() {
   // 1. New users (profile is null) - will create profile
   // 2. Existing users with no display_name - will update profile
 
+  const handleNativeAvatarPick = async () => {
+    setUploading(true);
+    try {
+      const { Camera: CapCamera, CameraResultType, CameraSource } = await import("@capacitor/camera");
+      const photo = await CapCamera.getPhoto({
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Photos,
+        quality: 80,
+        width: 512,
+        height: 512,
+      });
+      if (!photo.webPath) throw new Error("No photo selected");
+      const response = await fetch(photo.webPath);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarUrl(reader.result as string);
+        setUploading(false);
+      };
+      reader.readAsDataURL(blob);
+    } catch (error: any) {
+      if (!error?.message?.includes("cancelled") && !error?.message?.includes("User cancelled")) {
+        toast({ title: "Upload failed", description: error?.message || "Could not load photo", variant: "destructive" });
+      }
+      setUploading(false);
+    }
+  };
+
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -804,16 +832,27 @@ export default function CompleteProfilePage() {
                     <User className="h-10 w-10" />
                   </AvatarFallback>
                 </Avatar>
-                <label className="absolute bottom-0 right-0 p-2 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors">
-                  <Camera className="h-4 w-4 text-primary-foreground" />
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
-                    className="hidden"
-                    onChange={handleAvatarUpload}
+                {Capacitor.isNativePlatform() ? (
+                  <button
+                    type="button"
+                    className="absolute bottom-0 right-0 p-2 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors"
+                    onClick={handleNativeAvatarPick}
                     disabled={uploading}
-                  />
-                </label>
+                  >
+                    <Camera className="h-4 w-4 text-primary-foreground" />
+                  </button>
+                ) : (
+                  <label className="absolute bottom-0 right-0 p-2 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors">
+                    <Camera className="h-4 w-4 text-primary-foreground" />
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
+                      className="hidden"
+                      onChange={handleAvatarUpload}
+                      disabled={uploading}
+                    />
+                  </label>
+                )}
               </div>
               {uploading && <p className="text-sm text-muted-foreground">Uploading...</p>}
             </div>
