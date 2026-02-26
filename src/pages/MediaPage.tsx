@@ -1,7 +1,15 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Image, Lock, Crown, Plus, MessageCircle, Send, Trash2, Loader2, Filter, X, Calendar } from "lucide-react";
+import { Image, Lock, Crown, Plus, MessageCircle, Send, Trash2, Loader2, Filter, X, Calendar, MoreVertical, Flag, ShieldAlert } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ReportPhotoDialog } from "@/components/ReportPhotoDialog";
+import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -78,6 +86,8 @@ export default function MediaPage() {
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
   const [selectedDeleteOption, setSelectedDeleteOption] = useState<'feed' | 'vault' | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [reportPhotoId, setReportPhotoId] = useState<string | null>(null);
+  const [blockTarget, setBlockTarget] = useState<{ userId: string; userName: string } | null>(null);
   const [cachedPhotosData, setCachedPhotosData] = useState<CachedPhoto[] | null>(null);
   const [isCacheStale, setIsCacheStale] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -1008,6 +1018,25 @@ export default function MediaPage() {
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setReportPhotoId(photo.id)}>
+                          <Flag className="h-4 w-4 mr-2" />
+                          Report Photo
+                        </DropdownMenuItem>
+                        {photo.uploader_id && photo.uploader_id !== user?.id && (
+                          <DropdownMenuItem onClick={() => setBlockTarget({ userId: photo.uploader_id!, userName: displayName || "this user" })}>
+                            <ShieldAlert className="h-4 w-4 mr-2" />
+                            Block User
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
 
@@ -1244,6 +1273,23 @@ export default function MediaPage() {
         }}
         canDelete={lightboxIndex !== null && photos[lightboxIndex] ? canDeletePhoto(photos[lightboxIndex]) : false}
       />
+
+      {/* Report Photo Dialog */}
+      <ReportPhotoDialog
+        isOpen={!!reportPhotoId}
+        onClose={() => setReportPhotoId(null)}
+        photoId={reportPhotoId || ""}
+      />
+
+      {/* Block User Dialog */}
+      {blockTarget && (
+        <BlockUserDialog
+          open={!!blockTarget}
+          onOpenChange={(open) => !open && setBlockTarget(null)}
+          userId={blockTarget.userId}
+          userName={blockTarget.userName}
+        />
+      )}
     </div>
   );
 }
