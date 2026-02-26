@@ -284,7 +284,13 @@ export function UploadFilesDialog({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept={uploadType === "photo" ? "image/png,image/jpeg,image/jpg,image/gif,image/webp,image/heic,image/heif,image/svg+xml,image/bmp,image/tiff" : "*"}
+                accept={
+                  uploadType === "photo"
+                    ? "image/png,image/jpeg,image/jpg,image/gif,image/webp,image/heic,image/heif,image/svg+xml,image/bmp,image/tiff"
+                    : Capacitor.isNativePlatform()
+                      ? ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.mp4,.mp3,.wav,.mov,.json,.xml,.yaml,.md"
+                      : "*"
+                }
                 className="hidden"
                 onChange={handleInputChange}
                 disabled={isUploading || isPickingNativePhoto}
