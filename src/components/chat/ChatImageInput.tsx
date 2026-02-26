@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
+import { StatusBar } from "@capacitor/status-bar";
 import { cameraPhotoToBlob, hasCameraPhotoSource, mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 
@@ -25,6 +26,16 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+
+  const restoreNativeStatusBarOverlay = async () => {
+    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "ios") return;
+
+    try {
+      await StatusBar.setOverlaysWebView({ overlay: false });
+    } catch (error) {
+      console.warn("[ChatImageInput] Failed to restore status bar overlay:", error);
+    }
+  };
 
   const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
     const { skipCompression = false } = options ?? {};
@@ -79,42 +90,58 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     setUploading(true);
     console.log("[ChatImageInput] handleNativePhotoPick START");
     try {
-      const permissions = await Camera.checkPermissions();
-      console.log("[ChatImageInput] permissions.photos (pre-pick):", permissions.photos);
-      if (permissions.photos === "denied") {
+      // Request permissions if not yet granted (matches vault pattern that reliably initializes the plugin)
+      let permissions = await Camera.checkPermissions();
+      console.log("[ChatImageInput] permissions.photos (pre-check):", permissions.photos);
+      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
+        permissions = await Camera.requestPermissions();
+        console.log("[ChatImageInput] permissions.photos (after request):", permissions.photos);
+      }
+      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
         throw new Error("Photo library access denied. Please allow Photos access in Settings.");
       }
 
-      const pickPhotoFromLibrary = () =>
+      const pickPhotoFromLibrary = (resultType: CameraResultType = CameraResultType.Uri) =>
         Camera.getPhoto({
-          resultType: CameraResultType.DataUrl,
+          resultType,
           source: CameraSource.Photos,
           quality: 80,
           width: 1280,
           height: 1280,
         });
 
-      console.log("[ChatImageInput] calling getPhoto (single-shot DataUrl mode)...");
-      const photo = await pickPhotoFromLibrary();
-      console.log("[ChatImageInput] getPhoto OK", {
-        webPath: photo.webPath,
-        path: photo.path,
-        format: photo.format,
-        hasBase64: !!photo.base64String,
-        hasDataUrl: !!photo.dataUrl,
-      });
+      // Attempt 1: URI mode (most reliable when plugin is initialized)
+      let photo: Awaited<ReturnType<typeof pickPhotoFromLibrary>>;
+      try {
+        console.log("[ChatImageInput] calling getPhoto (URI mode, attempt 1)...");
+        photo = await pickPhotoFromLibrary(CameraResultType.Uri);
+        console.log("[ChatImageInput] getPhoto OK", { webPath: photo.webPath, path: photo.path, format: photo.format, hasBase64: !!photo.base64String });
+      } catch (pickerError) {
+        console.warn("[ChatImageInput] getPhoto attempt 1 failed:", pickerError);
+        if (isCancelledSelectionError(pickerError)) throw pickerError;
 
-      if (!hasCameraPhotoSource(photo) && !photo.dataUrl) {
-        throw new Error("No photo selected (missing base64String/dataUrl/webPath/path)");
+        // Small delay then retry (matches vault pattern)
+        await new Promise<void>((resolve) => setTimeout(resolve, 250));
+        console.log("[ChatImageInput] calling getPhoto (URI mode, attempt 2)...");
+        photo = await pickPhotoFromLibrary(CameraResultType.Uri);
+        console.log("[ChatImageInput] getPhoto attempt 2 OK", { webPath: photo.webPath, path: photo.path, format: photo.format });
       }
 
-      console.log("[ChatImageInput] calling cameraPhotoToBlob (single-shot conversion)...");
-      const result = await cameraPhotoToBlob({
-        base64String: photo.base64String ?? photo.dataUrl,
-        webPath: photo.webPath,
-        path: photo.path,
-        format: photo.format,
-      });
+      if (!hasCameraPhotoSource(photo)) {
+        throw new Error("No photo selected (missing base64String/webPath/path)");
+      }
+
+      console.log("[ChatImageInput] calling cameraPhotoToBlob...");
+      let result: { blob: Blob; mimeType: string; extension: string; previewUrl: string };
+      try {
+        result = await cameraPhotoToBlob(photo);
+      } catch (uriFetchError) {
+        // Fallback: re-pick with Base64 mode (matches vault fallback)
+        console.warn("[ChatImageInput] URI-based fetch failed, retrying with Base64 mode:", uriFetchError);
+        const base64Photo = await pickPhotoFromLibrary(CameraResultType.Base64);
+        if (!base64Photo.base64String) throw new Error("Base64 fallback returned no data");
+        result = await cameraPhotoToBlob(base64Photo);
+      }
 
       const blobResult: { blob: Blob; mimeType: string; previewUrl: string } = {
         blob: result.blob,
@@ -159,6 +186,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       }
       setLocalPreview(null);
     } finally {
+      await restoreNativeStatusBarOverlay();
       setUploading(false);
     }
   };

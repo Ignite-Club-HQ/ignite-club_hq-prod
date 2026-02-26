@@ -14,6 +14,7 @@ import { compressImage, formatFileSize } from "@/lib/imageCompression";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { StatusBar } from "@capacitor/status-bar";
 import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 
@@ -69,6 +70,16 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const shouldUseNativePhotoPicker = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const primaryFileInputRef = useRef<HTMLInputElement>(null);
   const addMoreFileInputRef = useRef<HTMLInputElement>(null);
+
+  const restoreNativeStatusBarOverlay = async () => {
+    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "ios") return;
+
+    try {
+      await StatusBar.setOverlaysWebView({ overlay: false });
+    } catch (error) {
+      console.warn("[UploadPhotoSheet] Failed to restore status bar overlay:", error);
+    }
+  };
 
   // Get user roles
   const { data: userRoles } = useQuery({
@@ -475,47 +486,60 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     setIsPickingNativePhoto(true);
     console.log("[UploadPhotoSheet] handleNativePhotoPick START");
     try {
-      const permissions = await CapacitorCamera.checkPermissions();
-      console.log("[UploadPhotoSheet] permissions.photos (pre-pick):", permissions.photos);
-      if (permissions.photos === "denied") {
+      // Request permissions if not yet granted (matches vault pattern that reliably initializes the plugin)
+      let permissions = await CapacitorCamera.checkPermissions();
+      console.log("[UploadPhotoSheet] permissions.photos (pre-check):", permissions.photos);
+      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
+        permissions = await CapacitorCamera.requestPermissions();
+        console.log("[UploadPhotoSheet] permissions.photos (after request):", permissions.photos);
+      }
+      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
         throw new Error("Photo library access denied. Please allow Photos access in Settings.");
       }
 
-      const pickPhotoFromLibrary = () =>
+      const pickPhotoFromLibrary = (resultType: CameraResultType = CameraResultType.Uri) =>
         CapacitorCamera.getPhoto({
-          resultType: CameraResultType.DataUrl,
+          resultType,
           source: CameraSource.Photos,
           quality: 80,
           width: 2000,
           height: 2000,
         });
 
-      console.log("[UploadPhotoSheet] calling getPhoto (single-shot DataUrl mode)...");
-      const photo = await pickPhotoFromLibrary();
-      console.log("[UploadPhotoSheet] getPhoto OK", {
-        webPath: photo.webPath,
-        path: photo.path,
-        format: photo.format,
-        hasBase64: !!photo.base64String,
-        hasDataUrl: !!photo.dataUrl,
-      });
+      // Attempt 1: URI mode (most reliable when plugin is initialized)
+      let photo: Awaited<ReturnType<typeof pickPhotoFromLibrary>>;
+      try {
+        console.log("[UploadPhotoSheet] calling getPhoto (URI mode, attempt 1)...");
+        photo = await pickPhotoFromLibrary(CameraResultType.Uri);
+        console.log("[UploadPhotoSheet] getPhoto OK", { webPath: photo.webPath, path: photo.path, format: photo.format, hasBase64: !!photo.base64String });
+      } catch (pickerError) {
+        console.warn("[UploadPhotoSheet] getPhoto attempt 1 failed:", pickerError);
+        if (isCancelledSelectionError(pickerError)) throw pickerError;
 
-      if (!hasCameraPhotoSource(photo) && !photo.dataUrl) {
-        throw new Error("No photo selected (missing base64String/dataUrl/webPath/path)");
+        // Small delay then retry (matches vault pattern)
+        await new Promise<void>((resolve) => setTimeout(resolve, 250));
+        console.log("[UploadPhotoSheet] calling getPhoto (URI mode, attempt 2)...");
+        photo = await pickPhotoFromLibrary(CameraResultType.Uri);
+        console.log("[UploadPhotoSheet] getPhoto attempt 2 OK", { webPath: photo.webPath, path: photo.path, format: photo.format });
       }
 
-      console.log("[UploadPhotoSheet] calling cameraPhotoToBlob (single-shot conversion)...");
-      const result = await cameraPhotoToBlob({
-        base64String: photo.base64String ?? photo.dataUrl,
-        webPath: photo.webPath,
-        path: photo.path,
-        format: photo.format,
-      });
-      const blobResult: { blob: Blob; mimeType: string; extension: string } = {
-        blob: result.blob,
-        mimeType: result.mimeType,
-        extension: result.extension,
-      };
+      if (!hasCameraPhotoSource(photo)) {
+        throw new Error("No photo selected (missing base64String/webPath/path)");
+      }
+
+      console.log("[UploadPhotoSheet] calling cameraPhotoToBlob...");
+      let blobResult: { blob: Blob; mimeType: string; extension: string };
+      try {
+        const result = await cameraPhotoToBlob(photo);
+        blobResult = { blob: result.blob, mimeType: result.mimeType, extension: result.extension };
+      } catch (uriFetchError) {
+        // Fallback: re-pick with Base64 mode (matches vault fallback)
+        console.warn("[UploadPhotoSheet] URI-based fetch failed, retrying with Base64 mode:", uriFetchError);
+        const base64Photo = await pickPhotoFromLibrary(CameraResultType.Base64);
+        if (!base64Photo.base64String) throw new Error("Base64 fallback returned no data");
+        const result = await cameraPhotoToBlob(base64Photo);
+        blobResult = { blob: result.blob, mimeType: result.mimeType, extension: result.extension };
+      }
       const { blob, mimeType, extension } = blobResult;
       console.log("[UploadPhotoSheet] blob ready, size:", blob.size, "mime:", mimeType);
       const file = new File([blob], `photo-${Date.now()}.${extension}`, {
@@ -533,6 +557,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         console.log("[UploadPhotoSheet] user cancelled");
       }
     } finally {
+      await restoreNativeStatusBarOverlay();
       setIsPickingNativePhoto(false);
     }
   };
