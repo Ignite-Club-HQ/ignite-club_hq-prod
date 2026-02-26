@@ -35,6 +35,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages, removeMessageFromCache } from "@/lib/messageCache";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
+import { Capacitor } from "@capacitor/core";
 
 
 const REACTION_EMOJIS = ["❤️", "🔥", "👏", "😂", "😮", "😢"];
@@ -90,6 +91,7 @@ export default function GroupChatPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
   // Mark group message notifications as read when opening this thread
   useEffect(() => {
@@ -1266,7 +1268,11 @@ export default function GroupChatPage() {
             isSearchResult={!!searchQuery}
           />
         ) : (
-          <div className="flex-1 h-full overflow-y-auto overscroll-contain scrollbar-hide" ref={scrollAreaRef} style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div
+            className="flex-1 h-full overflow-y-auto overscroll-none scrollbar-hide"
+            ref={scrollAreaRef}
+            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
+          >
             <div className="space-y-4 p-4 pb-20">
             {/* Invisible trigger for infinite scroll */}
             {hasOlderMessages && !searchQuery && (
