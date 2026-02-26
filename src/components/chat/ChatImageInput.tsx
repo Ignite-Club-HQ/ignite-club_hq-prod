@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
+import { StatusBar } from "@capacitor/status-bar";
 import { cameraPhotoToBlob, hasCameraPhotoSource, mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 
@@ -25,6 +26,16 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+
+  const restoreNativeStatusBarOverlay = async () => {
+    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "ios") return;
+
+    try {
+      await StatusBar.setOverlaysWebView({ overlay: false });
+    } catch (error) {
+      console.warn("[ChatImageInput] Failed to restore status bar overlay:", error);
+    }
+  };
 
   const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
     const { skipCompression = false } = options ?? {};
@@ -159,6 +170,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       }
       setLocalPreview(null);
     } finally {
+      await restoreNativeStatusBarOverlay();
       setUploading(false);
     }
   };
