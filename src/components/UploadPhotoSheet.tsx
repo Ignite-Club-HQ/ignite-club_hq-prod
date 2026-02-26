@@ -14,6 +14,7 @@ import { compressImage, formatFileSize } from "@/lib/imageCompression";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { StatusBar } from "@capacitor/status-bar";
 import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 
@@ -69,6 +70,16 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const shouldUseNativePhotoPicker = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const primaryFileInputRef = useRef<HTMLInputElement>(null);
   const addMoreFileInputRef = useRef<HTMLInputElement>(null);
+
+  const restoreNativeStatusBarOverlay = async () => {
+    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "ios") return;
+
+    try {
+      await StatusBar.setOverlaysWebView({ overlay: false });
+    } catch (error) {
+      console.warn("[UploadPhotoSheet] Failed to restore status bar overlay:", error);
+    }
+  };
 
   // Get user roles
   const { data: userRoles } = useQuery({
@@ -533,6 +544,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         console.log("[UploadPhotoSheet] user cancelled");
       }
     } finally {
+      await restoreNativeStatusBarOverlay();
       setIsPickingNativePhoto(false);
     }
   };
