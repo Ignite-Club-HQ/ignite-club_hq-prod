@@ -39,6 +39,12 @@ verify_jwt = false
 [functions.send-photo-report-email]
 verify_jwt = false
 
+[functions.send-comment-report-email]
+verify_jwt = false
+
+[functions.send-message-report-email]
+verify_jwt = false
+
 [functions.google-drive-import]
 verify_jwt = false
 

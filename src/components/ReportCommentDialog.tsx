@@ -15,22 +15,21 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-interface ReportPhotoDialogProps {
+interface ReportCommentDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  photoId: string;
+  commentId: string;
 }
 
 const REPORT_REASONS = [
   { value: "inappropriate", label: "Inappropriate content" },
   { value: "offensive", label: "Offensive or harmful" },
-  { value: "privacy", label: "Privacy concern" },
-  { value: "copyright", label: "Copyright violation" },
+  { value: "harassment", label: "Harassment or bullying" },
   { value: "spam", label: "Spam or misleading" },
   { value: "other", label: "Other" },
 ];
 
-export function ReportPhotoDialog({ isOpen, onClose, photoId }: ReportPhotoDialogProps) {
+export function ReportCommentDialog({ isOpen, onClose, commentId }: ReportCommentDialogProps) {
   const [reason, setReason] = useState("");
   const [additionalDetails, setAdditionalDetails] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -46,13 +45,13 @@ export function ReportPhotoDialog({ isOpen, onClose, photoId }: ReportPhotoDialo
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        toast.error("You must be logged in to report a photo");
+        toast.error("You must be logged in to report a comment");
         return;
       }
 
-      const response = await supabase.functions.invoke("send-photo-report-email", {
+      const response = await supabase.functions.invoke("send-comment-report-email", {
         body: {
-          photoId,
+          commentId,
           reason: REPORT_REASONS.find(r => r.value === reason)?.label || reason,
           additionalDetails: additionalDetails.trim() || undefined,
         },
@@ -84,21 +83,21 @@ export function ReportPhotoDialog({ isOpen, onClose, photoId }: ReportPhotoDialo
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <Flag className="h-5 w-5 text-destructive shrink-0" />
-            Report Photo
+            Report Comment
           </DialogTitle>
           <DialogDescription className="text-sm">
-            Help us maintain a safe community by reporting inappropriate content.
+            Help us maintain a safe community by reporting inappropriate comments.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="space-y-3">
-            <Label className="text-sm font-medium">Why are you reporting this photo?</Label>
+            <Label className="text-sm font-medium">Why are you reporting this comment?</Label>
             <RadioGroup value={reason} onValueChange={setReason} className="space-y-2">
               {REPORT_REASONS.map((option) => (
                 <div key={option.value} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-muted/50 -mx-2">
-                  <RadioGroupItem value={option.value} id={option.value} />
-                  <Label htmlFor={option.value} className="font-normal cursor-pointer text-sm flex-1">
+                  <RadioGroupItem value={option.value} id={`comment-${option.value}`} />
+                  <Label htmlFor={`comment-${option.value}`} className="font-normal cursor-pointer text-sm flex-1">
                     {option.label}
                   </Label>
                 </div>
@@ -107,9 +106,9 @@ export function ReportPhotoDialog({ isOpen, onClose, photoId }: ReportPhotoDialo
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="details" className="text-sm font-medium">Additional details (optional)</Label>
+            <Label htmlFor="comment-details" className="text-sm font-medium">Additional details (optional)</Label>
             <Textarea
-              id="details"
+              id="comment-details"
               placeholder="Provide any additional context..."
               value={additionalDetails}
               onChange={(e) => setAdditionalDetails(e.target.value)}
@@ -124,9 +123,9 @@ export function ReportPhotoDialog({ isOpen, onClose, photoId }: ReportPhotoDialo
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-col pt-1">
-          <Button 
-            variant="destructive" 
-            onClick={handleSubmit} 
+          <Button
+            variant="destructive"
+            onClick={handleSubmit}
             disabled={!reason || submitting}
             className="w-full"
           >
