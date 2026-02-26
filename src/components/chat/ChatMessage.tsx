@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { MoreVertical, Pencil, Trash2, X, Check, Reply, Clock, ShieldAlert } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, X, Check, Reply, Clock, ShieldAlert, Flag } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ import type { ReaderInfo } from "@/hooks/useMessageReads";
 import { toast } from "sonner";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
+import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
 
 interface Reaction {
   id: string;
@@ -87,6 +88,7 @@ export const ChatMessage = memo(function ChatMessage({
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(text);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
@@ -593,6 +595,13 @@ export const ChatMessage = memo(function ChatMessage({
                 )}
                 {!isOwn && !isSystemMessage && (
                   <DropdownMenuItem 
+                    onClick={() => setShowReportDialog(true)}
+                  >
+                    <Flag className="h-4 w-4 mr-2" /> Report Message
+                  </DropdownMenuItem>
+                )}
+                {!isOwn && !isSystemMessage && (
+                  <DropdownMenuItem 
                     onClick={() => setShowBlockDialog(true)}
                     className="text-destructive"
                   >
@@ -633,6 +642,14 @@ export const ChatMessage = memo(function ChatMessage({
           onOpenChange={setShowBlockDialog}
           userId={authorId}
           userName={authorName || "this user"}
+        />
+      )}
+      {showReportDialog && (
+        <ReportMessageDialog
+          isOpen={showReportDialog}
+          onClose={() => setShowReportDialog(false)}
+          messageId={id}
+          messageType={messageType === "dm" ? "direct" : messageType}
         />
       )}
     </div>

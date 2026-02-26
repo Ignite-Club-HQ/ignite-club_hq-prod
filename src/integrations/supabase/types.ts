@@ -2592,6 +2592,48 @@ export type Database = {
           },
         ]
       }
+      message_reports: {
+        Row: {
+          additional_details: string | null
+          created_at: string
+          id: string
+          message_id: string
+          message_type: string
+          reason: string
+          reporter_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          additional_details?: string | null
+          created_at?: string
+          id?: string
+          message_id: string
+          message_type: string
+          reason: string
+          reporter_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          additional_details?: string | null
+          created_at?: string
+          id?: string
+          message_id?: string
+          message_type?: string
+          reason?: string
+          reporter_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       mini_league_group_duties: {
         Row: {
           assigned_to: string | null
