@@ -49,16 +49,17 @@ export function ReportCommentDialog({ isOpen, onClose, commentId }: ReportCommen
         return;
       }
 
-      const { error } = await supabase
-        .from("comment_reports")
-        .insert({
-          comment_id: commentId,
-          reporter_id: session.user.id,
+      const response = await supabase.functions.invoke("send-comment-report-email", {
+        body: {
+          commentId,
           reason: REPORT_REASONS.find(r => r.value === reason)?.label || reason,
-          additional_details: additionalDetails.trim() || null,
-        });
+          additionalDetails: additionalDetails.trim() || undefined,
+        },
+      });
 
-      if (error) throw error;
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
 
       toast.success("Report submitted successfully. Our team will review it.");
       handleClose();
