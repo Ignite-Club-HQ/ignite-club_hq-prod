@@ -26,6 +26,7 @@ import { ChatSearch, highlightText } from "@/components/chat/ChatSearch";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
 import { IGNITE_SUPPORT_USER_ID, isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessageReads } from "@/hooks/useMessageReads";
+import { Capacitor } from "@capacitor/core";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -80,6 +81,7 @@ export default function DirectMessagePage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   
   const scrollToBottom = useCallback(() => {
     if (!scrollAreaRef.current) return;
@@ -671,7 +673,11 @@ export default function DirectMessagePage() {
       <PullToRefreshIndicator isRefreshing={isRefreshing} pullDistance={pullDistance} pullProgress={pullProgress} />
 
       {/* Messages area */}
-      <div ref={scrollAreaRef} className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-contain scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div
+        ref={scrollAreaRef}
+        className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
+        style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
+      >
         <div className="py-4 space-y-4 pb-20">
           {showLoading ? (
             <div className="flex justify-center py-8">

@@ -26,6 +26,7 @@ import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { Capacitor } from "@capacitor/core";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -62,6 +63,7 @@ export default function BroadcastChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
+  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
   // Mark broadcast notifications as read when opening this thread
   useEffect(() => {
@@ -809,7 +811,11 @@ export default function BroadcastChatPage() {
             isSearchResult={!!searchQuery}
           />
         ) : (
-          <div className="flex-1 h-full overflow-y-auto overscroll-contain scrollbar-hide" ref={scrollAreaRef} style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div
+            className="flex-1 h-full overflow-y-auto overscroll-none scrollbar-hide"
+            ref={scrollAreaRef}
+            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
+          >
             <div className="space-y-4 pr-4 pb-20">
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (

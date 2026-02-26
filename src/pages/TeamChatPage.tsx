@@ -30,7 +30,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget, type QueuedMessage } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
-
+import { Capacitor } from "@capacitor/core";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -78,6 +78,7 @@ export default function TeamChatPage() {
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const { isOnline } = useOnlineStatus();
+  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
   // Mark team message notifications as read when opening this thread
   useEffect(() => {
@@ -1009,7 +1010,11 @@ export default function TeamChatPage() {
             isSearchResult={!!searchQuery}
           />
         ) : (
-          <div className="flex-1 h-full overflow-y-auto overscroll-contain scrollbar-hide" ref={scrollAreaRef} style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div
+            className="flex-1 h-full overflow-y-auto overscroll-none scrollbar-hide"
+            ref={scrollAreaRef}
+            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
+          >
             <div className="space-y-4 pr-4 pb-20">
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
