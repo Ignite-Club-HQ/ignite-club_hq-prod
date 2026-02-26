@@ -481,74 +481,41 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         throw new Error("Photo library access denied. Please allow Photos access in Settings.");
       }
 
-      const pickPhotoFromLibrary = (resultType: CameraResultType = CameraResultType.Uri) =>
+      const pickPhotoFromLibrary = () =>
         CapacitorCamera.getPhoto({
-          resultType,
+          resultType: CameraResultType.DataUrl,
           source: CameraSource.Photos,
           quality: 80,
           width: 2000,
           height: 2000,
         });
 
-      let photo: Awaited<ReturnType<typeof pickPhotoFromLibrary>>;
-      try {
-        console.log("[UploadPhotoSheet] calling getPhoto (Base64 mode, attempt 1)...");
-        photo = await pickPhotoFromLibrary(CameraResultType.Base64);
-        console.log("[UploadPhotoSheet] getPhoto OK", {
-          webPath: photo.webPath,
-          path: photo.path,
-          format: photo.format,
-          hasBase64: !!photo.base64String,
-          hasDataUrl: !!photo.dataUrl,
-        });
-      } catch (pickerError) {
-        console.warn("[UploadPhotoSheet] getPhoto attempt 1 failed:", pickerError);
-        if (isCancelledSelectionError(pickerError)) {
-          throw pickerError;
-        }
-
-        await new Promise<void>((resolve) => setTimeout(resolve, 250));
-        console.log("[UploadPhotoSheet] calling getPhoto (Base64 mode, attempt 2)...");
-        photo = await pickPhotoFromLibrary(CameraResultType.Base64);
-        console.log("[UploadPhotoSheet] getPhoto attempt 2 OK", {
-          webPath: photo.webPath,
-          path: photo.path,
-          format: photo.format,
-          hasBase64: !!photo.base64String,
-          hasDataUrl: !!photo.dataUrl,
-        });
-      }
+      console.log("[UploadPhotoSheet] calling getPhoto (single-shot DataUrl mode)...");
+      const photo = await pickPhotoFromLibrary();
+      console.log("[UploadPhotoSheet] getPhoto OK", {
+        webPath: photo.webPath,
+        path: photo.path,
+        format: photo.format,
+        hasBase64: !!photo.base64String,
+        hasDataUrl: !!photo.dataUrl,
+      });
 
       if (!hasCameraPhotoSource(photo) && !photo.dataUrl) {
         throw new Error("No photo selected (missing base64String/dataUrl/webPath/path)");
       }
 
-      console.log("[UploadPhotoSheet] calling cameraPhotoToBlob...");
-      let blobResult: { blob: Blob; mimeType: string; extension: string };
-      try {
-        const result = await cameraPhotoToBlob(photo);
-        blobResult = { blob: result.blob, mimeType: result.mimeType, extension: result.extension };
-      } catch (base64FirstError) {
-        console.warn("[UploadPhotoSheet] Base64-first conversion failed, retrying with DataUrl mode:", base64FirstError);
-
-        try {
-          const dataUrlPhoto = await pickPhotoFromLibrary(CameraResultType.DataUrl);
-          if (!dataUrlPhoto.dataUrl) throw new Error("DataUrl fallback returned no data");
-          const result = await cameraPhotoToBlob({
-            base64String: dataUrlPhoto.dataUrl,
-            format: dataUrlPhoto.format,
-            webPath: dataUrlPhoto.webPath,
-            path: dataUrlPhoto.path,
-          });
-          blobResult = { blob: result.blob, mimeType: result.mimeType, extension: result.extension };
-        } catch (dataUrlError) {
-          console.warn("[UploadPhotoSheet] DataUrl fallback failed, retrying with URI mode:", dataUrlError);
-          const uriPhoto = await pickPhotoFromLibrary(CameraResultType.Uri);
-          if (!hasCameraPhotoSource(uriPhoto)) throw new Error("URI fallback returned no photo source");
-          const result = await cameraPhotoToBlob(uriPhoto);
-          blobResult = { blob: result.blob, mimeType: result.mimeType, extension: result.extension };
-        }
-      }
+      console.log("[UploadPhotoSheet] calling cameraPhotoToBlob (single-shot conversion)...");
+      const result = await cameraPhotoToBlob({
+        base64String: photo.base64String ?? photo.dataUrl,
+        webPath: photo.webPath,
+        path: photo.path,
+        format: photo.format,
+      });
+      const blobResult: { blob: Blob; mimeType: string; extension: string } = {
+        blob: result.blob,
+        mimeType: result.mimeType,
+        extension: result.extension,
+      };
       const { blob, mimeType, extension } = blobResult;
       console.log("[UploadPhotoSheet] blob ready, size:", blob.size, "mime:", mimeType);
       const file = new File([blob], `photo-${Date.now()}.${extension}`, {
