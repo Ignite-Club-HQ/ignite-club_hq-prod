@@ -583,9 +583,6 @@ export const ChatMessage = memo(function ChatMessage({
                     <Reply className="h-4 w-4 mr-2" /> Reply
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={handleShowReactions}>
-                  React
-                </DropdownMenuItem>
                 {canDelete && (
                   <DropdownMenuItem 
                     onClick={handleDelete}
