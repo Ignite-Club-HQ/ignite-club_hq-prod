@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { ImagePlus, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -225,6 +225,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     onImageUploaded(null);
   };
 
+  const [previewFailed, setPreviewFailed] = useState(false);
+
+  // Reset previewFailed when the image source changes
+  useEffect(() => {
+    setPreviewFailed(false);
+  }, [localPreview, imageUrl]);
+
   const displayUrl = localPreview || imageUrl;
 
   return (
@@ -240,11 +247,18 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
       {displayUrl ? (
         <div className="relative">
-          <img
-            src={displayUrl}
-            alt="Attachment preview"
-            className="h-10 w-10 object-cover rounded"
-          />
+          {previewFailed ? (
+            <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
+              <ImagePlus className="h-5 w-5 text-muted-foreground" />
+            </div>
+          ) : (
+            <img
+              src={displayUrl}
+              alt="Attachment preview"
+              className="h-10 w-10 object-cover rounded"
+              onError={() => setPreviewFailed(true)}
+            />
+          )}
           {uploading && (
             <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
