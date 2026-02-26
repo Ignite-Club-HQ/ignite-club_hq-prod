@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { updateProfileCache } from "@/lib/profileCache";
+import { Capacitor } from "@capacitor/core";
 
 export default function EditProfilePage() {
   const { user, profile, refreshProfile } = useAuth();
@@ -26,6 +27,52 @@ export default function EditProfilePage() {
       setAvatarUrl(profile.avatar_url || "");
     }
   }, [profile]);
+
+  const isNative = Capacitor.isNativePlatform();
+
+  const handleNativeAvatarPick = async () => {
+    if (!user) return;
+    setUploadingAvatar(true);
+    try {
+      const { Camera: CapCamera, CameraResultType, CameraSource } = await import("@capacitor/camera");
+      const photo = await CapCamera.getPhoto({
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Photos,
+        quality: 80,
+        width: 512,
+        height: 512,
+      });
+
+      if (!photo.webPath) throw new Error("No photo selected");
+
+      const response = await fetch(photo.webPath);
+      const blob = await response.blob();
+      
+      if (blob.size > 2 * 1024 * 1024) {
+        toast({ title: "File too large", description: "Please select an image under 2MB", variant: "destructive" });
+        setUploadingAvatar(false);
+        return;
+      }
+
+      const ext = photo.format || "jpeg";
+      const fileName = `${user.id}-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(fileName, blob, { upsert: true, contentType: `image/${ext}` });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage.from("avatars").getPublicUrl(fileName);
+      setAvatarUrl(publicUrlData.publicUrl);
+      toast({ title: "Photo uploaded!" });
+    } catch (error: any) {
+      if (error?.message?.includes("cancelled") || error?.message?.includes("User cancelled")) {
+        // User cancelled picker - do nothing
+      } else {
+        toast({ title: "Upload failed", description: error instanceof Error ? error.message : "Could not upload photo", variant: "destructive" });
+      }
+    }
+    setUploadingAvatar(false);
+  };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -166,17 +213,19 @@ export default function EditProfilePage() {
               Profile Photo
             </Label>
             <div className="flex items-center gap-3">
-              <input
-                type="file"
-                id="avatar-upload"
-                accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
-                onChange={handleAvatarUpload}
-                className="hidden"
-              />
+              {!isNative && (
+                <input
+                  type="file"
+                  id="avatar-upload"
+                  accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
+                  onChange={handleAvatarUpload}
+                  className="hidden"
+                />
+              )}
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => document.getElementById('avatar-upload')?.click()}
+                onClick={isNative ? handleNativeAvatarPick : () => document.getElementById('avatar-upload')?.click()}
                 disabled={uploadingAvatar}
                 className="flex-1"
               >
