@@ -90,58 +90,39 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     setUploading(true);
     console.log("[ChatImageInput] handleNativePhotoPick START");
     try {
-      // Request permissions if not yet granted (matches vault pattern that reliably initializes the plugin)
+      // Only request Photos access on iOS gallery flows (never camera permission)
       let permissions = await Camera.checkPermissions();
       console.log("[ChatImageInput] permissions.photos (pre-check):", permissions.photos);
       if (permissions.photos !== "granted" && permissions.photos !== "limited") {
-        permissions = await Camera.requestPermissions();
+        permissions = await Camera.requestPermissions({ permissions: ["photos"] });
         console.log("[ChatImageInput] permissions.photos (after request):", permissions.photos);
       }
       if (permissions.photos !== "granted" && permissions.photos !== "limited") {
         throw new Error("Photo library access denied. Please allow Photos access in Settings.");
       }
 
-      const pickPhotoFromLibrary = (resultType: CameraResultType = CameraResultType.Uri) =>
-        Camera.getPhoto({
-          resultType,
-          source: CameraSource.Photos,
-          quality: 80,
-          width: 1280,
-          height: 1280,
-        });
-
-      // Attempt 1: URI mode (most reliable when plugin is initialized)
-      let photo: Awaited<ReturnType<typeof pickPhotoFromLibrary>>;
-      try {
-        console.log("[ChatImageInput] calling getPhoto (URI mode, attempt 1)...");
-        photo = await pickPhotoFromLibrary(CameraResultType.Uri);
-        console.log("[ChatImageInput] getPhoto OK", { webPath: photo.webPath, path: photo.path, format: photo.format, hasBase64: !!photo.base64String });
-      } catch (pickerError) {
-        console.warn("[ChatImageInput] getPhoto attempt 1 failed:", pickerError);
-        if (isCancelledSelectionError(pickerError)) throw pickerError;
-
-        // Small delay then retry (matches vault pattern)
-        await new Promise<void>((resolve) => setTimeout(resolve, 250));
-        console.log("[ChatImageInput] calling getPhoto (URI mode, attempt 2)...");
-        photo = await pickPhotoFromLibrary(CameraResultType.Uri);
-        console.log("[ChatImageInput] getPhoto attempt 2 OK", { webPath: photo.webPath, path: photo.path, format: photo.format });
-      }
+      console.log("[ChatImageInput] calling getPhoto (Base64 mode, single attempt)...");
+      const photo = await Camera.getPhoto({
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Photos,
+        allowEditing: false,
+        quality: 80,
+        width: 1280,
+        height: 1280,
+      });
+      console.log("[ChatImageInput] getPhoto OK", {
+        webPath: photo.webPath,
+        path: photo.path,
+        format: photo.format,
+        hasBase64: !!photo.base64String,
+      });
 
       if (!hasCameraPhotoSource(photo)) {
         throw new Error("No photo selected (missing base64String/webPath/path)");
       }
 
       console.log("[ChatImageInput] calling cameraPhotoToBlob...");
-      let result: { blob: Blob; mimeType: string; extension: string; previewUrl: string };
-      try {
-        result = await cameraPhotoToBlob(photo);
-      } catch (uriFetchError) {
-        // Fallback: re-pick with Base64 mode (matches vault fallback)
-        console.warn("[ChatImageInput] URI-based fetch failed, retrying with Base64 mode:", uriFetchError);
-        const base64Photo = await pickPhotoFromLibrary(CameraResultType.Base64);
-        if (!base64Photo.base64String) throw new Error("Base64 fallback returned no data");
-        result = await cameraPhotoToBlob(base64Photo);
-      }
+      const result = await cameraPhotoToBlob(photo);
 
       const blobResult: { blob: Blob; mimeType: string; previewUrl: string } = {
         blob: result.blob,
