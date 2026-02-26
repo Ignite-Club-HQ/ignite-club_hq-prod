@@ -137,6 +137,16 @@ export default function AccountPage() {
               <p className="text-xs text-muted-foreground">Usage terms and conditions</p>
             </div>
           </button>
+          <button 
+            onClick={() => safeOpenUrl("https://igniteclubhq.com/cancellation")}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors w-full text-left"
+          >
+            <FileText className="h-5 w-5 text-muted-foreground" />
+            <div>
+              <p className="font-medium">Cancellation Policy</p>
+              <p className="text-xs text-muted-foreground">How to cancel your subscription</p>
+            </div>
+          </button>
         </CardContent>
       </Card>
 
