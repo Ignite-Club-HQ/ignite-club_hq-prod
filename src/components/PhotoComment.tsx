@@ -1,6 +1,6 @@
 import { useState, memo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreVertical, Pencil, Trash2, Check, X, Smile, Reply, ShieldAlert } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, Check, X, Smile, Reply, ShieldAlert, Flag } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
+import { ReportCommentDialog } from "@/components/ReportCommentDialog";
 
 const REACTION_EMOJIS = [
   { type: "like", emoji: "❤️" },
@@ -132,6 +133,7 @@ export const PhotoComment = memo(function PhotoComment({
   const [displayText, setDisplayText] = useState(text);
   const [reactionPopoverOpen, setReactionPopoverOpen] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
   const queryClient = useQueryClient();
   const isOwn = userId === currentUserId;
   const { isBlocked } = useBlockedUsers();
@@ -448,6 +450,11 @@ export const PhotoComment = memo(function PhotoComment({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-popover border">
                 <DropdownMenuItem
+                  onClick={() => setShowReportDialog(true)}
+                >
+                  <Flag className="h-3 w-3 mr-2" /> Report Comment
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={() => setShowBlockDialog(true)}
                   className="text-destructive"
                 >
@@ -464,6 +471,13 @@ export const PhotoComment = memo(function PhotoComment({
           onOpenChange={setShowBlockDialog}
           userId={userId}
           userName={displayName || "this user"}
+        />
+      )}
+      {showReportDialog && (
+        <ReportCommentDialog
+          isOpen={showReportDialog}
+          onClose={() => setShowReportDialog(false)}
+          commentId={id}
         />
       )}
     </div>
