@@ -80,25 +80,25 @@ export function ReportPhotoDialog({ isOpen, onClose, photoId }: ReportPhotoDialo
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto mx-4 rounded-xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Flag className="h-5 w-5 text-destructive" />
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Flag className="h-5 w-5 text-destructive shrink-0" />
             Report Photo
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-sm">
             Help us maintain a safe community by reporting inappropriate content.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-2">
           <div className="space-y-3">
-            <Label>Why are you reporting this photo?</Label>
-            <RadioGroup value={reason} onValueChange={setReason}>
+            <Label className="text-sm font-medium">Why are you reporting this photo?</Label>
+            <RadioGroup value={reason} onValueChange={setReason} className="space-y-2">
               {REPORT_REASONS.map((option) => (
-                <div key={option.value} className="flex items-center space-x-2">
+                <div key={option.value} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-muted/50 -mx-2">
                   <RadioGroupItem value={option.value} id={option.value} />
-                  <Label htmlFor={option.value} className="font-normal cursor-pointer">
+                  <Label htmlFor={option.value} className="font-normal cursor-pointer text-sm flex-1">
                     {option.label}
                   </Label>
                 </div>
@@ -107,14 +107,15 @@ export function ReportPhotoDialog({ isOpen, onClose, photoId }: ReportPhotoDialo
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="details">Additional details (optional)</Label>
+            <Label htmlFor="details" className="text-sm font-medium">Additional details (optional)</Label>
             <Textarea
               id="details"
-              placeholder="Provide any additional context that might help us review this report..."
+              placeholder="Provide any additional context..."
               value={additionalDetails}
               onChange={(e) => setAdditionalDetails(e.target.value)}
               rows={3}
               maxLength={500}
+              className="resize-none text-base"
             />
             <p className="text-xs text-muted-foreground text-right">
               {additionalDetails.length}/500
@@ -122,14 +123,12 @@ export function ReportPhotoDialog({ isOpen, onClose, photoId }: ReportPhotoDialo
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={handleClose} disabled={submitting}>
-            Cancel
-          </Button>
+        <DialogFooter className="flex-col gap-2 sm:flex-col pt-1">
           <Button 
             variant="destructive" 
             onClick={handleSubmit} 
             disabled={!reason || submitting}
+            className="w-full"
           >
             {submitting ? (
               <>
@@ -142,6 +141,9 @@ export function ReportPhotoDialog({ isOpen, onClose, photoId }: ReportPhotoDialo
                 Submit Report
               </>
             )}
+          </Button>
+          <Button variant="outline" onClick={handleClose} disabled={submitting} className="w-full">
+            Cancel
           </Button>
         </DialogFooter>
       </DialogContent>
