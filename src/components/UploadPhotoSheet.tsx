@@ -478,7 +478,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       let permissions = await CapacitorCamera.checkPermissions();
       console.log("[UploadPhotoSheet] permissions.photos:", permissions.photos);
       if (permissions.photos !== "granted" && permissions.photos !== "limited") {
-        permissions = await CapacitorCamera.requestPermissions();
+        permissions = await CapacitorCamera.requestPermissions({ permissions: ["photos"] });
         console.log("[UploadPhotoSheet] after request, permissions.photos:", permissions.photos);
       }
 
