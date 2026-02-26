@@ -155,6 +155,14 @@ async function saveFCMToken(userId: string, token: string): Promise<boolean> {
   try {
     const platform = getPlatform();
     
+    // IMPORTANT: Remove this token from any other users first to prevent
+    // cross-user push notification delivery when multiple accounts use the same device
+    await supabase
+      .from('fcm_tokens' as any)
+      .delete()
+      .eq('token', token)
+      .neq('user_id', userId);
+    
     // Use direct upsert - 'as any' needed since fcm_tokens is new and not in generated types
     const { error: insertError } = await supabase
       .from('fcm_tokens' as any)

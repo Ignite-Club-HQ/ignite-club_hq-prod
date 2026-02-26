@@ -131,14 +131,17 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         const result = await cameraPhotoToBlob(base64Photo);
         blobResult = { blob: result.blob, mimeType: result.mimeType, previewUrl: result.previewUrl };
       }
-      const { blob, mimeType, previewUrl } = blobResult;
+      const { blob, mimeType } = blobResult;
       console.log("[ChatImageInput] blob ready, size:", blob.size, "mime:", mimeType);
 
       if (blob.size > MAX_UPLOAD_SIZE_BYTES) {
         throw new Error("Image must be less than 10MB");
       }
 
-      setLocalPreview(previewUrl);
+      // Use a stable blob URL for preview instead of the capacitor temp path
+      // which can become invalid on iOS shortly after the picker closes
+      const stablePreviewUrl = URL.createObjectURL(blob);
+      setLocalPreview(stablePreviewUrl);
 
       const skipCompression = !IOS_SAFE_COMPRESSION_MIME_TYPES.has(mimeType);
       let storageUrl: string;

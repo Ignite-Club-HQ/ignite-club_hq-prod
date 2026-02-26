@@ -1224,7 +1224,7 @@ export default function CreateEventPage() {
         <Button
           className="w-full h-12 text-base font-semibold shadow-lg"
           onClick={handleSubmit}
-          disabled={saving || !title.trim() || !clubId || !eventDateTime}
+          disabled={saving || !title.trim() || !clubId || !eventDateTime || ((type === "game" || type === "training") && !teamId)}
         >
           {saving ? (
             <Loader2 className="h-5 w-5 animate-spin" />
