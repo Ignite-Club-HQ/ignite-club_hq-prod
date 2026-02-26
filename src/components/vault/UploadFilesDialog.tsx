@@ -89,9 +89,9 @@ export function UploadFilesDialog({
         throw new Error(`Photo library access is ${permissions.photos}`);
       }
 
-      const pickPhotoFromLibrary = () =>
+      const pickPhotoFromLibrary = (resultType: CameraResultType = CameraResultType.Uri) =>
         Camera.getPhoto({
-          resultType: CameraResultType.Uri,
+          resultType,
           source: CameraSource.Photos,
           quality: 80,
           width: 1600,
@@ -100,8 +100,8 @@ export function UploadFilesDialog({
 
       let photo: Awaited<ReturnType<typeof pickPhotoFromLibrary>>;
       try {
-        console.log("[UploadFilesDialog] calling getPhoto (attempt 1)...");
-        photo = await pickPhotoFromLibrary();
+        console.log("[UploadFilesDialog] calling getPhoto (URI mode, attempt 1)...");
+        photo = await pickPhotoFromLibrary(CameraResultType.Uri);
         console.log("[UploadFilesDialog] getPhoto OK", { webPath: photo.webPath, path: photo.path, format: photo.format, hasBase64: !!photo.base64String });
       } catch (pickerError) {
         console.warn("[UploadFilesDialog] getPhoto attempt 1 failed:", pickerError);
@@ -111,7 +111,7 @@ export function UploadFilesDialog({
 
         await new Promise<void>((resolve) => setTimeout(resolve, 250));
         console.log("[UploadFilesDialog] calling getPhoto (attempt 2)...");
-        photo = await pickPhotoFromLibrary();
+        photo = await pickPhotoFromLibrary(CameraResultType.Uri);
         console.log("[UploadFilesDialog] getPhoto attempt 2 OK", { webPath: photo.webPath, path: photo.path, format: photo.format });
       }
 
@@ -120,7 +120,18 @@ export function UploadFilesDialog({
       }
 
       console.log("[UploadFilesDialog] calling cameraPhotoToBlob...");
-      const { blob, mimeType, extension } = await cameraPhotoToBlob(photo);
+      let blobResult: { blob: Blob; mimeType: string; extension: string };
+      try {
+        const result = await cameraPhotoToBlob(photo);
+        blobResult = { blob: result.blob, mimeType: result.mimeType, extension: result.extension };
+      } catch (uriFetchError) {
+        console.warn("[UploadFilesDialog] URI-based fetch failed, retrying with Base64 mode:", uriFetchError);
+        const base64Photo = await pickPhotoFromLibrary(CameraResultType.Base64);
+        if (!base64Photo.base64String) throw new Error("Base64 fallback returned no data");
+        const result = await cameraPhotoToBlob(base64Photo);
+        blobResult = { blob: result.blob, mimeType: result.mimeType, extension: result.extension };
+      }
+      const { blob, mimeType, extension } = blobResult;
       console.log("[UploadFilesDialog] blob ready, size:", blob.size, "mime:", mimeType);
       const file = new File([blob], `photo-${Date.now()}.${extension}`, {
         type: mimeType,
@@ -288,7 +299,7 @@ export function UploadFilesDialog({
                   uploadType === "photo"
                     ? "image/png,image/jpeg,image/jpg,image/gif,image/webp,image/heic,image/heif,image/svg+xml,image/bmp,image/tiff"
                     : Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios"
-                      ? "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,application/zip,application/x-rar-compressed,video/mp4,audio/mpeg,audio/wav,video/quicktime,application/json,application/xml,text/yaml,text/markdown"
+                      ? "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,application/zip,application/x-rar-compressed,application/json,application/xml,text/xml,text/yaml,application/x-yaml,text/markdown"
                       : Capacitor.isNativePlatform()
                         ? ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.mp4,.mp3,.wav,.mov,.json,.xml,.yaml,.md"
                         : "*"

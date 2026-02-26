@@ -79,15 +79,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     setUploading(true);
     console.log("[ChatImageInput] handleNativePhotoPick START");
     try {
-      let permissions = await Camera.checkPermissions();
-      console.log("[ChatImageInput] permissions.photos:", permissions.photos);
-      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
-        permissions = await Camera.requestPermissions({ permissions: ['photos'] });
-        console.log("[ChatImageInput] after request, permissions.photos:", permissions.photos);
-      }
-
-      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
-        throw new Error(`Photo library access is ${permissions.photos}`);
+      const permissions = await Camera.checkPermissions();
+      console.log("[ChatImageInput] permissions.photos (pre-pick):", permissions.photos);
+      if (permissions.photos === "denied") {
+        throw new Error("Photo library access denied. Please allow Photos access in Settings.");
       }
 
       const pickPhotoFromLibrary = (resultType: CameraResultType = CameraResultType.Uri) =>
@@ -101,9 +96,15 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
       let photo: Awaited<ReturnType<typeof pickPhotoFromLibrary>>;
       try {
-        console.log("[ChatImageInput] calling getPhoto (URI mode, attempt 1)...");
-        photo = await pickPhotoFromLibrary(CameraResultType.Uri);
-        console.log("[ChatImageInput] getPhoto OK", { webPath: photo.webPath, path: photo.path, format: photo.format, hasBase64: !!photo.base64String });
+        console.log("[ChatImageInput] calling getPhoto (Base64 mode, attempt 1)...");
+        photo = await pickPhotoFromLibrary(CameraResultType.Base64);
+        console.log("[ChatImageInput] getPhoto OK", {
+          webPath: photo.webPath,
+          path: photo.path,
+          format: photo.format,
+          hasBase64: !!photo.base64String,
+          hasDataUrl: !!photo.dataUrl,
+        });
       } catch (pickerError) {
         console.warn("[ChatImageInput] getPhoto attempt 1 failed:", pickerError);
         if (isCancelledSelectionError(pickerError)) {
@@ -111,25 +112,46 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         }
 
         await new Promise<void>((resolve) => setTimeout(resolve, 250));
-        console.log("[ChatImageInput] calling getPhoto (attempt 2)...");
-        photo = await pickPhotoFromLibrary(CameraResultType.Uri);
-        console.log("[ChatImageInput] getPhoto attempt 2 OK", { webPath: photo.webPath, path: photo.path, format: photo.format });
+        console.log("[ChatImageInput] calling getPhoto (Base64 mode, attempt 2)...");
+        photo = await pickPhotoFromLibrary(CameraResultType.Base64);
+        console.log("[ChatImageInput] getPhoto attempt 2 OK", {
+          webPath: photo.webPath,
+          path: photo.path,
+          format: photo.format,
+          hasBase64: !!photo.base64String,
+          hasDataUrl: !!photo.dataUrl,
+        });
       }
 
-      if (!hasCameraPhotoSource(photo)) throw new Error("No photo selected (missing base64String/webPath/path)");
+      if (!hasCameraPhotoSource(photo) && !photo.dataUrl) {
+        throw new Error("No photo selected (missing base64String/dataUrl/webPath/path)");
+      }
 
       console.log("[ChatImageInput] calling cameraPhotoToBlob...");
       let blobResult: { blob: Blob; mimeType: string; previewUrl: string };
       try {
         const result = await cameraPhotoToBlob(photo);
         blobResult = { blob: result.blob, mimeType: result.mimeType, previewUrl: result.previewUrl };
-      } catch (uriFetchError) {
-        console.warn("[ChatImageInput] URI-based fetch failed, retrying with Base64 mode:", uriFetchError);
-        // Fallback: re-pick the same photo using Base64 result type
-        const base64Photo = await pickPhotoFromLibrary(CameraResultType.Base64);
-        if (!base64Photo.base64String) throw new Error("Base64 fallback returned no data");
-        const result = await cameraPhotoToBlob(base64Photo);
-        blobResult = { blob: result.blob, mimeType: result.mimeType, previewUrl: result.previewUrl };
+      } catch (base64FirstError) {
+        console.warn("[ChatImageInput] Base64-first conversion failed, retrying with DataUrl mode:", base64FirstError);
+
+        try {
+          const dataUrlPhoto = await pickPhotoFromLibrary(CameraResultType.DataUrl);
+          if (!dataUrlPhoto.dataUrl) throw new Error("DataUrl fallback returned no data");
+          const result = await cameraPhotoToBlob({
+            base64String: dataUrlPhoto.dataUrl,
+            format: dataUrlPhoto.format,
+            webPath: dataUrlPhoto.webPath,
+            path: dataUrlPhoto.path,
+          });
+          blobResult = { blob: result.blob, mimeType: result.mimeType, previewUrl: result.previewUrl };
+        } catch (dataUrlError) {
+          console.warn("[ChatImageInput] DataUrl fallback failed, retrying with URI mode:", dataUrlError);
+          const uriPhoto = await pickPhotoFromLibrary(CameraResultType.Uri);
+          if (!hasCameraPhotoSource(uriPhoto)) throw new Error("URI fallback returned no photo source");
+          const result = await cameraPhotoToBlob(uriPhoto);
+          blobResult = { blob: result.blob, mimeType: result.mimeType, previewUrl: result.previewUrl };
+        }
       }
       const { blob, mimeType } = blobResult;
       console.log("[ChatImageInput] blob ready, size:", blob.size, "mime:", mimeType);
