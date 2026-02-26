@@ -525,9 +525,11 @@ export const ChatMessage = memo(function ChatMessage({
                     <Reply className="h-4 w-4 mr-2" /> Reply
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={handleStartEdit}>
-                  <Pencil className="h-4 w-4 mr-2" /> Edit
-                </DropdownMenuItem>
+                {!imageUrl && (
+                  <DropdownMenuItem onClick={handleStartEdit}>
+                    <Pencil className="h-4 w-4 mr-2" /> Edit
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem 
                   onClick={handleDelete}
                   className="text-destructive"
