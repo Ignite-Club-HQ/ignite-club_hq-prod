@@ -82,7 +82,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       let permissions = await Camera.checkPermissions();
       console.log("[ChatImageInput] permissions.photos:", permissions.photos);
       if (permissions.photos !== "granted" && permissions.photos !== "limited") {
-        permissions = await Camera.requestPermissions();
+        permissions = await Camera.requestPermissions({ permissions: ['photos'] });
         console.log("[ChatImageInput] after request, permissions.photos:", permissions.photos);
       }
 
