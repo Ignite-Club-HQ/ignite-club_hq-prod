@@ -553,7 +553,15 @@ export const ChatMessage = memo(function ChatMessage({
             onContextMenu={handleContextMenu}
           >
             <div className="text-sm">
-              <MessageContent text={text} imageUrl={imageUrl} searchQuery={searchQuery} showPreviews={false} />
+              <MessageContent 
+                text={text} 
+                imageUrl={imageUrl} 
+                searchQuery={searchQuery} 
+                showPreviews={false}
+                showImageActions={!isOwn && !isSystemMessage && !!imageUrl}
+                onReportImage={() => setShowReportDialog(true)}
+                onBlockImageAuthor={() => setShowBlockDialog(true)}
+              />
             </div>
             <MessageReactionsPopover
               reactions={reactions}

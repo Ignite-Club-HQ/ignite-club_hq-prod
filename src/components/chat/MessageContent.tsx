@@ -14,6 +14,9 @@ interface MessageContentProps {
   searchQuery?: string;
   showPreviews?: boolean;
   previewsOnly?: boolean;
+  onReportImage?: () => void;
+  onBlockImageAuthor?: () => void;
+  showImageActions?: boolean;
 }
 
 // URL regex pattern - matches http(s):// or www. URLs
@@ -31,7 +34,7 @@ const ensureProtocol = (url: string): string => {
   return `https://${url}`;
 };
 
-export const MessageContent = memo(function MessageContent({ text, imageUrl, searchQuery, showPreviews = true, previewsOnly = false }: MessageContentProps) {
+export const MessageContent = memo(function MessageContent({ text, imageUrl, searchQuery, showPreviews = true, previewsOnly = false, onReportImage, onBlockImageAuthor, showImageActions = false }: MessageContentProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -203,6 +206,9 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
           src={effectiveImageUrl}
           alt="Attachment"
           onClose={() => setShowFullscreen(false)}
+          onReport={onReportImage}
+          onBlockUser={onBlockImageAuthor}
+          showActions={showImageActions}
         />
       )}
 
