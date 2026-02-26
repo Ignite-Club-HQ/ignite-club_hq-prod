@@ -361,7 +361,7 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
-        <div className="flex-1 overflow-hidden space-y-4">
+        <div className="flex-1 overflow-y-auto space-y-4 px-1">
           {/* Format Guide - Collapsible */}
           <Collapsible open={formatOpen} onOpenChange={setFormatOpen}>
             <CollapsibleTrigger asChild>
@@ -441,7 +441,7 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
               >
-                <CardContent className="py-8">
+                <CardContent className="py-10">
                   <div className="flex flex-col items-center gap-3 text-center">
                     <div className={`rounded-full p-3 transition-colors ${
                       isDragging ? 'bg-primary/10' : 'bg-muted'
