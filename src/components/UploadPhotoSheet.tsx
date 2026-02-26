@@ -486,60 +486,44 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     setIsPickingNativePhoto(true);
     console.log("[UploadPhotoSheet] handleNativePhotoPick START");
     try {
-      // Request permissions if not yet granted (matches vault pattern that reliably initializes the plugin)
+      // Only request Photos access on iOS gallery flows (never camera permission)
       let permissions = await CapacitorCamera.checkPermissions();
       console.log("[UploadPhotoSheet] permissions.photos (pre-check):", permissions.photos);
       if (permissions.photos !== "granted" && permissions.photos !== "limited") {
-        permissions = await CapacitorCamera.requestPermissions();
+        permissions = await CapacitorCamera.requestPermissions({ permissions: ["photos"] });
         console.log("[UploadPhotoSheet] permissions.photos (after request):", permissions.photos);
       }
       if (permissions.photos !== "granted" && permissions.photos !== "limited") {
         throw new Error("Photo library access denied. Please allow Photos access in Settings.");
       }
 
-      const pickPhotoFromLibrary = (resultType: CameraResultType = CameraResultType.Uri) =>
-        CapacitorCamera.getPhoto({
-          resultType,
-          source: CameraSource.Photos,
-          quality: 80,
-          width: 2000,
-          height: 2000,
-        });
-
-      // Attempt 1: URI mode (most reliable when plugin is initialized)
-      let photo: Awaited<ReturnType<typeof pickPhotoFromLibrary>>;
-      try {
-        console.log("[UploadPhotoSheet] calling getPhoto (URI mode, attempt 1)...");
-        photo = await pickPhotoFromLibrary(CameraResultType.Uri);
-        console.log("[UploadPhotoSheet] getPhoto OK", { webPath: photo.webPath, path: photo.path, format: photo.format, hasBase64: !!photo.base64String });
-      } catch (pickerError) {
-        console.warn("[UploadPhotoSheet] getPhoto attempt 1 failed:", pickerError);
-        if (isCancelledSelectionError(pickerError)) throw pickerError;
-
-        // Small delay then retry (matches vault pattern)
-        await new Promise<void>((resolve) => setTimeout(resolve, 250));
-        console.log("[UploadPhotoSheet] calling getPhoto (URI mode, attempt 2)...");
-        photo = await pickPhotoFromLibrary(CameraResultType.Uri);
-        console.log("[UploadPhotoSheet] getPhoto attempt 2 OK", { webPath: photo.webPath, path: photo.path, format: photo.format });
-      }
+      console.log("[UploadPhotoSheet] calling getPhoto (Base64 mode, single attempt)...");
+      const photo = await CapacitorCamera.getPhoto({
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Photos,
+        allowEditing: false,
+        quality: 80,
+        width: 2000,
+        height: 2000,
+      });
+      console.log("[UploadPhotoSheet] getPhoto OK", {
+        webPath: photo.webPath,
+        path: photo.path,
+        format: photo.format,
+        hasBase64: !!photo.base64String,
+      });
 
       if (!hasCameraPhotoSource(photo)) {
         throw new Error("No photo selected (missing base64String/webPath/path)");
       }
 
       console.log("[UploadPhotoSheet] calling cameraPhotoToBlob...");
-      let blobResult: { blob: Blob; mimeType: string; extension: string };
-      try {
-        const result = await cameraPhotoToBlob(photo);
-        blobResult = { blob: result.blob, mimeType: result.mimeType, extension: result.extension };
-      } catch (uriFetchError) {
-        // Fallback: re-pick with Base64 mode (matches vault fallback)
-        console.warn("[UploadPhotoSheet] URI-based fetch failed, retrying with Base64 mode:", uriFetchError);
-        const base64Photo = await pickPhotoFromLibrary(CameraResultType.Base64);
-        if (!base64Photo.base64String) throw new Error("Base64 fallback returned no data");
-        const result = await cameraPhotoToBlob(base64Photo);
-        blobResult = { blob: result.blob, mimeType: result.mimeType, extension: result.extension };
-      }
+      const result = await cameraPhotoToBlob(photo);
+      const blobResult: { blob: Blob; mimeType: string; extension: string } = {
+        blob: result.blob,
+        mimeType: result.mimeType,
+        extension: result.extension,
+      };
       const { blob, mimeType, extension } = blobResult;
       console.log("[UploadPhotoSheet] blob ready, size:", blob.size, "mime:", mimeType);
       const file = new File([blob], `photo-${Date.now()}.${extension}`, {
