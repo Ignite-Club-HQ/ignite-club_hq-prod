@@ -118,7 +118,7 @@ export default function AccountPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <button 
-            onClick={() => safeOpenUrl("https://igniteclubhq.com/privacy")}
+            onClick={() => navigate("/privacy")}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors w-full text-left"
           >
             <Shield className="h-5 w-5 text-muted-foreground" />
@@ -128,7 +128,7 @@ export default function AccountPage() {
             </div>
           </button>
           <button 
-            onClick={() => safeOpenUrl("https://igniteclubhq.com/terms")}
+            onClick={() => navigate("/terms")}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors w-full text-left"
           >
             <FileText className="h-5 w-5 text-muted-foreground" />
@@ -138,7 +138,7 @@ export default function AccountPage() {
             </div>
           </button>
           <button 
-            onClick={() => safeOpenUrl("https://igniteclubhq.com/cancellation")}
+            onClick={() => navigate("/cancellation")}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors w-full text-left"
           >
             <FileText className="h-5 w-5 text-muted-foreground" />
