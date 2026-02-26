@@ -11,30 +11,44 @@ export function SharePhotoButton({ imageUrl, title }: SharePhotoButtonProps) {
   const handleShare = async () => {
     const shareTitle = title || "Check out this photo!";
 
-    // Try native Web Share API first
-    if (navigator.share) {
+    // Try sharing as a file (avoids exposing raw Supabase URL)
+    if (navigator.share && navigator.canShare) {
       try {
-        await navigator.share({
-          title: shareTitle,
-          url: imageUrl,
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const extension = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
+        const file = new File([blob], `${shareTitle.replace(/[^a-zA-Z0-9 ]/g, "").trim() || "photo"}.${extension}`, {
+          type: blob.type || "image/jpeg",
         });
-        return; // Success - exit early
-      } catch (error) {
-        // If user cancelled, don't show error
-        if ((error as Error).name === "AbortError") {
+
+        const shareData = { files: [file], title: shareTitle };
+
+        if (navigator.canShare(shareData)) {
+          await navigator.share(shareData);
           return;
         }
-        // If share failed, fall through to clipboard fallback
+      } catch (error) {
+        if ((error as Error).name === "AbortError") return;
+        console.log("File share failed, trying URL share:", error);
+      }
+    }
+
+    // Fallback: share as URL (web browsers without file share support)
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: shareTitle, url: imageUrl });
+        return;
+      } catch (error) {
+        if ((error as Error).name === "AbortError") return;
         console.log("Web Share failed, falling back to clipboard:", error);
       }
     }
 
-    // Fallback: copy link to clipboard
+    // Final fallback: copy link to clipboard
     try {
       await navigator.clipboard.writeText(imageUrl);
       toast.success("Link copied to clipboard!");
     } catch {
-      // Final fallback: use a temporary textarea
       const textarea = document.createElement("textarea");
       textarea.value = imageUrl;
       textarea.style.position = "fixed";
