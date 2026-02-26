@@ -85,12 +85,8 @@ const MessagePreview = ({
   return (
     <span className="flex items-center gap-1.5">
       {isOwn && <span className="text-muted-foreground">You:</span>}
-      {isImageOnly && imageUrl && (
-        <img 
-          src={imageUrl} 
-          alt="Message attachment" 
-          className="h-5 w-5 rounded object-cover shrink-0"
-        />
+      {isImageOnly && (
+        <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       )}
       {hasTextAndImage && (
         <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />

@@ -602,7 +602,7 @@ export default function SettingsPage() {
       )}
 
       {/* Native Push Card - App Admin Only */}
-      {SKIP_WEB_PUSH && user && (
+      {SKIP_WEB_PUSH && isAppAdmin && user && (
         <Suspense fallback={<Card><CardContent className="py-6"><div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div></CardContent></Card>}>
           <LazyNativePushCard userId={user.id} />
         </Suspense>
