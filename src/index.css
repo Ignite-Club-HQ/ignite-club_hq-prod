@@ -5,6 +5,21 @@
 
 /* Ignite Sports Club Management - Dark theme with emerald accents */
 
+html, body {
+  overflow: hidden;
+  overscroll-behavior: none;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+#root {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  height: 100%;
+  width: 100%;
+}
+
 @layer base {
   :root {
     /* Pitch green - never changes with club theme */

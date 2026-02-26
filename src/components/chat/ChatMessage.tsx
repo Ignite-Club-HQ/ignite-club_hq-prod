@@ -521,7 +521,7 @@ export const ChatMessage = memo(function ChatMessage({
                   <MoreVertical className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-popover border" onCloseAutoFocus={() => setShowMenu(false)}>
+              <DropdownMenuContent align="end" collisionPadding={16} className="bg-popover border" onCloseAutoFocus={() => setShowMenu(false)}>
                 {canReply && (
                   <DropdownMenuItem onClick={handleReply}>
                     <Reply className="h-4 w-4 mr-2" /> Reply
@@ -587,7 +587,7 @@ export const ChatMessage = memo(function ChatMessage({
                   <MoreVertical className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="bg-popover border" onCloseAutoFocus={() => setShowMenu(false)}>
+              <DropdownMenuContent align="start" collisionPadding={16} className="bg-popover border" onCloseAutoFocus={() => setShowMenu(false)}>
                 {canReply && (
                   <DropdownMenuItem onClick={handleReply}>
                     <Reply className="h-4 w-4 mr-2" /> Reply
