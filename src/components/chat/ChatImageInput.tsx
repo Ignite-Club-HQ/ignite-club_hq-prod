@@ -36,15 +36,34 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       console.warn("[ChatImageInput] Failed to restore status bar overlay:", error);
     }
 
-    // Force viewport re-layout after iOS photo picker closes to prevent
-    // the bottom nav from shifting down and intercepting send button taps
-    requestAnimationFrame(() => {
-      window.scrollTo(0, 0);
-      document.body.style.display = 'none';
-      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-      document.body.offsetHeight; // force reflow
-      document.body.style.display = '';
-    });
+    // iOS can apply viewport/safe-area updates a little after picker close.
+    // Run multiple re-layout passes to avoid the bottom nav drifting and
+    // intercepting send taps.
+    const relayoutPass = () => {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, 0);
+
+        const root = document.getElementById("root");
+        const previousRootTransform = root?.style.transform;
+
+        if (root) {
+          root.style.transform = "translateZ(0)";
+          // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+          root.offsetHeight; // force reflow
+          root.style.transform = previousRootTransform ?? "";
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+        document.body.offsetHeight; // force reflow
+        window.dispatchEvent(new Event("resize"));
+      });
+    };
+
+    relayoutPass();
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    relayoutPass();
+    await new Promise((resolve) => setTimeout(resolve, 280));
+    relayoutPass();
   };
 
   const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
