@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { LinkPreview } from "./LinkPreview";
 import { EmojiPicker } from "./EmojiPicker";
+import { Capacitor } from "@capacitor/core";
 
 interface MentionInputProps {
   value: string;
@@ -47,6 +48,7 @@ export function MentionInput({
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
   // Detect URLs in the input
   const detectedUrls = useMemo(() => {
@@ -304,13 +306,18 @@ export function MentionInput({
     const cursorPos = inputRef.current?.selectionStart || value.length;
     const newValue = value.slice(0, cursorPos) + emoji + value.slice(cursorPos);
     onChange(newValue);
-    // Focus back and set cursor after emoji
+
     setTimeout(() => {
+      if (isNativeIOS) {
+        (document.activeElement as HTMLElement | null)?.blur();
+        return;
+      }
+
       inputRef.current?.focus();
       const newPos = cursorPos + emoji.length;
       inputRef.current?.setSelectionRange(newPos, newPos);
     }, 0);
-  }, [value, onChange]);
+  }, [value, onChange, isNativeIOS]);
 
   return (
     <div className="relative flex-1 space-y-2">

@@ -27,13 +27,21 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
+  const dismissIOSKeyboardAccessory = () => {
+    if (!isNativeIOS) return;
+    (document.activeElement as HTMLElement | null)?.blur();
+  };
+
   const runNativeRelayoutPasses = async () => {
     if (!isNativeIOS) return;
 
     // iOS can apply viewport/safe-area updates a little after picker close.
     // Run multiple re-layout passes and force nav/input reset events.
     const relayoutPass = () => {
+      dismissIOSKeyboardAccessory();
       requestAnimationFrame(() => {
+        dismissIOSKeyboardAccessory();
+        void document.body.offsetHeight; // force synchronous reflow pass
         window.scrollTo(0, 0);
         window.dispatchEvent(new Event("resize"));
         window.dispatchEvent(new Event("native-layout-reset"));
@@ -163,7 +171,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       const stablePreviewUrl = URL.createObjectURL(blob);
 
       // Blur again after picker closes — iOS may re-activate keyboard/accessory bar
-      (document.activeElement as HTMLElement)?.blur();
+      dismissIOSKeyboardAccessory();
 
       setLocalPreview(stablePreviewUrl);
 
@@ -239,8 +247,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
   const handleImageButtonClick = () => {
     if (isNativeIOS) {
-      const activeElement = document.activeElement as HTMLElement | null;
-      activeElement?.blur();
+      dismissIOSKeyboardAccessory();
       void handleNativePhotoPick();
     } else {
       fileInputRef.current?.click();

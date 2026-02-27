@@ -76,6 +76,18 @@ export function EmojiPicker({ onEmojiSelect, disabled }: EmojiPickerProps) {
   const isMobile = useIsMobile();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const onEmojiSelectRef = useRef(onEmojiSelect);
+
+  const dismissIOSKeyboardAccessory = useCallback(() => {
+    if (!isNativeIOS) return;
+
+    (document.activeElement as HTMLElement | null)?.blur();
+    requestAnimationFrame(() => {
+      (document.activeElement as HTMLElement | null)?.blur();
+    });
+    setTimeout(() => {
+      (document.activeElement as HTMLElement | null)?.blur();
+    }, 120);
+  }, [isNativeIOS]);
   
   // Keep ref updated
   useEffect(() => {
@@ -89,6 +101,7 @@ export function EmojiPicker({ onEmojiSelect, disabled }: EmojiPickerProps) {
   }, [open]);
 
   const handleEmojiClick = useCallback((emoji: string) => {
+    dismissIOSKeyboardAccessory();
     // Save to recent first
     saveRecentEmoji(emoji);
     // Call the callback using ref to avoid stale closure
@@ -96,8 +109,9 @@ export function EmojiPicker({ onEmojiSelect, disabled }: EmojiPickerProps) {
     // Close popover after a tiny delay to ensure the callback fires
     requestAnimationFrame(() => {
       setOpen(false);
+      dismissIOSKeyboardAccessory();
     });
-  }, []);
+  }, [dismissIOSKeyboardAccessory]);
 
   // Unified handler for both touch and click
   const createEmojiHandler = useCallback((emoji: string) => {
@@ -110,9 +124,8 @@ export function EmojiPicker({ onEmojiSelect, disabled }: EmojiPickerProps) {
 
   return (
     <Popover open={open} onOpenChange={(newOpen) => {
-      if (newOpen && isNativeIOS) {
-        // Blur active input to dismiss iOS keyboard & accessory bar before opening
-        (document.activeElement as HTMLElement)?.blur();
+      if (newOpen) {
+        dismissIOSKeyboardAccessory();
       }
       setOpen(newOpen);
     }}>
