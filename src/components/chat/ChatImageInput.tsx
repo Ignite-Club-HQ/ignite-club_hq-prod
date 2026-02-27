@@ -37,25 +37,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     }
 
     // iOS can apply viewport/safe-area updates a little after picker close.
-    // Run multiple re-layout passes to avoid the bottom nav drifting and
-    // intercepting send taps.
+    // Run multiple re-layout passes and force nav/input reset events.
     const relayoutPass = () => {
       requestAnimationFrame(() => {
         window.scrollTo(0, 0);
-
-        const root = document.getElementById("root");
-        const previousRootTransform = root?.style.transform;
-
-        if (root) {
-          root.style.transform = "translateZ(0)";
-          // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-          root.offsetHeight; // force reflow
-          root.style.transform = previousRootTransform ?? "";
-        }
-
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-        document.body.offsetHeight; // force reflow
         window.dispatchEvent(new Event("resize"));
+        window.dispatchEvent(new Event("native-layout-reset"));
       });
     };
 

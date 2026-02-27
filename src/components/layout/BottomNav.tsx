@@ -17,31 +17,57 @@ const navItems = [
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
   const navRef = useRef<HTMLElement>(null);
+  const viewportBaselineRef = useRef(0);
 
   // Keep nav physically pinned to the screen bottom on iOS keyboard/emoji viewport shifts
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
 
-    const KEYBOARD_OFFSET_THRESHOLD = 100;
+    const KEYBOARD_HEIGHT_THRESHOLD = 120;
 
     const pin = () => {
       if (!navRef.current) return;
 
-      const rawOffset = vv.offsetTop + (window.innerHeight - vv.height);
-      const offset = rawOffset > KEYBOARD_OFFSET_THRESHOLD ? rawOffset : 0;
+      if (viewportBaselineRef.current === 0) {
+        viewportBaselineRef.current = vv.height;
+      }
 
+      // Track the largest viewport height observed (keyboard closed baseline)
+      viewportBaselineRef.current = Math.max(viewportBaselineRef.current, vv.height);
+
+      const keyboardHeight = Math.max(0, viewportBaselineRef.current - vv.height);
+      const keyboardLikelyOpen = keyboardHeight > KEYBOARD_HEIGHT_THRESHOLD;
+
+      if (!keyboardLikelyOpen) {
+        navRef.current.style.transform = "";
+        return;
+      }
+
+      const offset = Math.max(0, vv.offsetTop + (window.innerHeight - vv.height));
       navRef.current.style.transform = offset > 0 ? `translateY(${offset}px)` : "";
+    };
+
+    const resetNavPosition = () => {
+      if (navRef.current) {
+        navRef.current.style.transform = "";
+      }
+      requestAnimationFrame(pin);
     };
 
     pin();
     vv.addEventListener("scroll", pin);
     vv.addEventListener("resize", pin);
     window.addEventListener("resize", pin);
+    window.addEventListener("orientationchange", pin);
+    window.addEventListener("native-layout-reset", resetNavPosition);
+
     return () => {
       vv.removeEventListener("scroll", pin);
       vv.removeEventListener("resize", pin);
       window.removeEventListener("resize", pin);
+      window.removeEventListener("orientationchange", pin);
+      window.removeEventListener("native-layout-reset", resetNavPosition);
     };
   }, []);
 
