@@ -161,6 +161,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       // Use a stable blob URL for preview instead of the capacitor temp path
       // which can become invalid on iOS shortly after the picker closes
       const stablePreviewUrl = URL.createObjectURL(blob);
+
+      // Blur again after picker closes — iOS may re-activate keyboard/accessory bar
+      (document.activeElement as HTMLElement)?.blur();
+
       setLocalPreview(stablePreviewUrl);
 
       // Stabilize viewport immediately when the thumbnail appears (before upload completes)
