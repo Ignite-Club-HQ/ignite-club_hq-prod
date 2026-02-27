@@ -86,7 +86,7 @@ export function ReportCommentDialog({ isOpen, onClose, commentId }: ReportCommen
             Report Comment
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription className="text-sm">
-            Help us maintain a safe community by reporting inappropriate comments.
+            Help us maintain a safe community by reporting inappropriate comments. All reports are reviewed and actioned within 24 hours.
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
