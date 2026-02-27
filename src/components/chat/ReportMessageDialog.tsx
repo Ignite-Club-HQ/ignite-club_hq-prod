@@ -88,7 +88,7 @@ export function ReportMessageDialog({ isOpen, onClose, messageId, messageType }:
             Report Message
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription className="text-sm">
-            Help us maintain a safe community by reporting inappropriate messages.
+            Help us maintain a safe community by reporting inappropriate messages. All reports are reviewed and actioned within 24 hours.
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 

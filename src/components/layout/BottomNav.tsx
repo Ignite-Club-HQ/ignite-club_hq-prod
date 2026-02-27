@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { Capacitor } from "@capacitor/core";
 
 const navItems = [
   { to: "/", icon: Home, label: "Home", requiresPro: false },
@@ -93,8 +94,14 @@ export function BottomNav() {
   const isLoadingAccess = !userRoles || hasProAccess === undefined;
   const showProLock = !isLoadingAccess && !hasProAccess && !isAppAdmin;
 
+  // Android native doesn't report safe-area-inset-bottom properly for gesture nav
+  const isAndroidNative = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-lg pb-safe">
+    <nav className={cn(
+      "fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-lg pb-safe",
+      isAndroidNative && "pb-4"
+    )}>
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
         {navItems.map(({ to, icon: Icon, label, requiresPro }) => (
           <NavLink

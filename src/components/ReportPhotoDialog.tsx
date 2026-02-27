@@ -87,7 +87,7 @@ export function ReportPhotoDialog({ isOpen, onClose, photoId }: ReportPhotoDialo
             Report Photo
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription className="text-sm">
-            Help us maintain a safe community by reporting inappropriate content.
+            Help us maintain a safe community by reporting inappropriate content. All reports are reviewed and actioned within 24 hours.
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
