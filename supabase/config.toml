@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.send-feedback-email]
 verify_jwt = false
+
+[functions.send-block-alert-email]
+verify_jwt = false
