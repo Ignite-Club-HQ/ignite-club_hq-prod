@@ -1075,7 +1075,7 @@ export default function TeamChatPage() {
        </div>
 
       {/* Input - Fixed at bottom above nav bar */}
-      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-40" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
+      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         <div className="flex gap-2 items-end">

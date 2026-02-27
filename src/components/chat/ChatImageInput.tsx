@@ -27,7 +27,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
-  const restoreNativeStatusBarOverlay = async () => {
+  const restoreNativeLayout = async () => {
     if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "ios") return;
 
     try {
@@ -35,6 +35,16 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     } catch (error) {
       console.warn("[ChatImageInput] Failed to restore status bar overlay:", error);
     }
+
+    // Force viewport re-layout after iOS photo picker closes to prevent
+    // the bottom nav from shifting down and intercepting send button taps
+    requestAnimationFrame(() => {
+      window.scrollTo(0, 0);
+      document.body.style.display = 'none';
+      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+      document.body.offsetHeight; // force reflow
+      document.body.style.display = '';
+    });
   };
 
   const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
@@ -167,7 +177,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       }
       setLocalPreview(null);
     } finally {
-      await restoreNativeStatusBarOverlay();
+      await restoreNativeLayout();
       setUploading(false);
     }
   };
