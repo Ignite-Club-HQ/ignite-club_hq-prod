@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.secret-delete-user]
 verify_jwt = false
+
+[functions.send-feedback-email]
+verify_jwt = false
