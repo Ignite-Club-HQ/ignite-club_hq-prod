@@ -69,8 +69,7 @@ serve(async (req) => {
         club_id,
         team_id,
         clubs(name),
-        teams(name),
-        profiles:uploader_id(display_name)
+        teams(name)
       `)
       .eq("id", photoId)
       .single();
@@ -83,12 +82,11 @@ serve(async (req) => {
       );
     }
 
-    // Get reporter details
-    const { data: reporter } = await supabase
-      .from("profiles")
-      .select("display_name")
-      .eq("id", userId)
-      .single();
+    // Get reporter and uploader details
+    const [{ data: reporter }, { data: uploader }] = await Promise.all([
+      supabase.from("profiles").select("display_name").eq("id", userId).single(),
+      supabase.from("profiles").select("display_name").eq("id", photo.uploader_id).single(),
+    ]);
 
     // Insert the report into the database
     const { data: report, error: insertError } = await supabase
@@ -119,7 +117,7 @@ serve(async (req) => {
         
         const clubName = (photo.clubs as any)?.name || "Unknown Club";
         const teamName = (photo.teams as any)?.name || "N/A";
-        const uploaderName = (photo.profiles as any)?.display_name || "Unknown User";
+        const uploaderName = uploader?.display_name || "Unknown User";
         const reporterName = reporter?.display_name || "Unknown User";
         const photoUrl = photo.file_url || photo.image_url;
 
@@ -208,7 +206,7 @@ serve(async (req) => {
 
         const { error: emailError } = await resend.emails.send({
           from: "Ignite Club HQ <support@igniteclubhq.app>",
-          to: ["support@igniteclubhq.app"],
+          to: ["privacy@igniteclubhq.app"],
           subject: `⚠️ Photo Report: ${reason} - ${clubName}`,
           html: emailHtml,
         });
