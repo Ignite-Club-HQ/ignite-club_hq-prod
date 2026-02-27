@@ -119,6 +119,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const handleNativePhotoPick = async () => {
     setUploading(true);
     console.log("[ChatImageInput] handleNativePhotoPick START");
+    let layoutRestoredEarly = false;
     try {
       // Only request Photos access on iOS gallery flows (never camera permission)
       let permissions = await Camera.checkPermissions();
@@ -176,7 +177,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       setLocalPreview(stablePreviewUrl);
 
       // Stabilize viewport immediately when the thumbnail appears (before upload completes)
-      await runNativeRelayoutPasses();
+      await restoreNativeLayout();
+      layoutRestoredEarly = true;
 
       const skipCompression = !IOS_SAFE_COMPRESSION_MIME_TYPES.has(mimeType);
       let storageUrl: string;
@@ -204,7 +206,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       }
       setLocalPreview(null);
     } finally {
-      await restoreNativeLayout();
+      if (!layoutRestoredEarly) {
+        await restoreNativeLayout();
+      }
       setUploading(false);
     }
   };
