@@ -4819,6 +4819,24 @@ function ContentSection({
   );
 }
 
+// Small component to render signed thumbnail for trash photos
+function TrashPhotoThumbnail({ src, alt }: { src: string; alt: string }) {
+  const { signedUrl, isLoading } = useSignedPhotoUrl(src);
+  const effectiveSrc = signedUrl || src;
+  
+  if (isLoading) {
+    return <div className="h-12 w-12 rounded-lg bg-muted animate-pulse flex-shrink-0" />;
+  }
+  
+  return (
+    <img
+      src={effectiveSrc}
+      alt={alt}
+      className="h-12 w-12 object-cover rounded-lg flex-shrink-0"
+    />
+  );
+}
+
 // Trash section component - shows all deleted items in a flat list with original location
 interface TrashSectionProps {
   photos: any[];
@@ -4887,11 +4905,7 @@ function TrashSection({
             {photos.map((photo) => (
               <Card key={photo.id} className="group">
                 <CardContent className="p-3 flex items-center gap-3">
-                  <img
-                    src={photo.file_url}
-                    alt={photo.title || "Photo"}
-                    className="h-12 w-12 object-cover rounded-lg"
-                  />
+                  <TrashPhotoThumbnail src={photo.file_url} alt={photo.title || "Photo"} />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{photo.title || "Untitled photo"}</p>
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
