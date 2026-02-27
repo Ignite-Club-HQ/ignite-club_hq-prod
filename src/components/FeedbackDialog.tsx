@@ -43,6 +43,17 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 
       if (feedbackError) throw feedbackError;
 
+      // Send email notification (fire-and-forget)
+      supabase.functions.invoke("send-feedback-email", {
+        body: {
+          type,
+          title: title.trim(),
+          description: description.trim() || null,
+          userEmail: user.email,
+          userName: user.user_metadata?.display_name || user.email,
+        },
+      }).catch((err) => console.error("Failed to send feedback email:", err));
+
       toast.success("Thanks for your feedback!");
       onOpenChange(false);
       setType("");
