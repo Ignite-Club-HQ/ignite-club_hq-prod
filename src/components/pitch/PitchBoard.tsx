@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { Capacitor } from "@capacitor/core";
+import { StatusBar } from "@capacitor/status-bar";
 import { useLazyFabric, prefetchFabric } from "@/hooks/useLazyFabric";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -121,7 +122,32 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { isLandscape, isMobileLandscape, isTabletLandscape, isDesktopLandscape } = useIsLandscape();
-  
+
+  // Hide status bar in landscape on native to fill the whole screen
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const hideOrShow = async () => {
+      try {
+        if (isLandscape) {
+          await StatusBar.hide();
+        } else {
+          await StatusBar.show();
+          await StatusBar.setOverlaysWebView({ overlay: false });
+        }
+      } catch (e) {
+        console.warn('[PitchBoard] StatusBar toggle error:', e);
+      }
+    };
+    hideOrShow();
+    return () => {
+      // Restore status bar when PitchBoard unmounts
+      if (Capacitor.isNativePlatform()) {
+        StatusBar.show().catch(() => {});
+        StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
+      }
+    };
+  }, [isLandscape]);
+
   // Event group sync - syncs pitch board state to database for mini-league matches
   const { forceSync: forceEventGroupSync, isEventGroup } = useEventGroupSync(teamId, null);
   
@@ -3077,9 +3103,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Landscape layout: pitch full screen on left, controls stacked on right
   if (isLandscape) {
-    const isNative = Capacitor.isNativePlatform();
     return createPortal(
-      <div className={cn("fixed inset-0 w-screen h-screen bg-background flex flex-col overflow-hidden", isNative && "pt-safe")} style={{ height: '100dvh', zIndex: 99999 }}>
+      <div className="fixed inset-0 w-screen h-screen bg-background flex flex-col overflow-hidden" style={{ height: '100dvh', zIndex: 99999 }}>
         {/* LinkedEventHeader removed from top in landscape - now integrated into toolbar */}
         
         {/* Main content area */}
