@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Home, Calendar, MessageCircle, Image, Lock } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -18,27 +18,30 @@ export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
   const navRef = useRef<HTMLElement>(null);
 
-  // Pin the nav to the true screen bottom even when iOS keyboard pushes the viewport up
+  // Keep nav physically pinned to the screen bottom on iOS keyboard/emoji viewport shifts
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
 
+    const KEYBOARD_OFFSET_THRESHOLD = 100;
+
     const pin = () => {
       if (!navRef.current) return;
-      // offsetTop is how far the visual viewport has scrolled from layout viewport top
-      const offset = vv.offsetTop + (window.innerHeight - vv.height);
-      if (Math.abs(offset) < 1) {
-        navRef.current.style.transform = "";
-      } else {
-        navRef.current.style.transform = `translateY(${offset}px)`;
-      }
+
+      const rawOffset = vv.offsetTop + (window.innerHeight - vv.height);
+      const offset = rawOffset > KEYBOARD_OFFSET_THRESHOLD ? rawOffset : 0;
+
+      navRef.current.style.transform = offset > 0 ? `translateY(${offset}px)` : "";
     };
 
+    pin();
     vv.addEventListener("scroll", pin);
     vv.addEventListener("resize", pin);
+    window.addEventListener("resize", pin);
     return () => {
       vv.removeEventListener("scroll", pin);
       vv.removeEventListener("resize", pin);
+      window.removeEventListener("resize", pin);
     };
   }, []);
 
