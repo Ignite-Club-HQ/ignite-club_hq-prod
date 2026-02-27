@@ -27,14 +27,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
-  const restoreNativeLayout = async () => {
-    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "ios") return;
-
-    try {
-      await StatusBar.setOverlaysWebView({ overlay: false });
-    } catch (error) {
-      console.warn("[ChatImageInput] Failed to restore status bar overlay:", error);
-    }
+  const runNativeRelayoutPasses = async () => {
+    if (!isNativeIOS) return;
 
     // iOS can apply viewport/safe-area updates a little after picker close.
     // Run multiple re-layout passes and force nav/input reset events.
@@ -51,6 +45,18 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     relayoutPass();
     await new Promise((resolve) => setTimeout(resolve, 280));
     relayoutPass();
+  };
+
+  const restoreNativeLayout = async () => {
+    if (!isNativeIOS) return;
+
+    try {
+      await StatusBar.setOverlaysWebView({ overlay: false });
+    } catch (error) {
+      console.warn("[ChatImageInput] Failed to restore status bar overlay:", error);
+    }
+
+    await runNativeRelayoutPasses();
   };
 
   const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
@@ -157,6 +163,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       const stablePreviewUrl = URL.createObjectURL(blob);
       setLocalPreview(stablePreviewUrl);
 
+      // Stabilize viewport immediately when the thumbnail appears (before upload completes)
+      await runNativeRelayoutPasses();
+
       const skipCompression = !IOS_SAFE_COMPRESSION_MIME_TYPES.has(mimeType);
       let storageUrl: string;
 
@@ -226,7 +235,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
   const handleImageButtonClick = () => {
     if (isNativeIOS) {
-      handleNativePhotoPick();
+      const activeElement = document.activeElement as HTMLElement | null;
+      activeElement?.blur();
+      void handleNativePhotoPick();
     } else {
       fileInputRef.current?.click();
     }
