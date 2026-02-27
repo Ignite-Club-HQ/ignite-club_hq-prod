@@ -280,7 +280,7 @@ export function StoragePurchaseDialog({
       toast.success("Storage purchased successfully!");
       onOpenChange(false);
     } catch (err: any) {
-      if (err?.message?.toLowerCase().includes("cancel")) return;
+      if (err?.message?.toLowerCase().includes("cancel") || err?.message?.toLowerCase().includes("not purchased")) return;
       console.error("[IAP] Error:", err);
       toast.error(err?.message || "Purchase failed. Please try again.");
     }
