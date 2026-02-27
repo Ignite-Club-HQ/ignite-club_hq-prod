@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Home, Calendar, MessageCircle, Image, Lock } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,23 @@ const navItems = [
 
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+  // Hide BottomNav when the virtual keyboard is open (iOS pushes fixed elements up)
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const KEYBOARD_THRESHOLD = 100; // px difference to consider keyboard open
+
+    const handleResize = () => {
+      const heightDiff = window.innerHeight - vv.height;
+      setKeyboardOpen(heightDiff > KEYBOARD_THRESHOLD);
+    };
+
+    vv.addEventListener("resize", handleResize);
+    return () => vv.removeEventListener("resize", handleResize);
+  }, []);
 
   // Check if user has Pro access (via any club subscription)
   const { data: userRoles } = useQuery({
@@ -96,6 +114,8 @@ export function BottomNav() {
 
   // Android native doesn't report safe-area-inset-bottom properly for gesture nav
   const isAndroidNative = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+
+  if (keyboardOpen) return null;
 
   return (
     <nav className={cn(
