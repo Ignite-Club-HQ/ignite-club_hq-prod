@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from "react";
 import { Home, Calendar, MessageCircle, Image, Lock } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,31 @@ const navItems = [
 
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
+  const navRef = useRef<HTMLElement>(null);
+
+  // Pin the nav to the true screen bottom even when iOS keyboard pushes the viewport up
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const pin = () => {
+      if (!navRef.current) return;
+      // offsetTop is how far the visual viewport has scrolled from layout viewport top
+      const offset = vv.offsetTop + (window.innerHeight - vv.height);
+      if (Math.abs(offset) < 1) {
+        navRef.current.style.transform = "";
+      } else {
+        navRef.current.style.transform = `translateY(${offset}px)`;
+      }
+    };
+
+    vv.addEventListener("scroll", pin);
+    vv.addEventListener("resize", pin);
+    return () => {
+      vv.removeEventListener("scroll", pin);
+      vv.removeEventListener("resize", pin);
+    };
+  }, []);
 
   // Check if user has Pro access (via any club subscription)
   const { data: userRoles } = useQuery({
@@ -98,7 +124,7 @@ export function BottomNav() {
   const isAndroidNative = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
 
   return (
-    <nav className={cn(
+    <nav ref={navRef} className={cn(
       "fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-lg pb-safe",
       isAndroidNative && "pb-4"
     )}>
