@@ -92,6 +92,7 @@ export default function GroupChatPage() {
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const bottomInset = isNativeIOS ? "1rem" : "env(safe-area-inset-bottom, 0px)";
 
   // Mark group message notifications as read when opening this thread
   useEffect(() => {
@@ -1219,7 +1220,7 @@ export default function GroupChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] overflow-hidden overscroll-none">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden overscroll-none" style={{ paddingBottom: `calc(5rem + ${bottomInset})` }}>
       {/* Header - Fixed at top */}
       <div className="fixed left-0 right-0 flex items-center gap-3 p-4 border-b bg-background z-40" style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -1443,7 +1444,7 @@ export default function GroupChatPage() {
       </div>
 
       {/* Input - Fixed at bottom above nav bar */}
-      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
+      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: `calc(4rem + ${bottomInset})` }}>
         <TypingIndicator typingUsers={typingUsers} />
         {replyTo && (
           <ReplyPreview

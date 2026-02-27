@@ -93,14 +93,17 @@ export function BottomNav() {
   const isLoadingAccess = !userRoles || hasProAccess === undefined;
   const showProLock = !isLoadingAccess && !hasProAccess && !isAppAdmin;
 
-  // Android native doesn't report safe-area-inset-bottom properly for gesture nav
-  const isAndroidNative = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+  // Lock native bottom inset to fixed values so iOS photo picker viewport changes can't shift nav
+  const isNativePlatform = Capacitor.isNativePlatform();
+  const isAndroidNative = isNativePlatform && Capacitor.getPlatform() === "android";
+  const isNativeIOS = isNativePlatform && Capacitor.getPlatform() === "ios";
+  const navBottomInset = isAndroidNative || isNativeIOS ? "1rem" : "env(safe-area-inset-bottom, 0px)";
 
   return (
-    <nav className={cn(
-      "fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-lg pb-safe",
-      isAndroidNative && "pb-4"
-    )}>
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-lg"
+      style={{ paddingBottom: navBottomInset }}
+    >
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
         {navItems.map(({ to, icon: Icon, label, requiresPro }) => (
           <NavLink
