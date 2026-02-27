@@ -7,6 +7,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Capacitor } from "@capacitor/core";
 
 const RECENT_EMOJIS_KEY = "ignite-recent-emojis";
 const MAX_RECENT_EMOJIS = 14;
@@ -73,6 +74,7 @@ export function EmojiPicker({ onEmojiSelect, disabled }: EmojiPickerProps) {
   const [activeCategory, setActiveCategory] = useState(0);
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const isMobile = useIsMobile();
+  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const onEmojiSelectRef = useRef(onEmojiSelect);
   
   // Keep ref updated
@@ -107,7 +109,13 @@ export function EmojiPicker({ onEmojiSelect, disabled }: EmojiPickerProps) {
   }, [handleEmojiClick]);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(newOpen) => {
+      if (newOpen && isNativeIOS) {
+        // Blur active input to dismiss iOS keyboard & accessory bar before opening
+        (document.activeElement as HTMLElement)?.blur();
+      }
+      setOpen(newOpen);
+    }}>
       <PopoverTrigger asChild>
         <Button
           type="button"
