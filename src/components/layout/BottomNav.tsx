@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Home, Calendar, MessageCircle, Image, Lock } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -16,22 +16,30 @@ const navItems = [
 
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
-  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
 
-  // Hide BottomNav when the virtual keyboard is open (iOS pushes fixed elements up)
+  // Pin the nav to the true screen bottom even when iOS keyboard pushes the viewport up
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
 
-    const KEYBOARD_THRESHOLD = 100; // px difference to consider keyboard open
-
-    const handleResize = () => {
-      const heightDiff = window.innerHeight - vv.height;
-      setKeyboardOpen(heightDiff > KEYBOARD_THRESHOLD);
+    const pin = () => {
+      if (!navRef.current) return;
+      // offsetTop is how far the visual viewport has scrolled from layout viewport top
+      const offset = vv.offsetTop + (window.innerHeight - vv.height);
+      if (Math.abs(offset) < 1) {
+        navRef.current.style.transform = "";
+      } else {
+        navRef.current.style.transform = `translateY(${offset}px)`;
+      }
     };
 
-    vv.addEventListener("resize", handleResize);
-    return () => vv.removeEventListener("resize", handleResize);
+    vv.addEventListener("scroll", pin);
+    vv.addEventListener("resize", pin);
+    return () => {
+      vv.removeEventListener("scroll", pin);
+      vv.removeEventListener("resize", pin);
+    };
   }, []);
 
   // Check if user has Pro access (via any club subscription)
@@ -115,10 +123,8 @@ export function BottomNav() {
   // Android native doesn't report safe-area-inset-bottom properly for gesture nav
   const isAndroidNative = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
 
-  if (keyboardOpen) return null;
-
   return (
-    <nav className={cn(
+    <nav ref={navRef} className={cn(
       "fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-lg pb-safe",
       isAndroidNative && "pb-4"
     )}>
