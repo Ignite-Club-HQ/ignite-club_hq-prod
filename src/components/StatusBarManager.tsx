@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { Keyboard } from '@capacitor/keyboard';
 import { App } from '@capacitor/app';
 
 /**
@@ -54,9 +55,20 @@ export function StatusBarManager() {
     }
   };
 
+  const applyIOSKeyboardConfig = async () => {
+    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'ios') return;
+
+    try {
+      await Keyboard.setAccessoryBarVisible({ isVisible: false });
+    } catch (error) {
+      console.log('[StatusBar] Error configuring iOS keyboard accessory bar:', error);
+    }
+  };
+
   useEffect(() => {
     const initialTheme = getThemeSync();
-    applyStatusBarStyle(initialTheme);
+    void applyStatusBarStyle(initialTheme);
+    void applyIOSKeyboardConfig();
 
     // Re-apply on app resume (Android can reset status bar on background/foreground)
     let appListener: { remove: () => void } | undefined;
@@ -64,7 +76,8 @@ export function StatusBarManager() {
       App.addListener('appStateChange', ({ isActive }) => {
         if (isActive) {
           const currentTheme = getThemeSync();
-          applyStatusBarStyle(currentTheme, true); // force reapply
+          void applyStatusBarStyle(currentTheme, true); // force reapply
+          void applyIOSKeyboardConfig();
         }
       }).then(handle => { appListener = handle; });
     }
