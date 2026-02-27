@@ -335,6 +335,11 @@ export default function UpgradeProPage() {
   };
 
   const handleStripeCheckout = async (tier: "pro" | "pro_football", withTrial: boolean = false) => {
+    // Block if already subscribed to this tier
+    if ((tier === "pro" && isProActive && !isExpired) || (tier === "pro_football" && isProFootballActive && !isExpired)) {
+      toast({ title: "Already Subscribed", description: "You already have an active subscription for this plan." });
+      return;
+    }
     if (isNativePlatform()) {
       // On native, use In-App Purchases
       handleNativeIAP(tier);
@@ -409,7 +414,7 @@ export default function UpgradeProPage() {
       queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
       toast({ title: "Upgrade Successful!", description: "Your team subscription is now active." });
     } catch (err: any) {
-      if (err?.message?.toLowerCase().includes("cancel")) return;
+      if (err?.message?.toLowerCase().includes("cancel") || err?.message?.toLowerCase().includes("not purchased")) return;
       console.error("[IAP] Error:", err);
       toast({ title: "Purchase Failed", description: err?.message || "Please try again.", variant: "destructive" });
     } finally {
