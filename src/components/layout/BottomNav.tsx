@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import { Home, Calendar, MessageCircle, Image, Lock } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -6,7 +5,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Capacitor } from "@capacitor/core";
-
 const navItems = [
   { to: "/", icon: Home, label: "Home", requiresPro: false },
   { to: "/messages", icon: MessageCircle, label: "Messages", requiresPro: false },
@@ -16,60 +14,6 @@ const navItems = [
 
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
-  const navRef = useRef<HTMLElement>(null);
-  const viewportBaselineRef = useRef(0);
-
-  // Keep nav physically pinned to the screen bottom on iOS keyboard/emoji viewport shifts
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-
-    const KEYBOARD_HEIGHT_THRESHOLD = 120;
-
-    const pin = () => {
-      if (!navRef.current) return;
-
-      if (viewportBaselineRef.current === 0) {
-        viewportBaselineRef.current = vv.height;
-      }
-
-      // Track the largest viewport height observed (keyboard closed baseline)
-      viewportBaselineRef.current = Math.max(viewportBaselineRef.current, vv.height);
-
-      const keyboardHeight = Math.max(0, viewportBaselineRef.current - vv.height);
-      const keyboardLikelyOpen = keyboardHeight > KEYBOARD_HEIGHT_THRESHOLD;
-
-      if (!keyboardLikelyOpen) {
-        navRef.current.style.transform = "";
-        return;
-      }
-
-      const offset = Math.max(0, vv.offsetTop + (window.innerHeight - vv.height));
-      navRef.current.style.transform = offset > 0 ? `translateY(${offset}px)` : "";
-    };
-
-    const resetNavPosition = () => {
-      if (navRef.current) {
-        navRef.current.style.transform = "";
-      }
-      requestAnimationFrame(pin);
-    };
-
-    pin();
-    vv.addEventListener("scroll", pin);
-    vv.addEventListener("resize", pin);
-    window.addEventListener("resize", pin);
-    window.addEventListener("orientationchange", pin);
-    window.addEventListener("native-layout-reset", resetNavPosition);
-
-    return () => {
-      vv.removeEventListener("scroll", pin);
-      vv.removeEventListener("resize", pin);
-      window.removeEventListener("resize", pin);
-      window.removeEventListener("orientationchange", pin);
-      window.removeEventListener("native-layout-reset", resetNavPosition);
-    };
-  }, []);
 
   // Check if user has Pro access (via any club subscription)
   const { data: userRoles } = useQuery({
@@ -153,7 +97,7 @@ export function BottomNav() {
   const isAndroidNative = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
 
   return (
-    <nav ref={navRef} className={cn(
+    <nav className={cn(
       "fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-lg pb-safe",
       isAndroidNative && "pb-4"
     )}>
