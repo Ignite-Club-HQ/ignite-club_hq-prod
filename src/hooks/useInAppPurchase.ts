@@ -134,10 +134,12 @@ export function useInAppPurchase(): UseInAppPurchaseReturn {
       } catch (err: any) {
         const message = err?.message || "Purchase failed";
         // Don't treat user cancellation as an error
+        const lowerMessage = message.toLowerCase();
         if (
-          message.includes("cancel") ||
-          message.includes("Cancel") ||
-          message.includes("USER_CANCELED")
+          lowerMessage.includes("cancel") ||
+          lowerMessage.includes("user_canceled") ||
+          lowerMessage.includes("not purchased") ||
+          lowerMessage.includes("payment not completed")
         ) {
           setPurchaseState("idle");
           return false;
