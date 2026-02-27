@@ -173,7 +173,7 @@ serve(async (req) => {
 
         const { error: emailError } = await resend.emails.send({
           from: "Ignite Club HQ <support@igniteclubhq.app>",
-          to: ["support@igniteclubhq.app"],
+          to: ["privacy@igniteclubhq.app"],
           subject: `⚠️ Message Report: ${reason} - ${contextName}`,
           html: emailHtml,
         });
