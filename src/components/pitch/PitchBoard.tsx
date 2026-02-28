@@ -2031,6 +2031,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Deactivate drawing tools when entering swap mode
     if (newSwapMode) {
       setDrawingTool("none");
+      // Close bottom drawer so pitch is fully visible
+      setPortraitSheetOpen(false);
     }
   };
 
@@ -2109,6 +2111,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       }
       // Deactivate drawing tools when entering sub mode
       setDrawingTool("none");
+      // Close bottom drawer so pitch is fully visible
+      setPortraitSheetOpen(false);
     }
   };
 
