@@ -1570,7 +1570,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     floatingUndoTimerRef.current = setTimeout(() => {
       console.log("[Undo] Timer expired, hiding floating undo");
       setShowFloatingUndo(false);
-    }, 30000);
+    }, isLandscape ? 30000 : 5000);
   }, [isLandscape]);
 
   // Undo last sub or swap
