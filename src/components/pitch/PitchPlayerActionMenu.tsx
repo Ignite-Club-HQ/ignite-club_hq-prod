@@ -29,7 +29,7 @@ const PitchPlayerActionMenu = memo(function PitchPlayerActionMenu({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="max-w-[280px] rounded-xl p-4">
+      <AlertDialogContent className="max-w-[280px] rounded-xl p-4 z-[999999]">
         <AlertDialogHeader className="pb-2">
           <AlertDialogTitle className="text-base">
             {player.number ? `#${player.number} ` : ""}{player.name}
