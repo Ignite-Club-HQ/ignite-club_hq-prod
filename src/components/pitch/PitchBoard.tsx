@@ -4193,7 +4193,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           className="absolute z-50 cursor-move touch-none select-none"
           style={{ 
             left: floatingTimerPosition.x, 
-            bottom: 48,
+            top: 4,
           }}
           onMouseDown={handleTimerDragStart}
           onTouchStart={handleTimerTouchStart}
