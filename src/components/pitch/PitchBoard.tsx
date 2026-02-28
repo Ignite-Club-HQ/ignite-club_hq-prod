@@ -4043,7 +4043,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <div className="space-y-3">
                     {/* Position Filter Chips + Fill-In */}
                     <div className="flex items-center gap-2">
-                      <div className="flex gap-1.5 flex-1 min-w-0">
+                      <div className="flex gap-2 flex-1 min-w-0">
                         {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
                           const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos) || !p.assignedPositions?.length).length;
                           const totalCount = players.filter(p => p.assignedPositions?.includes(pos)).length;
@@ -4052,7 +4052,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               key={pos}
                               onClick={() => setBenchPositionFilter(benchPositionFilter === pos ? null : pos)}
                               className={cn(
-                                "rounded border font-medium text-xs px-2.5 py-1.5 transition-colors whitespace-nowrap",
+                                "rounded-md border font-medium text-sm px-4 py-2 transition-colors whitespace-nowrap flex-1 min-h-[36px]",
                                 benchPositionFilter === pos 
                                   ? "bg-primary text-primary-foreground border-primary"
                                   : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
@@ -4065,7 +4065,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         {benchPositionFilter && (
                           <button
                             onClick={() => setBenchPositionFilter(null)}
-                            className="rounded border font-medium text-xs px-2 py-1.5 bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/20"
+                            className="rounded-md border font-medium text-sm px-3 py-2 bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/20 min-h-[36px]"
                           >
                             <X className="h-4 w-4" />
                           </button>
@@ -4890,7 +4890,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <div className="space-y-3">
                     {/* Position Filter Chips + Fill-In */}
                     <div className="flex items-center gap-2">
-                      <div className="flex gap-1.5 flex-1 min-w-0">
+                      <div className="flex gap-2 flex-1 min-w-0">
                         {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
                           const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos) || !p.assignedPositions?.length).length;
                           return (
@@ -4898,7 +4898,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               key={pos}
                               onClick={() => setBenchPositionFilter(benchPositionFilter === pos ? null : pos)}
                               className={cn(
-                                "rounded border font-medium text-xs px-2.5 py-1.5 transition-colors whitespace-nowrap min-h-[32px]",
+                                "rounded-md border font-medium text-sm px-4 py-2 transition-colors whitespace-nowrap flex-1 min-h-[36px]",
                                 benchPositionFilter === pos 
                                   ? "bg-primary text-primary-foreground border-primary"
                                   : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
@@ -4911,7 +4911,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         {benchPositionFilter && (
                           <button
                             onClick={() => setBenchPositionFilter(null)}
-                            className="rounded border font-medium text-xs px-2 py-1.5 bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/20 min-h-[32px]"
+                            className="rounded-md border font-medium text-sm px-3 py-2 bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/20 min-h-[36px]"
                           >
                             <X className="h-4 w-4" />
                           </button>
