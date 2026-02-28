@@ -3573,15 +3573,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {toolbarCollapsed && (
           <div
             className="absolute bottom-0 left-0 right-0 z-[55] flex justify-center items-end pointer-events-auto"
-            style={{ height: 28 }}
+            style={{ height: 44 }}
             onTouchStart={(e) => {
               const startY = e.touches[0].clientY;
-              const handleTouchEnd = (ev: TouchEvent) => {
-                const deltaY = startY - ev.changedTouches[0].clientY;
-                if (deltaY > 30) setToolbarCollapsed(false);
-                document.removeEventListener("touchend", handleTouchEnd);
-              };
-              document.addEventListener("touchend", handleTouchEnd);
+              const el = e.currentTarget;
+              el.dataset.swipeStartY = String(startY);
+            }}
+            onTouchEnd={(e) => {
+              const startY = Number(e.currentTarget.dataset.swipeStartY || 0);
+              if (!startY) return;
+              const deltaY = startY - e.changedTouches[0].clientY;
+              if (deltaY > 30) setToolbarCollapsed(false);
             }}
             onClick={() => setToolbarCollapsed(false)}
           >
@@ -3595,7 +3597,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             className="absolute bottom-3 right-3 z-[55] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
             onClick={() => setToolbarCollapsed(false)}
           >
-            <Settings2 className="h-4 w-4 text-muted-foreground" />
+            <ChevronUp className="h-5 w-5 text-muted-foreground" />
           </button>
         )}
 
@@ -3613,8 +3615,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Handle bar */}
-              <div className="flex justify-center pt-2 pb-1">
+              {/* Handle bar - swipe down to close */}
+              <div
+                className="flex justify-center pt-2 pb-1 cursor-grab"
+                onTouchStart={(e) => {
+                  e.currentTarget.dataset.swipeStartY = String(e.touches[0].clientY);
+                }}
+                onTouchEnd={(e) => {
+                  const startY = Number(e.currentTarget.dataset.swipeStartY || 0);
+                  if (!startY) return;
+                  const deltaY = e.changedTouches[0].clientY - startY;
+                  if (deltaY > 30) setToolbarCollapsed(true);
+                }}
+              >
                 <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
               </div>
 
