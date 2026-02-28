@@ -51,7 +51,7 @@ export function BlockUserDialog({ open, onOpenChange, userId, userName }: BlockU
           placeholder="Reason (optional)"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          className="resize-none border-border bg-transparent"
+          className="resize-none border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           rows={2}
         />
         <AlertDialogFooter>
