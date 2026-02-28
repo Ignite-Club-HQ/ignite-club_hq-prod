@@ -5114,35 +5114,35 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                 {/* Draw Tab */}
                 {bottomSheetTab === "draw" && !readOnly && (
-                  <div className="flex items-center gap-3 flex-wrap">
+                  <div className="space-y-3">
                     <div className="flex gap-2">
                       <Button 
                         variant={drawingTool === "pen" ? "default" : "outline"} 
-                        size="icon"
-                        className="h-12 w-12"
+                        className="h-14 flex-1 text-base gap-2"
                         onClick={() => setDrawingTool(drawingTool === "pen" ? "none" : "pen")}
                       >
-                        <Pencil className="h-5 w-5" />
+                        <Pencil className="h-6 w-6" />
+                        Pen
                       </Button>
                       <Button 
                         variant={drawingTool === "arrow" ? "default" : "outline"} 
-                        size="icon"
-                        className="h-12 w-12"
+                        className="h-14 flex-1 text-base gap-2"
                         onClick={() => setDrawingTool(drawingTool === "arrow" ? "none" : "arrow")}
                       >
-                        <MoveRight className="h-5 w-5" />
+                        <MoveRight className="h-6 w-6" />
+                        Arrow
                       </Button>
-                      <Button variant="outline" size="icon" className="h-12 w-12" onClick={clearDrawings}>
-                        <Eraser className="h-5 w-5" />
+                      <Button variant="outline" className="h-14 flex-1 text-base gap-2" onClick={clearDrawings}>
+                        <Eraser className="h-6 w-6" />
+                        Clear
                       </Button>
                     </div>
-                    <div className="w-px h-10 bg-border" />
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-2 justify-center">
                       {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
                         <button
                           key={color}
                           className={cn(
-                            "w-7 h-7 rounded-full border-2",
+                            "w-8 h-8 rounded-full border-2",
                             drawingColor === color ? "border-primary ring-2 ring-primary/50" : "border-muted-foreground/30"
                           )}
                           style={{ backgroundColor: color }}
