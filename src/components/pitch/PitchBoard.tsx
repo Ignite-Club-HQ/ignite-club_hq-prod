@@ -242,11 +242,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [subPreviewOpen, setSubPreviewOpen] = useState(false);
   const [previewSwapPlayers, setPreviewSwapPlayers] = useState<{ sourceId: string | null; targetId: string | null }>({ sourceId: null, targetId: null });
 
-  // Formation change dialog state (for mid-game formation changes)
+  // Formation/team-size change dialog state
   const [formationChangeDialogOpen, setFormationChangeDialogOpen] = useState(false);
   const [pendingFormationChange, setPendingFormationChange] = useState<{
     index: number;
+    newTeamSize?: TeamSize; // Set when this is a team size change
     positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition }[];
+    benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[];
   } | null>(null);
 
   // Auto-sub plan state
@@ -1642,44 +1644,62 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     };
   }, []);
 
-  // Handle formation selection - auto-apply when selected
+  // Handle formation selection - preview changes and show confirmation
   const handleFormationChange = (value: string) => {
     const index = parseInt(value);
+    if (index === selectedFormation) return; // No change
     const formation = FORMATIONS[teamSize][index];
     if (!formation) return;
 
     const numPositions = parseInt(teamSize);
     
-    // Calculate what position swaps would happen
+    // Calculate what changes would happen
     const playersOnPitch = players.filter(p => p.position !== null);
     const benchPlayers = players.filter(p => p.position === null);
     const allPlayers = [...playersOnPitch, ...benchPlayers];
     
-    // Calculate new positions for players
     const positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition }[] = [];
+    const benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] = [];
     
-    for (let i = 0; i < Math.min(numPositions, allPlayers.length); i++) {
-      const player = allPlayers[i];
-      if (player.currentPitchPosition && formation.positions[i]) {
+    // Who will be on pitch after change
+    const willBeOnPitch = allPlayers.slice(0, numPositions);
+    const willBeOnBench = allPlayers.slice(numPositions);
+    
+    // Players going from pitch to bench
+    for (const player of playersOnPitch) {
+      if (willBeOnBench.some(p => p.id === player.id)) {
+        benchMoves.push({ player, direction: "to-bench", position: player.currentPitchPosition });
+      }
+    }
+    
+    // Players coming from bench to pitch
+    for (let i = 0; i < willBeOnPitch.length; i++) {
+      const player = willBeOnPitch[i];
+      if (benchPlayers.some(p => p.id === player.id) && formation.positions[i]) {
+        const newPos = getPositionFromCoords(formation.positions[i].y, teamSize);
+        benchMoves.push({ player, direction: "to-pitch", position: newPos });
+      }
+    }
+    
+    // Position changes for players staying on pitch
+    for (let i = 0; i < willBeOnPitch.length; i++) {
+      const player = willBeOnPitch[i];
+      if (player.currentPitchPosition && formation.positions[i] && playersOnPitch.some(p => p.id === player.id) && !willBeOnBench.some(p => p.id === player.id)) {
         const newPosition = getPositionFromCoords(formation.positions[i].y, teamSize);
         if (player.currentPitchPosition !== newPosition) {
-          positionSwaps.push({
-            player,
-            fromPosition: player.currentPitchPosition,
-            toPosition: newPosition,
-          });
+          positionSwaps.push({ player, fromPosition: player.currentPitchPosition, toPosition: newPosition });
         }
       }
     }
 
-    // If game is in progress and there are position changes, show confirmation dialog
-    if (gameInProgress && positionSwaps.length > 0) {
-      setPendingFormationChange({ index, positionSwaps });
+    // If there are any changes, show confirmation
+    if (positionSwaps.length > 0 || benchMoves.length > 0) {
+      setPendingFormationChange({ index, positionSwaps, benchMoves });
       setFormationChangeDialogOpen(true);
       return;
     }
 
-    // Apply formation immediately if game not in progress or no position changes
+    // Apply immediately if no meaningful changes
     applyFormationChange(index);
   };
 
@@ -1740,11 +1760,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Handle formation change dialog confirm
   const handleFormationChangeConfirm = useCallback(() => {
     if (pendingFormationChange) {
-      applyFormationChange(pendingFormationChange.index);
+      if (pendingFormationChange.newTeamSize) {
+        // This is a team size change
+        const newSize = pendingFormationChange.newTeamSize;
+        setTeamSize(newSize);
+        setSelectedFormation(0);
+        const placedPlayers = autoPlacePlayersOnPitch(players, newSize, 0);
+        setPlayers(placedPlayers);
+        persistTeamSizeToDb(newSize);
+      } else {
+        applyFormationChange(pendingFormationChange.index);
+      }
     }
     setFormationChangeDialogOpen(false);
     setPendingFormationChange(null);
-  }, [pendingFormationChange, applyFormationChange]);
+  }, [pendingFormationChange, applyFormationChange, autoPlacePlayersOnPitch, players, persistTeamSizeToDb]);
 
   // Handle formation change dialog cancel
   const handleFormationChangeCancel = useCallback(() => {
@@ -2679,14 +2709,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     });
   }, [players, teamSize, selectedFormation, autoPlacePlayersOnPitch, toast]);
 
-  // Handle team size change - repositions players to match new formation
+  // Handle team size change - preview changes and show confirmation
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
-    setTeamSize(newSize);
-    setSelectedFormation(0);
+    if (newSize === teamSize) return;
     
-    // For mini-league mode, re-place both teams with the new size
+    // Skip confirmation for mini-league mode (auto-place both teams)
     if (miniLeagueTeams) {
-      // Ensure teamSide is set on all players before placement
+      setTeamSize(newSize);
+      setSelectedFormation(0);
       const playersWithTeamSide = players.map(p => {
         if (p.teamSide) return p;
         let teamSide: "a" | "b" | undefined;
@@ -2699,13 +2729,64 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       });
       const placedPlayers = autoPlaceMiniLeaguePlayers(playersWithTeamSide, newSize, true);
       setPlayers(placedPlayers);
-    } else {
-      // Re-place players using the new team size and first formation
-      const placedPlayers = autoPlacePlayersOnPitch(players, newSize, 0);
-      setPlayers(placedPlayers);
+      persistTeamSizeToDb(newSize);
+      return;
     }
+    
+    const newFormation = FORMATIONS[newSize][0];
+    if (!newFormation) return;
+    
+    const numPositions = parseInt(newSize);
+    const playersOnPitch = players.filter(p => p.position !== null);
+    const benchPlayers = players.filter(p => p.position === null);
+    const allPlayers = [...playersOnPitch, ...benchPlayers];
+    
+    const positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition }[] = [];
+    const benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] = [];
+    
+    const willBeOnPitch = allPlayers.slice(0, numPositions);
+    const willBeOnBench = allPlayers.slice(numPositions);
+    
+    // Players going to bench
+    for (const player of playersOnPitch) {
+      if (willBeOnBench.some(p => p.id === player.id)) {
+        benchMoves.push({ player, direction: "to-bench", position: player.currentPitchPosition });
+      }
+    }
+    
+    // Players coming on from bench
+    for (let i = 0; i < willBeOnPitch.length; i++) {
+      const player = willBeOnPitch[i];
+      if (benchPlayers.some(p => p.id === player.id) && newFormation.positions[i]) {
+        const newPos = getPositionFromCoords(newFormation.positions[i].y, newSize);
+        benchMoves.push({ player, direction: "to-pitch", position: newPos });
+      }
+    }
+    
+    // Position changes for players staying on pitch
+    for (let i = 0; i < willBeOnPitch.length; i++) {
+      const player = willBeOnPitch[i];
+      if (player.currentPitchPosition && newFormation.positions[i] && playersOnPitch.some(p => p.id === player.id) && !willBeOnBench.some(p => p.id === player.id)) {
+        const newPosition = getPositionFromCoords(newFormation.positions[i].y, newSize);
+        if (player.currentPitchPosition !== newPosition) {
+          positionSwaps.push({ player, fromPosition: player.currentPitchPosition, toPosition: newPosition });
+        }
+      }
+    }
+    
+    if (positionSwaps.length > 0 || benchMoves.length > 0) {
+      setPendingFormationChange({ index: 0, newTeamSize: newSize, positionSwaps, benchMoves });
+      setFormationChangeDialogOpen(true);
+      return;
+    }
+    
+    // No changes, apply directly
+    setTeamSize(newSize);
+    setSelectedFormation(0);
+    const placedPlayers = autoPlacePlayersOnPitch(players, newSize, 0);
+    setPlayers(placedPlayers);
     persistTeamSizeToDb(newSize);
-  }, [players, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, persistTeamSizeToDb]);
+  }, [players, teamSize, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, persistTeamSizeToDb]);
 
   const getPinchDistance = (touches: React.TouchList) => {
     if (touches.length < 2) return null;
@@ -4584,10 +4665,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           open={formationChangeDialogOpen}
           onOpenChange={setFormationChangeDialogOpen}
           currentFormation={FORMATIONS[teamSize][selectedFormation]?.name || ""}
-          newFormation={pendingFormationChange ? FORMATIONS[teamSize][pendingFormationChange.index]?.name || "" : ""}
+          newFormation={pendingFormationChange ? FORMATIONS[pendingFormationChange.newTeamSize || teamSize][pendingFormationChange.index]?.name || "" : ""}
           positionSwaps={pendingFormationChange?.positionSwaps || []}
+          benchMoves={pendingFormationChange?.benchMoves || []}
           onConfirm={handleFormationChangeConfirm}
           onCancel={handleFormationChangeCancel}
+          isTeamSizeChange={!!pendingFormationChange?.newTeamSize}
+          currentTeamSize={teamSize}
+          newTeamSize={pendingFormationChange?.newTeamSize}
         />
 
         {/* Auto-Sub Plan Dialog */}
@@ -5912,10 +5997,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         open={formationChangeDialogOpen}
         onOpenChange={setFormationChangeDialogOpen}
         currentFormation={FORMATIONS[teamSize][selectedFormation]?.name || ""}
-        newFormation={pendingFormationChange ? FORMATIONS[teamSize][pendingFormationChange.index]?.name || "" : ""}
+        newFormation={pendingFormationChange ? FORMATIONS[pendingFormationChange.newTeamSize || teamSize][pendingFormationChange.index]?.name || "" : ""}
         positionSwaps={pendingFormationChange?.positionSwaps || []}
+        benchMoves={pendingFormationChange?.benchMoves || []}
         onConfirm={handleFormationChangeConfirm}
         onCancel={handleFormationChangeCancel}
+        isTeamSizeChange={!!pendingFormationChange?.newTeamSize}
+        currentTeamSize={teamSize}
+        newTeamSize={pendingFormationChange?.newTeamSize}
       />
 
       {/* Auto-Sub Plan Dialog */}
