@@ -1124,7 +1124,9 @@ export default function ClubChatPage() {
 
       {/* Input (for users with Pro access: app_admin, club admin, or Pro team member) */}
       {canAccessClubChat && (
-        <div className="fixed left-0 right-0 border-t pt-1 px-4 bg-background z-[51]" style={{ bottom: 0, paddingBottom: `calc(4rem + ${bottomInset} + 0.5rem)` }}>
+        <>
+        <div className="fixed left-0 right-0 bg-background z-[49]" style={{ bottom: 0, height: `calc(4rem + ${bottomInset} + 3rem)` }} />
+        <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: `calc(4rem + ${bottomInset})` }}>
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           <div className="flex gap-2 items-end">
@@ -1165,6 +1167,7 @@ export default function ClubChatPage() {
             Long-press a message to react • Tap menu to reply
           </p>
         </div>
+        </>
       )}
     </div>
   );
