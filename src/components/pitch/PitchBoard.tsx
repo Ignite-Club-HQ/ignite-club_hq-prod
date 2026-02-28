@@ -4427,6 +4427,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </Suspense>
                     )}
 
+                    {/* Action buttons grid */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button variant="outline" className="h-12 text-base" onClick={() => setStatsOpen(true)}>
+                        <BarChart3 className="h-4 w-4 mr-1.5" />
+                        Stats
+                      </Button>
+                      <Button variant="outline" className="h-12 text-base" onClick={() => setPositionEditorOpen(true)} disabled={readOnly}>
+                        <Settings2 className="h-4 w-4 mr-1.5" />
+                        Positions
+                      </Button>
+                    </div>
+
                     {/* Reset Positions */}
                     {!readOnly && (
                       <Button variant="outline" className="w-full h-12 text-base" onClick={handleResetFormation}>
