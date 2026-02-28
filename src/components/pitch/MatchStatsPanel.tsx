@@ -55,7 +55,7 @@ export default function MatchStatsPanel({ open, onOpenChange, players, elapsedGa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md z-[99999] sm:max-w-md landscape:max-w-2xl max-h-[100dvh] sm:max-h-[85vh] landscape:max-h-[90vh] h-[100dvh] sm:h-auto landscape:h-auto w-full sm:w-auto landscape:w-[90vw] rounded-none sm:rounded-lg landscape:rounded-lg pt-[max(1rem,env(safe-area-inset-top))]">
+      <DialogContent className="max-w-md z-[99999] sm:max-w-md landscape:max-w-2xl max-h-[100dvh] sm:max-h-[85vh] landscape:max-h-[90vh] h-[100dvh] sm:h-auto landscape:h-auto w-full sm:w-auto landscape:w-[90vw] rounded-none sm:rounded-lg landscape:rounded-lg pt-[calc(1rem+env(safe-area-inset-top))] mt-[env(safe-area-inset-top)]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
