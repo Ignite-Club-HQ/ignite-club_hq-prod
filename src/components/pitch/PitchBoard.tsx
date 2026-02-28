@@ -3890,7 +3890,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         <Button
                           variant={subMode ? "default" : "outline"}
                           className="w-full h-10 text-sm"
-                          onClick={toggleSubMode}
+                          onClick={() => { toggleSubMode(); setToolbarCollapsed(true); }}
                         >
                           <RefreshCw className="h-4 w-4 mr-1.5" />
                           {subMode ? "Cancel Sub" : "Make Sub"}
@@ -3913,7 +3913,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <Button
                             variant={swapMode ? "default" : "outline"}
                             className="w-full h-10 text-sm"
-                            onClick={toggleSwapMode}
+                            onClick={() => { toggleSwapMode(); setToolbarCollapsed(true); }}
                           >
                             <ArrowLeftRight className="h-4 w-4 mr-1.5" />
                             {swapMode ? "Cancel Swap" : "Swap Positions"}
