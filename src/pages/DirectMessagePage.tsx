@@ -747,35 +747,41 @@ export default function DirectMessagePage() {
 
       {/* Input area - Fixed at bottom above nav bar */}
       {isIgniteSupportConversation ? (
-         <div className="fixed left-0 right-0 border-t pt-1 px-4 bg-background z-[51]" style={{ bottom: 0, paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px) + 0.5rem)' }}>
-          <div className="text-center text-sm text-muted-foreground py-3 bg-muted/50 rounded-lg">
-            This is a welcome message from Ignite Support. Replies are not available.
+        <>
+          <div className="fixed left-0 right-0 bg-background z-[49]" style={{ bottom: 0, height: 'calc(4rem + env(safe-area-inset-bottom, 0px) + 3rem)' }} />
+          <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
+            <div className="text-center text-sm text-muted-foreground py-3 bg-muted/50 rounded-lg">
+              This is a welcome message from Ignite Support. Replies are not available.
+            </div>
           </div>
-        </div>
+        </>
       ) : (
-        <div className="fixed left-0 right-0 border-t pt-1 px-4 bg-background z-[51]" style={{ bottom: 0, paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px) + 0.5rem)' }}>
-          <div className="flex gap-2 items-end">
-            <MentionInput
-              value={message}
-              onChange={setMessage}
-              onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-              placeholder="Type a message... (@ to mention)"
-              disabled={sendMessageMutation.isPending}
-            />
-            
-            <Button 
-              onClick={handleSend} 
-              disabled={!message.trim() || sendMessageMutation.isPending}
-              size="icon"
-            >
-              {sendMessageMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </Button>
+        <>
+          <div className="fixed left-0 right-0 bg-background z-[49]" style={{ bottom: 0, height: 'calc(4rem + env(safe-area-inset-bottom, 0px) + 3rem)' }} />
+          <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
+            <div className="flex gap-2 items-end">
+              <MentionInput
+                value={message}
+                onChange={setMessage}
+                onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                placeholder="Type a message... (@ to mention)"
+                disabled={sendMessageMutation.isPending}
+              />
+              
+              <Button 
+                onClick={handleSend} 
+                disabled={!message.trim() || sendMessageMutation.isPending}
+                size="icon"
+              >
+                {sendMessageMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
