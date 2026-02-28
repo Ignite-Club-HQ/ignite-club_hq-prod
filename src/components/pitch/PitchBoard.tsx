@@ -4190,13 +4190,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       <div className="flex-1 min-h-0 relative overflow-hidden">
         {/* Floating timer */}
         <div 
-          className="absolute z-50 touch-none select-none"
+          className="absolute z-50 select-none"
           style={{ 
-            right: 8, 
-            top: 40,
+            right: 8,
+            top: gameInProgress && !hideScores && !showScoreInPortrait ? 52 : 8,
           }}
-          onMouseDown={handleTimerDragStart}
-          onTouchStart={handleTimerTouchStart}
         >
           <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
             <GameTimer 
@@ -4236,7 +4234,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
         {/* Floating undo button */}
         {!readOnly && showFloatingUndo && undoHistory.length > 0 && (
-          <div className="absolute top-14 left-2 z-50 animate-fade-in">
+          <div
+            className="absolute left-2 z-50 animate-fade-in"
+            style={{ top: subMode || swapMode ? 56 : 14 }}
+          >
             <Button 
               variant="secondary" 
               size="sm"
@@ -4686,11 +4687,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
         {/* Sub mode instruction banner */}
         {subMode && (
-          <div className={cn(
-            "absolute top-2 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-lg animate-fade-in",
-            "bg-primary text-primary-foreground"
-          )}>
-            <p className="text-sm font-medium">
+          <div
+            className={cn(
+              "absolute z-[62] px-4 py-2 rounded-full shadow-lg animate-fade-in pointer-events-none",
+              "bg-primary text-primary-foreground"
+            )}
+            style={
+              portraitSheetOpen
+                ? { left: 12, right: 12, bottom: `calc(${portraitSheetHeightPct}% + 12px)` }
+                : { top: 8, left: 12, right: 140 }
+            }
+          >
+            <p className="text-sm font-medium text-center">
               {!selectedOnPitch 
                 ? "Tap player on pitch to sub off" 
                 : "Tap bench player to sub on"
@@ -4701,13 +4709,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
         {/* Swap mode instruction banner */}
         {swapMode && (
-          <div className={cn(
-            "absolute top-2 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-lg animate-fade-in",
-            swapPlayer1 && getValidSwapPlayerIds.size === 0 
-              ? "bg-destructive text-destructive-foreground" 
-              : "bg-primary text-primary-foreground"
-          )}>
-            <p className="text-sm font-medium">
+          <div
+            className={cn(
+              "absolute z-[62] px-4 py-2 rounded-full shadow-lg animate-fade-in pointer-events-none",
+              swapPlayer1 && getValidSwapPlayerIds.size === 0 
+                ? "bg-destructive text-destructive-foreground" 
+                : "bg-primary text-primary-foreground"
+            )}
+            style={
+              portraitSheetOpen
+                ? { left: 12, right: 12, bottom: `calc(${portraitSheetHeightPct}% + 12px)` }
+                : { top: 8, left: 12, right: 140 }
+            }
+          >
+            <p className="text-sm font-medium text-center">
               {!swapPlayer1 
                 ? "Tap first player to swap" 
                 : getValidSwapPlayerIds.size === 0
