@@ -3794,11 +3794,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     if (last && last.playerId === player.id && now - last.time < 400) {
                       lastTapRef.current = null;
                       e.preventDefault();
-                      setPitchPlayerActionTarget(player.id);
-                      setPitchPlayerActionOpen(true);
+                      // Clear any drag state from first tap
+                      setTouchDragPlayer(null);
+                      setTouchOffset(null);
+                      try {
+                        setPitchPlayerActionTarget(player.id);
+                        setPitchPlayerActionOpen(true);
+                      } catch (err) {
+                        console.error("Failed to open pitch player action menu:", err);
+                      }
                     } else {
                       lastTapRef.current = { playerId: player.id, time: now };
-                      handleTouchStart(player.id, e);
                     }
                   }}
                   onClick={!readOnly ? () => handlePlayerClick(player.id, true) : undefined}
@@ -5457,11 +5463,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   if (last && last.playerId === player.id && now - last.time < 400) {
                     lastTapRef.current = null;
                     e.preventDefault();
-                    setPitchPlayerActionTarget(player.id);
-                    setPitchPlayerActionOpen(true);
+                    setTouchDragPlayer(null);
+                    setTouchOffset(null);
+                    try {
+                      setPitchPlayerActionTarget(player.id);
+                      setPitchPlayerActionOpen(true);
+                    } catch (err) {
+                      console.error("Failed to open pitch player action menu:", err);
+                    }
                   } else {
                     lastTapRef.current = { playerId: player.id, time: now };
-                    handleTouchStart(player.id, e);
                   }
                 }}
                 onClick={!readOnly ? () => handlePlayerClick(player.id, true) : undefined}
