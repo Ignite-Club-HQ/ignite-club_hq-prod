@@ -4441,10 +4441,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Bottom Sheet Overlay */}
         {portraitSheetOpen && (
           <div className="absolute inset-0 z-[60] flex flex-col pointer-events-none" style={{ height: '100%' }}>
-            {/* Backdrop */}
+            {/* Backdrop - pass through when drawing */}
             <div 
-              className="flex-1 pointer-events-auto"
-              onClick={() => setPortraitSheetOpen(false)}
+              className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")}
+              onClick={drawingTool === "none" ? () => setPortraitSheetOpen(false) : undefined}
             />
             {/* Sheet */}
             <div 
