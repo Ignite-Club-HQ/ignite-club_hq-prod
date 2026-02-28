@@ -60,6 +60,9 @@ interface PitchSettingsDialogProps {
   // Read-only mode
   readOnly?: boolean;
   
+  // Game in progress
+  gameInProgress?: boolean;
+  
   // Optional trigger button customization
   triggerClassName?: string;
   
@@ -105,6 +108,7 @@ export function PitchSettingsDialog({
   mockMode,
   onMockModeChange,
   readOnly = false,
+  gameInProgress = false,
   triggerClassName,
   onResetGame,
   onResetFormation,
@@ -192,7 +196,7 @@ export function PitchSettingsDialog({
                   <Select 
                     value={minutesPerHalf.toString()} 
                     onValueChange={(v) => onMinutesPerHalfChange(parseInt(v))}
-                    disabled={readOnly}
+                    disabled={readOnly || gameInProgress}
                   >
                     <SelectTrigger className="h-10">
                       <SelectValue />

@@ -393,7 +393,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     return (
       <div className="flex items-center gap-1">
         {!hideExtras && (
-          <Select value={minutesPerHalf.toString()} onValueChange={handleHalfDurationChange} disabled={readOnly || isGameFinished}>
+          <Select value={minutesPerHalf.toString()} onValueChange={handleHalfDurationChange} disabled={readOnly || isGameFinished || isRunning || elapsedSeconds > 0}>
             <SelectTrigger className="w-14 h-7 text-xs px-1.5">
               <SelectValue />
             </SelectTrigger>
@@ -442,7 +442,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   return (
     <div className="flex items-center gap-2 flex-wrap">
       {!hideExtras && (
-        <Select value={minutesPerHalf.toString()} onValueChange={handleHalfDurationChange} disabled={readOnly || isGameFinished}>
+        <Select value={minutesPerHalf.toString()} onValueChange={handleHalfDurationChange} disabled={readOnly || isGameFinished || isRunning || elapsedSeconds > 0}>
           <SelectTrigger className={large ? "w-28 h-12 text-base" : "w-24"}>
             <SelectValue />
           </SelectTrigger>

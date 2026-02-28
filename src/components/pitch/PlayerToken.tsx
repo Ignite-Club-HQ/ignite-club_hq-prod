@@ -93,7 +93,7 @@ const PlayerToken = memo(function PlayerToken({
         onTouchStart={readOnly ? undefined : onTouchStart}
         onClick={readOnly ? undefined : onClick}
         className={cn(
-          "flex items-center gap-2 px-2 py-1 rounded-lg bg-muted border border-border transition-all select-none touch-none",
+          "flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-muted border border-border transition-all select-none touch-none w-full",
           !player.isInjured && "cursor-grab active:cursor-grabbing",
           player.isInjured && "opacity-60 cursor-default bg-destructive/10 border-destructive/30",
           isDragging && "opacity-50 scale-95",
@@ -171,40 +171,6 @@ const PlayerToken = memo(function PlayerToken({
             title="Remove fill-in player"
           >
             <span className="text-[10px]">✕</span>
-          </button>
-        )}
-        {onInjuryToggle && !readOnly && !player.isFillIn && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onInjuryToggle();
-            }}
-            className={cn(
-              "ml-auto p-1 rounded-full transition-colors",
-              player.isInjured 
-                ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-500" 
-                : "bg-destructive/10 hover:bg-destructive/20 text-destructive"
-            )}
-            title={player.isInjured ? "Mark as fit" : "Mark as injured"}
-          >
-            <span className="text-[10px]">{player.isInjured ? "✓" : "🏥"}</span>
-          </button>
-        )}
-        {onInjuryToggle && !readOnly && player.isFillIn && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onInjuryToggle();
-            }}
-            className={cn(
-              "p-1 rounded-full transition-colors",
-              player.isInjured 
-                ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-500" 
-                : "bg-destructive/10 hover:bg-destructive/20 text-destructive"
-            )}
-            title={player.isInjured ? "Mark as fit" : "Mark as injured"}
-          >
-            <span className="text-[10px]">{player.isInjured ? "✓" : "🏥"}</span>
           </button>
         )}
       </div>

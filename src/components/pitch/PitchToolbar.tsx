@@ -627,6 +627,7 @@ function PitchToolbar({
               mockMode={mockMode}
               onMockModeChange={onMockModeChange}
               readOnly={readOnly}
+              gameInProgress={gameInProgress}
               triggerClassName="h-10 w-10"
               onResetGame={onResetGame}
               onResetFormation={onResetFormation}
@@ -983,6 +984,7 @@ function PitchToolbar({
             mockMode={mockMode}
             onMockModeChange={onMockModeChange}
             readOnly={readOnly}
+            gameInProgress={gameInProgress}
             triggerClassName={buttonSize}
             onResetGame={onResetGame}
             onResetFormation={onResetFormation}
