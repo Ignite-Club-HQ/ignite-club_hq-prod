@@ -507,7 +507,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const floatingUndoTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isUndoingRef = useRef(false);
   const playersRef = useRef<Player[]>([]);
-  const [benchCollapsed, setBenchCollapsed] = useState(isMobileLandscape);
+  const [benchCollapsed, setBenchCollapsed] = useState(true);
   
   // Swipe hint indicator state
   const [showSwipeHints, setShowSwipeHints] = useState(false);
