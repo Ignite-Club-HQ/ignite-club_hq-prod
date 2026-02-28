@@ -77,7 +77,7 @@ export default function AutoSubManager({
         <button
           type="button"
           className={cn(
-            "w-full rounded-lg border p-2.5 text-left transition-colors",
+            "w-full rounded-lg border p-3.5 text-left transition-colors",
             autoSubPaused 
               ? "border-muted bg-muted/30 opacity-60" 
               : "border-primary/30 bg-primary/5 hover:bg-primary/10 active:bg-primary/15 cursor-pointer"
@@ -86,27 +86,27 @@ export default function AutoSubManager({
           disabled={autoSubPaused}
           title={autoSubPaused ? "Resume to execute" : "Tap to execute this sub now"}
         >
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
               Next Sub {!autoSubPaused && <span className="text-primary">· Tap to execute</span>}
             </span>
-            <Badge variant="secondary" className="font-mono text-[10px] h-5">
+            <Badge variant="secondary" className="font-mono text-xs h-6 px-2">
               {nextSub.half === 2 && nextSub.time === 0 
                 ? "HT" 
                 : `${nextSub.half === 2 ? "2H " : ""}${formatTime(nextSub.time)}`}
             </Badge>
           </div>
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2 text-base">
             <span className="text-destructive font-medium truncate">
               ↓ {nextSub.playerOut.number ? `#${nextSub.playerOut.number} ` : ""}{nextSub.playerOut.name}
             </span>
-            <span className="text-muted-foreground text-xs">→</span>
+            <span className="text-muted-foreground text-sm">→</span>
             <span className="text-green-600 dark:text-green-400 font-medium truncate">
               ↑ {nextSub.playerIn.number ? `#${nextSub.playerIn.number} ` : ""}{nextSub.playerIn.name}
             </span>
           </div>
           {nextSub.positionSwap && (
-            <p className="text-[10px] text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground mt-1.5">
               + {nextSub.positionSwap.player.name} moves {nextSub.positionSwap.fromPosition} → {nextSub.positionSwap.toPosition}
             </p>
           )}
