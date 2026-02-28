@@ -37,7 +37,8 @@ export async function safeOpenUrl(url: string): Promise<void> {
   try {
     const { Browser } = await import('@capacitor/browser');
     console.log('[safeOpenUrl] Opening in-app browser:', url);
-    await Browser.open({ url });
+    await Browser.open({ url, windowName: '_blank' });
+    console.log('[safeOpenUrl] Browser.open resolved successfully');
   } catch (err) {
     console.warn('[safeOpenUrl] Browser plugin failed, falling back:', err);
     window.open(url, '_blank');
