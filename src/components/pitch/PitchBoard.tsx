@@ -3784,6 +3784,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {bottomSheetTab === "setup" && (
                   <div className="space-y-3">
                     <PitchToolbar
+                      hideSubsSection
                       variant="landscape"
                       collapsed={false}
                       onToggleCollapse={() => setToolbarCollapsed(true)}
