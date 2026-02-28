@@ -260,6 +260,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "subs" | "setup" | "draw">("bench");
+  const [landscapeSheetExpanded, setLandscapeSheetExpanded] = useState(false);
   const [gameInProgress, setGameInProgress] = useState(false); // Track if game has started
   const [showScoreInPortrait, setShowScoreInPortrait] = useState(false); // Toggle score visibility in portrait
   const [hideScores, setHideScores] = useState(false); // Hide scores and disable scoring
@@ -3610,11 +3611,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             />
             {/* Sheet */}
             <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200"
-              style={{ maxHeight: '55%' }}
+              style={{ maxHeight: landscapeSheetExpanded ? '82%' : '55%' }}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Handle bar - swipe down to close */}
+              {/* Handle bar - swipe up to expand, swipe down to close */}
               <div
                 className="flex justify-center pt-2 pb-1 cursor-grab"
                 onTouchStart={(e) => {
@@ -3625,6 +3626,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   if (!startY) return;
                   const deltaY = e.changedTouches[0].clientY - startY;
                   if (deltaY > 30) setToolbarCollapsed(true);
+                  if (deltaY < -20) setLandscapeSheetExpanded(true);
                 }}
               >
                 <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
@@ -3655,7 +3657,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               </div>
 
               {/* Tab content */}
-              <div className="overflow-y-auto p-3" style={{ maxHeight: 'calc(55vh - 80px)' }}>
+              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${landscapeSheetExpanded ? 82 : 55}vh - 80px)` }}>
                 {/* Bench Tab */}
                 {bottomSheetTab === "bench" && (
                   <div className="space-y-3">
