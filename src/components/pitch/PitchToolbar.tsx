@@ -176,6 +176,9 @@ interface PitchToolbarProps {
   
   // Hide subs section (when rendered in bottom sheet Setup tab to avoid duplication)
   hideSubsSection?: boolean;
+  
+  // Hide draw section (when rendered in bottom sheet Setup tab, draw has its own tab)
+  hideDrawSection?: boolean;
 }
 
 interface ToolbarGroupProps {
@@ -294,6 +297,7 @@ function PitchToolbar({
   onToggleScorePanel,
   scorePanelExpanded,
   hideSubsSection = false,
+  hideDrawSection = false,
 }: PitchToolbarProps) {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [timerRunning, setTimerRunning] = useState(false);
@@ -462,7 +466,7 @@ function PitchToolbar({
           </ToolbarGroup>
 
           {/* Drawing Group - defaults closed */}
-          {!readOnly && (
+          {!readOnly && !hideDrawSection && (
             <ToolbarGroup label="Draw" icon={<PenTool className="h-3.5 w-3.5" />} open={drawOpen} onOpenChange={setDrawOpen}>
               <div className="space-y-2">
                 <div className="flex gap-1.5">
