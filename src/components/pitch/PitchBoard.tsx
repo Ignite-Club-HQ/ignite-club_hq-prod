@@ -4687,7 +4687,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Sub mode instruction banner */}
         {subMode && (
           <div className={cn(
-            "absolute bottom-14 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-lg animate-fade-in",
+            "absolute top-2 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-lg animate-fade-in",
             "bg-primary text-primary-foreground"
           )}>
             <p className="text-sm font-medium">
@@ -4702,7 +4702,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Swap mode instruction banner */}
         {swapMode && (
           <div className={cn(
-            "absolute bottom-14 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-lg animate-fade-in",
+            "absolute top-2 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-lg animate-fade-in",
             swapPlayer1 && getValidSwapPlayerIds.size === 0 
               ? "bg-destructive text-destructive-foreground" 
               : "bg-primary text-primary-foreground"
