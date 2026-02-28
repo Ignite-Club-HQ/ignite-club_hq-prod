@@ -3568,20 +3568,36 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
           </div>
         </div>
-
-        {/* Right edge strip - always visible, shows bench count + open bottom sheet */}
-        <div className="h-full w-12 border-l border-border bg-background flex flex-col items-center justify-between py-3 px-1 shrink-0 cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => setToolbarCollapsed(!toolbarCollapsed)}
-        >
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-xs font-bold text-muted-foreground">
-              {playersOnBench.length}
-            </div>
-            <span className="text-[9px] text-muted-foreground">Bench</span>
+        </div>
+        {/* Swipe-up zone at bottom edge to open sheet */}
+        {toolbarCollapsed && (
+          <div
+            className="absolute bottom-0 left-0 right-0 z-[55] flex justify-center items-end pointer-events-auto"
+            style={{ height: 28 }}
+            onTouchStart={(e) => {
+              const startY = e.touches[0].clientY;
+              const handleTouchEnd = (ev: TouchEvent) => {
+                const deltaY = startY - ev.changedTouches[0].clientY;
+                if (deltaY > 30) setToolbarCollapsed(false);
+                document.removeEventListener("touchend", handleTouchEnd);
+              };
+              document.addEventListener("touchend", handleTouchEnd);
+            }}
+            onClick={() => setToolbarCollapsed(false)}
+          >
+            <div className="w-10 h-1 rounded-full bg-foreground/30 mb-1.5" />
           </div>
-          <ChevronUp className={cn("h-4 w-4 text-muted-foreground transition-transform", !toolbarCollapsed && "rotate-180")} />
-        </div>
-        </div>
+        )}
+
+        {/* Floating settings button - always visible in landscape when sheet closed */}
+        {toolbarCollapsed && (
+          <button
+            className="absolute bottom-3 right-3 z-[55] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
+            onClick={() => setToolbarCollapsed(false)}
+          >
+            <Settings2 className="h-4 w-4 text-muted-foreground" />
+          </button>
+        )}
 
         {/* Bottom Sheet Overlay for landscape controls */}
         {!toolbarCollapsed && (
