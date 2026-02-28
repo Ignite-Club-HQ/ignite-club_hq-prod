@@ -4341,10 +4341,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         )}
 
         {/* Floating undo button */}
-        {!readOnly && showFloatingUndo && undoHistory.length > 0 && (
+        {!readOnly && showFloatingUndo && undoHistory.length > 0 && !portraitSheetOpen && (
           <div
-            className="absolute left-2 z-50 animate-fade-in"
-            style={{ top: 14 }}
+            className="absolute right-2 z-[64] animate-fade-in"
+            style={{ bottom: subMode || swapMode ? 56 : 16 }}
           >
             <Button 
               variant="secondary" 
