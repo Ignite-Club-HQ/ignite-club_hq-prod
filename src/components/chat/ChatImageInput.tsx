@@ -5,8 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { Keyboard } from "@capacitor/keyboard";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
-import { StatusBar } from "@capacitor/status-bar";
 import { cameraPhotoToBlob, hasCameraPhotoSource, mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 
@@ -35,8 +35,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const restoreNativeLayout = () => {
     if (!isNativeIOS) return;
     dismissIOSKeyboardAccessory();
+    void Keyboard.hide().catch(() => undefined);
     // Small delay to let iOS settle after picker closes
-    setTimeout(() => dismissIOSKeyboardAccessory(), 100);
+    setTimeout(() => {
+      dismissIOSKeyboardAccessory();
+      void Keyboard.hide().catch(() => undefined);
+    }, 120);
   };
 
   const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
@@ -91,7 +95,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const handleNativePhotoPick = async () => {
     setUploading(true);
     console.log("[ChatImageInput] handleNativePhotoPick START");
-    let layoutRestoredEarly = false;
     try {
       // Only request Photos access on iOS gallery flows (never camera permission)
       let permissions = await Camera.checkPermissions();
@@ -150,7 +153,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
       // Stabilize viewport immediately when the thumbnail appears (before upload completes)
       restoreNativeLayout();
-      layoutRestoredEarly = true;
 
       const skipCompression = !IOS_SAFE_COMPRESSION_MIME_TYPES.has(mimeType);
       let storageUrl: string;
@@ -178,9 +180,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       }
       setLocalPreview(null);
     } finally {
-      if (!layoutRestoredEarly) {
-        restoreNativeLayout();
-      }
+      restoreNativeLayout();
       setUploading(false);
     }
   };
