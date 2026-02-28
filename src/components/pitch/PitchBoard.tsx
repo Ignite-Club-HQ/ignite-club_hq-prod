@@ -523,7 +523,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const floatingSubsDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
   
   // Draggable floating timer state (for landscape mode) - positioned further right to avoid "View Only" badge
-  const [floatingTimerPosition, setFloatingTimerPosition] = useState({ x: 8, y: 52 });
+  const [floatingTimerPosition, setFloatingTimerPosition] = useState({ x: 8, y: 8 });
   const floatingTimerDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
   
   // Floating timer drag handlers
@@ -4193,7 +4193,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           className="absolute z-50 cursor-move touch-none select-none"
           style={{ 
             left: floatingTimerPosition.x, 
-            top: floatingTimerPosition.y,
+            bottom: 48,
           }}
           onMouseDown={handleTimerDragStart}
           onTouchStart={handleTimerTouchStart}
