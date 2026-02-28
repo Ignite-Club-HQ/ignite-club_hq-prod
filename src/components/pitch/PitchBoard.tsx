@@ -3502,7 +3502,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
           {/* Floating score tracker in landscape mode */}
           {gameInProgress && !hideScores && (
-            <div className="absolute top-2 right-14 z-50">
+            <div className="absolute top-2 right-14 z-[61]">
               <ScoreTracker
                 goals={goals}
                 onAddGoal={handleAddGoal}
@@ -4683,7 +4683,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
         {/* Floating score tracker */}
         {gameInProgress && !hideScores && !showScoreInPortrait && (
-          <div className="absolute top-2 right-2 z-50">
+          <div className="absolute top-2 right-2 z-[61]">
             <ScoreTracker
               goals={goals}
               onAddGoal={handleAddGoal}
