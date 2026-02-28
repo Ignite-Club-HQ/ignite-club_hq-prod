@@ -4860,7 +4860,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {/* Bench Players - wrap layout for portrait */}
                     <div 
                       id="pitch-bench-portrait"
-                      className="flex flex-wrap gap-2 min-h-14"
+                      className="grid grid-cols-2 gap-2 min-h-14"
                       onDrop={!subMode ? handleBenchDrop : undefined}
                       onDragOver={!subMode ? handleDragOver : undefined}
                       onTouchMove={handleBenchLongPressMove}
