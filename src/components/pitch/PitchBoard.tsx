@@ -4403,36 +4403,49 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Setup Tab */}
                 {bottomSheetTab === "setup" && (
                   <div className="space-y-4 px-1">
-                    {/* 2-column grid for core settings - larger for landscape */}
-                    <div className="grid grid-cols-2 gap-3">
+                    {/* Segmented controls for core settings - landscape */}
+                    <div className="space-y-3">
                       <div className="space-y-1.5">
                         <Label className="text-xs uppercase tracking-wider text-muted-foreground">Players</Label>
-                        <Select value={teamSize} onValueChange={(v) => handleTeamSizeChange(v as TeamSize)} disabled={readOnly}>
-                          <SelectTrigger className="h-12 text-base">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="z-[99999] bg-popover">
-                            <SelectItem value="3" className="text-base py-2.5">3-a-side</SelectItem>
-                            <SelectItem value="4" className="text-base py-2.5">4-a-side</SelectItem>
-                            <SelectItem value="5" className="text-base py-2.5">5-a-side</SelectItem>
-                            <SelectItem value="7" className="text-base py-2.5">7-a-side</SelectItem>
-                            <SelectItem value="9" className="text-base py-2.5">9-a-side</SelectItem>
-                            <SelectItem value="11" className="text-base py-2.5">11-a-side</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex rounded-lg border border-border overflow-hidden">
+                          {(["3","4","5","7","9","11"] as const).map((size) => (
+                            <button
+                              key={size}
+                              type="button"
+                              disabled={readOnly}
+                              onClick={() => handleTeamSizeChange(size)}
+                              className={cn(
+                                "flex-1 py-2.5 text-base font-medium transition-colors",
+                                teamSize === size
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-background text-muted-foreground hover:bg-accent"
+                              )}
+                            >
+                              {size}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs uppercase tracking-wider text-muted-foreground">Formation</Label>
-                        <Select value={selectedFormation.toString()} onValueChange={handleFormationChange} disabled={readOnly}>
-                          <SelectTrigger className="h-12 text-base">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="z-[99999] bg-popover">
-                            {FORMATIONS[teamSize].map((f, i) => (
-                              <SelectItem key={i} value={i.toString()} className="text-base py-2.5">{f.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex rounded-lg border border-border overflow-hidden">
+                          {FORMATIONS[teamSize].map((f, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              disabled={readOnly}
+                              onClick={() => handleFormationChange(i.toString())}
+                              className={cn(
+                                "flex-1 py-2.5 text-base font-medium transition-colors",
+                                selectedFormation === i
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-background text-muted-foreground hover:bg-accent"
+                              )}
+                            >
+                              {f.name}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
@@ -5375,36 +5388,49 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Setup Tab */}
                 {bottomSheetTab === "setup" && (
                   <div className="space-y-3 px-1">
-                    {/* 2-column grid for core settings */}
-                    <div className="grid grid-cols-2 gap-2">
+                    {/* Segmented controls for core settings - portrait */}
+                    <div className="space-y-2">
                       <div className="space-y-1">
                         <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Players</Label>
-                        <Select value={teamSize} onValueChange={(v) => handleTeamSizeChange(v as TeamSize)} disabled={readOnly}>
-                          <SelectTrigger className="h-11 text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="z-[99999] bg-popover">
-                            <SelectItem value="3">3-a-side</SelectItem>
-                            <SelectItem value="4">4-a-side</SelectItem>
-                            <SelectItem value="5">5-a-side</SelectItem>
-                            <SelectItem value="7">7-a-side</SelectItem>
-                            <SelectItem value="9">9-a-side</SelectItem>
-                            <SelectItem value="11">11-a-side</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex rounded-lg border border-border overflow-hidden">
+                          {(["3","4","5","7","9","11"] as const).map((size) => (
+                            <button
+                              key={size}
+                              type="button"
+                              disabled={readOnly}
+                              onClick={() => handleTeamSizeChange(size)}
+                              className={cn(
+                                "flex-1 py-2 text-sm font-medium transition-colors",
+                                teamSize === size
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-background text-muted-foreground hover:bg-accent"
+                              )}
+                            >
+                              {size}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Formation</Label>
-                        <Select value={selectedFormation.toString()} onValueChange={handleFormationChange} disabled={readOnly}>
-                          <SelectTrigger className="h-11 text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="z-[99999] bg-popover">
-                            {FORMATIONS[teamSize].map((f, i) => (
-                              <SelectItem key={i} value={i.toString()}>{f.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex rounded-lg border border-border overflow-hidden">
+                          {FORMATIONS[teamSize].map((f, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              disabled={readOnly}
+                              onClick={() => handleFormationChange(i.toString())}
+                              className={cn(
+                                "flex-1 py-2 text-sm font-medium transition-colors",
+                                selectedFormation === i
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-background text-muted-foreground hover:bg-accent"
+                              )}
+                            >
+                              {f.name}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
