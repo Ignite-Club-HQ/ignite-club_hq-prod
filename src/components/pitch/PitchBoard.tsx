@@ -4040,6 +4040,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       />
                     ))}
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs gap-1.5"
+                    onClick={() => {
+                      handleResetFormation();
+                      setShowFloatingDrawToolbar(false);
+                    }}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Reset Positions
+                  </Button>
                 </div>
               </div>
             )}
@@ -4908,8 +4920,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           />
                         ))}
                       </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs gap-1.5"
+                        onClick={() => {
+                          handleResetFormation();
+                          setShowFloatingDrawToolbar(false);
+                        }}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Reset Positions
+                      </Button>
                     </div>
-                  </div>
                 )}
               </>
             )}
