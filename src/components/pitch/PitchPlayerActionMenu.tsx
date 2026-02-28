@@ -9,7 +9,7 @@ import {
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { HeartOff, ArrowLeft, UserRoundCheck } from "lucide-react";
+import { HeartOff, UserRoundCheck } from "lucide-react";
 import { Player } from "./types";
 import PositionBadge from "./PositionBadge";
 import { cn } from "@/lib/utils";
@@ -35,7 +35,12 @@ const PitchPlayerActionMenu = memo(function PitchPlayerActionMenu({
 
   if (!player) return null;
 
-  const availableBench = benchPlayers.filter(p => !p.isInjured);
+  const injuredPos = player.currentPitchPosition;
+  // Filter to eligible bench players: prefer those assigned to the injured player's position, then others
+  const eligibleBench = benchPlayers.filter(p => !p.isInjured);
+  const positionMatch = injuredPos ? eligibleBench.filter(p => p.assignedPositions?.includes(injuredPos)) : [];
+  const others = injuredPos ? eligibleBench.filter(p => !p.assignedPositions?.includes(injuredPos)) : eligibleBench;
+  const availableBench = [...positionMatch, ...others];
 
   const handleClose = () => {
     onOpenChange(false);
@@ -93,19 +98,12 @@ const PitchPlayerActionMenu = memo(function PitchPlayerActionMenu({
         {step === "pick-replacement" && (
           <>
             <AlertDialogHeader className="pb-2">
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => { setStep("action"); setSelectedReplacement(null); }}>
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div>
-                  <AlertDialogTitle className="text-sm">
-                    Replace {player.name}
-                  </AlertDialogTitle>
-                  <AlertDialogDescription className="text-xs">
-                    Choose who comes on for the injured player
-                  </AlertDialogDescription>
-                </div>
-              </div>
+              <AlertDialogTitle className="text-sm">
+                Replace {player.name}
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs">
+                Choose who comes on{injuredPos ? ` at ${injuredPos}` : ""}
+              </AlertDialogDescription>
             </AlertDialogHeader>
 
             <ScrollArea className="max-h-[240px]">
