@@ -4920,7 +4920,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <>
                             <Button
                               variant={subMode ? "default" : "outline"}
-                              className="w-full h-11 text-sm"
+                              className="w-full h-12 text-base"
                               onClick={() => { toggleSubMode(); setPortraitSheetOpen(false); }}
                             >
                               <RefreshCw className="h-4 w-4 mr-1.5" />
@@ -4937,7 +4937,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             {playersOnPitch.length >= 2 && !subMode && (
                               <Button
                                 variant={swapMode ? "default" : "outline"}
-                                className="w-full h-11 text-sm"
+                                className="w-full h-12 text-base"
                                 onClick={() => { toggleSwapMode(); setPortraitSheetOpen(false); }}
                               >
                                 <ArrowLeftRight className="h-4 w-4 mr-1.5" />
@@ -4995,7 +4995,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <div className="pt-2 border-t border-border space-y-2">
                             <Button
                               variant="outline"
-                              className="w-full h-11 text-sm"
+                              className="w-full h-12 text-base"
                               onClick={() => { toggleSubMode(); setPortraitSheetOpen(false); }}
                             >
                               <RefreshCw className="h-4 w-4 mr-1.5" />
@@ -5004,7 +5004,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             {playersOnPitch.length >= 2 && (
                               <Button
                                 variant="outline"
-                                className="w-full h-11 text-sm"
+                                className="w-full h-12 text-base"
                                 onClick={() => { toggleSwapMode(); setPortraitSheetOpen(false); }}
                               >
                                 <ArrowLeftRight className="h-4 w-4 mr-1.5" />
@@ -5103,7 +5103,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {/* Reset */}
                     {!readOnly && (
                       <div className="border-t border-border pt-2">
-                        <Button variant="outline" className="w-full h-10 text-sm text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
+                        <Button variant="outline" className="w-full h-12 text-base text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
                           <RotateCcw className="h-4 w-4 mr-1.5" />
                           Reset Game
                         </Button>
