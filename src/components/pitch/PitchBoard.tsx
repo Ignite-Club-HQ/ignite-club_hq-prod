@@ -1995,11 +1995,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       console.log('[PlayerClick] Pitch player clicked:', playerId);
       const newSelected = selectedOnPitch === playerId ? null : playerId;
       setSelectedOnPitch(newSelected);
-      // In portrait, open bench drawer when a pitch player is selected for sub
-      if (newSelected && !isLandscape) {
-        setPortraitSheetOpen(true);
-        setBottomSheetTab("bench");
-      }
     } else {
       console.log('[PlayerClick] Bench player clicked:', playerId);
       setSelectedOnBench(prev => prev === playerId ? null : playerId);
