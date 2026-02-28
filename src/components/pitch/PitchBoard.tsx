@@ -4018,41 +4018,46 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <div className="space-y-3">
                     {!readOnly && (
                       <>
-                        <Button
-                          variant={subMode ? "default" : "outline"}
-                          className="w-full h-10 text-sm"
-                          onClick={() => { toggleSubMode(); setToolbarCollapsed(true); }}
-                        >
-                          <RefreshCw className="h-4 w-4 mr-1.5" />
-                          {subMode ? "Cancel Sub" : "Make Sub"}
-                        </Button>
-                        
-                        {subMode && selectedOnPitch && (
-                          <Button variant="outline" className="w-full h-9 text-xs" onClick={() => setSubPreviewOpen(true)}>
-                            <List className="h-3.5 w-3.5 mr-1.5" />
-                            Options
-                          </Button>
-                        )}
+                        {/* Show Make Sub / Swap at top only when no auto-sub plan active */}
+                        {!autoSubActive && (
+                          <>
+                            <Button
+                              variant={subMode ? "default" : "outline"}
+                              className="w-full h-10 text-sm"
+                              onClick={() => { toggleSubMode(); setToolbarCollapsed(true); }}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-1.5" />
+                              {subMode ? "Cancel Sub" : "Make Sub"}
+                            </Button>
+                            
+                            {subMode && selectedOnPitch && (
+                              <Button variant="outline" className="w-full h-9 text-xs" onClick={() => setSubPreviewOpen(true)}>
+                                <List className="h-3.5 w-3.5 mr-1.5" />
+                                Options
+                              </Button>
+                            )}
 
-                        {subMode && (
-                          <p className="text-xs text-muted-foreground text-center">
-                            {selectedOnPitch ? "Select bench player" : "Select on pitch"}
-                          </p>
-                        )}
+                            {subMode && (
+                              <p className="text-xs text-muted-foreground text-center">
+                                {selectedOnPitch ? "Select bench player" : "Select on pitch"}
+                              </p>
+                            )}
 
-                        {playersOnPitch.length >= 2 && !subMode && (
-                          <Button
-                            variant={swapMode ? "default" : "outline"}
-                            className="w-full h-10 text-sm"
-                            onClick={() => { toggleSwapMode(); setToolbarCollapsed(true); }}
-                          >
-                            <ArrowLeftRight className="h-4 w-4 mr-1.5" />
-                            {swapMode ? "Cancel Swap" : "Swap Positions"}
-                          </Button>
+                            {playersOnPitch.length >= 2 && !subMode && (
+                              <Button
+                                variant={swapMode ? "default" : "outline"}
+                                className="w-full h-10 text-sm"
+                                onClick={() => { toggleSwapMode(); setToolbarCollapsed(true); }}
+                              >
+                                <ArrowLeftRight className="h-4 w-4 mr-1.5" />
+                                {swapMode ? "Cancel Swap" : "Swap Positions"}
+                              </Button>
+                            )}
+                          </>
                         )}
 
                         {!disableAutoSubs && !subMode && !swapMode && (
-                          <div className="pt-2 border-t border-border">
+                          <div className={cn(!autoSubActive && "pt-2 border-t border-border")}>
                             {!autoSubActive ? (
                               <Button 
                                 variant="outline" 
@@ -4086,6 +4091,54 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               </Suspense>
                             )}
                           </div>
+                        )}
+
+                        {/* Show Make Sub / Swap at bottom when auto-sub plan is active */}
+                        {autoSubActive && !subMode && !swapMode && (
+                          <div className="pt-2 border-t border-border space-y-2">
+                            <Button
+                              variant="outline"
+                              className="w-full h-10 text-sm"
+                              onClick={() => { toggleSubMode(); setToolbarCollapsed(true); }}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-1.5" />
+                              Make Sub
+                            </Button>
+                            {playersOnPitch.length >= 2 && (
+                              <Button
+                                variant="outline"
+                                className="w-full h-10 text-sm"
+                                onClick={() => { toggleSwapMode(); setToolbarCollapsed(true); }}
+                              >
+                                <ArrowLeftRight className="h-4 w-4 mr-1.5" />
+                                Swap Positions
+                              </Button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Show sub/swap mode UI when active during auto-sub */}
+                        {autoSubActive && (subMode || swapMode) && (
+                          <>
+                            <Button
+                              variant="default"
+                              className="w-full h-10 text-sm"
+                              onClick={() => { subMode ? toggleSubMode() : toggleSwapMode(); setToolbarCollapsed(true); }}
+                            >
+                              {subMode ? <><RefreshCw className="h-4 w-4 mr-1.5" />Cancel Sub</> : <><ArrowLeftRight className="h-4 w-4 mr-1.5" />Cancel Swap</>}
+                            </Button>
+                            {subMode && selectedOnPitch && (
+                              <Button variant="outline" className="w-full h-9 text-xs" onClick={() => setSubPreviewOpen(true)}>
+                                <List className="h-3.5 w-3.5 mr-1.5" />
+                                Options
+                              </Button>
+                            )}
+                            {subMode && (
+                              <p className="text-xs text-muted-foreground text-center">
+                                {selectedOnPitch ? "Select bench player" : "Select on pitch"}
+                              </p>
+                            )}
+                          </>
                         )}
                       </>
                     )}
@@ -4794,31 +4847,36 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <div className="space-y-3">
                     {!readOnly && (
                       <>
-                        <Button
-                          variant={subMode ? "default" : "outline"}
-                          className="w-full h-11 text-sm"
-                          onClick={() => { toggleSubMode(); setPortraitSheetOpen(false); }}
-                        >
-                          <RefreshCw className="h-4 w-4 mr-1.5" />
-                          {subMode ? "Cancel Sub" : "Make Sub"}
-                        </Button>
-                        
-                        {subMode && selectedOnPitch && (
-                          <Button variant="outline" className="w-full h-10 text-xs" onClick={() => setSubPreviewOpen(true)}>
-                            <List className="h-3.5 w-3.5 mr-1.5" />
-                            Sub Options
-                          </Button>
-                        )}
+                        {/* Show Make Sub / Swap at top only when no auto-sub plan active */}
+                        {!autoSubActive && (
+                          <>
+                            <Button
+                              variant={subMode ? "default" : "outline"}
+                              className="w-full h-11 text-sm"
+                              onClick={() => { toggleSubMode(); setPortraitSheetOpen(false); }}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-1.5" />
+                              {subMode ? "Cancel Sub" : "Make Sub"}
+                            </Button>
+                            
+                            {subMode && selectedOnPitch && (
+                              <Button variant="outline" className="w-full h-10 text-xs" onClick={() => setSubPreviewOpen(true)}>
+                                <List className="h-3.5 w-3.5 mr-1.5" />
+                                Sub Options
+                              </Button>
+                            )}
 
-                        {playersOnPitch.length >= 2 && !subMode && (
-                          <Button
-                            variant={swapMode ? "default" : "outline"}
-                            className="w-full h-11 text-sm"
-                            onClick={() => { toggleSwapMode(); setPortraitSheetOpen(false); }}
-                          >
-                            <ArrowLeftRight className="h-4 w-4 mr-1.5" />
-                            {swapMode ? "Cancel Swap" : "Swap Positions"}
-                          </Button>
+                            {playersOnPitch.length >= 2 && !subMode && (
+                              <Button
+                                variant={swapMode ? "default" : "outline"}
+                                className="w-full h-11 text-sm"
+                                onClick={() => { toggleSwapMode(); setPortraitSheetOpen(false); }}
+                              >
+                                <ArrowLeftRight className="h-4 w-4 mr-1.5" />
+                                {swapMode ? "Cancel Swap" : "Swap Positions"}
+                              </Button>
+                            )}
+                          </>
                         )}
 
                         {!readOnly && undoHistory.length > 0 && showFloatingUndo && (
@@ -4829,7 +4887,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         )}
 
                         {!disableAutoSubs && !subMode && !swapMode && (
-                          <div className="pt-2 border-t border-border">
+                          <div className={cn(!autoSubActive && "pt-2 border-t border-border")}>
                             {!autoSubActive ? (
                               <Button 
                                 variant="outline" 
@@ -4862,6 +4920,49 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               </Suspense>
                             )}
                           </div>
+                        )}
+
+                        {/* Show Make Sub / Swap at bottom when auto-sub plan is active */}
+                        {autoSubActive && !subMode && !swapMode && (
+                          <div className="pt-2 border-t border-border space-y-2">
+                            <Button
+                              variant="outline"
+                              className="w-full h-11 text-sm"
+                              onClick={() => { toggleSubMode(); setPortraitSheetOpen(false); }}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-1.5" />
+                              Make Sub
+                            </Button>
+                            {playersOnPitch.length >= 2 && (
+                              <Button
+                                variant="outline"
+                                className="w-full h-11 text-sm"
+                                onClick={() => { toggleSwapMode(); setPortraitSheetOpen(false); }}
+                              >
+                                <ArrowLeftRight className="h-4 w-4 mr-1.5" />
+                                Swap Positions
+                              </Button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Show sub/swap mode UI when active during auto-sub */}
+                        {autoSubActive && (subMode || swapMode) && (
+                          <>
+                            <Button
+                              variant="default"
+                              className="w-full h-11 text-sm"
+                              onClick={() => { subMode ? toggleSubMode() : toggleSwapMode(); setPortraitSheetOpen(false); }}
+                            >
+                              {subMode ? <><RefreshCw className="h-4 w-4 mr-1.5" />Cancel Sub</> : <><ArrowLeftRight className="h-4 w-4 mr-1.5" />Cancel Swap</>}
+                            </Button>
+                            {subMode && selectedOnPitch && (
+                              <Button variant="outline" className="w-full h-10 text-xs" onClick={() => setSubPreviewOpen(true)}>
+                                <List className="h-3.5 w-3.5 mr-1.5" />
+                                Sub Options
+                              </Button>
+                            )}
+                          </>
                         )}
                       </>
                     )}
