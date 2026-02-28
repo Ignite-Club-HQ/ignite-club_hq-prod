@@ -5137,12 +5137,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </Button>
                     </div>
                     <div className="w-px h-10 bg-border" />
-                    <div className="flex gap-2">
+                    <div className="flex gap-1.5">
                       {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
                         <button
                           key={color}
                           className={cn(
-                            "w-10 h-10 rounded-full border-2",
+                            "w-7 h-7 rounded-full border-2",
                             drawingColor === color ? "border-primary ring-2 ring-primary/50" : "border-muted-foreground/30"
                           )}
                           style={{ backgroundColor: color }}
