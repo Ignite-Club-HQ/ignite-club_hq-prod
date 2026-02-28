@@ -173,6 +173,9 @@ interface PitchToolbarProps {
   currentScore?: { team: number; opponent: number };
   onToggleScorePanel?: () => void;
   scorePanelExpanded?: boolean;
+  
+  // Hide subs section (when rendered in bottom sheet Setup tab to avoid duplication)
+  hideSubsSection?: boolean;
 }
 
 interface ToolbarGroupProps {
@@ -290,6 +293,7 @@ function PitchToolbar({
   currentScore,
   onToggleScorePanel,
   scorePanelExpanded,
+  hideSubsSection = false,
 }: PitchToolbarProps) {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [timerRunning, setTimerRunning] = useState(false);
@@ -341,7 +345,7 @@ function PitchToolbar({
         {/* Scrollable content area */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden">
           {/* Subs Group - at top, most used during match */}
-          {!readOnly && (
+          {!readOnly && !hideSubsSection && (
             <ToolbarGroup label="Subs" icon={<RefreshCw className="h-3.5 w-3.5" />} open={subsOpen} onOpenChange={setSubsOpen}>
               <div className="space-y-2">
                 <Button
