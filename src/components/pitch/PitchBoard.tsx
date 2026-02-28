@@ -4652,6 +4652,56 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           />
         )}
 
+        {/* Pitch Player Action Menu (injury on pitch) - landscape */}
+        <Suspense fallback={null}>
+          <PitchPlayerActionMenu
+            open={pitchPlayerActionOpen}
+            onOpenChange={(open) => {
+              setPitchPlayerActionOpen(open);
+              if (!open) setPitchPlayerActionTarget(null);
+            }}
+            player={players.find(p => p.id === pitchPlayerActionTarget) || null}
+            benchPlayers={players.filter(p => p.position === null)}
+            onMarkInjured={handleMarkInjuredOnPitch}
+          />
+        </Suspense>
+
+        {/* Bench Injury Confirmation - landscape */}
+        {benchInjuryConfirmOpen && createPortal(
+          <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
+          document.body
+        )}
+        {benchInjuryConfirmOpen && benchInjuryTarget && createPortal(
+          <div className="fixed left-[50%] top-[50%] z-[999999] grid w-[calc(100%-2rem)] max-w-sm translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg rounded-lg animate-in fade-in-0 zoom-in-95">
+            <div className="flex flex-col space-y-2 text-center sm:text-left">
+              <h2 className="text-lg font-semibold">
+                {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark as Fit?" : "Mark as Injured?"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {players.find(p => p.id === benchInjuryTarget)?.isInjured
+                  ? `${players.find(p => p.id === benchInjuryTarget)?.name} will be available for substitutions again.`
+                  : `${players.find(p => p.id === benchInjuryTarget)?.name} will not be available for substitutions.`}
+              </p>
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
+              <Button variant="outline" className="mt-2 sm:mt-0" onClick={() => { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); }}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  togglePlayerInjury(benchInjuryTarget);
+                  setBenchInjuryConfirmOpen(false);
+                  setBenchInjuryTarget(null);
+                }}
+              >
+                {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark Fit" : "Mark Injured"}
+              </Button>
+            </div>
+          </div>,
+          document.body
+        )}
+
         {/* Match Stats Panel */}
         <MatchStatsPanel
           open={statsOpen}
