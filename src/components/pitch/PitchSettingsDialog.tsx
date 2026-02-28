@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Settings, Volume2, VolumeX, Settings2, Users, Trash2, BarChart3, ArrowLeftRight, Save, X, Clock, ChevronDown, Timer, LayoutGrid, RotateCcw, CalendarCheck, EyeOff } from "lucide-react";
+import { Settings, Volume2, VolumeX, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TeamSize } from "./types";
 
@@ -85,39 +85,6 @@ interface PitchSettingsDialogProps {
   onHideScoresChange?: (hide: boolean) => void;
 }
 
-// Section component for organization
-function SettingsSection({ 
-  title, 
-  icon: Icon, 
-  children,
-  defaultOpen = true 
-}: { 
-  title: string; 
-  icon: React.ElementType; 
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-}) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  
-  return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border border-border rounded-lg">
-      <CollapsibleTrigger className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors rounded-lg">
-        <div className="flex items-center gap-2 font-medium text-sm">
-          <Icon className="h-4 w-4 text-muted-foreground" />
-          {title}
-        </div>
-        <ChevronDown className={cn(
-          "h-4 w-4 text-muted-foreground transition-transform",
-          isOpen && "rotate-180"
-        )} />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="px-3 pb-3 space-y-4">
-        {children}
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
 export function PitchSettingsDialog({
   soundEnabled,
   onSoundToggle,
@@ -152,14 +119,11 @@ export function PitchSettingsDialog({
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetFormationConfirmOpen, setResetFormationConfirmOpen] = useState(false);
   const [open, setOpen] = useState(false);
-  
-  const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen);
-  };
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   
   return (
     <>
-    <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
+    <ResponsiveDialog open={open} onOpenChange={setOpen}>
       <Button 
         variant="outline" 
         size="icon" 
@@ -174,287 +138,293 @@ export function PitchSettingsDialog({
           <ResponsiveDialogHeader className="shrink-0 pb-2">
             <ResponsiveDialogTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
-              Pitch Settings
+              Game Setup
             </ResponsiveDialogTitle>
           </ResponsiveDialogHeader>
           
-          <div className="space-y-3 py-2 overflow-y-auto flex-1 min-h-0 -mx-1 px-1">
-          {/* Quick Toggles - Always visible */}
-          <div className="flex flex-wrap gap-2 pb-2 border-b border-border">
-            <Button
-              variant={soundEnabled ? "default" : "outline"}
-              size="sm"
-              onClick={() => onSoundToggle(!soundEnabled)}
-              className="flex items-center gap-1.5"
-            >
-              {soundEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
-              <span className="text-xs">Sound</span>
-            </Button>
-            
-            {!readOnly && (
-              <Button
-                variant={mockMode ? "default" : "outline"}
-                size="sm"
-                onClick={() => onMockModeChange(!mockMode)}
-                className="flex items-center gap-1.5"
-              >
-                <Users className="h-3.5 w-3.5" />
-                <span className="text-xs">Mock Data</span>
-              </Button>
-            )}
+          <div className="space-y-4 py-2 overflow-y-auto flex-1 min-h-0 -mx-1 px-1">
+            {/* Primary: Team Size + Formation - the only thing new users need */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Players per Side</Label>
+                  <Select 
+                    value={teamSize} 
+                    onValueChange={(v) => onTeamSizeChange(v as TeamSize)}
+                    disabled={readOnly}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[99999] bg-popover">
+                      <SelectItem value="3">3-a-side</SelectItem>
+                      <SelectItem value="4">4-a-side</SelectItem>
+                      <SelectItem value="5">5-a-side</SelectItem>
+                      <SelectItem value="7">7-a-side</SelectItem>
+                      <SelectItem value="9">9-a-side</SelectItem>
+                      <SelectItem value="11">11-a-side</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Formation</Label>
+                  <Select 
+                    value={selectedFormation.toString()} 
+                    onValueChange={onFormationChange}
+                    disabled={readOnly}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[99999] bg-popover">
+                      {formations.map((f, i) => (
+                        <SelectItem key={i} value={i.toString()}>{f.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Time per Half</Label>
+                  <Select 
+                    value={minutesPerHalf.toString()} 
+                    onValueChange={(v) => onMinutesPerHalfChange(parseInt(v))}
+                    disabled={readOnly}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[99999] bg-popover">
+                      <SelectItem value="5">5 min</SelectItem>
+                      <SelectItem value="10">10 min</SelectItem>
+                      <SelectItem value="15">15 min</SelectItem>
+                      <SelectItem value="20">20 min</SelectItem>
+                      <SelectItem value="25">25 min</SelectItem>
+                      <SelectItem value="30">30 min</SelectItem>
+                      <SelectItem value="35">35 min</SelectItem>
+                      <SelectItem value="40">40 min</SelectItem>
+                      <SelectItem value="45">45 min</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Subs Speed</Label>
+                  <Select 
+                    value={rotationSpeed.toString()} 
+                    onValueChange={(v) => onRotationSpeedChange(parseInt(v))}
+                    disabled={readOnly}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[99999] bg-popover">
+                      <SelectItem value="1">Slow</SelectItem>
+                      <SelectItem value="2">Normal</SelectItem>
+                      <SelectItem value="3">Fast</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                Subs every ~{rotationSpeed === 1 ? Math.round(minutesPerHalf / 2) : rotationSpeed === 2 ? Math.round(minutesPerHalf / 3) : Math.round(minutesPerHalf / 4)} min
+              </p>
+            </div>
+
+            {/* Advanced Options - collapsed by default */}
+            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  <span>More Options</span>
+                </div>
+                <ChevronDown className={cn(
+                  "h-3.5 w-3.5 transition-transform",
+                  advancedOpen && "rotate-180"
+                )} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 pt-2">
+                {/* Match display toggles */}
+                {!readOnly && onShowMatchHeaderChange && (
+                  <div className="flex items-center justify-between py-1.5">
+                    <div className="flex items-center gap-2">
+                      <CalendarCheck className="h-4 w-4 text-muted-foreground" />
+                      <Label htmlFor="show-match-header-toggle" className="text-sm">
+                        Show Match Header
+                      </Label>
+                    </div>
+                    <Switch
+                      id="show-match-header-toggle"
+                      checked={showMatchHeader}
+                      onCheckedChange={onShowMatchHeaderChange}
+                    />
+                  </div>
+                )}
+                
+                {!readOnly && onHideScoresChange && (
+                  <div className="flex items-center justify-between py-1.5">
+                    <div className="flex items-center gap-2">
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      <Label htmlFor="hide-scores-toggle" className="text-sm">
+                        Hide Scores
+                      </Label>
+                    </div>
+                    <Switch
+                      id="hide-scores-toggle"
+                      checked={hideScores}
+                      onCheckedChange={onHideScoresChange}
+                    />
+                  </div>
+                )}
+
+                {/* Substitution toggles */}
+                {!readOnly && onDisableBatchSubsChange && (
+                  <div className="flex items-center justify-between py-1.5">
+                    <div className="flex flex-col gap-0.5">
+                      <Label htmlFor="disable-batch-toggle" className="text-sm">
+                        Single Subs Only
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground">One sub at a time</span>
+                    </div>
+                    <Switch
+                      id="disable-batch-toggle"
+                      checked={disableBatchSubs}
+                      onCheckedChange={onDisableBatchSubsChange}
+                    />
+                  </div>
+                )}
+                {!readOnly && onDisablePositionSwapsChange && (
+                  <div className="flex items-center justify-between py-1.5">
+                    <div className="flex flex-col gap-0.5">
+                      <Label htmlFor="disable-swaps-toggle" className="text-sm">
+                        Lock Positions
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground">Keep players in assigned positions</span>
+                    </div>
+                    <Switch
+                      id="disable-swaps-toggle"
+                      checked={disablePositionSwaps}
+                      onCheckedChange={onDisablePositionSwapsChange}
+                    />
+                  </div>
+                )}
+
+                {/* Sound toggle */}
+                <div className="flex items-center justify-between py-1.5">
+                  <div className="flex items-center gap-2">
+                    {soundEnabled ? <Volume2 className="h-4 w-4 text-muted-foreground" /> : <VolumeX className="h-4 w-4 text-muted-foreground" />}
+                    <Label htmlFor="sound-toggle" className="text-sm">Sound</Label>
+                  </div>
+                  <Switch
+                    id="sound-toggle"
+                    checked={soundEnabled}
+                    onCheckedChange={onSoundToggle}
+                  />
+                </div>
+
+                {/* Mock data toggle */}
+                {!readOnly && (
+                  <div className="flex items-center justify-between py-1.5">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <Label htmlFor="mock-toggle" className="text-sm">Mock Data</Label>
+                    </div>
+                    <Switch
+                      id="mock-toggle"
+                      checked={mockMode}
+                      onCheckedChange={onMockModeChange}
+                    />
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
           </div>
           
-          {/* Game Timing Section */}
-          <SettingsSection title="Game Timing" icon={Clock} defaultOpen={true}>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Time per Half</Label>
-                <Select 
-                  value={minutesPerHalf.toString()} 
-                  onValueChange={(v) => onMinutesPerHalfChange(parseInt(v))}
-                  disabled={readOnly}
+          {/* Footer - minimal actions */}
+          <div className="pt-3 border-t border-border shrink-0 space-y-2">
+            {/* Save Settings */}
+            {!readOnly && onSaveSettings && (
+              <Button 
+                variant="default" 
+                className="w-full h-10"
+                onClick={() => {
+                  onSaveSettings();
+                  setOpen(false);
+                }}
+                disabled={isSaving}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {isSaving ? "Saving..." : "Remember for This Team"}
+              </Button>
+            )}
+            
+            {/* Quick action row */}
+            <div className="flex gap-2">
+              {onOpenStats && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="flex-1 h-9"
+                  onClick={onOpenStats}
                 >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="z-[99999] bg-popover">
-                    <SelectItem value="5">5 min</SelectItem>
-                    <SelectItem value="10">10 min</SelectItem>
-                    <SelectItem value="15">15 min</SelectItem>
-                    <SelectItem value="20">20 min</SelectItem>
-                    <SelectItem value="25">25 min</SelectItem>
-                    <SelectItem value="30">30 min</SelectItem>
-                    <SelectItem value="35">35 min</SelectItem>
-                    <SelectItem value="40">40 min</SelectItem>
-                    <SelectItem value="45">45 min</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Subs Speed</Label>
-                <Select 
-                  value={rotationSpeed.toString()} 
-                  onValueChange={(v) => onRotationSpeedChange(parseInt(v))}
-                  disabled={readOnly}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="z-[99999] bg-popover">
-                    <SelectItem value="1">Slow</SelectItem>
-                    <SelectItem value="2">Medium</SelectItem>
-                    <SelectItem value="3">Fast</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Slow: ~{Math.round(minutesPerHalf / 2)} min • Medium: ~{Math.round(minutesPerHalf / 3)} min • Fast: ~{Math.round(minutesPerHalf / 4)} min
-            </p>
-          </SettingsSection>
-          
-          {/* Formation Section */}
-          <SettingsSection title="Team Formation" icon={LayoutGrid} defaultOpen={true}>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Players per Side</Label>
-                <Select 
-                  value={teamSize} 
-                  onValueChange={(v) => onTeamSizeChange(v as TeamSize)}
-                  disabled={readOnly}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="z-[99999] bg-popover">
-                    <SelectItem value="3">3-a-side</SelectItem>
-                    <SelectItem value="4">4-a-side</SelectItem>
-                    <SelectItem value="5">5-a-side</SelectItem>
-                    <SelectItem value="7">7-a-side</SelectItem>
-                    <SelectItem value="9">9-a-side</SelectItem>
-                    <SelectItem value="11">11-a-side</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Formation</Label>
-                <Select 
-                  value={selectedFormation.toString()} 
-                  onValueChange={onFormationChange}
-                  disabled={readOnly}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="z-[99999] bg-popover">
-                    {formations.map((f, i) => (
-                      <SelectItem key={i} value={i.toString()}>{f.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </SettingsSection>
-          
-          {/* Substitution Options Section */}
-          {!readOnly && (onDisablePositionSwapsChange || onDisableBatchSubsChange) && (
-            <SettingsSection title="Substitution Options" icon={Timer} defaultOpen={false}>
-              {onDisableBatchSubsChange && (
-                <div className="flex items-center justify-between py-1">
-                  <div className="flex flex-col gap-0.5">
-                    <Label htmlFor="disable-batch-toggle" className="text-sm">
-                      Single Subs Only
-                    </Label>
-                    <span className="text-[10px] text-muted-foreground">Disable multiple subs at once</span>
-                  </div>
-                  <Switch
-                    id="disable-batch-toggle"
-                    checked={disableBatchSubs}
-                    onCheckedChange={onDisableBatchSubsChange}
-                  />
-                </div>
+                  <BarChart3 className="h-4 w-4 mr-1.5" />
+                  Stats
+                </Button>
               )}
-              {onDisablePositionSwapsChange && (
-                <div className="flex items-center justify-between py-1">
-                  <div className="flex flex-col gap-0.5">
-                    <Label htmlFor="disable-swaps-toggle" className="text-sm">
-                      Disable Position Swaps
-                    </Label>
-                    <span className="text-[10px] text-muted-foreground">In auto sub generation</span>
-                  </div>
-                  <Switch
-                    id="disable-swaps-toggle"
-                    checked={disablePositionSwaps}
-                    onCheckedChange={onDisablePositionSwapsChange}
-                  />
-                </div>
+              {!readOnly && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="flex-1 h-9"
+                  onClick={onOpenPositionEditor}
+                >
+                  <Settings2 className="h-4 w-4 mr-1.5" />
+                  Positions
+                </Button>
               )}
-            </SettingsSection>
-          )}
-          
-        </div>
-        
-        {/* Sticky Action Buttons Footer */}
-        <div className="pt-3 border-t border-border shrink-0 space-y-2">
-          {/* Match Header Toggle */}
-          {!readOnly && onShowMatchHeaderChange && (
-            <div className="flex items-center justify-between py-2 px-1 border-b border-border">
-              <div className="flex items-center gap-2">
-                <CalendarCheck className="h-4 w-4 text-muted-foreground" />
-                <div className="flex flex-col gap-0.5">
-                  <Label htmlFor="show-match-header-toggle" className="text-sm font-medium">
-                    Show Match Header
-                  </Label>
-                  <span className="text-[10px] text-muted-foreground">Link games and track stats</span>
-                </div>
-              </div>
-              <Switch
-                id="show-match-header-toggle"
-                checked={showMatchHeader}
-                onCheckedChange={onShowMatchHeaderChange}
-              />
             </div>
-          )}
-          
-          {/* Hide Scores Toggle */}
-          {!readOnly && onHideScoresChange && (
-            <div className="flex items-center justify-between py-2 px-1 border-b border-border">
-              <div className="flex items-center gap-2">
-                <EyeOff className="h-4 w-4 text-muted-foreground" />
-                <div className="flex flex-col gap-0.5">
-                  <Label htmlFor="hide-scores-toggle" className="text-sm font-medium">
-                    Hide Scores
-                  </Label>
-                  <span className="text-[10px] text-muted-foreground">Disable scoring and hide scoreboard</span>
-                </div>
-              </div>
-              <Switch
-                id="hide-scores-toggle"
-                checked={hideScores}
-                onCheckedChange={onHideScoresChange}
-              />
-            </div>
-          )}
-          
-          {/* Save Settings Button */}
-          {!readOnly && onSaveSettings && (
-            <Button 
-              variant="default" 
-              className="w-full h-10"
-              onClick={() => {
-                onSaveSettings();
-                setOpen(false);
-              }}
-              disabled={isSaving}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {isSaving ? "Saving..." : "Save as Team Defaults"}
-            </Button>
-          )}
-          
-          {/* Match Stats */}
-          {onOpenStats && (
-            <Button 
-              variant="outline" 
-              className="w-full h-10"
-              onClick={onOpenStats}
-            >
-              <BarChart3 className="h-4 w-4 mr-2" />
-              Match Stats
-            </Button>
-          )}
-          
-          {/* Player Position Preference */}
-          {!readOnly && (
-            <Button 
-              variant="outline" 
-              className="w-full h-10"
-              onClick={onOpenPositionEditor}
-            >
-              <Settings2 className="h-4 w-4 mr-2" />
-              Player Preferences
-            </Button>
-          )}
-          
-          {/* Reset Formation */}
-          {!readOnly && onResetFormation && (
-            <Button 
-              variant="outline" 
-              className="w-full h-10"
-              onClick={() => setResetFormationConfirmOpen(true)}
-            >
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Reset Formation
-            </Button>
-          )}
-          
-          {/* Reset Game */}
-          {!readOnly && onResetGame && (
-            <Button 
-              variant="outline" 
-              className="w-full h-10 text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => setResetConfirmOpen(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Reset Game
-            </Button>
-          )}
-          
-          <Button 
-            variant="secondary" 
-            className="w-full h-10"
-            onClick={() => setOpen(false)}
-          >
-            <X className="h-4 w-4 mr-2" />
-            Close
-          </Button>
-        </div>
-      </ResponsiveDialogContent>
+
+            {/* Danger zone - collapsed */}
+            {!readOnly && (onResetFormation || onResetGame) && (
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center justify-center w-full py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors gap-1">
+                  <span>Reset Options</span>
+                  <ChevronDown className="h-3 w-3" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-2 pt-1">
+                  {onResetFormation && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="w-full h-9"
+                      onClick={() => setResetFormationConfirmOpen(true)}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 mr-2" />
+                      Reset Formation
+                    </Button>
+                  )}
+                  {onResetGame && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="w-full h-9 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setResetConfirmOpen(true)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-2" />
+                      Reset Game
+                    </Button>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+          </div>
+        </ResponsiveDialogContent>
     </ResponsiveDialog>
     
-    {/* Reset Confirmation Dialog */}
+    {/* Reset Game Confirmation */}
     <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
       <AlertDialogContent className="z-[999999]">
         <AlertDialogHeader>
@@ -478,24 +448,21 @@ export function PitchSettingsDialog({
       </AlertDialogContent>
     </AlertDialog>
     
-    {/* Reset Formation Confirmation Dialog */}
+    {/* Reset Formation Confirmation */}
     <AlertDialog open={resetFormationConfirmOpen} onOpenChange={setResetFormationConfirmOpen}>
       <AlertDialogContent className="z-[999999]">
         <AlertDialogHeader>
           <AlertDialogTitle>Reset Formation?</AlertDialogTitle>
           <AlertDialogDescription>
-            This will move all players back to their formation positions and reset the ball to center. Timer and match stats will not be affected.
+            This will move all players back to their default formation positions. Timer and stats will not be affected.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction 
-            onClick={() => {
-              onResetFormation?.();
-              setResetFormationConfirmOpen(false);
-              setOpen(false);
-            }}
-          >
+          <AlertDialogAction onClick={() => {
+            onResetFormation?.();
+            setResetFormationConfirmOpen(false);
+          }}>
             Reset Formation
           </AlertDialogAction>
         </AlertDialogFooter>

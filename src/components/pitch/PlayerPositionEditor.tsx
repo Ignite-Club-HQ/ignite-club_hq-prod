@@ -60,7 +60,7 @@ export default function PlayerPositionEditor({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md sm:max-w-md landscape:max-w-2xl max-h-[100dvh] sm:max-h-[80vh] landscape:max-h-[85vh] h-[100dvh] sm:h-auto landscape:h-auto w-full sm:w-auto landscape:w-[90vw] rounded-none sm:rounded-lg landscape:rounded-lg overflow-y-auto landscape:p-4">
+      <DialogContent className="max-w-md sm:max-w-md landscape:max-w-2xl max-h-[100dvh] sm:max-h-[80vh] landscape:max-h-[85vh] h-[100dvh] sm:h-auto landscape:h-auto w-full sm:w-auto landscape:w-[90vw] rounded-none sm:rounded-lg landscape:rounded-lg overflow-y-auto landscape:p-4 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] sm:pt-6 landscape:pt-4">
         <DialogHeader>
           <DialogTitle>
             {editingPlayer ? `Edit Positions: ${currentPlayer?.name}` : "Assign Player Positions"}

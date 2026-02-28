@@ -13,7 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { 
   Pencil, Eraser, Trash2, MoveRight, Save, FolderOpen, Loader2, 
   ZoomIn, ZoomOut, RotateCcw, RefreshCw, Users, Settings2, List, 
-  Clock, Calendar, BarChart3, Pause, Play, X, ChevronDown, ChevronUp,
+  Clock, Calendar, BarChart3, Pause, Play, X, ChevronDown, ChevronUp, ChevronLeft,
   Palette, Timer, PenTool, Eye, Database, GripHorizontal, Volume2, VolumeX, Undo2, ArrowLeftRight,
   Target, Link2, Link2Off
 } from "lucide-react";
@@ -173,6 +173,12 @@ interface PitchToolbarProps {
   currentScore?: { team: number; opponent: number };
   onToggleScorePanel?: () => void;
   scorePanelExpanded?: boolean;
+  
+  // Hide subs section (when rendered in bottom sheet Setup tab to avoid duplication)
+  hideSubsSection?: boolean;
+  
+  // Hide draw section (when rendered in bottom sheet Setup tab, draw has its own tab)
+  hideDrawSection?: boolean;
 }
 
 interface ToolbarGroupProps {
@@ -193,12 +199,12 @@ function ToolbarGroup({ label, icon, children, defaultOpen = true, className, op
       onOpenChange={onOpenChange}
       className={cn("border-b border-border", className)}
     >
-      <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 hover:bg-muted/50 transition-colors group">
-        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+      <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-3 min-h-[44px] hover:bg-muted/50 transition-colors group">
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           {icon}
           <span>{label}</span>
         </div>
-        <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
       </CollapsibleTrigger>
       <CollapsibleContent className="px-3 pb-3">
         {children}
@@ -290,6 +296,8 @@ function PitchToolbar({
   currentScore,
   onToggleScorePanel,
   scorePanelExpanded,
+  hideSubsSection = false,
+  hideDrawSection = false,
 }: PitchToolbarProps) {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [timerRunning, setTimerRunning] = useState(false);
@@ -297,12 +305,10 @@ function PitchToolbar({
   const [undoConfirmOpen, setUndoConfirmOpen] = useState(false);
   
   // Persist expanded section states across collapse/expand cycles
-  // In landscape mode, only Subs should be expanded by default (bench is handled separately in PitchBoard)
-  const [matchOpen, setMatchOpen] = useState(true); // Match info section for landscape
   const [subsOpen, setSubsOpen] = useState(true);
-  const [timerOpen, setTimerOpen] = useState(variant !== "landscape");
+  const [gameSetupOpen, setGameSetupOpen] = useState(false); // Formation + Timer merged
   const [drawOpen, setDrawOpen] = useState(false);
-  const [formationOpen, setFormationOpen] = useState(false);
+  const [timerOpen, setTimerOpen] = useState(variant !== "landscape");
   
 
   const formatTime = (seconds: number) => {
@@ -317,77 +323,33 @@ function PitchToolbar({
   const benchMinutes = benchPlayers.reduce((sum, p) => sum + (p.minutesPlayed || 0), 0);
 
   if (variant === "landscape") {
-    // Collapsed state for landscape - just show swipe indicator
+    // Collapsed state for landscape - mini timer + bench count instead of just chevron
     if (collapsed) {
       return (
-        <div className="flex flex-col items-center justify-center h-full p-2">
-          <div className="text-muted-foreground/50">
-            <ChevronDown className="h-4 w-4 rotate-[-90deg] animate-pulse" />
+        <div 
+          className="flex flex-col items-center justify-between h-full py-3 px-1 cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => onToggleCollapse?.()}
+        >
+          {/* Bench count badge */}
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-xs font-bold text-muted-foreground">
+              {benchPlayers.length}
+            </div>
+            <span className="text-[9px] text-muted-foreground">Bench</span>
           </div>
+          
+          {/* Expand icon */}
+          <ChevronLeft className="h-4 w-4 text-muted-foreground" />
         </div>
       );
     }
 
     return (
-      <div className="flex flex-col">
-        {/* Content - no separate scroll, parent container handles scrolling */}
-        <div>
-          {/* Match Info Group - at top for quick access to opponent/score */}
-          <ToolbarGroup label="Match" icon={<Target className="h-3.5 w-3.5" />} open={matchOpen} onOpenChange={setMatchOpen}>
-            <div className="space-y-3">
-              {/* Opponent display */}
-              <div className="text-center">
-                <p className="text-xs text-muted-foreground mb-1">
-                  {linkedEventId ? "Playing against" : "No game linked"}
-                </p>
-                {opponentName ? (
-                  <p className="font-semibold text-sm">{opponentName}</p>
-                ) : linkedEventId ? (
-                  <p className="text-sm text-muted-foreground italic">Unknown opponent</p>
-                ) : null}
-              </div>
-
-              {/* Score button */}
-              {!hideScores && currentScore && onToggleScorePanel && (
-                <Button
-                  variant={scorePanelExpanded ? "secondary" : "outline"}
-                  className="w-full h-10"
-                  onClick={onToggleScorePanel}
-                >
-                  <Target className="h-4 w-4 mr-2" />
-                  <span className="font-bold text-lg">{currentScore.team} - {currentScore.opponent}</span>
-                </Button>
-              )}
-
-              {/* Link/Unlink buttons */}
-              {!readOnly && onLinkEvent && (
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 h-9"
-                    onClick={onOpenEventSelector}
-                  >
-                    <Link2 className="h-4 w-4 mr-1.5" />
-                    {linkedEventId ? "Change" : "Link Game"}
-                  </Button>
-                  {linkedEventId && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => onLinkEvent(null)}
-                    >
-                      <Link2Off className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          </ToolbarGroup>
-
-          {/* Substitutions Group */}
-          {!readOnly && (
+      <div className="flex flex-col h-full">
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          {/* Subs Group - at top, most used during match */}
+          {!readOnly && !hideSubsSection && (
             <ToolbarGroup label="Subs" icon={<RefreshCw className="h-3.5 w-3.5" />} open={subsOpen} onOpenChange={setSubsOpen}>
               <div className="space-y-2">
                 <Button
@@ -410,6 +372,18 @@ function PitchToolbar({
                   <p className="text-xs text-muted-foreground text-center">
                     {selectedOnPitch ? "Select bench player" : "Select on pitch"}
                   </p>
+                )}
+
+                {/* Swap Positions button */}
+                {canSwap && !subMode && (
+                  <Button
+                    variant={swapMode ? "default" : "outline"}
+                    className="w-full h-9 text-sm"
+                    onClick={onToggleSwapMode}
+                  >
+                    <ArrowLeftRight className="h-4 w-4 mr-1.5" />
+                    {swapMode ? "Cancel Swap" : "Swap Positions"}
+                  </Button>
                 )}
 
                 {!disableAutoSubs && (
@@ -437,123 +411,62 @@ function PitchToolbar({
             </ToolbarGroup>
           )}
 
-          {/* Timer & Game Group */}
-          <ToolbarGroup label="Timer" icon={<Timer className="h-3.5 w-3.5" />} open={timerOpen} onOpenChange={setTimerOpen}>
+          {/* Game Setup Group - Formation + Timer merged */}
+          <ToolbarGroup label="Game Setup" icon={<Timer className="h-3.5 w-3.5" />} open={gameSetupOpen} onOpenChange={setGameSetupOpen}>
             <div className="space-y-3">
-              <GameTimer 
-                ref={gameTimerRef} 
-                teamId={teamId} 
-                teamName={teamName} 
-                onTimeUpdate={onTimerUpdate} 
-                onHalfChange={onHalfChange} 
-                readOnly={readOnly}
-                hideSoundToggle
-                soundEnabled={soundEnabled}
-                onSoundToggle={setSoundEnabled}
-                minutesPerHalf={minutesPerHalf}
-                onMinutesPerHalfChange={onMinutesPerHalfChange}
-              />
-              {/* Sync status indicator */}
-              <div className="flex justify-center">
-                <SyncStatusIndicator />
+              {/* Formation controls */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Formation</p>
+                <Select value={teamSize} onValueChange={(v) => onTeamSizeChange(v as TeamSize)} disabled={readOnly}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[99999] bg-popover">
+                    <SelectItem value="3">3-a-side</SelectItem>
+                    <SelectItem value="4">4-a-side</SelectItem>
+                    <SelectItem value="5">5-a-side</SelectItem>
+                    <SelectItem value="7">7-a-side</SelectItem>
+                    <SelectItem value="9">9-a-side</SelectItem>
+                    <SelectItem value="11">11-a-side</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={selectedFormation.toString()} onValueChange={onFormationChange} disabled={readOnly}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-[99999] bg-popover">
+                    {formations.map((f, i) => (
+                      <SelectItem key={i} value={i.toString()}>{f.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              {/* Quick access icons row - Stats, Positions, Mock, Sound, Reset */}
-              <div className="flex items-center justify-center gap-4 flex-wrap">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-12 w-12" onClick={onOpenStats}>
-                        <BarChart3 className="h-6 w-6" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Match Stats</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                {!readOnly && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" className="h-12 w-12" onClick={onOpenPositionEditor}>
-                          <Settings2 className="h-6 w-6" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Player Positions</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-                {!readOnly && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant={mockMode ? "default" : "outline"} 
-                          size="icon" 
-                          className="h-12 w-12"
-                          onClick={() => onMockModeChange(!mockMode)}
-                        >
-                          <Users className="h-6 w-6" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Mock Data {mockMode ? "(On)" : "(Off)"}</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button 
-                        variant={soundEnabled ? "outline" : "secondary"} 
-                        size="icon" 
-                        className="h-12 w-12"
-                        onClick={() => setSoundEnabled(!soundEnabled)}
-                      >
-                        {soundEnabled ? <Volume2 className="h-6 w-6" /> : <VolumeX className="h-6 w-6" />}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Sound {soundEnabled ? "(On)" : "(Off)"}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                {!readOnly && onUndo && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          className="h-12 w-12"
-                          disabled={!canUndo}
-                          onClick={() => setUndoConfirmOpen(true)}
-                        >
-                          <Undo2 className="h-6 w-6" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Undo Last Sub/Swap</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-                {!readOnly && onResetGame && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          className="h-12 w-12 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => setResetConfirmOpen(true)}
-                        >
-                          <Trash2 className="h-6 w-6" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Reset Game</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
+
+              {/* Timer */}
+              <div className="pt-2 border-t border-border space-y-2">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Timer</p>
+                <GameTimer 
+                  ref={gameTimerRef} 
+                  teamId={teamId} 
+                  teamName={teamName} 
+                  onTimeUpdate={onTimerUpdate} 
+                  onHalfChange={onHalfChange} 
+                  readOnly={readOnly}
+                  hideSoundToggle
+                  soundEnabled={soundEnabled}
+                  onSoundToggle={setSoundEnabled}
+                  minutesPerHalf={minutesPerHalf}
+                  onMinutesPerHalfChange={onMinutesPerHalfChange}
+                />
+                <div className="flex justify-center">
+                  <SyncStatusIndicator />
+                </div>
               </div>
             </div>
           </ToolbarGroup>
 
-          {/* Drawing Group - under Timer */}
-          {!readOnly && (
+          {/* Drawing Group - defaults closed */}
+          {!readOnly && !hideDrawSection && (
             <ToolbarGroup label="Draw" icon={<PenTool className="h-3.5 w-3.5" />} open={drawOpen} onOpenChange={setDrawOpen}>
               <div className="space-y-2">
                 <div className="flex gap-1.5">
@@ -616,35 +529,116 @@ function PitchToolbar({
               </div>
             </ToolbarGroup>
           )}
+        </div>
 
-          {/* Formation Group */}
-          <ToolbarGroup label="Formation" icon={<Palette className="h-3.5 w-3.5" />} open={formationOpen} onOpenChange={setFormationOpen}>
-            <div className="space-y-2">
-              <Select value={teamSize} onValueChange={(v) => onTeamSizeChange(v as TeamSize)} disabled={readOnly}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="z-[99999] bg-popover">
-                  <SelectItem value="3">3-a-side</SelectItem>
-                  <SelectItem value="4">4-a-side</SelectItem>
-                  <SelectItem value="5">5-a-side</SelectItem>
-                  <SelectItem value="7">7-a-side</SelectItem>
-                  <SelectItem value="9">9-a-side</SelectItem>
-                  <SelectItem value="11">11-a-side</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={selectedFormation.toString()} onValueChange={onFormationChange} disabled={readOnly}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="z-[99999] bg-popover">
-                  {formations.map((f, i) => (
-                    <SelectItem key={i} value={i.toString()}>{f.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </ToolbarGroup>
+        {/* Pinned action icons at bottom - always visible */}
+        <div className="border-t border-border px-2 py-2">
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-10 w-10" onClick={onOpenStats}>
+                    <BarChart3 className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Match Stats</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {!readOnly && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" className="h-10 w-10" onClick={onOpenPositionEditor}>
+                      <Settings2 className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Player Positions</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant={soundEnabled ? "outline" : "secondary"} 
+                    size="icon" 
+                    className="h-10 w-10"
+                    onClick={() => setSoundEnabled(!soundEnabled)}
+                  >
+                    {soundEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Sound {soundEnabled ? "(On)" : "(Off)"}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {!readOnly && onUndo && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-10 w-10"
+                      disabled={!canUndo}
+                      onClick={() => setUndoConfirmOpen(true)}
+                    >
+                      <Undo2 className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Undo Last Sub/Swap</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {!readOnly && onResetGame && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-10 w-10 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setResetConfirmOpen(true)}
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Reset Game</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {/* Settings gear - opens PitchSettingsDialog */}
+            <PitchSettingsDialog
+              soundEnabled={soundEnabled}
+              onSoundToggle={setSoundEnabled}
+              selectedFormation={selectedFormation}
+              onFormationChange={onFormationChange}
+              formations={formations}
+              teamSize={teamSize}
+              onTeamSizeChange={onTeamSizeChange}
+              minutesPerHalf={minutesPerHalf}
+              onMinutesPerHalfChange={onMinutesPerHalfChange || (() => {})}
+              rotationSpeed={rotationSpeed}
+              onRotationSpeedChange={onRotationSpeedChange || (() => {})}
+              disablePositionSwaps={disablePositionSwaps}
+              onDisablePositionSwapsChange={onDisablePositionSwapsChange}
+              disableBatchSubs={disableBatchSubs}
+              onDisableBatchSubsChange={onDisableBatchSubsChange}
+              onOpenPositionEditor={onOpenPositionEditor}
+              mockMode={mockMode}
+              onMockModeChange={onMockModeChange}
+              readOnly={readOnly}
+              triggerClassName="h-10 w-10"
+              onResetGame={onResetGame}
+              onResetFormation={onResetFormation}
+              onOpenStats={onOpenStats}
+              onSaveSettings={onSaveSettings}
+              isSaving={isSavingSettings}
+              showMatchHeader={showMatchHeader}
+              onShowMatchHeaderChange={onShowMatchHeaderChange}
+              hideScores={hideScores}
+              onHideScoresChange={onHideScoresChange}
+            />
+          </div>
         </div>
 
         {/* Undo Confirmation AlertDialog for landscape */}
@@ -671,6 +665,33 @@ function PitchToolbar({
                   }}
                 >
                   Undo
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
+        {/* Reset Confirmation AlertDialog for landscape */}
+        {!readOnly && onResetGame && (
+          <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+            <AlertDialogContent className="z-[99999]">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reset Game?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will reset the timer, all substitutions, and player positions. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onResetGame();
+                    setResetConfirmOpen(false);
+                  }}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Reset
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

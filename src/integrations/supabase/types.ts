@@ -359,6 +359,209 @@ export type Database = {
           },
         ]
       }
+      business_matches: {
+        Row: {
+          amount: number
+          benefits: string[]
+          business_profile_id: string
+          cash_addon: number
+          cash_addon_note: string | null
+          cash_addon_recorded_by: string | null
+          club_id: string
+          coverage_percentage: number
+          created_at: string
+          donation_tier: string | null
+          expires_at: string | null
+          id: string
+          matched_at: string
+          paid_at: string | null
+          payment_link_url: string | null
+          proposed_tier: string | null
+          recognition_tier: string | null
+          renewal_reminder_sent: boolean
+          status: string
+          stripe_session_id: string | null
+          tier: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          benefits?: string[]
+          business_profile_id: string
+          cash_addon?: number
+          cash_addon_note?: string | null
+          cash_addon_recorded_by?: string | null
+          club_id: string
+          coverage_percentage?: number
+          created_at?: string
+          donation_tier?: string | null
+          expires_at?: string | null
+          id?: string
+          matched_at?: string
+          paid_at?: string | null
+          payment_link_url?: string | null
+          proposed_tier?: string | null
+          recognition_tier?: string | null
+          renewal_reminder_sent?: boolean
+          status?: string
+          stripe_session_id?: string | null
+          tier?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          benefits?: string[]
+          business_profile_id?: string
+          cash_addon?: number
+          cash_addon_note?: string | null
+          cash_addon_recorded_by?: string | null
+          club_id?: string
+          coverage_percentage?: number
+          created_at?: string
+          donation_tier?: string | null
+          expires_at?: string | null
+          id?: string
+          matched_at?: string
+          paid_at?: string | null
+          payment_link_url?: string | null
+          proposed_tier?: string | null
+          recognition_tier?: string | null
+          renewal_reminder_sent?: boolean
+          status?: string
+          stripe_session_id?: string | null
+          tier?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_matches_business_profile_id_fkey"
+            columns: ["business_profile_id"]
+            isOneToOne: false
+            referencedRelation: "business_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_matches_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_matches_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_profiles: {
+        Row: {
+          city: string | null
+          company_name: string
+          contact_email: string
+          created_at: string
+          description: string | null
+          id: string
+          industry: string | null
+          is_visible: boolean
+          latitude: number | null
+          logo_url: string | null
+          longitude: number | null
+          preferred_benefits: string[]
+          preferred_tiers: string[]
+          state: string | null
+          updated_at: string
+          user_id: string
+          website_url: string | null
+        }
+        Insert: {
+          city?: string | null
+          company_name: string
+          contact_email: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          industry?: string | null
+          is_visible?: boolean
+          latitude?: number | null
+          logo_url?: string | null
+          longitude?: number | null
+          preferred_benefits?: string[]
+          preferred_tiers?: string[]
+          state?: string | null
+          updated_at?: string
+          user_id: string
+          website_url?: string | null
+        }
+        Update: {
+          city?: string | null
+          company_name?: string
+          contact_email?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          industry?: string | null
+          is_visible?: boolean
+          latitude?: number | null
+          logo_url?: string | null
+          longitude?: number | null
+          preferred_benefits?: string[]
+          preferred_tiers?: string[]
+          state?: string | null
+          updated_at?: string
+          user_id?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
+      business_shortlist: {
+        Row: {
+          business_profile_id: string
+          club_id: string
+          created_at: string
+          id: string
+          notes: string | null
+        }
+        Insert: {
+          business_profile_id: string
+          club_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+        }
+        Update: {
+          business_profile_id?: string
+          club_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_shortlist_business_profile_id_fkey"
+            columns: ["business_profile_id"]
+            isOneToOne: false
+            referencedRelation: "business_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_shortlist_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_shortlist_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_groups: {
         Row: {
           allowed_roles: Database["public"]["Enums"]["app_role"][]
@@ -475,7 +678,7 @@ export type Database = {
             foreignKeyName: "chat_notification_log_match_id_fkey"
             columns: ["match_id"]
             isOneToOne: false
-            referencedRelation: "sponsor_matches"
+            referencedRelation: "business_matches"
             referencedColumns: ["id"]
           },
         ]
@@ -2351,7 +2554,7 @@ export type Database = {
             foreignKeyName: "match_message_reads_match_id_fkey"
             columns: ["match_id"]
             isOneToOne: false
-            referencedRelation: "sponsor_matches"
+            referencedRelation: "business_matches"
             referencedColumns: ["id"]
           },
         ]
@@ -2386,7 +2589,7 @@ export type Database = {
             foreignKeyName: "match_messages_match_id_fkey"
             columns: ["match_id"]
             isOneToOne: false
-            referencedRelation: "sponsor_matches"
+            referencedRelation: "business_matches"
             referencedColumns: ["id"]
           },
         ]
@@ -4198,209 +4401,6 @@ export type Database = {
             columns: ["sponsor_id"]
             isOneToOne: false
             referencedRelation: "sponsors"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sponsor_matches: {
-        Row: {
-          amount: number
-          benefits: string[]
-          cash_addon: number
-          cash_addon_note: string | null
-          cash_addon_recorded_by: string | null
-          club_id: string
-          coverage_percentage: number
-          created_at: string
-          donation_tier: string | null
-          expires_at: string | null
-          id: string
-          matched_at: string
-          paid_at: string | null
-          payment_link_url: string | null
-          proposed_tier: string | null
-          recognition_tier: string | null
-          renewal_reminder_sent: boolean
-          sponsor_profile_id: string
-          status: string
-          stripe_session_id: string | null
-          tier: string
-          updated_at: string
-        }
-        Insert: {
-          amount?: number
-          benefits?: string[]
-          cash_addon?: number
-          cash_addon_note?: string | null
-          cash_addon_recorded_by?: string | null
-          club_id: string
-          coverage_percentage?: number
-          created_at?: string
-          donation_tier?: string | null
-          expires_at?: string | null
-          id?: string
-          matched_at?: string
-          paid_at?: string | null
-          payment_link_url?: string | null
-          proposed_tier?: string | null
-          recognition_tier?: string | null
-          renewal_reminder_sent?: boolean
-          sponsor_profile_id: string
-          status?: string
-          stripe_session_id?: string | null
-          tier?: string
-          updated_at?: string
-        }
-        Update: {
-          amount?: number
-          benefits?: string[]
-          cash_addon?: number
-          cash_addon_note?: string | null
-          cash_addon_recorded_by?: string | null
-          club_id?: string
-          coverage_percentage?: number
-          created_at?: string
-          donation_tier?: string | null
-          expires_at?: string | null
-          id?: string
-          matched_at?: string
-          paid_at?: string | null
-          payment_link_url?: string | null
-          proposed_tier?: string | null
-          recognition_tier?: string | null
-          renewal_reminder_sent?: boolean
-          sponsor_profile_id?: string
-          status?: string
-          stripe_session_id?: string | null
-          tier?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sponsor_matches_club_id_fkey"
-            columns: ["club_id"]
-            isOneToOne: false
-            referencedRelation: "clubs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sponsor_matches_club_id_fkey"
-            columns: ["club_id"]
-            isOneToOne: false
-            referencedRelation: "public_clubs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sponsor_matches_sponsor_profile_id_fkey"
-            columns: ["sponsor_profile_id"]
-            isOneToOne: false
-            referencedRelation: "sponsor_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sponsor_profiles: {
-        Row: {
-          city: string | null
-          company_name: string
-          contact_email: string
-          created_at: string
-          description: string | null
-          id: string
-          industry: string | null
-          is_visible: boolean
-          latitude: number | null
-          logo_url: string | null
-          longitude: number | null
-          preferred_benefits: string[]
-          preferred_tiers: string[]
-          state: string | null
-          updated_at: string
-          user_id: string
-          website_url: string | null
-        }
-        Insert: {
-          city?: string | null
-          company_name: string
-          contact_email: string
-          created_at?: string
-          description?: string | null
-          id?: string
-          industry?: string | null
-          is_visible?: boolean
-          latitude?: number | null
-          logo_url?: string | null
-          longitude?: number | null
-          preferred_benefits?: string[]
-          preferred_tiers?: string[]
-          state?: string | null
-          updated_at?: string
-          user_id: string
-          website_url?: string | null
-        }
-        Update: {
-          city?: string | null
-          company_name?: string
-          contact_email?: string
-          created_at?: string
-          description?: string | null
-          id?: string
-          industry?: string | null
-          is_visible?: boolean
-          latitude?: number | null
-          logo_url?: string | null
-          longitude?: number | null
-          preferred_benefits?: string[]
-          preferred_tiers?: string[]
-          state?: string | null
-          updated_at?: string
-          user_id?: string
-          website_url?: string | null
-        }
-        Relationships: []
-      }
-      sponsor_shortlist: {
-        Row: {
-          club_id: string
-          created_at: string
-          id: string
-          notes: string | null
-          sponsor_profile_id: string
-        }
-        Insert: {
-          club_id: string
-          created_at?: string
-          id?: string
-          notes?: string | null
-          sponsor_profile_id: string
-        }
-        Update: {
-          club_id?: string
-          created_at?: string
-          id?: string
-          notes?: string | null
-          sponsor_profile_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sponsor_shortlist_club_id_fkey"
-            columns: ["club_id"]
-            isOneToOne: false
-            referencedRelation: "clubs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sponsor_shortlist_club_id_fkey"
-            columns: ["club_id"]
-            isOneToOne: false
-            referencedRelation: "public_clubs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sponsor_shortlist_sponsor_profile_id_fkey"
-            columns: ["sponsor_profile_id"]
-            isOneToOne: false
-            referencedRelation: "sponsor_profiles"
             referencedColumns: ["id"]
           },
         ]
