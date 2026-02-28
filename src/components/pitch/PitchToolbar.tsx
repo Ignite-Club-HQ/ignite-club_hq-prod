@@ -332,6 +332,34 @@ function PitchToolbar({
       <div className="flex flex-col">
         {/* Content - no separate scroll, parent container handles scrolling */}
         <div>
+          {/* Formation Group - at top for quick access */}
+          <ToolbarGroup label="Formation" icon={<Palette className="h-3.5 w-3.5" />} open={formationOpen} onOpenChange={setFormationOpen}>
+            <div className="space-y-2">
+              <Select value={teamSize} onValueChange={(v) => onTeamSizeChange(v as TeamSize)} disabled={readOnly}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[99999] bg-popover">
+                  <SelectItem value="3">3-a-side</SelectItem>
+                  <SelectItem value="4">4-a-side</SelectItem>
+                  <SelectItem value="5">5-a-side</SelectItem>
+                  <SelectItem value="7">7-a-side</SelectItem>
+                  <SelectItem value="9">9-a-side</SelectItem>
+                  <SelectItem value="11">11-a-side</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={selectedFormation.toString()} onValueChange={onFormationChange} disabled={readOnly}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-[99999] bg-popover">
+                  {formations.map((f, i) => (
+                    <SelectItem key={i} value={i.toString()}>{f.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </ToolbarGroup>
           {/* Match Info Group - at top for quick access to opponent/score */}
           <ToolbarGroup label="Match" icon={<Target className="h-3.5 w-3.5" />} open={matchOpen} onOpenChange={setMatchOpen}>
             <div className="space-y-3">
@@ -616,35 +644,6 @@ function PitchToolbar({
               </div>
             </ToolbarGroup>
           )}
-
-          {/* Formation Group */}
-          <ToolbarGroup label="Formation" icon={<Palette className="h-3.5 w-3.5" />} open={formationOpen} onOpenChange={setFormationOpen}>
-            <div className="space-y-2">
-              <Select value={teamSize} onValueChange={(v) => onTeamSizeChange(v as TeamSize)} disabled={readOnly}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="z-[99999] bg-popover">
-                  <SelectItem value="3">3-a-side</SelectItem>
-                  <SelectItem value="4">4-a-side</SelectItem>
-                  <SelectItem value="5">5-a-side</SelectItem>
-                  <SelectItem value="7">7-a-side</SelectItem>
-                  <SelectItem value="9">9-a-side</SelectItem>
-                  <SelectItem value="11">11-a-side</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={selectedFormation.toString()} onValueChange={onFormationChange} disabled={readOnly}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="z-[99999] bg-popover">
-                  {formations.map((f, i) => (
-                    <SelectItem key={i} value={i.toString()}>{f.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </ToolbarGroup>
         </div>
 
         {/* Undo Confirmation AlertDialog for landscape */}
