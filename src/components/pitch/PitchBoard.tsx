@@ -4236,7 +4236,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {!readOnly && showFloatingUndo && undoHistory.length > 0 && (
           <div
             className="absolute left-2 z-50 animate-fade-in"
-            style={{ top: subMode || swapMode ? 56 : 14 }}
+            style={{ top: 14 }}
           >
             <Button 
               variant="secondary" 
@@ -4685,18 +4685,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         )}
 
-        {/* Sub mode instruction banner */}
+        {/* Sub mode instruction banner - always anchored above bottom sheet/edge */}
         {subMode && (
           <div
             className={cn(
               "absolute z-[62] px-4 py-2 rounded-full shadow-lg animate-fade-in pointer-events-none",
               "bg-primary text-primary-foreground"
             )}
-            style={
-              portraitSheetOpen
-                ? { left: 12, right: 12, bottom: `calc(${portraitSheetHeightPct}% + 12px)` }
-                : { top: 8, left: 12, right: 140 }
-            }
+            style={{
+              left: 12,
+              right: 12,
+              bottom: portraitSheetOpen ? `calc(${portraitSheetHeightPct}% + 8px)` : 12,
+            }}
           >
             <p className="text-sm font-medium text-center">
               {!selectedOnPitch 
@@ -4707,7 +4707,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         )}
 
-        {/* Swap mode instruction banner */}
+        {/* Swap mode instruction banner - always anchored above bottom sheet/edge */}
         {swapMode && (
           <div
             className={cn(
@@ -4716,11 +4716,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 ? "bg-destructive text-destructive-foreground" 
                 : "bg-primary text-primary-foreground"
             )}
-            style={
-              portraitSheetOpen
-                ? { left: 12, right: 12, bottom: `calc(${portraitSheetHeightPct}% + 12px)` }
-                : { top: 8, left: 12, right: 140 }
-            }
+            style={{
+              left: 12,
+              right: 12,
+              bottom: portraitSheetOpen ? `calc(${portraitSheetHeightPct}% + 8px)` : 12,
+            }}
           >
             <p className="text-sm font-medium text-center">
               {!swapPlayer1 
