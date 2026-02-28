@@ -3594,6 +3594,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             {/* Sheet */}
             <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200"
               style={{ maxHeight: '55%' }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
             >
               {/* Handle bar */}
               <div className="flex justify-center pt-2 pb-1">
