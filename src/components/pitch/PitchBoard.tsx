@@ -513,7 +513,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [showSwipeHints, setShowSwipeHints] = useState(false);
   
   // Draggable floating subs button state
-  const [floatingSubsPosition, setFloatingSubsPosition] = useState({ x: 16, y: 16 }); // bottom-right offset
+  const [floatingSubsPosition, setFloatingSubsPosition] = useState({ x: 16, y: 16 }); // bottom-left offset
   const floatingSubsDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
   
   // Draggable floating timer state (for landscape mode) - positioned further right to avoid "View Only" badge
@@ -3817,7 +3817,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               className="absolute z-50 flex flex-col gap-2 animate-fade-in"
               style={{
                 bottom: floatingSubsPosition.y,
-                right: floatingSubsPosition.x,
+                left: floatingSubsPosition.x,
                 touchAction: "none",
               }}
             >
@@ -3865,7 +3865,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   onTouchMove={(e) => {
                     if (!floatingSubsDragRef.current) return;
                     const touch = e.touches[0];
-                    const deltaX = floatingSubsDragRef.current.startX - touch.clientX;
+                    const deltaX = touch.clientX - floatingSubsDragRef.current.startX;
                     const deltaY = floatingSubsDragRef.current.startY - touch.clientY;
                     if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
                       const newX = Math.max(8, Math.min(200, floatingSubsDragRef.current.startPosX + deltaX));
