@@ -1115,6 +1115,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [resetGameConfirmOpen, setResetGameConfirmOpen] = useState(false);
   const [pitchPlayerActionOpen, setPitchPlayerActionOpen] = useState(false);
   const [pitchPlayerActionTarget, setPitchPlayerActionTarget] = useState<string | null>(null);
+  const [benchInjuryConfirmOpen, setBenchInjuryConfirmOpen] = useState(false);
+  const [benchInjuryTarget, setBenchInjuryTarget] = useState<string | null>(null);
+  const lastTapRef = useRef<{ playerId: string; time: number } | null>(null);
 
   // Mock player mode state
   const [mockMode, setMockMode] = useState(() => savedState?.mockMode || false);
@@ -2007,10 +2010,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     
     if (!subMode) {
-      // Outside sub/swap mode: tapping a pitch player opens the action menu
+      // Outside sub/swap mode: double-tap a pitch player opens the action menu
       if (isOnPitch) {
-        setPitchPlayerActionTarget(playerId);
-        setPitchPlayerActionOpen(true);
+        const now = Date.now();
+        const last = lastTapRef.current;
+        if (last && last.playerId === playerId && now - last.time < 400) {
+          // Double tap detected
+          lastTapRef.current = null;
+          setPitchPlayerActionTarget(playerId);
+          setPitchPlayerActionOpen(true);
+        } else {
+          lastTapRef.current = { playerId, time: now };
+        }
       }
       return;
     }
@@ -4063,7 +4074,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                                 !readOnly && subMode && !player.isInjured 
                                   ? () => handlePlayerClick(player.id, false) 
                                   : !readOnly && !subMode && !swapMode
-                                    ? () => togglePlayerInjury(player.id)
+                                    ? () => {
+                                        const now = Date.now();
+                                        const last = lastTapRef.current;
+                                        if (last && last.playerId === player.id && now - last.time < 400) {
+                                          lastTapRef.current = null;
+                                          setBenchInjuryTarget(player.id);
+                                          setBenchInjuryConfirmOpen(true);
+                                        } else {
+                                          lastTapRef.current = { playerId: player.id, time: now };
+                                        }
+                                      }
                                     : undefined
                               }
                               onInjuryToggle={undefined}
@@ -4893,7 +4914,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               !readOnly && subMode && !player.isInjured 
                                 ? () => handlePlayerClick(player.id, false) 
                                 : !readOnly && !subMode && !swapMode
-                                  ? () => togglePlayerInjury(player.id)
+                                  ? () => {
+                                      const now = Date.now();
+                                      const last = lastTapRef.current;
+                                      if (last && last.playerId === player.id && now - last.time < 400) {
+                                        lastTapRef.current = null;
+                                        setBenchInjuryTarget(player.id);
+                                        setBenchInjuryConfirmOpen(true);
+                                      } else {
+                                        lastTapRef.current = { playerId: player.id, time: now };
+                                      }
+                                    }
                                   : undefined
                             }
                             onInjuryToggle={undefined}
@@ -5504,6 +5535,42 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </Button>
             <Button onClick={() => { handleResetGame(); setResetGameConfirmOpen(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Reset Game
+            </Button>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Bench Injury Confirmation */}
+      {benchInjuryConfirmOpen && createPortal(
+        <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" onClick={() => { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); }} />,
+        document.body
+      )}
+      {benchInjuryConfirmOpen && benchInjuryTarget && createPortal(
+        <div className="fixed left-[50%] top-[50%] z-[999999] grid w-[calc(100%-2rem)] max-w-sm translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg rounded-lg animate-in fade-in-0 zoom-in-95">
+          <div className="flex flex-col space-y-2 text-center sm:text-left">
+            <h2 className="text-lg font-semibold">
+              {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark as Fit?" : "Mark as Injured?"}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {players.find(p => p.id === benchInjuryTarget)?.isInjured
+                ? `${players.find(p => p.id === benchInjuryTarget)?.name} will be available for substitutions again.`
+                : `${players.find(p => p.id === benchInjuryTarget)?.name} will not be available for substitutions.`}
+            </p>
+          </div>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
+            <Button variant="outline" className="mt-2 sm:mt-0" onClick={() => { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); }}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                togglePlayerInjury(benchInjuryTarget);
+                setBenchInjuryConfirmOpen(false);
+                setBenchInjuryTarget(null);
+              }}
+            >
+              {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark Fit" : "Mark Injured"}
             </Button>
           </div>
         </div>,
