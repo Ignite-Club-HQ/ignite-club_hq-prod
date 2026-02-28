@@ -76,6 +76,7 @@ export interface GameTimerRef {
 
 interface GameTimerProps {
   compact?: boolean;
+  large?: boolean; // Larger touch targets for landscape setup tab
   teamId?: string;
   teamName?: string;
   onTimeUpdate?: (elapsedSeconds: number, currentHalf: 1 | 2) => void;
@@ -190,6 +191,7 @@ export const clearTimerState = (teamId?: string) => {
 
 const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({ 
   compact = false,
+  large = false,
   teamId,
   teamName,
   onTimeUpdate,
@@ -441,41 +443,37 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     <div className="flex items-center gap-2 flex-wrap">
       {!hideExtras && (
         <Select value={minutesPerHalf.toString()} onValueChange={handleHalfDurationChange} disabled={readOnly || isGameFinished}>
-          <SelectTrigger className="w-24">
+          <SelectTrigger className={large ? "w-28 h-12 text-base" : "w-24"}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="z-[99999] bg-popover">
-            <SelectItem value="5">5 min</SelectItem>
-            <SelectItem value="10">10 min</SelectItem>
-            <SelectItem value="15">15 min</SelectItem>
-            <SelectItem value="20">20 min</SelectItem>
-            <SelectItem value="25">25 min</SelectItem>
-            <SelectItem value="30">30 min</SelectItem>
-            <SelectItem value="35">35 min</SelectItem>
-            <SelectItem value="40">40 min</SelectItem>
-            <SelectItem value="45">45 min</SelectItem>
+            {[5, 10, 15, 20, 25, 30, 35, 40, 45].map(v => (
+              <SelectItem key={v} value={v.toString()} className={large ? "text-base py-2.5" : ""}>{v} min</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       )}
       
       <div className={cn(
-        "flex items-center gap-2 px-3 py-1.5 rounded-md",
+        "flex items-center gap-2 rounded-md",
+        large ? "px-4 py-2.5" : "px-3 py-1.5",
         isGameFinished ? "bg-primary/20" : "bg-muted"
       )}>
-        <span className="text-sm font-medium text-muted-foreground">
+        <span className={cn("font-medium text-muted-foreground", large ? "text-base" : "text-sm")}>
           {isGameFinished ? "Full Time" : (currentHalf === 1 ? "1st Half" : "2nd Half")}
         </span>
-        <span className="font-mono text-lg font-bold">{getDisplayTime()}</span>
+        <span className={cn("font-mono font-bold", large ? "text-2xl" : "text-lg")}>{getDisplayTime()}</span>
       </div>
       
       {!readOnly && !hidePlayPause && (
         <Button 
           variant="outline" 
-          size="icon" 
+          size={large ? "default" : "icon"}
+          className={large ? "h-12 w-12" : undefined}
           onClick={toggleTimer}
           disabled={isGameFinished}
         >
-          {isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          {isRunning ? <Pause className={large ? "h-5 w-5" : "h-4 w-4"} /> : <Play className={large ? "h-5 w-5" : "h-4 w-4"} />}
         </Button>
       )}
       {!hideExtras && !hideSoundToggle && (

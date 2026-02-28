@@ -3948,42 +3948,42 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                 {/* Setup Tab */}
                 {bottomSheetTab === "setup" && (
-                  <div className="space-y-3 px-1">
-                    {/* 2-column grid for core settings */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Players</Label>
+                  <div className="space-y-4 px-1">
+                    {/* 2-column grid for core settings - larger for landscape */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">Players</Label>
                         <Select value={teamSize} onValueChange={(v) => handleTeamSizeChange(v as TeamSize)} disabled={readOnly}>
-                          <SelectTrigger className="h-11 text-sm">
+                          <SelectTrigger className="h-12 text-base">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="z-[99999] bg-popover">
-                            <SelectItem value="3">3-a-side</SelectItem>
-                            <SelectItem value="4">4-a-side</SelectItem>
-                            <SelectItem value="5">5-a-side</SelectItem>
-                            <SelectItem value="7">7-a-side</SelectItem>
-                            <SelectItem value="9">9-a-side</SelectItem>
-                            <SelectItem value="11">11-a-side</SelectItem>
+                            <SelectItem value="3" className="text-base py-2.5">3-a-side</SelectItem>
+                            <SelectItem value="4" className="text-base py-2.5">4-a-side</SelectItem>
+                            <SelectItem value="5" className="text-base py-2.5">5-a-side</SelectItem>
+                            <SelectItem value="7" className="text-base py-2.5">7-a-side</SelectItem>
+                            <SelectItem value="9" className="text-base py-2.5">9-a-side</SelectItem>
+                            <SelectItem value="11" className="text-base py-2.5">11-a-side</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Formation</Label>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">Formation</Label>
                         <Select value={selectedFormation.toString()} onValueChange={handleFormationChange} disabled={readOnly}>
-                          <SelectTrigger className="h-11 text-sm">
+                          <SelectTrigger className="h-12 text-base">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="z-[99999] bg-popover">
                             {FORMATIONS[teamSize].map((f, i) => (
-                              <SelectItem key={i} value={i.toString()}>{f.name}</SelectItem>
+                              <SelectItem key={i} value={i.toString()} className="text-base py-2.5">{f.name}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
 
-                    {/* Timer */}
-                    <div className="border-t border-border pt-2">
+                    {/* Timer - larger for landscape */}
+                    <div className="border-t border-border pt-3">
                       <GameTimer 
                         ref={gameTimerRef} 
                         teamId={teamId} 
@@ -3994,6 +3994,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         hideSoundToggle
                         minutesPerHalf={minutesPerHalf}
                         onMinutesPerHalfChange={handleMinutesPerHalfChange}
+                        large
                       />
                     </div>
                   </div>
