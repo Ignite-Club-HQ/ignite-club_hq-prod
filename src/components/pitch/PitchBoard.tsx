@@ -3675,7 +3675,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <div 
                       id="pitch-bench-landscape"
                       className={cn(
-                        "flex flex-wrap min-h-16 touch-none max-h-32 overflow-y-auto",
+                        "flex flex-nowrap overflow-x-auto scrollbar-none min-h-14 touch-none pb-1",
                         isTabletLandscape || isDesktopLandscape ? "gap-2" : "gap-1"
                       )}
                       onDrop={!subMode ? handleBenchDrop : undefined}
@@ -3684,21 +3684,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       onTouchEnd={!subMode ? handleBenchTouchEnd : undefined}
                     >
                       {playersOnBench.length === 0 && (
-                        <p className="text-xs text-muted-foreground">Drag here</p>
+                        <p className="text-xs text-muted-foreground whitespace-nowrap">Drag here</p>
                       )}
                       {subMode && selectedOnPitch && getValidBenchPlayerIds.size === 0 && playersOnBench.length > 0 && (
-                        <p className="text-[10px] text-muted-foreground w-full mb-1">
+                        <p className="text-[10px] text-muted-foreground whitespace-nowrap">
                           No players can fill this position
-                        </p>
-                      )}
-                      {subMode && selectedOnPitch && getValidBenchPlayerIds.size > 0 && getValidBenchPlayerIds.size < playersOnBench.length && (
-                        <p className="text-[10px] text-amber-500 w-full mb-1">
-                          Showing {getValidBenchPlayerIds.size} player{getValidBenchPlayerIds.size !== 1 ? 's' : ''} who can come on
-                        </p>
-                      )}
-                      {!subMode && benchPositionFilter && playersOnBench.length > 0 && !playersOnBench.some(p => p.assignedPositions?.includes(benchPositionFilter)) && (
-                        <p className="text-[10px] text-muted-foreground w-full mb-1">
-                          Assign positions above to filter
                         </p>
                       )}
                       {playersOnBench
@@ -3709,23 +3699,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           return !benchPositionFilter || player.assignedPositions?.includes(benchPositionFilter) || !player.assignedPositions?.length;
                         })
                         .map(player => (
-                          <PlayerToken
-                            key={player.id}
-                            player={player}
-                            onDragStart={() => !subMode && !readOnly && handleDragStart(player.id)}
-                            onDragEnd={handleDragEnd}
-                            onTouchStart={(e) => !subMode && !readOnly && handleTouchStart(player.id, e)}
-                            onClick={!readOnly && subMode && !player.isInjured ? () => handlePlayerClick(player.id, false) : undefined}
-                            onInjuryToggle={!subMode && !swapMode ? () => togglePlayerInjury(player.id) : undefined}
-                            onRemoveFillIn={!subMode && !swapMode && player.isFillIn ? () => handleRemoveFillInPlayer(player.id) : undefined}
-                            isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
-                            isSelected={subMode && selectedOnBench === player.id}
-                            isSubTarget={subMode && selectedOnPitch !== null && selectedOnBench !== player.id && !player.isInjured}
-                            subAnimation={subAnimationPlayers.out === player.id ? "out" : null}
-                            variant="bench"
-                            readOnly={readOnly}
-                            teamColor={getPlayerTeamColor(player)}
-                          />
+                          <div key={player.id} className="shrink-0">
+                            <PlayerToken
+                              player={player}
+                              onDragStart={() => !subMode && !readOnly && handleDragStart(player.id)}
+                              onDragEnd={handleDragEnd}
+                              onTouchStart={(e) => !subMode && !readOnly && handleTouchStart(player.id, e)}
+                              onClick={!readOnly && subMode && !player.isInjured ? () => handlePlayerClick(player.id, false) : undefined}
+                              onInjuryToggle={!subMode && !swapMode ? () => togglePlayerInjury(player.id) : undefined}
+                              onRemoveFillIn={!subMode && !swapMode && player.isFillIn ? () => handleRemoveFillInPlayer(player.id) : undefined}
+                              isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
+                              isSelected={subMode && selectedOnBench === player.id}
+                              isSubTarget={subMode && selectedOnPitch !== null && selectedOnBench !== player.id && !player.isInjured}
+                              subAnimation={subAnimationPlayers.out === player.id ? "out" : null}
+                              variant="bench"
+                              readOnly={readOnly}
+                              teamColor={getPlayerTeamColor(player)}
+                            />
+                          </div>
                         ))}
                     </div>
                   </>
@@ -3820,68 +3811,92 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
           )}
 
-          {/* Floating Bench Toggle Button - shows only when sidebar is collapsed, not in swap mode, and not in readOnly mode */}
-          {toolbarCollapsed && !swapMode && !readOnly && (
-            <button
-              onClick={() => {
-                // Only toggle if not dragging
-                if (!floatingSubsDragRef.current) {
-                  setSubMode(prev => !prev);
-                  setSelectedOnPitch(null);
-                  setSelectedOnBench(null);
-                }
-              }}
-              onTouchStart={(e) => {
-                const touch = e.touches[0];
-                floatingSubsDragRef.current = {
-                  startX: touch.clientX,
-                  startY: touch.clientY,
-                  startPosX: floatingSubsPosition.x,
-                  startPosY: floatingSubsPosition.y,
-                };
-              }}
-              onTouchMove={(e) => {
-                if (!floatingSubsDragRef.current) return;
-                const touch = e.touches[0];
-                const deltaX = floatingSubsDragRef.current.startX - touch.clientX;
-                const deltaY = floatingSubsDragRef.current.startY - touch.clientY;
-                
-                // Only start dragging if moved more than 10px
-                if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
-                  const newX = Math.max(8, Math.min(200, floatingSubsDragRef.current.startPosX + deltaX));
-                  const newY = Math.max(8, Math.min(300, floatingSubsDragRef.current.startPosY + deltaY));
-                  setFloatingSubsPosition({ x: newX, y: newY });
-                  e.preventDefault();
-                }
-              }}
-              onTouchEnd={() => {
-                floatingSubsDragRef.current = null;
-              }}
-              className={cn(
-                "absolute z-50 flex items-center gap-2 rounded-full shadow-lg transition-colors animate-fade-in cursor-grab active:cursor-grabbing",
-                isTabletLandscape || isDesktopLandscape ? "px-4 py-3 gap-3" : "px-3 py-2",
-                subMode 
-                  ? "bg-yellow-500 text-yellow-900 hover:bg-yellow-400" 
-                  : "bg-primary text-primary-foreground hover:bg-primary/90"
-              )}
+          {/* Unified floating FABs - stacked vertically with consistent styling */}
+          {toolbarCollapsed && !readOnly && (
+            <div 
+              className="absolute z-50 flex flex-col gap-2 animate-fade-in"
               style={{
                 bottom: floatingSubsPosition.y,
                 right: floatingSubsPosition.x,
                 touchAction: "none",
               }}
             >
-              <Users className={isTabletLandscape || isDesktopLandscape ? "h-5 w-5" : "h-4 w-4"} />
-              <span className={isTabletLandscape || isDesktopLandscape ? "text-base font-medium" : "text-sm font-medium"}>
-                {subMode ? "Cancel" : `Make Sub (${playersOnBench.length})`}
-              </span>
-            </button>
+              {/* Swap Positions FAB */}
+              {playersOnPitch.length >= 2 && !subMode && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSwapMode();
+                  }}
+                  className={cn(
+                    "flex items-center gap-2 rounded-full shadow-lg transition-colors",
+                    isTabletLandscape || isDesktopLandscape ? "px-4 py-3" : "px-3 py-2",
+                    swapMode 
+                      ? "bg-accent text-accent-foreground" 
+                      : "bg-muted text-foreground hover:bg-muted/80 border border-border"
+                  )}
+                >
+                  <ArrowLeftRight className={isTabletLandscape || isDesktopLandscape ? "h-5 w-5" : "h-4 w-4"} />
+                  <span className={isTabletLandscape || isDesktopLandscape ? "text-base font-medium" : "text-sm font-medium"}>
+                    {swapMode ? "Cancel" : "Swap Pos"}
+                  </span>
+                </button>
+              )}
+
+              {/* Make Sub FAB */}
+              {!swapMode && (
+                <button
+                  onClick={() => {
+                    if (!floatingSubsDragRef.current) {
+                      setSubMode(prev => !prev);
+                      setSelectedOnPitch(null);
+                      setSelectedOnBench(null);
+                    }
+                  }}
+                  onTouchStart={(e) => {
+                    const touch = e.touches[0];
+                    floatingSubsDragRef.current = {
+                      startX: touch.clientX,
+                      startY: touch.clientY,
+                      startPosX: floatingSubsPosition.x,
+                      startPosY: floatingSubsPosition.y,
+                    };
+                  }}
+                  onTouchMove={(e) => {
+                    if (!floatingSubsDragRef.current) return;
+                    const touch = e.touches[0];
+                    const deltaX = floatingSubsDragRef.current.startX - touch.clientX;
+                    const deltaY = floatingSubsDragRef.current.startY - touch.clientY;
+                    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+                      const newX = Math.max(8, Math.min(200, floatingSubsDragRef.current.startPosX + deltaX));
+                      const newY = Math.max(8, Math.min(300, floatingSubsDragRef.current.startPosY + deltaY));
+                      setFloatingSubsPosition({ x: newX, y: newY });
+                      e.preventDefault();
+                    }
+                  }}
+                  onTouchEnd={() => { floatingSubsDragRef.current = null; }}
+                  className={cn(
+                    "flex items-center gap-2 rounded-full shadow-lg transition-colors cursor-grab active:cursor-grabbing",
+                    isTabletLandscape || isDesktopLandscape ? "px-4 py-3" : "px-3 py-2",
+                    subMode 
+                      ? "bg-secondary text-secondary-foreground" 
+                      : "bg-primary text-primary-foreground hover:bg-primary/90"
+                  )}
+                >
+                  <Users className={isTabletLandscape || isDesktopLandscape ? "h-5 w-5" : "h-4 w-4"} />
+                  <span className={isTabletLandscape || isDesktopLandscape ? "text-base font-medium" : "text-sm font-medium"}>
+                    {subMode ? "Cancel" : `Make Sub (${playersOnBench.length})`}
+                  </span>
+                </button>
+              )}
+            </div>
           )}
 
           {/* Floating bench overlay in sub mode when sidebar is collapsed */}
           {subMode && toolbarCollapsed && playersOnBench.length > 0 && (
             <div className="absolute bottom-16 right-4 z-50 bg-background/95 backdrop-blur-sm rounded-lg border border-border shadow-xl p-2 max-h-48 overflow-y-auto w-44 animate-fade-in">
               <p className="text-[10px] text-muted-foreground mb-1.5 font-medium">
-                {selectedOnPitch ? "Tap player to move onto Pitch:" : "Tap player on pitch first"}
+                {selectedOnPitch ? "Tap player to sub on:" : "Tap player on pitch first"}
               </p>
               <div className="flex flex-col gap-1">
                 {playersOnBench
@@ -3903,9 +3918,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       className={cn(
                         "flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all",
                         selectedOnPitch 
-                          ? "bg-emerald-500/20 hover:bg-emerald-500/30 cursor-pointer" 
+                          ? "bg-primary/10 hover:bg-primary/20 cursor-pointer" 
                           : "bg-muted/50 cursor-not-allowed opacity-60",
-                        selectedOnBench === player.id && "ring-2 ring-yellow-400"
+                        selectedOnBench === player.id && "ring-2 ring-primary"
                       )}
                     >
                       <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
@@ -3921,8 +3936,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
           )}
 
-          {/* Floating swap positions button - landscape only, hidden when in sub mode */}
-          {!readOnly && playersOnPitch.length >= 2 && !subMode && (
+          {/* Floating swap positions button - when sidebar is expanded */}
+          {!toolbarCollapsed && !readOnly && playersOnPitch.length >= 2 && !subMode && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -3930,14 +3945,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               }}
               className={cn(
                 "absolute z-50 flex items-center gap-2 rounded-full shadow-lg transition-colors animate-fade-in",
-                isTabletLandscape || isDesktopLandscape ? "px-4 py-3 gap-3" : "px-3 py-2",
+                isTabletLandscape || isDesktopLandscape ? "px-4 py-3" : "px-3 py-2",
                 swapMode 
-                  ? "bg-blue-500 text-white hover:bg-blue-400" 
+                  ? "bg-accent text-accent-foreground" 
                   : "bg-muted text-foreground hover:bg-muted/80 border border-border"
               )}
               style={{
-                bottom: `calc(${toolbarCollapsed ? floatingSubsPosition.y : 16}px + env(safe-area-inset-bottom, 0px))`,
-                right: toolbarCollapsed ? floatingSubsPosition.x + 160 : 16,
+                bottom: 16,
+                right: 16,
                 touchAction: "none",
               }}
             >
