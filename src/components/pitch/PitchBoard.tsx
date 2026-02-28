@@ -3720,10 +3720,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Bottom Sheet Overlay for landscape controls */}
         {!toolbarCollapsed && (
           <div className="absolute inset-0 z-[60] flex flex-col pointer-events-none" style={{ height: '100%' }}>
-            {/* Backdrop */}
+            {/* Backdrop - pass through when drawing */}
             <div 
-              className="flex-1 pointer-events-auto"
-              onClick={() => setToolbarCollapsed(true)}
+              className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")}
+              onClick={drawingTool === "none" ? () => setToolbarCollapsed(true) : undefined}
             />
             {/* Sheet */}
             <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200"
