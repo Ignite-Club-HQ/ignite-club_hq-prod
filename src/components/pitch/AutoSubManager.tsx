@@ -278,7 +278,7 @@ export default function AutoSubManager({
           <Button 
             variant="ghost" 
             size="sm" 
-            className="w-full h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+            className="w-full h-9 text-sm text-destructive hover:text-destructive hover:bg-destructive/10"
             onClick={onCancelPlan}
           >
             <X className="h-3.5 w-3.5 mr-1" />
