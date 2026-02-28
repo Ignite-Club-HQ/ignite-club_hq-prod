@@ -5658,7 +5658,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
       {/* Bench Injury Confirmation */}
       {benchInjuryConfirmOpen && createPortal(
-        <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" onClick={() => { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); }} />,
+        <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
         document.body
       )}
       {benchInjuryConfirmOpen && benchInjuryTarget && createPortal(
