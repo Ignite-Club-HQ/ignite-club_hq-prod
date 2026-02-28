@@ -4597,7 +4597,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             }
                             onInjuryToggle={!subMode && !swapMode ? () => togglePlayerInjury(player.id) : undefined}
                             onRemoveFillIn={!subMode && !swapMode && player.isFillIn ? () => handleRemoveFillInPlayer(player.id) : undefined}
-                            isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
+                            isDragging={draggedPlayer === player.id || touchDragPlayer === player.id || benchDragPlayer === player.id}
                             isSelected={subMode && selectedOnBench === player.id}
                             isSubTarget={subMode && selectedOnPitch !== null && selectedOnBench !== player.id && !player.isInjured}
                             subAnimation={subAnimationPlayers.out === player.id ? "out" : null}
@@ -4847,12 +4847,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Bench drag floating indicator */}
         {benchDragPlayer && benchDragPos && (
           <div 
-            className="fixed z-[100] pointer-events-none"
-            style={{ left: benchDragPos.x - 30, top: benchDragPos.y - 30 }}
+            className="fixed z-[100] pointer-events-none animate-scale-in"
+            style={{ left: benchDragPos.x - 30, top: benchDragPos.y - 40 }}
           >
-            <div className="w-[60px] h-[60px] rounded-full bg-primary/80 border-2 border-primary-foreground shadow-xl flex items-center justify-center">
+            <div className="w-[60px] h-[60px] rounded-full bg-primary border-2 border-primary-foreground shadow-2xl flex items-center justify-center animate-pulse">
               <span className="text-primary-foreground text-xs font-bold text-center leading-tight px-1 truncate">
                 {players.find(p => p.id === benchDragPlayer)?.name?.split(' ')[0] || '?'}
+              </span>
+            </div>
+            <div className="text-center mt-0.5">
+              <span className="text-[9px] font-semibold bg-primary text-primary-foreground px-2 py-0.5 rounded-full shadow-lg">
+                Drop on pitch
               </span>
             </div>
           </div>
