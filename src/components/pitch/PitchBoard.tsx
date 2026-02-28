@@ -3810,7 +3810,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     if (readOnly) return;
                     touchHandledRef.current = true;
                     if (subMode || swapMode) {
-                      handleTouchStart(player.id, e);
+                      handlePlayerClick(player.id, true);
                       return;
                     }
                     // Double-tap detection for pitch action menu
@@ -5483,7 +5483,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   if (readOnly) return;
                   touchHandledRef.current = true;
                   if (subMode || swapMode) {
-                    handleTouchStart(player.id, e);
+                    handlePlayerClick(player.id, true);
                     return;
                   }
                   const now = Date.now();
