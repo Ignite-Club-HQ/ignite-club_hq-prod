@@ -318,7 +318,10 @@ function PitchToolbar({
     // Collapsed state for landscape - mini timer + bench count instead of just chevron
     if (collapsed) {
       return (
-        <div className="flex flex-col items-center justify-between h-full py-3 px-1">
+        <div 
+          className="flex flex-col items-center justify-between h-full py-3 px-1 cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => onToggleCollapse?.()}
+        >
           {/* Bench count badge */}
           <div className="flex flex-col items-center gap-2">
             <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-xs font-bold text-muted-foreground">
@@ -327,13 +330,8 @@ function PitchToolbar({
             <span className="text-[9px] text-muted-foreground">Bench</span>
           </div>
           
-          {/* Expand button */}
-          <button 
-            className="p-1.5 rounded-md hover:bg-muted transition-colors"
-            onClick={() => onToggleCollapse?.()}
-          >
-            <ChevronLeft className="h-4 w-4 text-muted-foreground" />
-          </button>
+          {/* Expand icon */}
+          <ChevronLeft className="h-4 w-4 text-muted-foreground" />
         </div>
       );
     }
