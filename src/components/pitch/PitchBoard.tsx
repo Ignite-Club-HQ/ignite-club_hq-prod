@@ -3201,6 +3201,87 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
           )}
 
+          {/* Unified floating FABs - stacked vertically on left side of pitch when sidebar is collapsed */}
+          {toolbarCollapsed && !readOnly && (
+            <div 
+              className="absolute z-50 flex flex-col gap-2 animate-fade-in"
+              style={{
+                bottom: floatingSubsPosition.y,
+                left: floatingSubsPosition.x,
+                touchAction: "none",
+              }}
+            >
+              {/* Swap Positions FAB */}
+              {playersOnPitch.length >= 2 && !subMode && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSwapMode();
+                  }}
+                  className={cn(
+                    "flex items-center gap-2 rounded-full shadow-lg transition-colors",
+                    isTabletLandscape || isDesktopLandscape ? "px-4 py-3" : "px-3 py-2",
+                    swapMode 
+                      ? "bg-accent text-accent-foreground" 
+                      : "bg-muted text-foreground hover:bg-muted/80 border border-border"
+                  )}
+                >
+                  <ArrowLeftRight className={isTabletLandscape || isDesktopLandscape ? "h-5 w-5" : "h-4 w-4"} />
+                  <span className={isTabletLandscape || isDesktopLandscape ? "text-base font-medium" : "text-sm font-medium"}>
+                    {swapMode ? "Cancel" : "Swap Pos"}
+                  </span>
+                </button>
+              )}
+
+              {/* Make Sub FAB */}
+              {!swapMode && (
+                <button
+                  onClick={() => {
+                    if (!floatingSubsDragRef.current) {
+                      setSubMode(prev => !prev);
+                      setSelectedOnPitch(null);
+                      setSelectedOnBench(null);
+                    }
+                  }}
+                  onTouchStart={(e) => {
+                    const touch = e.touches[0];
+                    floatingSubsDragRef.current = {
+                      startX: touch.clientX,
+                      startY: touch.clientY,
+                      startPosX: floatingSubsPosition.x,
+                      startPosY: floatingSubsPosition.y,
+                    };
+                  }}
+                  onTouchMove={(e) => {
+                    if (!floatingSubsDragRef.current) return;
+                    const touch = e.touches[0];
+                    const deltaX = touch.clientX - floatingSubsDragRef.current.startX;
+                    const deltaY = floatingSubsDragRef.current.startY - touch.clientY;
+                    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+                      const newX = Math.max(8, Math.min(200, floatingSubsDragRef.current.startPosX + deltaX));
+                      const newY = Math.max(8, Math.min(300, floatingSubsDragRef.current.startPosY + deltaY));
+                      setFloatingSubsPosition({ x: newX, y: newY });
+                      e.preventDefault();
+                    }
+                  }}
+                  onTouchEnd={() => { floatingSubsDragRef.current = null; }}
+                  className={cn(
+                    "flex items-center gap-2 rounded-full shadow-lg transition-colors cursor-grab active:cursor-grabbing",
+                    isTabletLandscape || isDesktopLandscape ? "px-4 py-3" : "px-3 py-2",
+                    subMode 
+                      ? "bg-secondary text-secondary-foreground" 
+                      : "bg-primary text-primary-foreground hover:bg-primary/90"
+                  )}
+                >
+                  <Users className={isTabletLandscape || isDesktopLandscape ? "h-5 w-5" : "h-4 w-4"} />
+                  <span className={isTabletLandscape || isDesktopLandscape ? "text-base font-medium" : "text-sm font-medium"}>
+                    {subMode ? "Cancel" : `Make Sub (${playersOnBench.length})`}
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
+
           <div 
             className="w-full h-full"
             onWheel={handleWheel}
@@ -3811,86 +3892,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
           )}
 
-          {/* Unified floating FABs - stacked vertically with consistent styling */}
-          {toolbarCollapsed && !readOnly && (
-            <div 
-              className="absolute z-50 flex flex-col gap-2 animate-fade-in"
-              style={{
-                bottom: floatingSubsPosition.y,
-                left: floatingSubsPosition.x,
-                touchAction: "none",
-              }}
-            >
-              {/* Swap Positions FAB */}
-              {playersOnPitch.length >= 2 && !subMode && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleSwapMode();
-                  }}
-                  className={cn(
-                    "flex items-center gap-2 rounded-full shadow-lg transition-colors",
-                    isTabletLandscape || isDesktopLandscape ? "px-4 py-3" : "px-3 py-2",
-                    swapMode 
-                      ? "bg-accent text-accent-foreground" 
-                      : "bg-muted text-foreground hover:bg-muted/80 border border-border"
-                  )}
-                >
-                  <ArrowLeftRight className={isTabletLandscape || isDesktopLandscape ? "h-5 w-5" : "h-4 w-4"} />
-                  <span className={isTabletLandscape || isDesktopLandscape ? "text-base font-medium" : "text-sm font-medium"}>
-                    {swapMode ? "Cancel" : "Swap Pos"}
-                  </span>
-                </button>
-              )}
-
-              {/* Make Sub FAB */}
-              {!swapMode && (
-                <button
-                  onClick={() => {
-                    if (!floatingSubsDragRef.current) {
-                      setSubMode(prev => !prev);
-                      setSelectedOnPitch(null);
-                      setSelectedOnBench(null);
-                    }
-                  }}
-                  onTouchStart={(e) => {
-                    const touch = e.touches[0];
-                    floatingSubsDragRef.current = {
-                      startX: touch.clientX,
-                      startY: touch.clientY,
-                      startPosX: floatingSubsPosition.x,
-                      startPosY: floatingSubsPosition.y,
-                    };
-                  }}
-                  onTouchMove={(e) => {
-                    if (!floatingSubsDragRef.current) return;
-                    const touch = e.touches[0];
-                    const deltaX = touch.clientX - floatingSubsDragRef.current.startX;
-                    const deltaY = floatingSubsDragRef.current.startY - touch.clientY;
-                    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
-                      const newX = Math.max(8, Math.min(200, floatingSubsDragRef.current.startPosX + deltaX));
-                      const newY = Math.max(8, Math.min(300, floatingSubsDragRef.current.startPosY + deltaY));
-                      setFloatingSubsPosition({ x: newX, y: newY });
-                      e.preventDefault();
-                    }
-                  }}
-                  onTouchEnd={() => { floatingSubsDragRef.current = null; }}
-                  className={cn(
-                    "flex items-center gap-2 rounded-full shadow-lg transition-colors cursor-grab active:cursor-grabbing",
-                    isTabletLandscape || isDesktopLandscape ? "px-4 py-3" : "px-3 py-2",
-                    subMode 
-                      ? "bg-secondary text-secondary-foreground" 
-                      : "bg-primary text-primary-foreground hover:bg-primary/90"
-                  )}
-                >
-                  <Users className={isTabletLandscape || isDesktopLandscape ? "h-5 w-5" : "h-4 w-4"} />
-                  <span className={isTabletLandscape || isDesktopLandscape ? "text-base font-medium" : "text-sm font-medium"}>
-                    {subMode ? "Cancel" : `Make Sub (${playersOnBench.length})`}
-                  </span>
-                </button>
-              )}
-            </div>
-          )}
+          {/* Floating sub/swap FABs are rendered in the pitch area (above) to avoid sidebar overlap */}
 
           {/* Floating bench overlay in sub mode when sidebar is collapsed */}
           {subMode && toolbarCollapsed && playersOnBench.length > 0 && (
