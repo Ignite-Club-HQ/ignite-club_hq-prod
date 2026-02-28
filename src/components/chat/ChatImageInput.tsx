@@ -32,32 +32,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     (document.activeElement as HTMLElement | null)?.blur();
   };
 
-  const runNativeRelayoutPasses = async () => {
+  const restoreNativeLayout = () => {
     if (!isNativeIOS) return;
-
-    // iOS can apply viewport/safe-area updates a little after picker close.
-    // Run multiple re-layout passes and force nav/input reset events.
-    const relayoutPass = () => {
-      dismissIOSKeyboardAccessory();
-      requestAnimationFrame(() => {
-        dismissIOSKeyboardAccessory();
-        void document.body.offsetHeight; // force synchronous reflow pass
-        window.scrollTo(0, 0);
-        window.dispatchEvent(new Event("resize"));
-        window.dispatchEvent(new Event("native-layout-reset"));
-      });
-    };
-
-    relayoutPass();
-    await new Promise((resolve) => setTimeout(resolve, 120));
-    relayoutPass();
-    await new Promise((resolve) => setTimeout(resolve, 280));
-    relayoutPass();
-  };
-
-  const restoreNativeLayout = async () => {
-    if (!isNativeIOS) return;
-    await runNativeRelayoutPasses();
+    dismissIOSKeyboardAccessory();
+    // Small delay to let iOS settle after picker closes
+    setTimeout(() => dismissIOSKeyboardAccessory(), 100);
   };
 
   const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
@@ -170,7 +149,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       setLocalPreview(stablePreviewUrl);
 
       // Stabilize viewport immediately when the thumbnail appears (before upload completes)
-      await restoreNativeLayout();
+      restoreNativeLayout();
       layoutRestoredEarly = true;
 
       const skipCompression = !IOS_SAFE_COMPRESSION_MIME_TYPES.has(mimeType);
@@ -200,7 +179,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       setLocalPreview(null);
     } finally {
       if (!layoutRestoredEarly) {
-        await restoreNativeLayout();
+        restoreNativeLayout();
       }
       setUploading(false);
     }
