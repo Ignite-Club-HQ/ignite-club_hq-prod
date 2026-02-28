@@ -25,6 +25,7 @@ import { PitchPosition } from "./PositionBadge";
 // Lazy load heavy dialog components for better initial load performance
 const AutoSubPlanDialog = lazy(() => import("./AutoSubPlanDialog"));
 const SubstitutionPreviewDialog = lazy(() => import("./SubstitutionPreviewDialog"));
+const BenchToSubDialog = lazy(() => import("./BenchToSubDialog"));
 const MatchStatsPanel = lazy(() => import("./MatchStatsPanel"));
 const PlayerPositionEditor = lazy(() => import("./PlayerPositionEditor"));
 const PositionSwapDialog = lazy(() => import("./PositionSwapDialog"));
@@ -1098,6 +1099,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     swapPlayerId: string;
   } | null>(null);
   const [swapBeforeSubDialogOpen, setSwapBeforeSubDialogOpen] = useState(false);
+
+  // Bench-to-pitch drag substitution state
+  const [benchToSubOpen, setBenchToSubOpen] = useState(false);
+  const [benchToSubPlayer, setBenchToSubPlayer] = useState<string | null>(null);
   const [subAfterSwapDialogOpen, setSubAfterSwapDialogOpen] = useState(false);
 
   // Mock player mode state
@@ -3078,6 +3083,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setSelectedOnBench(null);
   }, []);
 
+  // Handle bench-to-pitch substitution selection
+  const handleBenchToSubSelect = useCallback((pitchPlayerId: string, swapPlayerId?: string) => {
+    if (!benchToSubPlayer) return;
+    setBenchToSubOpen(false);
+    // Reuse existing manual sub confirmation flow
+    setTimeout(() => {
+      setPendingManualSub({ 
+        pitchPlayerId, 
+        benchPlayerId: benchToSubPlayer,
+        swapPlayerId 
+      });
+      setManualSubConfirmOpen(true);
+    }, 150);
+  }, [benchToSubPlayer]);
+
   // Calculate which positions on pitch are occupied by the filtered position type
   const getPositionZoneIndicators = useCallback(() => {
     if (!benchPositionFilter) return [];
@@ -4488,7 +4508,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             player={player}
                             onDragStart={() => !subMode && !readOnly && handleDragStart(player.id)}
                             onDragEnd={handleDragEnd}
-                            onClick={!readOnly && subMode && !player.isInjured ? () => handlePlayerClick(player.id, false) : undefined}
+                            onClick={
+                              !readOnly && subMode && !player.isInjured 
+                                ? () => handlePlayerClick(player.id, false) 
+                                : !readOnly && !subMode && !swapMode && !player.isInjured && playersOnPitch.length > 0
+                                  ? () => { setBenchToSubPlayer(player.id); setBenchToSubOpen(true); setPortraitSheetOpen(false); }
+                                  : undefined
+                            }
                             onInjuryToggle={!subMode && !swapMode ? () => togglePlayerInjury(player.id) : undefined}
                             onRemoveFillIn={!subMode && !swapMode && player.isFillIn ? () => handleRemoveFillInPlayer(player.id) : undefined}
                             isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
@@ -4969,7 +4995,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         miniLeagueTeams={miniLeagueTeams}
       />
 
-      {/* Formation Change Dialog */}
+      {/* Bench-to-Pitch Substitution Dialog */}
+      <Suspense fallback={null}>
+        <BenchToSubDialog
+          open={benchToSubOpen}
+          onOpenChange={(open) => {
+            setBenchToSubOpen(open);
+            if (!open) setBenchToSubPlayer(null);
+          }}
+          benchPlayer={players.find(p => p.id === benchToSubPlayer) || null}
+          allPitchPlayers={playersOnPitch}
+          onSelectOption={handleBenchToSubSelect}
+          miniLeagueTeams={miniLeagueTeams}
+        />
+      </Suspense>
+
+
       <FormationChangeDialog
         open={formationChangeDialogOpen}
         onOpenChange={setFormationChangeDialogOpen}
