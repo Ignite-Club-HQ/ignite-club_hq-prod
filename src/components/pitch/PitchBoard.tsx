@@ -3936,7 +3936,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
           )}
 
-          {/* Floating swap positions button - when sidebar is expanded */}
+          {/* Floating swap positions button - when sidebar is expanded, offset from right to avoid sidebar overlap */}
           {!toolbarCollapsed && !readOnly && playersOnPitch.length >= 2 && !subMode && (
             <button
               onClick={(e) => {
@@ -3944,7 +3944,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 toggleSwapMode();
               }}
               className={cn(
-                "absolute z-50 flex items-center gap-2 rounded-full shadow-lg transition-colors animate-fade-in",
+                "absolute z-40 flex items-center gap-2 rounded-full shadow-lg transition-colors animate-fade-in",
                 isTabletLandscape || isDesktopLandscape ? "px-4 py-3" : "px-3 py-2",
                 swapMode 
                   ? "bg-accent text-accent-foreground" 
@@ -3952,7 +3952,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               )}
               style={{
                 bottom: 16,
-                right: 16,
+                left: 16,
                 touchAction: "none",
               }}
             >
