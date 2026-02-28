@@ -3624,6 +3624,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
           )}
 
+          {/* Bench drag floating indicator - landscape */}
+          {benchDragPlayer && benchDragPos && (
+            <div 
+              className="fixed z-[100] pointer-events-none animate-scale-in"
+              style={{ left: benchDragPos.x - 30, top: benchDragPos.y - 40 }}
+            >
+              <div className="w-[60px] h-[60px] rounded-full bg-primary border-2 border-primary-foreground shadow-2xl flex items-center justify-center animate-pulse">
+                <span className="text-primary-foreground text-xs font-bold text-center leading-tight px-1 truncate">
+                  {players.find(p => p.id === benchDragPlayer)?.name?.split(' ')[0] || '?'}
+                </span>
+              </div>
+              <div className="text-center mt-0.5">
+                <span className="text-[9px] font-semibold bg-primary text-primary-foreground px-2 py-0.5 rounded-full shadow-lg">
+                  Drop on pitch
+                </span>
+              </div>
+            </div>
+          )}
+
           <div 
             id="landscape-pitch-area"
             className="w-full h-full"
