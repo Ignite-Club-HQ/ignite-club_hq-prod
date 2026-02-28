@@ -643,7 +643,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     setUploadProgress(0);
     
     if (successCount > 0 && errorCount === 0) {
-      toast.success(`${successCount} photo${successCount > 1 ? 's' : ''} uploaded`);
+      // No toast for successful photo uploads
     } else if (successCount > 0 && errorCount > 0) {
       toast.warning(`${successCount} uploaded, ${errorCount} failed`);
     } else {
