@@ -4004,7 +4004,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <div className="flex items-center gap-2">
                       <div className="flex gap-1.5 flex-1 min-w-0">
                         {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
-                          const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos)).length;
+                          const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos) || !p.assignedPositions?.length).length;
                           const totalCount = players.filter(p => p.assignedPositions?.includes(pos)).length;
                           return (
                             <button
@@ -4834,7 +4834,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <div className="flex items-center gap-2">
                       <div className="flex gap-1.5 flex-1 min-w-0">
                         {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
-                          const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos)).length;
+                          const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos) || !p.assignedPositions?.length).length;
                           return (
                             <button
                               key={pos}
