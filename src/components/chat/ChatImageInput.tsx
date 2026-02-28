@@ -57,13 +57,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
   const restoreNativeLayout = async () => {
     if (!isNativeIOS) return;
-
-    try {
-      await StatusBar.setOverlaysWebView({ overlay: false });
-    } catch (error) {
-      console.warn("[ChatImageInput] Failed to restore status bar overlay:", error);
-    }
-
     await runNativeRelayoutPasses();
   };
 
