@@ -588,8 +588,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd);
   }, [floatingTimerPosition]);
-  
-  
+
+
   // Swipe gestures for bench in landscape mode
   const benchSwipeHandlers = useSwipeGesture({
     onSwipeLeft: () => setBenchCollapsed(true),
@@ -1103,6 +1103,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Bench-to-pitch drag substitution state
   const [benchToSubOpen, setBenchToSubOpen] = useState(false);
   const [benchToSubPlayer, setBenchToSubPlayer] = useState<string | null>(null);
+  const [benchDragPlayer, setBenchDragPlayer] = useState<string | null>(null);
+  const [benchDragPos, setBenchDragPos] = useState<{ x: number; y: number } | null>(null);
+  const benchLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const benchDragStartTouch = useRef<{ x: number; y: number } | null>(null);
   const [subAfterSwapDialogOpen, setSubAfterSwapDialogOpen] = useState(false);
 
   // Mock player mode state
@@ -2733,6 +2737,58 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setTouchDragPlayer(null);
     setTouchOffset(null);
   }, []);
+
+  // Portrait bench long-press drag handlers
+  const handleBenchLongPressStart = useCallback((playerId: string, e: React.TouchEvent) => {
+    if (readOnly || subMode || swapMode) return;
+    const touch = e.touches[0];
+    benchDragStartTouch.current = { x: touch.clientX, y: touch.clientY };
+    benchLongPressTimer.current = setTimeout(() => {
+      setBenchDragPlayer(playerId);
+      setBenchDragPos({ x: touch.clientX, y: touch.clientY });
+      if (navigator.vibrate) navigator.vibrate(30);
+    }, 400);
+  }, [readOnly, subMode, swapMode]);
+
+  const handleBenchLongPressMove = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    if (benchLongPressTimer.current && benchDragStartTouch.current) {
+      const dx = touch.clientX - benchDragStartTouch.current.x;
+      const dy = touch.clientY - benchDragStartTouch.current.y;
+      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+        clearTimeout(benchLongPressTimer.current);
+        benchLongPressTimer.current = null;
+      }
+    }
+    if (benchDragPlayer) {
+      e.preventDefault();
+      setBenchDragPos({ x: touch.clientX, y: touch.clientY });
+    }
+  }, [benchDragPlayer]);
+
+  const handleBenchLongPressEnd = useCallback(() => {
+    if (benchLongPressTimer.current) {
+      clearTimeout(benchLongPressTimer.current);
+      benchLongPressTimer.current = null;
+    }
+    if (benchDragPlayer && benchDragPos) {
+      const pitchEl = document.getElementById('portrait-pitch-area');
+      if (pitchEl) {
+        const rect = pitchEl.getBoundingClientRect();
+        if (
+          benchDragPos.x >= rect.left && benchDragPos.x <= rect.right &&
+          benchDragPos.y >= rect.top && benchDragPos.y <= rect.bottom
+        ) {
+          setBenchToSubPlayer(benchDragPlayer);
+          setBenchToSubOpen(true);
+          setPortraitSheetOpen(false);
+        }
+      }
+    }
+    setBenchDragPlayer(null);
+    setBenchDragPos(null);
+    benchDragStartTouch.current = null;
+  }, [benchDragPlayer, benchDragPos]);
 
   // Memoize derived player lists to prevent recalculation on every render
   const playersOnPitch = useMemo(() => players.filter(p => p.position !== null), [players]);
@@ -4486,6 +4542,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       className="flex flex-wrap gap-2 min-h-14"
                       onDrop={!subMode ? handleBenchDrop : undefined}
                       onDragOver={!subMode ? handleDragOver : undefined}
+                      onTouchMove={handleBenchLongPressMove}
+                      onTouchEnd={handleBenchLongPressEnd}
                     >
                       {playersOnBench.length === 0 && (
                         <p className="text-xs text-muted-foreground">Drag players here to substitute</p>
@@ -4508,6 +4566,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             player={player}
                             onDragStart={() => !subMode && !readOnly && handleDragStart(player.id)}
                             onDragEnd={handleDragEnd}
+                            onTouchStart={(e) => !readOnly && !subMode && !swapMode && handleBenchLongPressStart(player.id, e)}
                             onClick={
                               !readOnly && subMode && !player.isInjured 
                                 ? () => handlePlayerClick(player.id, false) 
@@ -4764,8 +4823,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         )}
 
+        {/* Bench drag floating indicator */}
+        {benchDragPlayer && benchDragPos && (
+          <div 
+            className="fixed z-[100] pointer-events-none"
+            style={{ left: benchDragPos.x - 30, top: benchDragPos.y - 30 }}
+          >
+            <div className="w-[60px] h-[60px] rounded-full bg-primary/80 border-2 border-primary-foreground shadow-xl flex items-center justify-center">
+              <span className="text-primary-foreground text-xs font-bold text-center leading-tight px-1 truncate">
+                {players.find(p => p.id === benchDragPlayer)?.name?.split(' ')[0] || '?'}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* The Pitch */}
         <div 
+          id="portrait-pitch-area"
           className="w-full h-full"
           onWheel={handleWheel}
         >
