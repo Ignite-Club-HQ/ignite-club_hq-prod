@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -1108,6 +1109,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const benchLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const benchDragStartTouch = useRef<{ x: number; y: number } | null>(null);
   const [subAfterSwapDialogOpen, setSubAfterSwapDialogOpen] = useState(false);
+  const [resetGameConfirmOpen, setResetGameConfirmOpen] = useState(false);
 
   // Mock player mode state
   const [mockMode, setMockMode] = useState(() => savedState?.mockMode || false);
@@ -4747,7 +4749,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {/* Reset */}
                     {!readOnly && (
                       <div className="border-t border-border pt-2">
-                        <Button variant="outline" className="w-full h-10 text-sm text-destructive" onClick={handleResetGame}>
+                        <Button variant="outline" className="w-full h-10 text-sm text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
                           <RotateCcw className="h-4 w-4 mr-1.5" />
                           Reset Game
                         </Button>
@@ -4942,7 +4944,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               ref={!isLandscape ? containerRef : undefined}
               className="absolute inset-0 w-full h-full"
               style={{
-                zIndex: drawingTool !== "none" ? 30 : 5,
+                zIndex: drawingTool !== "none" ? 65 : 5,
                 pointerEvents: drawingTool !== "none" ? "auto" : "none",
                 touchAction: "none",
               }}
@@ -5116,6 +5118,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         />
       </Suspense>
 
+      {/* Reset Game Confirmation */}
+      <AlertDialog open={resetGameConfirmOpen} onOpenChange={setResetGameConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Game?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will clear all player minutes, timer, substitutions, goals, and reset positions. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { handleResetGame(); setResetGameConfirmOpen(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Reset Game
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <FormationChangeDialog
         open={formationChangeDialogOpen}
