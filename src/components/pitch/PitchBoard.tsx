@@ -3962,7 +3962,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <ChevronUp className="h-5 w-5 text-muted-foreground" />
             </button>
 
-            {/* Floating Draw FAB */}
+            {/* Floating Reset Positions FAB */}
+            <button
+              className="absolute bottom-3 z-[55] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
+              style={{ right: 108 }}
+              onClick={handleResetFormation}
+            >
+              <RotateCcw className="h-4 w-4 text-muted-foreground" />
+            </button>
+
             <button
               className={cn(
                 "absolute bottom-3 z-[55] w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
@@ -4040,18 +4048,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       />
                     ))}
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full text-xs gap-1.5"
-                    onClick={() => {
-                      handleResetFormation();
-                      setShowFloatingDrawToolbar(false);
-                    }}
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    Reset Positions
-                  </Button>
                 </div>
               </div>
             )}
@@ -4858,6 +4854,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <Pencil className="h-5 w-5" />
                 </button>
 
+                {/* Floating Reset Positions FAB - portrait */}
+                <button
+                  className="absolute bottom-3 z-50 w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
+                  style={{ right: 108 }}
+                  onClick={handleResetFormation}
+                >
+                  <RotateCcw className="h-4 w-4 text-muted-foreground" />
+                </button>
+
                 {/* Floating Draw Toolbar - portrait */}
                 {showFloatingDrawToolbar && (
                   <div className="absolute bottom-16 right-3 z-50 animate-fade-in">
@@ -4921,18 +4926,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         ))}
                       </div>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full text-xs gap-1.5"
-                        onClick={() => {
-                          handleResetFormation();
-                          setShowFloatingDrawToolbar(false);
-                        }}
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        Reset Positions
-                      </Button>
                     </div>
                 )}
               </>
