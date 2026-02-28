@@ -3671,11 +3671,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {/* Bench Players - horizontal scroll */}
                     <div 
                       id="pitch-bench-landscape"
-                      className="flex flex-nowrap overflow-x-auto scrollbar-none min-h-14 touch-none pb-1 gap-2"
+                      className="flex flex-nowrap overflow-x-auto scrollbar-none min-h-14 pb-1 gap-2"
                       onDrop={!subMode ? handleBenchDrop : undefined}
                       onDragOver={!subMode ? handleDragOver : undefined}
-                      onTouchMove={!subMode ? handleBenchTouchMove : undefined}
-                      onTouchEnd={!subMode ? handleBenchTouchEnd : undefined}
                     >
                       {playersOnBench.length === 0 && (
                         <p className="text-xs text-muted-foreground whitespace-nowrap">Drag here</p>
@@ -3698,7 +3696,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               player={player}
                               onDragStart={() => !subMode && !readOnly && handleDragStart(player.id)}
                               onDragEnd={handleDragEnd}
-                              onTouchStart={(e) => !subMode && !readOnly && handleTouchStart(player.id, e)}
                               onClick={!readOnly && subMode && !player.isInjured ? () => handlePlayerClick(player.id, false) : undefined}
                               onInjuryToggle={!subMode && !swapMode ? () => togglePlayerInjury(player.id) : undefined}
                               onRemoveFillIn={!subMode && !swapMode && player.isFillIn ? () => handleRemoveFillInPlayer(player.id) : undefined}
