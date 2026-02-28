@@ -503,14 +503,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               // Let the user continue until their next API call fails
             }
           } else if (!data.session) {
-            console.warn('[Auth] No session found on resume - session may have expired');
-            // Session genuinely expired - clear local state
-            // But don't call signOut() which would trigger a full logout flow
-            setUser(null);
-            setSession(null);
-            setProfile(null);
-            setCachedProfile(null);
-            setInitialized(true);
+            console.warn('[Auth] No session found on resume - attempting refresh before clearing');
+            // On native apps, getSession can transiently return null on resume
+            // Try refreshing before clearing state to avoid unnecessary redirects
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError || !refreshData.session) {
+              console.warn('[Auth] Session refresh also failed on resume - session expired');
+              setUser(null);
+              setSession(null);
+              setProfile(null);
+              setCachedProfile(null);
+              setInitialized(true);
+            } else {
+              console.log('[Auth] Session recovered via refresh on resume');
+              setSession(refreshData.session);
+              setUser(refreshData.session.user);
+            }
           } else {
             // Session is valid - update state to be safe
             setSession(data.session);
