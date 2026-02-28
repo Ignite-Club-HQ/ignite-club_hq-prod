@@ -368,6 +368,18 @@ function PitchToolbar({
                   </p>
                 )}
 
+                {/* Swap Positions button */}
+                {canSwap && !subMode && (
+                  <Button
+                    variant={swapMode ? "default" : "outline"}
+                    className="w-full h-9 text-sm"
+                    onClick={onToggleSwapMode}
+                  >
+                    <ArrowLeftRight className="h-4 w-4 mr-1.5" />
+                    {swapMode ? "Cancel Swap" : "Swap Positions"}
+                  </Button>
+                )}
+
                 {!disableAutoSubs && (
                   <div className="pt-2 border-t border-border">
                     {!autoSubActive ? (
