@@ -1,11 +1,9 @@
 import { ExternalLink, RotateCcw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { safeOpenUrl } from "@/lib/safeOpenUrl";
 
-const PRIVACY_POLICY_URL = "https://www.igniteclubhq.com/privacy";
-const TERMS_URL = "https://www.igniteclubhq.com/terms";
 // Apple's standard EULA fallback
 const APPLE_EULA_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
 
@@ -16,7 +14,7 @@ interface SubscriptionLegalLinksProps {
 export function SubscriptionLegalLinks({ showRestorePurchases = true }: SubscriptionLegalLinksProps) {
   const [isRestoring, setIsRestoring] = useState(false);
   const { toast } = useToast();
-
+  const navigate = useNavigate();
   const handleRestorePurchases = async () => {
     setIsRestoring(true);
     try {
@@ -71,19 +69,17 @@ export function SubscriptionLegalLinks({ showRestorePurchases = true }: Subscrip
 
       <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
         <button
-          onClick={(e) => { e.preventDefault(); safeOpenUrl(PRIVACY_POLICY_URL); }}
+          onClick={(e) => { e.preventDefault(); navigate("/privacy"); }}
           className="flex items-center gap-1 hover:text-foreground underline underline-offset-2 transition-colors"
         >
           Privacy Policy
-          <ExternalLink className="h-3 w-3" />
         </button>
         <span>·</span>
         <button
-          onClick={(e) => { e.preventDefault(); safeOpenUrl(TERMS_URL); }}
+          onClick={(e) => { e.preventDefault(); navigate("/terms"); }}
           className="flex items-center gap-1 hover:text-foreground underline underline-offset-2 transition-colors"
         >
           Terms of Use
-          <ExternalLink className="h-3 w-3" />
         </button>
       </div>
 
