@@ -259,11 +259,11 @@ export default function AutoSubManager({
                   {/* Players */}
                   <div className="flex items-center gap-1 min-w-0 flex-1">
                     <span className="text-destructive truncate">
-                      ↓{sub.playerOut.number ? `#${sub.playerOut.number}` : sub.playerOut.name}
+                      ↓{sub.playerOut.name}
                     </span>
                     <span className="text-muted-foreground">→</span>
                     <span className="text-green-600 dark:text-green-400 truncate">
-                      ↑{sub.playerIn.number ? `#${sub.playerIn.number}` : sub.playerIn.name}
+                      ↑{sub.playerIn.name}
                     </span>
                   </div>
 
