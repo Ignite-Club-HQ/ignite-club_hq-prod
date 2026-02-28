@@ -2180,6 +2180,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       setAutoSubPlan(prev => prev.filter(s => s !== nextSub));
       toast({ title: "Substitution skipped" });
     }
+    skipCooldownRef.current = Date.now();
   }, [autoSubPlan, players, teamSize, toast]);
 
   const handleExecuteNow = useCallback(() => {
@@ -2233,6 +2234,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Track last update time for minutes played calculation
   const lastTimeUpdateRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
   const hasInitializedTimeRef = useRef(false);
+  const skipCooldownRef = useRef<number>(0); // Timestamp of last skip to prevent immediate re-trigger
 
   // Timer update callback - check for pending subs and track minutes played
   const handleTimerUpdate = useCallback((elapsedSeconds: number, currentHalf: 1 | 2) => {
@@ -2265,8 +2267,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
 
-    // Don't trigger subs if paused
+    // Don't trigger subs if paused or in skip cooldown
     if (!autoSubActive || autoSubPlan.length === 0 || autoSubPaused) return;
+    if (Date.now() - skipCooldownRef.current < 3000) return; // 3s cooldown after skip
     
     // Find all unexecuted subs for current half that are due (skip locked players)
     const dueSubs = autoSubPlan.filter(sub => 
@@ -2497,6 +2500,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       toast({ title: allPendingSubs.length > 1 ? "Substitutions skipped" : "Substitution skipped" });
     }
     
+    skipCooldownRef.current = Date.now();
     setSubConfirmDialogOpen(false);
     setPendingAutoSub(null);
     setPendingBatchSubs([]);
