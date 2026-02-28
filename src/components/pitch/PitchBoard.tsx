@@ -3121,7 +3121,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Main content area */}
         <div className="flex-1 flex overflow-hidden">
           {/* Main pitch area - full height */}
-          <div className="flex-1 h-full relative">
+          <div className="flex-1 h-full relative overflow-hidden">
             {/* Top left: Close button + Read-only badge */}
             <div className="absolute top-2 left-2 z-50 flex items-center gap-2">
               <Button 
