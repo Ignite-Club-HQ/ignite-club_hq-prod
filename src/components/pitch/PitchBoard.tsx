@@ -3572,7 +3572,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Swipe-up zone at bottom edge to open sheet */}
         {toolbarCollapsed && (
           <div
-            className="absolute bottom-0 left-0 right-0 z-[55] flex justify-center items-end pointer-events-auto"
+            className="absolute bottom-0 left-0 right-0 z-[45] flex justify-center items-end pointer-events-auto"
             style={{ height: 44 }}
             onTouchStart={(e) => {
               const startY = e.touches[0].clientY;
@@ -3585,7 +3585,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               const deltaY = startY - e.changedTouches[0].clientY;
               if (deltaY > 30) setToolbarCollapsed(false);
             }}
-            onClick={() => setToolbarCollapsed(false)}
           >
             <div className="w-10 h-1 rounded-full bg-foreground/30 mb-1.5" />
           </div>
