@@ -4190,10 +4190,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       <div className="flex-1 min-h-0 relative overflow-hidden">
         {/* Floating timer */}
         <div 
-          className="absolute z-50 cursor-move touch-none select-none"
+          className="absolute z-50 touch-none select-none"
           style={{ 
-            left: floatingTimerPosition.x, 
-            top: 4,
+            right: 8, 
+            top: 40,
           }}
           onMouseDown={handleTimerDragStart}
           onTouchStart={handleTimerTouchStart}
