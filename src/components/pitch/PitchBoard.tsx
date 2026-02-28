@@ -4188,6 +4188,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <div 
                       id="pitch-bench-landscape"
                       className="flex flex-nowrap overflow-x-auto scrollbar-none min-h-14 pb-1 gap-2"
+                      style={{ touchAction: 'pan-x', WebkitOverflowScrolling: 'touch' }}
                       onDrop={!subMode ? handleBenchDrop : undefined}
                       onDragOver={!subMode ? handleDragOver : undefined}
                       onTouchMove={handleBenchLongPressMove}
@@ -5179,6 +5180,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <div 
                       id="pitch-bench-portrait"
                       className="grid grid-cols-2 gap-2 min-h-14"
+                      style={{ touchAction: 'pan-y' }}
                       onDrop={!subMode ? handleBenchDrop : undefined}
                       onDragOver={!subMode ? handleDragOver : undefined}
                       onTouchMove={handleBenchLongPressMove}
