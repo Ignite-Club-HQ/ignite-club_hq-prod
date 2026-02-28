@@ -4254,7 +4254,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         )}
 
         {/* Floating FABs for Sub/Swap */}
-        {!readOnly && (
+        {!readOnly && !portraitSheetOpen && (
           <div className="absolute left-3 z-[63] flex flex-col gap-2 animate-fade-in"
             style={{ bottom: subMode || swapMode ? 56 : 16 }}
           >
