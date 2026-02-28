@@ -4510,7 +4510,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         <Button
                           variant={subMode ? "default" : "outline"}
                           className="w-full h-11 text-sm"
-                          onClick={toggleSubMode}
+                          onClick={() => { toggleSubMode(); setPortraitSheetOpen(false); }}
                         >
                           <RefreshCw className="h-4 w-4 mr-1.5" />
                           {subMode ? "Cancel Sub" : "Make Sub"}
@@ -4527,7 +4527,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <Button
                             variant={swapMode ? "default" : "outline"}
                             className="w-full h-11 text-sm"
-                            onClick={toggleSwapMode}
+                            onClick={() => { toggleSwapMode(); setPortraitSheetOpen(false); }}
                           >
                             <ArrowLeftRight className="h-4 w-4 mr-1.5" />
                             {swapMode ? "Cancel Swap" : "Swap Positions"}
