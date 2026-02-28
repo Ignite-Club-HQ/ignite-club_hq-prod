@@ -265,6 +265,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "subs" | "setup" | "draw">("bench");
+  const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [sheetHeightPct, setSheetHeightPct] = useState(50);
   const sheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
   const [portraitSheetOpen, setPortraitSheetOpen] = useState(false);
@@ -2055,6 +2056,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Deactivate drawing tools when entering swap mode
     if (newSwapMode) {
       setDrawingTool("none");
+      setShowFloatingDrawToolbar(false);
       // Close bottom drawer so pitch is fully visible
       setPortraitSheetOpen(false);
     }
@@ -2135,6 +2137,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       }
       // Deactivate drawing tools when entering sub mode
       setDrawingTool("none");
+      setShowFloatingDrawToolbar(false);
       // Close bottom drawer so pitch is fully visible
       setPortraitSheetOpen(false);
     }
@@ -3949,13 +3952,84 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         )}
 
         {/* Floating settings button - always visible in landscape when sheet closed */}
-        {toolbarCollapsed && (
-          <button
-            className="absolute bottom-3 right-3 z-[55] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
-            onClick={() => setToolbarCollapsed(false)}
-          >
-            <ChevronUp className="h-5 w-5 text-muted-foreground" />
-          </button>
+        {toolbarCollapsed && !readOnly && (
+          <>
+            {/* Floating settings button - always visible in landscape when sheet closed */}
+            <button
+              className="absolute bottom-3 right-3 z-[55] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
+              onClick={() => setToolbarCollapsed(false)}
+            >
+              <ChevronUp className="h-5 w-5 text-muted-foreground" />
+            </button>
+
+            {/* Floating Draw FAB */}
+            <button
+              className={cn(
+                "absolute bottom-3 z-[55] w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
+                drawingTool !== "none" || showFloatingDrawToolbar
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background/80 border-border"
+              )}
+              style={{ right: 60 }}
+              onClick={() => {
+                if (drawingTool !== "none") {
+                  setDrawingTool("none");
+                  setShowFloatingDrawToolbar(false);
+                } else {
+                  setShowFloatingDrawToolbar(prev => !prev);
+                }
+              }}
+            >
+              <Pencil className="h-5 w-5" />
+            </button>
+
+            {/* Floating Draw Toolbar */}
+            {showFloatingDrawToolbar && (
+              <div className="absolute bottom-16 z-[55] animate-fade-in" style={{ right: 12 }}>
+                <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
+                  <div className="flex gap-2">
+                    <Button 
+                      variant={drawingTool === "pen" ? "default" : "outline"} 
+                      size="icon"
+                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      onClick={() => setDrawingTool(drawingTool === "pen" ? "none" : "pen")}
+                    >
+                      <Pencil className="h-5 w-5" />
+                    </Button>
+                    <Button 
+                      variant={drawingTool === "arrow" ? "default" : "outline"} 
+                      size="icon"
+                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      onClick={() => setDrawingTool(drawingTool === "arrow" ? "none" : "arrow")}
+                    >
+                      <MoveRight className="h-5 w-5" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      onClick={clearDrawings}
+                    >
+                      <Eraser className="h-5 w-5" />
+                    </Button>
+                  </div>
+                  <div className="flex gap-2 justify-center">
+                    {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
+                      <button
+                        key={color}
+                        className={cn(
+                          "w-8 h-8 rounded-full border-2",
+                          drawingColor === color ? "border-primary ring-2 ring-primary/50" : "border-muted-foreground/30"
+                        )}
+                        style={{ backgroundColor: color }}
+                        onClick={() => setDrawingColor(color)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* Bottom Sheet Overlay for landscape controls */}
@@ -4772,12 +4846,86 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
         {/* Floating settings button - bottom right to open sheet */}
         {!portraitSheetOpen && (
-          <button
-            className="absolute bottom-3 right-3 z-50 w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
-            onClick={() => setPortraitSheetOpen(true)}
-          >
-            <ChevronUp className="h-5 w-5 text-muted-foreground" />
-          </button>
+          <>
+            <button
+              className="absolute bottom-3 right-3 z-50 w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
+              onClick={() => setPortraitSheetOpen(true)}
+            >
+              <ChevronUp className="h-5 w-5 text-muted-foreground" />
+            </button>
+
+            {/* Floating Draw FAB - portrait */}
+            {!readOnly && (
+              <>
+                <button
+                  className={cn(
+                    "absolute bottom-3 z-50 w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
+                    drawingTool !== "none" || showFloatingDrawToolbar
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background/80 border-border"
+                  )}
+                  style={{ right: 60 }}
+                  onClick={() => {
+                    if (drawingTool !== "none") {
+                      setDrawingTool("none");
+                      setShowFloatingDrawToolbar(false);
+                    } else {
+                      setShowFloatingDrawToolbar(prev => !prev);
+                    }
+                  }}
+                >
+                  <Pencil className="h-5 w-5" />
+                </button>
+
+                {/* Floating Draw Toolbar - portrait */}
+                {showFloatingDrawToolbar && (
+                  <div className="absolute bottom-16 right-3 z-50 animate-fade-in">
+                    <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
+                      <div className="flex gap-2">
+                        <Button 
+                          variant={drawingTool === "pen" ? "default" : "outline"} 
+                          size="icon"
+                          className="h-12 w-12"
+                          onClick={() => setDrawingTool(drawingTool === "pen" ? "none" : "pen")}
+                        >
+                          <Pencil className="h-5 w-5" />
+                        </Button>
+                        <Button 
+                          variant={drawingTool === "arrow" ? "default" : "outline"} 
+                          size="icon"
+                          className="h-12 w-12"
+                          onClick={() => setDrawingTool(drawingTool === "arrow" ? "none" : "arrow")}
+                        >
+                          <MoveRight className="h-5 w-5" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="h-12 w-12"
+                          onClick={clearDrawings}
+                        >
+                          <Eraser className="h-5 w-5" />
+                        </Button>
+                      </div>
+                      <div className="flex gap-2 justify-center">
+                        {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
+                          <button
+                            key={color}
+                            className={cn(
+                              "w-8 h-8 rounded-full border-2",
+                              drawingColor === color ? "border-primary ring-2 ring-primary/50" : "border-muted-foreground/30"
+                            )}
+                            style={{ backgroundColor: color }}
+                            onClick={() => setDrawingColor(color)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </>
         )}
 
         {/* Swipe-up zone at bottom edge */}
