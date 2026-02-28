@@ -1993,7 +1993,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     if (isOnPitch) {
       console.log('[PlayerClick] Pitch player clicked:', playerId);
-      setSelectedOnPitch(prev => prev === playerId ? null : playerId);
+      const newSelected = selectedOnPitch === playerId ? null : playerId;
+      setSelectedOnPitch(newSelected);
+      // In portrait, open bench drawer when a pitch player is selected for sub
+      if (newSelected && !isLandscape) {
+        setPortraitSheetOpen(true);
+        setBottomSheetTab("bench");
+      }
     } else {
       console.log('[PlayerClick] Bench player clicked:', playerId);
       setSelectedOnBench(prev => prev === playerId ? null : playerId);
@@ -4278,9 +4284,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   setSubMode(prev => !prev);
                   setSelectedOnPitch(null);
                   setSelectedOnBench(null);
-                  if (!subMode) {
-                    setPortraitSheetOpen(true);
-                    setBottomSheetTab("bench");
+                  if (subMode) {
+                    // Turning off sub mode - close sheet if open
+                    setPortraitSheetOpen(false);
                   }
                 }}
                 className={cn(
