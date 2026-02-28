@@ -259,7 +259,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [pendingBatchSubs, setPendingBatchSubs] = useState<SubstitutionEvent[]>([]);
   const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
-  const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "subs" | "setup">("bench");
+  const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "subs" | "setup" | "draw">("bench");
   const [gameInProgress, setGameInProgress] = useState(false); // Track if game has started
   const [showScoreInPortrait, setShowScoreInPortrait] = useState(false); // Toggle score visibility in portrait
   const [hideScores, setHideScores] = useState(false); // Hide scores and disable scoring
@@ -3602,7 +3602,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
               {/* Tabs */}
               <div className="flex border-b border-border px-2 gap-1">
-                {(["bench", "subs", "setup"] as const).map(tab => (
+                {(["bench", "subs", "setup", "draw"] as const).map(tab => (
                   <button
                     key={tab}
                     onClick={() => setBottomSheetTab(tab)}
@@ -3613,7 +3613,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    {tab === "bench" ? `Bench (${playersOnBench.length})` : tab === "subs" ? "Subs" : "Setup"}
+                    {tab === "bench" ? `Bench (${playersOnBench.length})` : tab === "subs" ? "Subs" : tab === "setup" ? "Setup" : "Draw"}
                   </button>
                 ))}
                 <button
@@ -3785,6 +3785,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <div className="space-y-3">
                     <PitchToolbar
                       hideSubsSection
+                      hideDrawSection
                       variant="landscape"
                       collapsed={false}
                       onToggleCollapse={() => setToolbarCollapsed(true)}
@@ -3871,6 +3872,48 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       onToggleScorePanel={() => setShowScoreInPortrait(!showScoreInPortrait)}
                       scorePanelExpanded={showScoreInPortrait}
                     />
+                  </div>
+                )}
+
+                {/* Draw Tab */}
+                {bottomSheetTab === "draw" && !readOnly && (
+                  <div className="space-y-3">
+                    <div className="flex gap-2">
+                      <Button 
+                        variant={drawingTool === "pen" ? "default" : "outline"} 
+                        size="icon"
+                        className="h-10 w-10"
+                        onClick={() => setDrawingTool(drawingTool === "pen" ? "none" : "pen")}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant={drawingTool === "arrow" ? "default" : "outline"} 
+                        size="icon"
+                        className="h-10 w-10"
+                        onClick={() => setDrawingTool(drawingTool === "arrow" ? "none" : "arrow")}
+                      >
+                        <MoveRight className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="icon" className="h-10 w-10" onClick={clearDrawings}>
+                        <Eraser className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {(drawingTool === "pen" || drawingTool === "arrow") && (
+                      <div className="flex gap-2">
+                        {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
+                          <button
+                            key={color}
+                            className={cn(
+                              "w-8 h-8 rounded-full border-2",
+                              drawingColor === color ? "border-primary" : "border-transparent"
+                            )}
+                            style={{ backgroundColor: color }}
+                            onClick={() => setDrawingColor(color)}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
