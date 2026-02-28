@@ -3098,23 +3098,50 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [readOnly, players, toast, autoSubActive, autoSubPlan, teamSize]);
 
-  // Mark a pitch player as injured: sub them off to bench, mark injured, regenerate plan
+  // Mark a pitch player as injured: sub them off, bring a bench player on, regenerate plan
   const handleMarkInjuredOnPitch = useCallback((playerId: string) => {
     if (readOnly) return;
     const player = players.find(p => p.id === playerId);
     if (!player || player.position === null) return;
 
-    // Move player to bench and mark injured
+    const injuredPosition = player.position;
+    const injuredPitchPos = player.currentPitchPosition;
+
+    // Find the best available bench player to replace them
+    const benchPlayers = players.filter(p => p.position === null && !p.isInjured && p.id !== playerId);
+    
+    // Prefer a player whose assigned positions include the injured player's pitch position
+    let replacement = injuredPitchPos
+      ? benchPlayers.find(p => p.assignedPositions?.includes(injuredPitchPos))
+      : null;
+    // Fallback to any available bench player
+    if (!replacement && benchPlayers.length > 0) {
+      replacement = benchPlayers[0];
+    }
+
     pushToUndoHistory("Injury sub off", players);
-    setPlayers(prev => prev.map(p =>
-      p.id === playerId
-        ? { ...p, position: null, currentPitchPosition: undefined, isInjured: true }
-        : p
-    ));
-    toast({
-      title: "Player injured & subbed off",
-      description: `${player.name} has been moved to bench and marked as injured`,
-    });
+
+    setPlayers(prev => prev.map(p => {
+      if (p.id === playerId) {
+        return { ...p, position: null, currentPitchPosition: undefined, isInjured: true };
+      }
+      if (replacement && p.id === replacement.id) {
+        return { ...p, position: injuredPosition, currentPitchPosition: injuredPitchPos };
+      }
+      return p;
+    }));
+
+    if (replacement) {
+      toast({
+        title: "Injury substitution made",
+        description: `${player.name} injured → ${replacement.name} subbed on`,
+      });
+    } else {
+      toast({
+        title: "Player injured & subbed off",
+        description: `${player.name} moved to bench (no bench players available to replace)`,
+      });
+    }
 
     // Regenerate auto-sub plan if active
     if (autoSubActive) {
@@ -3122,15 +3149,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
       const currentHalf = gameTimerRef.current?.getCurrentHalf() || 1;
 
-      const updatedPlayers = players.map(p =>
-        p.id === playerId
-          ? { ...p, position: null, currentPitchPosition: undefined, isInjured: true }
-          : p
-      );
+      const updatedPlayers = players.map(p => {
+        if (p.id === playerId) {
+          return { ...p, position: null, currentPitchPosition: undefined, isInjured: true };
+        }
+        if (replacement && p.id === replacement.id) {
+          return { ...p, position: injuredPosition, currentPitchPosition: injuredPitchPos };
+        }
+        return p;
+      });
 
-      // Find any sub referencing this player to trigger recalculation
+      // Find any sub referencing the injured or replacement player to trigger recalculation
       const relevantSub = autoSubPlan.find(sub =>
-        !sub.executed && (sub.playerOut.id === playerId || sub.playerIn.id === playerId)
+        !sub.executed && (sub.playerOut.id === playerId || sub.playerIn.id === playerId ||
+          (replacement && (sub.playerOut.id === replacement.id || sub.playerIn.id === replacement.id)))
       );
       if (relevantSub) {
         const recalculatedPlan = recalculateRemainingPlan(
