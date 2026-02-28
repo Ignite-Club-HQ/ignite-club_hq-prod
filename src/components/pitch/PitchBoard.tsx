@@ -272,6 +272,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [portraitSheetHeightPct, setPortraitSheetHeightPct] = useState(45);
   const portraitSheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
   const [gameInProgress, setGameInProgress] = useState(false); // Track if game has started
+  const [timerResetKey, setTimerResetKey] = useState(0); // Key to force remount GameTimer instances on reset
   const [showScoreInPortrait, setShowScoreInPortrait] = useState(false); // Toggle score visibility in portrait
   const [hideScores, setHideScores] = useState(false); // Hide scores and disable scoring
   const [landscapeEventSelectorOpen, setLandscapeEventSelectorOpen] = useState(false); // Event selector for landscape toolbar
@@ -2648,6 +2649,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Reset game in progress flag so Plan button is enabled again
     setGameInProgress(false);
     
+    // Force remount all GameTimer instances to pick up clean state
+    setTimerResetKey(prev => prev + 1);
+    
     // Clear persisted state
     clearPitchState();
     
@@ -3489,6 +3493,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           >
             <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
               <GameTimer 
+                key={timerResetKey}
                 ref={gameTimerRef} 
                 compact
                 teamId={teamId} 
@@ -4433,6 +4438,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {/* Timer - larger for landscape */}
                     <div className="border-t border-border pt-3">
                       <GameTimer 
+                        key={timerResetKey}
                         ref={gameTimerRef} 
                         teamId={teamId} 
                         teamName={teamName} 
@@ -4723,6 +4729,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         >
           <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
             <GameTimer 
+              key={timerResetKey}
               ref={gameTimerRef} 
               compact
               teamId={teamId} 
@@ -5353,6 +5360,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {/* Timer */}
                     <div className="border-t border-border pt-2">
                       <GameTimer 
+                        key={timerResetKey}
                         ref={gameTimerRef} 
                         teamId={teamId} 
                         teamName={teamName} 
