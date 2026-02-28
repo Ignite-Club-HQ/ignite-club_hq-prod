@@ -2062,6 +2062,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setPitchSwapConfirmOpen(false);
     setSwapPlayer1(null);
     setSwapPlayer2(null);
+    setSwapMode(false);
   }, [swapPlayer1, swapPlayer2, players, toast, pushToUndoHistory]);
 
   // Cancel position swap
