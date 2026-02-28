@@ -3860,7 +3860,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               )}
               style={{
                 bottom: `calc(${toolbarCollapsed ? floatingSubsPosition.y : 16}px + env(safe-area-inset-bottom, 0px))`,
-                right: toolbarCollapsed ? floatingSubsPosition.x + 160 : isTabletLandscape ? 304 : isDesktopLandscape ? 336 : 240,
+                right: toolbarCollapsed ? floatingSubsPosition.x + 160 : 16,
                 touchAction: "none",
               }}
             >
