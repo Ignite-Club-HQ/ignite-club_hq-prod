@@ -4071,15 +4071,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </button>
                         )}
                       </div>
-                      {!readOnly && !subMode && !swapMode && (
-                        <Suspense fallback={null}>
-                          <AddFillInPlayerDialog
-                            onAddPlayer={handleAddFillInPlayer}
-                            existingNumbers={existingJerseyNumbers}
-                            compact
-                          />
-                        </Suspense>
-                      )}
                     </div>
                     {/* Bench Players - horizontal scroll */}
                     <div 
@@ -4332,6 +4323,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         </Select>
                       </div>
                     </div>
+
+                    {/* Add Fill-In Player */}
+                    {!readOnly && (
+                      <Suspense fallback={null}>
+                        <AddFillInPlayerDialog
+                          onAddPlayer={handleAddFillInPlayer}
+                          existingNumbers={existingJerseyNumbers}
+                        />
+                      </Suspense>
+                    )}
 
                     {/* Timer - larger for landscape */}
                     <div className="border-t border-border pt-3">
@@ -4916,15 +4917,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </button>
                         )}
                       </div>
-                      {!readOnly && !subMode && !swapMode && (
-                        <Suspense fallback={null}>
-                          <AddFillInPlayerDialog
-                            onAddPlayer={handleAddFillInPlayer}
-                            existingNumbers={existingJerseyNumbers}
-                            compact
-                          />
-                        </Suspense>
-                      )}
                     </div>
                     {/* Sub mode tips */}
                     {subMode && !selectedOnPitch && playersOnBench.length > 0 && (
@@ -5194,6 +5186,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         Positions
                       </Button>
                     </div>
+
+                    {/* Add Fill-In Player */}
+                    {!readOnly && (
+                      <Suspense fallback={null}>
+                        <AddFillInPlayerDialog
+                          onAddPlayer={handleAddFillInPlayer}
+                          existingNumbers={existingJerseyNumbers}
+                        />
+                      </Suspense>
+                    )}
 
                     {/* Timer */}
                     <div className="border-t border-border pt-2">
