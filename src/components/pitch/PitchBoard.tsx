@@ -4052,7 +4052,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               key={pos}
                               onClick={() => setBenchPositionFilter(benchPositionFilter === pos ? null : pos)}
                               className={cn(
-                                "rounded-md border font-medium text-sm px-4 py-2 transition-colors whitespace-nowrap flex-1 min-h-[36px]",
+                                "rounded-md border font-medium text-sm px-3.5 py-2 transition-colors whitespace-nowrap min-h-[36px]",
                                 benchPositionFilter === pos 
                                   ? "bg-primary text-primary-foreground border-primary"
                                   : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
@@ -4898,7 +4898,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               key={pos}
                               onClick={() => setBenchPositionFilter(benchPositionFilter === pos ? null : pos)}
                               className={cn(
-                                "rounded-md border font-medium text-sm px-4 py-2 transition-colors whitespace-nowrap flex-1 min-h-[36px]",
+                                "rounded-md border font-medium text-sm px-3.5 py-2 transition-colors whitespace-nowrap min-h-[36px]",
                                 benchPositionFilter === pos 
                                   ? "bg-primary text-primary-foreground border-primary"
                                   : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
