@@ -4095,18 +4095,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                              onTouchStart={(e) => {
                                if (readOnly) return;
                                touchHandledRef.current = true;
-                               if (subMode || swapMode) return;
-                               const now = Date.now();
-                               const last = lastTapRef.current;
-                               if (last && last.playerId === player.id && now - last.time < 400) {
-                                 lastTapRef.current = null;
-                                 e.preventDefault();
-                                 setBenchInjuryTarget(player.id);
-                                 setBenchInjuryConfirmOpen(true);
-                               } else {
-                                 lastTapRef.current = { playerId: player.id, time: now };
-                                 handleBenchLongPressStart(player.id, e);
-                               }
+                                if (subMode || swapMode) return;
+                                const now = Date.now();
+                                const last = lastTapRef.current;
+                                if (last && last.playerId === player.id && now - last.time < 400) {
+                                  lastTapRef.current = null;
+                                  e.preventDefault();
+                                  if (benchLongPressTimer.current) {
+                                    clearTimeout(benchLongPressTimer.current);
+                                    benchLongPressTimer.current = null;
+                                  }
+                                  setBenchInjuryTarget(player.id);
+                                  setBenchInjuryConfirmOpen(true);
+                                } else {
+                                  lastTapRef.current = { playerId: player.id, time: now };
+                                  handleBenchLongPressStart(player.id, e);
+                                }
                              }}
                              onClick={
                                !readOnly && subMode && !player.isInjured 
@@ -4951,18 +4955,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                            onTouchStart={(e) => {
                              if (readOnly) return;
                              touchHandledRef.current = true;
-                             if (subMode || swapMode) return;
-                             const now = Date.now();
-                             const last = lastTapRef.current;
-                             if (last && last.playerId === player.id && now - last.time < 400) {
-                               lastTapRef.current = null;
-                               e.preventDefault();
-                               setBenchInjuryTarget(player.id);
-                               setBenchInjuryConfirmOpen(true);
-                             } else {
-                               lastTapRef.current = { playerId: player.id, time: now };
-                               handleBenchLongPressStart(player.id, e);
-                             }
+                              if (subMode || swapMode) return;
+                              const now = Date.now();
+                              const last = lastTapRef.current;
+                              if (last && last.playerId === player.id && now - last.time < 400) {
+                                lastTapRef.current = null;
+                                e.preventDefault();
+                                if (benchLongPressTimer.current) {
+                                  clearTimeout(benchLongPressTimer.current);
+                                  benchLongPressTimer.current = null;
+                                }
+                                setBenchInjuryTarget(player.id);
+                                setBenchInjuryConfirmOpen(true);
+                              } else {
+                                lastTapRef.current = { playerId: player.id, time: now };
+                                handleBenchLongPressStart(player.id, e);
+                              }
                            }}
                            onClick={
                              !readOnly && subMode && !player.isInjured 
