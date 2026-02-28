@@ -3967,14 +3967,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <ChevronUp className="h-5 w-5 text-muted-foreground" />
             </button>
 
-            {/* Floating Reset Positions FAB */}
-            <button
-              className="absolute bottom-3 z-[55] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
-              style={{ right: 108 }}
-              onClick={handleResetFormation}
-            >
-              <RotateCcw className="h-4 w-4 text-muted-foreground" />
-            </button>
 
             <button
               className={cn(
@@ -4435,6 +4427,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </Suspense>
                     )}
 
+                    {/* Reset Positions */}
+                    {!readOnly && (
+                      <Button variant="outline" className="w-full h-12 text-base" onClick={handleResetFormation}>
+                        <RotateCcw className="h-4 w-4 mr-1.5" />
+                        Reset Positions
+                      </Button>
+                    )}
+
                     {/* Timer - larger for landscape */}
                     <div className="border-t border-border pt-3">
                       <GameTimer 
@@ -4861,14 +4861,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <Pencil className="h-5 w-5" />
                 </button>
 
-                {/* Floating Reset Positions FAB - portrait */}
-                <button
-                  className="absolute bottom-3 z-50 w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
-                  style={{ right: 108 }}
-                  onClick={handleResetFormation}
-                >
-                  <RotateCcw className="h-4 w-4 text-muted-foreground" />
-                </button>
 
                 {/* Floating Draw Toolbar - portrait */}
                 {showFloatingDrawToolbar && (
@@ -5346,6 +5338,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         Positions
                       </Button>
                     </div>
+
+                    {/* Reset Positions */}
+                    {!readOnly && (
+                      <Button variant="outline" className="w-full h-11 text-sm" onClick={handleResetFormation}>
+                        <RotateCcw className="h-4 w-4 mr-1.5" />
+                        Reset Positions
+                      </Button>
+                    )}
 
                     {/* Add Fill-In Player */}
                     {!readOnly && (
