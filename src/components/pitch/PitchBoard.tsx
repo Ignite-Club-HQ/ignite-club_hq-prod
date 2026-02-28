@@ -2775,10 +2775,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const pitchEl = document.getElementById('portrait-pitch-area');
       if (pitchEl) {
         const rect = pitchEl.getBoundingClientRect();
-        if (
-          benchDragPos.x >= rect.left && benchDragPos.x <= rect.right &&
-          benchDragPos.y >= rect.top && benchDragPos.y <= rect.bottom
-        ) {
+        // Check drop is within pitch bounds
+        const isOnPitch = benchDragPos.x >= rect.left && benchDragPos.x <= rect.right &&
+          benchDragPos.y >= rect.top && benchDragPos.y <= rect.bottom;
+        // Exclude if drop point is over the drawer area
+        const elAtPoint = document.elementFromPoint(benchDragPos.x, benchDragPos.y);
+        const isOnDrawer = elAtPoint?.closest('#pitch-bench-portrait') || 
+                           elAtPoint?.closest('[data-portrait-drawer]');
+        
+        if (isOnPitch && !isOnDrawer) {
           setBenchToSubPlayer(benchDragPlayer);
           setBenchToSubOpen(true);
           setPortraitSheetOpen(false);
@@ -4440,6 +4445,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             />
             {/* Sheet */}
             <div 
+              data-portrait-drawer
               className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200"
               style={{ height: `${portraitSheetHeightPct}%` }}
               onPointerDown={(e) => e.stopPropagation()}
