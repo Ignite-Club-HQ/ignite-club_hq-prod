@@ -44,8 +44,10 @@ const PitchPlayerActionMenu = memo(function PitchPlayerActionMenu({
             size="sm"
             className="w-full h-10 text-sm gap-2 justify-start"
             onClick={() => {
-              onMarkInjured(player.id);
+              const id = player.id;
               onOpenChange(false);
+              // Use setTimeout to ensure dialog closes cleanly before state changes
+              setTimeout(() => onMarkInjured(id), 50);
             }}
           >
             <HeartOff className="h-4 w-4" />
