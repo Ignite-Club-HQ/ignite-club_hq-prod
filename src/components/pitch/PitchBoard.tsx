@@ -2169,13 +2169,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
     const halfDurationSeconds = minsPerHalf * 60;
     const benchPlayers = players.filter(p => p.position === null);
+    const skippedId = `${nextSub.half}-${nextSub.time}-${nextSub.playerOut.id}`;
 
     if (benchPlayers.length > 0) {
       const recalculated = recalculateRemainingPlan(
         players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, nextSub
       );
-      setAutoSubPlan(recalculated);
-      toast({ title: "Substitution skipped", description: `Plan recalculated with ${recalculated.length} remaining subs` });
+      const cleanedPlan = recalculated.filter(
+        sub => `${sub.half}-${sub.time}-${sub.playerOut.id}` !== skippedId
+      );
+      setAutoSubPlan(cleanedPlan);
+      toast({ title: "Substitution skipped", description: `Plan recalculated with ${cleanedPlan.length} remaining subs` });
     } else {
       setAutoSubPlan(prev => prev.filter(s => s !== nextSub));
       toast({ title: "Substitution skipped" });
@@ -2227,9 +2231,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const recalculated = recalculateRemainingPlan(
       players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, dummySub
     );
+
+    const currentRemainingSignature = autoSubPlan
+      .filter(s => !s.executed)
+      .map(s => `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`)
+      .join("|");
+    const recalculatedSignature = recalculated
+      .map(s => `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`)
+      .join("|");
+
+    const isUnchanged = currentRemainingSignature === recalculatedSignature;
+
     setAutoSubPlan(recalculated);
-    toast({ title: "Plan regenerated", description: `${recalculated.length} substitutions scheduled` });
-  }, [players, teamSize, toast]);
+    toast({
+      title: isUnchanged ? "Plan unchanged" : "Plan regenerated",
+      description: isUnchanged
+        ? "No better alternatives available right now"
+        : `${recalculated.length} substitutions scheduled`,
+    });
+  }, [autoSubPlan, players, teamSize, toast]);
 
   // Track last update time for minutes played calculation
   const lastTimeUpdateRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
@@ -2465,6 +2485,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     // Combine primary and batch subs for skipping
     const allPendingSubs = [pendingAutoSub, ...pendingBatchSubs];
+    const skippedIds = allPendingSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`);
     
     // Instead of just marking as executed, recalculate remaining subs
     const minutesPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
@@ -2484,16 +2505,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         currentHalf,
         pendingAutoSub
       );
+
+      const cleanedPlan = recalculatedPlan.filter(sub => 
+        !skippedIds.includes(`${sub.half}-${sub.time}-${sub.playerOut.id}`)
+      );
       
-      setAutoSubPlan(recalculatedPlan);
+      setAutoSubPlan(cleanedPlan);
       const skippedCount = allPendingSubs.length;
       toast({ 
         title: skippedCount > 1 ? `${skippedCount} substitutions skipped` : "Substitution skipped", 
-        description: `Plan recalculated with ${recalculatedPlan.length} remaining subs` 
+        description: `Plan recalculated with ${cleanedPlan.length} remaining subs` 
       });
     } else {
       // No bench players left, just remove the skipped subs
-      const skippedIds = allPendingSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`);
       setAutoSubPlan(prev => prev.filter(sub => 
         !skippedIds.includes(`${sub.half}-${sub.time}-${sub.playerOut.id}`)
       ));

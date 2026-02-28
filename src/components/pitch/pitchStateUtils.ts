@@ -243,6 +243,10 @@ export const recalculateRemainingPlan = (
   
   const subTimes = generateRemainingSubTimes();
   
+  const shouldAvoidSkippedPlayers = !skippedSub.executed;
+  const skippedOutId = shouldAvoidSkippedPlayers ? skippedSub.playerOut.id : null;
+  const skippedInId = shouldAvoidSkippedPlayers ? skippedSub.playerIn.id : null;
+
   for (const { time, half } of subTimes) {
     const onPitchSorted = Array.from(currentOnPitch.keys())
       .map(id => ({ id, time: getPlayer(id)?.minutesPlayed || 0, player: getPlayer(id)! }))
@@ -253,15 +257,27 @@ export const recalculateRemainingPlan = (
       .filter(p => !currentOnPitch.has(p.id))
       .map(p => ({ id: p.id, time: p.minutesPlayed || 0, player: p }))
       .sort((a, b) => a.time - b.time);
+
+    let onPitchCandidates = onPitchSorted;
+    let benchCandidates = benchSorted;
+
+    // When skipping a due sub, avoid immediately proposing the same players again
+    if (plan.length === 0 && skippedOutId && skippedInId) {
+      const filteredOnPitch = onPitchSorted.filter(p => p.id !== skippedOutId);
+      const filteredBench = benchSorted.filter(p => p.id !== skippedInId);
+
+      if (filteredOnPitch.length > 0) onPitchCandidates = filteredOnPitch;
+      if (filteredBench.length > 0) benchCandidates = filteredBench;
+    }
     
-    if (onPitchSorted.length === 0 || benchSorted.length === 0) continue;
+    if (onPitchCandidates.length === 0 || benchCandidates.length === 0) continue;
     
     let playerOut: Player | undefined;
     let playerIn: Player | undefined;
     let positionSwap: SubstitutionEvent["positionSwap"] | undefined;
     
-    for (const benchEntry of benchSorted) {
-      for (const pitchEntry of onPitchSorted) {
+    for (const benchEntry of benchCandidates) {
+      for (const pitchEntry of onPitchCandidates) {
         const pitchPos = currentOnPitch.get(pitchEntry.id);
         
         if (!benchEntry.player.assignedPositions?.length || 
@@ -275,8 +291,8 @@ export const recalculateRemainingPlan = (
     }
     
     if (!playerOut || !playerIn) {
-      playerOut = onPitchSorted[0].player;
-      playerIn = benchSorted[0].player;
+      playerOut = onPitchCandidates[0].player;
+      playerIn = benchCandidates[0].player;
     }
     
     const sub: SubstitutionEvent = {
