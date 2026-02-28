@@ -1959,6 +1959,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setPendingSwapBasedSub(null);
     setSelectedOnPitch(null);
     setSelectedOnBench(null);
+    setSubMode(false);
   }, [pendingSwapBasedSub, players, handleCancelSwapBasedSub, toast, pushToUndoHistory]);
   // Handle player click in sub mode or swap mode
   const handlePlayerClick = (playerId: string, isOnPitch: boolean) => {
@@ -3062,11 +3063,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       setSubAnimationPlayers({ in: null, out: null });
     }, 1500);
     
-    // Reset state
+    // Reset state - exit sub mode after completing a sub
     setManualSubConfirmOpen(false);
     setPendingManualSub(null);
     setSelectedOnPitch(null);
     setSelectedOnBench(null);
+    setSubMode(false);
   }, [pendingManualSub, toast, pushToUndoHistory]);
 
   // Handle manual substitution cancel
