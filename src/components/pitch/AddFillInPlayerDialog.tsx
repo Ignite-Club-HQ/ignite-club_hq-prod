@@ -65,7 +65,7 @@ export default function AddFillInPlayerDialog({
   };
 
   return (
-    <Drawer open={open} onOpenChange={setOpen}>
+    <Drawer open={open} onOpenChange={setOpen} snapPoints={[0.55, 0.85]}>
       <DrawerTrigger asChild>
         <Button 
           variant="outline" 
