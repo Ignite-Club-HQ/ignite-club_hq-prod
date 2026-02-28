@@ -151,31 +151,31 @@ export default function AutoSubManager({
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-[10px] gap-1 flex-1"
+          className="h-8 text-xs gap-1 flex-1"
           onClick={onRegeneratePlan}
           title="Recalculate remaining plan"
         >
-          <RefreshCw className="h-3 w-3" />
+          <RefreshCw className="h-3.5 w-3.5" />
           Regenerate
         </Button>
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-[10px] gap-1 flex-1"
+          className="h-8 text-xs gap-1 flex-1"
           onClick={onEditPlan}
           title="Edit the substitution plan"
         >
-          <Pencil className="h-3 w-3" />
+          <Pencil className="h-3.5 w-3.5" />
           Edit Plan
         </Button>
         <Button
           size="sm"
           variant="outline"
-          className={cn("h-7 text-[10px] gap-1 flex-1", showLockPanel && "bg-accent")}
+          className={cn("h-8 text-xs gap-1 flex-1", showLockPanel && "bg-accent")}
           onClick={() => setShowLockPanel(prev => !prev)}
           title="Lock players to prevent substitution"
         >
-          <Lock className="h-3 w-3" />
+          <Lock className="h-3.5 w-3.5" />
           Lock ({lockedPlayerIds.size})
         </Button>
       </div>
@@ -210,10 +210,10 @@ export default function AutoSubManager({
       <Button
         size="sm"
         variant="ghost"
-        className="w-full h-7 text-[10px] gap-1"
+        className="w-full h-8 text-xs gap-1"
         onClick={() => setExpanded(prev => !prev)}
       >
-        {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
         {expanded ? "Hide Timeline" : `Show Timeline (${executedSubs.length}/${autoSubPlan.length})`}
       </Button>
 
@@ -282,10 +282,10 @@ export default function AutoSubManager({
       <Button 
         variant="ghost" 
         size="sm" 
-        className="w-full h-7 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10"
+        className="w-full h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
         onClick={onCancelPlan}
       >
-        <X className="h-3 w-3 mr-1" />
+        <X className="h-3.5 w-3.5 mr-1" />
         Cancel Plan
       </Button>
     </div>
