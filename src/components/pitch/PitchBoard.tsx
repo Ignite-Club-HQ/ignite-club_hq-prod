@@ -1118,6 +1118,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [benchInjuryConfirmOpen, setBenchInjuryConfirmOpen] = useState(false);
   const [benchInjuryTarget, setBenchInjuryTarget] = useState<string | null>(null);
   const lastTapRef = useRef<{ playerId: string; time: number } | null>(null);
+  const touchHandledRef = useRef(false);
 
   // Mock player mode state
   const [mockMode, setMockMode] = useState(() => savedState?.mockMode || false);
@@ -3782,8 +3783,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   player={player}
                   onDragStart={() => !subMode && !swapMode && !readOnly && handleDragStart(player.id)}
                   onDragEnd={handleDragEnd}
-                  onTouchStart={(e) => {
+                onTouchStart={(e) => {
                     if (readOnly) return;
+                    touchHandledRef.current = true;
                     if (subMode || swapMode) {
                       handleTouchStart(player.id, e);
                       return;
@@ -3803,7 +3805,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       handleTouchStart(player.id, e);
                     }
                   }}
-                  onClick={!readOnly ? () => handlePlayerClick(player.id, true) : undefined}
+                  onClick={!readOnly ? () => { if (touchHandledRef.current) { touchHandledRef.current = false; return; } handlePlayerClick(player.id, true); } : undefined}
                   isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
                   isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id))}
                   isSubTarget={subMode && !selectedOnPitch && selectedOnPitch !== player.id}
@@ -4090,38 +4092,40 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               player={player}
                               onDragStart={() => !subMode && !readOnly && handleDragStart(player.id)}
                               onDragEnd={handleDragEnd}
-                              onTouchStart={(e) => {
-                                if (readOnly) return;
-                                if (subMode || swapMode) return;
-                                const now = Date.now();
-                                const last = lastTapRef.current;
-                                if (last && last.playerId === player.id && now - last.time < 400) {
-                                  lastTapRef.current = null;
-                                  e.preventDefault();
-                                  setBenchInjuryTarget(player.id);
-                                  setBenchInjuryConfirmOpen(true);
-                                } else {
-                                  lastTapRef.current = { playerId: player.id, time: now };
-                                  handleBenchLongPressStart(player.id, e);
-                                }
-                              }}
-                              onClick={
-                                !readOnly && subMode && !player.isInjured 
-                                  ? () => handlePlayerClick(player.id, false) 
-                                  : !readOnly && !subMode && !swapMode
-                                    ? () => {
-                                        const now = Date.now();
-                                        const last = lastTapRef.current;
-                                        if (last && last.playerId === player.id && now - last.time < 400) {
-                                          lastTapRef.current = null;
-                                          setBenchInjuryTarget(player.id);
-                                          setBenchInjuryConfirmOpen(true);
-                                        } else {
-                                          lastTapRef.current = { playerId: player.id, time: now };
-                                        }
-                                      }
-                                    : undefined
-                              }
+                             onTouchStart={(e) => {
+                               if (readOnly) return;
+                               touchHandledRef.current = true;
+                               if (subMode || swapMode) return;
+                               const now = Date.now();
+                               const last = lastTapRef.current;
+                               if (last && last.playerId === player.id && now - last.time < 400) {
+                                 lastTapRef.current = null;
+                                 e.preventDefault();
+                                 setBenchInjuryTarget(player.id);
+                                 setBenchInjuryConfirmOpen(true);
+                               } else {
+                                 lastTapRef.current = { playerId: player.id, time: now };
+                                 handleBenchLongPressStart(player.id, e);
+                               }
+                             }}
+                             onClick={
+                               !readOnly && subMode && !player.isInjured 
+                                 ? () => { if (touchHandledRef.current) { touchHandledRef.current = false; return; } handlePlayerClick(player.id, false); }
+                                 : !readOnly && !subMode && !swapMode
+                                   ? () => {
+                                       if (touchHandledRef.current) { touchHandledRef.current = false; return; }
+                                       const now = Date.now();
+                                       const last = lastTapRef.current;
+                                       if (last && last.playerId === player.id && now - last.time < 400) {
+                                         lastTapRef.current = null;
+                                         setBenchInjuryTarget(player.id);
+                                         setBenchInjuryConfirmOpen(true);
+                                       } else {
+                                         lastTapRef.current = { playerId: player.id, time: now };
+                                       }
+                                     }
+                                   : undefined
+                             }
                               onInjuryToggle={undefined}
                               onRemoveFillIn={!subMode && !swapMode && player.isFillIn ? () => handleRemoveFillInPlayer(player.id) : undefined}
                               isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
@@ -4944,38 +4948,40 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             player={player}
                             onDragStart={() => !subMode && !readOnly && handleDragStart(player.id)}
                             onDragEnd={handleDragEnd}
-                            onTouchStart={(e) => {
-                              if (readOnly) return;
-                              if (subMode || swapMode) return;
-                              const now = Date.now();
-                              const last = lastTapRef.current;
-                              if (last && last.playerId === player.id && now - last.time < 400) {
-                                lastTapRef.current = null;
-                                e.preventDefault();
-                                setBenchInjuryTarget(player.id);
-                                setBenchInjuryConfirmOpen(true);
-                              } else {
-                                lastTapRef.current = { playerId: player.id, time: now };
-                                handleBenchLongPressStart(player.id, e);
-                              }
-                            }}
-                            onClick={
-                              !readOnly && subMode && !player.isInjured 
-                                ? () => handlePlayerClick(player.id, false) 
-                                : !readOnly && !subMode && !swapMode
-                                  ? () => {
-                                      const now = Date.now();
-                                      const last = lastTapRef.current;
-                                      if (last && last.playerId === player.id && now - last.time < 400) {
-                                        lastTapRef.current = null;
-                                        setBenchInjuryTarget(player.id);
-                                        setBenchInjuryConfirmOpen(true);
-                                      } else {
-                                        lastTapRef.current = { playerId: player.id, time: now };
-                                      }
-                                    }
-                                  : undefined
-                            }
+                           onTouchStart={(e) => {
+                             if (readOnly) return;
+                             touchHandledRef.current = true;
+                             if (subMode || swapMode) return;
+                             const now = Date.now();
+                             const last = lastTapRef.current;
+                             if (last && last.playerId === player.id && now - last.time < 400) {
+                               lastTapRef.current = null;
+                               e.preventDefault();
+                               setBenchInjuryTarget(player.id);
+                               setBenchInjuryConfirmOpen(true);
+                             } else {
+                               lastTapRef.current = { playerId: player.id, time: now };
+                               handleBenchLongPressStart(player.id, e);
+                             }
+                           }}
+                           onClick={
+                             !readOnly && subMode && !player.isInjured 
+                               ? () => { if (touchHandledRef.current) { touchHandledRef.current = false; return; } handlePlayerClick(player.id, false); }
+                               : !readOnly && !subMode && !swapMode
+                                 ? () => {
+                                     if (touchHandledRef.current) { touchHandledRef.current = false; return; }
+                                     const now = Date.now();
+                                     const last = lastTapRef.current;
+                                     if (last && last.playerId === player.id && now - last.time < 400) {
+                                       lastTapRef.current = null;
+                                       setBenchInjuryTarget(player.id);
+                                       setBenchInjuryConfirmOpen(true);
+                                     } else {
+                                       lastTapRef.current = { playerId: player.id, time: now };
+                                     }
+                                   }
+                                 : undefined
+                           }
                             onInjuryToggle={undefined}
                             onRemoveFillIn={!subMode && !swapMode && player.isFillIn ? () => handleRemoveFillInPlayer(player.id) : undefined}
                             isDragging={draggedPlayer === player.id || touchDragPlayer === player.id || benchDragPlayer === player.id}
@@ -5450,6 +5456,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 onDragEnd={handleDragEnd}
                 onTouchStart={(e) => {
                   if (readOnly) return;
+                  touchHandledRef.current = true;
                   if (subMode || swapMode) {
                     handleTouchStart(player.id, e);
                     return;
@@ -5468,7 +5475,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     handleTouchStart(player.id, e);
                   }
                 }}
-                onClick={!readOnly ? () => handlePlayerClick(player.id, true) : undefined}
+                onClick={!readOnly ? () => { if (touchHandledRef.current) { touchHandledRef.current = false; return; } handlePlayerClick(player.id, true); } : undefined}
                 isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
                 isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id))}
                 isSubTarget={subMode && !selectedOnPitch && selectedOnPitch !== player.id}
