@@ -3616,9 +3616,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Handle bar - drag to resize */}
+              {/* Draggable header area - handle + tabs */}
               <div
-                className="flex justify-center pt-2 pb-1 cursor-grab touch-none"
+                className="cursor-grab touch-none"
                 onTouchStart={(e) => {
                   sheetDragRef.current = { startY: e.touches[0].clientY, startPct: sheetHeightPct };
                 }}
@@ -3632,7 +3632,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 }}
                 onTouchEnd={() => {
                   if (!sheetDragRef.current) return;
-                  // Snap: close if dragged very low, otherwise snap to 50% or 82%
                   if (sheetHeightPct < 25) {
                     setToolbarCollapsed(true);
                     setSheetHeightPct(50);
@@ -3644,11 +3643,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   sheetDragRef.current = null;
                 }}
               >
-                <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
-              </div>
+                {/* Handle bar */}
+                <div className="flex justify-center pt-2 pb-1">
+                  <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+                </div>
 
-              {/* Tabs */}
-              <div className="flex border-b border-border px-2 gap-1">
+                {/* Tabs */}
+                <div className="flex border-b border-border px-2 gap-1">
                 {(["bench", "subs", "setup", "draw"] as const).map(tab => (
                   <button
                     key={tab}
@@ -3669,6 +3670,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 >
                   <X className="h-4 w-4" />
                 </button>
+              </div>
               </div>
 
               {/* Tab content */}
