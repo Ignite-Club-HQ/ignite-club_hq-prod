@@ -3779,96 +3779,54 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                 {/* Setup Tab */}
                 {bottomSheetTab === "setup" && (
-                  <div className="space-y-3">
-                    <PitchToolbar
-                      hideSubsSection
-                      hideDrawSection
-                      variant="landscape"
-                      collapsed={false}
-                      onToggleCollapse={() => setToolbarCollapsed(true)}
-                      teamId={teamId}
-                      teamName={teamName}
-                      teamSize={teamSize}
-                      onTeamSizeChange={handleTeamSizeChange}
-                      selectedFormation={selectedFormation}
-                      onFormationChange={handleFormationChange}
-                      formations={FORMATIONS[teamSize]}
-                      gameTimerRef={gameTimerRef}
-                      onTimerUpdate={handleTimerUpdate}
-                      onHalfChange={handleHalfChange}
-                      disableAutoSubs={disableAutoSubs}
-                      autoSubActive={autoSubActive}
-                      autoSubPaused={autoSubPaused}
-                      autoSubPlan={autoSubPlan}
-                      onOpenNewPlan={handleOpenNewPlan}
-                      onTogglePause={handleTogglePauseAutoSub}
-                      onCancelPlan={handleCancelAutoSubPlan}
-                      onOpenEditPlan={handleOpenEditPlan}
-                      subMode={subMode}
-                      onToggleSubMode={toggleSubMode}
-                      selectedOnPitch={selectedOnPitch}
-                      onOpenSubPreview={() => setSubPreviewOpen(true)}
-                      swapMode={swapMode}
-                      onToggleSwapMode={toggleSwapMode}
-                      canSwap={playersOnPitch.length >= 2}
-                      drawingTool={drawingTool}
-                      onDrawingToolChange={setDrawingTool}
-                      drawingColor={drawingColor}
-                      onDrawingColorChange={setDrawingColor}
-                      onClearDrawings={clearDrawings}
-                      zoom={zoom}
-                      onZoomIn={handleZoomIn}
-                      onZoomOut={handleZoomOut}
-                      onResetZoom={handleResetZoom}
-                      onOpenStats={() => setStatsOpen(true)}
-                      mockMode={mockMode}
-                      onMockModeChange={handleMockModeChange}
-                      onOpenPositionEditor={() => setPositionEditorOpen(true)}
-                      saveDialogOpen={saveDialogOpen}
-                      onSaveDialogOpenChange={setSaveDialogOpen}
-                      loadDialogOpen={loadDialogOpen}
-                      onLoadDialogOpenChange={setLoadDialogOpen}
-                      formationName={formationName}
-                      onFormationNameChange={setFormationName}
-                      onSaveFormation={handleSaveFormation}
-                      savePending={saveFormationMutation.isPending}
-                      loadingFormations={loadingFormations}
-                      savedFormations={savedFormations}
-                      onLoadFormation={loadFormation}
-                      onDeleteFormation={(id) => deleteFormationMutation.mutate(id)}
-                      players={players}
-                      readOnly={readOnly}
-                      onResetGame={handleResetGame}
-                      onResetFormation={handleResetFormation}
-                      onUndo={handleUndo}
-                      canUndo={undoHistory.length > 0 && showFloatingUndo}
-                      undoDescription={undoHistory.length > 0 ? undoHistory[undoHistory.length - 1].description : undefined}
-                      gameInProgress={gameInProgress}
-                      minutesPerHalf={minutesPerHalf}
-                      onMinutesPerHalfChange={handleMinutesPerHalfChange}
-                      rotationSpeed={rotationSpeed}
-                      onRotationSpeedChange={handleRotationSpeedChange}
-                      disablePositionSwaps={disablePositionSwaps}
-                      onDisablePositionSwapsChange={handleDisablePositionSwapsChange}
-                      disableBatchSubs={disableBatchSubs}
-                      onDisableBatchSubsChange={handleDisableBatchSubsChange}
-                      onSaveSettings={handleSaveSettings}
-                      isSavingSettings={isSavingSettings}
-                      showMatchHeader={showMatchHeader}
-                      onShowMatchHeaderChange={setShowMatchHeader}
-                      hideScores={hideScores}
-                      onHideScoresChange={setHideScores}
-                      opponentName={opponentName}
-                      linkedEventId={linkedEventId}
-                      onLinkEvent={readOnly ? undefined : handleLinkEvent}
-                      onOpenEventSelector={() => setLandscapeEventSelectorOpen(true)}
-                      currentScore={{ 
-                        team: goals.filter(g => !g.isOpponentGoal).length, 
-                        opponent: goals.filter(g => g.isOpponentGoal).length 
-                      }}
-                      onToggleScorePanel={() => setShowScoreInPortrait(!showScoreInPortrait)}
-                      scorePanelExpanded={showScoreInPortrait}
-                    />
+                  <div className="space-y-3 px-1">
+                    {/* 2-column grid for core settings */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Players</Label>
+                        <Select value={teamSize} onValueChange={(v) => handleTeamSizeChange(v as TeamSize)} disabled={readOnly}>
+                          <SelectTrigger className="h-11 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="z-[99999] bg-popover">
+                            <SelectItem value="3">3-a-side</SelectItem>
+                            <SelectItem value="4">4-a-side</SelectItem>
+                            <SelectItem value="5">5-a-side</SelectItem>
+                            <SelectItem value="7">7-a-side</SelectItem>
+                            <SelectItem value="9">9-a-side</SelectItem>
+                            <SelectItem value="11">11-a-side</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Formation</Label>
+                        <Select value={selectedFormation.toString()} onValueChange={handleFormationChange} disabled={readOnly}>
+                          <SelectTrigger className="h-11 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="z-[99999] bg-popover">
+                            {FORMATIONS[teamSize].map((f, i) => (
+                              <SelectItem key={i} value={i.toString()}>{f.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Timer */}
+                    <div className="border-t border-border pt-2">
+                      <GameTimer 
+                        ref={gameTimerRef} 
+                        teamId={teamId} 
+                        teamName={teamName} 
+                        onTimeUpdate={handleTimerUpdate} 
+                        onHalfChange={handleHalfChange} 
+                        readOnly={readOnly}
+                        hideSoundToggle
+                        minutesPerHalf={minutesPerHalf}
+                        onMinutesPerHalfChange={handleMinutesPerHalfChange}
+                      />
+                    </div>
                   </div>
                 )}
 
