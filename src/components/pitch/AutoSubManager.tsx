@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
-  Pause, Play, SkipForward, Zap, RefreshCw, Lock, Unlock, 
+  Pause, Play, SkipForward, RefreshCw, Lock, Unlock, 
   X, ChevronDown, ChevronUp, Check, Pencil, Clock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -76,15 +76,21 @@ export default function AutoSubManager({
     <div className="space-y-2">
       {/* Next Sub Preview Card */}
       {nextSub && (
-        <div className={cn(
-          "rounded-lg border p-2.5",
-          autoSubPaused 
-            ? "border-muted bg-muted/30" 
-            : "border-primary/30 bg-primary/5"
-        )}>
+        <button
+          type="button"
+          className={cn(
+            "w-full rounded-lg border p-2.5 text-left transition-colors",
+            autoSubPaused 
+              ? "border-muted bg-muted/30 opacity-60" 
+              : "border-primary/30 bg-primary/5 hover:bg-primary/10 active:bg-primary/15 cursor-pointer"
+          )}
+          onClick={!autoSubPaused ? onExecuteNow : undefined}
+          disabled={autoSubPaused}
+          title={autoSubPaused ? "Resume to execute" : "Tap to execute this sub now"}
+        >
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-              Next Sub
+              Next Sub {!autoSubPaused && <span className="text-primary">· Tap to execute</span>}
             </span>
             <Badge variant="secondary" className="font-mono text-[10px] h-5">
               {nextSub.half === 2 && nextSub.time === 0 
@@ -106,7 +112,7 @@ export default function AutoSubManager({
               + {nextSub.positionSwap.player.name} moves {nextSub.positionSwap.fromPosition} → {nextSub.positionSwap.toPosition}
             </p>
           )}
-        </div>
+        </button>
       )}
 
       {/* Action Toolbar */}
@@ -131,18 +137,6 @@ export default function AutoSubManager({
         >
           <SkipForward className="h-3.5 w-3.5" />
           Skip
-        </Button>
-
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 text-xs gap-1 flex-1 min-w-0"
-          onClick={onExecuteNow}
-          disabled={!nextSub || autoSubPaused}
-          title="Execute the next substitution now"
-        >
-          <Zap className="h-3.5 w-3.5" />
-          Now
         </Button>
       </div>
 
