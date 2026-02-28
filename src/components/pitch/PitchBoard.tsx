@@ -33,6 +33,7 @@ const PositionSwapDialog = lazy(() => import("./PositionSwapDialog"));
 const PitchSwapConfirmDialog = lazy(() => import("./PitchSwapConfirmDialog"));
 const ManualSubConfirmDialog = lazy(() => import("./ManualSubConfirmDialog"));
 const FormationChangeDialog = lazy(() => import("./FormationChangeDialog"));
+const PitchPlayerActionMenu = lazy(() => import("./PitchPlayerActionMenu"));
 const SubConfirmDialog = lazy(() => import("./SubConfirmDialog"));
 const AddFillInPlayerDialog = lazy(() => import("./AddFillInPlayerDialog"));
 const AutoSubManager = lazy(() => import("./AutoSubManager"));
@@ -1112,6 +1113,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const benchDragStartTouch = useRef<{ x: number; y: number } | null>(null);
   const [subAfterSwapDialogOpen, setSubAfterSwapDialogOpen] = useState(false);
   const [resetGameConfirmOpen, setResetGameConfirmOpen] = useState(false);
+  const [pitchPlayerActionOpen, setPitchPlayerActionOpen] = useState(false);
+  const [pitchPlayerActionTarget, setPitchPlayerActionTarget] = useState<string | null>(null);
 
   // Mock player mode state
   const [mockMode, setMockMode] = useState(() => savedState?.mockMode || false);
@@ -2003,7 +2006,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       return;
     }
     
-    if (!subMode) return;
+    if (!subMode) {
+      // Outside sub/swap mode: tapping a pitch player opens the action menu
+      if (isOnPitch) {
+        setPitchPlayerActionTarget(playerId);
+        setPitchPlayerActionOpen(true);
+      }
+      return;
+    }
     
     if (isOnPitch) {
       console.log('[PlayerClick] Pitch player clicked:', playerId);
@@ -3075,6 +3085,58 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [readOnly, players, toast, autoSubActive, autoSubPlan, teamSize]);
 
+  // Mark a pitch player as injured: sub them off to bench, mark injured, regenerate plan
+  const handleMarkInjuredOnPitch = useCallback((playerId: string) => {
+    if (readOnly) return;
+    const player = players.find(p => p.id === playerId);
+    if (!player || player.position === null) return;
+
+    // Move player to bench and mark injured
+    pushToUndoHistory("Injury sub off", players);
+    setPlayers(prev => prev.map(p =>
+      p.id === playerId
+        ? { ...p, position: null, currentPitchPosition: undefined, isInjured: true }
+        : p
+    ));
+    toast({
+      title: "Player injured & subbed off",
+      description: `${player.name} has been moved to bench and marked as injured`,
+    });
+
+    // Regenerate auto-sub plan if active
+    if (autoSubActive) {
+      const minutesPerHalfSecs = (gameTimerRef.current?.getMinutesPerHalf() || 10) * 60;
+      const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
+      const currentHalf = gameTimerRef.current?.getCurrentHalf() || 1;
+
+      const updatedPlayers = players.map(p =>
+        p.id === playerId
+          ? { ...p, position: null, currentPitchPosition: undefined, isInjured: true }
+          : p
+      );
+
+      // Find any sub referencing this player to trigger recalculation
+      const relevantSub = autoSubPlan.find(sub =>
+        !sub.executed && (sub.playerOut.id === playerId || sub.playerIn.id === playerId)
+      );
+      if (relevantSub) {
+        const recalculatedPlan = recalculateRemainingPlan(
+          updatedPlayers,
+          parseInt(teamSize),
+          minutesPerHalfSecs,
+          currentElapsed,
+          currentHalf,
+          relevantSub
+        );
+        setAutoSubPlan(recalculatedPlan);
+        toast({
+          title: "Sub plan updated",
+          description: "Auto-substitution plan recalculated due to injury",
+        });
+      }
+    }
+  }, [readOnly, players, toast, autoSubActive, autoSubPlan, teamSize, pushToUndoHistory]);
+
   // Add fill-in player to the bench
   const handleAddFillInPlayer = useCallback((playerData: { name: string; number?: number; positions: PitchPosition[] }) => {
     if (readOnly) return;
@@ -3996,8 +4058,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               onDragStart={() => !subMode && !readOnly && handleDragStart(player.id)}
                               onDragEnd={handleDragEnd}
                               onTouchStart={(e) => !readOnly && !subMode && !swapMode && handleBenchLongPressStart(player.id, e)}
-                              onClick={!readOnly && subMode && !player.isInjured ? () => handlePlayerClick(player.id, false) : undefined}
-                              onInjuryToggle={!subMode && !swapMode ? () => togglePlayerInjury(player.id) : undefined}
+                              onClick={
+                                !readOnly && subMode && !player.isInjured 
+                                  ? () => handlePlayerClick(player.id, false) 
+                                  : !readOnly && !subMode && !swapMode
+                                    ? () => togglePlayerInjury(player.id)
+                                    : undefined
+                              }
+                              onInjuryToggle={undefined}
                               onRemoveFillIn={!subMode && !swapMode && player.isFillIn ? () => handleRemoveFillInPlayer(player.id) : undefined}
                               isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
                               isSelected={subMode && selectedOnBench === player.id}
@@ -4823,11 +4891,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             onClick={
                               !readOnly && subMode && !player.isInjured 
                                 ? () => handlePlayerClick(player.id, false) 
-                                : !readOnly && !subMode && !swapMode && !player.isInjured && playersOnPitch.length > 0
-                                  ? () => { setBenchToSubPlayer(player.id); setBenchToSubOpen(true); setPortraitSheetOpen(false); }
+                                : !readOnly && !subMode && !swapMode
+                                  ? () => togglePlayerInjury(player.id)
                                   : undefined
                             }
-                            onInjuryToggle={!subMode && !swapMode ? () => togglePlayerInjury(player.id) : undefined}
+                            onInjuryToggle={undefined}
                             onRemoveFillIn={!subMode && !swapMode && player.isFillIn ? () => handleRemoveFillInPlayer(player.id) : undefined}
                             isDragging={draggedPlayer === player.id || touchDragPlayer === player.id || benchDragPlayer === player.id}
                             isSelected={subMode && selectedOnBench === player.id}
@@ -5400,6 +5468,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           allPitchPlayers={playersOnPitch}
           onSelectOption={handleBenchToSubSelect}
           miniLeagueTeams={miniLeagueTeams}
+        />
+      </Suspense>
+
+      {/* Pitch Player Action Menu (injury on pitch) */}
+      <Suspense fallback={null}>
+        <PitchPlayerActionMenu
+          open={pitchPlayerActionOpen}
+          onOpenChange={(open) => {
+            setPitchPlayerActionOpen(open);
+            if (!open) setPitchPlayerActionTarget(null);
+          }}
+          player={players.find(p => p.id === pitchPlayerActionTarget) || null}
+          onMarkInjured={handleMarkInjuredOnPitch}
         />
       </Suspense>
 
