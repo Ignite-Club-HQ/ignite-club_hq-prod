@@ -3782,7 +3782,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   player={player}
                   onDragStart={() => !subMode && !swapMode && !readOnly && handleDragStart(player.id)}
                   onDragEnd={handleDragEnd}
-                  onTouchStart={(e) => !subMode && !swapMode && !readOnly && handleTouchStart(player.id, e)}
+                  onTouchStart={(e) => {
+                    if (readOnly) return;
+                    if (subMode || swapMode) {
+                      handleTouchStart(player.id, e);
+                      return;
+                    }
+                    // Double-tap detection for pitch action menu
+                    const now = Date.now();
+                    const last = lastTapRef.current;
+                    if (last && last.playerId === player.id && now - last.time < 400) {
+                      lastTapRef.current = null;
+                      e.preventDefault();
+                      setPitchPlayerActionTarget(player.id);
+                      setPitchPlayerActionOpen(true);
+                    } else {
+                      lastTapRef.current = { playerId: player.id, time: now };
+                      handleTouchStart(player.id, e);
+                    }
+                  }}
                   onClick={!readOnly ? () => handlePlayerClick(player.id, true) : undefined}
                   isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
                   isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id))}
@@ -4070,7 +4088,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               player={player}
                               onDragStart={() => !subMode && !readOnly && handleDragStart(player.id)}
                               onDragEnd={handleDragEnd}
-                              onTouchStart={(e) => !readOnly && !subMode && !swapMode && handleBenchLongPressStart(player.id, e)}
+                              onTouchStart={(e) => {
+                                if (readOnly) return;
+                                if (subMode || swapMode) return;
+                                const now = Date.now();
+                                const last = lastTapRef.current;
+                                if (last && last.playerId === player.id && now - last.time < 400) {
+                                  lastTapRef.current = null;
+                                  e.preventDefault();
+                                  setBenchInjuryTarget(player.id);
+                                  setBenchInjuryConfirmOpen(true);
+                                } else {
+                                  lastTapRef.current = { playerId: player.id, time: now };
+                                  handleBenchLongPressStart(player.id, e);
+                                }
+                              }}
                               onClick={
                                 !readOnly && subMode && !player.isInjured 
                                   ? () => handlePlayerClick(player.id, false) 
@@ -4910,7 +4942,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             player={player}
                             onDragStart={() => !subMode && !readOnly && handleDragStart(player.id)}
                             onDragEnd={handleDragEnd}
-                            onTouchStart={(e) => !readOnly && !subMode && !swapMode && handleBenchLongPressStart(player.id, e)}
+                            onTouchStart={(e) => {
+                              if (readOnly) return;
+                              if (subMode || swapMode) return;
+                              const now = Date.now();
+                              const last = lastTapRef.current;
+                              if (last && last.playerId === player.id && now - last.time < 400) {
+                                lastTapRef.current = null;
+                                e.preventDefault();
+                                setBenchInjuryTarget(player.id);
+                                setBenchInjuryConfirmOpen(true);
+                              } else {
+                                lastTapRef.current = { playerId: player.id, time: now };
+                                handleBenchLongPressStart(player.id, e);
+                              }
+                            }}
                             onClick={
                               !readOnly && subMode && !player.isInjured 
                                 ? () => handlePlayerClick(player.id, false) 
@@ -5400,7 +5446,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 player={player}
                 onDragStart={() => !subMode && !swapMode && !readOnly && handleDragStart(player.id)}
                 onDragEnd={handleDragEnd}
-                onTouchStart={(e) => !subMode && !swapMode && !readOnly && handleTouchStart(player.id, e)}
+                onTouchStart={(e) => {
+                  if (readOnly) return;
+                  if (subMode || swapMode) {
+                    handleTouchStart(player.id, e);
+                    return;
+                  }
+                  const now = Date.now();
+                  const last = lastTapRef.current;
+                  if (last && last.playerId === player.id && now - last.time < 400) {
+                    lastTapRef.current = null;
+                    e.preventDefault();
+                    setPitchPlayerActionTarget(player.id);
+                    setPitchPlayerActionOpen(true);
+                  } else {
+                    lastTapRef.current = { playerId: player.id, time: now };
+                    handleTouchStart(player.id, e);
+                  }
+                }}
                 onClick={!readOnly ? () => handlePlayerClick(player.id, true) : undefined}
                 isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
                 isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id))}
