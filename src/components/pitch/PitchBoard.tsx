@@ -4040,12 +4040,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {tab === "bench" ? `Bench (${playersOnBench.length})` : tab === "subs" ? "Subs" : tab === "setup" ? "Setup" : "Draw"}
                   </button>
                 ))}
-                <button
-                  onClick={() => setToolbarCollapsed(true)}
-                  className="p-2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+
+
               </div>
               </div>
 
@@ -4890,12 +4886,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       {tab === "bench" ? `Bench (${playersOnBench.length})` : tab === "subs" ? "Subs" : tab === "setup" ? "Setup" : "Draw"}
                     </button>
                   ))}
-                  <button
-                    onClick={() => setPortraitSheetOpen(false)}
-                    className="p-2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+
+
                 </div>
               </div>
 
