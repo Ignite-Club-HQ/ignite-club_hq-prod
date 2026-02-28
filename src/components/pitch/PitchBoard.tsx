@@ -2778,21 +2778,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       benchLongPressTimer.current = null;
     }
     if (benchDragPlayer && benchDragPos) {
-      const pitchEl = document.getElementById('portrait-pitch-area');
+      // Check both portrait and landscape pitch areas
+      const pitchEl = document.getElementById('portrait-pitch-area') || document.getElementById('landscape-pitch-area');
       if (pitchEl) {
         const rect = pitchEl.getBoundingClientRect();
-        // Check drop is within pitch bounds
         const isOnPitch = benchDragPos.x >= rect.left && benchDragPos.x <= rect.right &&
           benchDragPos.y >= rect.top && benchDragPos.y <= rect.bottom;
-        // Exclude if drop point is over the drawer area
         const elAtPoint = document.elementFromPoint(benchDragPos.x, benchDragPos.y);
         const isOnDrawer = elAtPoint?.closest('#pitch-bench-portrait') || 
+                           elAtPoint?.closest('#pitch-bench-landscape') ||
                            elAtPoint?.closest('[data-portrait-drawer]');
         
         if (isOnPitch && !isOnDrawer) {
           setBenchToSubPlayer(benchDragPlayer);
           setBenchToSubOpen(true);
           setPortraitSheetOpen(false);
+          setToolbarCollapsed(true);
         }
       }
     }
@@ -3402,6 +3403,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           )}
 
           <div 
+            id="landscape-pitch-area"
             className="w-full h-full"
             onWheel={handleWheel}
           >
@@ -3838,6 +3840,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       className="flex flex-nowrap overflow-x-auto scrollbar-none min-h-14 pb-1 gap-2"
                       onDrop={!subMode ? handleBenchDrop : undefined}
                       onDragOver={!subMode ? handleDragOver : undefined}
+                      onTouchMove={handleBenchLongPressMove}
+                      onTouchEnd={handleBenchLongPressEnd}
                     >
                       {playersOnBench.length === 0 && (
                         <p className="text-xs text-muted-foreground whitespace-nowrap">Drag here</p>
@@ -3860,6 +3864,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               player={player}
                               onDragStart={() => !subMode && !readOnly && handleDragStart(player.id)}
                               onDragEnd={handleDragEnd}
+                              onTouchStart={(e) => !readOnly && !subMode && !swapMode && handleBenchLongPressStart(player.id, e)}
                               onClick={!readOnly && subMode && !player.isInjured ? () => handlePlayerClick(player.id, false) : undefined}
                               onInjuryToggle={!subMode && !swapMode ? () => togglePlayerInjury(player.id) : undefined}
                               onRemoveFillIn={!subMode && !swapMode && player.isFillIn ? () => handleRemoveFillInPlayer(player.id) : undefined}
