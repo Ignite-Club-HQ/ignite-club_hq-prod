@@ -4409,14 +4409,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       <div className="space-y-1.5">
                         <Label className="text-xs uppercase tracking-wider text-muted-foreground">Players</Label>
                         <div className="flex rounded-lg border border-border overflow-hidden">
-                          {(["3","4","5","7","9","11"] as const).map((size) => (
+                          {(["3","4","5","6","7","8","9","10","11"] as const).map((size) => (
                             <button
                               key={size}
                               type="button"
                               disabled={readOnly}
                               onClick={() => handleTeamSizeChange(size)}
                               className={cn(
-                                "flex-1 py-2.5 text-base font-medium transition-colors",
+                                "flex-1 py-2.5 text-base font-medium transition-colors min-w-0",
                                 teamSize === size
                                   ? "bg-primary text-primary-foreground"
                                   : "bg-background text-muted-foreground hover:bg-accent"
@@ -5395,14 +5395,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       <div className="space-y-1">
                         <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Players</Label>
                         <div className="flex rounded-lg border border-border overflow-hidden">
-                          {(["3","4","5","7","9","11"] as const).map((size) => (
+                          {(["3","4","5","6","7","8","9","10","11"] as const).map((size) => (
                             <button
                               key={size}
                               type="button"
                               disabled={readOnly}
                               onClick={() => handleTeamSizeChange(size)}
                               className={cn(
-                                "flex-1 py-2 text-sm font-medium transition-colors",
+                                "flex-1 py-2 text-sm font-medium transition-colors min-w-0",
                                 teamSize === size
                                   ? "bg-primary text-primary-foreground"
                                   : "bg-background text-muted-foreground hover:bg-accent"
