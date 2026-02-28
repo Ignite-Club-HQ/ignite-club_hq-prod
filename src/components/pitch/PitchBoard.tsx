@@ -2830,7 +2830,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Touch handlers for mobile drag-and-drop
   const handleTouchStart = (playerId: string, e: React.TouchEvent) => {
     if (readOnly) return;
-    e.preventDefault();
+    // Don't preventDefault immediately - let click events fire for taps
+    // Instead, set up drag state that will be used by touchmove
     setTouchDragPlayer(playerId);
     const touch = e.touches[0];
     setTouchOffset({ x: touch.clientX, y: touch.clientY });
