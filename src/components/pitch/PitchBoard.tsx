@@ -242,11 +242,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [subPreviewOpen, setSubPreviewOpen] = useState(false);
   const [previewSwapPlayers, setPreviewSwapPlayers] = useState<{ sourceId: string | null; targetId: string | null }>({ sourceId: null, targetId: null });
 
-  // Formation change dialog state (for mid-game formation changes)
+  // Formation/team-size change dialog state
   const [formationChangeDialogOpen, setFormationChangeDialogOpen] = useState(false);
   const [pendingFormationChange, setPendingFormationChange] = useState<{
     index: number;
+    newTeamSize?: TeamSize; // Set when this is a team size change
     positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition }[];
+    benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[];
   } | null>(null);
 
   // Auto-sub plan state
@@ -264,13 +266,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [pendingBatchSubs, setPendingBatchSubs] = useState<SubstitutionEvent[]>([]);
   const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
-  const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "subs" | "setup" | "draw">("bench");
+  const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "subs" | "setup">("bench");
+  const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [sheetHeightPct, setSheetHeightPct] = useState(50);
   const sheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
   const [portraitSheetOpen, setPortraitSheetOpen] = useState(false);
   const [portraitSheetHeightPct, setPortraitSheetHeightPct] = useState(45);
   const portraitSheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
   const [gameInProgress, setGameInProgress] = useState(false); // Track if game has started
+  const [timerResetKey, setTimerResetKey] = useState(0); // Key to force remount GameTimer instances on reset
   const [showScoreInPortrait, setShowScoreInPortrait] = useState(false); // Toggle score visibility in portrait
   const [hideScores, setHideScores] = useState(false); // Hide scores and disable scoring
   const [landscapeEventSelectorOpen, setLandscapeEventSelectorOpen] = useState(false); // Event selector for landscape toolbar
@@ -1640,44 +1644,62 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     };
   }, []);
 
-  // Handle formation selection - auto-apply when selected
+  // Handle formation selection - preview changes and show confirmation
   const handleFormationChange = (value: string) => {
     const index = parseInt(value);
+    if (index === selectedFormation) return; // No change
     const formation = FORMATIONS[teamSize][index];
     if (!formation) return;
 
     const numPositions = parseInt(teamSize);
     
-    // Calculate what position swaps would happen
+    // Calculate what changes would happen
     const playersOnPitch = players.filter(p => p.position !== null);
     const benchPlayers = players.filter(p => p.position === null);
     const allPlayers = [...playersOnPitch, ...benchPlayers];
     
-    // Calculate new positions for players
     const positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition }[] = [];
+    const benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] = [];
     
-    for (let i = 0; i < Math.min(numPositions, allPlayers.length); i++) {
-      const player = allPlayers[i];
-      if (player.currentPitchPosition && formation.positions[i]) {
+    // Who will be on pitch after change
+    const willBeOnPitch = allPlayers.slice(0, numPositions);
+    const willBeOnBench = allPlayers.slice(numPositions);
+    
+    // Players going from pitch to bench
+    for (const player of playersOnPitch) {
+      if (willBeOnBench.some(p => p.id === player.id)) {
+        benchMoves.push({ player, direction: "to-bench", position: player.currentPitchPosition });
+      }
+    }
+    
+    // Players coming from bench to pitch
+    for (let i = 0; i < willBeOnPitch.length; i++) {
+      const player = willBeOnPitch[i];
+      if (benchPlayers.some(p => p.id === player.id) && formation.positions[i]) {
+        const newPos = getPositionFromCoords(formation.positions[i].y, teamSize);
+        benchMoves.push({ player, direction: "to-pitch", position: newPos });
+      }
+    }
+    
+    // Position changes for players staying on pitch
+    for (let i = 0; i < willBeOnPitch.length; i++) {
+      const player = willBeOnPitch[i];
+      if (player.currentPitchPosition && formation.positions[i] && playersOnPitch.some(p => p.id === player.id) && !willBeOnBench.some(p => p.id === player.id)) {
         const newPosition = getPositionFromCoords(formation.positions[i].y, teamSize);
         if (player.currentPitchPosition !== newPosition) {
-          positionSwaps.push({
-            player,
-            fromPosition: player.currentPitchPosition,
-            toPosition: newPosition,
-          });
+          positionSwaps.push({ player, fromPosition: player.currentPitchPosition, toPosition: newPosition });
         }
       }
     }
 
-    // If game is in progress and there are position changes, show confirmation dialog
-    if (gameInProgress && positionSwaps.length > 0) {
-      setPendingFormationChange({ index, positionSwaps });
+    // If there are any changes, show confirmation
+    if (positionSwaps.length > 0 || benchMoves.length > 0) {
+      setPendingFormationChange({ index, positionSwaps, benchMoves });
       setFormationChangeDialogOpen(true);
       return;
     }
 
-    // Apply formation immediately if game not in progress or no position changes
+    // Apply immediately if no meaningful changes
     applyFormationChange(index);
   };
 
@@ -1738,11 +1760,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Handle formation change dialog confirm
   const handleFormationChangeConfirm = useCallback(() => {
     if (pendingFormationChange) {
-      applyFormationChange(pendingFormationChange.index);
+      if (pendingFormationChange.newTeamSize) {
+        // This is a team size change
+        const newSize = pendingFormationChange.newTeamSize;
+        setTeamSize(newSize);
+        setSelectedFormation(0);
+        const placedPlayers = autoPlacePlayersOnPitch(players, newSize, 0);
+        setPlayers(placedPlayers);
+        persistTeamSizeToDb(newSize);
+      } else {
+        applyFormationChange(pendingFormationChange.index);
+      }
     }
     setFormationChangeDialogOpen(false);
     setPendingFormationChange(null);
-  }, [pendingFormationChange, applyFormationChange]);
+  }, [pendingFormationChange, applyFormationChange, autoPlacePlayersOnPitch, players, persistTeamSizeToDb]);
 
   // Handle formation change dialog cancel
   const handleFormationChangeCancel = useCallback(() => {
@@ -2055,6 +2087,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Deactivate drawing tools when entering swap mode
     if (newSwapMode) {
       setDrawingTool("none");
+      setShowFloatingDrawToolbar(false);
       // Close bottom drawer so pitch is fully visible
       setPortraitSheetOpen(false);
     }
@@ -2135,6 +2168,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       }
       // Deactivate drawing tools when entering sub mode
       setDrawingTool("none");
+      setShowFloatingDrawToolbar(false);
       // Close bottom drawer so pitch is fully visible
       setPortraitSheetOpen(false);
     }
@@ -2645,6 +2679,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Reset game in progress flag so Plan button is enabled again
     setGameInProgress(false);
     
+    // Force remount all GameTimer instances to pick up clean state
+    setTimerResetKey(prev => prev + 1);
+    
     // Clear persisted state
     clearPitchState();
     
@@ -2672,14 +2709,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     });
   }, [players, teamSize, selectedFormation, autoPlacePlayersOnPitch, toast]);
 
-  // Handle team size change - repositions players to match new formation
+  // Handle team size change - preview changes and show confirmation
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
-    setTeamSize(newSize);
-    setSelectedFormation(0);
+    if (newSize === teamSize) return;
     
-    // For mini-league mode, re-place both teams with the new size
+    // Skip confirmation for mini-league mode (auto-place both teams)
     if (miniLeagueTeams) {
-      // Ensure teamSide is set on all players before placement
+      setTeamSize(newSize);
+      setSelectedFormation(0);
       const playersWithTeamSide = players.map(p => {
         if (p.teamSide) return p;
         let teamSide: "a" | "b" | undefined;
@@ -2692,13 +2729,64 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       });
       const placedPlayers = autoPlaceMiniLeaguePlayers(playersWithTeamSide, newSize, true);
       setPlayers(placedPlayers);
-    } else {
-      // Re-place players using the new team size and first formation
-      const placedPlayers = autoPlacePlayersOnPitch(players, newSize, 0);
-      setPlayers(placedPlayers);
+      persistTeamSizeToDb(newSize);
+      return;
     }
+    
+    const newFormation = FORMATIONS[newSize][0];
+    if (!newFormation) return;
+    
+    const numPositions = parseInt(newSize);
+    const playersOnPitch = players.filter(p => p.position !== null);
+    const benchPlayers = players.filter(p => p.position === null);
+    const allPlayers = [...playersOnPitch, ...benchPlayers];
+    
+    const positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition }[] = [];
+    const benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] = [];
+    
+    const willBeOnPitch = allPlayers.slice(0, numPositions);
+    const willBeOnBench = allPlayers.slice(numPositions);
+    
+    // Players going to bench
+    for (const player of playersOnPitch) {
+      if (willBeOnBench.some(p => p.id === player.id)) {
+        benchMoves.push({ player, direction: "to-bench", position: player.currentPitchPosition });
+      }
+    }
+    
+    // Players coming on from bench
+    for (let i = 0; i < willBeOnPitch.length; i++) {
+      const player = willBeOnPitch[i];
+      if (benchPlayers.some(p => p.id === player.id) && newFormation.positions[i]) {
+        const newPos = getPositionFromCoords(newFormation.positions[i].y, newSize);
+        benchMoves.push({ player, direction: "to-pitch", position: newPos });
+      }
+    }
+    
+    // Position changes for players staying on pitch
+    for (let i = 0; i < willBeOnPitch.length; i++) {
+      const player = willBeOnPitch[i];
+      if (player.currentPitchPosition && newFormation.positions[i] && playersOnPitch.some(p => p.id === player.id) && !willBeOnBench.some(p => p.id === player.id)) {
+        const newPosition = getPositionFromCoords(newFormation.positions[i].y, newSize);
+        if (player.currentPitchPosition !== newPosition) {
+          positionSwaps.push({ player, fromPosition: player.currentPitchPosition, toPosition: newPosition });
+        }
+      }
+    }
+    
+    if (positionSwaps.length > 0 || benchMoves.length > 0) {
+      setPendingFormationChange({ index: 0, newTeamSize: newSize, positionSwaps, benchMoves });
+      setFormationChangeDialogOpen(true);
+      return;
+    }
+    
+    // No changes, apply directly
+    setTeamSize(newSize);
+    setSelectedFormation(0);
+    const placedPlayers = autoPlacePlayersOnPitch(players, newSize, 0);
+    setPlayers(placedPlayers);
     persistTeamSizeToDb(newSize);
-  }, [players, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, persistTeamSizeToDb]);
+  }, [players, teamSize, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, persistTeamSizeToDb]);
 
   const getPinchDistance = (touches: React.TouchList) => {
     if (touches.length < 2) return null;
@@ -3486,6 +3574,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           >
             <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
               <GameTimer 
+                key={timerResetKey}
                 ref={gameTimerRef} 
                 compact
                 teamId={teamId} 
@@ -3613,6 +3702,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   </span>
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Bench drag floating indicator - landscape */}
+          {benchDragPlayer && benchDragPos && (
+            <div 
+              className="fixed z-[100] pointer-events-none animate-scale-in"
+              style={{ left: benchDragPos.x - 30, top: benchDragPos.y - 40 }}
+            >
+              <div className="w-[60px] h-[60px] rounded-full bg-primary border-2 border-primary-foreground shadow-2xl flex items-center justify-center animate-pulse">
+                <span className="text-primary-foreground text-xs font-bold text-center leading-tight px-1 truncate">
+                  {players.find(p => p.id === benchDragPlayer)?.name?.split(' ')[0] || '?'}
+                </span>
+              </div>
+              <div className="text-center mt-0.5">
+                <span className="text-[9px] font-semibold bg-primary text-primary-foreground px-2 py-0.5 rounded-full shadow-lg">
+                  Drop on pitch
+                </span>
+              </div>
             </div>
           )}
 
@@ -3949,13 +4057,98 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         )}
 
         {/* Floating settings button - always visible in landscape when sheet closed */}
-        {toolbarCollapsed && (
-          <button
-            className="absolute bottom-3 right-3 z-[55] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
-            onClick={() => setToolbarCollapsed(false)}
-          >
-            <ChevronUp className="h-5 w-5 text-muted-foreground" />
-          </button>
+        {toolbarCollapsed && !readOnly && (
+          <>
+            {/* Floating settings button - always visible in landscape when sheet closed */}
+            <button
+              className="absolute bottom-3 right-3 z-[55] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
+              onClick={() => setToolbarCollapsed(false)}
+            >
+              <ChevronUp className="h-5 w-5 text-muted-foreground" />
+            </button>
+
+
+            <button
+              className={cn(
+                "absolute bottom-3 z-[55] w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
+                drawingTool !== "none"
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : showFloatingDrawToolbar
+                    ? "bg-accent text-accent-foreground border-accent"
+                    : "bg-background/80 border-border"
+              )}
+              style={{ right: 60 }}
+              onClick={() => setShowFloatingDrawToolbar(prev => !prev)}
+            >
+              <Pencil className="h-5 w-5" />
+            </button>
+
+            {/* Floating Draw Toolbar */}
+            {showFloatingDrawToolbar && (
+              <div className="absolute bottom-16 z-[55] animate-fade-in" style={{ right: 12 }}>
+                <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
+                  <div className="flex gap-2">
+                    <Button 
+                      variant={drawingTool === "pen" ? "default" : "outline"} 
+                      size="icon"
+                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      onClick={() => {
+                        setDrawingTool(drawingTool === "pen" ? "none" : "pen");
+                        if (drawingTool !== "pen") setShowFloatingDrawToolbar(false);
+                      }}
+                    >
+                      <Pencil className="h-5 w-5" />
+                    </Button>
+                    <Button 
+                      variant={drawingTool === "arrow" ? "default" : "outline"} 
+                      size="icon"
+                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      onClick={() => {
+                        setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
+                        if (drawingTool !== "arrow") setShowFloatingDrawToolbar(false);
+                      }}
+                    >
+                      <MoveRight className="h-5 w-5" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      onClick={clearDrawings}
+                    >
+                      <Eraser className="h-5 w-5" />
+                    </Button>
+                    {drawingTool !== "none" && (
+                      <Button 
+                        variant="destructive" 
+                        size="icon" 
+                        className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                        onClick={() => {
+                          setDrawingTool("none");
+                          setShowFloatingDrawToolbar(false);
+                        }}
+                      >
+                        <X className="h-5 w-5" />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex gap-2 justify-center">
+                    {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
+                      <button
+                        key={color}
+                        className={cn(
+                          "w-8 h-8 rounded-full border-2",
+                          drawingColor === color ? "border-primary ring-2 ring-primary/50" : "border-muted-foreground/30"
+                        )}
+                        style={{ backgroundColor: color }}
+                        onClick={() => setDrawingColor(color)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* Bottom Sheet Overlay for landscape controls */}
@@ -4017,7 +4210,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                 {/* Tabs */}
                 <div className="flex border-b border-border px-2 gap-1">
-                {(["bench", "subs", "setup", "draw"] as const).map(tab => (
+                {(["bench", "subs", "setup"] as const).map(tab => (
                   <button
                     key={tab}
                     onClick={() => setBottomSheetTab(tab)}
@@ -4028,7 +4221,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    {tab === "bench" ? `Bench (${playersOnBench.length})` : tab === "subs" ? "Subs" : tab === "setup" ? "Setup" : "Draw"}
+                    {tab === "bench" ? `Bench (${playersOnBench.length})` : tab === "subs" ? "Subs" : "Setup"}
                   </button>
                 ))}
 
@@ -4076,6 +4269,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <div 
                       id="pitch-bench-landscape"
                       className="flex flex-nowrap overflow-x-auto scrollbar-none min-h-14 pb-1 gap-2"
+                      style={{ touchAction: 'pan-x', WebkitOverflowScrolling: 'touch' }}
                       onDrop={!subMode ? handleBenchDrop : undefined}
                       onDragOver={!subMode ? handleDragOver : undefined}
                       onTouchMove={handleBenchLongPressMove}
@@ -4291,36 +4485,49 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Setup Tab */}
                 {bottomSheetTab === "setup" && (
                   <div className="space-y-4 px-1">
-                    {/* 2-column grid for core settings - larger for landscape */}
-                    <div className="grid grid-cols-2 gap-3">
+                    {/* Segmented controls for core settings - landscape */}
+                    <div className="space-y-3">
                       <div className="space-y-1.5">
                         <Label className="text-xs uppercase tracking-wider text-muted-foreground">Players</Label>
-                        <Select value={teamSize} onValueChange={(v) => handleTeamSizeChange(v as TeamSize)} disabled={readOnly}>
-                          <SelectTrigger className="h-12 text-base">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="z-[99999] bg-popover">
-                            <SelectItem value="3" className="text-base py-2.5">3-a-side</SelectItem>
-                            <SelectItem value="4" className="text-base py-2.5">4-a-side</SelectItem>
-                            <SelectItem value="5" className="text-base py-2.5">5-a-side</SelectItem>
-                            <SelectItem value="7" className="text-base py-2.5">7-a-side</SelectItem>
-                            <SelectItem value="9" className="text-base py-2.5">9-a-side</SelectItem>
-                            <SelectItem value="11" className="text-base py-2.5">11-a-side</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex rounded-lg border border-border overflow-hidden">
+                          {(["3","4","5","6","7","8","9","10","11"] as const).map((size) => (
+                            <button
+                              key={size}
+                              type="button"
+                              disabled={readOnly}
+                              onClick={() => handleTeamSizeChange(size)}
+                              className={cn(
+                                "flex-1 py-2.5 text-base font-medium transition-colors min-w-0",
+                                teamSize === size
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-background text-muted-foreground hover:bg-accent"
+                              )}
+                            >
+                              {size}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs uppercase tracking-wider text-muted-foreground">Formation</Label>
-                        <Select value={selectedFormation.toString()} onValueChange={handleFormationChange} disabled={readOnly}>
-                          <SelectTrigger className="h-12 text-base">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="z-[99999] bg-popover">
-                            {FORMATIONS[teamSize].map((f, i) => (
-                              <SelectItem key={i} value={i.toString()} className="text-base py-2.5">{f.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex rounded-lg border border-border overflow-hidden">
+                          {FORMATIONS[teamSize].map((f, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              disabled={readOnly}
+                              onClick={() => handleFormationChange(i.toString())}
+                              className={cn(
+                                "flex-1 py-2.5 text-base font-medium transition-colors",
+                                selectedFormation === i
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-background text-muted-foreground hover:bg-accent"
+                              )}
+                            >
+                              {f.name}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
@@ -4334,9 +4541,30 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </Suspense>
                     )}
 
+                    {/* Action buttons grid */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button variant="outline" className="h-12 text-base" onClick={() => setStatsOpen(true)}>
+                        <BarChart3 className="h-4 w-4 mr-1.5" />
+                        Stats
+                      </Button>
+                      <Button variant="outline" className="h-12 text-base" onClick={() => setPositionEditorOpen(true)} disabled={readOnly}>
+                        <Settings2 className="h-4 w-4 mr-1.5" />
+                        Positions
+                      </Button>
+                    </div>
+
+                    {/* Reset Positions */}
+                    {!readOnly && (
+                      <Button variant="outline" className="w-full h-12 text-base" onClick={handleResetFormation}>
+                        <RotateCcw className="h-4 w-4 mr-1.5" />
+                        Reset Positions
+                      </Button>
+                    )}
+
                     {/* Timer - larger for landscape */}
                     <div className="border-t border-border pt-3">
                       <GameTimer 
+                        key={timerResetKey}
                         ref={gameTimerRef} 
                         teamId={teamId} 
                         teamName={teamName} 
@@ -4352,46 +4580,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   </div>
                 )}
 
-                {/* Draw Tab */}
-                {bottomSheetTab === "draw" && !readOnly && (
-                  <div className="flex items-center gap-4">
-                    <div className="flex gap-2">
-                      <Button 
-                        variant={drawingTool === "pen" ? "default" : "outline"} 
-                        size="icon"
-                        className="h-12 w-12"
-                        onClick={() => setDrawingTool(drawingTool === "pen" ? "none" : "pen")}
-                      >
-                        <Pencil className="h-5 w-5" />
-                      </Button>
-                      <Button 
-                        variant={drawingTool === "arrow" ? "default" : "outline"} 
-                        size="icon"
-                        className="h-12 w-12"
-                        onClick={() => setDrawingTool(drawingTool === "arrow" ? "none" : "arrow")}
-                      >
-                        <MoveRight className="h-5 w-5" />
-                      </Button>
-                      <Button variant="outline" size="icon" className="h-12 w-12" onClick={clearDrawings}>
-                        <Eraser className="h-5 w-5" />
-                      </Button>
-                    </div>
-                    <div className="w-px h-10 bg-border" />
-                    <div className="flex gap-2">
-                      {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
-                        <button
-                          key={color}
-                          className={cn(
-                            "w-10 h-10 rounded-full border-2",
-                            drawingColor === color ? "border-primary ring-2 ring-primary/50" : "border-muted-foreground/30"
-                          )}
-                          style={{ backgroundColor: color }}
-                          onClick={() => setDrawingColor(color)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -4477,10 +4665,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           open={formationChangeDialogOpen}
           onOpenChange={setFormationChangeDialogOpen}
           currentFormation={FORMATIONS[teamSize][selectedFormation]?.name || ""}
-          newFormation={pendingFormationChange ? FORMATIONS[teamSize][pendingFormationChange.index]?.name || "" : ""}
+          newFormation={pendingFormationChange ? FORMATIONS[pendingFormationChange.newTeamSize || teamSize][pendingFormationChange.index]?.name || "" : ""}
           positionSwaps={pendingFormationChange?.positionSwaps || []}
+          benchMoves={pendingFormationChange?.benchMoves || []}
           onConfirm={handleFormationChangeConfirm}
           onCancel={handleFormationChangeCancel}
+          isTeamSizeChange={!!pendingFormationChange?.newTeamSize}
+          currentTeamSize={teamSize}
+          newTeamSize={pendingFormationChange?.newTeamSize}
         />
 
         {/* Auto-Sub Plan Dialog */}
@@ -4578,6 +4770,56 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           />
         )}
 
+        {/* Pitch Player Action Menu (injury on pitch) - landscape */}
+        <Suspense fallback={null}>
+          <PitchPlayerActionMenu
+            open={pitchPlayerActionOpen}
+            onOpenChange={(open) => {
+              setPitchPlayerActionOpen(open);
+              if (!open) setPitchPlayerActionTarget(null);
+            }}
+            player={players.find(p => p.id === pitchPlayerActionTarget) || null}
+            benchPlayers={players.filter(p => p.position === null)}
+            onMarkInjured={handleMarkInjuredOnPitch}
+          />
+        </Suspense>
+
+        {/* Bench Injury Confirmation - landscape */}
+        {benchInjuryConfirmOpen && createPortal(
+          <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
+          document.body
+        )}
+        {benchInjuryConfirmOpen && benchInjuryTarget && createPortal(
+          <div className="fixed left-[50%] top-[50%] z-[999999] grid w-[calc(100%-2rem)] max-w-sm translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg rounded-lg animate-in fade-in-0 zoom-in-95">
+            <div className="flex flex-col space-y-2 text-center sm:text-left">
+              <h2 className="text-lg font-semibold">
+                {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark as Fit?" : "Mark as Injured?"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {players.find(p => p.id === benchInjuryTarget)?.isInjured
+                  ? `${players.find(p => p.id === benchInjuryTarget)?.name} will be available for substitutions again.`
+                  : `${players.find(p => p.id === benchInjuryTarget)?.name} will not be available for substitutions.`}
+              </p>
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
+              <Button variant="outline" className="mt-2 sm:mt-0" onClick={() => { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); }}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  togglePlayerInjury(benchInjuryTarget);
+                  setBenchInjuryConfirmOpen(false);
+                  setBenchInjuryTarget(null);
+                }}
+              >
+                {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark Fit" : "Mark Injured"}
+              </Button>
+            </div>
+          </div>,
+          document.body
+        )}
+
         {/* Match Stats Panel */}
         <MatchStatsPanel
           open={statsOpen}
@@ -4667,6 +4909,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         >
           <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
             <GameTimer 
+              key={timerResetKey}
               ref={gameTimerRef} 
               compact
               teamId={teamId} 
@@ -4772,12 +5015,101 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
         {/* Floating settings button - bottom right to open sheet */}
         {!portraitSheetOpen && (
-          <button
-            className="absolute bottom-3 right-3 z-50 w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
-            onClick={() => setPortraitSheetOpen(true)}
-          >
-            <ChevronUp className="h-5 w-5 text-muted-foreground" />
-          </button>
+          <>
+            <button
+              className="absolute bottom-3 right-3 z-50 w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
+              onClick={() => setPortraitSheetOpen(true)}
+            >
+              <ChevronUp className="h-5 w-5 text-muted-foreground" />
+            </button>
+
+            {/* Floating Draw FAB - portrait */}
+            {!readOnly && (
+              <>
+                <button
+                  className={cn(
+                    "absolute bottom-3 z-50 w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
+                    drawingTool !== "none"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : showFloatingDrawToolbar
+                        ? "bg-accent text-accent-foreground border-accent"
+                        : "bg-background/80 border-border"
+                  )}
+                  style={{ right: 60 }}
+                  onClick={() => setShowFloatingDrawToolbar(prev => !prev)}
+                >
+                  <Pencil className="h-5 w-5" />
+                </button>
+
+
+                {/* Floating Draw Toolbar - portrait */}
+                {showFloatingDrawToolbar && (
+                  <div className="absolute bottom-16 right-3 z-50 animate-fade-in">
+                    <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
+                      <div className="flex gap-2">
+                        <Button 
+                          variant={drawingTool === "pen" ? "default" : "outline"} 
+                          size="icon"
+                          className="h-12 w-12"
+                          onClick={() => {
+                            setDrawingTool(drawingTool === "pen" ? "none" : "pen");
+                            if (drawingTool !== "pen") setShowFloatingDrawToolbar(false);
+                          }}
+                        >
+                          <Pencil className="h-5 w-5" />
+                        </Button>
+                        <Button 
+                          variant={drawingTool === "arrow" ? "default" : "outline"} 
+                          size="icon"
+                          className="h-12 w-12"
+                          onClick={() => {
+                            setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
+                            if (drawingTool !== "arrow") setShowFloatingDrawToolbar(false);
+                          }}
+                        >
+                          <MoveRight className="h-5 w-5" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="h-12 w-12"
+                          onClick={clearDrawings}
+                        >
+                          <Eraser className="h-5 w-5" />
+                        </Button>
+                        {drawingTool !== "none" && (
+                          <Button 
+                            variant="destructive" 
+                            size="icon" 
+                            className="h-12 w-12"
+                            onClick={() => {
+                              setDrawingTool("none");
+                              setShowFloatingDrawToolbar(false);
+                            }}
+                          >
+                            <X className="h-5 w-5" />
+                          </Button>
+                        )}
+                      </div>
+                      <div className="flex gap-2 justify-center">
+                        {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
+                          <button
+                            key={color}
+                            className={cn(
+                              "w-8 h-8 rounded-full border-2",
+                              drawingColor === color ? "border-primary ring-2 ring-primary/50" : "border-muted-foreground/30"
+                            )}
+                            style={{ backgroundColor: color }}
+                            onClick={() => setDrawingColor(color)}
+                          />
+                        ))}
+                      </div>
+                      </div>
+                    </div>
+                )}
+              </>
+            )}
+          </>
         )}
 
         {/* Swipe-up zone at bottom edge */}
@@ -4864,7 +5196,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                 {/* Tabs */}
                 <div className="flex border-b border-border px-2 gap-1">
-                  {(["bench", "subs", "setup", "draw"] as const).map(tab => (
+                  {(["bench", "subs", "setup"] as const).map(tab => (
                     <button
                       key={tab}
                       onClick={() => setBottomSheetTab(tab)}
@@ -4875,7 +5207,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           : "text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      {tab === "bench" ? `Bench (${playersOnBench.length})` : tab === "subs" ? "Subs" : tab === "setup" ? "Setup" : "Draw"}
+                      {tab === "bench" ? `Bench (${playersOnBench.length})` : tab === "subs" ? "Subs" : "Setup"}
                     </button>
                   ))}
 
@@ -4933,6 +5265,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <div 
                       id="pitch-bench-portrait"
                       className="grid grid-cols-2 gap-2 min-h-14"
+                      style={{ touchAction: 'pan-y' }}
                       onDrop={!subMode ? handleBenchDrop : undefined}
                       onDragOver={!subMode ? handleDragOver : undefined}
                       onTouchMove={handleBenchLongPressMove}
@@ -5142,36 +5475,49 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Setup Tab */}
                 {bottomSheetTab === "setup" && (
                   <div className="space-y-3 px-1">
-                    {/* 2-column grid for core settings */}
-                    <div className="grid grid-cols-2 gap-2">
+                    {/* Segmented controls for core settings - portrait */}
+                    <div className="space-y-2">
                       <div className="space-y-1">
                         <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Players</Label>
-                        <Select value={teamSize} onValueChange={(v) => handleTeamSizeChange(v as TeamSize)} disabled={readOnly}>
-                          <SelectTrigger className="h-11 text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="z-[99999] bg-popover">
-                            <SelectItem value="3">3-a-side</SelectItem>
-                            <SelectItem value="4">4-a-side</SelectItem>
-                            <SelectItem value="5">5-a-side</SelectItem>
-                            <SelectItem value="7">7-a-side</SelectItem>
-                            <SelectItem value="9">9-a-side</SelectItem>
-                            <SelectItem value="11">11-a-side</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex rounded-lg border border-border overflow-hidden">
+                          {(["3","4","5","6","7","8","9","10","11"] as const).map((size) => (
+                            <button
+                              key={size}
+                              type="button"
+                              disabled={readOnly}
+                              onClick={() => handleTeamSizeChange(size)}
+                              className={cn(
+                                "flex-1 py-2 text-sm font-medium transition-colors min-w-0",
+                                teamSize === size
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-background text-muted-foreground hover:bg-accent"
+                              )}
+                            >
+                              {size}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Formation</Label>
-                        <Select value={selectedFormation.toString()} onValueChange={handleFormationChange} disabled={readOnly}>
-                          <SelectTrigger className="h-11 text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="z-[99999] bg-popover">
-                            {FORMATIONS[teamSize].map((f, i) => (
-                              <SelectItem key={i} value={i.toString()}>{f.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex rounded-lg border border-border overflow-hidden">
+                          {FORMATIONS[teamSize].map((f, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              disabled={readOnly}
+                              onClick={() => handleFormationChange(i.toString())}
+                              className={cn(
+                                "flex-1 py-2 text-sm font-medium transition-colors",
+                                selectedFormation === i
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-background text-muted-foreground hover:bg-accent"
+                              )}
+                            >
+                              {f.name}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
@@ -5187,6 +5533,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </Button>
                     </div>
 
+                    {/* Reset Positions */}
+                    {!readOnly && (
+                      <Button variant="outline" className="w-full h-11 text-sm" onClick={handleResetFormation}>
+                        <RotateCcw className="h-4 w-4 mr-1.5" />
+                        Reset Positions
+                      </Button>
+                    )}
+
                     {/* Add Fill-In Player */}
                     {!readOnly && (
                       <Suspense fallback={null}>
@@ -5200,6 +5554,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {/* Timer */}
                     <div className="border-t border-border pt-2">
                       <GameTimer 
+                        key={timerResetKey}
                         ref={gameTimerRef} 
                         teamId={teamId} 
                         teamName={teamName} 
@@ -5224,46 +5579,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   </div>
                 )}
 
-                {/* Draw Tab */}
-                {bottomSheetTab === "draw" && !readOnly && (
-                  <div className="space-y-3">
-                    <div className="flex gap-2">
-                      <Button 
-                        variant={drawingTool === "pen" ? "default" : "outline"} 
-                        className="h-14 flex-1 text-base gap-2"
-                        onClick={() => setDrawingTool(drawingTool === "pen" ? "none" : "pen")}
-                      >
-                        <Pencil className="h-6 w-6" />
-                        Pen
-                      </Button>
-                      <Button 
-                        variant={drawingTool === "arrow" ? "default" : "outline"} 
-                        className="h-14 flex-1 text-base gap-2"
-                        onClick={() => setDrawingTool(drawingTool === "arrow" ? "none" : "arrow")}
-                      >
-                        <MoveRight className="h-6 w-6" />
-                        Arrow
-                      </Button>
-                      <Button variant="outline" className="h-14 flex-1 text-base gap-2" onClick={clearDrawings}>
-                        <Eraser className="h-6 w-6" />
-                        Clear
-                      </Button>
-                    </div>
-                    <div className="flex gap-2 justify-center">
-                      {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
-                        <button
-                          key={color}
-                          className={cn(
-                            "w-8 h-8 rounded-full border-2",
-                            drawingColor === color ? "border-primary ring-2 ring-primary/50" : "border-muted-foreground/30"
-                          )}
-                          style={{ backgroundColor: color }}
-                          onClick={() => setDrawingColor(color)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -5682,10 +5997,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         open={formationChangeDialogOpen}
         onOpenChange={setFormationChangeDialogOpen}
         currentFormation={FORMATIONS[teamSize][selectedFormation]?.name || ""}
-        newFormation={pendingFormationChange ? FORMATIONS[teamSize][pendingFormationChange.index]?.name || "" : ""}
+        newFormation={pendingFormationChange ? FORMATIONS[pendingFormationChange.newTeamSize || teamSize][pendingFormationChange.index]?.name || "" : ""}
         positionSwaps={pendingFormationChange?.positionSwaps || []}
+        benchMoves={pendingFormationChange?.benchMoves || []}
         onConfirm={handleFormationChangeConfirm}
         onCancel={handleFormationChangeCancel}
+        isTeamSizeChange={!!pendingFormationChange?.newTeamSize}
+        currentTeamSize={teamSize}
+        newTeamSize={pendingFormationChange?.newTeamSize}
       />
 
       {/* Auto-Sub Plan Dialog */}

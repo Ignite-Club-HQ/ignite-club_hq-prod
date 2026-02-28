@@ -3,16 +3,14 @@ import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { PitchPosition } from "./PositionBadge";
 import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 
 interface AddFillInPlayerDialogProps {
   onAddPlayer: (player: { name: string; number?: number; positions: PitchPosition[] }) => void;
@@ -65,96 +63,97 @@ export default function AddFillInPlayerDialog({
   };
 
   return (
-    <Drawer open={open} onOpenChange={setOpen}>
-      <DrawerTrigger asChild>
-        <Button 
-          variant="outline" 
-          size={compact ? "sm" : "default"}
-          className={cn(
-            "gap-1.5",
-            compact && "h-7 text-xs px-2"
-          )}
-        >
-          <UserPlus className={compact ? "h-3 w-3" : "h-4 w-4"} />
-          {compact ? "Fill-In" : "Add Fill-In Player"}
-        </Button>
-      </DrawerTrigger>
-      <DrawerContent className="px-4 pb-6 max-h-[85vh]">
-        <DrawerHeader className="px-0 pt-2 pb-4">
-          <DrawerTitle className="text-lg">Add Fill-In Player</DrawerTitle>
-        </DrawerHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="fillInName" className="text-sm font-medium">Player Name</Label>
-            <Input
-              id="fillInName"
-              placeholder="Enter player name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoFocus
-              className="h-11"
-            />
-          </div>
-          
-          <div className="space-y-1.5">
-            <Label htmlFor="fillInNumber" className="text-sm font-medium">Jersey Number</Label>
-            <div className="flex gap-2">
+    <>
+      <Button 
+        variant="outline" 
+        size={compact ? "sm" : "default"}
+        className={cn(
+          "gap-1.5",
+          compact && "h-7 text-xs px-2"
+        )}
+        onClick={() => setOpen(true)}
+      >
+        <UserPlus className={compact ? "h-3 w-3" : "h-4 w-4"} />
+        {compact ? "Fill-In" : "Add Fill-In Player"}
+      </Button>
+      <ResponsiveDialog open={open} onOpenChange={setOpen}>
+        <ResponsiveDialogContent className="sm:max-w-md">
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle className="text-lg">Add Fill-In Player</ResponsiveDialogTitle>
+          </ResponsiveDialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 px-4 sm:px-0 pb-4 sm:pb-0">
+            <div className="space-y-1.5">
+              <Label htmlFor="fillInName" className="text-sm font-medium">Player Name</Label>
               <Input
-                id="fillInNumber"
-                type="number"
-                placeholder={`e.g. ${suggestNumber()}`}
-                value={number}
-                onChange={(e) => setNumber(e.target.value)}
-                min={1}
-                max={99}
-                className="w-24 h-11"
+                id="fillInName"
+                placeholder="Enter player name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+                className="h-11"
               />
-              <Button 
-                type="button" 
-                variant="secondary" 
-                size="sm"
-                className="h-11 px-4"
-                onClick={() => setNumber(suggestNumber().toString())}
-              >
-                Auto
-              </Button>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Preferred Positions</Label>
-            <div className="flex gap-2">
-              {POSITIONS.map(pos => (
-                <button
-                  key={pos}
-                  type="button"
-                  onClick={() => togglePosition(pos)}
-                  className={cn(
-                    "flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors border",
-                    selectedPositions.includes(pos) 
-                      ? "bg-primary text-primary-foreground border-primary" 
-                      : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
-                  )}
+            
+            <div className="space-y-1.5">
+              <Label htmlFor="fillInNumber" className="text-sm font-medium">Jersey Number</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="fillInNumber"
+                  type="number"
+                  placeholder={`e.g. ${suggestNumber()}`}
+                  value={number}
+                  onChange={(e) => setNumber(e.target.value)}
+                  min={1}
+                  max={99}
+                  className="w-24 h-11"
+                />
+                <Button 
+                  type="button" 
+                  variant="secondary" 
+                  size="sm"
+                  className="h-11 px-4"
+                  onClick={() => setNumber(suggestNumber().toString())}
                 >
-                  {pos}
-                </button>
-              ))}
+                  Auto
+                </Button>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Defaults to MID if none selected
-            </p>
-          </div>
 
-          <Button 
-            type="submit" 
-            disabled={!name.trim()} 
-            className="w-full h-11 text-base font-medium mt-2"
-          >
-            <UserPlus className="h-4 w-4 mr-2" />
-            Add to Bench
-          </Button>
-        </form>
-      </DrawerContent>
-    </Drawer>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Preferred Positions</Label>
+              <div className="flex gap-2">
+                {POSITIONS.map(pos => (
+                  <button
+                    key={pos}
+                    type="button"
+                    onClick={() => togglePosition(pos)}
+                    className={cn(
+                      "flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors border",
+                      selectedPositions.includes(pos) 
+                        ? "bg-primary text-primary-foreground border-primary" 
+                        : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+                    )}
+                  >
+                    {pos}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Defaults to MID if none selected
+              </p>
+            </div>
+
+            <Button 
+              type="submit" 
+              disabled={!name.trim()} 
+              className="w-full h-11 text-base font-medium mt-2"
+            >
+              <UserPlus className="h-4 w-4 mr-2" />
+              Add to Bench
+            </Button>
+          </form>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
+    </>
   );
 }
