@@ -2790,6 +2790,27 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     benchDragStartTouch.current = null;
   }, [benchDragPlayer, benchDragPos]);
 
+  // Document-level touch listeners for bench drag (so drag works outside the bench container)
+  useEffect(() => {
+    if (!benchDragPlayer) return;
+    const onMove = (e: TouchEvent) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      setBenchDragPos({ x: touch.clientX, y: touch.clientY });
+    };
+    const onEnd = () => {
+      handleBenchLongPressEnd();
+    };
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+    document.addEventListener('touchcancel', onEnd);
+    return () => {
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onEnd);
+    };
+  }, [benchDragPlayer, handleBenchLongPressEnd]);
+
   // Memoize derived player lists to prevent recalculation on every render
   const playersOnPitch = useMemo(() => players.filter(p => p.position !== null), [players]);
   const playersOnBench = useMemo(() => players.filter(p => p.position === null), [players]);
