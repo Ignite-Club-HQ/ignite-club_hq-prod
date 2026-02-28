@@ -262,6 +262,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "subs" | "setup" | "draw">("bench");
   const [sheetHeightPct, setSheetHeightPct] = useState(50);
   const sheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
+  const [portraitSheetOpen, setPortraitSheetOpen] = useState(false);
+  const [portraitSheetHeightPct, setPortraitSheetHeightPct] = useState(45);
+  const portraitSheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
   const [gameInProgress, setGameInProgress] = useState(false); // Track if game has started
   const [showScoreInPortrait, setShowScoreInPortrait] = useState(false); // Toggle score visibility in portrait
   const [hideScores, setHideScores] = useState(false); // Hide scores and disable scoring
@@ -4122,8 +4125,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     );
   }
 
-  // Portrait layout (original)
+  // Portrait layout - bottom sheet pattern (matches landscape UX)
   const isNative = Capacitor.isNativePlatform();
+
   return createPortal(
     <div className={cn("fixed top-0 left-0 right-0 bottom-0 w-screen h-screen bg-background flex flex-col overflow-hidden", isNative && "pt-safe")} style={{ height: '100dvh', zIndex: 99999 }}>
       {/* Linked event header - shows at top when match header is enabled */}
@@ -4162,8 +4166,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         </div>
       )}
       
-      {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
+      {/* Slim Header */}
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border shrink-0 bg-background">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -4174,544 +4178,735 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             View Only
           </Badge>
         )}
+        {!readOnly && (
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setStatsOpen(true)}>
+            <BarChart3 className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
-      {/* Controls */}
-      <div className="border-b border-border bg-muted/30 shrink-0">
-        <div className="px-3 py-2">
-        <PitchToolbar
-            variant="portrait"
-            collapsed={toolbarCollapsed}
-            onToggleCollapse={() => setToolbarCollapsed(!toolbarCollapsed)}
-            teamId={teamId}
-            teamName={teamName}
-            teamSize={teamSize}
-            onTeamSizeChange={handleTeamSizeChange}
-            selectedFormation={selectedFormation}
-            onFormationChange={handleFormationChange}
-            formations={FORMATIONS[teamSize]}
-            gameTimerRef={gameTimerRef}
-            onTimerUpdate={handleTimerUpdate}
-            onHalfChange={handleHalfChange}
-            disableAutoSubs={disableAutoSubs}
-            autoSubActive={autoSubActive}
-            autoSubPaused={autoSubPaused}
-            autoSubPlan={autoSubPlan}
-            onOpenNewPlan={handleOpenNewPlan}
-            onTogglePause={handleTogglePauseAutoSub}
-            onCancelPlan={handleCancelAutoSubPlan}
-            onOpenEditPlan={handleOpenEditPlan}
-            subMode={subMode}
-            onToggleSubMode={toggleSubMode}
-            selectedOnPitch={selectedOnPitch}
-            onOpenSubPreview={() => setSubPreviewOpen(true)}
-            swapMode={swapMode}
-            onToggleSwapMode={toggleSwapMode}
-            canSwap={playersOnPitch.length >= 2}
-            drawingTool={drawingTool}
-            onDrawingToolChange={setDrawingTool}
-            drawingColor={drawingColor}
-            onDrawingColorChange={setDrawingColor}
-            onClearDrawings={clearDrawings}
-            zoom={zoom}
-            onZoomIn={handleZoomIn}
-            onZoomOut={handleZoomOut}
-            onResetZoom={handleResetZoom}
-            onOpenStats={() => setStatsOpen(true)}
-            mockMode={mockMode}
-            onMockModeChange={handleMockModeChange}
-            onOpenPositionEditor={() => setPositionEditorOpen(true)}
-            saveDialogOpen={saveDialogOpen}
-            onSaveDialogOpenChange={setSaveDialogOpen}
-            loadDialogOpen={loadDialogOpen}
-            onLoadDialogOpenChange={setLoadDialogOpen}
-            formationName={formationName}
-            onFormationNameChange={setFormationName}
-            onSaveFormation={handleSaveFormation}
-            savePending={saveFormationMutation.isPending}
-            loadingFormations={loadingFormations}
-            savedFormations={savedFormations}
-            onLoadFormation={loadFormation}
-            onDeleteFormation={(id) => deleteFormationMutation.mutate(id)}
-            players={players}
-            readOnly={readOnly}
-            onResetGame={handleResetGame}
-            onResetFormation={handleResetFormation}
-            onUndo={handleUndo}
-            canUndo={undoHistory.length > 0 && showFloatingUndo}
-            undoDescription={undoHistory.length > 0 ? undoHistory[undoHistory.length - 1].description : undefined}
-            gameInProgress={gameInProgress}
-            minutesPerHalf={minutesPerHalf}
-            onMinutesPerHalfChange={handleMinutesPerHalfChange}
-            rotationSpeed={rotationSpeed}
-            onRotationSpeedChange={handleRotationSpeedChange}
-            disablePositionSwaps={disablePositionSwaps}
-            onDisablePositionSwapsChange={handleDisablePositionSwapsChange}
-            disableBatchSubs={disableBatchSubs}
-            onDisableBatchSubsChange={handleDisableBatchSubsChange}
-            onSaveSettings={handleSaveSettings}
-            isSavingSettings={isSavingSettings}
-            showMatchHeader={showMatchHeader}
-            onShowMatchHeaderChange={setShowMatchHeader}
-            hideScores={hideScores}
-            onHideScoresChange={setHideScores}
-          />
+      {/* Full-screen Pitch Area */}
+      <div className="flex-1 min-h-0 relative overflow-hidden">
+        {/* Floating timer */}
+        <div 
+          className="absolute z-50 cursor-move touch-none select-none"
+          style={{ 
+            left: floatingTimerPosition.x, 
+            top: floatingTimerPosition.y,
+          }}
+          onMouseDown={handleTimerDragStart}
+          onTouchStart={handleTimerTouchStart}
+        >
+          <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+            <GameTimer 
+              ref={gameTimerRef} 
+              compact
+              teamId={teamId} 
+              teamName={teamName} 
+              onTimeUpdate={handleTimerUpdate} 
+              onHalfChange={handleHalfChange} 
+              readOnly={readOnly}
+              hideExtras
+              minutesPerHalf={minutesPerHalf}
+              onMinutesPerHalfChange={handleMinutesPerHalfChange}
+            />
+          </div>
         </div>
-      </div>
 
-      {/* Bench - Above Pitch for easier sub selection */}
-      <Card className={cn("mx-4 mt-2 transition-all shrink-0", benchCollapsed && "cursor-pointer")} onClick={benchCollapsed ? () => setBenchCollapsed(false) : undefined}>
-        <CardHeader className="py-2 px-3">
-          <div className="flex items-center justify-between">
-            <button 
-              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-              onClick={(e) => { e.stopPropagation(); setBenchCollapsed(!benchCollapsed); }}
+        {/* Floating score tracker */}
+        {gameInProgress && !hideScores && !showScoreInPortrait && (
+          <div className="absolute top-2 right-2 z-50">
+            <ScoreTracker
+              goals={goals}
+              onAddGoal={handleAddGoal}
+              onRemoveGoal={handleRemoveGoal}
+              players={players}
+              currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+              elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+              teamName={teamName}
+              opponentName={opponentName}
+              readOnly={readOnly}
+              isGameFinished={gameTimerRef.current?.isGameFinished() || false}
+              miniLeagueTeams={miniLeagueTeams}
+              mini
+            />
+          </div>
+        )}
+
+        {/* Floating undo button */}
+        {!readOnly && showFloatingUndo && undoHistory.length > 0 && (
+          <div className="absolute top-14 left-2 z-50 animate-fade-in">
+            <Button 
+              variant="secondary" 
+              size="sm"
+              onClick={handleUndo}
+              className="shadow-md gap-1.5 opacity-90 hover:opacity-100"
             >
-              <ChevronUp className={cn("h-4 w-4 transition-transform", !benchCollapsed && "rotate-180")} />
-              <CardTitle className="text-sm">Bench ({playersOnBench.length})</CardTitle>
-            </button>
-            {/* Position Filter Chips - only show when expanded */}
-            {!benchCollapsed && (
-              <div className="flex gap-1">
-                {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
-                  const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos)).length;
-                  return (
-                    <button
-                      key={pos}
-                      onClick={() => setBenchPositionFilter(benchPositionFilter === pos ? null : pos)}
-                      className={cn(
-                        "text-[10px] px-1.5 py-0.5 rounded border font-medium transition-colors",
-                        benchPositionFilter === pos 
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
-                      )}
-                    >
-                      {pos} ({count})
-                    </button>
-                  );
-                })}
-                {benchPositionFilter && (
-                  <button
-                    onClick={() => setBenchPositionFilter(null)}
-                    className="text-[10px] px-1.5 py-0.5 rounded border font-medium transition-colors bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/20"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
+              <Undo2 className="h-4 w-4" />
+              Undo
+            </Button>
+          </div>
+        )}
+
+        {/* Floating FABs for Sub/Swap */}
+        {!readOnly && (
+          <div className="absolute bottom-4 left-3 z-50 flex flex-col gap-2 animate-fade-in">
+            {/* Swap Positions FAB */}
+            {playersOnPitch.length >= 2 && !subMode && (
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleSwapMode(); }}
+                className={cn(
+                  "flex items-center gap-2 rounded-full shadow-lg transition-colors px-3 py-2",
+                  swapMode 
+                    ? "bg-accent text-accent-foreground" 
+                    : "bg-muted text-foreground hover:bg-muted/80 border border-border"
                 )}
-                {/* Add Fill-In Player button in portrait mode */}
-                {!readOnly && !subMode && !swapMode && (
-                  <div className="ml-auto">
-                    <Suspense fallback={null}>
-                      <AddFillInPlayerDialog
-                        onAddPlayer={handleAddFillInPlayer}
-                        existingNumbers={existingJerseyNumbers}
-                        compact
-                      />
-                    </Suspense>
-                  </div>
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+                <span className="text-sm font-medium">
+                  {swapMode ? "Cancel" : "Swap"}
+                </span>
+              </button>
+            )}
+
+            {/* Make Sub FAB */}
+            {!swapMode && (
+              <button
+                onClick={() => {
+                  setSubMode(prev => !prev);
+                  setSelectedOnPitch(null);
+                  setSelectedOnBench(null);
+                  if (!subMode) {
+                    setPortraitSheetOpen(true);
+                    setBottomSheetTab("bench");
+                  }
+                }}
+                className={cn(
+                  "flex items-center gap-2 rounded-full shadow-lg transition-colors px-3 py-2",
+                  subMode 
+                    ? "bg-secondary text-secondary-foreground" 
+                    : "bg-primary text-primary-foreground hover:bg-primary/90"
                 )}
-              </div>
+              >
+                <Users className="h-4 w-4" />
+                <span className="text-sm font-medium">
+                  {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
+                </span>
+              </button>
             )}
           </div>
-        </CardHeader>
-        {!benchCollapsed && (
-          <CardContent 
-            id="pitch-bench-portrait-top"
-            className="p-3 pt-0 flex flex-wrap gap-2 min-h-16 touch-none"
-            onDrop={!subMode ? handleBenchDrop : undefined}
-            onDragOver={!subMode ? handleDragOver : undefined}
-            onTouchMove={!subMode ? handleBenchTouchMove : undefined}
-            onTouchEnd={!subMode ? handleBenchTouchEnd : undefined}
-          >
-            {/* Substitution mode tips */}
-            {subMode && !selectedOnPitch && playersOnBench.length > 0 && (
-              <p className="text-[10px] text-primary font-medium w-full mb-1 bg-primary/10 px-2 py-1 rounded">
-                Tap a player on pitch to move to Bench
-              </p>
-            )}
-            {subMode && selectedOnPitch && playersOnBench.length > 0 && getValidBenchPlayerIds.size > 0 && (
-              <p className="text-[10px] text-emerald-600 font-medium w-full mb-1 bg-emerald-500/10 px-2 py-1 rounded">
-                Tap a bench player to move onto Pitch
-              </p>
-            )}
-            {playersOnBench.length === 0 && (
-              <p className="text-xs text-muted-foreground">Drag players here to substitute</p>
-            )}
-            {subMode && selectedOnPitch && getValidBenchPlayerIds.size === 0 && playersOnBench.length > 0 && (
-              <p className="text-[10px] text-muted-foreground w-full mb-1">
-                No players can fill this position
-              </p>
-            )}
-            {subMode && selectedOnPitch && getValidBenchPlayerIds.size > 0 && getValidBenchPlayerIds.size < playersOnBench.length && (
-              <p className="text-[10px] text-amber-500 w-full mb-1">
-                Showing {getValidBenchPlayerIds.size} player{getValidBenchPlayerIds.size !== 1 ? 's' : ''} who can come on
-              </p>
-            )}
-            {!subMode && benchPositionFilter && playersOnBench.length > 0 && !playersOnBench.some(p => p.assignedPositions?.includes(benchPositionFilter)) && (
-              <p className="text-[10px] text-muted-foreground w-full mb-1">
-                Tip: Assign positions via <Settings2 className="inline h-3 w-3" /> to filter
-              </p>
-            )}
-            {playersOnBench
-              .filter(player => {
-                // In sub mode with a pitch player selected, filter to only valid subs
-                if (subMode && selectedOnPitch) {
-                  return getValidBenchPlayerIds.has(player.id);
-                }
-                // Otherwise apply manual position filter
-                // Show player if: no filter, player has the filtered position, or player has no assigned positions
-                return !benchPositionFilter || player.assignedPositions?.includes(benchPositionFilter) || !player.assignedPositions?.length;
-              })
-              .map(player => (
-                <PlayerToken
-                  key={player.id}
-                  player={player}
-                  onDragStart={() => !subMode && !readOnly && handleDragStart(player.id)}
-                  onDragEnd={handleDragEnd}
-                  onTouchStart={(e) => !subMode && !readOnly && handleTouchStart(player.id, e)}
-                  onClick={!readOnly && subMode && !player.isInjured ? () => handlePlayerClick(player.id, false) : undefined}
-                  onInjuryToggle={!subMode && !swapMode ? () => togglePlayerInjury(player.id) : undefined}
-                  onRemoveFillIn={!subMode && !swapMode && player.isFillIn ? () => handleRemoveFillInPlayer(player.id) : undefined}
-                  isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
-                  isSelected={subMode && selectedOnBench === player.id}
-                  isSubTarget={subMode && selectedOnPitch !== null && selectedOnBench !== player.id && !player.isInjured}
-                  subAnimation={subAnimationPlayers.out === player.id ? "out" : null}
-                  variant="bench"
-                  readOnly={readOnly}
-                  teamColor={getPlayerTeamColor(player)}
-                />
-              ))}
-          </CardContent>
         )}
-      </Card>
 
-      {/* Scrollable Content Area */}
-      <div className={cn("flex-1 min-h-0", toolbarCollapsed ? "overflow-hidden" : "overflow-y-auto")}>
-        <div className={cn("p-4 flex flex-col gap-4", toolbarCollapsed ? "pb-4 h-full" : "pb-8")}>
-          {/* Pitch Area with zoom container */}
-          <div 
-            className="relative rounded-lg overflow-hidden w-full transition-all duration-300"
-            style={{
-              height: toolbarCollapsed 
-                ? "100%"
-                : benchCollapsed 
-                  ? "min(calc(100vh - 280px), 75vh)"
-                  : "min(calc(100vh - 420px), 60vh)",
-              minHeight: "250px",
-            }}
-            onWheel={handleWheel}
+        {/* Floating settings button - bottom right to open sheet */}
+        {!portraitSheetOpen && (
+          <button
+            className="absolute bottom-3 right-3 z-50 w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
+            onClick={() => setPortraitSheetOpen(true)}
           >
+            <ChevronUp className="h-5 w-5 text-muted-foreground" />
+          </button>
+        )}
+
+        {/* Swipe-up zone at bottom edge */}
+        {!portraitSheetOpen && (
+          <div
+            className="absolute bottom-0 left-0 right-0 z-[45] flex justify-center items-end pointer-events-auto"
+            style={{ height: 44 }}
+            onTouchStart={(e) => {
+              e.currentTarget.dataset.swipeStartY = String(e.touches[0].clientY);
+            }}
+            onTouchEnd={(e) => {
+              const startY = Number(e.currentTarget.dataset.swipeStartY || 0);
+              if (!startY) return;
+              const deltaY = startY - e.changedTouches[0].clientY;
+              if (deltaY > 30) setPortraitSheetOpen(true);
+            }}
+          >
+            <div className="w-10 h-1 rounded-full bg-foreground/30 mb-1.5" />
+          </div>
+        )}
+
+        {/* Bottom Sheet Overlay */}
+        {portraitSheetOpen && (
+          <div className="absolute inset-0 z-[60] flex flex-col pointer-events-none" style={{ height: '100%' }}>
+            {/* Backdrop */}
             <div 
-              className={cn(
-                "absolute inset-0 origin-center transition-transform duration-100",
-                drawingTool === "none" ? "touch-none" : ""
-              )}
-              onDrop={handlePitchDrop}
-              onDragOver={handleDragOver}
-              onTouchStart={drawingTool === "none" ? handlePitchTouchStart : undefined}
-              onTouchMove={drawingTool === "none" ? handlePitchTouchMove : undefined}
-              onTouchEnd={drawingTool === "none" ? handlePitchTouchEnd : undefined}
-              style={{
-                background: `linear-gradient(to bottom, 
-                  hsl(var(--pitch-green) / 0.85) 0%, 
-                  hsl(var(--pitch-green)) 50%, 
-                  hsl(var(--pitch-green) / 0.85) 100%)`,
-                transform: `scale(${zoom})`,
-              }}
+              className="flex-1 pointer-events-auto"
+              onClick={() => setPortraitSheetOpen(false)}
+            />
+            {/* Sheet */}
+            <div 
+              className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200"
+              style={{ height: `${portraitSheetHeightPct}%` }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
             >
-              {/* Pitch markings */}
-              <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                {/* Outline */}
-                <rect x="2" y="2" width="96" height="96" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
-                {/* Half line */}
-                <line x1="2" y1="50" x2="98" y2="50" stroke="white" strokeWidth="0.3" opacity="0.7" />
-                {/* Center circle */}
-                <circle cx="50" cy="50" r="12" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
-                <circle cx="50" cy="50" r="0.8" fill="white" opacity="0.7" />
-                {/* Top goal area */}
-                <rect x="30" y="2" width="40" height="12" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
-                <rect x="38" y="2" width="24" height="5" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
-                {/* Top penalty arc */}
-                <path d="M 38 14 Q 50 20 62 14" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
-                {/* Bottom goal area */}
-                <rect x="30" y="86" width="40" height="12" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
-                <rect x="38" y="93" width="24" height="5" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
-                {/* Bottom penalty arc */}
-                <path d="M 38 86 Q 50 80 62 86" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
-              </svg>
-
-              {/* Swap mode line connecting two players */}
-              {swapMode && swapPlayer1 && swapPlayer2 && (() => {
-                const p1 = playersOnPitch.find(p => p.id === swapPlayer1);
-                const p2 = playersOnPitch.find(p => p.id === swapPlayer2);
-                if (!p1?.position || !p2?.position) return null;
-                
-                // Calculate midpoints for arrow heads
-                const midX1 = (p1.position.x * 2 + p2.position.x) / 3;
-                const midY1 = (p1.position.y * 2 + p2.position.y) / 3;
-                const midX2 = (p1.position.x + p2.position.x * 2) / 3;
-                const midY2 = (p1.position.y + p2.position.y * 2) / 3;
-                
-                // Calculate angle for arrow rotation
-                const dx = p2.position.x - p1.position.x;
-                const dy = p2.position.y - p1.position.y;
-                const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-                
-                return (
-                  <svg 
-                    className="absolute inset-0 w-full h-full pointer-events-none z-25"
-                    style={{ overflow: 'visible' }}
-                  >
-                    <defs>
-                      <linearGradient id="swapLineGradientPortrait" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#3b82f6" />
-                        <stop offset="50%" stopColor="#f59e0b" />
-                        <stop offset="100%" stopColor="#3b82f6" />
-                      </linearGradient>
-                    </defs>
-                    <line
-                      x1={`${p1.position.x}%`}
-                      y1={`${p1.position.y}%`}
-                      x2={`${p2.position.x}%`}
-                      y2={`${p2.position.y}%`}
-                      stroke="url(#swapLineGradientPortrait)"
-                      strokeWidth="3"
-                      strokeDasharray="8 4"
-                      strokeLinecap="round"
-                      className="animate-pulse"
-                    />
-                    {/* Arrow pointing from p1 to p2 */}
-                    <g transform={`translate(${midX1}%, ${midY1}%)`}>
-                      <polygon 
-                        points="-6,-4 6,0 -6,4" 
-                        fill="#f59e0b"
-                        transform={`rotate(${angle})`}
-                        className="animate-pulse"
-                      />
-                    </g>
-                    {/* Arrow pointing from p2 to p1 */}
-                    <g transform={`translate(${midX2}%, ${midY2}%)`}>
-                      <polygon 
-                        points="-6,-4 6,0 -6,4" 
-                        fill="#f59e0b"
-                        transform={`rotate(${angle + 180})`}
-                        className="animate-pulse"
-                      />
-                    </g>
-                    <circle cx={`${p1.position.x}%`} cy={`${p1.position.y}%`} r="6" fill="#f59e0b" opacity="0.6" />
-                    <circle cx={`${p2.position.x}%`} cy={`${p2.position.y}%`} r="6" fill="#f59e0b" opacity="0.6" />
-                  </svg>
-                );
-              })()}
-
-              {/* Drawing canvas layer - wrapper div for Fabric.js */}
-              <div 
-                ref={!isLandscape ? containerRef : undefined}
-                className="absolute inset-0 w-full h-full"
-                style={{
-                  zIndex: drawingTool !== "none" ? 30 : 5,
-                  pointerEvents: drawingTool !== "none" ? "auto" : "none",
-                  touchAction: "none",
+              {/* Draggable header area - handle + tabs */}
+              <div
+                className="cursor-grab touch-none"
+                onTouchStart={(e) => {
+                  portraitSheetDragRef.current = { startY: e.touches[0].clientY, startPct: portraitSheetHeightPct };
+                }}
+                onTouchMove={(e) => {
+                  if (!portraitSheetDragRef.current) return;
+                  const containerH = window.innerHeight;
+                  const deltaY = portraitSheetDragRef.current.startY - e.touches[0].clientY;
+                  const deltaPct = (deltaY / containerH) * 100;
+                  const newPct = Math.min(85, Math.max(20, portraitSheetDragRef.current.startPct + deltaPct));
+                  setPortraitSheetHeightPct(newPct);
+                }}
+                onTouchEnd={() => {
+                  if (!portraitSheetDragRef.current) return;
+                  if (portraitSheetHeightPct < 25) {
+                    setPortraitSheetOpen(false);
+                    setPortraitSheetHeightPct(45);
+                  } else if (portraitSheetHeightPct < 60) {
+                    setPortraitSheetHeightPct(45);
+                  } else {
+                    setPortraitSheetHeightPct(75);
+                  }
+                  portraitSheetDragRef.current = null;
                 }}
               >
-                <canvas 
-                  ref={!isLandscape ? canvasRef : undefined} 
-                  className="w-full h-full"
-                  style={{ touchAction: "none" }}
-                />
+                {/* Handle bar */}
+                <div className="flex justify-center pt-2 pb-1">
+                  <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+                </div>
+
+                {/* Tabs */}
+                <div className="flex border-b border-border px-2 gap-1">
+                  {(["bench", "subs", "setup", "draw"] as const).map(tab => (
+                    <button
+                      key={tab}
+                      onClick={() => setBottomSheetTab(tab)}
+                      className={cn(
+                        "flex-1 py-2 text-sm font-medium rounded-t-md transition-colors",
+                        bottomSheetTab === tab 
+                          ? "bg-muted text-foreground border-b-2 border-primary" 
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {tab === "bench" ? `Bench (${playersOnBench.length})` : tab === "subs" ? "Subs" : tab === "setup" ? "Setup" : "Draw"}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setPortraitSheetOpen(false)}
+                    className="p-2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
 
-              {/* Ball */}
-              <SoccerBall
-                size={28}
-                isDragging={isDraggingBall}
-                draggable
-                onDragStart={handleBallDragStart}
-                onDrag={handleBallDrag}
-                onDragEnd={handleBallDragEnd}
-                onTouchStart={handleBallTouchStart}
-                onTouchMove={handleBallTouchMove}
-                onTouchEnd={handleBallTouchEnd}
-                readOnly={readOnly}
-                className="absolute"
-                style={{
-                  left: `${ballPosition.x}%`,
-                  top: `${ballPosition.y}%`,
-                  transform: "translate(-50%, -50%)",
-                  zIndex: 40,
-                }}
-              />
-
-              {/* Position Zone Indicators */}
-              {emptyPositionZones.map((zone, idx) => (
-                <div
-                  key={`zone-${idx}`}
-                  className="absolute pointer-events-none"
-                  style={{
-                    left: `${zone.x}%`,
-                    top: `${zone.y}%`,
-                    transform: "translate(-50%, -50%)",
-                    zIndex: 8,
-                  }}
-                >
-                  <div className="relative">
-                    {/* Pulsing ring */}
+              {/* Tab content */}
+              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${portraitSheetHeightPct}vh - 80px)` }}>
+                {/* Bench Tab */}
+                {bottomSheetTab === "bench" && (
+                  <div className="space-y-3">
+                    {/* Position Filter Chips */}
+                    <div className="flex flex-wrap gap-2">
+                      {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
+                        const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos)).length;
+                        return (
+                          <button
+                            key={pos}
+                            onClick={() => setBenchPositionFilter(benchPositionFilter === pos ? null : pos)}
+                            className={cn(
+                              "rounded border font-medium text-xs px-3 py-1.5 transition-colors min-h-[32px]",
+                              benchPositionFilter === pos 
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+                            )}
+                          >
+                            {pos} ({count})
+                          </button>
+                        );
+                      })}
+                      {benchPositionFilter && (
+                        <button
+                          onClick={() => setBenchPositionFilter(null)}
+                          className="rounded border font-medium text-xs px-2 py-1.5 bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/20 min-h-[32px]"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                      {!readOnly && !subMode && !swapMode && (
+                        <div className="ml-auto">
+                          <Suspense fallback={null}>
+                            <AddFillInPlayerDialog
+                              onAddPlayer={handleAddFillInPlayer}
+                              existingNumbers={existingJerseyNumbers}
+                              compact
+                            />
+                          </Suspense>
+                        </div>
+                      )}
+                    </div>
+                    {/* Sub mode tips */}
+                    {subMode && !selectedOnPitch && playersOnBench.length > 0 && (
+                      <p className="text-xs text-primary font-medium bg-primary/10 px-3 py-1.5 rounded">
+                        Tap a player on pitch to sub off
+                      </p>
+                    )}
+                    {subMode && selectedOnPitch && playersOnBench.length > 0 && getValidBenchPlayerIds.size > 0 && (
+                      <p className="text-xs text-emerald-600 font-medium bg-emerald-500/10 px-3 py-1.5 rounded">
+                        Tap a bench player to sub on
+                      </p>
+                    )}
+                    {/* Bench Players - wrap layout for portrait */}
                     <div 
-                      className="absolute inset-0 rounded-full border-2 border-dashed animate-pulse"
-                      style={{
-                        width: 40,
-                        height: 40,
-                        marginLeft: -20,
-                        marginTop: -20,
-                        borderColor: benchPositionFilter === "GK" ? "#eab308" : 
-                                     benchPositionFilter === "DEF" ? "#3b82f6" : 
-                                     benchPositionFilter === "MID" ? "#10b981" : "#ef4444",
-                        opacity: 0.7,
-                      }}
-                    />
-                    {/* Label */}
-                    <span 
-                      className="absolute text-[10px] font-bold opacity-60"
-                      style={{
-                        left: "50%",
-                        top: "50%",
-                        transform: "translate(-50%, -50%)",
-                        color: benchPositionFilter === "GK" ? "#eab308" : 
-                               benchPositionFilter === "DEF" ? "#3b82f6" : 
-                               benchPositionFilter === "MID" ? "#10b981" : "#ef4444",
-                      }}
+                      id="pitch-bench-portrait"
+                      className="flex flex-wrap gap-2 min-h-14"
+                      onDrop={!subMode ? handleBenchDrop : undefined}
+                      onDragOver={!subMode ? handleDragOver : undefined}
                     >
-                      {zone.label}
-                    </span>
+                      {playersOnBench.length === 0 && (
+                        <p className="text-xs text-muted-foreground">Drag players here to substitute</p>
+                      )}
+                      {subMode && selectedOnPitch && getValidBenchPlayerIds.size === 0 && playersOnBench.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          No players can fill this position
+                        </p>
+                      )}
+                      {playersOnBench
+                        .filter(player => {
+                          if (subMode && selectedOnPitch) {
+                            return getValidBenchPlayerIds.has(player.id);
+                          }
+                          return !benchPositionFilter || player.assignedPositions?.includes(benchPositionFilter) || !player.assignedPositions?.length;
+                        })
+                        .map(player => (
+                          <PlayerToken
+                            key={player.id}
+                            player={player}
+                            onDragStart={() => !subMode && !readOnly && handleDragStart(player.id)}
+                            onDragEnd={handleDragEnd}
+                            onClick={!readOnly && subMode && !player.isInjured ? () => handlePlayerClick(player.id, false) : undefined}
+                            onInjuryToggle={!subMode && !swapMode ? () => togglePlayerInjury(player.id) : undefined}
+                            onRemoveFillIn={!subMode && !swapMode && player.isFillIn ? () => handleRemoveFillInPlayer(player.id) : undefined}
+                            isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
+                            isSelected={subMode && selectedOnBench === player.id}
+                            isSubTarget={subMode && selectedOnPitch !== null && selectedOnBench !== player.id && !player.isInjured}
+                            subAnimation={subAnimationPlayers.out === player.id ? "out" : null}
+                            variant="bench"
+                            readOnly={readOnly}
+                            teamColor={getPlayerTeamColor(player)}
+                          />
+                        ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )}
 
-              {/* Players on pitch */}
-              {playersOnPitch.map(player => (
-                <PlayerToken
-                  key={player.id}
-                  player={player}
-                  onDragStart={() => !subMode && !swapMode && !readOnly && handleDragStart(player.id)}
-                  onDragEnd={handleDragEnd}
-                  onTouchStart={(e) => !subMode && !swapMode && !readOnly && handleTouchStart(player.id, e)}
-                  onClick={!readOnly ? () => handlePlayerClick(player.id, true) : undefined}
-                  isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
-                  isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id))}
-                  isSubTarget={subMode && !selectedOnPitch && selectedOnPitch !== player.id}
-                  isInvalidTarget={swapMode && swapPlayer1 !== null && swapPlayer1 !== player.id && !getValidSwapPlayerIds.has(player.id)}
-                  isMovable={movablePitchPlayerIds.has(player.id)}
-                  isPreviewHighlight={previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id}
-                  previewHighlightType={previewSwapPlayers.sourceId === player.id ? "source" : previewSwapPlayers.targetId === player.id ? "target" : null}
-                  subAnimation={subAnimationPlayers.in === player.id ? "in" : null}
-                  readOnly={readOnly}
-                  teamColor={getPlayerTeamColor(player)}
-                  style={{
-                    position: "absolute",
-                    left: `${player.position!.x}%`,
-                    top: `${player.position!.y}%`,
-                    transform: "translate(-50%, -50%)",
-                    transition: draggedPlayer === player.id || touchDragPlayer === player.id ? "none" : "left 0.3s ease-out, top 0.3s ease-out",
-                    zIndex: previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
-                    cursor: readOnly ? "default" : ((subMode || swapMode) ? "pointer" : "grab"),
-                  }}
-                />
-              ))}
+                {/* Subs Tab */}
+                {bottomSheetTab === "subs" && (
+                  <div className="space-y-3">
+                    {!readOnly && (
+                      <>
+                        <Button
+                          variant={subMode ? "default" : "outline"}
+                          className="w-full h-11 text-sm"
+                          onClick={toggleSubMode}
+                        >
+                          <RefreshCw className="h-4 w-4 mr-1.5" />
+                          {subMode ? "Cancel Sub" : "Make Sub"}
+                        </Button>
+                        
+                        {subMode && selectedOnPitch && (
+                          <Button variant="outline" className="w-full h-10 text-xs" onClick={() => setSubPreviewOpen(true)}>
+                            <List className="h-3.5 w-3.5 mr-1.5" />
+                            Sub Options
+                          </Button>
+                        )}
 
-              {/* Preview swap arrow overlay - portrait */}
-              {previewSwapPlayers.sourceId && previewSwapPlayers.targetId && (() => {
-                const sourcePlayer = playersOnPitch.find(p => p.id === previewSwapPlayers.sourceId);
-                const targetPlayer = playersOnPitch.find(p => p.id === previewSwapPlayers.targetId);
-                if (!sourcePlayer?.position || !targetPlayer?.position) return null;
-                
-                const x1 = targetPlayer.position.x;
-                const y1 = targetPlayer.position.y;
-                const x2 = sourcePlayer.position.x;
-                const y2 = sourcePlayer.position.y;
-                
-                return (
-                  <svg 
-                    className="absolute inset-0 w-full h-full pointer-events-none z-20"
-                    style={{ overflow: 'visible' }}
-                  >
-                    <defs>
-                      <marker
-                        id="preview-arrowhead-portrait"
-                        markerWidth="10"
-                        markerHeight="7"
-                        refX="9"
-                        refY="3.5"
-                        orient="auto"
+                        {playersOnPitch.length >= 2 && !subMode && (
+                          <Button
+                            variant={swapMode ? "default" : "outline"}
+                            className="w-full h-11 text-sm"
+                            onClick={toggleSwapMode}
+                          >
+                            <ArrowLeftRight className="h-4 w-4 mr-1.5" />
+                            {swapMode ? "Cancel Swap" : "Swap Positions"}
+                          </Button>
+                        )}
+
+                        {!readOnly && undoHistory.length > 0 && showFloatingUndo && (
+                          <Button variant="outline" className="w-full h-10 text-sm" onClick={handleUndo}>
+                            <Undo2 className="h-4 w-4 mr-1.5" />
+                            Undo Last
+                          </Button>
+                        )}
+
+                        {!disableAutoSubs && !subMode && !swapMode && (
+                          <div className="pt-2 border-t border-border">
+                            {!autoSubActive ? (
+                              <Button 
+                                variant="outline" 
+                                className="w-full h-11 text-sm" 
+                                onClick={handleOpenNewPlan}
+                                disabled={gameInProgress}
+                                title={gameInProgress ? "Can only create plan before game starts" : undefined}
+                              >
+                                <Calendar className="h-4 w-4 mr-1.5" />
+                                Auto-Subs
+                              </Button>
+                            ) : (
+                              <Button variant="destructive" size="sm" className="w-full h-10 text-xs" onClick={handleCancelAutoSubPlan}>
+                                <X className="h-3.5 w-3.5 mr-1" />
+                                Cancel Plan
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Setup Tab */}
+                {bottomSheetTab === "setup" && (
+                  <div className="space-y-3 px-1">
+                    {/* 2-column grid for core settings */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Players</Label>
+                        <Select value={teamSize} onValueChange={(v) => handleTeamSizeChange(v as TeamSize)} disabled={readOnly}>
+                          <SelectTrigger className="h-11 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="z-[99999] bg-popover">
+                            <SelectItem value="3">3-a-side</SelectItem>
+                            <SelectItem value="4">4-a-side</SelectItem>
+                            <SelectItem value="5">5-a-side</SelectItem>
+                            <SelectItem value="7">7-a-side</SelectItem>
+                            <SelectItem value="9">9-a-side</SelectItem>
+                            <SelectItem value="11">11-a-side</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Formation</Label>
+                        <Select value={selectedFormation.toString()} onValueChange={handleFormationChange} disabled={readOnly}>
+                          <SelectTrigger className="h-11 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="z-[99999] bg-popover">
+                            {FORMATIONS[teamSize].map((f, i) => (
+                              <SelectItem key={i} value={i.toString()}>{f.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Action buttons grid */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button variant="outline" className="h-11 text-sm" onClick={() => setStatsOpen(true)}>
+                        <BarChart3 className="h-4 w-4 mr-1.5" />
+                        Stats
+                      </Button>
+                      <Button variant="outline" className="h-11 text-sm" onClick={() => setPositionEditorOpen(true)} disabled={readOnly}>
+                        <Settings2 className="h-4 w-4 mr-1.5" />
+                        Positions
+                      </Button>
+                    </div>
+
+                    {/* Timer */}
+                    <div className="border-t border-border pt-2">
+                      <GameTimer 
+                        ref={gameTimerRef} 
+                        teamId={teamId} 
+                        teamName={teamName} 
+                        onTimeUpdate={handleTimerUpdate} 
+                        onHalfChange={handleHalfChange} 
+                        readOnly={readOnly}
+                        hideSoundToggle
+                        minutesPerHalf={minutesPerHalf}
+                        onMinutesPerHalfChange={handleMinutesPerHalfChange}
+                      />
+                    </div>
+
+                    {/* Reset */}
+                    {!readOnly && (
+                      <div className="border-t border-border pt-2">
+                        <Button variant="outline" className="w-full h-10 text-sm text-destructive" onClick={handleResetGame}>
+                          <RotateCcw className="h-4 w-4 mr-1.5" />
+                          Reset Game
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Draw Tab */}
+                {bottomSheetTab === "draw" && !readOnly && (
+                  <div className="space-y-3">
+                    <div className="flex gap-2">
+                      <Button 
+                        variant={drawingTool === "pen" ? "default" : "outline"} 
+                        size="icon"
+                        className="h-11 w-11"
+                        onClick={() => setDrawingTool(drawingTool === "pen" ? "none" : "pen")}
                       >
-                        <polygon
-                          points="0 0, 10 3.5, 0 7"
-                          fill="#22d3ee"
-                        />
-                      </marker>
-                    </defs>
-                    <line
-                      x1={`${x1}%`}
-                      y1={`${y1}%`}
-                      x2={`${x2}%`}
-                      y2={`${y2}%`}
-                      stroke="#22d3ee"
-                      strokeWidth="3"
-                      strokeDasharray="8 4"
-                      markerEnd="url(#preview-arrowhead-portrait)"
-                      className="animate-pulse"
-                      style={{ 
-                        strokeLinecap: 'round',
-                        filter: 'drop-shadow(0 0 4px rgba(34, 211, 238, 0.6))'
-                      }}
-                    />
-                    <text
-                      x={`${(x1 + x2) / 2}%`}
-                      y={`${(y1 + y2) / 2 - 2}%`}
-                      textAnchor="middle"
-                      className="fill-cyan-400 text-[10px] font-bold"
-                      style={{ 
-                        paintOrder: 'stroke',
-                        stroke: 'rgba(0,0,0,0.8)',
-                        strokeWidth: '3px'
-                      }}
-                    >
-                      → {sourcePlayer.currentPitchPosition}
-                    </text>
-                  </svg>
-                );
-              })()}
-
-              {/* Swap mode instruction banner - portrait */}
-              {swapMode && (
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-blue-500 text-white px-3 py-1.5 rounded-full shadow-lg animate-fade-in">
-                  <p className="text-xs font-medium">
-                    {!swapPlayer1 
-                      ? "Tap first player" 
-                      : "Tap second player"
-                    }
-                  </p>
-                </div>
-              )}
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant={drawingTool === "arrow" ? "default" : "outline"} 
+                        size="icon"
+                        className="h-11 w-11"
+                        onClick={() => setDrawingTool(drawingTool === "arrow" ? "none" : "arrow")}
+                      >
+                        <MoveRight className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="icon" className="h-11 w-11" onClick={clearDrawings}>
+                        <Eraser className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {(drawingTool === "pen" || drawingTool === "arrow") && (
+                      <div className="flex gap-2">
+                        {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
+                          <button
+                            key={color}
+                            className={cn(
+                              "w-9 h-9 rounded-full border-2",
+                              drawingColor === color ? "border-primary ring-2 ring-primary/50" : "border-transparent"
+                            )}
+                            style={{ backgroundColor: color }}
+                            onClick={() => setDrawingColor(color)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+        )}
 
+        {/* Sub mode instruction banner */}
+        {subMode && (
+          <div className={cn(
+            "absolute top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-lg animate-fade-in",
+            "bg-primary text-primary-foreground"
+          )}>
+            <p className="text-sm font-medium">
+              {!selectedOnPitch 
+                ? "Tap player on pitch to sub off" 
+                : "Tap bench player to sub on"
+              }
+            </p>
+          </div>
+        )}
+
+        {/* Swap mode instruction banner */}
+        {swapMode && (
+          <div className={cn(
+            "absolute top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-lg animate-fade-in",
+            swapPlayer1 && getValidSwapPlayerIds.size === 0 
+              ? "bg-destructive text-destructive-foreground" 
+              : "bg-primary text-primary-foreground"
+          )}>
+            <p className="text-sm font-medium">
+              {!swapPlayer1 
+                ? "Tap first player to swap" 
+                : getValidSwapPlayerIds.size === 0
+                  ? "No valid swap targets"
+                  : "Tap second player to swap with"
+              }
+            </p>
+          </div>
+        )}
+
+        {/* The Pitch */}
+        <div 
+          className="w-full h-full"
+          onWheel={handleWheel}
+        >
+          <div 
+            className={cn(
+              "w-full h-full origin-center transition-transform duration-100",
+              drawingTool === "none" ? "touch-none" : ""
+            )}
+            onDrop={handlePitchDrop}
+            onDragOver={handleDragOver}
+            onTouchStart={drawingTool === "none" ? handlePitchTouchStart : undefined}
+            onTouchMove={drawingTool === "none" ? handlePitchTouchMove : undefined}
+            onTouchEnd={drawingTool === "none" ? handlePitchTouchEnd : undefined}
+            style={{
+              background: `linear-gradient(to bottom, 
+                hsl(var(--pitch-green) / 0.85) 0%, 
+                hsl(var(--pitch-green)) 50%, 
+                hsl(var(--pitch-green) / 0.85) 100%)`,
+              transform: `scale(${zoom})`,
+            }}
+          >
+            {/* Pitch markings */}
+            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <rect x="2" y="2" width="96" height="96" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
+              <line x1="2" y1="50" x2="98" y2="50" stroke="white" strokeWidth="0.3" opacity="0.7" />
+              <circle cx="50" cy="50" r="12" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
+              <circle cx="50" cy="50" r="0.8" fill="white" opacity="0.7" />
+              <rect x="30" y="2" width="40" height="12" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
+              <rect x="38" y="2" width="24" height="5" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
+              <path d="M 38 14 Q 50 20 62 14" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
+              <rect x="30" y="86" width="40" height="12" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
+              <rect x="38" y="93" width="24" height="5" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
+              <path d="M 38 86 Q 50 80 62 86" fill="none" stroke="white" strokeWidth="0.3" opacity="0.7" />
+            </svg>
+
+            {/* Swap mode line connecting two players */}
+            {swapMode && swapPlayer1 && swapPlayer2 && (() => {
+              const p1 = playersOnPitch.find(p => p.id === swapPlayer1);
+              const p2 = playersOnPitch.find(p => p.id === swapPlayer2);
+              if (!p1?.position || !p2?.position) return null;
+              const midX1 = (p1.position.x * 2 + p2.position.x) / 3;
+              const midY1 = (p1.position.y * 2 + p2.position.y) / 3;
+              const midX2 = (p1.position.x + p2.position.x * 2) / 3;
+              const midY2 = (p1.position.y + p2.position.y * 2) / 3;
+              const dx = p2.position.x - p1.position.x;
+              const dy = p2.position.y - p1.position.y;
+              const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+              return (
+                <svg className="absolute inset-0 w-full h-full pointer-events-none z-25" style={{ overflow: 'visible' }}>
+                  <defs>
+                    <linearGradient id="swapLineGradientPortrait" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#3b82f6" />
+                      <stop offset="50%" stopColor="#f59e0b" />
+                      <stop offset="100%" stopColor="#3b82f6" />
+                    </linearGradient>
+                  </defs>
+                  <line x1={`${p1.position.x}%`} y1={`${p1.position.y}%`} x2={`${p2.position.x}%`} y2={`${p2.position.y}%`} stroke="url(#swapLineGradientPortrait)" strokeWidth="3" strokeDasharray="8 4" strokeLinecap="round" className="animate-pulse" />
+                  <g transform={`translate(${midX1}%, ${midY1}%)`}><polygon points="-6,-4 6,0 -6,4" fill="#f59e0b" transform={`rotate(${angle})`} className="animate-pulse" /></g>
+                  <g transform={`translate(${midX2}%, ${midY2}%)`}><polygon points="-6,-4 6,0 -6,4" fill="#f59e0b" transform={`rotate(${angle + 180})`} className="animate-pulse" /></g>
+                  <circle cx={`${p1.position.x}%`} cy={`${p1.position.y}%`} r="6" fill="#f59e0b" opacity="0.6" />
+                  <circle cx={`${p2.position.x}%`} cy={`${p2.position.y}%`} r="6" fill="#f59e0b" opacity="0.6" />
+                </svg>
+              );
+            })()}
+
+            {/* Drawing canvas layer */}
+            <div 
+              ref={!isLandscape ? containerRef : undefined}
+              className="absolute inset-0 w-full h-full"
+              style={{
+                zIndex: drawingTool !== "none" ? 30 : 5,
+                pointerEvents: drawingTool !== "none" ? "auto" : "none",
+                touchAction: "none",
+              }}
+            >
+              <canvas ref={!isLandscape ? canvasRef : undefined} className="w-full h-full" style={{ touchAction: "none" }} />
+            </div>
+
+            {/* Ball */}
+            <SoccerBall
+              size={28}
+              isDragging={isDraggingBall}
+              draggable
+              onDragStart={handleBallDragStart}
+              onDrag={handleBallDrag}
+              onDragEnd={handleBallDragEnd}
+              onTouchStart={handleBallTouchStart}
+              onTouchMove={handleBallTouchMove}
+              onTouchEnd={handleBallTouchEnd}
+              readOnly={readOnly}
+              className="absolute"
+              style={{
+                left: `${ballPosition.x}%`,
+                top: `${ballPosition.y}%`,
+                transform: "translate(-50%, -50%)",
+                zIndex: 40,
+              }}
+            />
+
+            {/* Position Zone Indicators */}
+            {emptyPositionZones.map((zone, idx) => (
+              <div
+                key={`zone-${idx}`}
+                className="absolute pointer-events-none"
+                style={{
+                  left: `${zone.x}%`,
+                  top: `${zone.y}%`,
+                  transform: "translate(-50%, -50%)",
+                  zIndex: 8,
+                }}
+              >
+                <div className="relative">
+                  <div 
+                    className="absolute inset-0 rounded-full border-2 border-dashed animate-pulse"
+                    style={{
+                      width: 40, height: 40, marginLeft: -20, marginTop: -20,
+                      borderColor: benchPositionFilter === "GK" ? "#eab308" : benchPositionFilter === "DEF" ? "#3b82f6" : benchPositionFilter === "MID" ? "#10b981" : "#ef4444",
+                      opacity: 0.7,
+                    }}
+                  />
+                  <span 
+                    className="absolute text-[10px] font-bold opacity-60"
+                    style={{
+                      left: "50%", top: "50%", transform: "translate(-50%, -50%)",
+                      color: benchPositionFilter === "GK" ? "#eab308" : benchPositionFilter === "DEF" ? "#3b82f6" : benchPositionFilter === "MID" ? "#10b981" : "#ef4444",
+                    }}
+                  >
+                    {zone.label}
+                  </span>
+                </div>
+              </div>
+            ))}
+
+            {/* Players on pitch */}
+            {playersOnPitch.map(player => (
+              <PlayerToken
+                key={player.id}
+                player={player}
+                onDragStart={() => !subMode && !swapMode && !readOnly && handleDragStart(player.id)}
+                onDragEnd={handleDragEnd}
+                onTouchStart={(e) => !subMode && !swapMode && !readOnly && handleTouchStart(player.id, e)}
+                onClick={!readOnly ? () => handlePlayerClick(player.id, true) : undefined}
+                isDragging={draggedPlayer === player.id || touchDragPlayer === player.id}
+                isSelected={(subMode && selectedOnPitch === player.id) || (swapMode && (swapPlayer1 === player.id || swapPlayer2 === player.id))}
+                isSubTarget={subMode && !selectedOnPitch && selectedOnPitch !== player.id}
+                isInvalidTarget={swapMode && swapPlayer1 !== null && swapPlayer1 !== player.id && !getValidSwapPlayerIds.has(player.id)}
+                isMovable={movablePitchPlayerIds.has(player.id)}
+                isPreviewHighlight={previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id}
+                previewHighlightType={previewSwapPlayers.sourceId === player.id ? "source" : previewSwapPlayers.targetId === player.id ? "target" : null}
+                subAnimation={subAnimationPlayers.in === player.id ? "in" : null}
+                readOnly={readOnly}
+                teamColor={getPlayerTeamColor(player)}
+                style={{
+                  position: "absolute",
+                  left: `${player.position!.x}%`,
+                  top: `${player.position!.y}%`,
+                  transform: "translate(-50%, -50%)",
+                  transition: draggedPlayer === player.id || touchDragPlayer === player.id ? "none" : "left 0.3s ease-out, top 0.3s ease-out",
+                  zIndex: previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
+                  cursor: readOnly ? "default" : ((subMode || swapMode) ? "pointer" : "grab"),
+                }}
+              />
+            ))}
+
+            {/* Preview swap arrow overlay */}
+            {previewSwapPlayers.sourceId && previewSwapPlayers.targetId && (() => {
+              const sourcePlayer = playersOnPitch.find(p => p.id === previewSwapPlayers.sourceId);
+              const targetPlayer = playersOnPitch.find(p => p.id === previewSwapPlayers.targetId);
+              if (!sourcePlayer?.position || !targetPlayer?.position) return null;
+              const x1 = targetPlayer.position.x, y1 = targetPlayer.position.y;
+              const x2 = sourcePlayer.position.x, y2 = sourcePlayer.position.y;
+              return (
+                <svg className="absolute inset-0 w-full h-full pointer-events-none z-20" style={{ overflow: 'visible' }}>
+                  <defs>
+                    <marker id="preview-arrowhead-portrait" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                      <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+                    </marker>
+                  </defs>
+                  <line x1={`${x1}%`} y1={`${y1}%`} x2={`${x2}%`} y2={`${y2}%`} stroke="#22d3ee" strokeWidth="3" strokeDasharray="8 4" markerEnd="url(#preview-arrowhead-portrait)" className="animate-pulse" style={{ strokeLinecap: 'round', filter: 'drop-shadow(0 0 4px rgba(34, 211, 238, 0.6))' }} />
+                  <text x={`${(x1 + x2) / 2}%`} y={`${(y1 + y2) / 2 - 2}%`} textAnchor="middle" className="fill-cyan-400 text-[10px] font-bold" style={{ paintOrder: 'stroke', stroke: 'rgba(0,0,0,0.8)', strokeWidth: '3px' }}>
+                    → {sourcePlayer.currentPitchPosition}
+                  </text>
+                </svg>
+              );
+            })()}
+          </div>
         </div>
       </div>
-
-      {/* Swap Positions Button - Always visible below pitch (hidden in view mode) */}
-      {!readOnly && playersOnPitch.length >= 2 && (
-        <div className={cn("flex justify-center py-2 px-4 shrink-0", isNative && "pb-safe")}>
-          <Button
-            variant={swapMode ? "default" : "outline"}
-            size="sm"
-            className={cn(swapMode && "bg-blue-500 hover:bg-blue-400")}
-            onClick={toggleSwapMode}
-          >
-            <ArrowLeftRight className="h-4 w-4 mr-2" />
-            {swapMode ? "Cancel Swap" : "Swap Positions"}
-          </Button>
-        </div>
-      )}
       {/* Position Editor Dialog */}
       <PlayerPositionEditor
         open={positionEditorOpen}
