@@ -4255,7 +4255,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
         {/* Floating FABs for Sub/Swap */}
         {!readOnly && (
-          <div className="absolute bottom-4 left-3 z-50 flex flex-col gap-2 animate-fade-in">
+          <div className="absolute left-3 z-[63] flex flex-col gap-2 animate-fade-in"
+            style={{ bottom: subMode || swapMode ? 56 : 16 }}
+          >
             {/* Swap Positions FAB */}
             {playersOnPitch.length >= 2 && !subMode && (
               <button
