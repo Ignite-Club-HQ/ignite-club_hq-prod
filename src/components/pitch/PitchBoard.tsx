@@ -3692,17 +3692,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {toolbarCollapsed && (
           <div
             className="absolute bottom-0 left-0 right-0 z-[45] flex justify-center items-end pointer-events-auto"
-            style={{ height: 44 }}
+            style={{ height: 56 }}
             onTouchStart={(e) => {
-              const startY = e.touches[0].clientY;
               const el = e.currentTarget;
-              el.dataset.swipeStartY = String(startY);
+              el.dataset.swipeStartY = String(e.touches[0].clientY);
+              el.dataset.swipeStartT = String(Date.now());
             }}
             onTouchEnd={(e) => {
               const startY = Number(e.currentTarget.dataset.swipeStartY || 0);
+              const startT = Number(e.currentTarget.dataset.swipeStartT || 0);
               if (!startY) return;
               const deltaY = startY - e.changedTouches[0].clientY;
-              if (deltaY > 30) setToolbarCollapsed(false);
+              const elapsed = Date.now() - startT;
+              const velocity = deltaY / Math.max(elapsed, 1);
+              // Open on fast flick (velocity > 0.3px/ms) or sufficient distance (>20px)
+              if (deltaY > 20 || velocity > 0.3) setToolbarCollapsed(false);
             }}
           >
             <div className="w-10 h-1 rounded-full bg-foreground/30 mb-1.5" />
@@ -3738,18 +3742,29 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 className="cursor-grab touch-none"
                 onTouchStart={(e) => {
                   sheetDragRef.current = { startY: e.touches[0].clientY, startPct: sheetHeightPct };
+                  e.currentTarget.dataset.dragStartT = String(Date.now());
                 }}
                 onTouchMove={(e) => {
                   if (!sheetDragRef.current) return;
                   const containerH = window.innerHeight;
                   const deltaY = sheetDragRef.current.startY - e.touches[0].clientY;
                   const deltaPct = (deltaY / containerH) * 100;
-                  const newPct = Math.min(90, Math.max(20, sheetDragRef.current.startPct + deltaPct));
+                  const newPct = Math.min(90, Math.max(15, sheetDragRef.current.startPct + deltaPct));
                   setSheetHeightPct(newPct);
                 }}
-                onTouchEnd={() => {
+                onTouchEnd={(e) => {
                   if (!sheetDragRef.current) return;
-                  if (sheetHeightPct < 25) {
+                  const elapsed = Date.now() - Number(e.currentTarget.dataset.dragStartT || 0);
+                  const deltaY = sheetDragRef.current.startY - e.changedTouches[0].clientY;
+                  const velocity = deltaY / Math.max(elapsed, 1);
+                  // Fast downward flick → collapse
+                  if (velocity < -0.4) {
+                    setToolbarCollapsed(true);
+                    setSheetHeightPct(50);
+                  } else if (velocity > 0.4) {
+                    // Fast upward flick → expand
+                    setSheetHeightPct(82);
+                  } else if (sheetHeightPct < 25) {
                     setToolbarCollapsed(true);
                     setSheetHeightPct(50);
                   } else if (sheetHeightPct < 65) {
@@ -4432,15 +4447,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {!portraitSheetOpen && (
           <div
             className="absolute bottom-0 left-0 right-0 z-[45] flex justify-center items-end pointer-events-auto"
-            style={{ height: 44 }}
+            style={{ height: 56 }}
             onTouchStart={(e) => {
               e.currentTarget.dataset.swipeStartY = String(e.touches[0].clientY);
+              e.currentTarget.dataset.swipeStartT = String(Date.now());
             }}
             onTouchEnd={(e) => {
               const startY = Number(e.currentTarget.dataset.swipeStartY || 0);
+              const startT = Number(e.currentTarget.dataset.swipeStartT || 0);
               if (!startY) return;
               const deltaY = startY - e.changedTouches[0].clientY;
-              if (deltaY > 30) setPortraitSheetOpen(true);
+              const elapsed = Date.now() - startT;
+              const velocity = deltaY / Math.max(elapsed, 1);
+              if (deltaY > 20 || velocity > 0.3) setPortraitSheetOpen(true);
             }}
           >
             <div className="w-10 h-1 rounded-full bg-foreground/30 mb-1.5" />
@@ -4468,18 +4487,29 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 className="cursor-grab touch-none"
                 onTouchStart={(e) => {
                   portraitSheetDragRef.current = { startY: e.touches[0].clientY, startPct: portraitSheetHeightPct };
+                  e.currentTarget.dataset.dragStartT = String(Date.now());
                 }}
                 onTouchMove={(e) => {
                   if (!portraitSheetDragRef.current) return;
                   const containerH = window.innerHeight;
                   const deltaY = portraitSheetDragRef.current.startY - e.touches[0].clientY;
                   const deltaPct = (deltaY / containerH) * 100;
-                  const newPct = Math.min(85, Math.max(20, portraitSheetDragRef.current.startPct + deltaPct));
+                  const newPct = Math.min(85, Math.max(15, portraitSheetDragRef.current.startPct + deltaPct));
                   setPortraitSheetHeightPct(newPct);
                 }}
-                onTouchEnd={() => {
+                onTouchEnd={(e) => {
                   if (!portraitSheetDragRef.current) return;
-                  if (portraitSheetHeightPct < 25) {
+                  const elapsed = Date.now() - Number(e.currentTarget.dataset.dragStartT || 0);
+                  const deltaY = portraitSheetDragRef.current.startY - e.changedTouches[0].clientY;
+                  const velocity = deltaY / Math.max(elapsed, 1);
+                  // Fast downward flick → close
+                  if (velocity < -0.4) {
+                    setPortraitSheetOpen(false);
+                    setPortraitSheetHeightPct(45);
+                  } else if (velocity > 0.4) {
+                    // Fast upward flick → expand
+                    setPortraitSheetHeightPct(75);
+                  } else if (portraitSheetHeightPct < 25) {
                     setPortraitSheetOpen(false);
                     setPortraitSheetHeightPct(45);
                   } else if (portraitSheetHeightPct < 60) {
