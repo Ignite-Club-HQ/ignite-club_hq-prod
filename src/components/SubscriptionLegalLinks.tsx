@@ -36,11 +36,15 @@ export function SubscriptionLegalLinks({ showRestorePurchases = true }: Subscrip
       });
     } catch (err: any) {
       console.error("[RestorePurchases]", err);
-      toast({
-        title: "Restore Failed",
-        description: err?.message || "Could not restore purchases. Please try again.",
-        variant: "destructive",
-      });
+      const msg = (err?.message || "").toLowerCase();
+      const isCancellation = msg.includes("cancel") || msg.includes("not purchased") || msg.includes("payment not completed") || msg.includes("user cancelled");
+      if (!isCancellation) {
+        toast({
+          title: "Restore Failed",
+          description: err?.message || "Could not restore purchases. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsRestoring(false);
     }
