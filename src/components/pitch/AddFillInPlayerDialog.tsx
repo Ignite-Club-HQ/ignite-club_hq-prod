@@ -1,18 +1,18 @@
 import { useState } from "react";
 import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { PitchPosition } from "./PositionBadge";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 
 interface AddFillInPlayerDialogProps {
   onAddPlayer: (player: { name: string; number?: number; positions: PitchPosition[] }) => void;
@@ -43,7 +43,6 @@ export default function AddFillInPlayerDialog({
       positions: selectedPositions.length > 0 ? selectedPositions : ["MID"],
     });
 
-    // Reset form
     setName("");
     setNumber("");
     setSelectedPositions([]);
@@ -66,8 +65,8 @@ export default function AddFillInPlayerDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger asChild>
         <Button 
           variant="outline" 
           size={compact ? "sm" : "default"}
@@ -79,25 +78,26 @@ export default function AddFillInPlayerDialog({
           <UserPlus className={compact ? "h-3 w-3" : "h-4 w-4"} />
           {compact ? "Fill-In" : "Add Fill-In Player"}
         </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Add Fill-In Player</DialogTitle>
-        </DialogHeader>
+      </DrawerTrigger>
+      <DrawerContent className="px-4 pb-6">
+        <DrawerHeader className="px-0 pt-2 pb-4">
+          <DrawerTitle className="text-lg">Add Fill-In Player</DrawerTitle>
+        </DrawerHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="fillInName">Player Name *</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="fillInName" className="text-sm font-medium">Player Name</Label>
             <Input
               id="fillInName"
               placeholder="Enter player name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               autoFocus
+              className="h-11"
             />
           </div>
           
-          <div className="space-y-2">
-            <Label htmlFor="fillInNumber">Jersey Number</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="fillInNumber" className="text-sm font-medium">Jersey Number</Label>
             <div className="flex gap-2">
               <Input
                 id="fillInNumber"
@@ -107,12 +107,13 @@ export default function AddFillInPlayerDialog({
                 onChange={(e) => setNumber(e.target.value)}
                 min={1}
                 max={99}
-                className="w-24"
+                className="w-24 h-11"
               />
               <Button 
                 type="button" 
-                variant="outline" 
+                variant="secondary" 
                 size="sm"
+                className="h-11 px-4"
                 onClick={() => setNumber(suggestNumber().toString())}
               >
                 Auto
@@ -121,39 +122,39 @@ export default function AddFillInPlayerDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Preferred Positions</Label>
-            <div className="flex flex-wrap gap-2">
+            <Label className="text-sm font-medium">Preferred Positions</Label>
+            <div className="flex gap-2">
               {POSITIONS.map(pos => (
-                <Badge
+                <button
                   key={pos}
-                  variant={selectedPositions.includes(pos) ? "default" : "outline"}
-                  className={cn(
-                    "cursor-pointer transition-colors",
-                    selectedPositions.includes(pos) 
-                      ? "bg-primary hover:bg-primary/90" 
-                      : "hover:bg-muted"
-                  )}
+                  type="button"
                   onClick={() => togglePosition(pos)}
+                  className={cn(
+                    "flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors border",
+                    selectedPositions.includes(pos) 
+                      ? "bg-primary text-primary-foreground border-primary" 
+                      : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+                  )}
                 >
                   {pos}
-                </Badge>
+                </button>
               ))}
             </div>
             <p className="text-xs text-muted-foreground">
-              Select positions this player can play. Defaults to MID if none selected.
+              Defaults to MID if none selected
             </p>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!name.trim()}>
-              Add to Bench
-            </Button>
-          </div>
+          <Button 
+            type="submit" 
+            disabled={!name.trim()} 
+            className="w-full h-11 text-base font-medium mt-2"
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add to Bench
+          </Button>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   );
 }
