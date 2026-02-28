@@ -96,17 +96,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     setUploading(true);
     console.log("[ChatImageInput] handleNativePhotoPick START");
     try {
-      // Only request Photos access on iOS gallery flows (never camera permission)
-      let permissions = await Camera.checkPermissions();
-      console.log("[ChatImageInput] permissions.photos (pre-check):", permissions.photos);
-      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
-        permissions = await Camera.requestPermissions({ permissions: ["photos"] });
-        console.log("[ChatImageInput] permissions.photos (after request):", permissions.photos);
-      }
-      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
-        throw new Error("Photo library access denied. Please allow Photos access in Settings.");
-      }
-
+      // Let Camera.getPhoto handle permissions natively on iOS to preserve
+      // the gesture-chain context. Explicit checkPermissions/requestPermissions
+      // before getPhoto breaks the gesture on first attempt.
       console.log("[ChatImageInput] calling getPhoto (Base64 mode, single attempt)...");
       const photo = await Camera.getPhoto({
         resultType: CameraResultType.Base64,
