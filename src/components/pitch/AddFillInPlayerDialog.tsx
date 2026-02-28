@@ -65,7 +65,7 @@ export default function AddFillInPlayerDialog({
   };
 
   return (
-    <Drawer open={open} onOpenChange={setOpen} snapPoints={[0.55, 0.85]}>
+    <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>
         <Button 
           variant="outline" 
@@ -79,7 +79,7 @@ export default function AddFillInPlayerDialog({
           {compact ? "Fill-In" : "Add Fill-In Player"}
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="px-4 pb-6">
+      <DrawerContent className="px-4 pb-6 max-h-[85vh]">
         <DrawerHeader className="px-0 pt-2 pb-4">
           <DrawerTitle className="text-lg">Add Fill-In Player</DrawerTitle>
         </DrawerHeader>
