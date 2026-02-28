@@ -173,40 +173,6 @@ const PlayerToken = memo(function PlayerToken({
             <span className="text-[10px]">✕</span>
           </button>
         )}
-        {onInjuryToggle && !readOnly && !player.isFillIn && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onInjuryToggle();
-            }}
-            className={cn(
-              "ml-auto p-1 rounded-full transition-colors",
-              player.isInjured 
-                ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-500" 
-                : "bg-destructive/10 hover:bg-destructive/20 text-destructive"
-            )}
-            title={player.isInjured ? "Mark as fit" : "Mark as injured"}
-          >
-            <span className="text-[10px]">{player.isInjured ? "✓" : "🏥"}</span>
-          </button>
-        )}
-        {onInjuryToggle && !readOnly && player.isFillIn && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onInjuryToggle();
-            }}
-            className={cn(
-              "p-1 rounded-full transition-colors",
-              player.isInjured 
-                ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-500" 
-                : "bg-destructive/10 hover:bg-destructive/20 text-destructive"
-            )}
-            title={player.isInjured ? "Mark as fit" : "Mark as injured"}
-          >
-            <span className="text-[10px]">{player.isInjured ? "✓" : "🏥"}</span>
-          </button>
-        )}
       </div>
     );
   }
