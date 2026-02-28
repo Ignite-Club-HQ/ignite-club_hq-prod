@@ -4000,43 +4000,44 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Bench Tab */}
                 {bottomSheetTab === "bench" && (
                   <div className="space-y-3">
-                    {/* Position Filter Chips */}
-                    <div className="flex flex-wrap gap-2">
-                      {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
-                        const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos)).length;
-                        return (
+                    {/* Position Filter Chips + Fill-In */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1.5 flex-1 min-w-0">
+                        {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
+                          const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos)).length;
+                          const totalCount = players.filter(p => p.assignedPositions?.includes(pos)).length;
+                          return (
+                            <button
+                              key={pos}
+                              onClick={() => setBenchPositionFilter(benchPositionFilter === pos ? null : pos)}
+                              className={cn(
+                                "rounded border font-medium text-xs px-2.5 py-1.5 transition-colors whitespace-nowrap",
+                                benchPositionFilter === pos 
+                                  ? "bg-primary text-primary-foreground border-primary"
+                                  : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+                              )}
+                            >
+                              {pos} ({count})
+                            </button>
+                          );
+                        })}
+                        {benchPositionFilter && (
                           <button
-                            key={pos}
-                            onClick={() => setBenchPositionFilter(benchPositionFilter === pos ? null : pos)}
-                            className={cn(
-                              "rounded border font-medium text-xs px-3 py-1.5 transition-colors",
-                              benchPositionFilter === pos 
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
-                            )}
+                            onClick={() => setBenchPositionFilter(null)}
+                            className="rounded border font-medium text-xs px-2 py-1.5 bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/20"
                           >
-                            {pos} ({count})
+                            <X className="h-4 w-4" />
                           </button>
-                        );
-                      })}
-                      {benchPositionFilter && (
-                        <button
-                          onClick={() => setBenchPositionFilter(null)}
-                          className="rounded border font-medium text-xs px-2 py-1.5 bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/20"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
+                        )}
+                      </div>
                       {!readOnly && !subMode && !swapMode && (
-                        <div className="ml-auto">
-                          <Suspense fallback={null}>
-                            <AddFillInPlayerDialog
-                              onAddPlayer={handleAddFillInPlayer}
-                              existingNumbers={existingJerseyNumbers}
-                              compact
-                            />
-                          </Suspense>
-                        </div>
+                        <Suspense fallback={null}>
+                          <AddFillInPlayerDialog
+                            onAddPlayer={handleAddFillInPlayer}
+                            existingNumbers={existingJerseyNumbers}
+                            compact
+                          />
+                        </Suspense>
                       )}
                     </div>
                     {/* Bench Players - horizontal scroll */}
@@ -4829,43 +4830,43 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Bench Tab */}
                 {bottomSheetTab === "bench" && (
                   <div className="space-y-3">
-                    {/* Position Filter Chips */}
-                    <div className="flex flex-wrap gap-2">
-                      {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
-                        const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos)).length;
-                        return (
+                    {/* Position Filter Chips + Fill-In */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1.5 flex-1 min-w-0">
+                        {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
+                          const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos)).length;
+                          return (
+                            <button
+                              key={pos}
+                              onClick={() => setBenchPositionFilter(benchPositionFilter === pos ? null : pos)}
+                              className={cn(
+                                "rounded border font-medium text-xs px-2.5 py-1.5 transition-colors whitespace-nowrap min-h-[32px]",
+                                benchPositionFilter === pos 
+                                  ? "bg-primary text-primary-foreground border-primary"
+                                  : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+                              )}
+                            >
+                              {pos} ({count})
+                            </button>
+                          );
+                        })}
+                        {benchPositionFilter && (
                           <button
-                            key={pos}
-                            onClick={() => setBenchPositionFilter(benchPositionFilter === pos ? null : pos)}
-                            className={cn(
-                              "rounded border font-medium text-xs px-3 py-1.5 transition-colors min-h-[32px]",
-                              benchPositionFilter === pos 
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
-                            )}
+                            onClick={() => setBenchPositionFilter(null)}
+                            className="rounded border font-medium text-xs px-2 py-1.5 bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/20 min-h-[32px]"
                           >
-                            {pos} ({count})
+                            <X className="h-4 w-4" />
                           </button>
-                        );
-                      })}
-                      {benchPositionFilter && (
-                        <button
-                          onClick={() => setBenchPositionFilter(null)}
-                          className="rounded border font-medium text-xs px-2 py-1.5 bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/20 min-h-[32px]"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
+                        )}
+                      </div>
                       {!readOnly && !subMode && !swapMode && (
-                        <div className="ml-auto">
-                          <Suspense fallback={null}>
-                            <AddFillInPlayerDialog
-                              onAddPlayer={handleAddFillInPlayer}
-                              existingNumbers={existingJerseyNumbers}
-                              compact
-                            />
-                          </Suspense>
-                        </div>
+                        <Suspense fallback={null}>
+                          <AddFillInPlayerDialog
+                            onAddPlayer={handleAddFillInPlayer}
+                            existingNumbers={existingJerseyNumbers}
+                            compact
+                          />
+                        </Suspense>
                       )}
                     </div>
                     {/* Sub mode tips */}
