@@ -35,6 +35,7 @@ const ManualSubConfirmDialog = lazy(() => import("./ManualSubConfirmDialog"));
 const FormationChangeDialog = lazy(() => import("./FormationChangeDialog"));
 const SubConfirmDialog = lazy(() => import("./SubConfirmDialog"));
 const AddFillInPlayerDialog = lazy(() => import("./AddFillInPlayerDialog"));
+const AutoSubManager = lazy(() => import("./AutoSubManager"));
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -254,6 +255,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [autoSubPlan, setAutoSubPlan] = useState<SubstitutionEvent[]>(() => savedState?.autoSubPlan || []);
   const [autoSubActive, setAutoSubActive] = useState(() => savedState?.autoSubActive || false);
   const [autoSubPaused, setAutoSubPaused] = useState(() => savedState?.autoSubPaused || false);
+  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
   const [linkedEventId, setLinkedEventId] = useState<string | null>(() => savedState?.linkedEventId || initialLinkedEventId || null);
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
@@ -2143,6 +2145,91 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     });
   }, [toast]);
 
+  const handleToggleLockPlayer = useCallback((playerId: string) => {
+    setLockedPlayerIds(prev => {
+      const next = new Set(prev);
+      if (next.has(playerId)) {
+        next.delete(playerId);
+      } else {
+        next.add(playerId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSkipNextSub = useCallback(() => {
+    const remainingSubs = autoSubPlan.filter(s => !s.executed);
+    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
+    const half = gameTimerRef.current?.getCurrentHalf() || 1;
+    const nextSub = remainingSubs.find(s => s.half === half && s.time >= currentElapsed)
+      || remainingSubs.find(s => s.half > half)
+      || remainingSubs[0];
+    if (!nextSub) return;
+
+    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
+    const halfDurationSeconds = minsPerHalf * 60;
+    const benchPlayers = players.filter(p => p.position === null);
+
+    if (benchPlayers.length > 0) {
+      const recalculated = recalculateRemainingPlan(
+        players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, nextSub
+      );
+      setAutoSubPlan(recalculated);
+      toast({ title: "Substitution skipped", description: `Plan recalculated with ${recalculated.length} remaining subs` });
+    } else {
+      setAutoSubPlan(prev => prev.filter(s => s !== nextSub));
+      toast({ title: "Substitution skipped" });
+    }
+  }, [autoSubPlan, players, teamSize, toast]);
+
+  const handleExecuteNow = useCallback(() => {
+    const remainingSubs = autoSubPlan.filter(s => !s.executed);
+    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
+    const half = gameTimerRef.current?.getCurrentHalf() || 1;
+    const nextSub = remainingSubs.find(s => s.half === half && s.time >= currentElapsed)
+      || remainingSubs.find(s => s.half > half)
+      || remainingSubs[0];
+    if (!nextSub) return;
+
+    // Find batch subs at same time
+    const batchSubs = remainingSubs.filter(s => s.half === nextSub.half && s.time === nextSub.time && s !== nextSub);
+
+    setPendingAutoSub(nextSub);
+    setPendingBatchSubs(batchSubs);
+    setSubConfirmDialogOpen(true);
+
+    const playerOutName = nextSub.playerOut.name || `#${nextSub.playerOut.number}`;
+    const playerInName = nextSub.playerIn.name || `#${nextSub.playerIn.number}`;
+    const msg = batchSubs.length > 0
+      ? `Time for ${batchSubs.length + 1} substitutions`
+      : `Execute now: ${playerOutName} ➜ ${playerInName}`;
+    if (isSoundEnabled(teamId)) {
+      playSubAlertBeep(msg);
+    }
+  }, [autoSubPlan, teamId]);
+
+  const handleRegeneratePlan = useCallback(() => {
+    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
+    const half = gameTimerRef.current?.getCurrentHalf() || 1;
+    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
+    const halfDurationSeconds = minsPerHalf * 60;
+
+    // Create a dummy "skipped" sub to trigger recalculation
+    const dummySub: SubstitutionEvent = {
+      time: currentElapsed,
+      half,
+      playerOut: players[0],
+      playerIn: players[0],
+      executed: true,
+    };
+
+    const recalculated = recalculateRemainingPlan(
+      players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, dummySub
+    );
+    setAutoSubPlan(recalculated);
+    toast({ title: "Plan regenerated", description: `${recalculated.length} substitutions scheduled` });
+  }, [players, teamSize, toast]);
+
   // Track last update time for minutes played calculation
   const lastTimeUpdateRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
   const hasInitializedTimeRef = useRef(false);
@@ -2181,12 +2268,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Don't trigger subs if paused
     if (!autoSubActive || autoSubPlan.length === 0 || autoSubPaused) return;
     
-    // Find all unexecuted subs for current half that are due
+    // Find all unexecuted subs for current half that are due (skip locked players)
     const dueSubs = autoSubPlan.filter(sub => 
       !sub.executed && 
       sub.half === currentHalf && 
       elapsedSeconds >= sub.time &&
-      !pendingAutoSub
+      !pendingAutoSub &&
+      !lockedPlayerIds.has(sub.playerOut.id)
     );
     
     if (dueSubs.length > 0) {
@@ -2212,7 +2300,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       setPendingBatchSubs(additionalSubs);
       setSubConfirmDialogOpen(true);
     }
-  }, [autoSubActive, autoSubPlan, autoSubPaused, pendingAutoSub, createSubNotification, gameInProgress]);
+  }, [autoSubActive, autoSubPlan, autoSubPaused, pendingAutoSub, createSubNotification, gameInProgress, lockedPlayerIds]);
 
   // Half change callback - check for halftime subs (including batch)
   const handleHalfChange = useCallback((newHalf: 1 | 2) => {
@@ -3949,10 +4037,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                                 Auto-Subs
                               </Button>
                             ) : (
-                              <Button variant="destructive" size="sm" className="w-full h-9 text-xs" onClick={handleCancelAutoSubPlan}>
-                                <X className="h-3.5 w-3.5 mr-1" />
-                                Cancel Plan
-                              </Button>
+                              <Suspense fallback={<DialogLoader />}>
+                                <AutoSubManager
+                                  autoSubPlan={autoSubPlan}
+                                  autoSubPaused={autoSubPaused}
+                                  players={players}
+                                  lockedPlayerIds={lockedPlayerIds}
+                                  currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+                                  currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+                                  minutesPerHalf={minutesPerHalf}
+                                  onTogglePause={handleTogglePauseAutoSub}
+                                  onCancelPlan={handleCancelAutoSubPlan}
+                                  onSkipNext={handleSkipNextSub}
+                                  onExecuteNow={handleExecuteNow}
+                                  onEditPlan={handleOpenEditPlan}
+                                  onRegeneratePlan={handleRegeneratePlan}
+                                  onToggleLockPlayer={handleToggleLockPlayer}
+                                  compact
+                                />
+                              </Suspense>
                             )}
                           </div>
                         )}
@@ -4711,10 +4814,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                                 Auto-Subs
                               </Button>
                             ) : (
-                              <Button variant="destructive" size="sm" className="w-full h-10 text-xs" onClick={handleCancelAutoSubPlan}>
-                                <X className="h-3.5 w-3.5 mr-1" />
-                                Cancel Plan
-                              </Button>
+                              <Suspense fallback={<DialogLoader />}>
+                                <AutoSubManager
+                                  autoSubPlan={autoSubPlan}
+                                  autoSubPaused={autoSubPaused}
+                                  players={players}
+                                  lockedPlayerIds={lockedPlayerIds}
+                                  currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+                                  currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+                                  minutesPerHalf={minutesPerHalf}
+                                  onTogglePause={handleTogglePauseAutoSub}
+                                  onCancelPlan={handleCancelAutoSubPlan}
+                                  onSkipNext={handleSkipNextSub}
+                                  onExecuteNow={handleExecuteNow}
+                                  onEditPlan={handleOpenEditPlan}
+                                  onRegeneratePlan={handleRegeneratePlan}
+                                  onToggleLockPlayer={handleToggleLockPlayer}
+                                />
+                              </Suspense>
                             )}
                           </div>
                         )}
