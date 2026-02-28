@@ -319,26 +319,6 @@ function PitchToolbar({
     if (collapsed) {
       return (
         <div className="flex flex-col items-center justify-between h-full py-3 px-1">
-          {/* Mini timer display */}
-          <div className="flex flex-col items-center gap-2">
-            <GameTimer 
-              ref={gameTimerRef} 
-              teamId={teamId} 
-              teamName={teamName} 
-              onTimeUpdate={onTimerUpdate} 
-              onHalfChange={onHalfChange} 
-              readOnly={readOnly}
-              compact
-              hideSoundToggle
-              hidePlayPause
-              hideExtras
-              soundEnabled={soundEnabled}
-              onSoundToggle={setSoundEnabled}
-              minutesPerHalf={minutesPerHalf}
-              onMinutesPerHalfChange={onMinutesPerHalfChange}
-            />
-          </div>
-          
           {/* Bench count badge */}
           <div className="flex flex-col items-center gap-2">
             <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-xs font-bold text-muted-foreground">
