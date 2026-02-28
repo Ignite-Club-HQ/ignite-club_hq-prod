@@ -196,12 +196,12 @@ function ToolbarGroup({ label, icon, children, defaultOpen = true, className, op
       onOpenChange={onOpenChange}
       className={cn("border-b border-border", className)}
     >
-      <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 hover:bg-muted/50 transition-colors group">
-        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+      <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-3 min-h-[44px] hover:bg-muted/50 transition-colors group">
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           {icon}
           <span>{label}</span>
         </div>
-        <ChevronDown className="h-3 w-3 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
       </CollapsibleTrigger>
       <CollapsibleContent className="px-3 pb-3">
         {children}
