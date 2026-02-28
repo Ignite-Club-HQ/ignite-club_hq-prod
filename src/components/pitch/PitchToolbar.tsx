@@ -360,7 +360,59 @@ function PitchToolbar({
               </Select>
             </div>
           </ToolbarGroup>
-          {/* Match Info Group - at top for quick access to opponent/score */}
+
+          {/* Substitutions Group */}
+          {!readOnly && (
+            <ToolbarGroup label="Subs" icon={<RefreshCw className="h-3.5 w-3.5" />} open={subsOpen} onOpenChange={setSubsOpen}>
+              <div className="space-y-2">
+                <Button
+                  variant={subMode ? "default" : "outline"}
+                  className="w-full h-9 text-sm"
+                  onClick={onToggleSubMode}
+                >
+                  <RefreshCw className="h-4 w-4 mr-1.5" />
+                  {subMode ? "Cancel" : "Make Sub"}
+                </Button>
+                
+                {subMode && selectedOnPitch && (
+                  <Button variant="outline" className="w-full h-8 text-xs" onClick={onOpenSubPreview}>
+                    <List className="h-3.5 w-3.5 mr-1.5" />
+                    Options
+                  </Button>
+                )}
+                
+                {subMode && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    {selectedOnPitch ? "Select bench player" : "Select on pitch"}
+                  </p>
+                )}
+
+                {!disableAutoSubs && (
+                  <div className="pt-2 border-t border-border">
+                    {!autoSubActive ? (
+                      <Button 
+                        variant="outline" 
+                        className="w-full h-9 text-sm" 
+                        onClick={onOpenNewPlan}
+                        disabled={gameInProgress}
+                        title={gameInProgress ? "Can only create plan before game starts" : undefined}
+                      >
+                        <Calendar className="h-4 w-4 mr-1.5" />
+                        Auto-Subs
+                      </Button>
+                    ) : (
+                      <Button variant="destructive" size="sm" className="w-full h-8 text-xs" onClick={onCancelPlan}>
+                        <X className="h-3.5 w-3.5 mr-1" />
+                        Cancel Plan
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </ToolbarGroup>
+          )}
+
+          {/* Match Info Group */}
           <ToolbarGroup label="Match" icon={<Target className="h-3.5 w-3.5" />} open={matchOpen} onOpenChange={setMatchOpen}>
             <div className="space-y-3">
               {/* Opponent display */}
@@ -413,57 +465,6 @@ function PitchToolbar({
               )}
             </div>
           </ToolbarGroup>
-
-          {/* Substitutions Group */}
-          {!readOnly && (
-            <ToolbarGroup label="Subs" icon={<RefreshCw className="h-3.5 w-3.5" />} open={subsOpen} onOpenChange={setSubsOpen}>
-              <div className="space-y-2">
-                <Button
-                  variant={subMode ? "default" : "outline"}
-                  className="w-full h-9 text-sm"
-                  onClick={onToggleSubMode}
-                >
-                  <RefreshCw className="h-4 w-4 mr-1.5" />
-                  {subMode ? "Cancel" : "Make Sub"}
-                </Button>
-                
-                {subMode && selectedOnPitch && (
-                  <Button variant="outline" className="w-full h-8 text-xs" onClick={onOpenSubPreview}>
-                    <List className="h-3.5 w-3.5 mr-1.5" />
-                    Options
-                  </Button>
-                )}
-                
-                {subMode && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    {selectedOnPitch ? "Select bench player" : "Select on pitch"}
-                  </p>
-                )}
-
-                {!disableAutoSubs && (
-                  <div className="pt-2 border-t border-border">
-                    {!autoSubActive ? (
-                      <Button 
-                        variant="outline" 
-                        className="w-full h-9 text-sm" 
-                        onClick={onOpenNewPlan}
-                        disabled={gameInProgress}
-                        title={gameInProgress ? "Can only create plan before game starts" : undefined}
-                      >
-                        <Calendar className="h-4 w-4 mr-1.5" />
-                        Auto-Subs
-                      </Button>
-                    ) : (
-                      <Button variant="destructive" size="sm" className="w-full h-8 text-xs" onClick={onCancelPlan}>
-                        <X className="h-3.5 w-3.5 mr-1" />
-                        Cancel Plan
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </ToolbarGroup>
-          )}
 
           {/* Timer & Game Group */}
           <ToolbarGroup label="Timer" icon={<Timer className="h-3.5 w-3.5" />} open={timerOpen} onOpenChange={setTimerOpen}>
