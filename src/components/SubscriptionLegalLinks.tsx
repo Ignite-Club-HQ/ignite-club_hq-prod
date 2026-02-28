@@ -67,7 +67,7 @@ export function SubscriptionLegalLinks({ showRestorePurchases = true }: Subscrip
 
       <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
         <button
-          onClick={() => safeOpenUrl(PRIVACY_POLICY_URL)}
+          onClick={(e) => { e.preventDefault(); safeOpenUrl(PRIVACY_POLICY_URL); }}
           className="flex items-center gap-1 hover:text-foreground underline underline-offset-2 transition-colors"
         >
           Privacy Policy
@@ -75,7 +75,7 @@ export function SubscriptionLegalLinks({ showRestorePurchases = true }: Subscrip
         </button>
         <span>·</span>
         <button
-          onClick={() => safeOpenUrl(TERMS_URL)}
+          onClick={(e) => { e.preventDefault(); safeOpenUrl(TERMS_URL); }}
           className="flex items-center gap-1 hover:text-foreground underline underline-offset-2 transition-colors"
         >
           Terms of Use

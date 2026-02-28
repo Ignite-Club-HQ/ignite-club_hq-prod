@@ -1462,7 +1462,7 @@ export default function VaultPage() {
       queryClient.invalidateQueries({ queryKey: ["vault-clubs"] });
       queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
       setUploadDialogOpen(false);
-      toast.success("Photo uploaded to vault!");
+      // No toast for successful photo uploads
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to upload photo");

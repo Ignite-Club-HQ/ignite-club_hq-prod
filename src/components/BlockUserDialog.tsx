@@ -6,6 +6,7 @@ import {
   AlertDialog,
   AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
@@ -46,27 +47,25 @@ export function BlockUserDialog({ open, onOpenChange, userId, userName }: BlockU
             You will no longer see messages, photos, or comments from this user. They won't be notified that you blocked them.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <div className="space-y-3">
-          <Textarea
-            placeholder="Reason (optional)"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            className="resize-none"
-            rows={2}
-          />
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleBlock}
-              disabled={blockUser.isPending}
-            >
-              {blockUser.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Block User"}
-            </Button>
-          </div>
-        </div>
+        <Textarea
+          placeholder="Reason (optional)"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          className="resize-none border-border bg-transparent"
+          rows={2}
+        />
+        <AlertDialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={handleBlock}
+            disabled={blockUser.isPending}
+          >
+            {blockUser.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Block User"}
+          </Button>
+        </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   );
