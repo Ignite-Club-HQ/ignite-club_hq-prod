@@ -3099,7 +3099,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, [readOnly, players, toast, autoSubActive, autoSubPlan, teamSize]);
 
   // Mark a pitch player as injured: sub them off, bring a bench player on, regenerate plan
-  const handleMarkInjuredOnPitch = useCallback((playerId: string) => {
+  const handleMarkInjuredOnPitch = useCallback((playerId: string, replacementId?: string) => {
     if (readOnly) return;
     const player = players.find(p => p.id === playerId);
     if (!player || player.position === null) return;
@@ -3107,17 +3107,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const injuredPosition = player.position;
     const injuredPitchPos = player.currentPitchPosition;
 
-    // Find the best available bench player to replace them
-    const benchPlayers = players.filter(p => p.position === null && !p.isInjured && p.id !== playerId);
-    
-    // Prefer a player whose assigned positions include the injured player's pitch position
-    let replacement = injuredPitchPos
-      ? benchPlayers.find(p => p.assignedPositions?.includes(injuredPitchPos))
-      : null;
-    // Fallback to any available bench player
-    if (!replacement && benchPlayers.length > 0) {
-      replacement = benchPlayers[0];
-    }
+    // Use the chosen replacement or null
+    const replacement = replacementId ? players.find(p => p.id === replacementId) : null;
 
     pushToUndoHistory("Injury sub off", players);
 
@@ -5619,6 +5610,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             if (!open) setPitchPlayerActionTarget(null);
           }}
           player={players.find(p => p.id === pitchPlayerActionTarget) || null}
+          benchPlayers={players.filter(p => p.position === null)}
           onMarkInjured={handleMarkInjuredOnPitch}
         />
       </Suspense>
