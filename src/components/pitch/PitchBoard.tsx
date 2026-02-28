@@ -3936,32 +3936,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
           )}
 
-          {/* Floating swap positions button - when sidebar is expanded, offset from right to avoid sidebar overlap */}
-          {!toolbarCollapsed && !readOnly && playersOnPitch.length >= 2 && !subMode && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleSwapMode();
-              }}
-              className={cn(
-                "absolute z-40 flex items-center gap-2 rounded-full shadow-lg transition-colors animate-fade-in",
-                isTabletLandscape || isDesktopLandscape ? "px-4 py-3" : "px-3 py-2",
-                swapMode 
-                  ? "bg-accent text-accent-foreground" 
-                  : "bg-muted text-foreground hover:bg-muted/80 border border-border"
-              )}
-              style={{
-                bottom: 16,
-                left: 16,
-                touchAction: "none",
-              }}
-            >
-              <ArrowLeftRight className={isTabletLandscape || isDesktopLandscape ? "h-5 w-5" : "h-4 w-4"} />
-              <span className={isTabletLandscape || isDesktopLandscape ? "text-base font-medium" : "text-sm font-medium"}>
-                {swapMode ? "Cancel" : "Swap Pos"}
-              </span>
-            </button>
-          )}
+          {/* Swap button moved into sidebar Subs section when expanded */}
 
           {/* Swap mode instruction banner */}
           {swapMode && (
