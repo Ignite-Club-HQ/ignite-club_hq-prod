@@ -3966,19 +3966,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             <button
               className={cn(
                 "absolute bottom-3 z-[55] w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
-                drawingTool !== "none" || showFloatingDrawToolbar
+                drawingTool !== "none"
                   ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background/80 border-border"
+                  : showFloatingDrawToolbar
+                    ? "bg-accent text-accent-foreground border-accent"
+                    : "bg-background/80 border-border"
               )}
               style={{ right: 60 }}
-              onClick={() => {
-                if (drawingTool !== "none") {
-                  setDrawingTool("none");
-                  setShowFloatingDrawToolbar(false);
-                } else {
-                  setShowFloatingDrawToolbar(prev => !prev);
-                }
-              }}
+              onClick={() => setShowFloatingDrawToolbar(prev => !prev)}
             >
               <Pencil className="h-5 w-5" />
             </button>
@@ -3992,7 +3987,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       variant={drawingTool === "pen" ? "default" : "outline"} 
                       size="icon"
                       className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
-                      onClick={() => setDrawingTool(drawingTool === "pen" ? "none" : "pen")}
+                      onClick={() => {
+                        setDrawingTool(drawingTool === "pen" ? "none" : "pen");
+                        if (drawingTool !== "pen") setShowFloatingDrawToolbar(false);
+                      }}
                     >
                       <Pencil className="h-5 w-5" />
                     </Button>
@@ -4000,7 +3998,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       variant={drawingTool === "arrow" ? "default" : "outline"} 
                       size="icon"
                       className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
-                      onClick={() => setDrawingTool(drawingTool === "arrow" ? "none" : "arrow")}
+                      onClick={() => {
+                        setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
+                        if (drawingTool !== "arrow") setShowFloatingDrawToolbar(false);
+                      }}
                     >
                       <MoveRight className="h-5 w-5" />
                     </Button>
@@ -4012,6 +4013,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     >
                       <Eraser className="h-5 w-5" />
                     </Button>
+                    {drawingTool !== "none" && (
+                      <Button 
+                        variant="destructive" 
+                        size="icon" 
+                        className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                        onClick={() => {
+                          setDrawingTool("none");
+                          setShowFloatingDrawToolbar(false);
+                        }}
+                      >
+                        <X className="h-5 w-5" />
+                      </Button>
+                    )}
                   </div>
                   <div className="flex gap-2 justify-center">
                     {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
@@ -4860,19 +4874,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <button
                   className={cn(
                     "absolute bottom-3 z-50 w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
-                    drawingTool !== "none" || showFloatingDrawToolbar
+                    drawingTool !== "none"
                       ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background/80 border-border"
+                      : showFloatingDrawToolbar
+                        ? "bg-accent text-accent-foreground border-accent"
+                        : "bg-background/80 border-border"
                   )}
                   style={{ right: 60 }}
-                  onClick={() => {
-                    if (drawingTool !== "none") {
-                      setDrawingTool("none");
-                      setShowFloatingDrawToolbar(false);
-                    } else {
-                      setShowFloatingDrawToolbar(prev => !prev);
-                    }
-                  }}
+                  onClick={() => setShowFloatingDrawToolbar(prev => !prev)}
                 >
                   <Pencil className="h-5 w-5" />
                 </button>
@@ -4886,7 +4895,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           variant={drawingTool === "pen" ? "default" : "outline"} 
                           size="icon"
                           className="h-12 w-12"
-                          onClick={() => setDrawingTool(drawingTool === "pen" ? "none" : "pen")}
+                          onClick={() => {
+                            setDrawingTool(drawingTool === "pen" ? "none" : "pen");
+                            if (drawingTool !== "pen") setShowFloatingDrawToolbar(false);
+                          }}
                         >
                           <Pencil className="h-5 w-5" />
                         </Button>
@@ -4894,7 +4906,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           variant={drawingTool === "arrow" ? "default" : "outline"} 
                           size="icon"
                           className="h-12 w-12"
-                          onClick={() => setDrawingTool(drawingTool === "arrow" ? "none" : "arrow")}
+                          onClick={() => {
+                            setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
+                            if (drawingTool !== "arrow") setShowFloatingDrawToolbar(false);
+                          }}
                         >
                           <MoveRight className="h-5 w-5" />
                         </Button>
@@ -4906,6 +4921,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         >
                           <Eraser className="h-5 w-5" />
                         </Button>
+                        {drawingTool !== "none" && (
+                          <Button 
+                            variant="destructive" 
+                            size="icon" 
+                            className="h-12 w-12"
+                            onClick={() => {
+                              setDrawingTool("none");
+                              setShowFloatingDrawToolbar(false);
+                            }}
+                          >
+                            <X className="h-5 w-5" />
+                          </Button>
+                        )}
                       </div>
                       <div className="flex gap-2 justify-center">
                         {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
