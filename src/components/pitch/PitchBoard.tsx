@@ -4760,11 +4760,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                     {/* Reset Game - always visible at bottom */}
                     {!readOnly && (
-                      <Button 
-                        variant="outline" 
-                        className="w-full h-12 text-base text-destructive" 
-                        onClick={() => { console.log("[ResetGame] Landscape click fired"); setResetGameConfirmOpen(true); }}
-                        onTouchEnd={(e) => { e.preventDefault(); console.log("[ResetGame] Landscape touch fired"); setResetGameConfirmOpen(true); }}
+                      <Button
+                        variant="outline"
+                        className="w-full h-12 text-base text-destructive"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setTimeout(() => setResetGameConfirmOpen(true), 0);
+                        }}
                       >
                         <RotateCcw className="h-4.5 w-4.5 mr-2" />
                         Reset Game
@@ -5718,11 +5721,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                     {/* Reset Game - always visible at bottom */}
                     {!readOnly && (
-                      <Button 
-                        variant="outline" 
-                        className="w-full h-12 text-base text-destructive" 
-                        onClick={() => { console.log("[ResetGame] Portrait click fired"); setResetGameConfirmOpen(true); }}
-                        onTouchEnd={(e) => { e.preventDefault(); console.log("[ResetGame] Portrait touch fired"); setResetGameConfirmOpen(true); }}
+                      <Button
+                        variant="outline"
+                        className="w-full h-12 text-base text-destructive"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setTimeout(() => setResetGameConfirmOpen(true), 0);
+                        }}
                       >
                         <RotateCcw className="h-4.5 w-4.5 mr-2" />
                         Reset Game
@@ -6069,7 +6075,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
       {/* Reset Game Confirmation */}
       {resetGameConfirmOpen && createPortal(
-        <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" onClick={() => setResetGameConfirmOpen(false)} />,
+        <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
         document.body
       )}
       {resetGameConfirmOpen && createPortal(
