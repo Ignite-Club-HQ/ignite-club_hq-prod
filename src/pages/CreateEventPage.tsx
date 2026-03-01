@@ -686,7 +686,7 @@ export default function CreateEventPage() {
           ))}
         </div>
       ) : (
-      <div className="grid grid-cols-4 gap-2">
+      <div className={cn("grid gap-2", (clubId && hasProFootball) ? "grid-cols-4" : "grid-cols-3")}>
         {EVENT_TYPES.map((eventType) => {
           // Hide pro football items if user doesn't have access (or no club selected yet)
           const isProFeature = eventType.proFootballOnly;
