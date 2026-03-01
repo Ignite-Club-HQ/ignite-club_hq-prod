@@ -81,6 +81,8 @@ interface Player {
   position: { x: number; y: number } | null;
   assignedPositions?: PitchPosition[];
   currentPitchPosition?: PitchPosition;
+  minutesPlayed?: number;
+  isInjured?: boolean;
 }
 
 interface SubstitutionEvent {
@@ -108,6 +110,8 @@ interface AutoSubPlanDialogProps {
   rotationSpeed?: number; // 1 = slow, 2 = medium, 3 = fast
   disablePositionSwaps?: boolean; // When true, skip position swaps in auto generation
   disableBatchSubs?: boolean; // When true, only do one sub at a time
+  currentElapsedSeconds?: number; // Current game elapsed seconds (for mid-game start)
+  currentHalf?: 1 | 2; // Current half (for mid-game start)
 }
 
 const formatTime = (seconds: number) => {
@@ -122,7 +126,9 @@ function createSubPlan(
   halfDurationSeconds: number,
   rotationSpeed: number = 2,
   disablePositionSwaps: boolean = false,
-  disableBatchSubs: boolean = false
+  disableBatchSubs: boolean = false,
+  startElapsedSeconds: number = 0,
+  startHalf: 1 | 2 = 1
 ): SubstitutionEvent[] {
   const plan: SubstitutionEvent[] = [];
   
@@ -164,19 +170,22 @@ function createSubPlan(
     return plan;
   }
   
-  const totalGameSeconds = halfDurationSeconds * 2;
+  // Calculate remaining game time based on when we're starting
+  const remainingInCurrentHalf = halfDurationSeconds - startElapsedSeconds;
+  const remainingHalves = startHalf === 1 ? remainingInCurrentHalf + halfDurationSeconds : remainingInCurrentHalf;
+  const totalRemainingSeconds = remainingHalves;
   const fieldPositions = teamSize - 1; // minus GK
   const totalOutfieldPlayers = outfieldPlayers.length;
   
-  // CORE PRINCIPLE: Equal playing time for ALL outfield players
-  // Total field-seconds available = game duration * number of field positions
-  // Each player should get exactly: totalFieldSeconds / totalOutfieldPlayers
-  const totalFieldSeconds = totalGameSeconds * fieldPositions;
+  // CORE PRINCIPLE: Equal playing time for ALL outfield players over remaining game
+  // Use remaining time for calculations
+  const totalFieldSeconds = totalRemainingSeconds * fieldPositions;
   const idealSecondsPerPlayer = Math.floor(totalFieldSeconds / totalOutfieldPlayers);
   
   // Track accumulated playing time
+  // Initialize playing time with already-accumulated minutes for mid-game starts
   const playingTime = new Map<string, number>();
-  outfieldPlayers.forEach(p => playingTime.set(p.id, 0));
+  outfieldPlayers.forEach(p => playingTime.set(p.id, p.minutesPlayed || 0));
   
   // Track who's currently on pitch and their positions
   const currentOnPitch = new Map<string, PitchPosition>();
@@ -326,10 +335,13 @@ function createSubPlan(
     return candidates[0] || null;
   };
   
-  // Process each half
-  for (let half = 1; half <= 2; half++) {
-    const subTimes = generateSubTimes(halfDurationSeconds, actualWindowsPerHalf);
-    let lastEventTime = 0;
+  // Process each half (start from current half for mid-game)
+  for (let half = startHalf; half <= 2; half++) {
+    const isStartHalf = half === startHalf;
+    const halfRemaining = isStartHalf ? halfDurationSeconds - startElapsedSeconds : halfDurationSeconds;
+    const subTimes = generateSubTimes(halfRemaining, actualWindowsPerHalf)
+      .map(t => isStartHalf ? t + startElapsedSeconds : t); // Offset times for current half
+    let lastEventTime = isStartHalf ? startElapsedSeconds : 0;
     
     for (const subTime of subTimes) {
       // Add elapsed time to players currently on pitch
@@ -414,8 +426,8 @@ function createSubPlan(
     });
   }
   
-  // Handle GK substitution at halftime
-  if (gkOnBench && gkOnPitch) {
+  // Handle GK substitution at halftime (only if we haven't passed halftime)
+  if (gkOnBench && gkOnPitch && startHalf === 1) {
     plan.push({
       time: 0,
       half: 2,
@@ -444,7 +456,9 @@ function DialogInner({
   editMode,
   rotationSpeed = 2,
   disablePositionSwaps = false,
-  disableBatchSubs = false
+  disableBatchSubs = false,
+  currentElapsedSeconds = 0,
+  currentHalf = 1
 }: {
   players: Player[];
   teamSize: number;
@@ -456,6 +470,8 @@ function DialogInner({
   rotationSpeed?: number;
   disablePositionSwaps?: boolean;
   disableBatchSubs?: boolean;
+  currentElapsedSeconds?: number;
+  currentHalf?: 1 | 2;
 }) {
   const [plan, setPlan] = useState<SubstitutionEvent[] | null>(existingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -478,7 +494,7 @@ function DialogInner({
     setTimeout(() => {
       try {
         const halfDurationSeconds = minutesPerHalf * 60;
-        const generatedPlan = createSubPlan(players, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs);
+        const generatedPlan = createSubPlan(players, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, currentElapsedSeconds, currentHalf);
         console.log("[AutoSubPlan] Generated", generatedPlan.length, "subs");
         setPlan(generatedPlan);
       } catch (error) {
@@ -649,6 +665,8 @@ export default function AutoSubPlanDialog({
   rotationSpeed = 2,
   disablePositionSwaps = false,
   disableBatchSubs = false,
+  currentElapsedSeconds = 0,
+  currentHalf = 1,
 }: AutoSubPlanDialogProps) {
   const handleClose = () => onOpenChange(false);
   
@@ -695,6 +713,8 @@ export default function AutoSubPlanDialog({
                 rotationSpeed={rotationSpeed}
                 disablePositionSwaps={disablePositionSwaps}
                 disableBatchSubs={disableBatchSubs}
+                currentElapsedSeconds={currentElapsedSeconds}
+                currentHalf={currentHalf}
               />
             )}
           </div>
