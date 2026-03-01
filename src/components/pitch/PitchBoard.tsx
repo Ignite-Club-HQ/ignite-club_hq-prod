@@ -4469,30 +4469,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Bench Tab */}
                 {bottomSheetTab === "bench" && (
                   <div className="space-y-3">
-                    {/* Auto-Sub Manager - shown inline when active */}
-                    {!readOnly && autoSubActive && !disableAutoSubs && (
-                      <div className="pb-2 border-b border-border">
-                        <Suspense fallback={<DialogLoader />}>
-                          <AutoSubManager
-                            autoSubPlan={autoSubPlan}
-                            autoSubPaused={autoSubPaused}
-                            players={players}
-                            lockedPlayerIds={lockedPlayerIds}
-                            currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-                            currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-                            minutesPerHalf={minutesPerHalf}
-                            onTogglePause={handleTogglePauseAutoSub}
-                            onCancelPlan={handleCancelAutoSubPlan}
-                            onSkipNext={handleSkipNextSub}
-                            onExecuteNow={handleExecuteNow}
-                            onEditPlan={handleOpenEditPlan}
-                            onRegeneratePlan={handleRegeneratePlan}
-                            onToggleLockPlayer={handleToggleLockPlayer}
-                            compact
-                          />
-                        </Suspense>
-                      </div>
-                    )}
                     {/* Position Filter Chips - sticky */}
                     <div className="sticky top-[-12px] z-10 bg-background py-2 -mx-3 px-3">
                       <div className="flex items-center gap-2">
@@ -4613,6 +4589,30 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </div>
                         ))}
                     </div>
+                    {/* Auto-Sub Manager - shown below bench when active */}
+                    {!readOnly && autoSubActive && !disableAutoSubs && (
+                      <div className="pt-2 border-t border-border">
+                        <Suspense fallback={<DialogLoader />}>
+                          <AutoSubManager
+                            autoSubPlan={autoSubPlan}
+                            autoSubPaused={autoSubPaused}
+                            players={players}
+                            lockedPlayerIds={lockedPlayerIds}
+                            currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+                            currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+                            minutesPerHalf={minutesPerHalf}
+                            onTogglePause={handleTogglePauseAutoSub}
+                            onCancelPlan={handleCancelAutoSubPlan}
+                            onSkipNext={handleSkipNextSub}
+                            onExecuteNow={handleExecuteNow}
+                            onEditPlan={handleOpenEditPlan}
+                            onRegeneratePlan={handleRegeneratePlan}
+                            onToggleLockPlayer={handleToggleLockPlayer}
+                            compact
+                          />
+                        </Suspense>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -5429,29 +5429,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Bench Tab */}
                 {bottomSheetTab === "bench" && (
                   <div className="space-y-3">
-                    {/* Auto-Sub Manager - shown inline when active */}
-                    {!readOnly && autoSubActive && !disableAutoSubs && (
-                      <div className="pb-2 border-b border-border">
-                        <Suspense fallback={<DialogLoader />}>
-                          <AutoSubManager
-                            autoSubPlan={autoSubPlan}
-                            autoSubPaused={autoSubPaused}
-                            players={players}
-                            lockedPlayerIds={lockedPlayerIds}
-                            currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-                            currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-                            minutesPerHalf={minutesPerHalf}
-                            onTogglePause={handleTogglePauseAutoSub}
-                            onCancelPlan={handleCancelAutoSubPlan}
-                            onSkipNext={handleSkipNextSub}
-                            onExecuteNow={handleExecuteNow}
-                            onEditPlan={handleOpenEditPlan}
-                            onRegeneratePlan={handleRegeneratePlan}
-                            onToggleLockPlayer={handleToggleLockPlayer}
-                          />
-                        </Suspense>
-                      </div>
-                    )}
                     {/* Position Filter Chips + Fill-In */}
                     <div className="flex items-center gap-2">
                       <div className="flex gap-2 flex-1 min-w-0">
@@ -5579,6 +5556,29 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           />
                         ))}
                     </div>
+                    {/* Auto-Sub Manager - shown below bench when active */}
+                    {!readOnly && autoSubActive && !disableAutoSubs && (
+                      <div className="pt-2 border-t border-border">
+                        <Suspense fallback={<DialogLoader />}>
+                          <AutoSubManager
+                            autoSubPlan={autoSubPlan}
+                            autoSubPaused={autoSubPaused}
+                            players={players}
+                            lockedPlayerIds={lockedPlayerIds}
+                            currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+                            currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+                            minutesPerHalf={minutesPerHalf}
+                            onTogglePause={handleTogglePauseAutoSub}
+                            onCancelPlan={handleCancelAutoSubPlan}
+                            onSkipNext={handleSkipNextSub}
+                            onExecuteNow={handleExecuteNow}
+                            onEditPlan={handleOpenEditPlan}
+                            onRegeneratePlan={handleRegeneratePlan}
+                            onToggleLockPlayer={handleToggleLockPlayer}
+                          />
+                        </Suspense>
+                      </div>
+                    )}
                   </div>
                 )}
 
