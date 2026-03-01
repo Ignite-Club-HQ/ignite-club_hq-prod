@@ -3763,49 +3763,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, [benchToSubPlayer]);
 
   // Calculate which positions on pitch are occupied by the filtered position type
-  const getPositionZoneIndicators = useCallback(() => {
-    if (!benchPositionFilter) return [];
-    
-    // Define zones for each position type
-    const zones: Record<PitchPosition, { x: number; y: number; label: string }[]> = {
-      GK: [{ x: 50, y: 90, label: "GK" }],
-      DEF: [
-        { x: 25, y: 72, label: "LB" },
-        { x: 40, y: 72, label: "CB" },
-        { x: 60, y: 72, label: "CB" },
-        { x: 75, y: 72, label: "RB" },
-      ],
-      MID: [
-        { x: 25, y: 50, label: "LM" },
-        { x: 40, y: 50, label: "CM" },
-        { x: 60, y: 50, label: "CM" },
-        { x: 75, y: 50, label: "RM" },
-      ],
-      FWD: [
-        { x: 35, y: 22, label: "LW" },
-        { x: 50, y: 22, label: "ST" },
-        { x: 65, y: 22, label: "RW" },
-      ],
-    };
-
-    const targetZones = zones[benchPositionFilter];
-    
-    // Check which zones are empty (no player of the correct type nearby)
-    return targetZones.map(zone => {
-      const hasPlayerNearby = playersOnPitch.some(player => {
-        if (!player.position) return false;
-        const distance = Math.sqrt(
-          Math.pow(player.position.x - zone.x, 2) + 
-          Math.pow(player.position.y - zone.y, 2)
-        );
-        // Check if player is within 15% distance and can play the position
-        return distance < 15 && player.currentPitchPosition === benchPositionFilter;
-      });
-      return { ...zone, isEmpty: !hasPlayerNearby };
-    }).filter(zone => zone.isEmpty);
-  }, [benchPositionFilter, playersOnPitch]);
-
-  const emptyPositionZones = getPositionZoneIndicators();
+  // (Position zone indicators removed)
 
   // Landscape layout: pitch full screen on left, controls stacked on right
   if (isLandscape) {
@@ -4146,51 +4104,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   zIndex: 40,
                 }}
               />
-
-              {/* Position Zone Indicators */}
-              {emptyPositionZones.map((zone, idx) => (
-                <div
-                  key={`zone-${idx}`}
-                  className="absolute pointer-events-none"
-                  style={{
-                    left: `${zone.x}%`,
-                    top: `${zone.y}%`,
-                    transform: "translate(-50%, -50%)",
-                    zIndex: 8,
-                  }}
-                >
-                  <div className="relative">
-                    {/* Pulsing ring */}
-                    <div 
-                      className="absolute inset-0 rounded-full border-2 border-dashed animate-pulse"
-                      style={{
-                        width: 40,
-                        height: 40,
-                        marginLeft: -20,
-                        marginTop: -20,
-                        borderColor: benchPositionFilter === "GK" ? "#eab308" : 
-                                     benchPositionFilter === "DEF" ? "#3b82f6" : 
-                                     benchPositionFilter === "MID" ? "#10b981" : "#ef4444",
-                        opacity: 0.7,
-                      }}
-                    />
-                    {/* Label */}
-                    <span 
-                      className="absolute text-[10px] font-bold opacity-60"
-                      style={{
-                        left: "50%",
-                        top: "50%",
-                        transform: "translate(-50%, -50%)",
-                        color: benchPositionFilter === "GK" ? "#eab308" : 
-                               benchPositionFilter === "DEF" ? "#3b82f6" : 
-                               benchPositionFilter === "MID" ? "#10b981" : "#ef4444",
-                      }}
-                    >
-                      {zone.label}
-                    </span>
-                  </div>
-                </div>
-              ))}
 
               {/* Players on pitch */}
               {playersOnPitch.map(player => (
@@ -6096,40 +6009,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 zIndex: 40,
               }}
             />
-
-            {/* Position Zone Indicators */}
-            {emptyPositionZones.map((zone, idx) => (
-              <div
-                key={`zone-${idx}`}
-                className="absolute pointer-events-none"
-                style={{
-                  left: `${zone.x}%`,
-                  top: `${zone.y}%`,
-                  transform: "translate(-50%, -50%)",
-                  zIndex: 8,
-                }}
-              >
-                <div className="relative">
-                  <div 
-                    className="absolute inset-0 rounded-full border-2 border-dashed animate-pulse"
-                    style={{
-                      width: 40, height: 40, marginLeft: -20, marginTop: -20,
-                      borderColor: benchPositionFilter === "GK" ? "#eab308" : benchPositionFilter === "DEF" ? "#3b82f6" : benchPositionFilter === "MID" ? "#10b981" : "#ef4444",
-                      opacity: 0.7,
-                    }}
-                  />
-                  <span 
-                    className="absolute text-[10px] font-bold opacity-60"
-                    style={{
-                      left: "50%", top: "50%", transform: "translate(-50%, -50%)",
-                      color: benchPositionFilter === "GK" ? "#eab308" : benchPositionFilter === "DEF" ? "#3b82f6" : benchPositionFilter === "MID" ? "#10b981" : "#ef4444",
-                    }}
-                  >
-                    {zone.label}
-                  </span>
-                </div>
-              </div>
-            ))}
 
             {/* Players on pitch */}
             {playersOnPitch.map(player => (
