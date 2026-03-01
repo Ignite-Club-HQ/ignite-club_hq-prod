@@ -4530,7 +4530,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             {!autoSubActive ? (
                               <Button 
                                 variant="outline" 
-                                className="w-full h-10 text-sm" 
+                                className="w-full h-12 text-base" 
                                 onClick={handleOpenNewPlan}
                               >
                                 <Calendar className="h-4 w-4 mr-1.5" />
@@ -4565,7 +4565,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <>
                             <Button
                               variant="outline"
-                              className="w-full h-10 text-sm"
+                              className="w-full h-12 text-base"
                               onClick={() => { toggleSubMode(); setToolbarCollapsed(true); }}
                             >
                               <RefreshCw className="h-4 w-4 mr-1.5" />
@@ -4575,7 +4575,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             {playersOnPitch.length >= 2 && (
                               <Button
                                 variant="outline"
-                                className="w-full h-10 text-sm"
+                                className="w-full h-12 text-base"
                                 onClick={() => { toggleSwapMode(); setToolbarCollapsed(true); }}
                               >
                                 <ArrowLeftRight className="h-4 w-4 mr-1.5" />
@@ -5520,7 +5520,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             {!autoSubActive ? (
                               <Button 
                                 variant="outline" 
-                                className="w-full h-11 text-sm" 
+                                className="w-full h-12 text-base" 
                                 onClick={handleOpenNewPlan}
                               >
                                 <Calendar className="h-4 w-4 mr-1.5" />
