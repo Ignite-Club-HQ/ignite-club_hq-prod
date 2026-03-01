@@ -4567,43 +4567,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </div>
                     </div>
 
-                    {/* Open Lineup Picker */}
-                    {!readOnly && !miniLeagueTeams && (
-                      <Button variant="outline" className="w-full h-12 text-base" onClick={() => setShowLineupPicker(true)}>
-                        <List className="h-4 w-4 mr-1.5" />
-                        Select Lineup
-                      </Button>
-                    )}
-
-                    {/* Add Fill-In Player */}
-                    {!readOnly && (
-                      <Suspense fallback={null}>
-                        <AddFillInPlayerDialog
-                          onAddPlayer={handleAddFillInPlayer}
-                          existingNumbers={existingJerseyNumbers}
-                        />
-                      </Suspense>
-                    )}
-
-                    {/* Action buttons grid */}
+                    {/* Primary actions */}
                     <div className="grid grid-cols-2 gap-3">
+                      {!readOnly && !miniLeagueTeams && (
+                        <Button variant="outline" className="h-12 text-base" onClick={() => setShowLineupPicker(true)}>
+                          <List className="h-4 w-4 mr-1.5" />
+                          Select Lineup
+                        </Button>
+                      )}
                       <Button variant="outline" className="h-12 text-base" onClick={() => setStatsOpen(true)}>
                         <BarChart3 className="h-4 w-4 mr-1.5" />
                         Stats
                       </Button>
-                      <Button variant="outline" className="h-12 text-base" onClick={() => setPositionEditorOpen(true)} disabled={readOnly}>
-                        <Settings2 className="h-4 w-4 mr-1.5" />
-                        Positions
-                      </Button>
                     </div>
-
-                    {/* Reset Positions */}
-                    {!readOnly && (
-                      <Button variant="outline" className="w-full h-12 text-base" onClick={handleResetFormation}>
-                        <RotateCcw className="h-4 w-4 mr-1.5" />
-                        Reset Positions
-                      </Button>
-                    )}
 
                     {/* Timer - larger for landscape */}
                     <div className="border-t border-border pt-3">
@@ -5546,7 +5522,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </div>
                     </div>
 
-                    {/* Open Lineup Picker + Stats */}
+                    {/* Primary actions */}
                     <div className="grid grid-cols-2 gap-2">
                       {!readOnly && !miniLeagueTeams && (
                         <Button variant="outline" className="h-11 text-sm" onClick={() => setShowLineupPicker(true)}>
@@ -5558,49 +5534,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         <BarChart3 className="h-4 w-4 mr-1.5" />
                         Stats
                       </Button>
-                      <Button variant="outline" className="h-11 text-sm" onClick={() => setPositionEditorOpen(true)} disabled={readOnly}>
-                        <Settings2 className="h-4 w-4 mr-1.5" />
-                        Positions
-                      </Button>
                     </div>
-
-                    {/* Reset Positions */}
-                    {!readOnly && (
-                      <Button variant="outline" className="w-full h-11 text-sm" onClick={handleResetFormation}>
-                        <RotateCcw className="h-4 w-4 mr-1.5" />
-                        Reset Positions
-                      </Button>
-                    )}
-
-                    {/* Add Fill-In Player */}
-                    {!readOnly && (
-                      <Suspense fallback={null}>
-                        <AddFillInPlayerDialog
-                          onAddPlayer={handleAddFillInPlayer}
-                          existingNumbers={existingJerseyNumbers}
-                        />
-                      </Suspense>
-                    )}
-
-                    {/* Settings toggles */}
-                    {!readOnly && (
-                      <div className="border-t border-border pt-2 space-y-2">
-                        {parseInt(teamSize) >= 7 && (
-                          <div className="flex items-center justify-between py-1">
-                            <Label className="text-sm">Rotate GK at Halftime</Label>
-                            <Switch checked={rotateGkAtHalftime} onCheckedChange={setRotateGkAtHalftime} />
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between py-1">
-                          <Label className="text-sm">Hide Scores</Label>
-                          <Switch checked={hideScores} onCheckedChange={setHideScores} />
-                        </div>
-                        <div className="flex items-center justify-between py-1">
-                          <Label className="text-sm">Starting Lineup Screen</Label>
-                          <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
-                        </div>
-                      </div>
-                    )}
 
                     {/* Timer */}
                     <div className="border-t border-border pt-2">
