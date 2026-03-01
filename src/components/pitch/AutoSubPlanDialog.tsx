@@ -113,6 +113,7 @@ interface AutoSubPlanDialogProps {
   rotateGkAtHalftime?: boolean; // When true, swap GK at halftime
   currentElapsedSeconds?: number; // Current game elapsed seconds (for mid-game start)
   currentHalf?: 1 | 2; // Current half (for mid-game start)
+  preferredSecondHalfGkId?: string; // Preferred 2nd half GK from lineup screen
 }
 
 const formatTime = (seconds: number) => {
@@ -130,7 +131,8 @@ function createSubPlan(
   disableBatchSubs: boolean = false,
   rotateGkAtHalftime: boolean = true,
   startElapsedSeconds: number = 0,
-  startHalf: 1 | 2 = 1
+  startHalf: 1 | 2 = 1,
+  preferredSecondHalfGkId?: string
 ): SubstitutionEvent[] {
   const plan: SubstitutionEvent[] = [];
   
@@ -145,7 +147,10 @@ function createSubPlan(
   
   // Separate GK from outfield players
   const gkOnPitch = playersOnPitch.find(p => p.currentPitchPosition === "GK");
-  const gkOnBench = benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1);
+  // If a preferred 2nd half GK was selected, use that player; otherwise fall back to finding a GK-only bench player
+  const gkOnBench = preferredSecondHalfGkId
+    ? benchPlayers.find(p => p.id === preferredSecondHalfGkId) || benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1)
+    : benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1);
   
   const outfieldPlayers = playerData.filter(p => {
     if (p.currentPitchPosition === "GK") return false;
@@ -461,7 +466,8 @@ function DialogInner({
   disableBatchSubs = false,
   rotateGkAtHalftime = true,
   currentElapsedSeconds = 0,
-  currentHalf = 1
+  currentHalf = 1,
+  preferredSecondHalfGkId,
 }: {
   players: Player[];
   teamSize: number;
@@ -476,6 +482,7 @@ function DialogInner({
   rotateGkAtHalftime?: boolean;
   currentElapsedSeconds?: number;
   currentHalf?: 1 | 2;
+  preferredSecondHalfGkId?: string;
 }) {
   const [plan, setPlan] = useState<SubstitutionEvent[] | null>(existingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -498,7 +505,7 @@ function DialogInner({
     setTimeout(() => {
       try {
         const halfDurationSeconds = minutesPerHalf * 60;
-        const generatedPlan = createSubPlan(players, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf);
+        const generatedPlan = createSubPlan(players, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId);
         console.log("[AutoSubPlan] Generated", generatedPlan.length, "subs");
         setPlan(generatedPlan);
       } catch (error) {
@@ -678,8 +685,10 @@ export default function AutoSubPlanDialog({
   rotationSpeed = 2,
   disablePositionSwaps = false,
   disableBatchSubs = false,
+  rotateGkAtHalftime = true,
   currentElapsedSeconds = 0,
   currentHalf = 1,
+  preferredSecondHalfGkId,
 }: AutoSubPlanDialogProps) {
   const handleClose = () => onOpenChange(false);
   
@@ -733,8 +742,10 @@ export default function AutoSubPlanDialog({
                 rotationSpeed={rotationSpeed}
                 disablePositionSwaps={disablePositionSwaps}
                 disableBatchSubs={disableBatchSubs}
+                rotateGkAtHalftime={rotateGkAtHalftime}
                 currentElapsedSeconds={currentElapsedSeconds}
                 currentHalf={currentHalf}
+                preferredSecondHalfGkId={preferredSecondHalfGkId}
               />
             )}
           </div>
