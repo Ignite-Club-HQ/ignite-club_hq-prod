@@ -4312,68 +4312,65 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <Pencil className="h-5 w-5" />
             </button>
 
-            {/* Floating Draw Toolbar */}
+            {/* Floating Draw Toolbar - landscape: vertical strip to the left of tactical buttons */}
             {showFloatingDrawToolbar && (
-              <div className="absolute bottom-16 z-[55] animate-fade-in" style={{ right: 56 }}>
-                <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
-                  <div className="flex gap-2">
+              <div className="absolute top-1/2 -translate-y-1/2 z-[55] animate-fade-in" style={{ right: 56 }}>
+                <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-2 flex flex-col items-center gap-2">
+                  <Button 
+                    variant={drawingTool === "pen" ? "default" : "outline"} 
+                    size="icon"
+                    className="h-11 w-11"
+                    onClick={() => {
+                      setDrawingTool(drawingTool === "pen" ? "none" : "pen");
+                      if (drawingTool !== "pen" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
+                    }}
+                  >
+                    <Pencil className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant={drawingTool === "arrow" ? "default" : "outline"} 
+                    size="icon"
+                    className="h-11 w-11"
+                    onClick={() => {
+                      setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
+                      if (drawingTool !== "arrow" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
+                    }}
+                  >
+                    <MoveRight className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    className="h-11 w-11"
+                    onClick={clearDrawings}
+                  >
+                    <Eraser className="h-5 w-5" />
+                  </Button>
+                  {drawingTool !== "none" && (
                     <Button 
-                      variant={drawingTool === "pen" ? "default" : "outline"} 
-                      size="icon"
-                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
-                      onClick={() => {
-                        setDrawingTool(drawingTool === "pen" ? "none" : "pen");
-                        if (drawingTool !== "pen" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
-                      }}
-                    >
-                      <Pencil className="h-5 w-5" />
-                    </Button>
-                    <Button 
-                      variant={drawingTool === "arrow" ? "default" : "outline"} 
-                      size="icon"
-                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
-                      onClick={() => {
-                        setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
-                        if (drawingTool !== "arrow" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
-                      }}
-                    >
-                      <MoveRight className="h-5 w-5" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
+                      variant="destructive" 
                       size="icon" 
-                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
-                      onClick={clearDrawings}
+                      className="h-11 w-11"
+                      onClick={() => {
+                        setDrawingTool("none");
+                        setShowFloatingDrawToolbar(false);
+                      }}
                     >
-                      <Eraser className="h-5 w-5" />
+                      <X className="h-5 w-5" />
                     </Button>
-                    {drawingTool !== "none" && (
-                      <Button 
-                        variant="destructive" 
-                        size="icon" 
-                        className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
-                        onClick={() => {
-                          setDrawingTool("none");
-                          setShowFloatingDrawToolbar(false);
-                        }}
-                      >
-                        <X className="h-5 w-5" />
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex gap-2 justify-center">
-                    {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
-                      <button
-                        key={color}
-                        className={cn(
-                          "w-8 h-8 rounded-full border-2",
-                          drawingColor === color ? "border-primary ring-2 ring-primary/50" : "border-muted-foreground/30"
-                        )}
-                        style={{ backgroundColor: color }}
-                        onClick={() => setDrawingColor(color)}
-                      />
-                    ))}
-                  </div>
+                  )}
+                  <div className="w-full border-t border-border my-0.5" />
+                  {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
+                    <button
+                      key={color}
+                      className={cn(
+                        "w-7 h-7 rounded-full border-2",
+                        drawingColor === color ? "border-primary ring-2 ring-primary/50" : "border-muted-foreground/30"
+                      )}
+                      style={{ backgroundColor: color }}
+                      onClick={() => setDrawingColor(color)}
+                    />
+                  ))}
                 </div>
               </div>
             )}
