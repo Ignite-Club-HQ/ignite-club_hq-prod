@@ -287,8 +287,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [disableBatchSubs, setDisableBatchSubs] = useState(() => initialDisableBatchSubs); // Disable batch subs (multiple at once)
   const [rotateGkAtHalftime, setRotateGkAtHalftime] = useState(() => initialRotateGkAtHalftime); // Rotate GK at halftime
   const [showLineupPicker, setShowLineupPicker] = useState(() => {
-    // Show lineup picker on mount if setting enabled AND no saved state (fresh game)
-    return initialShowLineupPicker && !savedState && !readOnly && !miniLeagueTeams;
+    // Show lineup picker on mount if setting enabled AND linked to a game event AND no saved state (fresh game)
+    return initialShowLineupPicker && !!initialLinkedEventId && !savedState && !readOnly && !miniLeagueTeams;
   });
   const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
 
