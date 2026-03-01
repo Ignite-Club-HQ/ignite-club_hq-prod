@@ -4733,24 +4733,30 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     </div>
 
                     {/* Primary actions - context-aware */}
-                    <div className="grid grid-cols-2 gap-3">
-                      {!readOnly && !miniLeagueTeams && !gameInProgress && (
+                    {!readOnly && !miniLeagueTeams && !gameInProgress && (
+                      <div className="grid grid-cols-2 gap-3">
                         <Button variant="outline" className="h-12 text-base" onClick={() => setShowLineupPicker(true)}>
                           <List className="h-4 w-4 mr-1.5" />
                           Select Lineup
                         </Button>
-                      )}
-                      <Button variant="outline" className="h-12 text-base" onClick={() => setStatsOpen(true)}>
+                        <Button variant="outline" className="h-12 text-base" onClick={() => setStatsOpen(true)}>
+                          <BarChart3 className="h-4 w-4 mr-1.5" />
+                          Stats
+                        </Button>
+                      </div>
+                    )}
+                    {(readOnly || miniLeagueTeams || gameInProgress) && (
+                      <Button variant="outline" className="w-full h-12 text-base" onClick={() => setStatsOpen(true)}>
                         <BarChart3 className="h-4 w-4 mr-1.5" />
                         Stats
                       </Button>
-                      {!readOnly && (
-                        <Button variant="outline" className="h-12 text-base" onClick={handleResetFormation}>
-                          <RotateCcw className="h-4 w-4 mr-1.5" />
-                          Reset Formation
-                        </Button>
-                      )}
-                    </div>
+                    )}
+                    {!readOnly && (
+                      <Button variant="outline" className="w-full h-12 text-base" onClick={handleResetFormation}>
+                        <RotateCcw className="h-4 w-4 mr-1.5" />
+                        Reset Formation
+                      </Button>
+                    )}
 
                     {/* More Options - collapsible */}
                     {!readOnly && (
