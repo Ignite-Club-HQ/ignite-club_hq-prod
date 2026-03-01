@@ -6140,6 +6140,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         disablePositionSwaps={disablePositionSwaps}
         disableBatchSubs={disableBatchSubs}
         rotateGkAtHalftime={rotateGkAtHalftime}
+        currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+        currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
         showStepper={autoSubFromPreGame}
       />
 
