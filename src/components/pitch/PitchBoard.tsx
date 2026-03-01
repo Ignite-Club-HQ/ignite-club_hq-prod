@@ -4399,6 +4399,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                                          setBenchInjuryConfirmOpen(true);
                                        } else {
                                          lastTapRef.current = { playerId: player.id, time: now };
+                                         // Single tap during active game: open BenchToSubDialog for quick "slot in"
+                                         if (gameInProgress && !player.isInjured && playersOnPitch.length > 0) {
+                                           setBenchToSubPlayer(player.id);
+                                           setBenchToSubOpen(true);
+                                         }
                                        }
                                      }
                                    : undefined
@@ -5365,6 +5370,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                                        setBenchInjuryConfirmOpen(true);
                                      } else {
                                        lastTapRef.current = { playerId: player.id, time: now };
+                                       // Single tap during active game: open BenchToSubDialog for quick "slot in"
+                                       if (gameInProgress && !player.isInjured && playersOnPitch.length > 0) {
+                                         setBenchToSubPlayer(player.id);
+                                         setBenchToSubOpen(true);
+                                       }
                                      }
                                    }
                                  : undefined
