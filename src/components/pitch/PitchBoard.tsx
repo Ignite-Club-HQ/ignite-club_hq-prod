@@ -4680,7 +4680,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     </div>
 
                     {/* Primary actions - context-aware */}
-                    {!readOnly && !gameInProgress && (
+                    {!readOnly && (
                       <div className="grid grid-cols-2 gap-3">
                         <Button variant="outline" className="h-12 text-base" onClick={() => setShowLineupPicker(true)}>
                           <List className="h-4 w-4 mr-1.5" />
@@ -5646,7 +5646,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                     {/* Primary actions - context-aware */}
                     <div className="grid grid-cols-2 gap-2">
-                      {!readOnly && !gameInProgress && (
+                      {!readOnly && (
                         <Button variant="outline" className="h-11 text-sm" onClick={() => setShowLineupPicker(true)}>
                           <List className="h-4 w-4 mr-1.5" />
                           Select Lineup
