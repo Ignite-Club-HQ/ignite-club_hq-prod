@@ -601,7 +601,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [showSwipeHints, setShowSwipeHints] = useState(false);
   
   // Draggable floating subs button state
-  const [floatingSubsPosition, setFloatingSubsPosition] = useState({ x: 16, y: 64 }); // bottom-left offset, raised above drawing FAB
+  const [floatingSubsPosition, setFloatingSubsPosition] = useState({ x: 16, y: 16 }); // bottom-left offset
   const floatingSubsDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
   
   // Draggable floating timer state (for landscape mode) - positioned further right to avoid "View Only" badge
@@ -3874,9 +3874,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
           )}
 
-          {/* Floating undo button - positioned above chevron to avoid overlap */}
+          {/* Floating undo button - shows for 30 seconds after a sub/swap, positioned above Sub/Swap FABs */}
           {!readOnly && showFloatingUndo && undoHistory.length > 0 && (
-            <div className="absolute bottom-16 right-3 z-[56] animate-fade-in">
+            <div className="absolute bottom-4 right-4 z-[9999] animate-fade-in">
               <Button 
                 variant="secondary" 
                 size="sm"
@@ -4299,77 +4299,81 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
             <button
               className={cn(
-                "absolute bottom-3 left-3 z-[55] w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
+                "absolute bottom-3 z-[55] w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
                 drawingTool !== "none"
                   ? "bg-primary text-primary-foreground border-primary"
                   : showFloatingDrawToolbar
                     ? "bg-accent text-accent-foreground border-accent"
                     : "bg-background/80 border-border"
               )}
+              style={{ right: 60 }}
               onClick={() => setShowFloatingDrawToolbar(prev => !prev)}
             >
               <Pencil className="h-5 w-5" />
             </button>
 
-            {/* Floating Draw Toolbar - landscape: horizontal strip above FAB on LEFT side */}
+            {/* Floating Draw Toolbar */}
             {showFloatingDrawToolbar && (
-              <div className="absolute bottom-14 left-3 z-[55] animate-fade-in">
-                <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-2 flex items-center gap-2">
-                  <Button 
-                    variant={drawingTool === "pen" ? "default" : "outline"} 
-                    size="icon"
-                    className="h-10 w-10"
-                    onClick={() => {
-                      setDrawingTool(drawingTool === "pen" ? "none" : "pen");
-                      if (drawingTool !== "pen" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
-                    }}
-                  >
-                    <Pencil className="h-5 w-5" />
-                  </Button>
-                  <Button 
-                    variant={drawingTool === "arrow" ? "default" : "outline"} 
-                    size="icon"
-                    className="h-10 w-10"
-                    onClick={() => {
-                      setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
-                      if (drawingTool !== "arrow" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
-                    }}
-                  >
-                    <MoveRight className="h-5 w-5" />
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    className="h-10 w-10"
-                    onClick={clearDrawings}
-                  >
-                    <Eraser className="h-5 w-5" />
-                  </Button>
-                  {drawingTool !== "none" && (
+              <div className="absolute bottom-16 z-[55] animate-fade-in" style={{ right: 12 }}>
+                <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
+                  <div className="flex gap-2">
                     <Button 
-                      variant="destructive" 
-                      size="icon" 
-                      className="h-10 w-10"
+                      variant={drawingTool === "pen" ? "default" : "outline"} 
+                      size="icon"
+                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
                       onClick={() => {
-                        setDrawingTool("none");
-                        setShowFloatingDrawToolbar(false);
+                        setDrawingTool(drawingTool === "pen" ? "none" : "pen");
+                        if (drawingTool !== "pen" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                       }}
                     >
-                      <X className="h-5 w-5" />
+                      <Pencil className="h-5 w-5" />
                     </Button>
-                  )}
-                  <div className="h-8 border-l border-border mx-0.5" />
-                  {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
-                    <button
-                      key={color}
-                      className={cn(
-                        "w-7 h-7 rounded-full border-2",
-                        drawingColor === color ? "border-primary ring-2 ring-primary/50" : "border-muted-foreground/30"
-                      )}
-                      style={{ backgroundColor: color }}
-                      onClick={() => setDrawingColor(color)}
-                    />
-                  ))}
+                    <Button 
+                      variant={drawingTool === "arrow" ? "default" : "outline"} 
+                      size="icon"
+                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      onClick={() => {
+                        setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
+                        if (drawingTool !== "arrow" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
+                      }}
+                    >
+                      <MoveRight className="h-5 w-5" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      onClick={clearDrawings}
+                    >
+                      <Eraser className="h-5 w-5" />
+                    </Button>
+                    {drawingTool !== "none" && (
+                      <Button 
+                        variant="destructive" 
+                        size="icon" 
+                        className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                        onClick={() => {
+                          setDrawingTool("none");
+                          setShowFloatingDrawToolbar(false);
+                        }}
+                      >
+                        <X className="h-5 w-5" />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex gap-2 justify-center">
+                    {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
+                      <button
+                        key={color}
+                        className={cn(
+                          "w-8 h-8 rounded-full border-2",
+                          drawingColor === color ? "border-primary ring-2 ring-primary/50" : "border-muted-foreground/30"
+                        )}
+                        style={{ backgroundColor: color }}
+                        onClick={() => setDrawingColor(color)}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -4863,53 +4867,44 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         )}
 
-        {/* Floating left-side controls: shortcuts + tactical mode in one unified column */}
-        {!readOnly && (
-          <div className="absolute left-1.5 top-1/2 -translate-y-1/2 z-[55] flex flex-col items-center gap-3">
-            {/* Pinned shortcuts (Reset / Stats) above tactical buttons */}
-            {pinPitchShortcuts && (
-              <div className="flex flex-col items-center gap-1">
-                <button
-                  onClick={handleResetFormation}
-                  className="w-10 h-10 rounded-full bg-background/70 backdrop-blur border border-border flex items-center justify-center text-muted-foreground hover:text-foreground"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => setStatsOpen(true)}
-                  className="w-10 h-10 rounded-full bg-background/70 backdrop-blur border border-border flex items-center justify-center text-muted-foreground hover:text-foreground"
-                >
-                  <BarChart3 className="h-4 w-4" />
-                </button>
-              </div>
-            )}
+        {/* Floating Pitch Shortcuts - pinned to top right of pitch in landscape */}
+        {!readOnly && pinPitchShortcuts && (
+          <div className="absolute right-2 top-2 z-[55] flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-10 w-10 bg-background/70 backdrop-blur border border-border" onClick={handleResetFormation}>
+              <RotateCcw className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-10 w-10 bg-background/70 backdrop-blur border border-border" onClick={() => setStatsOpen(true)}>
+              <BarChart3 className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
 
-            {/* Tactical mode buttons */}
-            <div className="flex flex-col items-center gap-1">
-              {([
-                { value: "defend" as TacticalMode, icon: Shield, label: "DEF", activeClass: "bg-blue-500 text-white shadow-md" },
-                { value: "neutral" as TacticalMode, icon: Circle, label: "NEU", activeClass: "bg-background text-foreground shadow-md border-primary" },
-                { value: "attack" as TacticalMode, icon: Swords, label: "ATK", activeClass: "bg-orange-500 text-white shadow-md" },
-              ]).map(({ value: mode, icon: Icon, label, activeClass }) => (
-                <button
-                  key={mode}
-                  onClick={() => handleTacticalModeChange(mode)}
-                  className={cn(
-                    "w-10 h-10 rounded-full border flex flex-col items-center justify-center transition-all duration-200",
-                    tacticalMode === mode
-                      ? activeClass
-                      : "bg-background/70 backdrop-blur border-border text-muted-foreground hover:bg-background/90"
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  <span className="text-[7px] font-bold leading-none mt-0.5">{label}</span>
-                </button>
-              ))}
-            </div>
+        {/* Floating Tactical Mode - pinned to right side of pitch in landscape */}
+        {!readOnly && (
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 z-[55] flex flex-col items-center gap-1">
+            {([
+              { value: "defend" as TacticalMode, icon: Shield, label: "DEF", activeClass: "bg-blue-500 text-white shadow-md" },
+              { value: "neutral" as TacticalMode, icon: Circle, label: "NEU", activeClass: "bg-background text-foreground shadow-md border-primary" },
+              { value: "attack" as TacticalMode, icon: Swords, label: "ATK", activeClass: "bg-orange-500 text-white shadow-md" },
+            ]).map(({ value: mode, icon: Icon, label, activeClass }) => (
+              <button
+                key={mode}
+                onClick={() => handleTacticalModeChange(mode)}
+                className={cn(
+                  "w-11 h-11 rounded-full border flex flex-col items-center justify-center transition-all duration-200",
+                  tacticalMode === mode
+                    ? activeClass
+                    : "bg-background/70 backdrop-blur border-border text-muted-foreground hover:bg-background/90"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="text-[8px] font-bold leading-none mt-0.5">{label}</span>
+              </button>
+            ))}
 
             {/* Inline formation suggestion popup */}
             {tacticalFormationSuggestion && (
-              <div className="absolute left-14 top-1/2 -translate-y-1/2 w-56 bg-background border border-border rounded-xl shadow-xl p-3.5 animate-fade-in">
+              <div className="absolute right-14 top-1/2 -translate-y-1/2 w-56 bg-background border border-border rounded-xl shadow-xl p-3.5 animate-fade-in">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm text-foreground leading-snug">
                     Try <span className="font-bold">{tacticalFormationSuggestion.formationName}</span> for{" "}
