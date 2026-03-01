@@ -69,6 +69,19 @@ export const computeTacticalOffsets = (
     anchorMidId = sorted[0].id;
   }
 
+  // In defend mode, keep a clear visual channel between defenders and goalkeeper.
+  const projectedGoalkeeperY = (() => {
+    if (mode !== "defend") return null;
+    const gk = onPitch.find(player => player.currentPitchPosition === "GK" && player.position);
+    if (!gk) return null;
+
+    let gkY = gk.position!.y + 1; // match defend-mode GK offset
+    if (gkY < 20) gkY = 20;
+    if (gkY > 84) gkY = 84;
+    return gkY;
+  })();
+  const MIN_DEFENDER_GK_GAP = 11;
+
   for (const p of onPitch) {
     const bx = p.position!.x;
     const pos = p.currentPitchPosition;
@@ -136,10 +149,19 @@ export const computeTacticalOffsets = (
 
     if (dx !== 0 || dy !== 0) {
       const baseY = p.position!.y;
-      // Clamp so players never go above y=20% (under timer/score overlays) or below y=95%
+      // Clamp so players never go above y=20% (under timer/score overlays) or below y=84%
       const finalY = baseY + dy;
       if (finalY < 20) dy = 20 - baseY;
       if (finalY > 84) dy = 84 - baseY;
+
+      if (mode === "defend" && pos === "DEF" && projectedGoalkeeperY !== null) {
+        const maxDefenderY = projectedGoalkeeperY - MIN_DEFENDER_GK_GAP;
+        const adjustedY = baseY + dy;
+        if (adjustedY > maxDefenderY) {
+          dy = maxDefenderY - baseY;
+        }
+      }
+
       // Clamp horizontal to stay within pitch (2%-98%)
       const finalX = bx + dx;
       if (finalX < 2) dx = 2 - bx;
