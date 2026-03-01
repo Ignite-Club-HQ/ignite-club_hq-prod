@@ -47,7 +47,27 @@ export const computeTacticalOffsets = (
   const isWide = (x: number) => x < 40 || x > 60;
   const isLeft = (x: number) => x < 50;
 
-  // Keep tactical shifts line-based so formation structure stays visually aligned
+  // Classify midfielders for special roles
+  const midfielders = onPitch.filter(p => p.currentPitchPosition === "MID");
+
+  // ATTACK: pick one most-central midfielder to push higher
+  let attackPushMidId: string | null = null;
+  if (mode === "attack" && midfielders.length > 0) {
+    const sorted = [...midfielders].sort((a, b) =>
+      Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
+    );
+    attackPushMidId = sorted[0].id;
+  }
+
+  // DEFEND: pick one central midfielder as anchor
+  let anchorMidId: string | null = null;
+  if (mode === "defend" && midfielders.length > 0) {
+    const centralMids = midfielders.filter(m => !isWide(m.position!.x));
+    const sorted = (centralMids.length > 0 ? centralMids : midfielders).sort((a, b) =>
+      Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
+    );
+    anchorMidId = sorted[0].id;
+  }
 
   for (const p of onPitch) {
     const bx = p.position!.x;
@@ -66,8 +86,12 @@ export const computeTacticalOffsets = (
           if (isWide(bx)) dx = isLeft(bx) ? -2 : 2;
           break;
         case "MID":
-          dy = isSmallSided ? -3 : -4;
-          if (isWide(bx)) dx = isLeft(bx) ? -3 : 3;
+          if (p.id === attackPushMidId) {
+            dy = isSmallSided ? -6 : -8;
+          } else {
+            dy = -3;
+          }
+          if (isWide(bx)) dx = isLeft(bx) ? -4 : 4;
           break;
         case "FWD":
           dy = isSmallSided ? -3 : -5;
@@ -84,8 +108,15 @@ export const computeTacticalOffsets = (
           if (isWide(bx)) dx = isLeft(bx) ? 4 : -4;
           break;
         case "MID":
-          dy = isSmallSided ? 3 : 4;
-          if (isWide(bx)) dx = isLeft(bx) ? 3 : -3;
+          if (p.id === anchorMidId) {
+            dy = isSmallSided ? 5 : 7;
+            if (bx < 45) dx = 3;
+            else if (bx > 55) dx = -3;
+            isAnchor = true;
+          } else {
+            dy = 3;
+            if (isWide(bx)) dx = isLeft(bx) ? 3 : -3;
+          }
           break;
         case "FWD":
           dy = 2;
