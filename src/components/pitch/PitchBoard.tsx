@@ -4375,19 +4375,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     >
                       <Pin className={cn("h-5 w-5", pinDrawingToolbar && "rotate-45")} />
                     </Button>
-                    {drawingTool !== "none" && (
-                      <Button 
-                        variant="destructive" 
-                        size="icon" 
-                        className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
-                        onClick={() => {
-                          setDrawingTool("none");
-                          if (!pinDrawingToolbar) setShowFloatingDrawToolbar(false);
-                        }}
-                      >
-                        <X className="h-5 w-5" />
-                      </Button>
-                    )}
                   </div>
                   <div className="flex gap-2 justify-center">
                     {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
@@ -5355,19 +5342,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         >
                           <Eraser className="h-5 w-5" />
                         </Button>
-                        {drawingTool !== "none" && (
-                          <Button 
-                            variant="destructive" 
-                            size="icon" 
-                            className="h-12 w-12"
-                            onClick={() => {
-                              setDrawingTool("none");
-                              if (!pinDrawingToolbar) setShowFloatingDrawToolbar(false);
-                            }}
-                          >
-                            <X className="h-5 w-5" />
-                          </Button>
-                        )}
                       </div>
                       <div className="flex gap-2 justify-center">
                         {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
