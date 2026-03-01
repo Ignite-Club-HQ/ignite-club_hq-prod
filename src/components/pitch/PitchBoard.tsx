@@ -75,7 +75,7 @@ import {
   recalculateRemainingPlan,
   isSoundEnabled
 } from "./pitchStateUtils";
-import { TacticalMode, computeTacticalOffsets, TACTICAL_MODE_MESSAGES, TACTICAL_MODE_LABELS } from "./tacticalMode";
+import { TacticalMode, computeTacticalOffsets, TACTICAL_MODE_MESSAGES, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 
 interface PitchBoardProps {
   teamId: string;
@@ -496,13 +496,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, showLineupPickerSetting, toast]);
 
+  // Store pending tactical formation suggestion to apply after handleFormationChange is available
+  const pendingTacticalFormationRef = useRef<number | null>(null);
+  
   const handleTacticalModeChange = useCallback((mode: TacticalMode) => {
     setTacticalMode(mode);
     toast({
       title: TACTICAL_MODE_MESSAGES[mode],
       duration: 2000,
     });
-  }, [toast]);
+
+    // Queue a formation suggestion if a better fit exists
+    if (mode !== "neutral") {
+      const rec = RECOMMENDED_FORMATIONS[teamSize];
+      const suggestedIndex = mode === "attack" ? rec.attack : rec.defend;
+      if (suggestedIndex !== selectedFormation) {
+        pendingTacticalFormationRef.current = suggestedIndex;
+      }
+    }
+  }, [toast, teamSize, selectedFormation]);
 
   const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
     setPlayers(updatedPlayers);
@@ -1779,7 +1791,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     applyFormationChange(index);
   };
 
-  // Apply the formation change
+  // Process queued tactical formation suggestion
+  useEffect(() => {
+    if (pendingTacticalFormationRef.current !== null) {
+      const idx = pendingTacticalFormationRef.current;
+      pendingTacticalFormationRef.current = null;
+      handleFormationChange(String(idx));
+    }
+  });
+
   const applyFormationChange = useCallback((index: number) => {
     const formation = FORMATIONS[teamSize][index];
     if (!formation) return;

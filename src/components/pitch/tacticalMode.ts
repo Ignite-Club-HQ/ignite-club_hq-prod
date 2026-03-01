@@ -1,5 +1,22 @@
 import { PitchPosition } from "./PositionBadge";
-import { TeamSize, Player } from "./types";
+import { TeamSize, Player, FORMATIONS } from "./types";
+
+/**
+ * Recommended formation indices per team size for each tactical mode.
+ * Maps to the FORMATIONS array index. Neutral = no recommendation (keep current).
+ * Based on: attack = more forwards, defend = more defenders.
+ */
+export const RECOMMENDED_FORMATIONS: Record<TeamSize, { attack: number; defend: number }> = {
+  "3":  { attack: 2, defend: 1 },   // Attack: 1-2 (2 fwd), Defend: 2-1 (2 def)
+  "4":  { attack: 2, defend: 1 },   // Attack: 1-1-2, Defend: 2-1-1
+  "5":  { attack: 1, defend: 3 },   // Attack: 2-1-2, Defend: 2-2-1
+  "6":  { attack: 2, defend: 0 },   // Attack: 2-1-2, Defend: 2-2-1
+  "7":  { attack: 2, defend: 1 },   // Attack: 2-2-2, Defend: 3-2-1
+  "8":  { attack: 1, defend: 2 },   // Attack: 2-3-2, Defend: 3-2-2
+  "9":  { attack: 1, defend: 2 },   // Attack: 3-2-3, Defend: 2-4-2
+  "10": { attack: 2, defend: 1 },   // Attack: 3-3-3, Defend: 4-3-2
+  "11": { attack: 1, defend: 2 },   // Attack: 4-3-3, Defend: 3-5-2
+};
 
 export type TacticalMode = "neutral" | "attack" | "defend";
 
