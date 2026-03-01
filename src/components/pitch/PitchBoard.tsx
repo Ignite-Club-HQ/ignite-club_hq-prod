@@ -3586,6 +3586,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 minutesPerHalf={minutesPerHalf}
                 onMinutesPerHalfChange={handleMinutesPerHalfChange}
               />
+              {autoSubActive && (
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-1.5 py-0.5 rounded animate-pulse">
+                  AUTO
+                </span>
+              )}
             </div>
           </div>
 
@@ -4885,6 +4890,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               minutesPerHalf={minutesPerHalf}
               onMinutesPerHalfChange={handleMinutesPerHalfChange}
             />
+            {autoSubActive && (
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-1.5 py-0.5 rounded animate-pulse">
+                AUTO
+              </span>
+            )}
           </div>
         </div>
 
