@@ -39,8 +39,10 @@ const SubConfirmDialog = lazy(() => import("./SubConfirmDialog"));
 const AddFillInPlayerDialog = lazy(() => import("./AddFillInPlayerDialog"));
 const AutoSubManager = lazy(() => import("./AutoSubManager"));
 const PreGameLineupScreen = lazy(() => import("./PreGameLineupScreen"));
+import TacticalModeSelector from "./TacticalModeSelector";
 
 import { useToast } from "@/hooks/use-toast";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -74,6 +76,7 @@ import {
   recalculateRemainingPlan,
   isSoundEnabled
 } from "./pitchStateUtils";
+import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 
 interface PitchBoardProps {
   teamId: string;
@@ -259,6 +262,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const gameTimerRef = useRef<GameTimerRef>(null);
   const [autoSubPlanDialogOpen, setAutoSubPlanDialogOpen] = useState(false);
   const [autoSubPlanEditMode, setAutoSubPlanEditMode] = useState(false);
+  const [autoSubFromPreGame, setAutoSubFromPreGame] = useState(false);
   const [autoSubPlan, setAutoSubPlan] = useState<SubstitutionEvent[]>(() => savedState?.autoSubPlan || []);
   const [autoSubActive, setAutoSubActive] = useState(() => savedState?.autoSubActive || false);
   const [autoSubPaused, setAutoSubPaused] = useState(() => savedState?.autoSubPaused || false);
@@ -293,6 +297,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return initialShowLineupPicker && !!initialLinkedEventId && !savedState && !readOnly && !miniLeagueTeams;
   });
   const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
+  
+  // Tactical mode state
+  type TacticalFormationSuggestion = {
+    mode: Exclude<TacticalMode, "neutral">;
+    formationIndex: number;
+    formationName: string;
+  };
+  const [tacticalMode, setTacticalMode] = useState<TacticalMode>("neutral");
+  const [tacticalFormationSuggestion, setTacticalFormationSuggestion] = useState<TacticalFormationSuggestion | null>(null);
 
   // Sync settings from props when they change (e.g., when edited on team page)
   // Also sync on initial mount if no saved state exists for the setting
@@ -491,6 +504,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, showLineupPickerSetting, toast]);
 
+  // handleTacticalModeChange is defined after handleFormationChange (see below)
+
   const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
     setPlayers(updatedPlayers);
     setShowLineupPicker(false);
@@ -503,6 +518,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // After confirming lineup, prompt auto-sub generation
     setTimeout(() => {
       setAutoSubPlanEditMode(false);
+      setAutoSubFromPreGame(true);
       setAutoSubPlanDialogOpen(true);
     }, 300);
   }, []);
@@ -695,6 +711,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Open auto-sub plan dialog with minutes from pitch settings
   const openAutoSubPlanDialog = useCallback((editMode?: boolean) => {
     setAutoSubPlanEditMode(editMode === true);
+    setAutoSubFromPreGame(false);
     setAutoSubPlanDialogOpen(true);
   }, []);
 
@@ -753,6 +770,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   const handleRemoveGoal = useCallback((goalId: string) => {
     setGoals(prev => prev.filter(g => g.id !== goalId));
+  }, []);
+
+  const handleUpdateGoal = useCallback((updatedGoal: Goal) => {
+    setGoals(prev => prev.map(g => g.id === updatedGoal.id ? updatedGoal : g));
   }, []);
 
   // Generate mock players with positions
@@ -1766,7 +1787,42 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     applyFormationChange(index);
   };
 
-  // Apply the formation change
+  const handleTacticalModeChange = useCallback((mode: TacticalMode) => {
+    setTacticalMode(mode);
+
+    if (mode === "neutral") {
+      setTacticalFormationSuggestion(null);
+      return;
+    }
+
+    const rec = RECOMMENDED_FORMATIONS[teamSize];
+    const suggestedIndex = mode === "attack" ? rec.attack : rec.defend;
+    const suggestedFormation = FORMATIONS[teamSize][suggestedIndex];
+
+    if (suggestedIndex !== selectedFormation && suggestedFormation) {
+      setTacticalFormationSuggestion({
+        mode,
+        formationIndex: suggestedIndex,
+        formationName: suggestedFormation.name,
+      });
+    } else {
+      setTacticalFormationSuggestion(null);
+    }
+  }, [teamSize, selectedFormation]);
+
+  const handleApplyTacticalSuggestion = useCallback(() => {
+    if (!tacticalFormationSuggestion) return;
+    handleFormationChange(String(tacticalFormationSuggestion.formationIndex));
+    setTacticalFormationSuggestion(null);
+  }, [tacticalFormationSuggestion, handleFormationChange]);
+
+  const handleDismissTacticalSuggestion = useCallback(() => {
+    setTacticalFormationSuggestion(null);
+    // Minimise the bottom drawer after dismissing
+    setToolbarCollapsed(true);
+    setPortraitSheetOpen(false);
+  }, []);
+
   const applyFormationChange = useCallback((index: number) => {
     const formation = FORMATIONS[teamSize][index];
     if (!formation) return;
@@ -1837,6 +1893,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     setFormationChangeDialogOpen(false);
     setPendingFormationChange(null);
+    // Minimise the bottom drawer after applying
+    setToolbarCollapsed(true);
+    setPortraitSheetOpen(false);
   }, [pendingFormationChange, applyFormationChange, autoPlacePlayersOnPitch, players, persistTeamSizeToDb]);
 
   // Handle formation change dialog cancel
@@ -3265,6 +3324,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const playersOnPitch = useMemo(() => players.filter(p => p.position !== null), [players]);
   const playersOnBench = useMemo(() => players.filter(p => p.position === null), [players]);
 
+  // Tactical mode: batch-compute visual offsets (CSS translate) for on-pitch players
+  const tacticalOffsets = useMemo(() => 
+    computeTacticalOffsets(players, tacticalMode, teamSize),
+    [players, tacticalMode, teamSize]
+  );
+
+  // Compute ball visual offset to avoid overlapping with tactically-shifted players
+  const ballOffset = useMemo(() =>
+    computeBallOffset(ballPosition, players, tacticalOffsets, tacticalMode),
+    [ballPosition, players, tacticalOffsets, tacticalMode]
+  );
+
   // Calculate which bench players can come on for the selected pitch player
   const getValidBenchPlayerIds = useMemo(() => {
     if (!subMode || !selectedOnPitch) return new Set<string>();
@@ -3711,49 +3782,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, [benchToSubPlayer]);
 
   // Calculate which positions on pitch are occupied by the filtered position type
-  const getPositionZoneIndicators = useCallback(() => {
-    if (!benchPositionFilter) return [];
-    
-    // Define zones for each position type
-    const zones: Record<PitchPosition, { x: number; y: number; label: string }[]> = {
-      GK: [{ x: 50, y: 90, label: "GK" }],
-      DEF: [
-        { x: 25, y: 72, label: "LB" },
-        { x: 40, y: 72, label: "CB" },
-        { x: 60, y: 72, label: "CB" },
-        { x: 75, y: 72, label: "RB" },
-      ],
-      MID: [
-        { x: 25, y: 50, label: "LM" },
-        { x: 40, y: 50, label: "CM" },
-        { x: 60, y: 50, label: "CM" },
-        { x: 75, y: 50, label: "RM" },
-      ],
-      FWD: [
-        { x: 35, y: 22, label: "LW" },
-        { x: 50, y: 22, label: "ST" },
-        { x: 65, y: 22, label: "RW" },
-      ],
-    };
-
-    const targetZones = zones[benchPositionFilter];
-    
-    // Check which zones are empty (no player of the correct type nearby)
-    return targetZones.map(zone => {
-      const hasPlayerNearby = playersOnPitch.some(player => {
-        if (!player.position) return false;
-        const distance = Math.sqrt(
-          Math.pow(player.position.x - zone.x, 2) + 
-          Math.pow(player.position.y - zone.y, 2)
-        );
-        // Check if player is within 15% distance and can play the position
-        return distance < 15 && player.currentPitchPosition === benchPositionFilter;
-      });
-      return { ...zone, isEmpty: !hasPlayerNearby };
-    }).filter(zone => zone.isEmpty);
-  }, [benchPositionFilter, playersOnPitch]);
-
-  const emptyPositionZones = getPositionZoneIndicators();
+  // (Position zone indicators removed)
 
   // Landscape layout: pitch full screen on left, controls stacked on right
   if (isLandscape) {
@@ -3793,7 +3822,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             onMouseDown={handleTimerDragStart}
             onTouchStart={handleTimerTouchStart}
           >
-            <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+            <div className="flex flex-col items-center bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+              <div className="flex items-center gap-2">
               <GameTimer 
                 key={timerResetKey}
                 ref={gameTimerRef} 
@@ -3812,6 +3842,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   AUTO
                 </span>
               )}
+              </div>
+              {tacticalMode !== "neutral" && (
+                <span className="text-[9px] text-muted-foreground font-medium mt-0.5">
+                  {FORMATIONS[teamSize][selectedFormation]?.name} • {TACTICAL_MODE_LABELS[tacticalMode]}
+                </span>
+              )}
             </div>
           </div>
 
@@ -3822,6 +3858,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 goals={goals}
                 onAddGoal={handleAddGoal}
                 onRemoveGoal={handleRemoveGoal}
+                onUpdateGoal={handleUpdateGoal}
                 players={players}
                 currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
                 elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
@@ -4081,57 +4118,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 readOnly={readOnly}
                 className="absolute"
                 style={{
-                  left: `${ballPosition.x}%`,
-                  top: `${ballPosition.y}%`,
+                  left: `${ballPosition.x + ballOffset.dx}%`,
+                  top: `${ballPosition.y + ballOffset.dy}%`,
                   transform: "translate(-50%, -50%)",
                   zIndex: 40,
+                  transition: tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined,
                 }}
               />
-
-              {/* Position Zone Indicators */}
-              {emptyPositionZones.map((zone, idx) => (
-                <div
-                  key={`zone-${idx}`}
-                  className="absolute pointer-events-none"
-                  style={{
-                    left: `${zone.x}%`,
-                    top: `${zone.y}%`,
-                    transform: "translate(-50%, -50%)",
-                    zIndex: 8,
-                  }}
-                >
-                  <div className="relative">
-                    {/* Pulsing ring */}
-                    <div 
-                      className="absolute inset-0 rounded-full border-2 border-dashed animate-pulse"
-                      style={{
-                        width: 40,
-                        height: 40,
-                        marginLeft: -20,
-                        marginTop: -20,
-                        borderColor: benchPositionFilter === "GK" ? "#eab308" : 
-                                     benchPositionFilter === "DEF" ? "#3b82f6" : 
-                                     benchPositionFilter === "MID" ? "#10b981" : "#ef4444",
-                        opacity: 0.7,
-                      }}
-                    />
-                    {/* Label */}
-                    <span 
-                      className="absolute text-[10px] font-bold opacity-60"
-                      style={{
-                        left: "50%",
-                        top: "50%",
-                        transform: "translate(-50%, -50%)",
-                        color: benchPositionFilter === "GK" ? "#eab308" : 
-                               benchPositionFilter === "DEF" ? "#3b82f6" : 
-                               benchPositionFilter === "MID" ? "#10b981" : "#ef4444",
-                      }}
-                    >
-                      {zone.label}
-                    </span>
-                  </div>
-                </div>
-              ))}
 
               {/* Players on pitch */}
               {playersOnPitch.map(player => (
@@ -4175,10 +4168,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   teamColor={getPlayerTeamColor(player)}
                   style={{
                     position: "absolute",
-                    left: `${player.position!.x}%`,
-                    top: `${player.position!.y}%`,
-                    transform: "translate(-50%, -50%)",
-                    transition: draggedPlayer === player.id || touchDragPlayer === player.id ? "none" : "left 0.3s ease-out, top 0.3s ease-out",
+                    ...(() => {
+                      const isDragging = draggedPlayer === player.id || touchDragPlayer === player.id;
+                      const offset = !isDragging ? tacticalOffsets.get(player.id) : undefined;
+                      const tx = offset?.dx ?? 0;
+                      const ty = offset?.dy ?? 0;
+                      return {
+                        left: `${player.position!.x + tx}%`,
+                        top: `${player.position!.y + ty}%`,
+                        transform: "translate(-50%, -50%)",
+                        transition: isDragging ? "none" : "left 0.4s ease-out, top 0.4s ease-out",
+                      };
+                    })(),
                     zIndex: previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
                     cursor: readOnly ? "default" : ((subMode || swapMode) ? "pointer" : "grab"),
                   }}
@@ -4455,8 +4456,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               </div>
               </div>
 
+
               {/* Tab content */}
-              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${sheetHeightPct}vh - 80px)` }}>
+              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${sheetHeightPct}vh - 120px)` }}>
                 {/* Bench Tab */}
                 {bottomSheetTab === "bench" && (
                   <div className="space-y-3">
@@ -4678,6 +4680,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Setup Tab */}
                 {bottomSheetTab === "setup" && (
                   <div className="space-y-4 px-1">
+                    {/* Tactical Mode Selector */}
+                    <TacticalModeSelector value={tacticalMode} onChange={handleTacticalModeChange} readOnly={readOnly} />
+                    {tacticalFormationSuggestion && (
+                      <div className="rounded-lg border border-border bg-muted/60 p-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-xs text-foreground">
+                            Suggested for <span className="font-semibold">{tacticalFormationSuggestion.mode === "attack" ? "Attack" : "Defend"}</span>: <span className="font-semibold">{tacticalFormationSuggestion.formationName}</span>
+                          </p>
+                          <button type="button" onClick={handleDismissTacticalSuggestion} className="rounded-md p-1 text-muted-foreground hover:text-foreground" aria-label="Dismiss formation suggestion">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <Button type="button" size="sm" className="h-8" onClick={handleApplyTacticalSuggestion}>Apply formation</Button>
+                          <Button type="button" size="sm" variant="ghost" className="h-8" onClick={handleDismissTacticalSuggestion}>Dismiss</Button>
+                        </div>
+                      </div>
+                    )}
                     {/* Segmented controls for core settings - landscape */}
                     <div className="space-y-3">
                       <div className="space-y-1.5">
@@ -4725,24 +4745,44 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     </div>
 
                     {/* Primary actions - context-aware */}
-                    <div className="grid grid-cols-2 gap-3">
-                      {!readOnly && !miniLeagueTeams && !gameInProgress && (
+                    {!readOnly && !miniLeagueTeams && !gameInProgress && (
+                      <div className="grid grid-cols-2 gap-3">
                         <Button variant="outline" className="h-12 text-base" onClick={() => setShowLineupPicker(true)}>
                           <List className="h-4 w-4 mr-1.5" />
                           Select Lineup
                         </Button>
-                      )}
-                      {!readOnly && gameInProgress && (
+                        <Button variant="outline" className="h-12 text-base" onClick={() => setStatsOpen(true)}>
+                          <BarChart3 className="h-4 w-4 mr-1.5" />
+                          Stats
+                        </Button>
                         <Button variant="outline" className="h-12 text-base" onClick={handleResetFormation}>
                           <RotateCcw className="h-4 w-4 mr-1.5" />
                           Reset Formation
                         </Button>
-                      )}
-                      <Button variant="outline" className="h-12 text-base" onClick={() => setStatsOpen(true)}>
+                        <Button variant="outline" className="h-12 text-base" onClick={() => setPositionEditorOpen(true)}>
+                          <Settings2 className="h-4 w-4 mr-1.5" />
+                          Positions
+                        </Button>
+                      </div>
+                    )}
+                    {(readOnly || miniLeagueTeams || gameInProgress) && !readOnly && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button variant="outline" className="h-12 text-base" onClick={() => setStatsOpen(true)}>
+                          <BarChart3 className="h-4 w-4 mr-1.5" />
+                          Stats
+                        </Button>
+                        <Button variant="outline" className="h-12 text-base" onClick={handleResetFormation}>
+                          <RotateCcw className="h-4 w-4 mr-1.5" />
+                          Reset Formation
+                        </Button>
+                      </div>
+                    )}
+                    {(readOnly || miniLeagueTeams || gameInProgress) && readOnly && (
+                      <Button variant="outline" className="w-full h-12 text-base" onClick={() => setStatsOpen(true)}>
                         <BarChart3 className="h-4 w-4 mr-1.5" />
                         Stats
                       </Button>
-                    </div>
+                    )}
 
                     {/* More Options - collapsible */}
                     {!readOnly && (
@@ -4764,6 +4804,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               />
                             </Suspense>
                           </div>
+                          {!gameInProgress && (
+                            <div className="space-y-2 py-1">
+                              <Label className="text-sm">Minutes per Half</Label>
+                              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                                {[5, 7, 8, 10, 12, 15, 20, 25, 30, 35, 40, 45].map((m) => (
+                                  <Button
+                                    key={m}
+                                    type="button"
+                                    variant={minutesPerHalf === m ? "default" : "outline"}
+                                    className="h-10 px-3 text-sm shrink-0"
+                                    onClick={() => handleMinutesPerHalfChange(m)}
+                                  >
+                                    {m}m
+                                  </Button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           {parseInt(teamSize) >= 7 && (
                             <div className="flex items-center justify-between py-1">
                               <Label className="text-sm">Rotate GK at Halftime</Label>
@@ -4903,7 +4961,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           rotateGkAtHalftime={rotateGkAtHalftime}
           currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
           currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-          preferredSecondHalfGkId={preferredSecondHalfGkId}
+          showStepper={autoSubFromPreGame}
         />
 
         {/* Sub Confirm Dialog */}
@@ -4975,7 +5033,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         />
 
         {/* Landscape Event Selector Sheet - only show in non-readOnly mode */}
-        {!readOnly && (
+        {!readOnly && !gameInProgress && (
           <LandscapeEventSelector
             open={landscapeEventSelectorOpen}
             onOpenChange={setLandscapeEventSelectorOpen}
@@ -5065,7 +5123,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           eventId={linkedEventId || ''} 
           teamId={teamId}
           teamName={teamName} 
-          onLinkEvent={readOnly ? undefined : handleLinkEvent}
+          onLinkEvent={readOnly || (gameInProgress && !!linkedEventId) ? undefined : handleLinkEvent}
           showScoreToggle={gameInProgress && !hideScores}
           scoreExpanded={showScoreInPortrait}
           onToggleScore={() => setShowScoreInPortrait(!showScoreInPortrait)}
@@ -5083,6 +5141,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             goals={goals}
             onAddGoal={handleAddGoal}
             onRemoveGoal={handleRemoveGoal}
+            onUpdateGoal={handleUpdateGoal}
             players={players}
             currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
             elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
@@ -5108,64 +5167,73 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </Badge>
         )}
         {!readOnly && (
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setStatsOpen(true)}>
-            <BarChart3 className="h-4 w-4" />
-          </Button>
+          <>
+            <Button variant="ghost" size="icon" className="h-10 w-10" onClick={handleResetFormation}>
+              <RotateCcw className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setStatsOpen(true)}>
+              <BarChart3 className="h-5 w-5" />
+            </Button>
+          </>
         )}
       </div>
 
       {/* Full-screen Pitch Area */}
       <div className="flex-1 min-h-0 relative overflow-hidden">
-        {/* Floating timer */}
+        {/* Floating score + timer combined row */}
         <div 
-          className="absolute z-[55] select-none pointer-events-auto"
-          style={{ 
-            right: 8,
-            top: gameInProgress && !hideScores && !showScoreInPortrait ? 52 : 8,
-            touchAction: 'auto',
-          }}
+          className="absolute z-[61] select-none pointer-events-auto right-2 top-2"
+          style={{ touchAction: 'auto' }}
         >
-          <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
-            <GameTimer 
-              key={timerResetKey}
-              ref={gameTimerRef} 
-              compact
-              teamId={teamId} 
-              teamName={teamName} 
-              onTimeUpdate={handleTimerUpdate} 
-              onHalfChange={handleHalfChange} 
-              readOnly={readOnly}
-              hideExtras
-              minutesPerHalf={minutesPerHalf}
-              onMinutesPerHalfChange={handleMinutesPerHalfChange}
-            />
-            {autoSubActive && (
-              <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-1.5 py-0.5 rounded animate-pulse">
-                AUTO
-              </span>
+          <div className="flex items-center gap-1.5">
+            {/* Score tracker (mini) */}
+            {gameInProgress && !hideScores && !showScoreInPortrait && (
+              <ScoreTracker
+                goals={goals}
+                onAddGoal={handleAddGoal}
+                onRemoveGoal={handleRemoveGoal}
+                onUpdateGoal={handleUpdateGoal}
+                players={players}
+                currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+                elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+                teamName={teamName}
+                opponentName={opponentName}
+                readOnly={readOnly}
+                isGameFinished={gameTimerRef.current?.isGameFinished() || false}
+                miniLeagueTeams={miniLeagueTeams}
+                mini
+              />
             )}
+            {/* Timer */}
+            <div className="flex flex-col items-center bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+              <div className="flex items-center gap-2">
+              <GameTimer 
+                key={timerResetKey}
+                ref={gameTimerRef} 
+                compact
+                teamId={teamId} 
+                teamName={teamName} 
+                onTimeUpdate={handleTimerUpdate} 
+                onHalfChange={handleHalfChange} 
+                readOnly={readOnly}
+                hideExtras
+                minutesPerHalf={minutesPerHalf}
+                onMinutesPerHalfChange={handleMinutesPerHalfChange}
+              />
+              {autoSubActive && (
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-1.5 py-0.5 rounded animate-pulse">
+                  AUTO
+                </span>
+              )}
+              </div>
+              {tacticalMode !== "neutral" && (
+                <span className="text-[9px] text-muted-foreground font-medium mt-0.5">
+                  {FORMATIONS[teamSize][selectedFormation]?.name} • {TACTICAL_MODE_LABELS[tacticalMode]}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* Floating score tracker */}
-        {gameInProgress && !hideScores && !showScoreInPortrait && (
-          <div className="absolute top-2 right-2 z-[61]">
-            <ScoreTracker
-              goals={goals}
-              onAddGoal={handleAddGoal}
-              onRemoveGoal={handleRemoveGoal}
-              players={players}
-              currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-              elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-              teamName={teamName}
-              opponentName={opponentName}
-              readOnly={readOnly}
-              isGameFinished={gameTimerRef.current?.isGameFinished() || false}
-              miniLeagueTeams={miniLeagueTeams}
-              mini
-            />
-          </div>
-        )}
 
         {/* Floating undo button - bottom-right, above the chevron-up arrow */}
         {!readOnly && showFloatingUndo && undoHistory.length > 0 && !portraitSheetOpen && (
@@ -5442,8 +5510,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 </div>
               </div>
 
+
               {/* Tab content */}
-              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${portraitSheetHeightPct}vh - 80px)` }}>
+              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${portraitSheetHeightPct}vh - 120px)` }}>
                 {/* Bench Tab */}
                 {bottomSheetTab === "bench" && (
                   <div className="space-y-3">
@@ -5675,6 +5744,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Setup Tab */}
                 {bottomSheetTab === "setup" && (
                   <div className="space-y-3 px-1">
+                    {/* Tactical Mode Selector */}
+                    <TacticalModeSelector value={tacticalMode} onChange={handleTacticalModeChange} readOnly={readOnly} />
+                    {tacticalFormationSuggestion && (
+                      <div className="rounded-lg border border-border bg-muted/60 p-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-xs text-foreground">
+                            Suggested for <span className="font-semibold">{tacticalFormationSuggestion.mode === "attack" ? "Attack" : "Defend"}</span>: <span className="font-semibold">{tacticalFormationSuggestion.formationName}</span>
+                          </p>
+                          <button type="button" onClick={handleDismissTacticalSuggestion} className="rounded-md p-1 text-muted-foreground hover:text-foreground" aria-label="Dismiss formation suggestion">
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <Button type="button" size="sm" className="h-8" onClick={handleApplyTacticalSuggestion}>Apply formation</Button>
+                          <Button type="button" size="sm" variant="ghost" className="h-8" onClick={handleDismissTacticalSuggestion}>Dismiss</Button>
+                        </div>
+                      </div>
+                    )}
                     {/* Segmented controls for core settings - portrait */}
                     <div className="space-y-2">
                       <div className="space-y-1">
@@ -5729,16 +5816,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           Select Lineup
                         </Button>
                       )}
-                      {!readOnly && gameInProgress && (
+                      <Button variant="outline" className="h-11 text-sm" onClick={() => setStatsOpen(true)}>
+                        <BarChart3 className="h-4 w-4 mr-1.5" />
+                        Stats
+                      </Button>
+                      {!readOnly && (
                         <Button variant="outline" className="h-11 text-sm" onClick={handleResetFormation}>
                           <RotateCcw className="h-4 w-4 mr-1.5" />
                           Reset Formation
                         </Button>
                       )}
-                      <Button variant="outline" className="h-11 text-sm" onClick={() => setStatsOpen(true)}>
-                        <BarChart3 className="h-4 w-4 mr-1.5" />
-                        Stats
-                      </Button>
                     </div>
 
                     {/* More Options - collapsible */}
@@ -5761,6 +5848,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               />
                             </Suspense>
                           </div>
+                          {!gameInProgress && (
+                            <div className="space-y-2 py-1">
+                              <Label className="text-sm">Minutes per Half</Label>
+                              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                                {[5, 7, 8, 10, 12, 15, 20, 25, 30, 35, 40, 45].map((m) => (
+                                  <Button
+                                    key={m}
+                                    type="button"
+                                    variant={minutesPerHalf === m ? "default" : "outline"}
+                                    className="h-10 px-3 text-sm shrink-0"
+                                    onClick={() => handleMinutesPerHalfChange(m)}
+                                  >
+                                    {m}m
+                                  </Button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           {parseInt(teamSize) >= 7 && (
                             <div className="flex items-center justify-between py-1">
                               <Label className="text-sm">Rotate GK at Halftime</Label>
@@ -5956,46 +6061,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               readOnly={readOnly}
               className="absolute"
               style={{
-                left: `${ballPosition.x}%`,
-                top: `${ballPosition.y}%`,
+                left: `${ballPosition.x + ballOffset.dx}%`,
+                top: `${ballPosition.y + ballOffset.dy}%`,
                 transform: "translate(-50%, -50%)",
                 zIndex: 40,
+                transition: tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined,
               }}
             />
-
-            {/* Position Zone Indicators */}
-            {emptyPositionZones.map((zone, idx) => (
-              <div
-                key={`zone-${idx}`}
-                className="absolute pointer-events-none"
-                style={{
-                  left: `${zone.x}%`,
-                  top: `${zone.y}%`,
-                  transform: "translate(-50%, -50%)",
-                  zIndex: 8,
-                }}
-              >
-                <div className="relative">
-                  <div 
-                    className="absolute inset-0 rounded-full border-2 border-dashed animate-pulse"
-                    style={{
-                      width: 40, height: 40, marginLeft: -20, marginTop: -20,
-                      borderColor: benchPositionFilter === "GK" ? "#eab308" : benchPositionFilter === "DEF" ? "#3b82f6" : benchPositionFilter === "MID" ? "#10b981" : "#ef4444",
-                      opacity: 0.7,
-                    }}
-                  />
-                  <span 
-                    className="absolute text-[10px] font-bold opacity-60"
-                    style={{
-                      left: "50%", top: "50%", transform: "translate(-50%, -50%)",
-                      color: benchPositionFilter === "GK" ? "#eab308" : benchPositionFilter === "DEF" ? "#3b82f6" : benchPositionFilter === "MID" ? "#10b981" : "#ef4444",
-                    }}
-                  >
-                    {zone.label}
-                  </span>
-                </div>
-              </div>
-            ))}
 
             {/* Players on pitch */}
             {playersOnPitch.map(player => (
@@ -6038,10 +6110,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 teamColor={getPlayerTeamColor(player)}
                 style={{
                   position: "absolute",
-                  left: `${player.position!.x}%`,
-                  top: `${player.position!.y}%`,
-                  transform: "translate(-50%, -50%)",
-                  transition: draggedPlayer === player.id || touchDragPlayer === player.id ? "none" : "left 0.3s ease-out, top 0.3s ease-out",
+                  ...(() => {
+                    const isDragging = draggedPlayer === player.id || touchDragPlayer === player.id;
+                    const offset = !isDragging ? tacticalOffsets.get(player.id) : undefined;
+                    const tx = offset?.dx ?? 0;
+                    const ty = offset?.dy ?? 0;
+                    return {
+                      left: `${player.position!.x + tx}%`,
+                      top: `${player.position!.y + ty}%`,
+                      transform: "translate(-50%, -50%)",
+                      transition: isDragging ? "none" : "left 0.4s ease-out, top 0.4s ease-out",
+                    };
+                  })(),
                   zIndex: previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
                   cursor: readOnly ? "default" : ((subMode || swapMode) ? "pointer" : "grab"),
                 }}
@@ -6231,7 +6311,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         disablePositionSwaps={disablePositionSwaps}
         disableBatchSubs={disableBatchSubs}
         rotateGkAtHalftime={rotateGkAtHalftime}
-        preferredSecondHalfGkId={preferredSecondHalfGkId}
+        showStepper={autoSubFromPreGame}
       />
 
       {/* Sub Confirm Dialog */}
