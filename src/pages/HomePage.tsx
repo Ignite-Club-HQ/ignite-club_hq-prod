@@ -1979,20 +1979,22 @@ export default function HomePage() {
                 onClick={() => navigate(`/events/${event.id}`)}
               >
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <Badge className={eventTypeColors[event.type]} variant="secondary">
-                      {event.type}
-                    </Badge>
-                    {event.is_cancelled && (
-                      <Badge variant="destructive">Cancelled</Badge>
-                    )}
-                    {event.teams?.name && (
-                      <span className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                        <span>{getSportEmoji(event.clubs?.sport)}</span>
-                        {event.teams.name}
-                      </span>
-                    )}
-                    <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                      <Badge className={eventTypeColors[event.type]} variant="secondary">
+                        {event.type}
+                      </Badge>
+                      {event.is_cancelled && (
+                        <Badge variant="destructive">Cancelled</Badge>
+                      )}
+                      {event.teams?.name && (
+                        <span className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                          <span>{getSportEmoji(event.clubs?.sport)}</span>
+                          {event.teams.name}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0 ml-auto">
                       {!event.is_cancelled && (
                         <Button
                           variant="outline"
