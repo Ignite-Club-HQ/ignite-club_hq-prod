@@ -4462,9 +4462,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Bench Tab */}
                 {bottomSheetTab === "bench" && (
                   <div className="space-y-3">
-                    {/* Position Filter Chips + Fill-In */}
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-2 flex-1 min-w-0">
+                    {/* Position Filter Chips - sticky */}
+                    <div className="sticky top-[-12px] z-10 bg-background py-2 -mx-3 px-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-2 flex-1 min-w-0">
                         {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
                           const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos) || !p.assignedPositions?.length).length;
                           const totalCount = players.filter(p => p.assignedPositions?.includes(pos)).length;
@@ -4492,6 +4493,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </button>
                         )}
                       </div>
+                    </div>
                     </div>
                     {/* Bench Players - horizontal scroll */}
                     <div 
