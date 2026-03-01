@@ -4382,7 +4382,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
                         onClick={() => {
                           setDrawingTool("none");
-                          setShowFloatingDrawToolbar(false);
+                          if (!pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                         }}
                       >
                         <X className="h-5 w-5" />
@@ -5362,7 +5362,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             className="h-12 w-12"
                             onClick={() => {
                               setDrawingTool("none");
-                              setShowFloatingDrawToolbar(false);
+                              if (!pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                             }}
                           >
                             <X className="h-5 w-5" />
