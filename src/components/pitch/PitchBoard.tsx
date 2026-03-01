@@ -3465,7 +3465,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setSelectedOnPitch(null);
     setSelectedOnBench(null);
     setSubMode(false);
-  }, [pendingManualSub, toast, pushToUndoHistory]);
+
+    // Auto-regenerate the plan if auto-subs are active
+    if (autoSubActive) {
+      setTimeout(() => {
+        handleRegeneratePlan();
+        toast({ title: "Auto-sub plan updated", description: "Plan regenerated to account for manual substitution" });
+      }, 200);
+    }
+  }, [pendingManualSub, toast, pushToUndoHistory, autoSubActive, handleRegeneratePlan]);
 
   // Handle manual substitution cancel
   const handleCancelManualSub = useCallback(() => {
