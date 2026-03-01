@@ -4567,6 +4567,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </div>
                     </div>
 
+                    {/* Open Lineup Picker */}
+                    {!readOnly && !miniLeagueTeams && (
+                      <Button variant="outline" className="w-full h-12 text-base" onClick={() => setShowLineupPicker(true)}>
+                        <List className="h-4 w-4 mr-1.5" />
+                        Select Lineup
+                      </Button>
+                    )}
+
                     {/* Add Fill-In Player */}
                     {!readOnly && (
                       <Suspense fallback={null}>
@@ -5538,8 +5546,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </div>
                     </div>
 
-                    {/* Action buttons grid */}
+                    {/* Open Lineup Picker + Stats */}
                     <div className="grid grid-cols-2 gap-2">
+                      {!readOnly && !miniLeagueTeams && (
+                        <Button variant="outline" className="h-11 text-sm" onClick={() => setShowLineupPicker(true)}>
+                          <List className="h-4 w-4 mr-1.5" />
+                          Select Lineup
+                        </Button>
+                      )}
                       <Button variant="outline" className="h-11 text-sm" onClick={() => setStatsOpen(true)}>
                         <BarChart3 className="h-4 w-4 mr-1.5" />
                         Stats
@@ -5566,6 +5580,26 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           existingNumbers={existingJerseyNumbers}
                         />
                       </Suspense>
+                    )}
+
+                    {/* Settings toggles */}
+                    {!readOnly && (
+                      <div className="border-t border-border pt-2 space-y-2">
+                        {parseInt(teamSize) >= 7 && (
+                          <div className="flex items-center justify-between py-1">
+                            <Label className="text-sm">Rotate GK at Halftime</Label>
+                            <Switch checked={rotateGkAtHalftime} onCheckedChange={setRotateGkAtHalftime} />
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between py-1">
+                          <Label className="text-sm">Hide Scores</Label>
+                          <Switch checked={hideScores} onCheckedChange={setHideScores} />
+                        </div>
+                        <div className="flex items-center justify-between py-1">
+                          <Label className="text-sm">Starting Lineup Screen</Label>
+                          <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
+                        </div>
+                      </div>
                     )}
 
                     {/* Timer */}
