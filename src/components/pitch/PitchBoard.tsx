@@ -496,25 +496,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, showLineupPickerSetting, toast]);
 
-  // Store pending tactical formation suggestion to apply after handleFormationChange is available
-  const pendingTacticalFormationRef = useRef<number | null>(null);
-  
-  const handleTacticalModeChange = useCallback((mode: TacticalMode) => {
-    setTacticalMode(mode);
-    toast({
-      title: TACTICAL_MODE_MESSAGES[mode],
-      duration: 2000,
-    });
-
-    // Queue a formation suggestion if a better fit exists
-    if (mode !== "neutral") {
-      const rec = RECOMMENDED_FORMATIONS[teamSize];
-      const suggestedIndex = mode === "attack" ? rec.attack : rec.defend;
-      if (suggestedIndex !== selectedFormation) {
-        pendingTacticalFormationRef.current = suggestedIndex;
-      }
-    }
-  }, [toast, teamSize, selectedFormation]);
+  // handleTacticalModeChange is defined after handleFormationChange (see below)
 
   const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
     setPlayers(updatedPlayers);
@@ -1791,14 +1773,36 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     applyFormationChange(index);
   };
 
-  // Process queued tactical formation suggestion
-  useEffect(() => {
-    if (pendingTacticalFormationRef.current !== null) {
-      const idx = pendingTacticalFormationRef.current;
-      pendingTacticalFormationRef.current = null;
-      handleFormationChange(String(idx));
+  const handleTacticalModeChange = useCallback((mode: TacticalMode) => {
+    setTacticalMode(mode);
+
+    if (mode !== "neutral") {
+      const rec = RECOMMENDED_FORMATIONS[teamSize];
+      const suggestedIndex = mode === "attack" ? rec.attack : rec.defend;
+      const suggestedFormation = FORMATIONS[teamSize][suggestedIndex];
+      if (suggestedIndex !== selectedFormation && suggestedFormation) {
+        toast({
+          title: TACTICAL_MODE_MESSAGES[mode],
+          description: `Try ${suggestedFormation.name} for a more ${mode === "attack" ? "attacking" : "defensive"} shape`,
+          duration: 5000,
+          action: (
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => handleFormationChange(String(suggestedIndex))}
+            >
+              Apply
+            </Button>
+          ),
+        });
+      } else {
+        toast({ title: TACTICAL_MODE_MESSAGES[mode], duration: 2000 });
+      }
+    } else {
+      toast({ title: TACTICAL_MODE_MESSAGES[mode], duration: 2000 });
     }
-  });
+  }, [toast, teamSize, selectedFormation, handleFormationChange]);
 
   const applyFormationChange = useCallback((index: number) => {
     const formation = FORMATIONS[teamSize][index];
