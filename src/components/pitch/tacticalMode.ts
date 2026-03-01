@@ -136,9 +136,9 @@ export const computeTacticalOffsets = (
 
     if (dx !== 0 || dy !== 0) {
       const baseY = p.position!.y;
-      // Clamp so players never go above y=12% (under timer/score overlays) or below y=95%
+      // Clamp so players never go above y=16% (under timer/score overlays) or below y=95%
       const finalY = baseY + dy;
-      if (finalY < 12) dy = 12 - baseY;
+      if (finalY < 16) dy = 16 - baseY;
       if (finalY > 95) dy = 95 - baseY;
       // Clamp horizontal to stay within pitch (2%-98%)
       const finalX = bx + dx;
