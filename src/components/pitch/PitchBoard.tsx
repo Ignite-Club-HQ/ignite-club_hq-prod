@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame } from "lucide-react";
@@ -4581,6 +4582,52 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </Button>
                     </div>
 
+                    {/* More Options - collapsible */}
+                    {!readOnly && (
+                      <Collapsible>
+                        <CollapsibleTrigger className="flex items-center justify-center w-full py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors gap-1">
+                          <span>More Options</span>
+                          <ChevronDown className="h-3 w-3" />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-2 pt-1">
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button variant="outline" className="h-10 text-sm" onClick={() => setPositionEditorOpen(true)}>
+                              <Settings2 className="h-4 w-4 mr-1.5" />
+                              Positions
+                            </Button>
+                            <Button variant="outline" className="h-10 text-sm" onClick={handleResetFormation}>
+                              <RotateCcw className="h-4 w-4 mr-1.5" />
+                              Reset Positions
+                            </Button>
+                          </div>
+                          <Suspense fallback={null}>
+                            <AddFillInPlayerDialog
+                              onAddPlayer={handleAddFillInPlayer}
+                              existingNumbers={existingJerseyNumbers}
+                            />
+                          </Suspense>
+                          {parseInt(teamSize) >= 7 && (
+                            <div className="flex items-center justify-between py-1">
+                              <Label className="text-sm">Rotate GK at Halftime</Label>
+                              <Switch checked={rotateGkAtHalftime} onCheckedChange={setRotateGkAtHalftime} />
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between py-1">
+                            <Label className="text-sm">Hide Scores</Label>
+                            <Switch checked={hideScores} onCheckedChange={setHideScores} />
+                          </div>
+                          <div className="flex items-center justify-between py-1">
+                            <Label className="text-sm">Starting Lineup Screen</Label>
+                            <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
+                          </div>
+                          <Button variant="outline" className="w-full h-10 text-sm text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
+                            <RotateCcw className="h-4 w-4 mr-1.5" />
+                            Reset Game
+                          </Button>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+
                     {/* Timer - larger for landscape */}
                     <div className="border-t border-border pt-3">
                       <GameTimer 
@@ -5536,6 +5583,52 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </Button>
                     </div>
 
+                    {/* More Options - collapsible */}
+                    {!readOnly && (
+                      <Collapsible>
+                        <CollapsibleTrigger className="flex items-center justify-center w-full py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors gap-1">
+                          <span>More Options</span>
+                          <ChevronDown className="h-3 w-3" />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-2 pt-1">
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button variant="outline" className="h-10 text-sm" onClick={() => setPositionEditorOpen(true)}>
+                              <Settings2 className="h-4 w-4 mr-1.5" />
+                              Positions
+                            </Button>
+                            <Button variant="outline" className="h-10 text-sm" onClick={handleResetFormation}>
+                              <RotateCcw className="h-4 w-4 mr-1.5" />
+                              Reset Positions
+                            </Button>
+                          </div>
+                          <Suspense fallback={null}>
+                            <AddFillInPlayerDialog
+                              onAddPlayer={handleAddFillInPlayer}
+                              existingNumbers={existingJerseyNumbers}
+                            />
+                          </Suspense>
+                          {parseInt(teamSize) >= 7 && (
+                            <div className="flex items-center justify-between py-1">
+                              <Label className="text-sm">Rotate GK at Halftime</Label>
+                              <Switch checked={rotateGkAtHalftime} onCheckedChange={setRotateGkAtHalftime} />
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between py-1">
+                            <Label className="text-sm">Hide Scores</Label>
+                            <Switch checked={hideScores} onCheckedChange={setHideScores} />
+                          </div>
+                          <div className="flex items-center justify-between py-1">
+                            <Label className="text-sm">Starting Lineup Screen</Label>
+                            <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
+                          </div>
+                          <Button variant="outline" className="w-full h-10 text-sm text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
+                            <RotateCcw className="h-4 w-4 mr-1.5" />
+                            Reset Game
+                          </Button>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+
                     {/* Timer */}
                     <div className="border-t border-border pt-2">
                       <GameTimer 
@@ -5551,16 +5644,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         onMinutesPerHalfChange={handleMinutesPerHalfChange}
                       />
                     </div>
-
-                    {/* Reset */}
-                    {!readOnly && (
-                      <div className="border-t border-border pt-2">
-                        <Button variant="outline" className="w-full h-12 text-base text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
-                          <RotateCcw className="h-4 w-4 mr-1.5" />
-                          Reset Game
-                        </Button>
-                      </div>
-                    )}
                   </div>
                 )}
 
