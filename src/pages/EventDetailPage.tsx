@@ -2554,6 +2554,7 @@ export default function EventDetailPage() {
             initialFormation={teamSubscription?.formation || undefined}
             initialLinkedEventId={id}
             initialShowMatchHeader={teamSubscription?.show_match_header ?? true}
+            initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
           />
         </Suspense>,
         document.body

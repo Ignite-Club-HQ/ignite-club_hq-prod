@@ -1603,6 +1603,7 @@ export default function TeamDetailPage() {
             initialFormation={teamSubscription?.formation || undefined}
             readOnly={!canEditPitchBoard}
             initialLinkedEventId={linkedEventId}
+            initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
           />
         </Suspense>,
         document.body
