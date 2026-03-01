@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords } from "lucide-react";
+import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PlayerToken from "./PlayerToken";
 import SoccerBall from "./SoccerBall";
@@ -4365,6 +4365,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       onClick={clearDrawings}
                     >
                       <Eraser className="h-5 w-5" />
+                    </Button>
+                    <Button 
+                      variant={pinDrawingToolbar ? "default" : "outline"} 
+                      size="icon" 
+                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      onClick={() => setPinDrawingToolbar(prev => !prev)}
+                      title={pinDrawingToolbar ? "Unpin drawing tools" : "Pin drawing tools"}
+                    >
+                      <Pin className={cn("h-5 w-5", pinDrawingToolbar && "rotate-45")} />
                     </Button>
                     {drawingTool !== "none" && (
                       <Button 
