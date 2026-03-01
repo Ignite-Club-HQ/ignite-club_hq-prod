@@ -893,10 +893,17 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
           {event.is_cancelled && (
             <Badge variant="destructive">Cancelled</Badge>
           )}
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <span>{getSportEmoji(event.clubs.sport)}</span>
-            {event.clubs.name}
-          </span>
+          {event.teams?.name ? (
+            <span className="text-xs text-muted-foreground truncate flex items-center gap-1">
+              <span>{getSportEmoji(event.clubs.sport)}</span>
+              {event.teams.name}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <span>{getSportEmoji(event.clubs.sport)}</span>
+              {event.clubs.name}
+            </span>
+          )}
           <div className="flex items-center gap-3 shrink-0">
             {isAdmin && (
               <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
