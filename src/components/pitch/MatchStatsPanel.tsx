@@ -55,15 +55,15 @@ export default function MatchStatsPanel({ open, onOpenChange, players, elapsedGa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md z-[99999] sm:max-w-md landscape:max-w-2xl max-h-[100dvh] sm:max-h-[85vh] landscape:max-h-[90vh] h-[100dvh] sm:h-auto landscape:h-auto w-full sm:w-auto landscape:w-[90vw] rounded-none sm:rounded-lg landscape:rounded-lg pt-[calc(1rem+env(safe-area-inset-top))] mt-[env(safe-area-inset-top)]">
-        <DialogHeader>
+      <DialogContent className="max-w-md z-[99999] sm:max-w-md landscape:max-w-2xl max-h-[100dvh] sm:max-h-[85vh] landscape:max-h-[90vh] h-[100dvh] sm:h-auto landscape:h-auto w-full sm:w-auto landscape:w-[90vw] rounded-none sm:rounded-lg landscape:rounded-lg pt-[calc(1rem+env(safe-area-inset-top))] mt-[env(safe-area-inset-top)] flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
             Match Statistics
           </DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-4">
+        <div className="space-y-4 flex-1 min-h-0 overflow-y-auto">
           {/* Score display - only when scoring is enabled */}
           {!hideScores && goals.length > 0 && (
             <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
