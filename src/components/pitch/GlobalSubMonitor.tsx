@@ -116,7 +116,8 @@ const recalculateRemainingPlan = (
   halfDurationSeconds: number,
   currentElapsedSeconds: number,
   currentHalf: 1 | 2,
-  skippedSub: SubstitutionEvent
+  skippedSub: SubstitutionEvent,
+  rotateGkAtHalftime: boolean = true
 ): SubstitutionEvent[] => {
   const plan: SubstitutionEvent[] = [];
   
@@ -141,7 +142,7 @@ const recalculateRemainingPlan = (
   });
   
   if (outfieldOnBench.length === 0) {
-    if (gkOnBench && gkOnPitch && currentHalf === 1) {
+    if (rotateGkAtHalftime && gkOnBench && gkOnPitch && currentHalf === 1) {
       plan.push({
         time: 0,
         half: 2,
@@ -286,7 +287,7 @@ const recalculateRemainingPlan = (
     }
   }
   
-  if (gkOnBench && gkOnPitch && currentHalf === 1) {
+  if (rotateGkAtHalftime && gkOnBench && gkOnPitch && currentHalf === 1) {
     plan.push({
       time: 0,
       half: 2,
@@ -905,7 +906,8 @@ export default function GlobalSubMonitor() {
         halfDurationSeconds,
         currentElapsed,
         currentHalf,
-        pendingAutoSub
+        pendingAutoSub,
+        true
       );
       
       savePitchState({
