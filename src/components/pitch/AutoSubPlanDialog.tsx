@@ -81,6 +81,8 @@ interface Player {
   position: { x: number; y: number } | null;
   assignedPositions?: PitchPosition[];
   currentPitchPosition?: PitchPosition;
+  minutesPlayed?: number;
+  isInjured?: boolean;
 }
 
 interface SubstitutionEvent {
@@ -108,6 +110,10 @@ interface AutoSubPlanDialogProps {
   rotationSpeed?: number; // 1 = slow, 2 = medium, 3 = fast
   disablePositionSwaps?: boolean; // When true, skip position swaps in auto generation
   disableBatchSubs?: boolean; // When true, only do one sub at a time
+  rotateGkAtHalftime?: boolean; // When true, swap GK at halftime
+  currentElapsedSeconds?: number; // Current game elapsed seconds (for mid-game start)
+  currentHalf?: 1 | 2; // Current half (for mid-game start)
+  preferredSecondHalfGkId?: string; // Preferred 2nd half GK from lineup screen
 }
 
 const formatTime = (seconds: number) => {
@@ -122,7 +128,11 @@ function createSubPlan(
   halfDurationSeconds: number,
   rotationSpeed: number = 2,
   disablePositionSwaps: boolean = false,
-  disableBatchSubs: boolean = false
+  disableBatchSubs: boolean = false,
+  rotateGkAtHalftime: boolean = true,
+  startElapsedSeconds: number = 0,
+  startHalf: 1 | 2 = 1,
+  preferredSecondHalfGkId?: string
 ): SubstitutionEvent[] {
   const plan: SubstitutionEvent[] = [];
   
@@ -137,7 +147,10 @@ function createSubPlan(
   
   // Separate GK from outfield players
   const gkOnPitch = playersOnPitch.find(p => p.currentPitchPosition === "GK");
-  const gkOnBench = benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1);
+  // If a preferred 2nd half GK was selected, use that player; otherwise fall back to finding a GK-only bench player
+  const gkOnBench = preferredSecondHalfGkId
+    ? benchPlayers.find(p => p.id === preferredSecondHalfGkId) || benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1)
+    : benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1);
   
   const outfieldPlayers = playerData.filter(p => {
     if (p.currentPitchPosition === "GK") return false;
@@ -152,7 +165,7 @@ function createSubPlan(
   });
   
   if (outfieldOnBench.length === 0) {
-    if (gkOnBench && gkOnPitch) {
+    if (rotateGkAtHalftime && gkOnBench && gkOnPitch) {
       plan.push({
         time: 0,
         half: 2,
@@ -164,19 +177,22 @@ function createSubPlan(
     return plan;
   }
   
-  const totalGameSeconds = halfDurationSeconds * 2;
+  // Calculate remaining game time based on when we're starting
+  const remainingInCurrentHalf = halfDurationSeconds - startElapsedSeconds;
+  const remainingHalves = startHalf === 1 ? remainingInCurrentHalf + halfDurationSeconds : remainingInCurrentHalf;
+  const totalRemainingSeconds = remainingHalves;
   const fieldPositions = teamSize - 1; // minus GK
   const totalOutfieldPlayers = outfieldPlayers.length;
   
-  // CORE PRINCIPLE: Equal playing time for ALL outfield players
-  // Total field-seconds available = game duration * number of field positions
-  // Each player should get exactly: totalFieldSeconds / totalOutfieldPlayers
-  const totalFieldSeconds = totalGameSeconds * fieldPositions;
+  // CORE PRINCIPLE: Equal playing time for ALL outfield players over remaining game
+  // Use remaining time for calculations
+  const totalFieldSeconds = totalRemainingSeconds * fieldPositions;
   const idealSecondsPerPlayer = Math.floor(totalFieldSeconds / totalOutfieldPlayers);
   
   // Track accumulated playing time
+  // Initialize playing time with already-accumulated minutes for mid-game starts
   const playingTime = new Map<string, number>();
-  outfieldPlayers.forEach(p => playingTime.set(p.id, 0));
+  outfieldPlayers.forEach(p => playingTime.set(p.id, p.minutesPlayed || 0));
   
   // Track who's currently on pitch and their positions
   const currentOnPitch = new Map<string, PitchPosition>();
@@ -326,10 +342,13 @@ function createSubPlan(
     return candidates[0] || null;
   };
   
-  // Process each half
-  for (let half = 1; half <= 2; half++) {
-    const subTimes = generateSubTimes(halfDurationSeconds, actualWindowsPerHalf);
-    let lastEventTime = 0;
+  // Process each half (start from current half for mid-game)
+  for (let half = startHalf; half <= 2; half++) {
+    const isStartHalf = half === startHalf;
+    const halfRemaining = isStartHalf ? halfDurationSeconds - startElapsedSeconds : halfDurationSeconds;
+    const subTimes = generateSubTimes(halfRemaining, actualWindowsPerHalf)
+      .map(t => isStartHalf ? t + startElapsedSeconds : t); // Offset times for current half
+    let lastEventTime = isStartHalf ? startElapsedSeconds : 0;
     
     for (const subTime of subTimes) {
       // Add elapsed time to players currently on pitch
@@ -414,8 +433,8 @@ function createSubPlan(
     });
   }
   
-  // Handle GK substitution at halftime
-  if (gkOnBench && gkOnPitch) {
+  // Handle GK substitution at halftime (only if we haven't passed halftime)
+  if (rotateGkAtHalftime && gkOnBench && gkOnPitch && startHalf === 1) {
     plan.push({
       time: 0,
       half: 2,
@@ -444,7 +463,11 @@ function DialogInner({
   editMode,
   rotationSpeed = 2,
   disablePositionSwaps = false,
-  disableBatchSubs = false
+  disableBatchSubs = false,
+  rotateGkAtHalftime = true,
+  currentElapsedSeconds = 0,
+  currentHalf = 1,
+  preferredSecondHalfGkId,
 }: {
   players: Player[];
   teamSize: number;
@@ -456,6 +479,10 @@ function DialogInner({
   rotationSpeed?: number;
   disablePositionSwaps?: boolean;
   disableBatchSubs?: boolean;
+  rotateGkAtHalftime?: boolean;
+  currentElapsedSeconds?: number;
+  currentHalf?: 1 | 2;
+  preferredSecondHalfGkId?: string;
 }) {
   const [plan, setPlan] = useState<SubstitutionEvent[] | null>(existingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -478,7 +505,7 @@ function DialogInner({
     setTimeout(() => {
       try {
         const halfDurationSeconds = minutesPerHalf * 60;
-        const generatedPlan = createSubPlan(players, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs);
+        const generatedPlan = createSubPlan(players, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId);
         console.log("[AutoSubPlan] Generated", generatedPlan.length, "subs");
         setPlan(generatedPlan);
       } catch (error) {
@@ -531,6 +558,15 @@ function DialogInner({
           <Play className="h-4 w-4" />
           Generate Plan
         </Button>
+        <button
+          onClick={onClose}
+          className="mt-2 w-full max-w-xs rounded-lg border border-border bg-muted/30 p-3 text-center transition-colors hover:bg-muted/50 active:bg-muted/70"
+        >
+          <span className="text-sm font-medium text-foreground">Skip</span>
+          <p className="mt-1 text-xs text-muted-foreground">
+            You can make substitutions and swaps manually during the game instead
+          </p>
+        </button>
       </div>
     );
   }
@@ -562,7 +598,7 @@ function DialogInner({
         
         {activeTab === 'forecast' && (
           /* Playing Time Forecast */
-          <ScrollArea className="h-[280px] pr-4">
+          <div className="pr-1">
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground mb-3">
                 Predicted playing time based on {plan.length} substitution{plan.length !== 1 ? 's' : ''} over {minutesPerHalf * 2} minutes
@@ -605,7 +641,7 @@ function DialogInner({
                 </div>
               ))}
             </div>
-          </ScrollArea>
+          </div>
         )}
 
         {activeTab === 'edit' && (
@@ -649,6 +685,10 @@ export default function AutoSubPlanDialog({
   rotationSpeed = 2,
   disablePositionSwaps = false,
   disableBatchSubs = false,
+  rotateGkAtHalftime = true,
+  currentElapsedSeconds = 0,
+  currentHalf = 1,
+  preferredSecondHalfGkId,
 }: AutoSubPlanDialogProps) {
   const handleClose = () => onOpenChange(false);
   
@@ -676,10 +716,17 @@ export default function AutoSubPlanDialog({
               <Clock className="h-5 w-5" />
               {editMode ? "Edit Substitution Plan" : "Auto Substitution Plan"}
             </DialogPrimitive.Title>
-            <DialogPrimitive.Close className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
-              <X className="h-5 w-5" />
-              <span className="sr-only">Close</span>
-            </DialogPrimitive.Close>
+            <div className="flex items-center gap-3">
+              {!editMode && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-bold">1</span>
+                  <span>Lineup</span>
+                  <span className="text-muted-foreground/50 mx-0.5">→</span>
+                  <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-bold">2</span>
+                  <span className="font-medium text-foreground">Subs</span>
+                </div>
+              )}
+            </div>
           </div>
           
           <div className="flex-1 overflow-auto p-4">
@@ -695,6 +742,10 @@ export default function AutoSubPlanDialog({
                 rotationSpeed={rotationSpeed}
                 disablePositionSwaps={disablePositionSwaps}
                 disableBatchSubs={disableBatchSubs}
+                rotateGkAtHalftime={rotateGkAtHalftime}
+                currentElapsedSeconds={currentElapsedSeconds}
+                currentHalf={currentHalf}
+                preferredSecondHalfGkId={preferredSecondHalfGkId}
               />
             )}
           </div>

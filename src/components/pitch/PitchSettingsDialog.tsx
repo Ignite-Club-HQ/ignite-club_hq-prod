@@ -50,6 +50,10 @@ interface PitchSettingsDialogProps {
   disableBatchSubs?: boolean;
   onDisableBatchSubsChange?: (disabled: boolean) => void;
   
+  // Rotate GK at halftime
+  rotateGkAtHalftime?: boolean;
+  onRotateGkAtHalftimeChange?: (enabled: boolean) => void;
+  
   // Player position preference
   onOpenPositionEditor: () => void;
   
@@ -86,6 +90,13 @@ interface PitchSettingsDialogProps {
   // Hide scores toggle
   hideScores?: boolean;
   onHideScoresChange?: (hide: boolean) => void;
+  
+  // Show lineup picker at game start
+  showLineupPicker?: boolean;
+  onShowLineupPickerChange?: (show: boolean) => void;
+  
+  // Manual trigger lineup picker
+  onOpenLineupPicker?: () => void;
 }
 
 export function PitchSettingsDialog({
@@ -104,6 +115,8 @@ export function PitchSettingsDialog({
   onDisablePositionSwapsChange,
   disableBatchSubs = false,
   onDisableBatchSubsChange,
+  rotateGkAtHalftime = true,
+  onRotateGkAtHalftimeChange,
   onOpenPositionEditor,
   mockMode,
   onMockModeChange,
@@ -119,6 +132,9 @@ export function PitchSettingsDialog({
   onShowMatchHeaderChange,
   hideScores = false,
   onHideScoresChange,
+  showLineupPicker = false,
+  onShowLineupPickerChange,
+  onOpenLineupPicker,
 }: PitchSettingsDialogProps) {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetFormationConfirmOpen, setResetFormationConfirmOpen] = useState(false);
@@ -315,8 +331,41 @@ export function PitchSettingsDialog({
                     />
                   </div>
                 )}
+                
+                {/* Rotate GK at halftime toggle */}
+                {!readOnly && onRotateGkAtHalftimeChange && (
+                  <div className="flex items-center justify-between py-1.5">
+                    <div className="flex flex-col gap-0.5">
+                      <Label htmlFor="rotate-gk-toggle" className="text-sm">
+                        Rotate GK at Halftime
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground">Swap goalkeeper at half-time</span>
+                    </div>
+                    <Switch
+                      id="rotate-gk-toggle"
+                      checked={rotateGkAtHalftime}
+                      onCheckedChange={onRotateGkAtHalftimeChange}
+                    />
+                  </div>
+                )}
 
-                {/* Sound toggle */}
+                {/* Show lineup picker at game start */}
+                {!readOnly && onShowLineupPickerChange && (
+                  <div className="flex items-center justify-between py-1.5">
+                    <div className="flex flex-col gap-0.5">
+                      <Label htmlFor="lineup-picker-toggle" className="text-sm">
+                        Starting Lineup Screen
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground">Show lineup picker each game</span>
+                    </div>
+                    <Switch
+                      id="lineup-picker-toggle"
+                      checked={showLineupPicker}
+                      onCheckedChange={onShowLineupPickerChange}
+                    />
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between py-1.5">
                   <div className="flex items-center gap-2">
                     {soundEnabled ? <Volume2 className="h-4 w-4 text-muted-foreground" /> : <VolumeX className="h-4 w-4 text-muted-foreground" />}

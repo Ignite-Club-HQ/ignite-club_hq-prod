@@ -1597,11 +1597,13 @@ export default function TeamDetailPage() {
             initialRotationSpeed={teamSubscription?.rotation_speed || 2}
             initialDisablePositionSwaps={teamSubscription?.disable_position_swaps || false}
             initialDisableBatchSubs={teamSubscription?.disable_batch_subs || false}
+            initialRotateGkAtHalftime={teamSubscription?.rotate_gk_at_halftime ?? true}
             initialMinutesPerHalf={teamSubscription?.minutes_per_half || 10}
             initialTeamSize={teamSubscription?.team_size}
             initialFormation={teamSubscription?.formation || undefined}
             readOnly={!canEditPitchBoard}
             initialLinkedEventId={linkedEventId}
+            initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
           />
         </Suspense>,
         document.body

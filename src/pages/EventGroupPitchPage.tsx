@@ -522,6 +522,7 @@ export default function EventGroupPitchPage() {
             initialRotationSpeed={2}
             initialDisablePositionSwaps={false}
             initialDisableBatchSubs={false}
+            initialRotateGkAtHalftime={true}
             initialMinutesPerHalf={leagueSettings?.minutes_per_half || 10}
             initialTeamSize={initialTeamSize}
             readOnly={!userCanEdit}

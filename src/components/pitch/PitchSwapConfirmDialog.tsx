@@ -1,8 +1,15 @@
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftRight, AlertTriangle, CheckCircle, X } from "lucide-react";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { cn } from "@/lib/utils";
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 
 interface Player {
   id: string;
@@ -13,13 +20,21 @@ interface Player {
   currentPitchPosition?: PitchPosition;
 }
 
+interface AccommodationOption {
+  accommodator: Player;
+  accommodatorMovesTo: PitchPosition;
+  description: string;
+}
+
 interface PitchSwapConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   player1: Player | null;
   player2: Player | null;
+  allPitchPlayers?: Player[];
   onConfirm: () => void;
   onCancel: () => void;
+  onConfirmWithAccommodation?: (accommodatorId: string, accommodatorNewPosition: PitchPosition) => void;
 }
 
 export default function PitchSwapConfirmDialog({
@@ -27,134 +42,183 @@ export default function PitchSwapConfirmDialog({
   onOpenChange,
   player1,
   player2,
+  allPitchPlayers = [],
   onConfirm,
   onCancel,
+  onConfirmWithAccommodation,
 }: PitchSwapConfirmDialogProps) {
   if (!player1 || !player2) return null;
 
   const pos1 = player1.currentPitchPosition;
   const pos2 = player2.currentPitchPosition;
   
-  // Check if player1 can play in pos2 position
-  const player1CanPlayPos2 = !player1.assignedPositions?.length || 
-    !pos2 || 
-    player1.assignedPositions.includes(pos2);
-  
-  // Check if player2 can play in pos1 position
-  const player2CanPlayPos1 = !player2.assignedPositions?.length || 
-    !pos1 || 
-    player2.assignedPositions.includes(pos1);
-  
+  const canPlayPosition = (player: Player, position: PitchPosition): boolean => {
+    if (!player.assignedPositions?.length) return true;
+    return player.assignedPositions.includes(position);
+  };
+
+  const player1CanPlayPos2 = !pos2 || canPlayPosition(player1, pos2);
+  const player2CanPlayPos1 = !pos1 || canPlayPosition(player2, pos1);
   const canSwap = player1CanPlayPos2 && player2CanPlayPos1;
   
   const pos1Colors = pos1 ? POSITION_COLORS[pos1] : null;
   const pos2Colors = pos2 ? POSITION_COLORS[pos2] : null;
 
+  // Find accommodation options when there's a mismatch
+  const accommodationOptions: AccommodationOption[] = [];
+  
+  if (!canSwap && pos1 && pos2) {
+    const otherPlayers = allPitchPlayers.filter(
+      p => p.id !== player1.id && p.id !== player2.id && p.currentPitchPosition
+    );
+
+    for (const accommodator of otherPlayers) {
+      const accPos = accommodator.currentPitchPosition!;
+      
+      // Case 1: player1 can't play pos2
+      // Find accommodator who can play pos2, and player1 can play accommodator's position
+      if (!player1CanPlayPos2 && canPlayPosition(accommodator, pos2) && canPlayPosition(player1, accPos) && player2CanPlayPos1) {
+        accommodationOptions.push({
+          accommodator,
+          accommodatorMovesTo: pos2,
+          description: `${accommodator.name} moves from ${accPos} → ${pos2}, ${player1.name} takes ${accPos}`,
+        });
+      }
+      
+      // Case 2: player2 can't play pos1
+      // Find accommodator who can play pos1, and player2 can play accommodator's position
+      if (!player2CanPlayPos1 && canPlayPosition(accommodator, pos1) && canPlayPosition(player2, accPos) && player1CanPlayPos2) {
+        accommodationOptions.push({
+          accommodator,
+          accommodatorMovesTo: pos1,
+          description: `${accommodator.name} moves from ${accPos} → ${pos1}, ${player2.name} takes ${accPos}`,
+        });
+      }
+
+      // Case 3: both can't play - accommodator covers pos2, another path for pos1
+      // (This gets complex; keep it simple for now with single-accommodator solutions)
+    }
+  }
+
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay 
-          className={cn(
-            "fixed inset-0 z-[999998] bg-black/80",
-            "data-[state=open]:animate-in data-[state=closed]:animate-out",
-            "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
-          )}
-        />
-        <DialogPrimitive.Content
-          className={cn(
-            "fixed left-[50%] top-[50%] z-[999999] grid w-full max-w-[90vw] sm:max-w-md translate-x-[-50%] translate-y-[-50%]",
-            "gap-4 border bg-background p-6 shadow-lg duration-200 sm:rounded-lg",
-            "landscape:max-w-[400px] landscape:max-h-[85vh] landscape:overflow-y-auto",
-            "data-[state=open]:animate-in data-[state=closed]:animate-out",
-            "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-            "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-            "data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]",
-            "data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]"
-          )}
-        >
-          <div className="flex flex-col space-y-1.5 text-center sm:text-left landscape:pb-1">
-            <DialogPrimitive.Title className="text-base landscape:text-sm font-semibold leading-none tracking-tight flex items-center gap-2">
-              <ArrowLeftRight className="h-5 w-5 landscape:h-4 landscape:w-4" />
-              Make This Position Swap
-            </DialogPrimitive.Title>
-            <DialogPrimitive.Description className="text-sm landscape:text-xs text-muted-foreground">
-              Follow these steps on the pitch
-            </DialogPrimitive.Description>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="sm:max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle className="flex items-center gap-2 text-lg">
+            <ArrowLeftRight className="h-5 w-5" />
+            {canSwap ? "Make This Position Swap" : "Position Swap"}
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
+            {canSwap ? "Follow these steps on the pitch" : "Position mismatch — choose an option below"}
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
+
+        <div className="flex-1 overflow-y-auto space-y-3 py-2">
+          {/* Step 1: Move player 1 */}
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+            <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-500 text-white text-sm font-bold flex-shrink-0">
+              1
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold">
+                Move {player1.name} to {pos2 || 'new position'}
+              </div>
+              <div className="text-sm text-muted-foreground mt-0.5">
+                {player1.number && `#${player1.number} `}
+                {pos1 && `moves from ${pos1}`}
+              </div>
+            </div>
+            {pos2 && pos2Colors && (
+              <span className={cn("text-sm font-bold flex-shrink-0", pos2Colors.text)}>{pos2}</span>
+            )}
           </div>
-
-          <div className="space-y-3 landscape:space-y-2 py-3 landscape:py-1">
-            {/* Step 1: Move player 1 */}
-            <div className="flex items-start gap-3 landscape:gap-2 p-3 landscape:p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
-              <div className="flex items-center justify-center w-6 h-6 landscape:w-5 landscape:h-5 rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0">
-                1
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm landscape:text-xs">
-                  Move {player1.name} to {pos2 || 'new position'}
-                </div>
-                <div className="text-xs landscape:text-[10px] text-muted-foreground mt-0.5">
-                  {player1.number && `#${player1.number} `}
-                  {pos1 && `moves from ${pos1}`}
-                </div>
-              </div>
-              {pos2 && pos2Colors && (
-                <span className={cn("text-xs font-bold flex-shrink-0", pos2Colors.text)}>{pos2}</span>
-              )}
+          
+          {/* Step 2: Move player 2 */}
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+            <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-500 text-white text-sm font-bold flex-shrink-0">
+              2
             </div>
-            
-            {/* Step 2: Move player 2 */}
-            <div className="flex items-start gap-3 landscape:gap-2 p-3 landscape:p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
-              <div className="flex items-center justify-center w-6 h-6 landscape:w-5 landscape:h-5 rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0">
-                2
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold">
+                Move {player2.name} to {pos1 || 'new position'}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm landscape:text-xs">
-                  Move {player2.name} to {pos1 || 'new position'}
-                </div>
-                <div className="text-xs landscape:text-[10px] text-muted-foreground mt-0.5">
-                  {player2.number && `#${player2.number} `}
-                  {pos2 && `moves from ${pos2}`}
-                </div>
+              <div className="text-sm text-muted-foreground mt-0.5">
+                {player2.number && `#${player2.number} `}
+                {pos2 && `moves from ${pos2}`}
               </div>
-              {pos1 && pos1Colors && (
-                <span className={cn("text-xs font-bold flex-shrink-0", pos1Colors.text)}>{pos1}</span>
-              )}
             </div>
-
-            {/* Warning if position mismatch */}
-            {!canSwap && (
-              <div className="flex items-start gap-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                <AlertTriangle className="h-4 w-4 text-yellow-500 flex-shrink-0" />
-                <div className="text-xs">
-                  <p className="font-medium text-yellow-600 dark:text-yellow-400">Position Mismatch</p>
-                  <p className="text-muted-foreground text-[10px] mt-0.5">
-                    Players may not be assigned to swapped positions.
-                  </p>
-                </div>
-              </div>
+            {pos1 && pos1Colors && (
+              <span className={cn("text-sm font-bold flex-shrink-0", pos1Colors.text)}>{pos1}</span>
             )}
           </div>
 
-          <div className="flex gap-2 justify-end pt-1">
-            <Button variant="outline" onClick={onCancel} className="gap-2 h-9 landscape:h-8 text-sm landscape:text-xs">
-              <X className="h-4 w-4 landscape:h-3 landscape:w-3" />
-              Cancel
-            </Button>
-            <Button onClick={onConfirm} className="gap-2 h-9 landscape:h-8 text-sm landscape:text-xs">
-              <CheckCircle className="h-4 w-4 landscape:h-3 landscape:w-3" />
-              Confirm
-            </Button>
-          </div>
-          
-          <button 
-            onClick={onCancel}
-            className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
-          >
+          {/* Warning + accommodation options if mismatch */}
+          {!canSwap && (
+            <>
+              <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-yellow-600 dark:text-yellow-400 text-sm">Position Mismatch</p>
+                  <p className="text-muted-foreground text-xs mt-0.5">
+                    {!player1CanPlayPos2 && `${player1.name} isn't assigned to ${pos2}. `}
+                    {!player2CanPlayPos1 && `${player2.name} isn't assigned to ${pos1}.`}
+                  </p>
+                </div>
+              </div>
+
+              {accommodationOptions.length > 0 && onConfirmWithAccommodation && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Suggested Accommodations
+                  </p>
+                  {accommodationOptions.map((option, idx) => {
+                    const accPos = option.accommodator.currentPitchPosition!;
+                    const accPosColors = POSITION_COLORS[accPos];
+                    const targetPosColors = POSITION_COLORS[option.accommodatorMovesTo];
+                    return (
+                      <Button
+                        key={idx}
+                        variant="outline"
+                        className="w-full justify-start h-auto p-3 border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10"
+                        onClick={() => onConfirmWithAccommodation(option.accommodator.id, option.accommodatorMovesTo)}
+                      >
+                        <div className="flex flex-col gap-1 w-full text-left">
+                          <div className="flex items-center gap-2">
+                            <div className={cn(
+                              "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
+                              "bg-amber-500/20 text-amber-500 border border-amber-500/30"
+                            )}>
+                              {option.accommodator.number || option.accommodator.name.slice(0, 2).toUpperCase()}
+                            </div>
+                            <span className="font-medium text-sm">{option.accommodator.name}</span>
+                            <span className={cn("text-xs font-bold", accPosColors.text)}>{accPos}</span>
+                            <span className="text-xs text-muted-foreground">→</span>
+                            <span className={cn("text-xs font-bold", targetPosColors.text)}>{option.accommodatorMovesTo}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground pl-9">
+                            {option.description}
+                          </p>
+                        </div>
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <ResponsiveDialogFooter className="flex-row gap-2 sm:gap-2">
+          <Button variant="outline" onClick={onCancel} className="flex-1 gap-2 h-12 text-base">
             <X className="h-4 w-4" />
-            <span className="sr-only">Close</span>
-          </button>
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm} className="flex-1 gap-2 h-12 text-base">
+            <CheckCircle className="h-4 w-4" />
+            {canSwap ? "Confirm" : "Swap Anyway"}
+          </Button>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame } from "lucide-react";
@@ -37,6 +38,7 @@ const PitchPlayerActionMenu = lazy(() => import("./PitchPlayerActionMenu"));
 const SubConfirmDialog = lazy(() => import("./SubConfirmDialog"));
 const AddFillInPlayerDialog = lazy(() => import("./AddFillInPlayerDialog"));
 const AutoSubManager = lazy(() => import("./AutoSubManager"));
+const PreGameLineupScreen = lazy(() => import("./PreGameLineupScreen"));
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -87,12 +89,14 @@ interface PitchBoardProps {
   initialRotationSpeed?: number;
   initialDisablePositionSwaps?: boolean;
   initialDisableBatchSubs?: boolean;
+  initialRotateGkAtHalftime?: boolean;
   initialMinutesPerHalf?: number;
   initialTeamSize?: number;
   initialFormation?: string;
   readOnly?: boolean;
   initialLinkedEventId?: string | null;
   initialShowMatchHeader?: boolean;
+  initialShowLineupPicker?: boolean;
   // Mini-league two-team mode configuration
   miniLeagueTeams?: MiniLeagueTeams;
 }
@@ -118,7 +122,7 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
   </div>
 );
 
-export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, initialLinkedEventId, initialShowMatchHeader = true, miniLeagueTeams }: PitchBoardProps) {
+export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, miniLeagueTeams }: PitchBoardProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
@@ -259,6 +263,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [autoSubActive, setAutoSubActive] = useState(() => savedState?.autoSubActive || false);
   const [autoSubPaused, setAutoSubPaused] = useState(() => savedState?.autoSubPaused || false);
   const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
+  const [preferredSecondHalfGkId, setPreferredSecondHalfGkId] = useState<string | undefined>(undefined);
   const [linkedEventId, setLinkedEventId] = useState<string | null>(() => savedState?.linkedEventId || initialLinkedEventId || null);
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
@@ -282,6 +287,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [rotationSpeed, setRotationSpeed] = useState(() => initialRotationSpeed); // Subs speed
   const [disablePositionSwaps, setDisablePositionSwaps] = useState(() => initialDisablePositionSwaps); // Disable position swaps in auto sub generation
   const [disableBatchSubs, setDisableBatchSubs] = useState(() => initialDisableBatchSubs); // Disable batch subs (multiple at once)
+  const [rotateGkAtHalftime, setRotateGkAtHalftime] = useState(() => initialRotateGkAtHalftime); // Rotate GK at halftime
+  const [showLineupPicker, setShowLineupPicker] = useState(() => {
+    // Show lineup picker on mount if setting enabled AND linked to a game event AND no saved state (fresh game)
+    return initialShowLineupPicker && !!initialLinkedEventId && !savedState && !readOnly && !miniLeagueTeams;
+  });
+  const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
 
   // Sync settings from props when they change (e.g., when edited on team page)
   // Also sync on initial mount if no saved state exists for the setting
@@ -297,6 +308,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setDisableBatchSubs(initialDisableBatchSubs);
   }, [initialDisableBatchSubs]);
   
+  useEffect(() => {
+    setRotateGkAtHalftime(initialRotateGkAtHalftime);
+  }, [initialRotateGkAtHalftime]);
+
   useEffect(() => {
     setMinutesPerHalf(initialMinutesPerHalf);
   }, [initialMinutesPerHalf]);
@@ -374,6 +389,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, minutesPerHalf, teamSize, selectedFormation]);
 
+  const handleRotateGkAtHalftimeChange = useCallback(async (enabled: boolean) => {
+    setRotateGkAtHalftime(enabled);
+    if (!readOnly) {
+      await supabase
+        .from('team_subscriptions')
+        .upsert({ 
+          team_id: teamId, 
+          rotate_gk_at_halftime: enabled,
+        }, { onConflict: 'team_id' });
+    }
+  }, [teamId, readOnly]);
+
   const handleMinutesPerHalfChange = useCallback(async (minutes: number) => {
     setMinutesPerHalf(minutes);
     if (!readOnly) {
@@ -441,7 +468,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           minutes_per_half: minutesPerHalf,
           team_size: parseInt(teamSize),
           formation: FORMATIONS[teamSize][selectedFormation]?.name || null,
-          show_match_header: showMatchHeader
+          show_match_header: showMatchHeader,
+          rotate_gk_at_halftime: rotateGkAtHalftime,
+          show_lineup_picker: showLineupPickerSetting
         }, { onConflict: 'team_id' });
       
       if (error) throw error;
@@ -460,8 +489,34 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     } finally {
       setIsSavingSettings(false);
     }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, toast]);
-  
+  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, showLineupPickerSetting, toast]);
+
+  const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
+    setPlayers(updatedPlayers);
+    setShowLineupPicker(false);
+    if (secondHalfGkId) {
+      setPreferredSecondHalfGkId(secondHalfGkId);
+    }
+    if (firstHalfGkId || secondHalfGkId) {
+      console.log("[PitchBoard] Lineup confirmed with GK rotation:", { firstHalfGkId, secondHalfGkId });
+    }
+    // After confirming lineup, prompt auto-sub generation
+    setTimeout(() => {
+      setAutoSubPlanEditMode(false);
+      setAutoSubPlanDialogOpen(true);
+    }, 300);
+  }, []);
+
+  const handleShowLineupPickerSettingChange = useCallback(async (enabled: boolean) => {
+    setShowLineupPickerSetting(enabled);
+    if (!readOnly) {
+      await supabase
+        .from('team_subscriptions')
+        .upsert({ team_id: teamId, show_lineup_picker: enabled }, { onConflict: 'team_id' });
+    }
+  }, [teamId, readOnly]);
+
+
   // Handle linking event with email notifications
   const handleLinkEvent = useCallback(async (eventId: string | null) => {
     const previousLinkedEventId = linkedEventId;
@@ -1179,6 +1234,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     // If no saved state and no realPlayers yet, wait for realPlayers to load
   }, [savedState, realPlayers, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, teamSize, selectedFormation]);
+
+  // Lineup skip handler (needs players + autoPlacePlayersOnPitch to be defined)
+  const handleLineupSkip = useCallback(() => {
+    if (!miniLeagueTeams) {
+      setPlayers(autoPlacePlayersOnPitch(players, teamSize, selectedFormation));
+    }
+    setShowLineupPicker(false);
+  }, [players, teamSize, selectedFormation, autoPlacePlayersOnPitch, miniLeagueTeams]);
 
   // Save pitch state to localStorage whenever it changes (only after initialization)
   useEffect(() => {
@@ -2144,6 +2207,68 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setSwapPlayer2(null);
   }, []);
 
+  // Confirm pitch swap with accommodation (a third player moves to make the swap work)
+  const handleConfirmPitchSwapWithAccommodation = useCallback((accommodatorId: string, accommodatorNewPosition: string) => {
+    if (!swapPlayer1 || !swapPlayer2) return;
+    
+    const player1 = players.find(p => p.id === swapPlayer1);
+    const player2 = players.find(p => p.id === swapPlayer2);
+    const accommodator = players.find(p => p.id === accommodatorId);
+    
+    if (!player1?.position || !player2?.position || !accommodator?.position) {
+      setPitchSwapConfirmOpen(false);
+      setSwapPlayer1(null);
+      setSwapPlayer2(null);
+      return;
+    }
+    
+    const pos1 = { ...player1.position };
+    const pos2 = { ...player2.position };
+    const accPos = { ...accommodator.position };
+    const pitchPos1 = player1.currentPitchPosition;
+    const pitchPos2 = player2.currentPitchPosition;
+    const accPitchPos = accommodator.currentPitchPosition;
+    
+    pushToUndoHistory(`Swap: ${player1.name} ↔ ${player2.name} (${accommodator.name} accommodates)`, playersRef.current);
+    
+    // Determine who goes where based on accommodation:
+    // The accommodator takes the position that the mismatched player can't fill
+    // The mismatched player takes the accommodator's old position
+    setPlayers(prev => prev.map(p => {
+      if (p.id === swapPlayer1 && accommodatorNewPosition === pitchPos2) {
+        // player1 couldn't play pos2, so player1 takes accommodator's old position
+        return { ...p, position: accPos, currentPitchPosition: accPitchPos };
+      } else if (p.id === swapPlayer1) {
+        return { ...p, position: pos2, currentPitchPosition: pitchPos2 };
+      }
+      if (p.id === swapPlayer2 && accommodatorNewPosition === pitchPos1) {
+        // player2 couldn't play pos1, so player2 takes accommodator's old position
+        return { ...p, position: accPos, currentPitchPosition: accPitchPos };
+      } else if (p.id === swapPlayer2) {
+        return { ...p, position: pos1, currentPitchPosition: pitchPos1 };
+      }
+      if (p.id === accommodatorId) {
+        // Accommodator moves to the position they're covering
+        if (accommodatorNewPosition === pitchPos2) {
+          return { ...p, position: pos2, currentPitchPosition: pitchPos2 as any };
+        } else {
+          return { ...p, position: pos1, currentPitchPosition: pitchPos1 as any };
+        }
+      }
+      return p;
+    }));
+    
+    toast({ 
+      title: "Positions swapped with accommodation", 
+      description: `${player1.name} ↔ ${player2.name} (${accommodator.name} moved to ${accommodatorNewPosition})` 
+    });
+    
+    setPitchSwapConfirmOpen(false);
+    setSwapPlayer1(null);
+    setSwapPlayer2(null);
+    setSwapMode(false);
+  }, [swapPlayer1, swapPlayer2, players, toast, pushToUndoHistory]);
+
   // Cancel sub mode
   const toggleSubMode = () => {
     if (readOnly) return;
@@ -2229,7 +2354,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     if (benchPlayers.length > 0) {
       const recalculated = recalculateRemainingPlan(
-        players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, nextSub
+        players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, nextSub, rotateGkAtHalftime
       );
       const cleanedPlan = recalculated.filter(
         sub => `${sub.half}-${sub.time}-${sub.playerOut.id}` !== skippedId
@@ -2285,7 +2410,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     };
 
     const recalculated = recalculateRemainingPlan(
-      players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, dummySub
+      players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, dummySub, rotateGkAtHalftime
     );
 
     const currentRemainingSignature = autoSubPlan
@@ -2383,34 +2508,63 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Half change callback - check for halftime subs (including batch)
   const handleHalfChange = useCallback((newHalf: 1 | 2) => {
-    if (!autoSubActive || autoSubPlan.length === 0) return;
-    
-    // Find all halftime subs (time = 0 in half 2)
-    const halftimeSubs = autoSubPlan.filter(sub => 
-      !sub.executed && 
-      sub.half === 2 && 
-      sub.time === 0
-    );
-    
-    if (halftimeSubs.length > 0 && newHalf === 2) {
-      setTimeout(() => {
-        const [primarySub, ...additionalSubs] = halftimeSubs;
-        const notificationBody = halftimeSubs.length > 1
-          ? `Halftime: ${halftimeSubs.length} substitutions`
-          : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
-        if (isSoundEnabled(teamId)) {
-          playSubAlertBeep(notificationBody);
-        }
-        
-        // Create database notification (triggers server-side push)
-        createSubNotification(notificationBody);
-        
-        setPendingAutoSub(primarySub);
-        setPendingBatchSubs(additionalSubs);
-        setSubConfirmDialogOpen(true);
-      }, 500);
+    if (newHalf !== 2) return;
+
+    // Case 1: Auto-sub plan active — check for halftime subs
+    if (autoSubActive && autoSubPlan.length > 0) {
+      const halftimeSubs = autoSubPlan.filter(sub => 
+        !sub.executed && 
+        sub.half === 2 && 
+        sub.time === 0
+      );
+      
+      if (halftimeSubs.length > 0) {
+        setTimeout(() => {
+          const [primarySub, ...additionalSubs] = halftimeSubs;
+          const notificationBody = halftimeSubs.length > 1
+            ? `Halftime: ${halftimeSubs.length} substitutions`
+            : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
+          if (isSoundEnabled(teamId)) {
+            playSubAlertBeep(notificationBody);
+          }
+          createSubNotification(notificationBody);
+          
+          setPendingAutoSub(primarySub);
+          setPendingBatchSubs(additionalSubs);
+          setSubConfirmDialogOpen(true);
+        }, 500);
+      }
+      return;
     }
-  }, [autoSubActive, autoSubPlan, createSubNotification]);
+
+    // Case 2: No auto-sub plan, but a preferred 2nd half GK was selected — prompt GK swap
+    if (preferredSecondHalfGkId) {
+      const currentGk = players.find(p => p.currentPitchPosition === "GK" && p.position !== null);
+      const secondHalfGk = players.find(p => p.id === preferredSecondHalfGkId);
+      
+      if (currentGk && secondHalfGk && currentGk.id !== secondHalfGk.id) {
+        const gkSwapEvent: SubstitutionEvent = {
+          time: 0,
+          half: 2,
+          playerOut: currentGk,
+          playerIn: secondHalfGk,
+          executed: false,
+        };
+        
+        setTimeout(() => {
+          const notificationBody = `Halftime GK swap: ${currentGk.name} ➜ ${secondHalfGk.name}`;
+          if (isSoundEnabled(teamId)) {
+            playSubAlertBeep(notificationBody);
+          }
+          createSubNotification(notificationBody);
+          
+          setPendingAutoSub(gkSwapEvent);
+          setPendingBatchSubs([]);
+          setSubConfirmDialogOpen(true);
+        }, 500);
+      }
+    }
+  }, [autoSubActive, autoSubPlan, createSubNotification, preferredSecondHalfGkId, players]);
 
   // Execute auto-sub (handles batch subs)
   const handleConfirmAutoSub = useCallback(() => {
@@ -2559,7 +2713,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         halfDurationSeconds,
         currentElapsed,
         currentHalf,
-        pendingAutoSub
+        pendingAutoSub,
+        rotateGkAtHalftime
       );
 
       const cleanedPlan = recalculatedPlan.filter(sub => 
@@ -2696,10 +2851,66 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Reset formation only - moves players back to formation positions and ball to center
   const handleResetFormation = useCallback(() => {
-    // Re-place players using current formation (keeping their minutes played and other stats)
-    const placedPlayers = autoPlacePlayersOnPitch(players, teamSize, selectedFormation);
-    setPlayers(placedPlayers);
-    
+    const formation = FORMATIONS[teamSize][selectedFormation];
+    if (!formation) return;
+
+    // During a game, only reposition players currently on the pitch (preserve bench/stats)
+    const onPitch = players.filter(p => p.position !== null);
+    const onBench = players.filter(p => p.position === null);
+
+    if (onPitch.length > 0 && gameInProgress) {
+      // Map on-pitch players back to formation slots using smart matching
+      const slots = formation.positions.map((pos, index) => ({
+        pos,
+        pitchPos: getPositionFromCoords(pos.y, teamSize),
+        assignedPlayer: null as Player | null,
+      }));
+
+      const assigned = new Set<string>();
+
+      // Pass 1: specialists
+      for (const player of onPitch) {
+        if (assigned.has(player.id)) continue;
+        if (player.assignedPositions?.length === 1) {
+          const slot = slots.find(s => s.pitchPos === player.assignedPositions![0] && !s.assignedPlayer);
+          if (slot) { slot.assignedPlayer = player; assigned.add(player.id); }
+        }
+      }
+      // Pass 2: multi-position
+      for (const player of onPitch) {
+        if (assigned.has(player.id)) continue;
+        if (player.assignedPositions?.length) {
+          const slot = slots.find(s => !s.assignedPlayer && player.assignedPositions!.includes(s.pitchPos));
+          if (slot) { slot.assignedPlayer = player; assigned.add(player.id); }
+        }
+      }
+      // Pass 3: flex / remaining
+      for (const player of onPitch) {
+        if (assigned.has(player.id)) continue;
+        const slot = slots.find(s => !s.assignedPlayer);
+        if (slot) { slot.assignedPlayer = player; assigned.add(player.id); }
+      }
+
+      const result: Player[] = [];
+      for (const slot of slots) {
+        if (slot.assignedPlayer) {
+          result.push({ ...slot.assignedPlayer, position: slot.pos, currentPitchPosition: slot.pitchPos });
+        }
+      }
+      // Any on-pitch players that didn't fit stay on bench
+      for (const player of onPitch) {
+        if (!assigned.has(player.id)) {
+          result.push({ ...player, position: null, currentPitchPosition: undefined });
+        }
+      }
+      result.push(...onBench);
+      setPlayers(result);
+    } else {
+      // Pre-game: full re-place
+      const placedPlayers = autoPlacePlayersOnPitch(players, teamSize, selectedFormation);
+      setPlayers(placedPlayers);
+    }
+
     // Reset ball to center
     setBallPosition({ x: 50, y: 50 });
     
@@ -2707,7 +2918,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       title: "Formation Reset",
       description: "Players and ball have been moved back to formation positions.",
     });
-  }, [players, teamSize, selectedFormation, autoPlacePlayersOnPitch, toast]);
+  }, [players, teamSize, selectedFormation, gameInProgress, autoPlacePlayersOnPitch, toast]);
 
   // Handle team size change - preview changes and show confirmation
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
@@ -3174,7 +3385,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           minutesPerHalfSecs,
           currentElapsed,
           currentHalf,
-          autoSubPlan.find(sub => !sub.executed && sub.playerIn.id === playerId)!
+          autoSubPlan.find(sub => !sub.executed && sub.playerIn.id === playerId)!,
+          rotateGkAtHalftime
         );
         
         setAutoSubPlan(recalculatedPlan);
@@ -3250,7 +3462,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           minutesPerHalfSecs,
           currentElapsed,
           currentHalf,
-          relevantSub
+          relevantSub,
+          rotateGkAtHalftime
         );
         setAutoSubPlan(recalculatedPlan);
         toast({
@@ -3465,7 +3678,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setSelectedOnPitch(null);
     setSelectedOnBench(null);
     setSubMode(false);
-  }, [pendingManualSub, toast, pushToUndoHistory]);
+
+    // Auto-regenerate the plan if auto-subs are active
+    if (autoSubActive) {
+      setTimeout(() => {
+        handleRegeneratePlan();
+        toast({ title: "Auto-sub plan updated", description: "Plan regenerated to account for manual substitution" });
+      }, 200);
+    }
+  }, [pendingManualSub, toast, pushToUndoHistory, autoSubActive, handleRegeneratePlan]);
 
   // Handle manual substitution cancel
   const handleCancelManualSub = useCallback(() => {
@@ -3586,6 +3807,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 minutesPerHalf={minutesPerHalf}
                 onMinutesPerHalfChange={handleMinutesPerHalfChange}
               />
+              {autoSubActive && (
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-1.5 py-0.5 rounded animate-pulse">
+                  AUTO
+                </span>
+              )}
             </div>
           </div>
 
@@ -4330,6 +4556,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                                          setBenchInjuryConfirmOpen(true);
                                        } else {
                                          lastTapRef.current = { playerId: player.id, time: now };
+                                         // Single tap during active game: open BenchToSubDialog for quick "slot in"
+                                         if (gameInProgress && !player.isInjured && playersOnPitch.length > 0) {
+                                           setBenchToSubPlayer(player.id);
+                                           setBenchToSubOpen(true);
+                                         }
                                        }
                                      }
                                    : undefined
@@ -4355,53 +4586,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <div className="space-y-3">
                     {!readOnly && (
                       <>
-                        {/* Show Make Sub / Swap at top only when no auto-sub plan active */}
-                        {!autoSubActive && (
-                          <>
-                            <Button
-                              variant={subMode ? "default" : "outline"}
-                              className="w-full h-10 text-sm"
-                              onClick={() => { toggleSubMode(); setToolbarCollapsed(true); }}
-                            >
-                              <RefreshCw className="h-4 w-4 mr-1.5" />
-                              {subMode ? "Cancel Sub" : "Make Sub"}
-                            </Button>
-                            
-                            {subMode && selectedOnPitch && (
-                              <Button variant="outline" className="w-full h-9 text-xs" onClick={() => setSubPreviewOpen(true)}>
-                                <List className="h-3.5 w-3.5 mr-1.5" />
-                                Options
-                              </Button>
-                            )}
-
-                            {subMode && (
-                              <p className="text-xs text-muted-foreground text-center">
-                                {selectedOnPitch ? "Select bench player" : "Select on pitch"}
-                              </p>
-                            )}
-
-                            {playersOnPitch.length >= 2 && !subMode && (
-                              <Button
-                                variant={swapMode ? "default" : "outline"}
-                                className="w-full h-10 text-sm"
-                                onClick={() => { toggleSwapMode(); setToolbarCollapsed(true); }}
-                              >
-                                <ArrowLeftRight className="h-4 w-4 mr-1.5" />
-                                {swapMode ? "Cancel Swap" : "Swap Positions"}
-                              </Button>
-                            )}
-                          </>
-                        )}
-
+                        {/* Auto-Subs section - shown first */}
                         {!disableAutoSubs && !subMode && !swapMode && (
-                          <div className={cn(!autoSubActive && "pt-2 border-t border-border")}>
+                          <div className={cn(autoSubActive && "pb-2 border-b border-border")}>
                             {!autoSubActive ? (
                               <Button 
                                 variant="outline" 
-                                className="w-full h-10 text-sm" 
+                                className="w-full h-12 text-base" 
                                 onClick={handleOpenNewPlan}
-                                disabled={gameInProgress}
-                                title={gameInProgress ? "Can only create plan before game starts" : undefined}
                               >
                                 <Calendar className="h-4 w-4 mr-1.5" />
                                 Auto-Subs
@@ -4430,32 +4622,33 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </div>
                         )}
 
-                        {/* Show Make Sub / Swap at bottom when auto-sub plan is active */}
-                        {autoSubActive && !subMode && !swapMode && (
-                          <div className="pt-2 border-t border-border space-y-2">
+                        {/* Make Sub / Swap - shown when not in a mode */}
+                        {!subMode && !swapMode && (
+                          <>
                             <Button
                               variant="outline"
-                              className="w-full h-10 text-sm"
+                              className="w-full h-12 text-base"
                               onClick={() => { toggleSubMode(); setToolbarCollapsed(true); }}
                             >
                               <RefreshCw className="h-4 w-4 mr-1.5" />
                               Make Sub
                             </Button>
+
                             {playersOnPitch.length >= 2 && (
                               <Button
                                 variant="outline"
-                                className="w-full h-10 text-sm"
+                                className="w-full h-12 text-base"
                                 onClick={() => { toggleSwapMode(); setToolbarCollapsed(true); }}
                               >
                                 <ArrowLeftRight className="h-4 w-4 mr-1.5" />
                                 Swap Positions
                               </Button>
                             )}
-                          </div>
+                          </>
                         )}
 
-                        {/* Show sub/swap mode UI when active during auto-sub */}
-                        {autoSubActive && (subMode || swapMode) && (
+                        {/* Sub/Swap mode active UI */}
+                        {(subMode || swapMode) && (
                           <>
                             <Button
                               variant="default"
@@ -4531,52 +4724,71 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </div>
                     </div>
 
-                    {/* Add Fill-In Player */}
-                    {!readOnly && (
-                      <Suspense fallback={null}>
-                        <AddFillInPlayerDialog
-                          onAddPlayer={handleAddFillInPlayer}
-                          existingNumbers={existingJerseyNumbers}
-                        />
-                      </Suspense>
-                    )}
-
-                    {/* Action buttons grid */}
+                    {/* Primary actions - context-aware */}
                     <div className="grid grid-cols-2 gap-3">
+                      {!readOnly && !miniLeagueTeams && !gameInProgress && (
+                        <Button variant="outline" className="h-12 text-base" onClick={() => setShowLineupPicker(true)}>
+                          <List className="h-4 w-4 mr-1.5" />
+                          Select Lineup
+                        </Button>
+                      )}
+                      {!readOnly && gameInProgress && (
+                        <Button variant="outline" className="h-12 text-base" onClick={handleResetFormation}>
+                          <RotateCcw className="h-4 w-4 mr-1.5" />
+                          Reset Formation
+                        </Button>
+                      )}
                       <Button variant="outline" className="h-12 text-base" onClick={() => setStatsOpen(true)}>
                         <BarChart3 className="h-4 w-4 mr-1.5" />
                         Stats
                       </Button>
-                      <Button variant="outline" className="h-12 text-base" onClick={() => setPositionEditorOpen(true)} disabled={readOnly}>
-                        <Settings2 className="h-4 w-4 mr-1.5" />
-                        Positions
-                      </Button>
                     </div>
 
-                    {/* Reset Positions */}
+                    {/* More Options - collapsible */}
                     {!readOnly && (
-                      <Button variant="outline" className="w-full h-12 text-base" onClick={handleResetFormation}>
-                        <RotateCcw className="h-4 w-4 mr-1.5" />
-                        Reset Positions
-                      </Button>
+                      <Collapsible>
+                        <CollapsibleTrigger className="flex items-center justify-center w-full py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors gap-1.5">
+                          <span>More Options</span>
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-2 pt-1">
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button variant="outline" className="h-10 text-sm" onClick={() => setPositionEditorOpen(true)}>
+                              <Settings2 className="h-4 w-4 mr-1.5" />
+                              Positions
+                            </Button>
+                            <Suspense fallback={null}>
+                              <AddFillInPlayerDialog
+                                onAddPlayer={handleAddFillInPlayer}
+                                existingNumbers={existingJerseyNumbers}
+                              />
+                            </Suspense>
+                          </div>
+                          {parseInt(teamSize) >= 7 && (
+                            <div className="flex items-center justify-between py-1">
+                              <Label className="text-sm">Rotate GK at Halftime</Label>
+                              <Switch checked={rotateGkAtHalftime} onCheckedChange={setRotateGkAtHalftime} />
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between py-1">
+                            <Label className="text-sm">Hide Scores</Label>
+                            <Switch checked={hideScores} onCheckedChange={setHideScores} />
+                          </div>
+                          <div className="flex items-center justify-between py-1">
+                            <Label className="text-sm">Starting Lineup Screen</Label>
+                            <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
                     )}
 
-                    {/* Timer - larger for landscape */}
-                    <div className="border-t border-border pt-3">
-                      <GameTimer 
-                        key={timerResetKey}
-                        ref={gameTimerRef} 
-                        teamId={teamId} 
-                        teamName={teamName} 
-                        onTimeUpdate={handleTimerUpdate} 
-                        onHalfChange={handleHalfChange} 
-                        readOnly={readOnly}
-                        hideSoundToggle
-                        minutesPerHalf={minutesPerHalf}
-                        onMinutesPerHalfChange={handleMinutesPerHalfChange}
-                        large
-                      />
-                    </div>
+                    {/* Reset Game - always visible at bottom */}
+                    {!readOnly && (
+                      <Button variant="outline" className="w-full h-12 text-base text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
+                        <RotateCcw className="h-4.5 w-4.5 mr-2" />
+                        Reset Game
+                      </Button>
+                    )}
                   </div>
                 )}
 
@@ -4688,6 +4900,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           rotationSpeed={rotationSpeed}
           disablePositionSwaps={disablePositionSwaps}
           disableBatchSubs={disableBatchSubs}
+          rotateGkAtHalftime={rotateGkAtHalftime}
+          currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+          currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+          preferredSecondHalfGkId={preferredSecondHalfGkId}
         />
 
         {/* Sub Confirm Dialog */}
@@ -4726,8 +4942,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           onOpenChange={setPitchSwapConfirmOpen}
           player1={players.find(p => p.id === swapPlayer1) || null}
           player2={players.find(p => p.id === swapPlayer2) || null}
+          allPitchPlayers={players.filter(p => p.position !== null)}
           onConfirm={handleConfirmPitchSwap}
           onCancel={handleCancelPitchSwap}
+          onConfirmWithAccommodation={handleConfirmPitchSwapWithAccommodation}
         />
 
         {/* Swap Before Sub Dialog (step 1 of swap-based substitution) */}
@@ -4921,6 +5139,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               minutesPerHalf={minutesPerHalf}
               onMinutesPerHalfChange={handleMinutesPerHalfChange}
             />
+            {autoSubActive && (
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-1.5 py-0.5 rounded animate-pulse">
+                AUTO
+              </span>
+            )}
           </div>
         </div>
 
@@ -5017,7 +5240,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {!portraitSheetOpen && (
           <>
             <button
-              className="absolute bottom-3 right-3 z-50 w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
+              className={cn(
+                "absolute right-3 z-[63] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center",
+                (subMode || swapMode) ? "bottom-14" : "bottom-3"
+              )}
               onClick={() => setPortraitSheetOpen(true)}
             >
               <ChevronUp className="h-5 w-5 text-muted-foreground" />
@@ -5028,7 +5254,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <>
                 <button
                   className={cn(
-                    "absolute bottom-3 z-50 w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
+                    "absolute z-[63] w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
+                    (subMode || swapMode) ? "bottom-14" : "bottom-3",
                     drawingTool !== "none"
                       ? "bg-primary text-primary-foreground border-primary"
                       : showFloatingDrawToolbar
@@ -5044,7 +5271,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                 {/* Floating Draw Toolbar - portrait */}
                 {showFloatingDrawToolbar && (
-                  <div className="absolute bottom-16 right-3 z-50 animate-fade-in">
+                  <div className={cn("absolute right-3 z-[64] animate-fade-in", (subMode || swapMode) ? "bottom-[6.5rem]" : "bottom-16")}>
                     <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
                       <div className="flex gap-2">
                         <Button 
@@ -5326,6 +5553,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                                        setBenchInjuryConfirmOpen(true);
                                      } else {
                                        lastTapRef.current = { playerId: player.id, time: now };
+                                       // Single tap during active game: open BenchToSubDialog for quick "slot in"
+                                       if (gameInProgress && !player.isInjured && playersOnPitch.length > 0) {
+                                         setBenchToSubPlayer(player.id);
+                                         setBenchToSubOpen(true);
+                                       }
                                      }
                                    }
                                  : undefined
@@ -5350,54 +5582,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <div className="space-y-3">
                     {!readOnly && (
                       <>
-                        {/* Show Make Sub / Swap at top only when no auto-sub plan active */}
-                        {!autoSubActive && (
-                          <>
-                            <Button
-                              variant={subMode ? "default" : "outline"}
-                              className="w-full h-12 text-base"
-                              onClick={() => { toggleSubMode(); setPortraitSheetOpen(false); }}
-                            >
-                              <RefreshCw className="h-4 w-4 mr-1.5" />
-                              {subMode ? "Cancel Sub" : "Make Sub"}
-                            </Button>
-                            
-                            {subMode && selectedOnPitch && (
-                              <Button variant="outline" className="w-full h-10 text-xs" onClick={() => setSubPreviewOpen(true)}>
-                                <List className="h-3.5 w-3.5 mr-1.5" />
-                                Sub Options
-                              </Button>
-                            )}
-
-                            {playersOnPitch.length >= 2 && !subMode && (
-                              <Button
-                                variant={swapMode ? "default" : "outline"}
-                                className="w-full h-12 text-base"
-                                onClick={() => { toggleSwapMode(); setPortraitSheetOpen(false); }}
-                              >
-                                <ArrowLeftRight className="h-4 w-4 mr-1.5" />
-                                {swapMode ? "Cancel Swap" : "Swap Positions"}
-                              </Button>
-                            )}
-                          </>
-                        )}
-
-                        {!readOnly && undoHistory.length > 0 && showFloatingUndo && (
-                          <Button variant="outline" className="w-full h-10 text-sm" onClick={handleUndo}>
-                            <Undo2 className="h-4 w-4 mr-1.5" />
-                            Undo Last
-                          </Button>
-                        )}
-
+                        {/* Auto-Subs section - shown first */}
                         {!disableAutoSubs && !subMode && !swapMode && (
-                          <div className={cn(!autoSubActive && "pt-2 border-t border-border")}>
+                          <div className={cn(autoSubActive && "pb-2 border-b border-border")}>
                             {!autoSubActive ? (
                               <Button 
                                 variant="outline" 
-                                className="w-full h-11 text-sm" 
+                                className="w-full h-12 text-base" 
                                 onClick={handleOpenNewPlan}
-                                disabled={gameInProgress}
-                                title={gameInProgress ? "Can only create plan before game starts" : undefined}
                               >
                                 <Calendar className="h-4 w-4 mr-1.5" />
                                 Auto-Subs
@@ -5425,9 +5617,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </div>
                         )}
 
-                        {/* Show Make Sub / Swap at bottom when auto-sub plan is active */}
-                        {autoSubActive && !subMode && !swapMode && (
-                          <div className="pt-2 border-t border-border space-y-2">
+                        {/* Make Sub / Swap - shown when not in a mode */}
+                        {!subMode && !swapMode && (
+                          <>
                             <Button
                               variant="outline"
                               className="w-full h-12 text-base"
@@ -5436,6 +5628,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               <RefreshCw className="h-4 w-4 mr-1.5" />
                               Make Sub
                             </Button>
+
                             {playersOnPitch.length >= 2 && (
                               <Button
                                 variant="outline"
@@ -5446,11 +5639,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                                 Swap Positions
                               </Button>
                             )}
-                          </div>
+                          </>
                         )}
 
-                        {/* Show sub/swap mode UI when active during auto-sub */}
-                        {autoSubActive && (subMode || swapMode) && (
+                        {!readOnly && undoHistory.length > 0 && showFloatingUndo && (
+                          <Button variant="outline" className="w-full h-10 text-sm" onClick={handleUndo}>
+                            <Undo2 className="h-4 w-4 mr-1.5" />
+                            Undo Last
+                          </Button>
+                        )}
+
+                        {/* Sub/Swap mode active UI */}
+                        {(subMode || swapMode) && (
                           <>
                             <Button
                               variant="default"
@@ -5521,60 +5721,70 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </div>
                     </div>
 
-                    {/* Action buttons grid */}
+                    {/* Primary actions - context-aware */}
                     <div className="grid grid-cols-2 gap-2">
+                      {!readOnly && !miniLeagueTeams && !gameInProgress && (
+                        <Button variant="outline" className="h-11 text-sm" onClick={() => setShowLineupPicker(true)}>
+                          <List className="h-4 w-4 mr-1.5" />
+                          Select Lineup
+                        </Button>
+                      )}
+                      {!readOnly && gameInProgress && (
+                        <Button variant="outline" className="h-11 text-sm" onClick={handleResetFormation}>
+                          <RotateCcw className="h-4 w-4 mr-1.5" />
+                          Reset Formation
+                        </Button>
+                      )}
                       <Button variant="outline" className="h-11 text-sm" onClick={() => setStatsOpen(true)}>
                         <BarChart3 className="h-4 w-4 mr-1.5" />
                         Stats
                       </Button>
-                      <Button variant="outline" className="h-11 text-sm" onClick={() => setPositionEditorOpen(true)} disabled={readOnly}>
-                        <Settings2 className="h-4 w-4 mr-1.5" />
-                        Positions
-                      </Button>
                     </div>
 
-                    {/* Reset Positions */}
+                    {/* More Options - collapsible */}
                     {!readOnly && (
-                      <Button variant="outline" className="w-full h-11 text-sm" onClick={handleResetFormation}>
-                        <RotateCcw className="h-4 w-4 mr-1.5" />
-                        Reset Positions
+                      <Collapsible>
+                        <CollapsibleTrigger className="flex items-center justify-center w-full py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors gap-1.5">
+                          <span>More Options</span>
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-2 pt-1">
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button variant="outline" className="h-10 text-sm" onClick={() => setPositionEditorOpen(true)}>
+                              <Settings2 className="h-4 w-4 mr-1.5" />
+                              Positions
+                            </Button>
+                            <Suspense fallback={null}>
+                              <AddFillInPlayerDialog
+                                onAddPlayer={handleAddFillInPlayer}
+                                existingNumbers={existingJerseyNumbers}
+                              />
+                            </Suspense>
+                          </div>
+                          {parseInt(teamSize) >= 7 && (
+                            <div className="flex items-center justify-between py-1">
+                              <Label className="text-sm">Rotate GK at Halftime</Label>
+                              <Switch checked={rotateGkAtHalftime} onCheckedChange={setRotateGkAtHalftime} />
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between py-1">
+                            <Label className="text-sm">Hide Scores</Label>
+                            <Switch checked={hideScores} onCheckedChange={setHideScores} />
+                          </div>
+                          <div className="flex items-center justify-between py-1">
+                            <Label className="text-sm">Starting Lineup Screen</Label>
+                            <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+
+                    {/* Reset Game - always visible at bottom */}
+                    {!readOnly && (
+                      <Button variant="outline" className="w-full h-12 text-base text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
+                        <RotateCcw className="h-4.5 w-4.5 mr-2" />
+                        Reset Game
                       </Button>
-                    )}
-
-                    {/* Add Fill-In Player */}
-                    {!readOnly && (
-                      <Suspense fallback={null}>
-                        <AddFillInPlayerDialog
-                          onAddPlayer={handleAddFillInPlayer}
-                          existingNumbers={existingJerseyNumbers}
-                        />
-                      </Suspense>
-                    )}
-
-                    {/* Timer */}
-                    <div className="border-t border-border pt-2">
-                      <GameTimer 
-                        key={timerResetKey}
-                        ref={gameTimerRef} 
-                        teamId={teamId} 
-                        teamName={teamName} 
-                        onTimeUpdate={handleTimerUpdate} 
-                        onHalfChange={handleHalfChange} 
-                        readOnly={readOnly}
-                        hideSoundToggle
-                        minutesPerHalf={minutesPerHalf}
-                        onMinutesPerHalfChange={handleMinutesPerHalfChange}
-                      />
-                    </div>
-
-                    {/* Reset */}
-                    {!readOnly && (
-                      <div className="border-t border-border pt-2">
-                        <Button variant="outline" className="w-full h-12 text-base text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
-                          <RotateCcw className="h-4 w-4 mr-1.5" />
-                          Reset Game
-                        </Button>
-                      </div>
                     )}
                   </div>
                 )}
@@ -6020,6 +6230,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         rotationSpeed={rotationSpeed}
         disablePositionSwaps={disablePositionSwaps}
         disableBatchSubs={disableBatchSubs}
+        rotateGkAtHalftime={rotateGkAtHalftime}
+        preferredSecondHalfGkId={preferredSecondHalfGkId}
       />
 
       {/* Sub Confirm Dialog */}
@@ -6059,8 +6271,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         onOpenChange={setPitchSwapConfirmOpen}
         player1={players.find(p => p.id === swapPlayer1) || null}
         player2={players.find(p => p.id === swapPlayer2) || null}
+        allPitchPlayers={players.filter(p => p.position !== null)}
         onConfirm={handleConfirmPitchSwap}
         onCancel={handleCancelPitchSwap}
+        onConfirmWithAccommodation={handleConfirmPitchSwapWithAccommodation}
       />
 
       {/* Swap Before Sub Dialog (step 1 of swap-based substitution) */}
@@ -6103,6 +6317,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         opponentName={opponentName}
         hideScores={hideScores}
       />
+      {/* Pre-Game Lineup Screen */}
+      {showLineupPicker && (
+        <Suspense fallback={<DialogLoader />}>
+          <PreGameLineupScreen
+            players={players}
+            teamSize={teamSize}
+            selectedFormation={selectedFormation}
+            rotateGkAtHalftime={rotateGkAtHalftime}
+            onConfirm={handleLineupConfirm}
+            onSkip={handleLineupSkip}
+            onClose={() => setShowLineupPicker(false)}
+            onTeamSizeChange={(size) => setTeamSize(size)}
+            onFormationChange={(index) => setSelectedFormation(index)}
+          />
+        </Suspense>
+      )}
     </div>,
     document.body
   );

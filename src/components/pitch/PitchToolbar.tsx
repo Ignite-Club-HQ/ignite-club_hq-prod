@@ -153,6 +153,15 @@ interface PitchToolbarProps {
   disableBatchSubs?: boolean;
   onDisableBatchSubsChange?: (disabled: boolean) => void;
   
+  // Rotate GK at halftime
+  rotateGkAtHalftime?: boolean;
+  onRotateGkAtHalftimeChange?: (enabled: boolean) => void;
+  
+  // Lineup picker
+  showLineupPicker?: boolean;
+  onShowLineupPickerChange?: (enabled: boolean) => void;
+  onOpenLineupPicker?: () => void;
+  
   // Save settings
   onSaveSettings?: () => void;
   isSavingSettings?: boolean;
@@ -283,6 +292,11 @@ function PitchToolbar({
   onDisablePositionSwapsChange,
   disableBatchSubs = false,
   onDisableBatchSubsChange,
+  rotateGkAtHalftime = true,
+  onRotateGkAtHalftimeChange,
+  showLineupPicker = false,
+  onShowLineupPickerChange,
+  onOpenLineupPicker,
   onSaveSettings,
   isSavingSettings = false,
   showMatchHeader,
@@ -623,6 +637,11 @@ function PitchToolbar({
               onDisablePositionSwapsChange={onDisablePositionSwapsChange}
               disableBatchSubs={disableBatchSubs}
               onDisableBatchSubsChange={onDisableBatchSubsChange}
+              rotateGkAtHalftime={rotateGkAtHalftime}
+              onRotateGkAtHalftimeChange={onRotateGkAtHalftimeChange}
+              showLineupPicker={showLineupPicker}
+              onShowLineupPickerChange={onShowLineupPickerChange}
+              onOpenLineupPicker={onOpenLineupPicker}
               onOpenPositionEditor={onOpenPositionEditor}
               mockMode={mockMode}
               onMockModeChange={onMockModeChange}
@@ -980,6 +999,11 @@ function PitchToolbar({
             onDisablePositionSwapsChange={onDisablePositionSwapsChange}
             disableBatchSubs={disableBatchSubs}
             onDisableBatchSubsChange={onDisableBatchSubsChange}
+            rotateGkAtHalftime={rotateGkAtHalftime}
+            onRotateGkAtHalftimeChange={onRotateGkAtHalftimeChange}
+            showLineupPicker={showLineupPicker}
+            onShowLineupPickerChange={onShowLineupPickerChange}
+            onOpenLineupPicker={onOpenLineupPicker}
             onOpenPositionEditor={onOpenPositionEditor}
             mockMode={mockMode}
             onMockModeChange={onMockModeChange}

@@ -33,26 +33,17 @@ const playBeepSound = (frequency: number, beepCount: number, beepDuration: numbe
 };
 
 export const playTimerBeep = (message?: string) => {
-  // Play audio beep
-  playBeepSound(880, 3, 0.2, 0.3);
-  
-  // Also send browser notification (works even when phone is asleep)
+  // Send browser/push notification only (no in-app beep)
   if (message) {
-    // Request permission first, then show notification
     requestNotificationPermission().then(() => {
       showBrowserNotification("⚽ Game Alert", message);
     });
   }
 };
 
-// Play sub alert beep - different sound
+// Sub alert - notification only (no in-app beep)
 export const playSubAlertBeep = (message?: string) => {
-  // Play audio beep
-  playBeepSound(1200, 2, 0.15, 0.2);
-  
-  // Also send browser notification (works even when phone is asleep)
   if (message) {
-    // Request permission first, then show notification
     requestNotificationPermission().then(() => {
       showBrowserNotification("🔄 Substitution Alert", message);
     });
@@ -440,19 +431,34 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   }
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex flex-col gap-2">
       {!hideExtras && (
-        <Select value={minutesPerHalf.toString()} onValueChange={handleHalfDurationChange} disabled={readOnly || isGameFinished || isRunning || elapsedSeconds > 0}>
-          <SelectTrigger className={large ? "w-28 h-12 text-base" : "w-24"}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="z-[99999] bg-popover">
-            {[5, 10, 15, 20, 25, 30, 35, 40, 45].map(v => (
-              <SelectItem key={v} value={v.toString()} className={large ? "text-base py-2.5" : ""}>{v} min</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="space-y-1">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Minutes per Half</span>
+          <div className="flex rounded-lg overflow-hidden border border-border">
+            {[5, 10, 15, 20, 25, 30, 35, 40, 45].map((v) => {
+              const isDisabled = readOnly || isGameFinished || isRunning || elapsedSeconds > 0;
+              return (
+                <button
+                  key={v}
+                  onClick={() => !isDisabled && handleHalfDurationChange(v.toString())}
+                  disabled={isDisabled}
+                  className={cn(
+                    "flex-1 py-2.5 text-sm font-medium transition-colors",
+                    minutesPerHalf === v
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-foreground hover:bg-muted",
+                    isDisabled && minutesPerHalf !== v && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  {v}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
+      <div className="flex items-center gap-2 flex-wrap">
       
       <div className={cn(
         "flex items-center gap-2 rounded-md",
@@ -482,6 +488,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         </Button>
       )}
       
+      </div>
     </div>
   );
 });
