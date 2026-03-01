@@ -79,48 +79,48 @@ export const computeTacticalOffsets = (
     if (mode === "attack") {
       switch (pos) {
         case "GK":
-          dy = -2;
+          dy = -1;
           break;
         case "DEF":
-          dy = isSmallSided ? -3 : -5;
-          if (isWide(bx)) dx = isLeft(bx) ? -2 : 2;
+          dy = isSmallSided ? -2 : -3;
+          if (isWide(bx)) dx = isLeft(bx) ? -1 : 1;
           break;
         case "MID":
           if (p.id === attackPushMidId) {
-            dy = isSmallSided ? -6 : -8;
+            dy = isSmallSided ? -4 : -5;
           } else {
-            dy = -3;
+            dy = -2;
           }
-          if (isWide(bx)) dx = isLeft(bx) ? -4 : 4;
+          if (isWide(bx)) dx = isLeft(bx) ? -2 : 2;
           break;
         case "FWD":
-          dy = isSmallSided ? -3 : -5;
-          if (isWide(bx)) dx = isLeft(bx) ? -4 : 4;
+          dy = isSmallSided ? -2 : -3;
+          if (isWide(bx)) dx = isLeft(bx) ? -2 : 2;
           break;
       }
     } else if (mode === "defend") {
       switch (pos) {
         case "GK":
-          dy = 2;
+          dy = 1;
           break;
         case "DEF":
-          dy = isSmallSided ? 3 : 5;
-          if (isWide(bx)) dx = isLeft(bx) ? 4 : -4;
+          dy = isSmallSided ? 2 : 3;
+          if (isWide(bx)) dx = isLeft(bx) ? 2 : -2;
           break;
         case "MID":
           if (p.id === anchorMidId) {
-            dy = isSmallSided ? 5 : 7;
-            if (bx < 45) dx = 3;
-            else if (bx > 55) dx = -3;
+            dy = isSmallSided ? 3 : 5;
+            if (bx < 45) dx = 2;
+            else if (bx > 55) dx = -2;
             isAnchor = true;
           } else {
-            dy = 3;
-            if (isWide(bx)) dx = isLeft(bx) ? 3 : -3;
+            dy = 2;
+            if (isWide(bx)) dx = isLeft(bx) ? 1 : -1;
           }
           break;
         case "FWD":
-          dy = 2;
-          if (isWide(bx)) dx = isLeft(bx) ? 2 : -2;
+          dy = 1;
+          if (isWide(bx)) dx = isLeft(bx) ? 1 : -1;
           break;
       }
     }
