@@ -39,6 +39,7 @@ const SubConfirmDialog = lazy(() => import("./SubConfirmDialog"));
 const AddFillInPlayerDialog = lazy(() => import("./AddFillInPlayerDialog"));
 const AutoSubManager = lazy(() => import("./AutoSubManager"));
 const PreGameLineupScreen = lazy(() => import("./PreGameLineupScreen"));
+import TacticalModeSelector from "./TacticalModeSelector";
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -74,6 +75,7 @@ import {
   recalculateRemainingPlan,
   isSoundEnabled
 } from "./pitchStateUtils";
+import { TacticalMode, applyTacticalOffset, TACTICAL_MODE_MESSAGES, TACTICAL_MODE_LABELS } from "./tacticalMode";
 
 interface PitchBoardProps {
   teamId: string;
@@ -293,6 +295,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return initialShowLineupPicker && !!initialLinkedEventId && !savedState && !readOnly && !miniLeagueTeams;
   });
   const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
+  
+  // Tactical mode state
+  const [tacticalMode, setTacticalMode] = useState<TacticalMode>("neutral");
 
   // Sync settings from props when they change (e.g., when edited on team page)
   // Also sync on initial mount if no saved state exists for the setting
@@ -490,6 +495,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       setIsSavingSettings(false);
     }
   }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, showLineupPickerSetting, toast]);
+
+  const handleTacticalModeChange = useCallback((mode: TacticalMode) => {
+    setTacticalMode(mode);
+    toast({
+      title: TACTICAL_MODE_MESSAGES[mode],
+      duration: 2000,
+    });
+  }, [toast]);
 
   const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
     setPlayers(updatedPlayers);
@@ -3793,7 +3806,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             onMouseDown={handleTimerDragStart}
             onTouchStart={handleTimerTouchStart}
           >
-            <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+            <div className="flex flex-col items-center bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+              <div className="flex items-center gap-2">
               <GameTimer 
                 key={timerResetKey}
                 ref={gameTimerRef} 
@@ -3810,6 +3824,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               {autoSubActive && (
                 <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-1.5 py-0.5 rounded animate-pulse">
                   AUTO
+                </span>
+              )}
+              </div>
+              {tacticalMode !== "neutral" && (
+                <span className="text-[9px] text-muted-foreground font-medium mt-0.5">
+                  {FORMATIONS[teamSize][selectedFormation]?.name} • {TACTICAL_MODE_LABELS[tacticalMode]}
                 </span>
               )}
             </div>
@@ -4175,10 +4195,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   teamColor={getPlayerTeamColor(player)}
                   style={{
                     position: "absolute",
-                    left: `${player.position!.x}%`,
-                    top: `${player.position!.y}%`,
+                    ...(() => {
+                      const { x, y } = applyTacticalOffset(player.position!.x, player.position!.y, player.currentPitchPosition, tacticalMode, teamSize);
+                      return { left: `${x}%`, top: `${y}%` };
+                    })(),
                     transform: "translate(-50%, -50%)",
-                    transition: draggedPlayer === player.id || touchDragPlayer === player.id ? "none" : "left 0.3s ease-out, top 0.3s ease-out",
+                    transition: draggedPlayer === player.id || touchDragPlayer === player.id ? "none" : "left 0.4s ease-out, top 0.4s ease-out",
                     zIndex: previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
                     cursor: readOnly ? "default" : ((subMode || swapMode) ? "pointer" : "grab"),
                   }}
@@ -4455,8 +4477,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               </div>
               </div>
 
+              {/* Tactical Mode Selector */}
+              <div className="px-3 pt-2">
+                <TacticalModeSelector value={tacticalMode} onChange={handleTacticalModeChange} readOnly={readOnly} />
+              </div>
+
               {/* Tab content */}
-              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${sheetHeightPct}vh - 80px)` }}>
+              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${sheetHeightPct}vh - 120px)` }}>
                 {/* Bench Tab */}
                 {bottomSheetTab === "bench" && (
                   <div className="space-y-3">
@@ -5125,7 +5152,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             touchAction: 'auto',
           }}
         >
-          <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+          <div className="flex flex-col items-center bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+            <div className="flex items-center gap-2">
             <GameTimer 
               key={timerResetKey}
               ref={gameTimerRef} 
@@ -5142,6 +5170,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             {autoSubActive && (
               <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-1.5 py-0.5 rounded animate-pulse">
                 AUTO
+              </span>
+            )}
+            </div>
+            {tacticalMode !== "neutral" && (
+              <span className="text-[9px] text-muted-foreground font-medium mt-0.5">
+                {FORMATIONS[teamSize][selectedFormation]?.name} • {TACTICAL_MODE_LABELS[tacticalMode]}
               </span>
             )}
           </div>
@@ -5442,8 +5476,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 </div>
               </div>
 
+              {/* Tactical Mode Selector */}
+              <div className="px-3 pt-2">
+                <TacticalModeSelector value={tacticalMode} onChange={handleTacticalModeChange} readOnly={readOnly} />
+              </div>
+
               {/* Tab content */}
-              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${portraitSheetHeightPct}vh - 80px)` }}>
+              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${portraitSheetHeightPct}vh - 120px)` }}>
                 {/* Bench Tab */}
                 {bottomSheetTab === "bench" && (
                   <div className="space-y-3">
@@ -6038,10 +6077,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 teamColor={getPlayerTeamColor(player)}
                 style={{
                   position: "absolute",
-                  left: `${player.position!.x}%`,
-                  top: `${player.position!.y}%`,
+                  ...(() => {
+                    const { x, y } = applyTacticalOffset(player.position!.x, player.position!.y, player.currentPitchPosition, tacticalMode, teamSize);
+                    return { left: `${x}%`, top: `${y}%` };
+                  })(),
                   transform: "translate(-50%, -50%)",
-                  transition: draggedPlayer === player.id || touchDragPlayer === player.id ? "none" : "left 0.3s ease-out, top 0.3s ease-out",
+                  transition: draggedPlayer === player.id || touchDragPlayer === player.id ? "none" : "left 0.4s ease-out, top 0.4s ease-out",
                   zIndex: previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
                   cursor: readOnly ? "default" : ((subMode || swapMode) ? "pointer" : "grab"),
                 }}
