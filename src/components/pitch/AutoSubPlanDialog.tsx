@@ -562,7 +562,7 @@ function DialogInner({
         
         {activeTab === 'forecast' && (
           /* Playing Time Forecast */
-          <ScrollArea className="h-[280px] pr-4">
+          <div className="pr-1">
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground mb-3">
                 Predicted playing time based on {plan.length} substitution{plan.length !== 1 ? 's' : ''} over {minutesPerHalf * 2} minutes
@@ -605,7 +605,7 @@ function DialogInner({
                 </div>
               ))}
             </div>
-          </ScrollArea>
+          </div>
         )}
 
         {activeTab === 'edit' && (
