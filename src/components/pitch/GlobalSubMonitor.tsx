@@ -658,28 +658,46 @@ export default function GlobalSubMonitor() {
     return true;
   }, []);
 
-  // Force-open sub confirmation from notification click (clears lastChecked to re-trigger)
+  // Force-open sub confirmation from notification click
   const forceOpenSubConfirmation = useCallback(() => {
-    lastCheckedSubRef.current = null;
-    checkForPendingSubs();
-    
-    // If no pending sub was found (already executed), show dialog in read-only mode
-    if (!subConfirmDialogOpen) {
-      const pitchState = loadPitchState();
-      const timerState = loadTimerState();
-      if (pitchState && timerState) {
-        // Find the most recent executed sub to show
-        const executedSubs = pitchState.autoSubPlan?.filter(s => s.executed) || [];
-        if (executedSubs.length > 0) {
-          const lastExecuted = executedSubs[executedSubs.length - 1];
-          setCurrentPlayers(pitchState.players);
-          setPendingAutoSub(lastExecuted);
-          setPendingBatchSubs([]);
-          setSubConfirmDialogOpen(true);
-        }
-      }
+    const pitchState = loadPitchState();
+    const timerState = loadTimerState();
+    if (!pitchState || !timerState) return;
+
+    // Calculate current elapsed time
+    const now = Date.now();
+    const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
+    const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+    const currentHalf = timerState.currentHalf;
+
+    // Find unexecuted subs that are due
+    const dueSubs = pitchState.autoSubPlan?.filter(sub => 
+      !sub.executed && 
+      sub.half === currentHalf && 
+      currentElapsed >= sub.time
+    ) || [];
+
+    if (dueSubs.length > 0) {
+      const earliestTime = Math.min(...dueSubs.map(s => s.time));
+      const batchSubs = dueSubs.filter(s => s.time === earliestTime);
+      const [primarySub, ...additionalSubs] = batchSubs;
+      setCurrentPlayers(pitchState.players);
+      setPendingAutoSub(primarySub);
+      setPendingBatchSubs(additionalSubs);
+      setSubConfirmDialogOpen(true);
+      return;
     }
-  }, [checkForPendingSubs, subConfirmDialogOpen]);
+
+    // No pending subs - show the most recent executed sub in read-only mode
+    const executedSubs = pitchState.autoSubPlan?.filter(s => s.executed) || [];
+    if (executedSubs.length > 0) {
+      const lastExecuted = executedSubs[executedSubs.length - 1];
+      setCurrentPlayers(pitchState.players);
+      setPendingAutoSub(lastExecuted);
+      setPendingBatchSubs([]);
+      setSubConfirmDialogOpen(true);
+    }
+  }, []);
 
 
   useEffect(() => {
