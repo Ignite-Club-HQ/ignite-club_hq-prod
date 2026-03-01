@@ -4867,23 +4867,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         )}
 
-        {/* Floating Pitch Shortcuts - pinned to left side of pitch in landscape */}
+        {/* Floating Pitch Shortcuts - pinned to top right of pitch in landscape */}
         {!readOnly && pinPitchShortcuts && (
-          <div className="absolute left-2 top-1/2 -translate-y-1/2 z-[55] flex flex-col items-center gap-1.5">
-            <button
-              onClick={() => setStatsOpen(true)}
-              className="w-11 h-11 rounded-full border bg-background/70 backdrop-blur border-border text-muted-foreground hover:bg-background/90 flex flex-col items-center justify-center transition-all duration-200"
-            >
-              <BarChart3 className="h-4 w-4" />
-              <span className="text-[8px] font-bold leading-none mt-0.5">STATS</span>
-            </button>
-            <button
-              onClick={handleResetFormation}
-              className="w-11 h-11 rounded-full border bg-background/70 backdrop-blur border-border text-muted-foreground hover:bg-background/90 flex flex-col items-center justify-center transition-all duration-200"
-            >
-              <RotateCcw className="h-4 w-4" />
-              <span className="text-[8px] font-bold leading-none mt-0.5">RESET</span>
-            </button>
+          <div className="absolute right-2 top-2 z-[55] flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-10 w-10 bg-background/70 backdrop-blur border border-border" onClick={handleResetFormation}>
+              <RotateCcw className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-10 w-10 bg-background/70 backdrop-blur border border-border" onClick={() => setStatsOpen(true)}>
+              <BarChart3 className="h-5 w-5" />
+            </Button>
           </div>
         )}
 
