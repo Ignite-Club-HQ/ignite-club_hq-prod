@@ -87,11 +87,11 @@ export const computeTacticalOffsets = (
           break;
         case "MID":
           if (p.id === attackPushMidId) {
-            dy = isSmallSided ? -6 : -8;
+            dy = isSmallSided ? -4 : -6;
           } else {
-            dy = isSmallSided ? -3 : -4;
+            dy = isSmallSided ? -2 : -3;
           }
-          if (isWide(bx)) dx = isLeft(bx) ? -2 : 2;
+          if (isWide(bx)) dx = isLeft(bx) ? -1 : 1;
           break;
         case "FWD":
           dy = isSmallSided ? -3 : -4;
@@ -109,12 +109,12 @@ export const computeTacticalOffsets = (
           break;
         case "MID":
           if (p.id === anchorMidId) {
-            dy = isSmallSided ? 5 : 7;
-            if (bx < 45) dx = 2;
-            else if (bx > 55) dx = -2;
+            dy = isSmallSided ? 4 : 5;
+            if (bx < 45) dx = 1;
+            else if (bx > 55) dx = -1;
             isAnchor = true;
           } else {
-            dy = isSmallSided ? 3 : 4;
+            dy = isSmallSided ? 2 : 3;
             if (isWide(bx)) dx = isLeft(bx) ? 1 : -1;
           }
           break;
