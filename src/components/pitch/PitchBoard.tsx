@@ -5123,7 +5123,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           eventId={linkedEventId || ''} 
           teamId={teamId}
           teamName={teamName} 
-          onLinkEvent={readOnly || gameInProgress ? undefined : handleLinkEvent}
+          onLinkEvent={readOnly || (gameInProgress && !!linkedEventId) ? undefined : handleLinkEvent}
           showScoreToggle={gameInProgress && !hideScores}
           scoreExpanded={showScoreInPortrait}
           onToggleScore={() => setShowScoreInPortrait(!showScoreInPortrait)}
