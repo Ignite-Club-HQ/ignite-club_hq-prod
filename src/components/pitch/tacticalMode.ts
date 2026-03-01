@@ -3,52 +3,46 @@ import { TeamSize, Player } from "./types";
 
 export type TacticalMode = "neutral" | "attack" | "defend";
 
-interface TacticalPosition {
-  x: number;
-  y: number;
-  isAnchor?: boolean; // Defend mode: this mid is the anchor
+interface TacticalOffset {
+  dx: number; // percentage-point shift in X
+  dy: number; // percentage-point shift in Y
+  isAnchor?: boolean;
 }
 
 /**
- * Batch-calculate tactical positions for ALL on-pitch players.
- * This allows context-aware decisions like "only one mid pushes higher" 
- * and "pick one central mid as anchor".
+ * Batch-calculate tactical OFFSETS (not absolute positions) for all on-pitch players.
+ * Returns a Map of playerId → { dx, dy } pixel-percentage offsets to apply via CSS translate.
+ * The stored player.position is never modified — offsets are purely visual.
  */
-export const computeTacticalPositions = (
+export const computeTacticalOffsets = (
   players: Player[],
   mode: TacticalMode,
   teamSize: TeamSize,
-): Map<string, TacticalPosition> => {
-  const result = new Map<string, TacticalPosition>();
+): Map<string, TacticalOffset> => {
+  const result = new Map<string, TacticalOffset>();
   const onPitch = players.filter(p => p.position !== null);
 
   if (mode === "neutral") {
-    for (const p of onPitch) {
-      result.set(p.id, { x: p.position!.x, y: p.position!.y });
-    }
-    return result;
+    return result; // empty map = no offsets
   }
 
   const isSmallSided = parseInt(teamSize) <= 7;
-  const safeMinY = isSmallSided ? 14 : 10;
-  const safeMaxY = isSmallSided ? 92 : 94;
-
-  // Classify players by position
-  const midfielders = onPitch.filter(p => p.currentPitchPosition === "MID");
   const isWide = (x: number) => x < 40 || x > 60;
   const isLeft = (x: number) => x < 50;
 
-  // For ATTACK: pick one most-central midfielder to push higher
+  // Classify midfielders for special roles
+  const midfielders = onPitch.filter(p => p.currentPitchPosition === "MID");
+
+  // ATTACK: pick one most-central midfielder to push higher
   let attackPushMidId: string | null = null;
   if (mode === "attack" && midfielders.length > 0) {
-    // Pick the midfielder closest to center-x
-    const sorted = [...midfielders].sort((a, b) => 
+    const sorted = [...midfielders].sort((a, b) =>
       Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
     );
     attackPushMidId = sorted[0].id;
   }
 
-  // For DEFEND: pick one central midfielder as anchor
+  // DEFEND: pick one central midfielder as anchor
   let anchorMidId: string | null = null;
   if (mode === "defend" && midfielders.length > 0) {
     const centralMids = midfielders.filter(m => !isWide(m.position!.x));
@@ -60,7 +54,6 @@ export const computeTacticalPositions = (
 
   for (const p of onPitch) {
     const bx = p.position!.x;
-    const by = p.position!.y;
     const pos = p.currentPitchPosition;
     let dx = 0;
     let dy = 0;
@@ -73,22 +66,18 @@ export const computeTacticalPositions = (
           break;
         case "DEF":
           dy = isSmallSided ? -3 : -5;
-          // Wide defenders push out slightly
           if (isWide(bx)) dx = isLeft(bx) ? -2 : 2;
           break;
         case "MID":
           if (p.id === attackPushMidId) {
-            // This one central mid pushes significantly higher
             dy = isSmallSided ? -6 : -8;
           } else {
             dy = -3;
           }
-          // Wide mids spread wider
           if (isWide(bx)) dx = isLeft(bx) ? -4 : 4;
           break;
         case "FWD":
           dy = isSmallSided ? -3 : -5;
-          // Wide forwards spread
           if (isWide(bx)) dx = isLeft(bx) ? -4 : 4;
           break;
       }
@@ -99,34 +88,29 @@ export const computeTacticalPositions = (
           break;
         case "DEF":
           dy = isSmallSided ? 3 : 5;
-          // Wide defenders tuck in
           if (isWide(bx)) dx = isLeft(bx) ? 4 : -4;
           break;
         case "MID":
           if (p.id === anchorMidId) {
-            // Anchor drops deeper and stays central
             dy = isSmallSided ? 5 : 7;
-            // Pull toward center
             if (bx < 45) dx = 3;
             else if (bx > 55) dx = -3;
             isAnchor = true;
           } else {
             dy = 3;
-            // Wide mids tuck in
             if (isWide(bx)) dx = isLeft(bx) ? 3 : -3;
           }
           break;
         case "FWD":
           dy = 2;
-          // Forwards tuck in slightly
           if (isWide(bx)) dx = isLeft(bx) ? 2 : -2;
           break;
       }
     }
 
-    const newX = Math.max(4, Math.min(96, bx + dx));
-    const newY = Math.max(safeMinY, Math.min(safeMaxY, by + dy));
-    result.set(p.id, { x: newX, y: newY, isAnchor });
+    if (dx !== 0 || dy !== 0) {
+      result.set(p.id, { dx, dy, isAnchor });
+    }
   }
 
   return result;
