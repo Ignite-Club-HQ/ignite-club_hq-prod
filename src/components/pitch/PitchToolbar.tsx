@@ -157,6 +157,11 @@ interface PitchToolbarProps {
   rotateGkAtHalftime?: boolean;
   onRotateGkAtHalftimeChange?: (enabled: boolean) => void;
   
+  // Lineup picker
+  showLineupPicker?: boolean;
+  onShowLineupPickerChange?: (enabled: boolean) => void;
+  onOpenLineupPicker?: () => void;
+  
   // Save settings
   onSaveSettings?: () => void;
   isSavingSettings?: boolean;
@@ -289,6 +294,9 @@ function PitchToolbar({
   onDisableBatchSubsChange,
   rotateGkAtHalftime = true,
   onRotateGkAtHalftimeChange,
+  showLineupPicker = false,
+  onShowLineupPickerChange,
+  onOpenLineupPicker,
   onSaveSettings,
   isSavingSettings = false,
   showMatchHeader,
@@ -631,6 +639,9 @@ function PitchToolbar({
               onDisableBatchSubsChange={onDisableBatchSubsChange}
               rotateGkAtHalftime={rotateGkAtHalftime}
               onRotateGkAtHalftimeChange={onRotateGkAtHalftimeChange}
+              showLineupPicker={showLineupPicker}
+              onShowLineupPickerChange={onShowLineupPickerChange}
+              onOpenLineupPicker={onOpenLineupPicker}
               onOpenPositionEditor={onOpenPositionEditor}
               mockMode={mockMode}
               onMockModeChange={onMockModeChange}
@@ -990,6 +1001,9 @@ function PitchToolbar({
             onDisableBatchSubsChange={onDisableBatchSubsChange}
             rotateGkAtHalftime={rotateGkAtHalftime}
             onRotateGkAtHalftimeChange={onRotateGkAtHalftimeChange}
+            showLineupPicker={showLineupPicker}
+            onShowLineupPickerChange={onShowLineupPickerChange}
+            onOpenLineupPicker={onOpenLineupPicker}
             onOpenPositionEditor={onOpenPositionEditor}
             mockMode={mockMode}
             onMockModeChange={onMockModeChange}

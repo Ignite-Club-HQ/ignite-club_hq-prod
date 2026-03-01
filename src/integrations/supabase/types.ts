@@ -4849,6 +4849,7 @@ export type Database = {
           minutes_per_half: number | null
           rotate_gk_at_halftime: boolean | null
           rotation_speed: number | null
+          show_lineup_picker: boolean
           show_match_header: boolean | null
           team_id: string
           team_size: number | null
@@ -4871,6 +4872,7 @@ export type Database = {
           minutes_per_half?: number | null
           rotate_gk_at_halftime?: boolean | null
           rotation_speed?: number | null
+          show_lineup_picker?: boolean
           show_match_header?: boolean | null
           team_id: string
           team_size?: number | null
@@ -4893,6 +4895,7 @@ export type Database = {
           minutes_per_half?: number | null
           rotate_gk_at_halftime?: boolean | null
           rotation_speed?: number | null
+          show_lineup_picker?: boolean
           show_match_header?: boolean | null
           team_id?: string
           team_size?: number | null

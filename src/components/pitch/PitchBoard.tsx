@@ -37,6 +37,7 @@ const PitchPlayerActionMenu = lazy(() => import("./PitchPlayerActionMenu"));
 const SubConfirmDialog = lazy(() => import("./SubConfirmDialog"));
 const AddFillInPlayerDialog = lazy(() => import("./AddFillInPlayerDialog"));
 const AutoSubManager = lazy(() => import("./AutoSubManager"));
+const PreGameLineupScreen = lazy(() => import("./PreGameLineupScreen"));
 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -94,6 +95,7 @@ interface PitchBoardProps {
   readOnly?: boolean;
   initialLinkedEventId?: string | null;
   initialShowMatchHeader?: boolean;
+  initialShowLineupPicker?: boolean;
   // Mini-league two-team mode configuration
   miniLeagueTeams?: MiniLeagueTeams;
 }
@@ -119,7 +121,7 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
   </div>
 );
 
-export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, initialLinkedEventId, initialShowMatchHeader = true, miniLeagueTeams }: PitchBoardProps) {
+export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = false, miniLeagueTeams }: PitchBoardProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
@@ -284,6 +286,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [disablePositionSwaps, setDisablePositionSwaps] = useState(() => initialDisablePositionSwaps); // Disable position swaps in auto sub generation
   const [disableBatchSubs, setDisableBatchSubs] = useState(() => initialDisableBatchSubs); // Disable batch subs (multiple at once)
   const [rotateGkAtHalftime, setRotateGkAtHalftime] = useState(() => initialRotateGkAtHalftime); // Rotate GK at halftime
+  const [showLineupPicker, setShowLineupPicker] = useState(() => {
+    // Show lineup picker on mount if setting enabled AND no saved state (fresh game)
+    return initialShowLineupPicker && !savedState && !readOnly && !miniLeagueTeams;
+  });
+  const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
 
   // Sync settings from props when they change (e.g., when edited on team page)
   // Also sync on initial mount if no saved state exists for the setting
@@ -460,7 +467,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           team_size: parseInt(teamSize),
           formation: FORMATIONS[teamSize][selectedFormation]?.name || null,
           show_match_header: showMatchHeader,
-          rotate_gk_at_halftime: rotateGkAtHalftime
+          rotate_gk_at_halftime: rotateGkAtHalftime,
+          show_lineup_picker: showLineupPickerSetting
         }, { onConflict: 'team_id' });
       
       if (error) throw error;
@@ -479,8 +487,26 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     } finally {
       setIsSavingSettings(false);
     }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, toast]);
-  
+  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, showLineupPickerSetting, toast]);
+
+  const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
+    setPlayers(updatedPlayers);
+    setShowLineupPicker(false);
+    if (firstHalfGkId || secondHalfGkId) {
+      console.log("[PitchBoard] Lineup confirmed with GK rotation:", { firstHalfGkId, secondHalfGkId });
+    }
+  }, []);
+
+  const handleShowLineupPickerSettingChange = useCallback(async (enabled: boolean) => {
+    setShowLineupPickerSetting(enabled);
+    if (!readOnly) {
+      await supabase
+        .from('team_subscriptions')
+        .upsert({ team_id: teamId, show_lineup_picker: enabled }, { onConflict: 'team_id' });
+    }
+  }, [teamId, readOnly]);
+
+
   // Handle linking event with email notifications
   const handleLinkEvent = useCallback(async (eventId: string | null) => {
     const previousLinkedEventId = linkedEventId;
@@ -1198,6 +1224,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     // If no saved state and no realPlayers yet, wait for realPlayers to load
   }, [savedState, realPlayers, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, teamSize, selectedFormation]);
+
+  // Lineup skip handler (needs players + autoPlacePlayersOnPitch to be defined)
+  const handleLineupSkip = useCallback(() => {
+    if (!miniLeagueTeams) {
+      setPlayers(autoPlacePlayersOnPitch(players, teamSize, selectedFormation));
+    }
+    setShowLineupPicker(false);
+  }, [players, teamSize, selectedFormation, autoPlacePlayersOnPitch, miniLeagueTeams]);
 
   // Save pitch state to localStorage whenever it changes (only after initialization)
   useEffect(() => {
@@ -6077,6 +6111,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         opponentName={opponentName}
         hideScores={hideScores}
       />
+      {/* Pre-Game Lineup Screen */}
+      {showLineupPicker && (
+        <Suspense fallback={<DialogLoader />}>
+          <PreGameLineupScreen
+            players={players}
+            teamSize={teamSize}
+            selectedFormation={selectedFormation}
+            rotateGkAtHalftime={rotateGkAtHalftime}
+            onConfirm={handleLineupConfirm}
+            onSkip={handleLineupSkip}
+            onClose={() => setShowLineupPicker(false)}
+          />
+        </Suspense>
+      )}
     </div>,
     document.body
   );
