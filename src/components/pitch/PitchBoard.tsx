@@ -4568,12 +4568,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </div>
                     </div>
 
-                    {/* Primary actions */}
+                    {/* Primary actions - context-aware */}
                     <div className="grid grid-cols-2 gap-3">
-                      {!readOnly && !miniLeagueTeams && (
+                      {!readOnly && !miniLeagueTeams && !gameInProgress && (
                         <Button variant="outline" className="h-12 text-base" onClick={() => setShowLineupPicker(true)}>
                           <List className="h-4 w-4 mr-1.5" />
                           Select Lineup
+                        </Button>
+                      )}
+                      {!readOnly && gameInProgress && (
+                        <Button variant="outline" className="h-12 text-base" onClick={handleResetFormation}>
+                          <RotateCcw className="h-4 w-4 mr-1.5" />
+                          Reset Formation
                         </Button>
                       )}
                       <Button variant="outline" className="h-12 text-base" onClick={() => setStatsOpen(true)}>
@@ -5569,12 +5575,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </div>
                     </div>
 
-                    {/* Primary actions */}
+                    {/* Primary actions - context-aware */}
                     <div className="grid grid-cols-2 gap-2">
-                      {!readOnly && !miniLeagueTeams && (
+                      {!readOnly && !miniLeagueTeams && !gameInProgress && (
                         <Button variant="outline" className="h-11 text-sm" onClick={() => setShowLineupPicker(true)}>
                           <List className="h-4 w-4 mr-1.5" />
                           Select Lineup
+                        </Button>
+                      )}
+                      {!readOnly && gameInProgress && (
+                        <Button variant="outline" className="h-11 text-sm" onClick={handleResetFormation}>
+                          <RotateCcw className="h-4 w-4 mr-1.5" />
+                          Reset Formation
                         </Button>
                       )}
                       <Button variant="outline" className="h-11 text-sm" onClick={() => setStatsOpen(true)}>
