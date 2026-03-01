@@ -4760,7 +4760,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                     {/* Reset Game - always visible at bottom */}
                     {!readOnly && (
-                      <Button variant="outline" className="w-full h-12 text-base text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
+                      <Button 
+                        variant="outline" 
+                        className="w-full h-12 text-base text-destructive" 
+                        onClick={() => { console.log("[ResetGame] Landscape click fired"); setResetGameConfirmOpen(true); }}
+                        onTouchEnd={(e) => { e.preventDefault(); console.log("[ResetGame] Landscape touch fired"); setResetGameConfirmOpen(true); }}
+                      >
                         <RotateCcw className="h-4.5 w-4.5 mr-2" />
                         Reset Game
                       </Button>
@@ -5713,7 +5718,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                     {/* Reset Game - always visible at bottom */}
                     {!readOnly && (
-                      <Button variant="outline" className="w-full h-12 text-base text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
+                      <Button 
+                        variant="outline" 
+                        className="w-full h-12 text-base text-destructive" 
+                        onClick={() => { console.log("[ResetGame] Portrait click fired"); setResetGameConfirmOpen(true); }}
+                        onTouchEnd={(e) => { e.preventDefault(); console.log("[ResetGame] Portrait touch fired"); setResetGameConfirmOpen(true); }}
+                      >
                         <RotateCcw className="h-4.5 w-4.5 mr-2" />
                         Reset Game
                       </Button>
