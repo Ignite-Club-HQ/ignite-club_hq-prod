@@ -551,9 +551,15 @@ function DialogInner({
           <Play className="h-4 w-4" />
           Generate Plan
         </Button>
-        <Button variant="ghost" className="text-muted-foreground" onClick={onClose}>
-          Skip
-        </Button>
+        <button
+          onClick={onClose}
+          className="mt-2 w-full max-w-xs rounded-lg border border-border bg-muted/30 p-3 text-center transition-colors hover:bg-muted/50 active:bg-muted/70"
+        >
+          <span className="text-sm font-medium text-foreground">Skip</span>
+          <p className="mt-1 text-xs text-muted-foreground">
+            You can make substitutions and swaps manually during the game instead
+          </p>
+        </button>
       </div>
     );
   }
