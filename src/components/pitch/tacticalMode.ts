@@ -86,12 +86,13 @@ export const computeTacticalOffsets = (
           if (isWide(bx)) dx = isLeft(bx) ? -1 : 1;
           break;
         case "MID":
+          dy = isSmallSided ? -3 : -5;
           if (p.id === attackPushMidId) {
-            dy = isSmallSided ? -4 : -6;
+            // Push mid moves more centrally, not higher
+            if (isWide(bx)) dx = isLeft(bx) ? 1 : -1; // tuck in instead of spread
           } else {
-            dy = isSmallSided ? -2 : -3;
+            if (isWide(bx)) dx = isLeft(bx) ? -1 : 1;
           }
-          if (isWide(bx)) dx = isLeft(bx) ? -1 : 1;
           break;
         case "FWD":
           dy = isSmallSided ? -3 : -4;
@@ -108,13 +109,13 @@ export const computeTacticalOffsets = (
           if (isWide(bx)) dx = isLeft(bx) ? 2 : -2;
           break;
         case "MID":
+          dy = isSmallSided ? 3 : 5;
           if (p.id === anchorMidId) {
-            dy = isSmallSided ? 4 : 5;
-            if (bx < 45) dx = 1;
-            else if (bx > 55) dx = -1;
+            // Anchor tucks in centrally but same depth as other mids
+            if (bx < 45) dx = 2;
+            else if (bx > 55) dx = -2;
             isAnchor = true;
           } else {
-            dy = isSmallSided ? 2 : 3;
             if (isWide(bx)) dx = isLeft(bx) ? 1 : -1;
           }
           break;
