@@ -62,7 +62,7 @@ export default function MatchStatsPanel({ open, onOpenChange, players, elapsedGa
           </DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-4 flex-1 min-h-0 overflow-y-auto">
+        <div className="space-y-4 flex-1 min-h-0 overflow-y-auto scrollbar-hide">
           {/* Score display - only when scoring is enabled */}
           {!hideScores && goals.length > 0 && (
             <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
