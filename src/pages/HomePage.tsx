@@ -909,7 +909,7 @@ export default function HomePage() {
     onSuccess: (count) => {
       toast({
         title: "Reminders sent!",
-        description: `Sent to ${count} member${count === 1 ? '' : 's'}`,
+        description: count ? `${count} member${count === 1 ? '' : 's'} reminded to RSVP` : "Reminders have been sent",
       });
       setRemindDialogOpen(false);
       setEventToRemind(null);
