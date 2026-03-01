@@ -7,6 +7,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, Minus, Target, X, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -45,6 +55,7 @@ export default function ScoreTracker({
 }: ScoreTrackerProps) {
   const [showGoalSheet, setShowGoalSheet] = useState(false);
   const [selectedGoalType, setSelectedGoalType] = useState<"team" | "opponent" | "teamA" | "teamB" | null>(null);
+  const [pendingGoal, setPendingGoal] = useState<{ goal: Goal; label: string } | null>(null);
 
   // Mini-league mode: count goals by teamSide
   const isMiniLeague = !!miniLeagueTeams;
@@ -90,7 +101,7 @@ export default function ScoreTracker({
         half: currentHalf,
         isOpponentGoal: true,
       };
-      onAddGoal(newGoal);
+      setPendingGoal({ goal: newGoal, label: `${opponentName} goal` });
     }
   };
 
@@ -105,9 +116,19 @@ export default function ScoreTracker({
       isOpponentGoal: isMiniLeague ? false : (selectedGoalType === "opponent"),
       teamSide: isMiniLeague ? teamSide : undefined,
     };
-    onAddGoal(newGoal);
+    const scorerLabel = player?.name
+      ? `${player.number ? `#${player.number} ` : ''}${player.name}`
+      : "Unknown / Own Goal";
+    setPendingGoal({ goal: newGoal, label: scorerLabel });
     setShowGoalSheet(false);
     setSelectedGoalType(null);
+  };
+
+  const handleConfirmGoal = () => {
+    if (pendingGoal) {
+      onAddGoal(pendingGoal.goal);
+      setPendingGoal(null);
+    }
   };
 
   const handleRemoveLastTeamGoal = () => {
@@ -302,6 +323,21 @@ export default function ScoreTracker({
             </ScrollArea>
           </SheetContent>
         </Sheet>
+
+        <AlertDialog open={!!pendingGoal} onOpenChange={(open) => !open && setPendingGoal(null)}>
+          <AlertDialogContent style={{ zIndex: 100002 }}>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm Goal</AlertDialogTitle>
+              <AlertDialogDescription>
+                Add goal scored by <span className="font-semibold text-foreground">{pendingGoal?.label}</span>?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmGoal}>Confirm Goal</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </>
     );
   }
@@ -416,6 +452,21 @@ export default function ScoreTracker({
             </ScrollArea>
           </SheetContent>
         </Sheet>
+
+        <AlertDialog open={!!pendingGoal} onOpenChange={(open) => !open && setPendingGoal(null)}>
+          <AlertDialogContent style={{ zIndex: 100002 }}>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm Goal</AlertDialogTitle>
+              <AlertDialogDescription>
+                Add goal scored by <span className="font-semibold text-foreground">{pendingGoal?.label}</span>?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmGoal}>Confirm Goal</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }
@@ -680,6 +731,22 @@ export default function ScoreTracker({
           </ScrollArea>
         </SheetContent>
       </Sheet>
+
+      {/* Goal confirmation dialog */}
+      <AlertDialog open={!!pendingGoal} onOpenChange={(open) => !open && setPendingGoal(null)}>
+        <AlertDialogContent style={{ zIndex: 100002 }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Goal</AlertDialogTitle>
+            <AlertDialogDescription>
+              Add goal scored by <span className="font-semibold text-foreground">{pendingGoal?.label}</span>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmGoal}>Confirm Goal</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
