@@ -278,6 +278,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "subs" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
+  const [pinPitchShortcuts, setPinPitchShortcuts] = useState(true);
   const [sheetHeightPct, setSheetHeightPct] = useState(35);
   const sheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
   const [portraitSheetOpen, setPortraitSheetOpen] = useState(false);
@@ -4840,6 +4841,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             <Switch checked={pinDrawingToolbar} onCheckedChange={setPinDrawingToolbar} />
                           </div>
                           <div className="flex items-center gap-4 py-1">
+                            <Label className="text-sm">Pin Pitch Shortcuts</Label>
+                            <Switch checked={pinPitchShortcuts} onCheckedChange={setPinPitchShortcuts} />
+                          </div>
+                          <div className="flex items-center gap-4 py-1">
                             <Label className="text-sm">Starting Lineup Screen</Label>
                             <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
                           </div>
@@ -4859,6 +4864,26 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Floating Pitch Shortcuts - pinned to left side of pitch in landscape */}
+        {!readOnly && pinPitchShortcuts && (
+          <div className="absolute left-2 top-1/2 -translate-y-1/2 z-[55] flex flex-col items-center gap-1.5">
+            <button
+              onClick={() => setStatsOpen(true)}
+              className="w-11 h-11 rounded-full border bg-background/70 backdrop-blur border-border text-muted-foreground hover:bg-background/90 flex flex-col items-center justify-center transition-all duration-200"
+            >
+              <BarChart3 className="h-4 w-4" />
+              <span className="text-[8px] font-bold leading-none mt-0.5">STATS</span>
+            </button>
+            <button
+              onClick={handleResetFormation}
+              className="w-11 h-11 rounded-full border bg-background/70 backdrop-blur border-border text-muted-foreground hover:bg-background/90 flex flex-col items-center justify-center transition-all duration-200"
+            >
+              <RotateCcw className="h-4 w-4" />
+              <span className="text-[8px] font-bold leading-none mt-0.5">RESET</span>
+            </button>
           </div>
         )}
 
