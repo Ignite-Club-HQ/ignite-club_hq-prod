@@ -42,7 +42,7 @@ const PreGameLineupScreen = lazy(() => import("./PreGameLineupScreen"));
 import TacticalModeSelector from "./TacticalModeSelector";
 
 import { useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -76,7 +76,7 @@ import {
   recalculateRemainingPlan,
   isSoundEnabled
 } from "./pitchStateUtils";
-import { TacticalMode, computeTacticalOffsets, TACTICAL_MODE_MESSAGES, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
+import { TacticalMode, computeTacticalOffsets, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 
 interface PitchBoardProps {
   teamId: string;
@@ -298,7 +298,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
   
   // Tactical mode state
+  type TacticalFormationSuggestion = {
+    mode: Exclude<TacticalMode, "neutral">;
+    formationIndex: number;
+    formationName: string;
+  };
   const [tacticalMode, setTacticalMode] = useState<TacticalMode>("neutral");
+  const [tacticalFormationSuggestion, setTacticalFormationSuggestion] = useState<TacticalFormationSuggestion | null>(null);
 
   // Sync settings from props when they change (e.g., when edited on team page)
   // Also sync on initial mount if no saved state exists for the setting
@@ -1777,28 +1783,35 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const handleTacticalModeChange = useCallback((mode: TacticalMode) => {
     setTacticalMode(mode);
 
-    if (mode !== "neutral") {
-      const rec = RECOMMENDED_FORMATIONS[teamSize];
-      const suggestedIndex = mode === "attack" ? rec.attack : rec.defend;
-      const suggestedFormation = FORMATIONS[teamSize][suggestedIndex];
-      if (suggestedIndex !== selectedFormation && suggestedFormation) {
-        toast({
-          title: TACTICAL_MODE_MESSAGES[mode],
-          description: `Try ${suggestedFormation.name} for a more ${mode === "attack" ? "attacking" : "defensive"} shape`,
-          duration: 5000,
-          action: (
-            <ToastAction altText="Apply formation" onClick={() => handleFormationChange(String(suggestedIndex))}>
-              Apply
-            </ToastAction>
-          ),
-        });
-      } else {
-        toast({ title: TACTICAL_MODE_MESSAGES[mode], duration: 2000 });
-      }
-    } else {
-      toast({ title: TACTICAL_MODE_MESSAGES[mode], duration: 2000 });
+    if (mode === "neutral") {
+      setTacticalFormationSuggestion(null);
+      return;
     }
-  }, [toast, teamSize, selectedFormation, handleFormationChange]);
+
+    const rec = RECOMMENDED_FORMATIONS[teamSize];
+    const suggestedIndex = mode === "attack" ? rec.attack : rec.defend;
+    const suggestedFormation = FORMATIONS[teamSize][suggestedIndex];
+
+    if (suggestedIndex !== selectedFormation && suggestedFormation) {
+      setTacticalFormationSuggestion({
+        mode,
+        formationIndex: suggestedIndex,
+        formationName: suggestedFormation.name,
+      });
+    } else {
+      setTacticalFormationSuggestion(null);
+    }
+  }, [teamSize, selectedFormation]);
+
+  const handleApplyTacticalSuggestion = useCallback(() => {
+    if (!tacticalFormationSuggestion) return;
+    handleFormationChange(String(tacticalFormationSuggestion.formationIndex));
+    setTacticalFormationSuggestion(null);
+  }, [tacticalFormationSuggestion, handleFormationChange]);
+
+  const handleDismissTacticalSuggestion = useCallback(() => {
+    setTacticalFormationSuggestion(null);
+  }, []);
 
   const applyFormationChange = useCallback((index: number) => {
     const formation = FORMATIONS[teamSize][index];
@@ -4512,6 +4525,31 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               {/* Tactical Mode Selector */}
               <div className="px-3 pt-2">
                 <TacticalModeSelector value={tacticalMode} onChange={handleTacticalModeChange} readOnly={readOnly} />
+                {tacticalFormationSuggestion && (
+                  <div className="mt-2 rounded-lg border border-border bg-muted/60 p-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs text-foreground">
+                        Suggested for <span className="font-semibold">{tacticalFormationSuggestion.mode === "attack" ? "Attack" : "Defend"}</span>: <span className="font-semibold">{tacticalFormationSuggestion.formationName}</span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleDismissTacticalSuggestion}
+                        className="rounded-md p-1 text-muted-foreground hover:text-foreground"
+                        aria-label="Dismiss formation suggestion"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Button type="button" size="sm" className="h-8" onClick={handleApplyTacticalSuggestion}>
+                        Apply formation
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" className="h-8" onClick={handleDismissTacticalSuggestion}>
+                        Dismiss
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Tab content */}
@@ -5511,6 +5549,31 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               {/* Tactical Mode Selector */}
               <div className="px-3 pt-2">
                 <TacticalModeSelector value={tacticalMode} onChange={handleTacticalModeChange} readOnly={readOnly} />
+                {tacticalFormationSuggestion && (
+                  <div className="mt-2 rounded-lg border border-border bg-muted/60 p-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs text-foreground">
+                        Suggested for <span className="font-semibold">{tacticalFormationSuggestion.mode === "attack" ? "Attack" : "Defend"}</span>: <span className="font-semibold">{tacticalFormationSuggestion.formationName}</span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleDismissTacticalSuggestion}
+                        className="rounded-md p-1 text-muted-foreground hover:text-foreground"
+                        aria-label="Dismiss formation suggestion"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Button type="button" size="sm" className="h-8" onClick={handleApplyTacticalSuggestion}>
+                        Apply formation
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" className="h-8" onClick={handleDismissTacticalSuggestion}>
+                        Dismiss
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Tab content */}
