@@ -2,13 +2,13 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 import {
   Select,
   SelectContent,
@@ -600,17 +600,17 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
       </Card>
 
       {/* Confirmation Dialog */}
-      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+      <ResponsiveDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <ResponsiveDialogContent className="sm:max-w-md">
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle className="flex items-center gap-2">
               <ArrowRightLeft className="h-5 w-5" />
               {isDue ? "Make This Substitution" : "Upcoming Substitution"}
-            </DialogTitle>
-            <DialogDescription>
+            </ResponsiveDialogTitle>
+            <ResponsiveDialogDescription>
               {isDue ? "Follow these steps on the pitch" : `Sub scheduled for ${sub.half === 1 ? "1st" : "2nd"} Half`}
-            </DialogDescription>
-          </DialogHeader>
+            </ResponsiveDialogDescription>
+          </ResponsiveDialogHeader>
           
           {/* Countdown timer when not yet due */}
           {!isDue && (
@@ -722,18 +722,18 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
             )}
           </div>
 
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} className="sm:order-1">
+          <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} className="h-12 text-base sm:order-1">
               <X className="h-4 w-4 mr-2" />
               Close
             </Button>
             {isDue ? (
               <>
-                <Button variant="outline" onClick={skipSubstitution} className="sm:order-2">
+                <Button variant="outline" onClick={skipSubstitution} className="h-12 text-base sm:order-2">
                   <SkipForward className="h-4 w-4 mr-2" />
                   Skip
                 </Button>
-                <Button onClick={executeSubstitution} className="sm:order-3">
+                <Button onClick={executeSubstitution} className="h-12 text-base sm:order-3">
                   <UserRoundCheck className="h-4 w-4 mr-2" />
                   Confirm Sub
                 </Button>
@@ -743,9 +743,9 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
                 Wait for countdown to confirm
               </div>
             )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </>
   );
 }
