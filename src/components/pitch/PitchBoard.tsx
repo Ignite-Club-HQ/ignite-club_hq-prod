@@ -4387,7 +4387,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               onClick={drawingTool === "none" ? () => setToolbarCollapsed(true) : undefined}
             />
             {/* Sheet */}
-            <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200"
+            <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col"
               style={{ height: `${sheetHeightPct}%` }}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
@@ -4458,7 +4458,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
 
               {/* Tab content */}
-              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${sheetHeightPct}vh - 120px)` }}>
+              <div className="overflow-y-auto p-3 flex-1 min-h-0">
                 {/* Bench Tab */}
                 {bottomSheetTab === "bench" && (
                   <div className="space-y-3">
