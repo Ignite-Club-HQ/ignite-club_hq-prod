@@ -2446,34 +2446,63 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Half change callback - check for halftime subs (including batch)
   const handleHalfChange = useCallback((newHalf: 1 | 2) => {
-    if (!autoSubActive || autoSubPlan.length === 0) return;
-    
-    // Find all halftime subs (time = 0 in half 2)
-    const halftimeSubs = autoSubPlan.filter(sub => 
-      !sub.executed && 
-      sub.half === 2 && 
-      sub.time === 0
-    );
-    
-    if (halftimeSubs.length > 0 && newHalf === 2) {
-      setTimeout(() => {
-        const [primarySub, ...additionalSubs] = halftimeSubs;
-        const notificationBody = halftimeSubs.length > 1
-          ? `Halftime: ${halftimeSubs.length} substitutions`
-          : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
-        if (isSoundEnabled(teamId)) {
-          playSubAlertBeep(notificationBody);
-        }
-        
-        // Create database notification (triggers server-side push)
-        createSubNotification(notificationBody);
-        
-        setPendingAutoSub(primarySub);
-        setPendingBatchSubs(additionalSubs);
-        setSubConfirmDialogOpen(true);
-      }, 500);
+    if (newHalf !== 2) return;
+
+    // Case 1: Auto-sub plan active — check for halftime subs
+    if (autoSubActive && autoSubPlan.length > 0) {
+      const halftimeSubs = autoSubPlan.filter(sub => 
+        !sub.executed && 
+        sub.half === 2 && 
+        sub.time === 0
+      );
+      
+      if (halftimeSubs.length > 0) {
+        setTimeout(() => {
+          const [primarySub, ...additionalSubs] = halftimeSubs;
+          const notificationBody = halftimeSubs.length > 1
+            ? `Halftime: ${halftimeSubs.length} substitutions`
+            : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
+          if (isSoundEnabled(teamId)) {
+            playSubAlertBeep(notificationBody);
+          }
+          createSubNotification(notificationBody);
+          
+          setPendingAutoSub(primarySub);
+          setPendingBatchSubs(additionalSubs);
+          setSubConfirmDialogOpen(true);
+        }, 500);
+      }
+      return;
     }
-  }, [autoSubActive, autoSubPlan, createSubNotification]);
+
+    // Case 2: No auto-sub plan, but a preferred 2nd half GK was selected — prompt GK swap
+    if (preferredSecondHalfGkId) {
+      const currentGk = players.find(p => p.currentPitchPosition === "GK" && p.position !== null);
+      const secondHalfGk = players.find(p => p.id === preferredSecondHalfGkId);
+      
+      if (currentGk && secondHalfGk && currentGk.id !== secondHalfGk.id) {
+        const gkSwapEvent: SubstitutionEvent = {
+          time: 0,
+          half: 2,
+          playerOut: currentGk,
+          playerIn: secondHalfGk,
+          executed: false,
+        };
+        
+        setTimeout(() => {
+          const notificationBody = `Halftime GK swap: ${currentGk.name} ➜ ${secondHalfGk.name}`;
+          if (isSoundEnabled(teamId)) {
+            playSubAlertBeep(notificationBody);
+          }
+          createSubNotification(notificationBody);
+          
+          setPendingAutoSub(gkSwapEvent);
+          setPendingBatchSubs([]);
+          setSubConfirmDialogOpen(true);
+        }, 500);
+      }
+    }
+  }, [autoSubActive, autoSubPlan, createSubNotification, preferredSecondHalfGkId, players]);
 
   // Execute auto-sub (handles batch subs)
   const handleConfirmAutoSub = useCallback(() => {
