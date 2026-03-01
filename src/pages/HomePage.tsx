@@ -1980,8 +1980,8 @@ export default function HomePage() {
               >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1 flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
                         <Badge className={eventTypeColors[event.type]} variant="secondary">
                           {event.type}
                         </Badge>
@@ -1996,18 +1996,18 @@ export default function HomePage() {
                         )}
                       </div>
                       <h3 className={`font-semibold ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground mt-0.5 flex-wrap">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3.5 w-3.5" />
                           {formatEventDate(event.event_date)}
                         </span>
+                        {event.suburb && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3.5 w-3.5" />
+                            {event.suburb}
+                          </span>
+                        )}
                       </div>
-                      {event.suburb && (
-                        <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <MapPin className="h-3.5 w-3.5" />
-                          {event.suburb}
-                        </span>
-                      )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {/* Quick RSVP Button - only for non-cancelled events */}
