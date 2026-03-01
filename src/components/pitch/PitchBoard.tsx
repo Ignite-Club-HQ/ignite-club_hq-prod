@@ -601,7 +601,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [showSwipeHints, setShowSwipeHints] = useState(false);
   
   // Draggable floating subs button state
-  const [floatingSubsPosition, setFloatingSubsPosition] = useState({ x: 16, y: 16 }); // bottom-left offset
+  const [floatingSubsPosition, setFloatingSubsPosition] = useState({ x: 16, y: 64 }); // bottom-left offset, raised above drawing FAB
   const floatingSubsDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
   
   // Draggable floating timer state (for landscape mode) - positioned further right to avoid "View Only" badge
@@ -4313,7 +4313,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
             {/* Floating Draw Toolbar - landscape: vertical strip on LEFT side to avoid tactical buttons */}
             {showFloatingDrawToolbar && (
-              <div className="absolute top-1/2 -translate-y-1/2 left-2 z-[55] animate-fade-in">
+              <div className="absolute bottom-14 left-2 z-[55] animate-fade-in">
                 <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-2 flex flex-col items-center gap-2">
                   <Button 
                     variant={drawingTool === "pen" ? "default" : "outline"} 
@@ -4863,40 +4863,49 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         )}
 
-        {/* Floating Pitch Shortcuts - pinned below score tracker to avoid overlap */}
-        {!readOnly && pinPitchShortcuts && (
-          <div className="absolute right-2 top-14 z-[55] flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-10 w-10 bg-background/70 backdrop-blur border border-border" onClick={handleResetFormation}>
-              <RotateCcw className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-10 w-10 bg-background/70 backdrop-blur border border-border" onClick={() => setStatsOpen(true)}>
-              <BarChart3 className="h-5 w-5" />
-            </Button>
-          </div>
-        )}
-
-        {/* Floating Tactical Mode - pinned to right side of pitch in landscape */}
+        {/* Floating right-side controls: shortcuts + tactical mode in one unified column */}
         {!readOnly && (
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 z-[55] flex flex-col items-center gap-1">
-            {([
-              { value: "defend" as TacticalMode, icon: Shield, label: "DEF", activeClass: "bg-blue-500 text-white shadow-md" },
-              { value: "neutral" as TacticalMode, icon: Circle, label: "NEU", activeClass: "bg-background text-foreground shadow-md border-primary" },
-              { value: "attack" as TacticalMode, icon: Swords, label: "ATK", activeClass: "bg-orange-500 text-white shadow-md" },
-            ]).map(({ value: mode, icon: Icon, label, activeClass }) => (
-              <button
-                key={mode}
-                onClick={() => handleTacticalModeChange(mode)}
-                className={cn(
-                  "w-11 h-11 rounded-full border flex flex-col items-center justify-center transition-all duration-200",
-                  tacticalMode === mode
-                    ? activeClass
-                    : "bg-background/70 backdrop-blur border-border text-muted-foreground hover:bg-background/90"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="text-[8px] font-bold leading-none mt-0.5">{label}</span>
-              </button>
-            ))}
+          <div className="absolute right-1.5 top-1/2 -translate-y-1/2 z-[55] flex flex-col items-center gap-3">
+            {/* Pinned shortcuts (Reset / Stats) above tactical buttons */}
+            {pinPitchShortcuts && (
+              <div className="flex flex-col items-center gap-1">
+                <button
+                  onClick={handleResetFormation}
+                  className="w-10 h-10 rounded-full bg-background/70 backdrop-blur border border-border flex items-center justify-center text-muted-foreground hover:text-foreground"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setStatsOpen(true)}
+                  className="w-10 h-10 rounded-full bg-background/70 backdrop-blur border border-border flex items-center justify-center text-muted-foreground hover:text-foreground"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Tactical mode buttons */}
+            <div className="flex flex-col items-center gap-1">
+              {([
+                { value: "defend" as TacticalMode, icon: Shield, label: "DEF", activeClass: "bg-blue-500 text-white shadow-md" },
+                { value: "neutral" as TacticalMode, icon: Circle, label: "NEU", activeClass: "bg-background text-foreground shadow-md border-primary" },
+                { value: "attack" as TacticalMode, icon: Swords, label: "ATK", activeClass: "bg-orange-500 text-white shadow-md" },
+              ]).map(({ value: mode, icon: Icon, label, activeClass }) => (
+                <button
+                  key={mode}
+                  onClick={() => handleTacticalModeChange(mode)}
+                  className={cn(
+                    "w-10 h-10 rounded-full border flex flex-col items-center justify-center transition-all duration-200",
+                    tacticalMode === mode
+                      ? activeClass
+                      : "bg-background/70 backdrop-blur border-border text-muted-foreground hover:bg-background/90"
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span className="text-[7px] font-bold leading-none mt-0.5">{label}</span>
+                </button>
+              ))}
+            </div>
 
             {/* Inline formation suggestion popup */}
             {tacticalFormationSuggestion && (
