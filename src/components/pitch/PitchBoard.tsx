@@ -4829,7 +4829,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           Select Lineup
                         </Button>
                       )}
-                      {!readOnly && gameInProgress && (
+                      {!readOnly && (
                         <Button variant="outline" className="h-12 text-base" onClick={handleResetFormation}>
                           <RotateCcw className="h-4 w-4 mr-1.5" />
                           Reset Formation
@@ -5863,7 +5863,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           Select Lineup
                         </Button>
                       )}
-                      {!readOnly && gameInProgress && (
+                      {!readOnly && (
                         <Button variant="outline" className="h-11 text-sm" onClick={handleResetFormation}>
                           <RotateCcw className="h-4 w-4 mr-1.5" />
                           Reset Formation
