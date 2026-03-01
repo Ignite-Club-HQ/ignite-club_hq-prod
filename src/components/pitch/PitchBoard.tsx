@@ -4314,7 +4314,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
             {/* Floating Draw Toolbar */}
             {showFloatingDrawToolbar && (
-              <div className="absolute bottom-16 z-[55] animate-fade-in" style={{ right: 12 }}>
+              <div className="absolute bottom-16 z-[55] animate-fade-in" style={{ right: 60 }}>
                 <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
                   <div className="flex gap-2">
                     <Button 
