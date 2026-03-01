@@ -2751,10 +2751,66 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Reset formation only - moves players back to formation positions and ball to center
   const handleResetFormation = useCallback(() => {
-    // Re-place players using current formation (keeping their minutes played and other stats)
-    const placedPlayers = autoPlacePlayersOnPitch(players, teamSize, selectedFormation);
-    setPlayers(placedPlayers);
-    
+    const formation = FORMATIONS[teamSize][selectedFormation];
+    if (!formation) return;
+
+    // During a game, only reposition players currently on the pitch (preserve bench/stats)
+    const onPitch = players.filter(p => p.position !== null);
+    const onBench = players.filter(p => p.position === null);
+
+    if (onPitch.length > 0 && gameInProgress) {
+      // Map on-pitch players back to formation slots using smart matching
+      const slots = formation.positions.map((pos, index) => ({
+        pos,
+        pitchPos: getPositionFromCoords(pos.y, teamSize),
+        assignedPlayer: null as Player | null,
+      }));
+
+      const assigned = new Set<string>();
+
+      // Pass 1: specialists
+      for (const player of onPitch) {
+        if (assigned.has(player.id)) continue;
+        if (player.assignedPositions?.length === 1) {
+          const slot = slots.find(s => s.pitchPos === player.assignedPositions![0] && !s.assignedPlayer);
+          if (slot) { slot.assignedPlayer = player; assigned.add(player.id); }
+        }
+      }
+      // Pass 2: multi-position
+      for (const player of onPitch) {
+        if (assigned.has(player.id)) continue;
+        if (player.assignedPositions?.length) {
+          const slot = slots.find(s => !s.assignedPlayer && player.assignedPositions!.includes(s.pitchPos));
+          if (slot) { slot.assignedPlayer = player; assigned.add(player.id); }
+        }
+      }
+      // Pass 3: flex / remaining
+      for (const player of onPitch) {
+        if (assigned.has(player.id)) continue;
+        const slot = slots.find(s => !s.assignedPlayer);
+        if (slot) { slot.assignedPlayer = player; assigned.add(player.id); }
+      }
+
+      const result: Player[] = [];
+      for (const slot of slots) {
+        if (slot.assignedPlayer) {
+          result.push({ ...slot.assignedPlayer, position: slot.pos, currentPitchPosition: slot.pitchPos });
+        }
+      }
+      // Any on-pitch players that didn't fit stay on bench
+      for (const player of onPitch) {
+        if (!assigned.has(player.id)) {
+          result.push({ ...player, position: null, currentPitchPosition: undefined });
+        }
+      }
+      result.push(...onBench);
+      setPlayers(result);
+    } else {
+      // Pre-game: full re-place
+      const placedPlayers = autoPlacePlayersOnPitch(players, teamSize, selectedFormation);
+      setPlayers(placedPlayers);
+    }
+
     // Reset ball to center
     setBallPosition({ x: 50, y: 50 });
     
@@ -2762,7 +2818,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       title: "Formation Reset",
       description: "Players and ball have been moved back to formation positions.",
     });
-  }, [players, teamSize, selectedFormation, autoPlacePlayersOnPitch, toast]);
+  }, [players, teamSize, selectedFormation, gameInProgress, autoPlacePlayersOnPitch, toast]);
 
   // Handle team size change - preview changes and show confirmation
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
