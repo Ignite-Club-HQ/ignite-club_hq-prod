@@ -329,7 +329,7 @@ export default function SubPlanEditor({
       )}
 
       {/* Substitution list */}
-      <ScrollArea className="h-[220px]">
+      <div>
         <div className="space-y-4">
           {[1, 2].map((half) => {
             const halfSubs = plan.filter((s) => s.half === half && !s.executed);
@@ -488,7 +488,7 @@ export default function SubPlanEditor({
             );
           })}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
