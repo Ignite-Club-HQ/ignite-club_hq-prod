@@ -75,7 +75,7 @@ import {
   recalculateRemainingPlan,
   isSoundEnabled
 } from "./pitchStateUtils";
-import { TacticalMode, applyTacticalOffset, TACTICAL_MODE_MESSAGES, TACTICAL_MODE_LABELS } from "./tacticalMode";
+import { TacticalMode, computeTacticalPositions, TACTICAL_MODE_MESSAGES, TACTICAL_MODE_LABELS } from "./tacticalMode";
 
 interface PitchBoardProps {
   teamId: string;
@@ -3278,6 +3278,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const playersOnPitch = useMemo(() => players.filter(p => p.position !== null), [players]);
   const playersOnBench = useMemo(() => players.filter(p => p.position === null), [players]);
 
+  // Tactical mode: batch-compute adjusted positions for all on-pitch players
+  const tacticalPositions = useMemo(() => 
+    computeTacticalPositions(players, tacticalMode, teamSize),
+    [players, tacticalMode, teamSize]
+  );
+
   // Calculate which bench players can come on for the selected pitch player
   const getValidBenchPlayerIds = useMemo(() => {
     if (!subMode || !selectedOnPitch) return new Set<string>();
@@ -4196,8 +4202,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   style={{
                     position: "absolute",
                     ...(() => {
-                      const { x, y } = applyTacticalOffset(player.position!.x, player.position!.y, player.currentPitchPosition, tacticalMode, teamSize);
-                      return { left: `${x}%`, top: `${y}%` };
+                      const tp = tacticalPositions.get(player.id);
+                      const px = tp?.x ?? player.position!.x;
+                      const py = tp?.y ?? player.position!.y;
+                      return { left: `${px}%`, top: `${py}%` };
                     })(),
                     transform: "translate(-50%, -50%)",
                     transition: draggedPlayer === player.id || touchDragPlayer === player.id ? "none" : "left 0.4s ease-out, top 0.4s ease-out",
@@ -6078,8 +6086,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 style={{
                   position: "absolute",
                   ...(() => {
-                    const { x, y } = applyTacticalOffset(player.position!.x, player.position!.y, player.currentPitchPosition, tacticalMode, teamSize);
-                    return { left: `${x}%`, top: `${y}%` };
+                    const tp = tacticalPositions.get(player.id);
+                    const px = tp?.x ?? player.position!.x;
+                    const py = tp?.y ?? player.position!.y;
+                    return { left: `${px}%`, top: `${py}%` };
                   })(),
                   transform: "translate(-50%, -50%)",
                   transition: draggedPlayer === player.id || touchDragPlayer === player.id ? "none" : "left 0.4s ease-out, top 0.4s ease-out",
