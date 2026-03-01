@@ -90,6 +90,13 @@ interface PitchSettingsDialogProps {
   // Hide scores toggle
   hideScores?: boolean;
   onHideScoresChange?: (hide: boolean) => void;
+  
+  // Show lineup picker at game start
+  showLineupPicker?: boolean;
+  onShowLineupPickerChange?: (show: boolean) => void;
+  
+  // Manual trigger lineup picker
+  onOpenLineupPicker?: () => void;
 }
 
 export function PitchSettingsDialog({
@@ -125,6 +132,9 @@ export function PitchSettingsDialog({
   onShowMatchHeaderChange,
   hideScores = false,
   onHideScoresChange,
+  showLineupPicker = false,
+  onShowLineupPickerChange,
+  onOpenLineupPicker,
 }: PitchSettingsDialogProps) {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetFormationConfirmOpen, setResetFormationConfirmOpen] = useState(false);
@@ -339,6 +349,22 @@ export function PitchSettingsDialog({
                   </div>
                 )}
 
+                {/* Show lineup picker at game start */}
+                {!readOnly && onShowLineupPickerChange && (
+                  <div className="flex items-center justify-between py-1.5">
+                    <div className="flex flex-col gap-0.5">
+                      <Label htmlFor="lineup-picker-toggle" className="text-sm">
+                        Starting Lineup Screen
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground">Show lineup picker each game</span>
+                    </div>
+                    <Switch
+                      id="lineup-picker-toggle"
+                      checked={showLineupPicker}
+                      onCheckedChange={onShowLineupPickerChange}
+                    />
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between py-1.5">
                   <div className="flex items-center gap-2">
