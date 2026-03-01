@@ -1,6 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Clock, Target } from "lucide-react";
 import { PitchPosition } from "./PositionBadge";
 
@@ -99,49 +98,47 @@ export default function MatchStatsPanel({ open, onOpenChange, players, elapsedGa
           {/* Player list */}
           <div>
             <p className="text-sm font-medium mb-2">Minutes by Player</p>
-            <ScrollArea className="h-[300px]">
-              <div className="space-y-2">
-                {sortedPlayers.map((player, index) => {
-                  const minutes = player.minutesPlayed || 0;
-                  const maxMinutes = sortedPlayers.length > 0 ? (sortedPlayers[0].minutesPlayed || 0) : 0;
-                  const percentage = maxMinutes > 0 ? (minutes / maxMinutes) * 100 : 0;
-                  
-                  return (
-                    <div key={player.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/30">
-                      <span className="text-xs text-muted-foreground w-5">{index + 1}.</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm truncate">
-                            {player.number ? `#${player.number} ` : ''}{player.name}
-                          </span>
-                          {getStatusBadge(player)}
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-primary rounded-full transition-all"
-                              style={{ width: `${percentage}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-muted-foreground w-12 text-right">
-                            {formatTime(minutes)}
-                          </span>
-                        </div>
-                        {player.assignedPositions && player.assignedPositions.length > 0 && (
-                          <div className="flex gap-1 mt-1">
-                            {player.assignedPositions.map(pos => (
-                              <span key={pos} className="text-[10px] text-muted-foreground">
-                                {pos}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+            <div className="space-y-2">
+              {sortedPlayers.map((player, index) => {
+                const minutes = player.minutesPlayed || 0;
+                const maxMinutes = sortedPlayers.length > 0 ? (sortedPlayers[0].minutesPlayed || 0) : 0;
+                const percentage = maxMinutes > 0 ? (minutes / maxMinutes) * 100 : 0;
+                
+                return (
+                  <div key={player.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/30">
+                    <span className="text-xs text-muted-foreground w-5">{index + 1}.</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm truncate">
+                          {player.number ? `#${player.number} ` : ''}{player.name}
+                        </span>
+                        {getStatusBadge(player)}
                       </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-primary rounded-full transition-all"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground w-12 text-right">
+                          {formatTime(minutes)}
+                        </span>
+                      </div>
+                      {player.assignedPositions && player.assignedPositions.length > 0 && (
+                        <div className="flex gap-1 mt-1">
+                          {player.assignedPositions.map(pos => (
+                            <span key={pos} className="text-[10px] text-muted-foreground">
+                              {pos}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            </ScrollArea>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </DialogContent>
