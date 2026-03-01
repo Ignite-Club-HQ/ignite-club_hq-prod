@@ -1657,11 +1657,7 @@ export default function EventDetailPage() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => {
-          if (window.history.length > 1) {
-            navigate(-1);
-          } else {
-            navigate('/events');
-          }
+          navigate('/events');
         }}>
           <ArrowLeft className="h-5 w-5" />
         </Button>

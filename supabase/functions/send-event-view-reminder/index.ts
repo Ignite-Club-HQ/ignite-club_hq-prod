@@ -124,22 +124,22 @@ serve(async (req) => {
       });
     }
 
-    // Fetch user profiles and emails
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, display_name")
-      .in("id", userIds);
+    // Fetch user profiles and emails in parallel (targeted, not listUsers)
+    const [profilesResult, ...userResults] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", userIds),
+      ...userIds.map(id => supabase.auth.admin.getUserById(id)),
+    ]);
 
-    // Get emails from auth.users (we need service role for this)
-    const { data: { users: authUsers }, error: usersError } = await supabase.auth.admin.listUsers();
-    if (usersError) {
-      console.error("Error fetching users:", usersError);
-    }
+    const profiles = profilesResult.data;
 
     const userEmailMap = new Map<string, string>();
-    authUsers?.forEach(u => {
-      if (u.email && userIds.includes(u.id)) {
-        userEmailMap.set(u.id, u.email);
+    userResults.forEach((result, index) => {
+      const userId = userIds[index];
+      if (result.data?.user?.email) {
+        userEmailMap.set(userId, result.data.user.email);
       }
     });
 
@@ -174,62 +174,67 @@ serve(async (req) => {
     const sendEmail = channels === "email" || channels === "both";
     const sendPush = channels === "push" || channels === "both";
 
-    // Send emails if Resend is configured and email channel selected
+    // Send emails in parallel batches if Resend is configured
     if (sendEmail && resendApiKey) {
       const resend = new Resend(resendApiKey);
 
-      for (const userId of userIds) {
+      // Pre-render the template once per user in parallel
+      const emailPromises = userIds.map(async (userId) => {
         const email = userEmailMap.get(userId);
         const name = profileMap.get(userId) || "Member";
+        if (!email) return false;
 
-        if (email) {
-          try {
-            const html = await renderAsync(
-              React.createElement(EventViewReminderEmail, {
-                recipientName: name,
-                eventTitle: event.title,
-                teamName,
-                clubName,
-                eventDate,
-                eventTime,
-                eventLocation,
-                eventType: event.type.charAt(0).toUpperCase() + event.type.slice(1),
-                eventLink,
-                clubLogoUrl,
-              })
-            );
+        try {
+          const html = await renderAsync(
+            React.createElement(EventViewReminderEmail, {
+              recipientName: name,
+              eventTitle: event.title,
+              teamName,
+              clubName,
+              eventDate,
+              eventTime,
+              eventLocation,
+              eventType: event.type.charAt(0).toUpperCase() + event.type.slice(1),
+              eventLink,
+              clubLogoUrl,
+            })
+          );
 
-            await resend.emails.send({
-              from: "Ignite Club HQ <support@igniteclubhq.app>",
-              to: [email],
-              subject: `📅 Reminder: Please RSVP to "${event.title}"`,
-              html,
-            });
-            emailsSent++;
-          } catch (emailError) {
-            console.error(`Failed to send email to ${email}:`, emailError);
-          }
+          await resend.emails.send({
+            from: "Ignite Club HQ <support@igniteclubhq.app>",
+            to: [email],
+            subject: `📅 Reminder: Please RSVP to "${event.title}"`,
+            html,
+          });
+          return true;
+        } catch (emailError) {
+          console.error(`Failed to send email to ${email}:`, emailError);
+          return false;
         }
-      }
+      });
+
+      const emailResults = await Promise.all(emailPromises);
+      emailsSent = emailResults.filter(Boolean).length;
     }
 
-    // Send push notifications if push channel selected
+    // Send push notifications in parallel
     if (sendPush) {
-      for (const userId of userIds) {
+      const pushPromises = userIds.map(async (userId) => {
         try {
-          // Insert notification
-          await supabase.from("notifications").insert({
-            user_id: userId,
-            type: "event_view_reminder",
-            message: `Reminder: Please RSVP to "${event.title}" - ${eventDate}`,
-            related_id: event.id,
-          });
-
-          // Try to send push notification
-          const { data: subscriptions } = await supabase
-            .from("push_subscriptions")
-            .select("*")
-            .eq("user_id", userId);
+          // Insert notification and check for subscriptions in parallel
+          const [, { data: subscriptions }] = await Promise.all([
+            supabase.from("notifications").insert({
+              user_id: userId,
+              type: "event_view_reminder",
+              message: `Reminder: Please RSVP to "${event.title}" - ${eventDate}`,
+              related_id: event.id,
+            }),
+            supabase
+              .from("push_subscriptions")
+              .select("id")
+              .eq("user_id", userId)
+              .limit(1),
+          ]);
 
           if (subscriptions && subscriptions.length > 0) {
             await supabase.functions.invoke("send-push-notification", {
@@ -241,12 +246,17 @@ serve(async (req) => {
                 tag: `event-view-${event.id}`,
               },
             });
-            pushSent++;
+            return true;
           }
+          return false;
         } catch (pushError) {
           console.error(`Failed to send push to ${userId}:`, pushError);
+          return false;
         }
-      }
+      });
+
+      const pushResults = await Promise.all(pushPromises);
+      pushSent = pushResults.filter(Boolean).length;
     }
 
     return new Response(
