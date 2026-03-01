@@ -68,6 +68,24 @@ export default function PreGameLineupScreen({
   const [firstHalfGkId, setFirstHalfGkId] = useState<string | null>(null);
   const [secondHalfGkId, setSecondHalfGkId] = useState<string | null>(null);
 
+  // Whether GK is managed via dropdown (not manual slot assignment)
+  const gkManagedByDropdown = hasGk && rotateGkAtHalftime;
+
+  // When 1st half GK is selected from dropdown, assign them to the GK slot on pitch
+  const handleFirstHalfGkChange = useCallback((playerId: string) => {
+    setFirstHalfGkId(playerId);
+    // Find the GK slot and assign the player
+    const gkSlotIndex = slots.findIndex(s => s.pitchPosition === "GK");
+    if (gkSlotIndex >= 0) {
+      setSlots(prev => prev.map((s, i) => {
+        if (i === gkSlotIndex) return { ...s, assignedPlayerId: playerId };
+        // If this player was assigned elsewhere, unassign them
+        if (s.assignedPlayerId === playerId) return { ...s, assignedPlayerId: null };
+        return s;
+      }));
+    }
+  }, [slots]);
+
   // When formation/teamSize changes from parent, rebuild slots but try to keep assignments
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
     const newFormation = FORMATIONS[newSize][0];
@@ -148,6 +166,9 @@ export default function PreGameLineupScreen({
   // Handle tapping a slot
   const handleSlotTap = useCallback((slotIndex: number) => {
     const slot = slots[slotIndex];
+    // Don't allow manual GK slot interaction when managed by dropdown
+    if (gkManagedByDropdown && slot.pitchPosition === "GK") return;
+    
     if (slot.assignedPlayerId) {
       setSlots(prev => prev.map((s, i) => i === slotIndex ? { ...s, assignedPlayerId: null } : s));
       if (slot.assignedPlayerId === firstHalfGkId) setFirstHalfGkId(null);
@@ -156,20 +177,22 @@ export default function PreGameLineupScreen({
     } else {
       setSelectedSlotIndex(slotIndex);
     }
-  }, [slots, firstHalfGkId, secondHalfGkId]);
+  }, [slots, firstHalfGkId, secondHalfGkId, gkManagedByDropdown]);
 
   // Handle picking a player for selected slot
   const handlePickPlayer = useCallback((playerId: string) => {
     let targetIndex = selectedSlotIndex;
     if (targetIndex === null) {
       const player = players.find(p => p.id === playerId);
+      // Skip GK slots when managed by dropdown
+      const skipGk = gkManagedByDropdown;
       const matchingSlot = player?.assignedPositions?.length
-        ? slots.findIndex(s => !s.assignedPlayerId && player.assignedPositions!.includes(s.pitchPosition))
+        ? slots.findIndex(s => !s.assignedPlayerId && player.assignedPositions!.includes(s.pitchPosition) && !(skipGk && s.pitchPosition === "GK"))
         : -1;
       if (matchingSlot !== undefined && matchingSlot >= 0) {
         targetIndex = matchingSlot;
       } else {
-        targetIndex = slots.findIndex(s => !s.assignedPlayerId);
+        targetIndex = slots.findIndex(s => !s.assignedPlayerId && !(skipGk && s.pitchPosition === "GK"));
       }
       if (targetIndex < 0) return;
     }
@@ -362,7 +385,7 @@ export default function PreGameLineupScreen({
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label className="text-[10px] text-muted-foreground">1st Half</Label>
-                  <Select value={firstHalfGkId || ""} onValueChange={setFirstHalfGkId}>
+                  <Select value={firstHalfGkId || ""} onValueChange={handleFirstHalfGkChange}>
                     <SelectTrigger className="h-8 text-xs">
                       <SelectValue placeholder="Select GK" />
                     </SelectTrigger>
