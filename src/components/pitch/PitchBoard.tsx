@@ -3790,29 +3790,81 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   if (isLandscape) {
     return createPortal(
       <div className="fixed inset-0 w-screen h-screen bg-background flex flex-col overflow-hidden" style={{ height: '100dvh', zIndex: 99999 }}>
-        {/* LinkedEventHeader removed from top in landscape - now integrated into toolbar */}
+        {/* Landscape header bar */}
+        <div className="shrink-0 h-10 bg-background border-b border-border flex items-center px-2 gap-2 z-[60]">
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <span className="text-sm font-semibold truncate">{teamName}</span>
+          {readOnly && (
+            <Badge variant="secondary" className="text-[10px] shrink-0">
+              <Eye className="h-3 w-3 mr-1" />
+              View Only
+            </Badge>
+          )}
+          
+          <div className="flex-1" />
+
+          {/* Tactical mode selector */}
+          {!readOnly && (
+            <div className="flex items-center gap-0.5 bg-muted/50 rounded-md p-0.5 shrink-0">
+              {([
+                { value: "defend" as TacticalMode, icon: Shield, label: "DEF", activeClass: "bg-blue-500/20 text-blue-500 shadow-sm" },
+                { value: "neutral" as TacticalMode, icon: Circle, label: "NEU", activeClass: "bg-background text-foreground shadow-sm" },
+                { value: "attack" as TacticalMode, icon: Swords, label: "ATK", activeClass: "bg-orange-500/20 text-orange-500 shadow-sm" },
+              ]).map(({ value: mode, icon: Icon, label, activeClass }) => (
+                <button
+                  key={mode}
+                  onClick={() => handleTacticalModeChange(mode)}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all duration-200",
+                    tacticalMode === mode
+                      ? activeClass
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Formation suggestion inline */}
+          {tacticalFormationSuggestion && !readOnly && (
+            <div className="flex items-center gap-1.5 bg-muted/60 border border-border rounded-md px-2 py-1 shrink-0 animate-fade-in">
+              <span className="text-xs">
+                Try <span className="font-bold">{tacticalFormationSuggestion.formationName}</span>?
+              </span>
+              <Button type="button" size="sm" className="h-7 text-xs px-2" onClick={handleApplyTacticalSuggestion}>Apply</Button>
+              <button type="button" onClick={handleDismissTacticalSuggestion} className="p-0.5 text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Stats & Reset */}
+          {!readOnly && (
+            <>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleResetFormation}>
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setStatsOpen(true)}>
+                <BarChart3 className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          {readOnly && (
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setStatsOpen(true)}>
+              <BarChart3 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
         
         {/* Main content area */}
         <div className="flex-1 flex overflow-hidden">
           {/* Main pitch area - full height */}
           <div className="flex-1 h-full relative overflow-hidden">
-            {/* Top left: Close button + Read-only badge */}
-            <div className="absolute top-2 left-2 z-50 flex items-center gap-2">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={onClose}
-                className="bg-background/80 backdrop-blur-sm"
-              >
-                <X className="h-5 w-5" />
-              </Button>
-              {readOnly && (
-                <Badge variant="secondary" className="bg-background/80 backdrop-blur-sm">
-                  <Eye className="h-3 w-3 mr-1" />
-                  View Only
-                </Badge>
-              )}
-            </div>
           
           {/* Floating draggable timer */}
           <div 
@@ -4867,61 +4919,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         )}
 
-        {/* Floating Pitch Shortcuts - pinned to top right of pitch in landscape */}
-        {!readOnly && pinPitchShortcuts && (
-          <div className="absolute right-2 top-2 z-[55] flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-10 w-10 bg-background/70 backdrop-blur border border-border" onClick={handleResetFormation}>
-              <RotateCcw className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-10 w-10 bg-background/70 backdrop-blur border border-border" onClick={() => setStatsOpen(true)}>
-              <BarChart3 className="h-5 w-5" />
-            </Button>
-          </div>
-        )}
+        {/* Floating Pitch Shortcuts moved to landscape header bar */}
 
-        {/* Floating Tactical Mode - pinned to right side of pitch in landscape */}
-        {!readOnly && (
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 z-[55] flex flex-col items-center gap-1">
-            {([
-              { value: "defend" as TacticalMode, icon: Shield, label: "DEF", activeClass: "bg-blue-500 text-white shadow-md" },
-              { value: "neutral" as TacticalMode, icon: Circle, label: "NEU", activeClass: "bg-background text-foreground shadow-md border-primary" },
-              { value: "attack" as TacticalMode, icon: Swords, label: "ATK", activeClass: "bg-orange-500 text-white shadow-md" },
-            ]).map(({ value: mode, icon: Icon, label, activeClass }) => (
-              <button
-                key={mode}
-                onClick={() => handleTacticalModeChange(mode)}
-                className={cn(
-                  "w-11 h-11 rounded-full border flex flex-col items-center justify-center transition-all duration-200",
-                  tacticalMode === mode
-                    ? activeClass
-                    : "bg-background/70 backdrop-blur border-border text-muted-foreground hover:bg-background/90"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="text-[8px] font-bold leading-none mt-0.5">{label}</span>
-              </button>
-            ))}
-
-            {/* Inline formation suggestion popup */}
-            {tacticalFormationSuggestion && (
-              <div className="absolute right-14 top-1/2 -translate-y-1/2 w-56 bg-background border border-border rounded-xl shadow-xl p-3.5 animate-fade-in">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm text-foreground leading-snug">
-                    Try <span className="font-bold">{tacticalFormationSuggestion.formationName}</span> for{" "}
-                    <span className="font-bold">{tacticalFormationSuggestion.mode === "attack" ? "Attack" : "Defend"}</span>?
-                  </p>
-                  <button type="button" onClick={handleDismissTacticalSuggestion} className="rounded-md p-1.5 text-muted-foreground hover:text-foreground shrink-0 -mt-1 -mr-1" aria-label="Dismiss">
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-                <div className="mt-2.5 flex items-center gap-2">
-                  <Button type="button" size="sm" className="h-10 text-sm px-4 font-semibold" onClick={handleApplyTacticalSuggestion}>Apply</Button>
-                  <Button type="button" size="sm" variant="ghost" className="h-10 text-sm px-4" onClick={handleDismissTacticalSuggestion}>Dismiss</Button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Tactical Mode moved to landscape header bar */}
 
         {/* Sub mode instruction banner */}
         {subMode && (
