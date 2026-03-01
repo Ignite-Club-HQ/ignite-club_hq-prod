@@ -253,10 +253,10 @@ export default function PreGameLineupScreen({
         </Button>
       </div>
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {/* Main content - fully scrollable */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {/* Team size & formation selectors */}
-        <div className="px-4 py-2 space-y-2 border-b border-border shrink-0 bg-muted/20">
+        <div className="px-4 py-2 space-y-2 border-b border-border bg-muted/20">
           <div className="space-y-1">
             <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Players per Team</Label>
             <div className="flex rounded-lg border border-border overflow-hidden">
@@ -298,7 +298,7 @@ export default function PreGameLineupScreen({
         </div>
 
         {/* Formation visual - mini pitch with color-coded slots */}
-        <div className="relative w-full aspect-[3/4] max-h-[40vh] bg-[hsl(var(--pitch-green,120,40%,30%))] rounded-lg mx-auto my-2 max-w-sm shrink-0" style={{ backgroundColor: '#2d5a27' }}>
+        <div className="relative w-full aspect-[3/4] max-h-[35vh] bg-[hsl(var(--pitch-green,120,40%,30%))] rounded-lg mx-auto my-2 max-w-sm" style={{ backgroundColor: '#2d5a27' }}>
           {/* Pitch lines */}
           <div className="absolute inset-[8%] border-2 border-white/30 rounded" />
           <div className="absolute left-[8%] right-[8%] top-[50%] h-[1px] bg-white/30" />
@@ -345,10 +345,10 @@ export default function PreGameLineupScreen({
         </div>
 
         {/* Player picker / GK rotation section */}
-        <div className="flex-1 min-h-0 flex flex-col border-t border-border">
+        <div className="border-t border-border">
           {/* GK Rotation picker */}
           {hasGk && rotateGkAtHalftime && gkCapablePlayers.length >= 2 && (
-            <div className="px-4 py-2 border-b border-border bg-muted/30 shrink-0">
+            <div className="px-4 py-2 border-b border-border bg-muted/30">
               <p className="text-xs font-medium text-muted-foreground mb-1.5">GK Rotation</p>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
@@ -386,7 +386,7 @@ export default function PreGameLineupScreen({
           )}
 
           {/* Player list header */}
-          <div className="px-4 py-2 flex items-center justify-between shrink-0">
+          <div className="px-4 py-2 flex items-center justify-between">
             <p className="text-sm font-medium">
               {selectedSlotIndex !== null
                 ? `Pick player for ${slots[selectedSlotIndex]?.pitchPosition}`
@@ -405,66 +405,64 @@ export default function PreGameLineupScreen({
             </div>
           </div>
 
-          {/* Player list */}
-          <ScrollArea className="flex-1 min-h-0">
-            <div className="px-4 pb-4 space-y-1">
-              {filteredBenchPlayers.length === 0 && selectedSlotIndex !== null ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  All players assigned! Tap an occupied position to swap.
-                </p>
-              ) : filteredBenchPlayers.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No available players
-                </p>
-              ) : (
-                filteredBenchPlayers.map(player => {
-                  const selectedSlot = selectedSlotIndex !== null ? slots[selectedSlotIndex] : null;
-                  const isEligible = selectedSlot ? canPlayPosition(player, selectedSlot.pitchPosition) : true;
+          {/* Player list - inline, scrolls with page */}
+          <div className="px-4 pb-4 space-y-1">
+            {filteredBenchPlayers.length === 0 && selectedSlotIndex !== null ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                All players assigned! Tap an occupied position to swap.
+              </p>
+            ) : filteredBenchPlayers.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No available players
+              </p>
+            ) : (
+              filteredBenchPlayers.map(player => {
+                const selectedSlot = selectedSlotIndex !== null ? slots[selectedSlotIndex] : null;
+                const isEligible = selectedSlot ? canPlayPosition(player, selectedSlot.pitchPosition) : true;
 
-                  return (
-                    <button
-                      key={player.id}
-                      className={cn(
-                        "w-full flex items-center justify-between p-2.5 rounded-lg border transition-all text-left",
-                        selectedSlotIndex === null
-                          ? "border-border bg-muted/30 hover:bg-muted/50 active:bg-muted/70"
-                          : isEligible
-                            ? "border-primary/30 bg-primary/5 hover:bg-primary/10 active:bg-primary/20"
-                            : "border-border bg-muted/30 opacity-50"
-                      )}
-                      onClick={() => handlePickPlayer(player.id)}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
-                          {player.number || "#"}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium leading-tight">{player.name}</p>
-                          <div className="flex gap-1 mt-0.5">
-                            {player.assignedPositions?.length ? (
-                              player.assignedPositions.map(pos => {
-                                const posColors = POSITION_COLORS[pos];
-                                return (
-                                  <span key={pos} className={cn("text-[9px] font-bold px-1 py-0.5 rounded", posColors.bg, posColors.text)}>
-                                    {pos}
-                                  </span>
-                                );
-                              })
-                            ) : (
-                              <span className="text-[9px] text-muted-foreground">Any position</span>
-                            )}
-                          </div>
+                return (
+                  <button
+                    key={player.id}
+                    className={cn(
+                      "w-full flex items-center justify-between p-2.5 rounded-lg border transition-all text-left",
+                      selectedSlotIndex === null
+                        ? "border-border bg-muted/30 hover:bg-muted/50 active:bg-muted/70"
+                        : isEligible
+                          ? "border-primary/30 bg-primary/5 hover:bg-primary/10 active:bg-primary/20"
+                          : "border-border bg-muted/30 opacity-50"
+                    )}
+                    onClick={() => handlePickPlayer(player.id)}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+                        {player.number || "#"}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium leading-tight">{player.name}</p>
+                        <div className="flex gap-1 mt-0.5">
+                          {player.assignedPositions?.length ? (
+                            player.assignedPositions.map(pos => {
+                              const posColors = POSITION_COLORS[pos];
+                              return (
+                                <span key={pos} className={cn("text-[9px] font-bold px-1 py-0.5 rounded", posColors.bg, posColors.text)}>
+                                  {pos}
+                                </span>
+                              );
+                            })
+                          ) : (
+                            <span className="text-[9px] text-muted-foreground">Any position</span>
+                          )}
                         </div>
                       </div>
-                      {selectedSlotIndex !== null && isEligible && (
-                        <Check className="h-4 w-4 text-primary shrink-0" />
-                      )}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </ScrollArea>
+                    </div>
+                    {selectedSlotIndex !== null && isEligible && (
+                      <Check className="h-4 w-4 text-primary shrink-0" />
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
 
