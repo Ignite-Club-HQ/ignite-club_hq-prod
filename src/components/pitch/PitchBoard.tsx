@@ -1814,6 +1814,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   const handleDismissTacticalSuggestion = useCallback(() => {
     setTacticalFormationSuggestion(null);
+    // Minimise the bottom drawer after dismissing
+    setToolbarCollapsed(true);
+    setPortraitSheetOpen(false);
   }, []);
 
   const applyFormationChange = useCallback((index: number) => {
