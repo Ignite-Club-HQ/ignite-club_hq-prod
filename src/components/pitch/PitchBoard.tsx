@@ -75,7 +75,7 @@ import {
   recalculateRemainingPlan,
   isSoundEnabled
 } from "./pitchStateUtils";
-import { TacticalMode, computeTacticalPositions, TACTICAL_MODE_MESSAGES, TACTICAL_MODE_LABELS } from "./tacticalMode";
+import { TacticalMode, computeTacticalOffsets, TACTICAL_MODE_MESSAGES, TACTICAL_MODE_LABELS } from "./tacticalMode";
 
 interface PitchBoardProps {
   teamId: string;
@@ -3278,9 +3278,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const playersOnPitch = useMemo(() => players.filter(p => p.position !== null), [players]);
   const playersOnBench = useMemo(() => players.filter(p => p.position === null), [players]);
 
-  // Tactical mode: batch-compute adjusted positions for all on-pitch players
-  const tacticalPositions = useMemo(() => 
-    computeTacticalPositions(players, tacticalMode, teamSize),
+  // Tactical mode: batch-compute visual offsets (CSS translate) for on-pitch players
+  const tacticalOffsets = useMemo(() => 
+    computeTacticalOffsets(players, tacticalMode, teamSize),
     [players, tacticalMode, teamSize]
   );
 
@@ -4201,14 +4201,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   teamColor={getPlayerTeamColor(player)}
                   style={{
                     position: "absolute",
+                    left: `${player.position!.x}%`,
+                    top: `${player.position!.y}%`,
                     ...(() => {
-                      const tp = tacticalPositions.get(player.id);
-                      const px = tp?.x ?? player.position!.x;
-                      const py = tp?.y ?? player.position!.y;
-                      return { left: `${px}%`, top: `${py}%` };
+                      const isDragging = draggedPlayer === player.id || touchDragPlayer === player.id;
+                      const offset = !isDragging ? tacticalOffsets.get(player.id) : undefined;
+                      const tx = offset?.dx ?? 0;
+                      const ty = offset?.dy ?? 0;
+                      return {
+                        transform: `translate(-50%, -50%) translate(${tx * 0.5}vw, ${ty * 0.5}vh)`,
+                        transition: isDragging ? "none" : "transform 0.4s ease-out, left 0.3s ease-out, top 0.3s ease-out",
+                      };
                     })(),
-                    transform: "translate(-50%, -50%)",
-                    transition: draggedPlayer === player.id || touchDragPlayer === player.id ? "none" : "left 0.4s ease-out, top 0.4s ease-out",
                     zIndex: previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
                     cursor: readOnly ? "default" : ((subMode || swapMode) ? "pointer" : "grab"),
                   }}
@@ -6085,14 +6089,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 teamColor={getPlayerTeamColor(player)}
                 style={{
                   position: "absolute",
+                  left: `${player.position!.x}%`,
+                  top: `${player.position!.y}%`,
                   ...(() => {
-                    const tp = tacticalPositions.get(player.id);
-                    const px = tp?.x ?? player.position!.x;
-                    const py = tp?.y ?? player.position!.y;
-                    return { left: `${px}%`, top: `${py}%` };
+                    const isDragging = draggedPlayer === player.id || touchDragPlayer === player.id;
+                    const offset = !isDragging ? tacticalOffsets.get(player.id) : undefined;
+                    const tx = offset?.dx ?? 0;
+                    const ty = offset?.dy ?? 0;
+                    return {
+                      transform: `translate(-50%, -50%) translate(${tx * 0.5}vw, ${ty * 0.5}vh)`,
+                      transition: isDragging ? "none" : "transform 0.4s ease-out, left 0.3s ease-out, top 0.3s ease-out",
+                    };
                   })(),
-                  transform: "translate(-50%, -50%)",
-                  transition: draggedPlayer === player.id || touchDragPlayer === player.id ? "none" : "left 0.4s ease-out, top 0.4s ease-out",
                   zIndex: previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
                   cursor: readOnly ? "default" : ((subMode || swapMode) ? "pointer" : "grab"),
                 }}
