@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Minus, Target, X, Users } from "lucide-react";
+import { Plus, Minus, Target, X, Users, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Goal, Player, MiniLeagueTeams } from "./types";
 
@@ -26,6 +26,7 @@ interface ScoreTrackerProps {
   goals: Goal[];
   onAddGoal: (goal: Goal) => void;
   onRemoveGoal: (goalId: string) => void;
+  onUpdateGoal?: (goal: Goal) => void;
   players: Player[];
   currentHalf: 1 | 2;
   elapsedSeconds: number;
@@ -42,6 +43,7 @@ export default function ScoreTracker({
   goals,
   onAddGoal,
   onRemoveGoal,
+  onUpdateGoal,
   players,
   currentHalf,
   elapsedSeconds,
@@ -56,6 +58,9 @@ export default function ScoreTracker({
   const [showGoalSheet, setShowGoalSheet] = useState(false);
   const [selectedGoalType, setSelectedGoalType] = useState<"team" | "opponent" | "teamA" | "teamB" | null>(null);
   const [pendingGoal, setPendingGoal] = useState<{ goal: Goal; label: string } | null>(null);
+  const [showEditSheet, setShowEditSheet] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [showChangeScorerSheet, setShowChangeScorerSheet] = useState(false);
 
   // Mini-league mode: count goals by teamSide
   const isMiniLeague = !!miniLeagueTeams;
@@ -128,6 +133,19 @@ export default function ScoreTracker({
     if (pendingGoal) {
       onAddGoal(pendingGoal.goal);
       setPendingGoal(null);
+    }
+  };
+
+  const handleChangeScorer = (player: Player | null) => {
+    if (editingGoal && onUpdateGoal) {
+      onUpdateGoal({
+        ...editingGoal,
+        scorerId: player?.id,
+        scorerName: player?.name,
+      });
+      setEditingGoal(null);
+      setShowChangeScorerSheet(false);
+      setShowEditSheet(false);
     }
   };
 
@@ -566,9 +584,19 @@ export default function ScoreTracker({
       {/* Goal timeline */}
       {goals.length > 0 && (
         <div className="border-t border-border pt-2">
-          <p className="text-[10px] text-muted-foreground mb-1">
-            {isGameFinished ? "Final Score" : "Goals"}
-          </p>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[10px] text-muted-foreground">
+              {isGameFinished ? "Final Score" : "Goals"}
+            </p>
+            {!isLocked && (
+              <button
+                onClick={() => setShowEditSheet(true)}
+                className="text-[10px] text-primary font-medium hover:underline"
+              >
+                Edit
+              </button>
+            )}
+          </div>
           <div className="flex flex-wrap gap-1">
             {goals
               .sort((a, b) => a.time - b.time)
@@ -581,7 +609,7 @@ export default function ScoreTracker({
                   <div
                     key={goal.id}
                     className={cn(
-                      "flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full",
+                      "flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full cursor-pointer",
                       !isMiniLeague && (goal.isOpponentGoal
                         ? "bg-secondary text-secondary-foreground"
                         : "bg-primary/20 text-primary")
@@ -590,6 +618,7 @@ export default function ScoreTracker({
                       backgroundColor: teamColor ? `${teamColor}30` : undefined,
                       color: teamColor 
                     } : undefined}
+                    onClick={() => !isLocked && setShowEditSheet(true)}
                   >
                     <span>{formatTime(goal.time)}</span>
                     {goal.scorerName && (
@@ -600,14 +629,6 @@ export default function ScoreTracker({
                     {!isMiniLeague && goal.isOpponentGoal && <span>Opp</span>}
                     {isMiniLeague && !goal.scorerName && (
                       <span>{goal.teamSide === "a" ? teamAName : teamBName}</span>
-                    )}
-                    {!isLocked && (
-                      <button
-                        onClick={() => onRemoveGoal(goal.id)}
-                        className="hover:bg-background/50 rounded-full p-0.5"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
                     )}
                   </div>
                 );
@@ -727,6 +748,131 @@ export default function ScoreTracker({
                     ))}
                 </>
               )}
+            </div>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
+
+      {/* Edit goals sheet */}
+      <Sheet open={showEditSheet} onOpenChange={setShowEditSheet}>
+        <SheetContent
+          side="bottom"
+          className="rounded-t-xl h-[70vh]"
+          style={{ zIndex: 100001 }}
+        >
+          <SheetHeader className="pb-2">
+            <SheetTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-primary" />
+              Edit Goals
+            </SheetTitle>
+          </SheetHeader>
+          <ScrollArea className="h-[calc(70vh-4rem)]">
+            <div className="space-y-2 pr-4">
+              {goals.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No goals recorded</p>
+              ) : (
+                goals.sort((a, b) => a.time - b.time).map((goal) => {
+                  const isOpponent = isMiniLeague ? goal.teamSide === "b" : goal.isOpponentGoal;
+                  return (
+                    <div key={goal.id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Badge variant={isOpponent ? "secondary" : "default"} className="text-[10px] px-1.5 shrink-0">
+                            {formatTime(goal.time)}
+                          </Badge>
+                          <span className="font-medium text-sm truncate">
+                            {goal.scorerName || (isOpponent ? (isMiniLeague ? (goal.teamSide === "b" ? teamBName : teamAName) : opponentName) : "Unknown")}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {isOpponent ? (isMiniLeague ? (goal.teamSide === "b" ? teamBName : teamAName) : opponentName) : (isMiniLeague ? (goal.teamSide === "a" ? teamAName : teamBName) : teamName)} · Half {goal.half}
+                        </p>
+                      </div>
+                      {!isLocked && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          {!goal.isOpponentGoal && onUpdateGoal && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => {
+                                setEditingGoal(goal);
+                                setShowChangeScorerSheet(true);
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => {
+                              onRemoveGoal(goal.id);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
+
+      {/* Change scorer sheet */}
+      <Sheet open={showChangeScorerSheet} onOpenChange={(open) => {
+        setShowChangeScorerSheet(open);
+        if (!open) setEditingGoal(null);
+      }}>
+        <SheetContent
+          side="bottom"
+          className="rounded-t-xl h-[85vh]"
+          style={{ zIndex: 100002 }}
+        >
+          <SheetHeader className="pb-2">
+            <SheetTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-primary" />
+              Change Scorer
+            </SheetTitle>
+          </SheetHeader>
+          <ScrollArea className="h-[calc(85vh-4rem)]">
+            <div className="space-y-2 pr-4">
+              <button
+                className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                onClick={() => handleChangeScorer(null)}
+              >
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium text-sm">Unknown / Own Goal</span>
+                </div>
+              </button>
+              {players.map((player) => (
+                <button
+                  key={player.id}
+                  className={cn(
+                    "w-full text-left p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors",
+                    editingGoal?.scorerId === player.id && "bg-primary/10 border-primary"
+                  )}
+                  onClick={() => handleChangeScorer(player)}
+                >
+                  <div className="flex items-center gap-2">
+                    {player.number && (
+                      <Badge variant="outline" className="text-xs">
+                        #{player.number}
+                      </Badge>
+                    )}
+                    <span className="font-medium text-sm">{player.name}</span>
+                    {player.position !== null && (
+                      <span className="text-xs text-muted-foreground">(On Pitch)</span>
+                    )}
+                  </div>
+                </button>
+              ))}
             </div>
           </ScrollArea>
         </SheetContent>

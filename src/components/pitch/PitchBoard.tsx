@@ -772,6 +772,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setGoals(prev => prev.filter(g => g.id !== goalId));
   }, []);
 
+  const handleUpdateGoal = useCallback((updatedGoal: Goal) => {
+    setGoals(prev => prev.map(g => g.id === updatedGoal.id ? updatedGoal : g));
+  }, []);
+
   // Generate mock players with positions
   const generateMockPlayers = useCallback((count: number): Player[] => {
     const mockNames = [
@@ -3854,6 +3858,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 goals={goals}
                 onAddGoal={handleAddGoal}
                 onRemoveGoal={handleRemoveGoal}
+                onUpdateGoal={handleUpdateGoal}
                 players={players}
                 currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
                 elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
@@ -5136,6 +5141,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             goals={goals}
             onAddGoal={handleAddGoal}
             onRemoveGoal={handleRemoveGoal}
+            onUpdateGoal={handleUpdateGoal}
             players={players}
             currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
             elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
@@ -5186,6 +5192,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 goals={goals}
                 onAddGoal={handleAddGoal}
                 onRemoveGoal={handleRemoveGoal}
+                onUpdateGoal={handleUpdateGoal}
                 players={players}
                 currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
                 elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
