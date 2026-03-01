@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame } from "lucide-react";
+import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PlayerToken from "./PlayerToken";
 import SoccerBall from "./SoccerBall";
@@ -4859,6 +4859,50 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Floating Tactical Mode - pinned to right side of pitch in landscape */}
+        {!readOnly && (
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 z-[55] flex flex-col items-center gap-1">
+            {([
+              { value: "defend" as TacticalMode, icon: Shield, label: "DEF", activeClass: "bg-blue-500 text-white shadow-md" },
+              { value: "neutral" as TacticalMode, icon: Circle, label: "NEU", activeClass: "bg-background text-foreground shadow-md border-primary" },
+              { value: "attack" as TacticalMode, icon: Swords, label: "ATK", activeClass: "bg-orange-500 text-white shadow-md" },
+            ]).map(({ value: mode, icon: Icon, label, activeClass }) => (
+              <button
+                key={mode}
+                onClick={() => handleTacticalModeChange(mode)}
+                className={cn(
+                  "w-11 h-11 rounded-full border flex flex-col items-center justify-center transition-all duration-200",
+                  tacticalMode === mode
+                    ? activeClass
+                    : "bg-background/70 backdrop-blur border-border text-muted-foreground hover:bg-background/90"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="text-[8px] font-bold leading-none mt-0.5">{label}</span>
+              </button>
+            ))}
+
+            {/* Inline formation suggestion popup */}
+            {tacticalFormationSuggestion && (
+              <div className="absolute right-14 top-1/2 -translate-y-1/2 w-48 bg-background border border-border rounded-lg shadow-xl p-2.5 animate-fade-in">
+                <div className="flex items-start justify-between gap-1">
+                  <p className="text-xs text-foreground leading-snug">
+                    Try <span className="font-semibold">{tacticalFormationSuggestion.formationName}</span> for{" "}
+                    <span className="font-semibold">{tacticalFormationSuggestion.mode === "attack" ? "Attack" : "Defend"}</span>?
+                  </p>
+                  <button type="button" onClick={handleDismissTacticalSuggestion} className="rounded-md p-0.5 text-muted-foreground hover:text-foreground shrink-0" aria-label="Dismiss">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <Button type="button" size="sm" className="h-7 text-xs px-2" onClick={handleApplyTacticalSuggestion}>Apply</Button>
+                  <Button type="button" size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={handleDismissTacticalSuggestion}>Dismiss</Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
