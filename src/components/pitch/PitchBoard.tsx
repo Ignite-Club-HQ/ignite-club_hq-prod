@@ -4639,29 +4639,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </div>
                         )}
 
-                        {/* Make Sub / Swap - shown when not in a mode */}
-                        {!subMode && !swapMode && (
-                          <>
-                            <Button
-                              variant="outline"
-                              className="w-full h-12 text-base"
-                              onClick={() => { toggleSubMode(); setToolbarCollapsed(true); }}
-                            >
-                              <RefreshCw className="h-4 w-4 mr-1.5" />
-                              Make Sub
-                            </Button>
-
-                            {playersOnPitch.length >= 2 && (
-                              <Button
-                                variant="outline"
-                                className="w-full h-12 text-base"
-                                onClick={() => { toggleSwapMode(); setToolbarCollapsed(true); }}
-                              >
-                                <ArrowLeftRight className="h-4 w-4 mr-1.5" />
-                                Swap Positions
-                              </Button>
-                            )}
-                          </>
+                        {/* Manual mode hint when auto-subs disabled */}
+                        {disableAutoSubs && !subMode && !swapMode && (
+                          <p className="text-sm text-muted-foreground text-center py-4">
+                            Manual mode — use Sub & Swap buttons above
+                          </p>
                         )}
 
                         {/* Sub/Swap mode active UI */}
@@ -5687,29 +5669,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </div>
                         )}
 
-                        {/* Make Sub / Swap - shown when not in a mode */}
-                        {!subMode && !swapMode && (
-                          <>
-                            <Button
-                              variant="outline"
-                              className="w-full h-12 text-base"
-                              onClick={() => { toggleSubMode(); setPortraitSheetOpen(false); }}
-                            >
-                              <RefreshCw className="h-4 w-4 mr-1.5" />
-                              Make Sub
-                            </Button>
-
-                            {playersOnPitch.length >= 2 && (
-                              <Button
-                                variant="outline"
-                                className="w-full h-12 text-base"
-                                onClick={() => { toggleSwapMode(); setPortraitSheetOpen(false); }}
-                              >
-                                <ArrowLeftRight className="h-4 w-4 mr-1.5" />
-                                Swap Positions
-                              </Button>
-                            )}
-                          </>
+                        {/* Manual mode hint when auto-subs disabled */}
+                        {disableAutoSubs && !subMode && !swapMode && (
+                          <p className="text-sm text-muted-foreground text-center py-4">
+                            Manual mode — use Sub & Swap buttons above
+                          </p>
                         )}
 
                         {!readOnly && undoHistory.length > 0 && showFloatingUndo && (
