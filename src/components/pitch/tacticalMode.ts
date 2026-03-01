@@ -82,6 +82,22 @@ export const computeTacticalOffsets = (
   })();
   const MIN_DEFENDER_GK_GAP = 11;
 
+  // In attack mode, keep midfield clearly separated from the forward line.
+  const projectedDeepestForwardY = (() => {
+    if (mode !== "attack") return null;
+    const forwards = onPitch.filter(player => player.currentPitchPosition === "FWD" && player.position);
+    if (forwards.length === 0) return null;
+
+    const forwardDy = isSmallSided ? -6 : -8;
+    return forwards.reduce((deepestY, forward) => {
+      let projectedY = forward.position!.y + forwardDy;
+      if (projectedY < 20) projectedY = 20;
+      if (projectedY > 84) projectedY = 84;
+      return Math.max(deepestY, projectedY);
+    }, 20);
+  })();
+  const MIN_MID_FORWARD_GAP = isSmallSided ? 14 : 12;
+
   for (const p of onPitch) {
     const bx = p.position!.x;
     const pos = p.currentPitchPosition;
@@ -159,6 +175,14 @@ export const computeTacticalOffsets = (
         const adjustedY = baseY + dy;
         if (adjustedY > maxDefenderY) {
           dy = maxDefenderY - baseY;
+        }
+      }
+
+      if (mode === "attack" && pos === "MID" && projectedDeepestForwardY !== null) {
+        const minMidY = Math.min(projectedDeepestForwardY + MIN_MID_FORWARD_GAP, 84);
+        const adjustedY = baseY + dy;
+        if (adjustedY < minMidY) {
+          dy = minMidY - baseY;
         }
       }
 
