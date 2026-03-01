@@ -4685,9 +4685,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {/* More Options - collapsible */}
                     {!readOnly && (
                       <Collapsible>
-                        <CollapsibleTrigger className="flex items-center justify-center w-full py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors gap-1">
+                        <CollapsibleTrigger className="flex items-center justify-center w-full py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors gap-1.5">
                           <span>More Options</span>
-                          <ChevronDown className="h-3 w-3" />
+                          <ChevronDown className="h-3.5 w-3.5" />
                         </CollapsibleTrigger>
                         <CollapsibleContent className="space-y-2 pt-1">
                           <div className="grid grid-cols-2 gap-2">
@@ -4722,8 +4722,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                     {/* Reset Game - always visible at bottom */}
                     {!readOnly && (
-                      <Button variant="outline" className="w-full h-10 text-sm text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
-                        <RotateCcw className="h-4 w-4 mr-1.5" />
+                      <Button variant="outline" className="w-full h-12 text-base text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
+                        <RotateCcw className="h-4.5 w-4.5 mr-2" />
                         Reset Game
                       </Button>
                     )}
@@ -5676,9 +5676,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {/* More Options - collapsible */}
                     {!readOnly && (
                       <Collapsible>
-                        <CollapsibleTrigger className="flex items-center justify-center w-full py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors gap-1">
+                        <CollapsibleTrigger className="flex items-center justify-center w-full py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors gap-1.5">
                           <span>More Options</span>
-                          <ChevronDown className="h-3 w-3" />
+                          <ChevronDown className="h-3.5 w-3.5" />
                         </CollapsibleTrigger>
                         <CollapsibleContent className="space-y-2 pt-1">
                           <div className="grid grid-cols-2 gap-2">
@@ -5713,8 +5713,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                     {/* Reset Game - always visible at bottom */}
                     {!readOnly && (
-                      <Button variant="outline" className="w-full h-10 text-sm text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
-                        <RotateCcw className="h-4 w-4 mr-1.5" />
+                      <Button variant="outline" className="w-full h-12 text-base text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
+                        <RotateCcw className="h-4.5 w-4.5 mr-2" />
                         Reset Game
                       </Button>
                     )}
