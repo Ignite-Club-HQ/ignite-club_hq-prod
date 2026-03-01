@@ -656,12 +656,12 @@ export function AppHeader() {
                     alt="Ignite" 
                     className="h-9 w-9 object-contain"
                   />
-                  <div className="flex flex-col leading-tight items-start">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-[19px] text-gradient-emerald">Ignite</span>
-                      
-                    </div>
-                    <span className="text-[11px] text-muted-foreground -mt-1 text-left">Club HQ</span>
+                   <div className="flex flex-col leading-none items-start">
+                     <div className="flex items-center gap-1.5">
+                       <span className="font-bold text-[19px] text-gradient-emerald">Ignite</span>
+                       
+                     </div>
+                     <span className="text-[11px] text-muted-foreground -mt-0.5 text-left">Club HQ</span>
                   </div>
                 </>
               )}
