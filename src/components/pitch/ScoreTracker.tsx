@@ -179,19 +179,19 @@ export default function ScoreTracker({
       <>
         <button
           onClick={() => {
-            if (!isLocked) {
+            if (isLocked) {
+              // When locked, allow viewing goals if any exist
               if (goals.length > 0) {
-                // If goals exist, open edit sheet
                 setShowEditSheet(true);
-              } else {
-                // No goals yet, open add goal sheet
-                if (isMiniLeague) {
-                  setSelectedGoalType("teamA");
-                } else {
-                  setSelectedGoalType("team");
-                }
-                setShowGoalSheet(true);
               }
+            } else {
+              // When not locked, always open add goal sheet
+              if (isMiniLeague) {
+                setSelectedGoalType("teamA");
+              } else {
+                setSelectedGoalType("team");
+              }
+              setShowGoalSheet(true);
             }
           }}
           className={cn(
