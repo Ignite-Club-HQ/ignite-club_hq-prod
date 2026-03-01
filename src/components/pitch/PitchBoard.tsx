@@ -42,6 +42,7 @@ const PreGameLineupScreen = lazy(() => import("./PreGameLineupScreen"));
 import TacticalModeSelector from "./TacticalModeSelector";
 
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1786,14 +1787,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           description: `Try ${suggestedFormation.name} for a more ${mode === "attack" ? "attacking" : "defensive"} shape`,
           duration: 5000,
           action: (
-            <Button
-              variant="outline"
-              size="sm"
-              className="shrink-0"
-              onClick={() => handleFormationChange(String(suggestedIndex))}
-            >
+            <ToastAction altText="Apply formation" onClick={() => handleFormationChange(String(suggestedIndex))}>
               Apply
-            </Button>
+            </ToastAction>
           ),
         });
       } else {
