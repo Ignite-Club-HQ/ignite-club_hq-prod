@@ -1,8 +1,15 @@
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, AlertCircle } from "lucide-react";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { cn } from "@/lib/utils";
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 
 interface Player {
   id: string;
@@ -59,65 +66,76 @@ export default function PositionSwapDialog({
   const positionColors = POSITION_COLORS[requiredPosition];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md landscape:max-w-lg landscape:max-h-[85vh] landscape:overflow-y-auto landscape:p-4">
-        <DialogHeader>
-          <DialogTitle>Position Swap Needed</DialogTitle>
-          <DialogDescription>
-            Move {benchPlayer.name} from Bench to{" "}
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="sm:max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle className="flex items-center gap-2 text-lg">
+            <ArrowLeftRight className="h-5 w-5" />
+            Position Swap Needed
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
+            {benchPlayer.name} can't play{" "}
             <span className={cn("font-bold", positionColors.text)}>{requiredPosition}</span>
-          </DialogDescription>
-        </DialogHeader>
+            {" — choose a player to swap"}
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
 
-        <div className="space-y-4">
+        <div className="flex-1 overflow-y-auto space-y-4 py-2">
           {playersWhoCanSwap.length > 0 ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                First, move{" "}
-                <span className="font-medium text-foreground">{playerInPosition?.name}</span> from{" "}
-                <span className={cn("font-bold", positionColors.text)}>{requiredPosition}</span> to another position:
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Available Swaps
               </p>
-              <div className="space-y-2">
-                {playersWhoCanSwap.map(player => {
-                  const currentColors = POSITION_COLORS[player.currentPitchPosition!];
-                  return (
-                    <button
-                      key={player.id}
-                      onClick={() => onSwapAndSubstitute(playerInPosition!.id, player.id)}
-                      className="w-full flex items-center justify-between p-3 rounded-lg border border-border bg-muted/50 hover:bg-muted transition-all"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary">
+              {playersWhoCanSwap.map(player => {
+                const currentPos = player.currentPitchPosition!;
+                const currentColors = POSITION_COLORS[currentPos];
+                return (
+                  <Button
+                    key={player.id}
+                    variant="outline"
+                    className="w-full justify-start h-auto p-3 border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10"
+                    onClick={() => onSwapAndSubstitute(playerInPosition!.id, player.id)}
+                  >
+                    <div className="flex flex-col gap-1 w-full text-left">
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
+                          "bg-amber-500/20 text-amber-500 border border-amber-500/30"
+                        )}>
                           {player.number || player.name.slice(0, 2).toUpperCase()}
                         </div>
-                        <div className="text-left">
-                          <div className="font-medium">
-                            Move {player.name} from {player.currentPitchPosition} to {requiredPosition}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Then {playerInPosition?.name} → Bench, {benchPlayer.name} → {player.currentPitchPosition}
-                          </div>
-                        </div>
+                        <span className="font-medium text-sm">{player.name}</span>
+                        <span className={cn("text-xs font-bold", currentColors.text)}>{currentPos}</span>
+                        <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                        <span className={cn("text-xs font-bold", positionColors.text)}>{requiredPosition}</span>
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </>
+                      <p className="text-xs text-muted-foreground pl-9">
+                        {playerInPosition?.name} → Bench, {benchPlayer.name} takes{" "}
+                        <span className={cn("font-bold", currentColors.text)}>{currentPos}</span>
+                      </p>
+                    </div>
+                  </Button>
+                );
+              })}
+            </div>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              No players on the pitch can swap to the {requiredPosition} position. 
-              Assign more position options to your players.
-            </p>
+            <div className="text-center py-6 text-muted-foreground">
+              <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No swap options available.</p>
+              <p className="text-xs mt-1">
+                No players on the pitch can swap to {requiredPosition}.
+                Assign more position options to your players.
+              </p>
+            </div>
           )}
-
-          <div className="flex gap-2 pt-2">
-            <Button variant="outline" onClick={onCancel} className="flex-1">
-              Cancel
-            </Button>
-          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <ResponsiveDialogFooter>
+          <Button variant="outline" onClick={onCancel} className="w-full h-12 text-base">
+            Cancel
+          </Button>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
