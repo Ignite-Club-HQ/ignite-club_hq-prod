@@ -180,12 +180,18 @@ export default function ScoreTracker({
         <button
           onClick={() => {
             if (!isLocked) {
-              if (isMiniLeague) {
-                setSelectedGoalType("teamA");
+              if (goals.length > 0) {
+                // If goals exist, open edit sheet
+                setShowEditSheet(true);
               } else {
-                setSelectedGoalType("team");
+                // No goals yet, open add goal sheet
+                if (isMiniLeague) {
+                  setSelectedGoalType("teamA");
+                } else {
+                  setSelectedGoalType("team");
+                }
+                setShowGoalSheet(true);
               }
-              setShowGoalSheet(true);
             }
           }}
           className={cn(
@@ -820,6 +826,24 @@ export default function ScoreTracker({
                     </div>
                   );
                 })
+              )}
+              {!isLocked && (
+                <Button
+                  variant="outline"
+                  className="w-full mt-3"
+                  onClick={() => {
+                    setShowEditSheet(false);
+                    if (isMiniLeague) {
+                      setSelectedGoalType("teamA");
+                    } else {
+                      setSelectedGoalType("team");
+                    }
+                    setShowGoalSheet(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Goal
+                </Button>
               )}
             </div>
           </ScrollArea>
