@@ -4731,16 +4731,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           Select Lineup
                         </Button>
                       )}
+                      <Button variant="outline" className="h-12 text-base" onClick={() => setStatsOpen(true)}>
+                        <BarChart3 className="h-4 w-4 mr-1.5" />
+                        Stats
+                      </Button>
                       {!readOnly && (
                         <Button variant="outline" className="h-12 text-base" onClick={handleResetFormation}>
                           <RotateCcw className="h-4 w-4 mr-1.5" />
                           Reset Formation
                         </Button>
                       )}
-                      <Button variant="outline" className="h-12 text-base" onClick={() => setStatsOpen(true)}>
-                        <BarChart3 className="h-4 w-4 mr-1.5" />
-                        Stats
-                      </Button>
                     </div>
 
                     {/* More Options - collapsible */}
@@ -5754,16 +5754,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           Select Lineup
                         </Button>
                       )}
+                      <Button variant="outline" className="h-11 text-sm" onClick={() => setStatsOpen(true)}>
+                        <BarChart3 className="h-4 w-4 mr-1.5" />
+                        Stats
+                      </Button>
                       {!readOnly && (
                         <Button variant="outline" className="h-11 text-sm" onClick={handleResetFormation}>
                           <RotateCcw className="h-4 w-4 mr-1.5" />
                           Reset Formation
                         </Button>
                       )}
-                      <Button variant="outline" className="h-11 text-sm" onClick={() => setStatsOpen(true)}>
-                        <BarChart3 className="h-4 w-4 mr-1.5" />
-                        Stats
-                      </Button>
                     </div>
 
                     {/* More Options - collapsible */}
