@@ -106,6 +106,8 @@ export default function ScoreTracker({
         half: currentHalf,
         isOpponentGoal: true,
       };
+      setShowGoalSheet(false);
+      setSelectedGoalType(null);
       setPendingGoal({ goal: newGoal, label: `${opponentName} goal` });
     }
   };
