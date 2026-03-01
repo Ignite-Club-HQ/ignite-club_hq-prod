@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 import { Player, TeamSize, FORMATIONS, getPositionFromCoords } from "./types";
 import { PitchPosition, POSITION_COLORS, POSITION_LABELS } from "./PositionBadge";
 
+const TEAM_SIZES: TeamSize[] = ["3", "4", "5", "6", "7", "8", "9", "10", "11"];
+
 interface PreGameLineupScreenProps {
   players: Player[];
   teamSize: TeamSize;
@@ -17,6 +19,8 @@ interface PreGameLineupScreenProps {
   onConfirm: (players: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => void;
   onSkip: () => void;
   onClose: () => void;
+  onTeamSizeChange?: (size: TeamSize) => void;
+  onFormationChange?: (index: number) => void;
 }
 
 interface FormationSlot {
@@ -24,6 +28,24 @@ interface FormationSlot {
   position: { x: number; y: number };
   pitchPosition: PitchPosition;
   assignedPlayerId: string | null;
+}
+
+// Position color map for pitch circles
+const CIRCLE_COLORS: Record<PitchPosition, { empty: string; emptyBorder: string; filled: string; filledBorder: string }> = {
+  GK: { empty: "bg-yellow-500/25", emptyBorder: "border-yellow-400/60", filled: "bg-yellow-600/90", filledBorder: "border-yellow-300/70" },
+  DEF: { empty: "bg-blue-500/25", emptyBorder: "border-blue-400/60", filled: "bg-blue-600/90", filledBorder: "border-blue-300/70" },
+  MID: { empty: "bg-emerald-500/25", emptyBorder: "border-emerald-400/60", filled: "bg-emerald-600/90", filledBorder: "border-emerald-300/70" },
+  FWD: { empty: "bg-red-500/25", emptyBorder: "border-red-400/60", filled: "bg-red-600/90", filledBorder: "border-red-300/70" },
+};
+
+function buildSlots(formation: { positions: { x: number; y: number }[] } | undefined, teamSize: TeamSize): FormationSlot[] {
+  if (!formation) return [];
+  return formation.positions.map((pos, index) => ({
+    index,
+    position: pos,
+    pitchPosition: getPositionFromCoords(pos.y, teamSize),
+    assignedPlayerId: null,
+  }));
 }
 
 export default function PreGameLineupScreen({
@@ -34,25 +56,56 @@ export default function PreGameLineupScreen({
   onConfirm,
   onSkip,
   onClose,
+  onTeamSizeChange,
+  onFormationChange,
 }: PreGameLineupScreenProps) {
   const formation = FORMATIONS[teamSize][selectedFormation];
   const hasGk = !["3", "4", "5", "6"].includes(teamSize);
 
-  // Build formation slots
-  const initialSlots: FormationSlot[] = useMemo(() => {
-    if (!formation) return [];
-    return formation.positions.map((pos, index) => ({
-      index,
-      position: pos,
-      pitchPosition: getPositionFromCoords(pos.y, teamSize),
-      assignedPlayerId: null,
-    }));
-  }, [formation, teamSize]);
+  const initialSlots = useMemo(() => buildSlots(formation, teamSize), [formation, teamSize]);
 
   const [slots, setSlots] = useState<FormationSlot[]>(initialSlots);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
   const [firstHalfGkId, setFirstHalfGkId] = useState<string | null>(null);
   const [secondHalfGkId, setSecondHalfGkId] = useState<string | null>(null);
+
+  // When formation/teamSize changes from parent, rebuild slots but try to keep assignments
+  const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
+    const newFormation = FORMATIONS[newSize][0];
+    const newSlots = buildSlots(newFormation, newSize);
+    // Try to preserve assignments for slots that still exist
+    const oldAssignments = slots.filter(s => s.assignedPlayerId).map(s => s.assignedPlayerId!);
+    let idx = 0;
+    for (const slot of newSlots) {
+      if (idx < oldAssignments.length) {
+        slot.assignedPlayerId = oldAssignments[idx];
+        idx++;
+      }
+    }
+    setSlots(newSlots);
+    setSelectedSlotIndex(null);
+    setFirstHalfGkId(null);
+    setSecondHalfGkId(null);
+    onTeamSizeChange?.(newSize);
+    onFormationChange?.(0);
+  }, [slots, onTeamSizeChange, onFormationChange]);
+
+  const handleFormationChange = useCallback((formationIndex: number) => {
+    const newFormation = FORMATIONS[teamSize][formationIndex];
+    const newSlots = buildSlots(newFormation, teamSize);
+    // Preserve assignments
+    const oldAssignments = slots.filter(s => s.assignedPlayerId).map(s => s.assignedPlayerId!);
+    let idx = 0;
+    for (const slot of newSlots) {
+      if (idx < oldAssignments.length) {
+        slot.assignedPlayerId = oldAssignments[idx];
+        idx++;
+      }
+    }
+    setSlots(newSlots);
+    setSelectedSlotIndex(null);
+    onFormationChange?.(formationIndex);
+  }, [teamSize, slots, onFormationChange]);
 
   // Track assigned player IDs
   const assignedPlayerIds = useMemo(
@@ -84,7 +137,6 @@ export default function PreGameLineupScreen({
     const slot = slots[selectedSlotIndex];
     if (!slot) return benchPlayers;
     
-    // Show eligible players first, then others
     return [...benchPlayers].sort((a, b) => {
       const aEligible = canPlayPosition(a, slot.pitchPosition);
       const bEligible = canPlayPosition(b, slot.pitchPosition);
@@ -98,9 +150,7 @@ export default function PreGameLineupScreen({
   const handleSlotTap = useCallback((slotIndex: number) => {
     const slot = slots[slotIndex];
     if (slot.assignedPlayerId) {
-      // Unassign player
       setSlots(prev => prev.map((s, i) => i === slotIndex ? { ...s, assignedPlayerId: null } : s));
-      // Clear GK selections if this was a GK
       if (slot.assignedPlayerId === firstHalfGkId) setFirstHalfGkId(null);
       if (slot.assignedPlayerId === secondHalfGkId) setSecondHalfGkId(null);
       setSelectedSlotIndex(null);
@@ -111,18 +161,15 @@ export default function PreGameLineupScreen({
 
   // Handle picking a player for selected slot
   const handlePickPlayer = useCallback((playerId: string) => {
-    // If no slot selected, auto-pick the first empty slot (prefer matching position)
     let targetIndex = selectedSlotIndex;
     if (targetIndex === null) {
       const player = players.find(p => p.id === playerId);
-      // Try to find an empty slot matching the player's position
       const matchingSlot = player?.assignedPositions?.length
         ? slots.findIndex(s => !s.assignedPlayerId && player.assignedPositions!.includes(s.pitchPosition))
         : -1;
       if (matchingSlot !== undefined && matchingSlot >= 0) {
         targetIndex = matchingSlot;
       } else {
-        // Fall back to first empty slot
         targetIndex = slots.findIndex(s => !s.assignedPlayerId);
       }
       if (targetIndex < 0) return;
@@ -133,7 +180,6 @@ export default function PreGameLineupScreen({
       i === finalIndex ? { ...s, assignedPlayerId: playerId } : s
     ));
 
-    // If this is a GK slot, auto-set as first half GK
     const slot = slots[finalIndex];
     if (slot.pitchPosition === "GK" && !firstHalfGkId) {
       setFirstHalfGkId(playerId);
@@ -142,55 +188,31 @@ export default function PreGameLineupScreen({
     setSelectedSlotIndex(null);
   }, [selectedSlotIndex, slots, firstHalfGkId, players]);
 
-  // Auto-fill: smart assign remaining bench players
+  // Auto-fill
   const handleAutoFill = useCallback(() => {
     const newSlots = [...slots];
     const used = new Set(newSlots.filter(s => s.assignedPlayerId).map(s => s.assignedPlayerId!));
-    
     const available = players.filter(p => !used.has(p.id) && !p.isInjured);
     
-    // Fill empty slots with best-fit players
     for (const slot of newSlots) {
       if (slot.assignedPlayerId) continue;
-      
-      // Prefer specialists first
       const specialist = available.find(
         p => !used.has(p.id) && p.assignedPositions?.length === 1 && p.assignedPositions[0] === slot.pitchPosition
       );
-      if (specialist) {
-        slot.assignedPlayerId = specialist.id;
-        used.add(specialist.id);
-        continue;
-      }
-      
-      // Then multi-position eligible
-      const eligible = available.find(
-        p => !used.has(p.id) && canPlayPosition(p, slot.pitchPosition)
-      );
-      if (eligible) {
-        slot.assignedPlayerId = eligible.id;
-        used.add(eligible.id);
-        continue;
-      }
-      
-      // Then anyone
+      if (specialist) { slot.assignedPlayerId = specialist.id; used.add(specialist.id); continue; }
+      const eligible = available.find(p => !used.has(p.id) && canPlayPosition(p, slot.pitchPosition));
+      if (eligible) { slot.assignedPlayerId = eligible.id; used.add(eligible.id); continue; }
       const anyone = available.find(p => !used.has(p.id));
-      if (anyone) {
-        slot.assignedPlayerId = anyone.id;
-        used.add(anyone.id);
-      }
+      if (anyone) { slot.assignedPlayerId = anyone.id; used.add(anyone.id); }
     }
     
     setSlots(newSlots);
-
-    // Auto-set GK if not set
     if (hasGk && !firstHalfGkId) {
       const gkSlot = newSlots.find(s => s.pitchPosition === "GK" && s.assignedPlayerId);
       if (gkSlot) setFirstHalfGkId(gkSlot.assignedPlayerId);
     }
   }, [slots, players, canPlayPosition, hasGk, firstHalfGkId]);
 
-  // Clear all assignments
   const handleClearAll = useCallback(() => {
     setSlots(prev => prev.map(s => ({ ...s, assignedPlayerId: null })));
     setFirstHalfGkId(null);
@@ -198,37 +220,22 @@ export default function PreGameLineupScreen({
     setSelectedSlotIndex(null);
   }, []);
 
-  // Confirm lineup
   const handleConfirm = useCallback(() => {
-    // Build players array with positions
     const updatedPlayers = players.map(player => {
       const slot = slots.find(s => s.assignedPlayerId === player.id);
       if (slot) {
-        return {
-          ...player,
-          position: slot.position,
-          currentPitchPosition: slot.pitchPosition,
-        };
+        return { ...player, position: slot.position, currentPitchPosition: slot.pitchPosition };
       }
-      return {
-        ...player,
-        position: null as { x: number; y: number } | null,
-        currentPitchPosition: undefined,
-      };
+      return { ...player, position: null as { x: number; y: number } | null, currentPitchPosition: undefined };
     });
-    
-    onConfirm(
-      updatedPlayers,
-      firstHalfGkId || undefined,
-      secondHalfGkId || undefined
-    );
+    onConfirm(updatedPlayers, firstHalfGkId || undefined, secondHalfGkId || undefined);
   }, [players, slots, firstHalfGkId, secondHalfGkId, onConfirm]);
 
   const filledSlots = slots.filter(s => s.assignedPlayerId).length;
   const totalSlots = slots.length;
-  const allFilled = filledSlots === totalSlots;
-
   const getPlayerById = useCallback((id: string) => players.find(p => p.id === id), [players]);
+
+  const formations = FORMATIONS[teamSize];
 
   return (
     <div className="fixed inset-0 z-[99999] bg-background flex flex-col">
@@ -248,19 +255,61 @@ export default function PreGameLineupScreen({
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* Formation visual - mini pitch with slots */}
-        <div className="relative w-full aspect-[3/4] max-h-[45vh] bg-[hsl(var(--pitch-green,120,40%,30%))] rounded-lg mx-auto my-2 max-w-sm shrink-0" style={{ backgroundColor: '#2d5a27' }}>
+        {/* Team size & formation selectors */}
+        <div className="px-4 py-2 space-y-2 border-b border-border shrink-0 bg-muted/20">
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Players per Team</Label>
+            <div className="flex rounded-lg border border-border overflow-hidden">
+              {TEAM_SIZES.map(size => (
+                <button
+                  key={size}
+                  className={cn(
+                    "flex-1 py-1.5 text-xs font-medium transition-colors",
+                    size === teamSize
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background hover:bg-muted text-foreground"
+                  )}
+                  onClick={() => handleTeamSizeChange(size)}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Formation</Label>
+            <div className="flex rounded-lg border border-border overflow-hidden">
+              {formations.map((f, i) => (
+                <button
+                  key={i}
+                  className={cn(
+                    "flex-1 py-1.5 text-xs font-medium transition-colors",
+                    i === selectedFormation
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background hover:bg-muted text-foreground"
+                  )}
+                  onClick={() => handleFormationChange(i)}
+                >
+                  {f.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Formation visual - mini pitch with color-coded slots */}
+        <div className="relative w-full aspect-[3/4] max-h-[40vh] bg-[hsl(var(--pitch-green,120,40%,30%))] rounded-lg mx-auto my-2 max-w-sm shrink-0" style={{ backgroundColor: '#2d5a27' }}>
           {/* Pitch lines */}
           <div className="absolute inset-[8%] border-2 border-white/30 rounded" />
           <div className="absolute left-[8%] right-[8%] top-[50%] h-[1px] bg-white/30" />
           <div className="absolute left-[25%] right-[25%] top-[8%] h-[18%] border-2 border-white/20 rounded-b" />
           <div className="absolute left-[25%] right-[25%] bottom-[8%] h-[18%] border-2 border-white/20 rounded-t" />
 
-          {/* Formation slots */}
+          {/* Formation slots - color-coded by position */}
           {slots.map((slot, i) => {
             const player = slot.assignedPlayerId ? getPlayerById(slot.assignedPlayerId) : null;
             const isSelected = selectedSlotIndex === i;
-            const colors = POSITION_COLORS[slot.pitchPosition];
+            const colors = CIRCLE_COLORS[slot.pitchPosition];
 
             return (
               <button
@@ -268,10 +317,10 @@ export default function PreGameLineupScreen({
                 className={cn(
                   "absolute w-12 h-12 -ml-6 -mt-6 rounded-full flex flex-col items-center justify-center transition-all text-white border-2",
                   player
-                    ? "bg-primary/90 border-primary-foreground/50"
+                    ? cn(colors.filled, colors.filledBorder)
                     : isSelected
                       ? "bg-white/40 border-white animate-pulse"
-                      : "bg-white/20 border-white/40 border-dashed"
+                      : cn(colors.empty, colors.emptyBorder, "border-dashed")
                 )}
                 style={{ left: `${slot.position.x}%`, top: `${slot.position.y}%` }}
                 onClick={() => handleSlotTap(i)}
@@ -286,7 +335,7 @@ export default function PreGameLineupScreen({
                     </span>
                   </>
                 ) : (
-                  <span className={cn("text-[9px] font-bold", colors.text)}>
+                  <span className="text-[10px] font-bold text-white drop-shadow-sm">
                     {slot.pitchPosition}
                   </span>
                 )}
@@ -297,7 +346,7 @@ export default function PreGameLineupScreen({
 
         {/* Player picker / GK rotation section */}
         <div className="flex-1 min-h-0 flex flex-col border-t border-border">
-          {/* GK Rotation picker (when applicable) */}
+          {/* GK Rotation picker */}
           {hasGk && rotateGkAtHalftime && gkCapablePlayers.length >= 2 && (
             <div className="px-4 py-2 border-b border-border bg-muted/30 shrink-0">
               <p className="text-xs font-medium text-muted-foreground mb-1.5">GK Rotation</p>
@@ -394,9 +443,9 @@ export default function PreGameLineupScreen({
                           <div className="flex gap-1 mt-0.5">
                             {player.assignedPositions?.length ? (
                               player.assignedPositions.map(pos => {
-                                const colors = POSITION_COLORS[pos];
+                                const posColors = POSITION_COLORS[pos];
                                 return (
-                                  <span key={pos} className={cn("text-[9px] font-bold px-1 py-0.5 rounded", colors.bg, colors.text)}>
+                                  <span key={pos} className={cn("text-[9px] font-bold px-1 py-0.5 rounded", posColors.bg, posColors.text)}>
                                     {pos}
                                   </span>
                                 );

@@ -6170,6 +6170,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             onConfirm={handleLineupConfirm}
             onSkip={handleLineupSkip}
             onClose={() => setShowLineupPicker(false)}
+            onTeamSizeChange={(size) => setTeamSize(size)}
+            onFormationChange={(index) => setSelectedFormation(index)}
           />
         </Suspense>
       )}
