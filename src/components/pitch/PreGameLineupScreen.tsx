@@ -111,20 +111,36 @@ export default function PreGameLineupScreen({
 
   // Handle picking a player for selected slot
   const handlePickPlayer = useCallback((playerId: string) => {
-    if (selectedSlotIndex === null) return;
+    // If no slot selected, auto-pick the first empty slot (prefer matching position)
+    let targetIndex = selectedSlotIndex;
+    if (targetIndex === null) {
+      const player = players.find(p => p.id === playerId);
+      // Try to find an empty slot matching the player's position
+      const matchingSlot = player?.assignedPositions?.length
+        ? slots.findIndex(s => !s.assignedPlayerId && player.assignedPositions!.includes(s.pitchPosition))
+        : -1;
+      if (matchingSlot !== undefined && matchingSlot >= 0) {
+        targetIndex = matchingSlot;
+      } else {
+        // Fall back to first empty slot
+        targetIndex = slots.findIndex(s => !s.assignedPlayerId);
+      }
+      if (targetIndex < 0) return;
+    }
     
+    const finalIndex = targetIndex;
     setSlots(prev => prev.map((s, i) =>
-      i === selectedSlotIndex ? { ...s, assignedPlayerId: playerId } : s
+      i === finalIndex ? { ...s, assignedPlayerId: playerId } : s
     ));
 
     // If this is a GK slot, auto-set as first half GK
-    const slot = slots[selectedSlotIndex];
+    const slot = slots[finalIndex];
     if (slot.pitchPosition === "GK" && !firstHalfGkId) {
       setFirstHalfGkId(playerId);
     }
 
     setSelectedSlotIndex(null);
-  }, [selectedSlotIndex, slots, firstHalfGkId]);
+  }, [selectedSlotIndex, slots, firstHalfGkId, players]);
 
   // Auto-fill: smart assign remaining bench players
   const handleAutoFill = useCallback(() => {
@@ -325,7 +341,7 @@ export default function PreGameLineupScreen({
             <p className="text-sm font-medium">
               {selectedSlotIndex !== null
                 ? `Pick player for ${slots[selectedSlotIndex]?.pitchPosition}`
-                : "Tap a position on the pitch, then pick a player"
+                : "Tap a player to auto-assign, or tap a position first"
               }
             </p>
             <div className="flex gap-1.5">
@@ -359,16 +375,15 @@ export default function PreGameLineupScreen({
                   return (
                     <button
                       key={player.id}
-                      disabled={selectedSlotIndex === null}
                       className={cn(
                         "w-full flex items-center justify-between p-2.5 rounded-lg border transition-all text-left",
                         selectedSlotIndex === null
-                          ? "border-border bg-muted/30 opacity-60"
+                          ? "border-border bg-muted/30 hover:bg-muted/50 active:bg-muted/70"
                           : isEligible
                             ? "border-primary/30 bg-primary/5 hover:bg-primary/10 active:bg-primary/20"
                             : "border-border bg-muted/30 opacity-50"
                       )}
-                      onClick={() => selectedSlotIndex !== null && handlePickPlayer(player.id)}
+                      onClick={() => handlePickPlayer(player.id)}
                     >
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
