@@ -4695,13 +4695,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               <Settings2 className="h-4 w-4 mr-1.5" />
                               Positions
                             </Button>
+                            <Suspense fallback={null}>
+                              <AddFillInPlayerDialog
+                                onAddPlayer={handleAddFillInPlayer}
+                                existingNumbers={existingJerseyNumbers}
+                              />
+                            </Suspense>
                           </div>
-                          <Suspense fallback={null}>
-                            <AddFillInPlayerDialog
-                              onAddPlayer={handleAddFillInPlayer}
-                              existingNumbers={existingJerseyNumbers}
-                            />
-                          </Suspense>
                           {parseInt(teamSize) >= 7 && (
                             <div className="flex items-center justify-between py-1">
                               <Label className="text-sm">Rotate GK at Halftime</Label>
@@ -5686,13 +5686,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               <Settings2 className="h-4 w-4 mr-1.5" />
                               Positions
                             </Button>
+                            <Suspense fallback={null}>
+                              <AddFillInPlayerDialog
+                                onAddPlayer={handleAddFillInPlayer}
+                                existingNumbers={existingJerseyNumbers}
+                              />
+                            </Suspense>
                           </div>
-                          <Suspense fallback={null}>
-                            <AddFillInPlayerDialog
-                              onAddPlayer={handleAddFillInPlayer}
-                              existingNumbers={existingJerseyNumbers}
-                            />
-                          </Suspense>
                           {parseInt(teamSize) >= 7 && (
                             <div className="flex items-center justify-between py-1">
                               <Label className="text-sm">Rotate GK at Halftime</Label>

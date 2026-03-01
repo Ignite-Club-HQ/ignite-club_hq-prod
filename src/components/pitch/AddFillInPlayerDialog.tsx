@@ -68,8 +68,8 @@ export default function AddFillInPlayerDialog({
         variant="outline" 
         size={compact ? "sm" : "default"}
         className={cn(
-          "gap-1.5",
-          compact && "h-7 text-xs px-2"
+          "gap-1.5 w-full",
+          compact ? "h-7 text-xs px-2" : "h-10 text-sm"
         )}
         onClick={() => setOpen(true)}
       >
