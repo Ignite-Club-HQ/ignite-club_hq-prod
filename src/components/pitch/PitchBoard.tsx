@@ -5143,9 +5143,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </Badge>
         )}
         {!readOnly && (
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setStatsOpen(true)}>
-            <BarChart3 className="h-4 w-4" />
-          </Button>
+          <>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleResetFormation}>
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setStatsOpen(true)}>
+              <BarChart3 className="h-4 w-4" />
+            </Button>
+          </>
         )}
       </div>
 
