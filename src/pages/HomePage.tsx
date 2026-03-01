@@ -1979,38 +1979,20 @@ export default function HomePage() {
                 onClick={() => navigate(`/events/${event.id}`)}
               >
                 <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <Badge className={eventTypeColors[event.type]} variant="secondary">
-                          {event.type}
-                        </Badge>
-                        {event.is_cancelled && (
-                          <Badge variant="destructive">Cancelled</Badge>
-                        )}
-                        {event.teams?.name && (
-                          <span className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                            <span>{getSportEmoji(event.clubs?.sport)}</span>
-                            {event.teams.name}
-                          </span>
-                        )}
-                      </div>
-                      <h3 className={`font-semibold ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground mt-0.5 flex-wrap">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3.5 w-3.5" />
-                          {formatEventDate(event.event_date)}
-                        </span>
-                        {event.suburb && (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3.5 w-3.5" />
-                            {event.suburb}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {/* Quick RSVP Button - only for non-cancelled events */}
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <Badge className={eventTypeColors[event.type]} variant="secondary">
+                      {event.type}
+                    </Badge>
+                    {event.is_cancelled && (
+                      <Badge variant="destructive">Cancelled</Badge>
+                    )}
+                    {event.teams?.name && (
+                      <span className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                        <span>{getSportEmoji(event.clubs?.sport)}</span>
+                        {event.teams.name}
+                      </span>
+                    )}
+                    <div className="flex items-center gap-1 ml-auto shrink-0">
                       {!event.is_cancelled && (
                         <Button
                           variant="outline"
@@ -2045,7 +2027,6 @@ export default function HomePage() {
                                   e.stopPropagation();
                                   setLoadingRemindCount(true);
                                   
-                                  // Fetch count of non-RSVP members first
                                   const { data: rsvps } = await supabase
                                     .from("rsvps")
                                     .select("user_id")
@@ -2053,11 +2034,9 @@ export default function HomePage() {
                                   
                                   const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
                                   
-                                  // Get all members - handle mini-league events differently
                                   let allMemberIds: string[] = [];
                                   
                                   if (event.mini_league_id) {
-                                    // Get mini league to find the club_id
                                     const { data: league } = await supabase
                                       .from("mini_leagues")
                                       .select("club_id")
@@ -2065,7 +2044,6 @@ export default function HomePage() {
                                       .single();
                                     
                                     if (league) {
-                                      // Get all parent user IDs from mini league players
                                       const { data: playersData } = await supabase
                                         .from("mini_league_players")
                                         .select("parent_user_id")
@@ -2074,7 +2052,6 @@ export default function HomePage() {
                                       
                                       const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
                                       
-                                      // Get club admins, league admins, and coaches
                                       const { data: adminRoles } = await supabase
                                         .from("user_roles")
                                         .select("user_id")
@@ -2141,6 +2118,19 @@ export default function HomePage() {
                         </>
                       )}
                     </div>
+                  </div>
+                  <h3 className={`font-semibold ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground mt-0.5 flex-wrap">
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5" />
+                      {formatEventDate(event.event_date)}
+                    </span>
+                    {event.suburb && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5" />
+                        {event.suburb}
+                      </span>
+                    )}
                   </div>
                 </CardContent>
               </Card>
