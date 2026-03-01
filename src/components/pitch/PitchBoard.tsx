@@ -4363,8 +4363,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                                 variant="outline" 
                                 className="w-full h-10 text-sm" 
                                 onClick={handleOpenNewPlan}
-                                disabled={gameInProgress}
-                                title={gameInProgress ? "Can only create plan before game starts" : undefined}
                               >
                                 <Calendar className="h-4 w-4 mr-1.5" />
                                 Auto-Subs
@@ -4652,6 +4650,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           rotationSpeed={rotationSpeed}
           disablePositionSwaps={disablePositionSwaps}
           disableBatchSubs={disableBatchSubs}
+          currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+          currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
         />
 
         {/* Sub Confirm Dialog */}
@@ -5322,8 +5322,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                                 variant="outline" 
                                 className="w-full h-11 text-sm" 
                                 onClick={handleOpenNewPlan}
-                                disabled={gameInProgress}
-                                title={gameInProgress ? "Can only create plan before game starts" : undefined}
                               >
                                 <Calendar className="h-4 w-4 mr-1.5" />
                                 Auto-Subs
