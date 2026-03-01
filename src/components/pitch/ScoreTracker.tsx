@@ -179,13 +179,12 @@ export default function ScoreTracker({
       <>
         <button
           onClick={() => {
-            if (isLocked) {
-              // When locked, allow viewing goals if any exist
-              if (goals.length > 0) {
-                setShowEditSheet(true);
-              }
-            } else {
-              // When not locked, always open add goal sheet
+            if (goals.length > 0) {
+              setShowEditSheet(true);
+              return;
+            }
+
+            if (!isLocked) {
               if (isMiniLeague) {
                 setSelectedGoalType("teamA");
               } else {
@@ -345,6 +344,149 @@ export default function ScoreTracker({
                     </div>
                   </>
                 )}
+              </div>
+            </ScrollArea>
+          </SheetContent>
+        </Sheet>
+
+        {/* Edit goals sheet */}
+        <Sheet open={showEditSheet} onOpenChange={setShowEditSheet}>
+          <SheetContent
+            side="bottom"
+            className="rounded-t-xl h-[70vh]"
+            style={{ zIndex: 100001 }}
+          >
+            <SheetHeader className="pb-2">
+              <SheetTitle className="flex items-center gap-2">
+                <Pencil className="h-5 w-5 text-primary" />
+                Edit Goals
+              </SheetTitle>
+            </SheetHeader>
+            <ScrollArea className="h-[calc(70vh-4rem)]">
+              <div className="space-y-2 pr-4">
+                {goals.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No goals recorded</p>
+                ) : (
+                  goals.sort((a, b) => a.time - b.time).map((goal) => {
+                    const isOpponent = isMiniLeague ? goal.teamSide === "b" : goal.isOpponentGoal;
+                    return (
+                      <div key={goal.id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={isOpponent ? "secondary" : "default"} className="text-[10px] px-1.5 shrink-0">
+                              {formatTime(goal.time)}
+                            </Badge>
+                            <span className="font-medium text-sm truncate">
+                              {goal.scorerName || (isOpponent ? (isMiniLeague ? (goal.teamSide === "b" ? teamBName : teamAName) : opponentName) : "Unknown")}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {isOpponent ? (isMiniLeague ? (goal.teamSide === "b" ? teamBName : teamAName) : opponentName) : (isMiniLeague ? (goal.teamSide === "a" ? teamAName : teamBName) : teamName)} · Half {goal.half}
+                          </p>
+                        </div>
+                        {!isLocked && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            {!goal.isOpponentGoal && onUpdateGoal && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => {
+                                  setEditingGoal(goal);
+                                  setShowChangeScorerSheet(true);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => {
+                                onRemoveGoal(goal.id);
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+                {!isLocked && (
+                  <Button
+                    variant="outline"
+                    className="w-full mt-3"
+                    onClick={() => {
+                      setShowEditSheet(false);
+                      if (isMiniLeague) {
+                        setSelectedGoalType("teamA");
+                      } else {
+                        setSelectedGoalType("team");
+                      }
+                      setShowGoalSheet(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Goal
+                  </Button>
+                )}
+              </div>
+            </ScrollArea>
+          </SheetContent>
+        </Sheet>
+
+        {/* Change scorer sheet */}
+        <Sheet open={showChangeScorerSheet} onOpenChange={(open) => {
+          setShowChangeScorerSheet(open);
+          if (!open) setEditingGoal(null);
+        }}>
+          <SheetContent
+            side="bottom"
+            className="rounded-t-xl h-[85vh]"
+            style={{ zIndex: 100002 }}
+          >
+            <SheetHeader className="pb-2">
+              <SheetTitle className="flex items-center gap-2">
+                <Pencil className="h-5 w-5 text-primary" />
+                Change Scorer
+              </SheetTitle>
+            </SheetHeader>
+            <ScrollArea className="h-[calc(85vh-4rem)]">
+              <div className="space-y-2 pr-4">
+                <button
+                  className="w-full text-left p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                  onClick={() => handleChangeScorer(null)}
+                >
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium text-sm">Unknown / Own Goal</span>
+                  </div>
+                </button>
+                {players.map((player) => (
+                  <button
+                    key={player.id}
+                    className={cn(
+                      "w-full text-left p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors",
+                      editingGoal?.scorerId === player.id && "bg-primary/10 border-primary"
+                    )}
+                    onClick={() => handleChangeScorer(player)}
+                  >
+                    <div className="flex items-center gap-2">
+                      {player.number && (
+                        <Badge variant="outline" className="text-xs">
+                          #{player.number}
+                        </Badge>
+                      )}
+                      <span className="font-medium text-sm">{player.name}</span>
+                      {player.position !== null && (
+                        <span className="text-xs text-muted-foreground">(On Pitch)</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
               </div>
             </ScrollArea>
           </SheetContent>
