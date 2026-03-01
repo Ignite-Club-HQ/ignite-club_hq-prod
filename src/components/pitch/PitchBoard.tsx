@@ -4904,19 +4904,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
             {/* Inline formation suggestion popup */}
             {tacticalFormationSuggestion && (
-              <div className="absolute right-14 top-1/2 -translate-y-1/2 w-48 bg-background border border-border rounded-lg shadow-xl p-2.5 animate-fade-in">
-                <div className="flex items-start justify-between gap-1">
-                  <p className="text-xs text-foreground leading-snug">
-                    Try <span className="font-semibold">{tacticalFormationSuggestion.formationName}</span> for{" "}
-                    <span className="font-semibold">{tacticalFormationSuggestion.mode === "attack" ? "Attack" : "Defend"}</span>?
+              <div className="absolute right-14 top-1/2 -translate-y-1/2 w-56 bg-background border border-border rounded-xl shadow-xl p-3.5 animate-fade-in">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm text-foreground leading-snug">
+                    Try <span className="font-bold">{tacticalFormationSuggestion.formationName}</span> for{" "}
+                    <span className="font-bold">{tacticalFormationSuggestion.mode === "attack" ? "Attack" : "Defend"}</span>?
                   </p>
-                  <button type="button" onClick={handleDismissTacticalSuggestion} className="rounded-md p-0.5 text-muted-foreground hover:text-foreground shrink-0" aria-label="Dismiss">
-                    <X className="h-3.5 w-3.5" />
+                  <button type="button" onClick={handleDismissTacticalSuggestion} className="rounded-md p-1.5 text-muted-foreground hover:text-foreground shrink-0 -mt-1 -mr-1" aria-label="Dismiss">
+                    <X className="h-5 w-5" />
                   </button>
                 </div>
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  <Button type="button" size="sm" className="h-7 text-xs px-2" onClick={handleApplyTacticalSuggestion}>Apply</Button>
-                  <Button type="button" size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={handleDismissTacticalSuggestion}>Dismiss</Button>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <Button type="button" size="sm" className="h-10 text-sm px-4 font-semibold" onClick={handleApplyTacticalSuggestion}>Apply</Button>
+                  <Button type="button" size="sm" variant="ghost" className="h-10 text-sm px-4" onClick={handleDismissTacticalSuggestion}>Dismiss</Button>
                 </div>
               </div>
             )}
