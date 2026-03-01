@@ -263,6 +263,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [autoSubActive, setAutoSubActive] = useState(() => savedState?.autoSubActive || false);
   const [autoSubPaused, setAutoSubPaused] = useState(() => savedState?.autoSubPaused || false);
   const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
+  const [preferredSecondHalfGkId, setPreferredSecondHalfGkId] = useState<string | undefined>(undefined);
   const [linkedEventId, setLinkedEventId] = useState<string | null>(() => savedState?.linkedEventId || initialLinkedEventId || null);
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
@@ -493,6 +494,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
     setPlayers(updatedPlayers);
     setShowLineupPicker(false);
+    if (secondHalfGkId) {
+      setPreferredSecondHalfGkId(secondHalfGkId);
+    }
     if (firstHalfGkId || secondHalfGkId) {
       console.log("[PitchBoard] Lineup confirmed with GK rotation:", { firstHalfGkId, secondHalfGkId });
     }
@@ -4808,6 +4812,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           rotateGkAtHalftime={rotateGkAtHalftime}
           currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
           currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+          preferredSecondHalfGkId={preferredSecondHalfGkId}
         />
 
         {/* Sub Confirm Dialog */}
@@ -6129,6 +6134,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         disablePositionSwaps={disablePositionSwaps}
         disableBatchSubs={disableBatchSubs}
         rotateGkAtHalftime={rotateGkAtHalftime}
+        preferredSecondHalfGkId={preferredSecondHalfGkId}
       />
 
       {/* Sub Confirm Dialog */}
