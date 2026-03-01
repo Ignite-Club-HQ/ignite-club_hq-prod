@@ -5151,63 +5151,59 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
       {/* Full-screen Pitch Area */}
       <div className="flex-1 min-h-0 relative overflow-hidden">
-        {/* Floating timer */}
+        {/* Floating score + timer combined row */}
         <div 
-          className="absolute z-[55] select-none pointer-events-auto"
-          style={{ 
-            right: 8,
-            top: gameInProgress && !hideScores && !showScoreInPortrait ? 52 : 8,
-            touchAction: 'auto',
-          }}
+          className="absolute z-[61] select-none pointer-events-auto right-2 top-2"
+          style={{ touchAction: 'auto' }}
         >
-          <div className="flex flex-col items-center bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
-            <div className="flex items-center gap-2">
-            <GameTimer 
-              key={timerResetKey}
-              ref={gameTimerRef} 
-              compact
-              teamId={teamId} 
-              teamName={teamName} 
-              onTimeUpdate={handleTimerUpdate} 
-              onHalfChange={handleHalfChange} 
-              readOnly={readOnly}
-              hideExtras
-              minutesPerHalf={minutesPerHalf}
-              onMinutesPerHalfChange={handleMinutesPerHalfChange}
-            />
-            {autoSubActive && (
-              <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-1.5 py-0.5 rounded animate-pulse">
-                AUTO
-              </span>
+          <div className="flex items-center gap-1.5">
+            {/* Score tracker (mini) */}
+            {gameInProgress && !hideScores && !showScoreInPortrait && (
+              <ScoreTracker
+                goals={goals}
+                onAddGoal={handleAddGoal}
+                onRemoveGoal={handleRemoveGoal}
+                players={players}
+                currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+                elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+                teamName={teamName}
+                opponentName={opponentName}
+                readOnly={readOnly}
+                isGameFinished={gameTimerRef.current?.isGameFinished() || false}
+                miniLeagueTeams={miniLeagueTeams}
+                mini
+              />
             )}
+            {/* Timer */}
+            <div className="flex flex-col items-center bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+              <div className="flex items-center gap-2">
+              <GameTimer 
+                key={timerResetKey}
+                ref={gameTimerRef} 
+                compact
+                teamId={teamId} 
+                teamName={teamName} 
+                onTimeUpdate={handleTimerUpdate} 
+                onHalfChange={handleHalfChange} 
+                readOnly={readOnly}
+                hideExtras
+                minutesPerHalf={minutesPerHalf}
+                onMinutesPerHalfChange={handleMinutesPerHalfChange}
+              />
+              {autoSubActive && (
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-1.5 py-0.5 rounded animate-pulse">
+                  AUTO
+                </span>
+              )}
+              </div>
+              {tacticalMode !== "neutral" && (
+                <span className="text-[9px] text-muted-foreground font-medium mt-0.5">
+                  {FORMATIONS[teamSize][selectedFormation]?.name} • {TACTICAL_MODE_LABELS[tacticalMode]}
+                </span>
+              )}
             </div>
-            {tacticalMode !== "neutral" && (
-              <span className="text-[9px] text-muted-foreground font-medium mt-0.5">
-                {FORMATIONS[teamSize][selectedFormation]?.name} • {TACTICAL_MODE_LABELS[tacticalMode]}
-              </span>
-            )}
           </div>
         </div>
-
-        {/* Floating score tracker */}
-        {gameInProgress && !hideScores && !showScoreInPortrait && (
-          <div className="absolute top-2 right-2 z-[61]">
-            <ScoreTracker
-              goals={goals}
-              onAddGoal={handleAddGoal}
-              onRemoveGoal={handleRemoveGoal}
-              players={players}
-              currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-              elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-              teamName={teamName}
-              opponentName={opponentName}
-              readOnly={readOnly}
-              isGameFinished={gameTimerRef.current?.isGameFinished() || false}
-              miniLeagueTeams={miniLeagueTeams}
-              mini
-            />
-          </div>
-        )}
 
         {/* Floating undo button - bottom-right, above the chevron-up arrow */}
         {!readOnly && showFloatingUndo && undoHistory.length > 0 && !portraitSheetOpen && (
