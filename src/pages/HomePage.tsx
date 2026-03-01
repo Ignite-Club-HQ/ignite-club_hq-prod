@@ -1992,7 +1992,7 @@ export default function HomePage() {
                         {event.teams.name}
                       </span>
                     )}
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-3 shrink-0">
                       {!event.is_cancelled && (
                         <Button
                           variant="outline"
