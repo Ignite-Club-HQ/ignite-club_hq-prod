@@ -4791,10 +4791,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             <Switch checked={hideScores} onCheckedChange={setHideScores} />
                           </div>
                           <div className="flex items-center gap-4 py-1">
-                            <Label className="text-sm">Pin Pitch Shortcuts</Label>
-                            <Switch checked={pinPitchShortcuts} onCheckedChange={setPinPitchShortcuts} />
-                          </div>
-                          <div className="flex items-center gap-4 py-1">
                             <Label className="text-sm">Starting Lineup Screen</Label>
                             <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
                           </div>
