@@ -153,7 +153,8 @@ export const recalculateRemainingPlan = (
   halfDurationSeconds: number,
   currentElapsedSeconds: number,
   currentHalf: 1 | 2,
-  skippedSub: SubstitutionEvent
+  skippedSub: SubstitutionEvent,
+  rotateGkAtHalftime: boolean = true
 ): SubstitutionEvent[] => {
   const plan: SubstitutionEvent[] = [];
   
@@ -178,7 +179,7 @@ export const recalculateRemainingPlan = (
   });
   
   if (outfieldOnBench.length === 0) {
-    if (gkOnBench && gkOnPitch && currentHalf === 1) {
+    if (rotateGkAtHalftime && gkOnBench && gkOnPitch && currentHalf === 1) {
       plan.push({
         time: 0,
         half: 2,

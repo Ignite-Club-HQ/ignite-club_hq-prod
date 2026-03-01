@@ -153,6 +153,10 @@ interface PitchToolbarProps {
   disableBatchSubs?: boolean;
   onDisableBatchSubsChange?: (disabled: boolean) => void;
   
+  // Rotate GK at halftime
+  rotateGkAtHalftime?: boolean;
+  onRotateGkAtHalftimeChange?: (enabled: boolean) => void;
+  
   // Save settings
   onSaveSettings?: () => void;
   isSavingSettings?: boolean;
@@ -283,6 +287,8 @@ function PitchToolbar({
   onDisablePositionSwapsChange,
   disableBatchSubs = false,
   onDisableBatchSubsChange,
+  rotateGkAtHalftime = true,
+  onRotateGkAtHalftimeChange,
   onSaveSettings,
   isSavingSettings = false,
   showMatchHeader,
@@ -623,6 +629,8 @@ function PitchToolbar({
               onDisablePositionSwapsChange={onDisablePositionSwapsChange}
               disableBatchSubs={disableBatchSubs}
               onDisableBatchSubsChange={onDisableBatchSubsChange}
+              rotateGkAtHalftime={rotateGkAtHalftime}
+              onRotateGkAtHalftimeChange={onRotateGkAtHalftimeChange}
               onOpenPositionEditor={onOpenPositionEditor}
               mockMode={mockMode}
               onMockModeChange={onMockModeChange}
@@ -980,6 +988,8 @@ function PitchToolbar({
             onDisablePositionSwapsChange={onDisablePositionSwapsChange}
             disableBatchSubs={disableBatchSubs}
             onDisableBatchSubsChange={onDisableBatchSubsChange}
+            rotateGkAtHalftime={rotateGkAtHalftime}
+            onRotateGkAtHalftimeChange={onRotateGkAtHalftimeChange}
             onOpenPositionEditor={onOpenPositionEditor}
             mockMode={mockMode}
             onMockModeChange={onMockModeChange}

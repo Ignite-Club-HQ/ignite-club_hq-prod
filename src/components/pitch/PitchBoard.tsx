@@ -87,6 +87,7 @@ interface PitchBoardProps {
   initialRotationSpeed?: number;
   initialDisablePositionSwaps?: boolean;
   initialDisableBatchSubs?: boolean;
+  initialRotateGkAtHalftime?: boolean;
   initialMinutesPerHalf?: number;
   initialTeamSize?: number;
   initialFormation?: string;
@@ -118,7 +119,7 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
   </div>
 );
 
-export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, initialLinkedEventId, initialShowMatchHeader = true, miniLeagueTeams }: PitchBoardProps) {
+export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, initialLinkedEventId, initialShowMatchHeader = true, miniLeagueTeams }: PitchBoardProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
@@ -282,6 +283,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [rotationSpeed, setRotationSpeed] = useState(() => initialRotationSpeed); // Subs speed
   const [disablePositionSwaps, setDisablePositionSwaps] = useState(() => initialDisablePositionSwaps); // Disable position swaps in auto sub generation
   const [disableBatchSubs, setDisableBatchSubs] = useState(() => initialDisableBatchSubs); // Disable batch subs (multiple at once)
+  const [rotateGkAtHalftime, setRotateGkAtHalftime] = useState(() => initialRotateGkAtHalftime); // Rotate GK at halftime
 
   // Sync settings from props when they change (e.g., when edited on team page)
   // Also sync on initial mount if no saved state exists for the setting
@@ -297,6 +299,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setDisableBatchSubs(initialDisableBatchSubs);
   }, [initialDisableBatchSubs]);
   
+  useEffect(() => {
+    setRotateGkAtHalftime(initialRotateGkAtHalftime);
+  }, [initialRotateGkAtHalftime]);
+
   useEffect(() => {
     setMinutesPerHalf(initialMinutesPerHalf);
   }, [initialMinutesPerHalf]);
@@ -374,6 +380,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, minutesPerHalf, teamSize, selectedFormation]);
 
+  const handleRotateGkAtHalftimeChange = useCallback(async (enabled: boolean) => {
+    setRotateGkAtHalftime(enabled);
+    if (!readOnly) {
+      await supabase
+        .from('team_subscriptions')
+        .upsert({ 
+          team_id: teamId, 
+          rotate_gk_at_halftime: enabled,
+        }, { onConflict: 'team_id' });
+    }
+  }, [teamId, readOnly]);
+
   const handleMinutesPerHalfChange = useCallback(async (minutes: number) => {
     setMinutesPerHalf(minutes);
     if (!readOnly) {
@@ -441,7 +459,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           minutes_per_half: minutesPerHalf,
           team_size: parseInt(teamSize),
           formation: FORMATIONS[teamSize][selectedFormation]?.name || null,
-          show_match_header: showMatchHeader
+          show_match_header: showMatchHeader,
+          rotate_gk_at_halftime: rotateGkAtHalftime
         }, { onConflict: 'team_id' });
       
       if (error) throw error;
@@ -460,7 +479,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     } finally {
       setIsSavingSettings(false);
     }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, toast]);
+  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, toast]);
   
   // Handle linking event with email notifications
   const handleLinkEvent = useCallback(async (eventId: string | null) => {
@@ -2229,7 +2248,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     if (benchPlayers.length > 0) {
       const recalculated = recalculateRemainingPlan(
-        players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, nextSub
+        players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, nextSub, rotateGkAtHalftime
       );
       const cleanedPlan = recalculated.filter(
         sub => `${sub.half}-${sub.time}-${sub.playerOut.id}` !== skippedId
@@ -2285,7 +2304,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     };
 
     const recalculated = recalculateRemainingPlan(
-      players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, dummySub
+      players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, dummySub, rotateGkAtHalftime
     );
 
     const currentRemainingSignature = autoSubPlan
@@ -2559,7 +2578,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         halfDurationSeconds,
         currentElapsed,
         currentHalf,
-        pendingAutoSub
+        pendingAutoSub,
+        rotateGkAtHalftime
       );
 
       const cleanedPlan = recalculatedPlan.filter(sub => 
@@ -3174,7 +3194,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           minutesPerHalfSecs,
           currentElapsed,
           currentHalf,
-          autoSubPlan.find(sub => !sub.executed && sub.playerIn.id === playerId)!
+          autoSubPlan.find(sub => !sub.executed && sub.playerIn.id === playerId)!,
+          rotateGkAtHalftime
         );
         
         setAutoSubPlan(recalculatedPlan);
@@ -3250,7 +3271,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           minutesPerHalfSecs,
           currentElapsed,
           currentHalf,
-          relevantSub
+          relevantSub,
+          rotateGkAtHalftime
         );
         setAutoSubPlan(recalculatedPlan);
         toast({
@@ -4663,6 +4685,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           rotationSpeed={rotationSpeed}
           disablePositionSwaps={disablePositionSwaps}
           disableBatchSubs={disableBatchSubs}
+          rotateGkAtHalftime={rotateGkAtHalftime}
           currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
           currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
         />
@@ -5970,6 +5993,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         rotationSpeed={rotationSpeed}
         disablePositionSwaps={disablePositionSwaps}
         disableBatchSubs={disableBatchSubs}
+        rotateGkAtHalftime={rotateGkAtHalftime}
       />
 
       {/* Sub Confirm Dialog */}

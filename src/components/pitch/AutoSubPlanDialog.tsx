@@ -110,6 +110,7 @@ interface AutoSubPlanDialogProps {
   rotationSpeed?: number; // 1 = slow, 2 = medium, 3 = fast
   disablePositionSwaps?: boolean; // When true, skip position swaps in auto generation
   disableBatchSubs?: boolean; // When true, only do one sub at a time
+  rotateGkAtHalftime?: boolean; // When true, swap GK at halftime
   currentElapsedSeconds?: number; // Current game elapsed seconds (for mid-game start)
   currentHalf?: 1 | 2; // Current half (for mid-game start)
 }
@@ -127,6 +128,7 @@ function createSubPlan(
   rotationSpeed: number = 2,
   disablePositionSwaps: boolean = false,
   disableBatchSubs: boolean = false,
+  rotateGkAtHalftime: boolean = true,
   startElapsedSeconds: number = 0,
   startHalf: 1 | 2 = 1
 ): SubstitutionEvent[] {
@@ -158,7 +160,7 @@ function createSubPlan(
   });
   
   if (outfieldOnBench.length === 0) {
-    if (gkOnBench && gkOnPitch) {
+    if (rotateGkAtHalftime && gkOnBench && gkOnPitch) {
       plan.push({
         time: 0,
         half: 2,
@@ -427,7 +429,7 @@ function createSubPlan(
   }
   
   // Handle GK substitution at halftime (only if we haven't passed halftime)
-  if (gkOnBench && gkOnPitch && startHalf === 1) {
+  if (rotateGkAtHalftime && gkOnBench && gkOnPitch && startHalf === 1) {
     plan.push({
       time: 0,
       half: 2,
@@ -457,6 +459,7 @@ function DialogInner({
   rotationSpeed = 2,
   disablePositionSwaps = false,
   disableBatchSubs = false,
+  rotateGkAtHalftime = true,
   currentElapsedSeconds = 0,
   currentHalf = 1
 }: {
@@ -470,6 +473,7 @@ function DialogInner({
   rotationSpeed?: number;
   disablePositionSwaps?: boolean;
   disableBatchSubs?: boolean;
+  rotateGkAtHalftime?: boolean;
   currentElapsedSeconds?: number;
   currentHalf?: 1 | 2;
 }) {
@@ -494,7 +498,7 @@ function DialogInner({
     setTimeout(() => {
       try {
         const halfDurationSeconds = minutesPerHalf * 60;
-        const generatedPlan = createSubPlan(players, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, currentElapsedSeconds, currentHalf);
+        const generatedPlan = createSubPlan(players, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf);
         console.log("[AutoSubPlan] Generated", generatedPlan.length, "subs");
         setPlan(generatedPlan);
       } catch (error) {
