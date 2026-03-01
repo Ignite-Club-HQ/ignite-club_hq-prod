@@ -1,0 +1,7 @@
+INSERT INTO events (club_id, team_id, created_by, title, event_date, start_time, type, opponent, is_home_game)
+VALUES 
+('36231b76-5313-478e-b8d5-23ac4f5e8b10', 'f6d66ea0-eeb7-4ace-aa2a-28c3d29b124e', 'c58db9a7-69bd-4f79-9fd7-51b267af124f', 'U12 Boys vs Eastside FC', '2026-03-01', '2026-03-01T10:00:00+00:00', 'game', 'Eastside FC', true),
+('36231b76-5313-478e-b8d5-23ac4f5e8b10', 'f6d66ea0-eeb7-4ace-aa2a-28c3d29b124e', 'c58db9a7-69bd-4f79-9fd7-51b267af124f', 'U12 Boys vs Northside United', '2026-03-08', '2026-03-08T14:00:00+00:00', 'game', 'Northside United', false),
+('36231b76-5313-478e-b8d5-23ac4f5e8b10', '2a8f1436-9be3-419c-a545-f948afc6739b', 'c58db9a7-69bd-4f79-9fd7-51b267af124f', 'U10 Girls vs Valley Rangers', '2026-03-01', '2026-03-01T11:30:00+00:00', 'game', 'Valley Rangers', true),
+('36231b76-5313-478e-b8d5-23ac4f5e8b10', '0715a270-5693-4409-9455-97e257efc019', 'c58db9a7-69bd-4f79-9fd7-51b267af124f', 'U14 Mixed vs Lakeside SC', '2026-03-02', '2026-03-02T09:00:00+00:00', 'game', 'Lakeside SC', true),
+('36231b76-5313-478e-b8d5-23ac4f5e8b10', 'f6d66ea0-eeb7-4ace-aa2a-28c3d29b124e', 'c58db9a7-69bd-4f79-9fd7-51b267af124f', 'U12 Boys vs Westpark City', '2026-03-15', '2026-03-15T10:00:00+00:00', 'game', 'Westpark City', true);
