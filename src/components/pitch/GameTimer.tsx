@@ -33,26 +33,17 @@ const playBeepSound = (frequency: number, beepCount: number, beepDuration: numbe
 };
 
 export const playTimerBeep = (message?: string) => {
-  // Play audio beep
-  playBeepSound(880, 3, 0.2, 0.3);
-  
-  // Also send browser notification (works even when phone is asleep)
+  // Send browser/push notification only (no in-app beep)
   if (message) {
-    // Request permission first, then show notification
     requestNotificationPermission().then(() => {
       showBrowserNotification("⚽ Game Alert", message);
     });
   }
 };
 
-// Play sub alert beep - different sound
+// Sub alert - notification only (no in-app beep)
 export const playSubAlertBeep = (message?: string) => {
-  // Play audio beep
-  playBeepSound(1200, 2, 0.15, 0.2);
-  
-  // Also send browser notification (works even when phone is asleep)
   if (message) {
-    // Request permission first, then show notification
     requestNotificationPermission().then(() => {
       showBrowserNotification("🔄 Substitution Alert", message);
     });
