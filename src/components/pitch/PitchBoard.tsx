@@ -4801,15 +4801,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </div>
                           <div className="flex items-center justify-between py-1">
                             <Label className="text-sm">Minutes per Half</Label>
-                            <div className="flex items-center gap-2">
-                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleMinutesPerHalfChange(Math.max(1, minutesPerHalf - 1))} disabled={minutesPerHalf <= 1}>
-                                <span className="text-base font-bold">−</span>
-                              </Button>
-                              <span className="text-sm font-medium w-6 text-center">{minutesPerHalf}</span>
-                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleMinutesPerHalfChange(minutesPerHalf + 1)} disabled={minutesPerHalf >= 45}>
-                                <span className="text-base font-bold">+</span>
-                              </Button>
-                            </div>
+                            <select
+                              value={minutesPerHalf}
+                              onChange={(e) => handleMinutesPerHalfChange(Number(e.target.value))}
+                              className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                            >
+                              {[5, 7, 8, 10, 12, 15, 20, 25, 30, 35, 40, 45].map(m => (
+                                <option key={m} value={m}>{m} min</option>
+                              ))}
+                            </select>
                           </div>
                           {parseInt(teamSize) >= 7 && (
                             <div className="flex items-center justify-between py-1">
@@ -5837,15 +5837,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </div>
                           <div className="flex items-center justify-between py-1">
                             <Label className="text-sm">Minutes per Half</Label>
-                            <div className="flex items-center gap-2">
-                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleMinutesPerHalfChange(Math.max(1, minutesPerHalf - 1))} disabled={minutesPerHalf <= 1}>
-                                <span className="text-base font-bold">−</span>
-                              </Button>
-                              <span className="text-sm font-medium w-6 text-center">{minutesPerHalf}</span>
-                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleMinutesPerHalfChange(minutesPerHalf + 1)} disabled={minutesPerHalf >= 45}>
-                                <span className="text-base font-bold">+</span>
-                              </Button>
-                            </div>
+                            <select
+                              value={minutesPerHalf}
+                              onChange={(e) => handleMinutesPerHalfChange(Number(e.target.value))}
+                              className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                            >
+                              {[5, 7, 8, 10, 12, 15, 20, 25, 30, 35, 40, 45].map(m => (
+                                <option key={m} value={m}>{m} min</option>
+                              ))}
+                            </select>
                           </div>
                           {parseInt(teamSize) >= 7 && (
                             <div className="flex items-center justify-between py-1">
