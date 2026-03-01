@@ -13,7 +13,7 @@ export const RECOMMENDED_FORMATIONS: Record<TeamSize, { attack: number; defend: 
   "6":  { attack: 2, defend: 0 },   // Attack: 2-1-2, Defend: 2-2-1
   "7":  { attack: 2, defend: 1 },   // Attack: 2-2-2, Defend: 3-2-1
   "8":  { attack: 1, defend: 2 },   // Attack: 2-3-2, Defend: 3-2-2
-  "9":  { attack: 1, defend: 2 },   // Attack: 3-2-3, Defend: 2-4-2
+  "9":  { attack: 1, defend: 0 },   // Attack: 3-2-3, Defend: 3-3-2
   "10": { attack: 2, defend: 1 },   // Attack: 3-3-3, Defend: 4-3-2
   "11": { attack: 1, defend: 2 },   // Attack: 4-3-3, Defend: 3-5-2
 };
