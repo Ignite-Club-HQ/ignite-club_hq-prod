@@ -551,6 +551,9 @@ function DialogInner({
           <Play className="h-4 w-4" />
           Generate Plan
         </Button>
+        <Button variant="ghost" className="text-muted-foreground" onClick={onClose}>
+          Skip
+        </Button>
       </div>
     );
   }
@@ -698,10 +701,21 @@ export default function AutoSubPlanDialog({
               <Clock className="h-5 w-5" />
               {editMode ? "Edit Substitution Plan" : "Auto Substitution Plan"}
             </DialogPrimitive.Title>
-            <DialogPrimitive.Close className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
-              <X className="h-5 w-5" />
-              <span className="sr-only">Close</span>
-            </DialogPrimitive.Close>
+            <div className="flex items-center gap-3">
+              {!editMode && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-bold">1</span>
+                  <span>Lineup</span>
+                  <span className="text-muted-foreground/50 mx-0.5">→</span>
+                  <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-bold">2</span>
+                  <span className="font-medium text-foreground">Subs</span>
+                </div>
+              )}
+              <DialogPrimitive.Close className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+                <X className="h-5 w-5" />
+                <span className="sr-only">Close</span>
+              </DialogPrimitive.Close>
+            </div>
           </div>
           
           <div className="flex-1 overflow-auto p-4">

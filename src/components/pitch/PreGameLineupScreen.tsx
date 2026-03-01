@@ -270,9 +270,18 @@ export default function PreGameLineupScreen({
             {filledSlots}/{totalSlots}
           </Badge>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <X className="h-5 w-5" />
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-bold">1</span>
+            <span className="font-medium text-foreground">Lineup</span>
+            <span className="text-muted-foreground/50 mx-0.5">→</span>
+            <span className="w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-bold">2</span>
+            <span>Subs</span>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
 
       {/* Main content - fully scrollable */}
