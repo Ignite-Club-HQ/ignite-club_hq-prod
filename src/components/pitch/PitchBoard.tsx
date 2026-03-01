@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin } from "lucide-react";
+import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PlayerToken from "./PlayerToken";
 import SoccerBall from "./SoccerBall";
@@ -3872,6 +3872,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </Button>
           )}
 
+          {/* Link Game button - show when no event linked and not read-only */}
+          {!readOnly && !linkedEventId && !subMode && !swapMode && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 shrink-0 gap-1 px-2 text-xs"
+              onClick={() => setLandscapeEventSelectorOpen(true)}
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              Link
+            </Button>
+          )}
+
           {!readOnly && (
             <>
               <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleResetFormation}>
@@ -4940,8 +4953,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           onCancel={handleCancelSwapBasedSub}
         />
 
-        {/* Landscape Event Selector Sheet - only show in non-readOnly mode */}
-        {!readOnly && !gameInProgress && (
+        {/* Landscape Event Selector Sheet - allow linking mid-game if no event linked */}
+        {!readOnly && (!gameInProgress || !linkedEventId) && (
           <LandscapeEventSelector
             open={landscapeEventSelectorOpen}
             onOpenChange={setLandscapeEventSelectorOpen}
