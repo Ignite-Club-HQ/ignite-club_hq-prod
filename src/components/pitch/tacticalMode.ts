@@ -87,11 +87,10 @@ export const computeTacticalOffsets = (
           if (isWide(bx)) dx = isLeft(bx) ? -2 : 2; // spread wide
           break;
         case "MID":
-          // Midfield pushes noticeably higher
+          // Midfield pushes noticeably higher (all mids keep same vertical line)
           dy = isSmallSided ? -5 : -7;
           if (p.id === attackPushMidId) {
-            // Central playmaker tucks in and pushes highest
-            dy = isSmallSided ? -7 : -9;
+            // Central playmaker only adjusts horizontally to stay aligned vertically
             if (isWide(bx)) dx = isLeft(bx) ? 2 : -2; // tuck central
           } else {
             // Wide mids spread out
@@ -115,11 +114,10 @@ export const computeTacticalOffsets = (
           if (isWide(bx)) dx = isLeft(bx) ? 2 : -2; // tuck narrow
           break;
         case "MID":
-          // Midfield drops moderately to shield defence
+          // Midfield drops moderately to shield defence (all mids keep same vertical line)
           dy = isSmallSided ? 2 : 4;
           if (p.id === anchorMidId) {
-            // Anchor drops deepest of mids, stays central
-            dy = isSmallSided ? 4 : 6;
+            // Anchor only adjusts horizontally to stay central
             if (bx < 45) dx = 2;
             else if (bx > 55) dx = -2;
             isAnchor = true;
