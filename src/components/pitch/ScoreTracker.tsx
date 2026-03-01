@@ -179,11 +179,6 @@ export default function ScoreTracker({
       <>
         <button
           onClick={() => {
-            if (goals.length > 0) {
-              setShowEditSheet(true);
-              return;
-            }
-
             if (!isLocked) {
               if (isMiniLeague) {
                 setSelectedGoalType("teamA");
@@ -191,6 +186,8 @@ export default function ScoreTracker({
                 setSelectedGoalType("team");
               }
               setShowGoalSheet(true);
+            } else if (goals.length > 0) {
+              setShowEditSheet(true);
             }
           }}
           className={cn(
@@ -343,6 +340,24 @@ export default function ScoreTracker({
                       </button>
                     </div>
                   </>
+                )}
+
+                {/* Edit goals link when goals exist */}
+                {goals.length > 0 && (
+                  <div className="pt-3 border-t border-border">
+                    <Button
+                      variant="ghost"
+                      className="w-full text-muted-foreground"
+                      onClick={() => {
+                        setShowGoalSheet(false);
+                        setSelectedGoalType(null);
+                        setShowEditSheet(true);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit Recorded Goals ({goals.length})
+                    </Button>
+                  </div>
                 )}
               </div>
             </ScrollArea>
