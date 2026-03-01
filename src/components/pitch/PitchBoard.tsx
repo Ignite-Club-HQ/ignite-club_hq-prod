@@ -277,6 +277,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "subs" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
+  const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
   const [sheetHeightPct, setSheetHeightPct] = useState(35);
   const sheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
   const [portraitSheetOpen, setPortraitSheetOpen] = useState(false);
@@ -4321,7 +4322,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
                       onClick={() => {
                         setDrawingTool(drawingTool === "pen" ? "none" : "pen");
-                        if (drawingTool !== "pen") setShowFloatingDrawToolbar(false);
+                        if (drawingTool !== "pen" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                       }}
                     >
                       <Pencil className="h-5 w-5" />
@@ -4332,7 +4333,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
                       onClick={() => {
                         setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
-                        if (drawingTool !== "arrow") setShowFloatingDrawToolbar(false);
+                        if (drawingTool !== "arrow" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                       }}
                     >
                       <MoveRight className="h-5 w-5" />
@@ -4833,6 +4834,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           <div className="flex items-center gap-4 py-1">
                             <Label className="text-sm">Hide Scores</Label>
                             <Switch checked={hideScores} onCheckedChange={setHideScores} />
+                          </div>
+                          <div className="flex items-center gap-4 py-1">
+                            <Label className="text-sm">Pin Drawing Tools</Label>
+                            <Switch checked={pinDrawingToolbar} onCheckedChange={setPinDrawingToolbar} />
                           </div>
                           <div className="flex items-center gap-4 py-1">
                             <Label className="text-sm">Starting Lineup Screen</Label>
