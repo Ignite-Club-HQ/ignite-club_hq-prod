@@ -4626,30 +4626,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             <Label className="text-sm">Starting Lineup Screen</Label>
                             <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
                           </div>
-                          <Button variant="outline" className="w-full h-10 text-sm text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
-                            <RotateCcw className="h-4 w-4 mr-1.5" />
-                            Reset Game
-                          </Button>
                         </CollapsibleContent>
                       </Collapsible>
                     )}
 
-                    {/* Timer - larger for landscape */}
-                    <div className="border-t border-border pt-3">
-                      <GameTimer 
-                        key={timerResetKey}
-                        ref={gameTimerRef} 
-                        teamId={teamId} 
-                        teamName={teamName} 
-                        onTimeUpdate={handleTimerUpdate} 
-                        onHalfChange={handleHalfChange} 
-                        readOnly={readOnly}
-                        hideSoundToggle
-                        minutesPerHalf={minutesPerHalf}
-                        onMinutesPerHalfChange={handleMinutesPerHalfChange}
-                        large
-                      />
-                    </div>
+                    {/* Reset Game - always visible at bottom */}
+                    {!readOnly && (
+                      <Button variant="outline" className="w-full h-10 text-sm text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
+                        <RotateCcw className="h-4 w-4 mr-1.5" />
+                        Reset Game
+                      </Button>
+                    )}
                   </div>
                 )}
 
@@ -5633,29 +5620,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             <Label className="text-sm">Starting Lineup Screen</Label>
                             <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
                           </div>
-                          <Button variant="outline" className="w-full h-10 text-sm text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
-                            <RotateCcw className="h-4 w-4 mr-1.5" />
-                            Reset Game
-                          </Button>
                         </CollapsibleContent>
                       </Collapsible>
                     )}
 
-                    {/* Timer */}
-                    <div className="border-t border-border pt-2">
-                      <GameTimer 
-                        key={timerResetKey}
-                        ref={gameTimerRef} 
-                        teamId={teamId} 
-                        teamName={teamName} 
-                        onTimeUpdate={handleTimerUpdate} 
-                        onHalfChange={handleHalfChange} 
-                        readOnly={readOnly}
-                        hideSoundToggle
-                        minutesPerHalf={minutesPerHalf}
-                        onMinutesPerHalfChange={handleMinutesPerHalfChange}
-                      />
-                    </div>
+                    {/* Reset Game - always visible at bottom */}
+                    {!readOnly && (
+                      <Button variant="outline" className="w-full h-10 text-sm text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
+                        <RotateCcw className="h-4 w-4 mr-1.5" />
+                        Reset Game
+                      </Button>
+                    )}
                   </div>
                 )}
 
