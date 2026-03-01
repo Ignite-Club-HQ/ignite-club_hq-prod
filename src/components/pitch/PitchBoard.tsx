@@ -1624,12 +1624,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       
       isDrawingArrowRef.current = false;
       arrowStartRef.current = null;
-      
-      // Minimize toolbar after drawing an arrow (if not pinned)
-      if (distance > 20 && !pinDrawingToolbar) {
-        setDrawingTool("none");
-        setShowFloatingDrawToolbar(false);
-      }
     };
 
     fabricCanvas.on("mouse:down", handleMouseDown);
@@ -1641,24 +1635,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       fabricCanvas.off("mouse:move", handleMouseMove);
       fabricCanvas.off("mouse:up", handleMouseUp);
     };
-  }, [fabricCanvas, drawingTool, drawingColor, createArrow, pinDrawingToolbar]);
-
-  // Minimize drawing toolbar after pen stroke completes (if not pinned)
-  useEffect(() => {
-    if (!fabricCanvas) return;
-    
-    const handlePathCreated = () => {
-      if (!pinDrawingToolbar) {
-        setDrawingTool("none");
-        setShowFloatingDrawToolbar(false);
-      }
-    };
-    
-    fabricCanvas.on("path:created", handlePathCreated);
-    return () => {
-      fabricCanvas.off("path:created", handlePathCreated);
-    };
-  }, [fabricCanvas, pinDrawingToolbar]);
+  }, [fabricCanvas, drawingTool, drawingColor, createArrow]);
 
   // Update drawing mode
   useEffect(() => {
@@ -4127,9 +4104,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <div 
                 ref={isLandscape ? containerRef : undefined}
                 className="absolute inset-0 w-full h-full"
+                onPointerUp={() => {
+                  if (showFloatingDrawToolbar && !pinDrawingToolbar) {
+                    setTimeout(() => {
+                      setDrawingTool("none");
+                      setShowFloatingDrawToolbar(false);
+                    }, 50);
+                  }
+                }}
                 style={{
-                  zIndex: drawingTool !== "none" ? 30 : 5,
-                  pointerEvents: drawingTool !== "none" ? "auto" : "none",
+                  zIndex: drawingTool !== "none" || showFloatingDrawToolbar ? 30 : 5,
+                  pointerEvents: drawingTool !== "none" || showFloatingDrawToolbar ? "auto" : "none",
                   touchAction: "none",
                 }}
               >
@@ -5998,9 +5983,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             <div 
               ref={!isLandscape ? containerRef : undefined}
               className="absolute inset-0 w-full h-full"
+              onPointerUp={(e) => {
+                if (showFloatingDrawToolbar && !pinDrawingToolbar) {
+                  setTimeout(() => {
+                    setDrawingTool("none");
+                    setShowFloatingDrawToolbar(false);
+                  }, 50);
+                }
+              }}
               style={{
-                zIndex: drawingTool !== "none" ? 65 : 5,
-                pointerEvents: drawingTool !== "none" ? "auto" : "none",
+                zIndex: drawingTool !== "none" || showFloatingDrawToolbar ? 65 : 5,
+                pointerEvents: drawingTool !== "none" || showFloatingDrawToolbar ? "auto" : "none",
                 touchAction: "none",
               }}
             >
