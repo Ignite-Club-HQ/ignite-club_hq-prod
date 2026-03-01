@@ -5187,7 +5187,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           className="absolute z-[61] select-none pointer-events-auto right-2 top-2"
           style={{ touchAction: 'auto' }}
         >
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-col items-end gap-1.5">
             {/* Score tracker (mini) */}
             {gameInProgress && !hideScores && !showScoreInPortrait && (
               <ScoreTracker
