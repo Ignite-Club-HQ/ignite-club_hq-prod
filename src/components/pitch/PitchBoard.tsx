@@ -5240,7 +5240,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {!portraitSheetOpen && (
           <>
             <button
-              className="absolute bottom-3 right-3 z-50 w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
+              className={cn(
+                "absolute right-3 z-[63] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center",
+                (subMode || swapMode) ? "bottom-14" : "bottom-3"
+              )}
               onClick={() => setPortraitSheetOpen(true)}
             >
               <ChevronUp className="h-5 w-5 text-muted-foreground" />
@@ -5251,7 +5254,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <>
                 <button
                   className={cn(
-                    "absolute bottom-3 z-50 w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
+                    "absolute z-[63] w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
+                    (subMode || swapMode) ? "bottom-14" : "bottom-3",
                     drawingTool !== "none"
                       ? "bg-primary text-primary-foreground border-primary"
                       : showFloatingDrawToolbar
@@ -5267,7 +5271,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                 {/* Floating Draw Toolbar - portrait */}
                 {showFloatingDrawToolbar && (
-                  <div className="absolute bottom-16 right-3 z-50 animate-fade-in">
+                  <div className={cn("absolute right-3 z-[64] animate-fade-in", (subMode || swapMode) ? "bottom-[6.5rem]" : "bottom-16")}>
                     <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
                       <div className="flex gap-2">
                         <Button 
