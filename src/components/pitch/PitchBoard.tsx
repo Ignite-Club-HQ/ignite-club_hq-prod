@@ -4825,16 +4825,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             </div>
                           )}
                           {parseInt(teamSize) >= 7 && (
-                            <div className="flex items-center justify-between py-1">
+                            <div className="flex items-center gap-4 py-1">
                               <Label className="text-sm">Rotate GK at Halftime</Label>
                               <Switch checked={rotateGkAtHalftime} onCheckedChange={setRotateGkAtHalftime} />
                             </div>
                           )}
-                          <div className="flex items-center justify-between py-1">
+                          <div className="flex items-center gap-4 py-1">
                             <Label className="text-sm">Hide Scores</Label>
                             <Switch checked={hideScores} onCheckedChange={setHideScores} />
                           </div>
-                          <div className="flex items-center justify-between py-1">
+                          <div className="flex items-center gap-4 py-1">
                             <Label className="text-sm">Starting Lineup Screen</Label>
                             <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
                           </div>
@@ -5869,16 +5869,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             </div>
                           )}
                           {parseInt(teamSize) >= 7 && (
-                            <div className="flex items-center justify-between py-1">
+                            <div className="flex items-center gap-4 py-1">
                               <Label className="text-sm">Rotate GK at Halftime</Label>
                               <Switch checked={rotateGkAtHalftime} onCheckedChange={setRotateGkAtHalftime} />
                             </div>
                           )}
-                          <div className="flex items-center justify-between py-1">
+                          <div className="flex items-center gap-4 py-1">
                             <Label className="text-sm">Hide Scores</Label>
                             <Switch checked={hideScores} onCheckedChange={setHideScores} />
                           </div>
-                          <div className="flex items-center justify-between py-1">
+                          <div className="flex items-center gap-4 py-1">
                             <Label className="text-sm">Starting Lineup Screen</Label>
                             <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
                           </div>
