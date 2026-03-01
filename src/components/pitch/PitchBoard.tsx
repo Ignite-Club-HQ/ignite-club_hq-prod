@@ -76,7 +76,7 @@ import {
   recalculateRemainingPlan,
   isSoundEnabled
 } from "./pitchStateUtils";
-import { TacticalMode, computeTacticalOffsets, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
+import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 
 interface PitchBoardProps {
   teamId: string;
@@ -3326,6 +3326,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     [players, tacticalMode, teamSize]
   );
 
+  // Compute ball visual offset to avoid overlapping with tactically-shifted players
+  const ballOffset = useMemo(() =>
+    computeBallOffset(ballPosition, players, tacticalOffsets, tacticalMode),
+    [ballPosition, players, tacticalOffsets, tacticalMode]
+  );
+
   // Calculate which bench players can come on for the selected pitch player
   const getValidBenchPlayerIds = useMemo(() => {
     if (!subMode || !selectedOnPitch) return new Set<string>();
@@ -4107,10 +4113,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 readOnly={readOnly}
                 className="absolute"
                 style={{
-                  left: `${ballPosition.x}%`,
-                  top: `${ballPosition.y}%`,
+                  left: `${ballPosition.x + ballOffset.dx}%`,
+                  top: `${ballPosition.y + ballOffset.dy}%`,
                   transform: "translate(-50%, -50%)",
                   zIndex: 40,
+                  transition: tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined,
                 }}
               />
 
@@ -5996,10 +6003,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               readOnly={readOnly}
               className="absolute"
               style={{
-                left: `${ballPosition.x}%`,
-                top: `${ballPosition.y}%`,
+                left: `${ballPosition.x + ballOffset.dx}%`,
+                top: `${ballPosition.y + ballOffset.dy}%`,
                 transform: "translate(-50%, -50%)",
                 zIndex: 40,
+                transition: tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined,
               }}
             />
 
