@@ -594,6 +594,10 @@ export function AppHeader() {
       case "rsvp":
         navigate(`/events/${relatedId}`);
         return;
+      case "pending_sub":
+        // Trigger GlobalSubMonitor to show the sub confirmation dialog
+        window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
+        return;
     }
 
     navigate("/notifications");

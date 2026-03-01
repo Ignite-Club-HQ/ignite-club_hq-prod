@@ -623,7 +623,10 @@ export default function GlobalSubMonitor() {
                 // Audio may fail silently
               }
             }
-            showBrowserNotification("🔄 Substitution Alert", notificationBody);
+            showBrowserNotification("🔄 Substitution Alert", notificationBody, () => {
+              // On click, re-trigger the sub confirmation dialog
+              window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
+            });
           });
         }
         
@@ -655,7 +658,30 @@ export default function GlobalSubMonitor() {
     return true;
   }, []);
 
-  // Set up smart polling - only when needed
+  // Force-open sub confirmation from notification click (clears lastChecked to re-trigger)
+  const forceOpenSubConfirmation = useCallback(() => {
+    lastCheckedSubRef.current = null;
+    checkForPendingSubs();
+    
+    // If no pending sub was found (already executed), show dialog in read-only mode
+    if (!subConfirmDialogOpen) {
+      const pitchState = loadPitchState();
+      const timerState = loadTimerState();
+      if (pitchState && timerState) {
+        // Find the most recent executed sub to show
+        const executedSubs = pitchState.autoSubPlan?.filter(s => s.executed) || [];
+        if (executedSubs.length > 0) {
+          const lastExecuted = executedSubs[executedSubs.length - 1];
+          setCurrentPlayers(pitchState.players);
+          setPendingAutoSub(lastExecuted);
+          setPendingBatchSubs([]);
+          setSubConfirmDialogOpen(true);
+        }
+      }
+    }
+  }, [checkForPendingSubs, subConfirmDialogOpen]);
+
+
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval> | null = null;
     let syncIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -713,6 +739,10 @@ export default function GlobalSubMonitor() {
       }
     };
     
+    // Listen for notification clicks requesting sub confirmation
+    const handleOpenSubConfirmation = () => forceOpenSubConfirmation();
+    window.addEventListener('open-sub-confirmation', handleOpenSubConfirmation);
+    
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('storage', handleStorageChange);
     
@@ -724,6 +754,7 @@ export default function GlobalSubMonitor() {
       if (syncIntervalId) clearInterval(syncIntervalId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('open-sub-confirmation', handleOpenSubConfirmation);
     };
   }, [checkForPendingSubs, checkForGameFinished, hasActiveGame, syncToDatabase]);
 
