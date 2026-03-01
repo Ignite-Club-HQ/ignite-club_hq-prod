@@ -114,6 +114,7 @@ interface AutoSubPlanDialogProps {
   currentElapsedSeconds?: number; // Current game elapsed seconds (for mid-game start)
   currentHalf?: 1 | 2; // Current half (for mid-game start)
   preferredSecondHalfGkId?: string; // Preferred 2nd half GK from lineup screen
+  showStepper?: boolean; // Show the Lineup → Subs step indicator
 }
 
 const formatTime = (seconds: number) => {
@@ -689,6 +690,7 @@ export default function AutoSubPlanDialog({
   currentElapsedSeconds = 0,
   currentHalf = 1,
   preferredSecondHalfGkId,
+  showStepper = false,
 }: AutoSubPlanDialogProps) {
   const handleClose = () => onOpenChange(false);
   
@@ -717,7 +719,7 @@ export default function AutoSubPlanDialog({
               {editMode ? "Edit Substitution Plan" : "Auto Substitution Plan"}
             </DialogPrimitive.Title>
             <div className="flex items-center gap-3">
-              {!editMode && (
+              {!editMode && showStepper && (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span className="w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-bold">1</span>
                   <span>Lineup</span>
