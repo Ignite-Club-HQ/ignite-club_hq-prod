@@ -197,6 +197,67 @@ export const computeTacticalOffsets = (
   return result;
 };
 
+/**
+ * Compute a visual offset for the soccer ball so it doesn't overlap with
+ * any player's effective (offset-adjusted) position while staying near centre.
+ */
+export const computeBallOffset = (
+  ballPosition: { x: number; y: number },
+  players: Player[],
+  tacticalOffsets: Map<string, TacticalOffset>,
+  mode: TacticalMode,
+): { dx: number; dy: number } => {
+  if (mode === "neutral") return { dx: 0, dy: 0 };
+
+  // Start with a mode-based nudge to keep ball in a sensible area
+  let dy = mode === "attack" ? -4 : 3;
+  let dx = 0;
+
+  const bx = ballPosition.x + dx;
+  const by = ballPosition.y + dy;
+
+  // Gather effective player positions (base + offset)
+  const effectivePositions = players
+    .filter(p => p.position !== null)
+    .map(p => {
+      const off = tacticalOffsets.get(p.id);
+      return {
+        x: p.position!.x + (off?.dx ?? 0),
+        y: p.position!.y + (off?.dy ?? 0),
+      };
+    });
+
+  // If any player is too close, nudge the ball away
+  const MIN_DIST = 6; // percentage points
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const curX = ballPosition.x + dx;
+    const curY = ballPosition.y + dy;
+    let tooClose = false;
+
+    for (const ep of effectivePositions) {
+      const dist = Math.sqrt((curX - ep.x) ** 2 + (curY - ep.y) ** 2);
+      if (dist < MIN_DIST) {
+        // Push ball away from the player
+        const angle = Math.atan2(curY - ep.y, curX - ep.x);
+        dx += Math.cos(angle) * 2;
+        dy += Math.sin(angle) * 2;
+        tooClose = true;
+      }
+    }
+    if (!tooClose) break;
+  }
+
+  // Clamp to keep ball near centre circle area (x: 30-70, y: 35-65)
+  const finalX = ballPosition.x + dx;
+  const finalY = ballPosition.y + dy;
+  if (finalX < 30) dx = 30 - ballPosition.x;
+  if (finalX > 70) dx = 70 - ballPosition.x;
+  if (finalY < 35) dy = 35 - ballPosition.y;
+  if (finalY > 65) dy = 65 - ballPosition.y;
+
+  return { dx, dy };
+};
+
 /** Toast messages for mode changes */
 export const TACTICAL_MODE_MESSAGES: Record<TacticalMode, string> = {
   attack: "Attack mode enabled",
