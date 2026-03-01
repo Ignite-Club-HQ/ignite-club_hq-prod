@@ -3874,9 +3874,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
           )}
 
-          {/* Floating undo button - shows for 30 seconds after a sub/swap, positioned above Sub/Swap FABs */}
+          {/* Floating undo button - positioned above chevron to avoid overlap */}
           {!readOnly && showFloatingUndo && undoHistory.length > 0 && (
-            <div className="absolute bottom-4 right-4 z-[9999] animate-fade-in">
+            <div className="absolute bottom-16 right-3 z-[56] animate-fade-in">
               <Button 
                 variant="secondary" 
                 size="sm"
@@ -4299,22 +4299,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
             <button
               className={cn(
-                "absolute bottom-3 z-[55] w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
+                "absolute bottom-3 left-3 z-[55] w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
                 drawingTool !== "none"
                   ? "bg-primary text-primary-foreground border-primary"
                   : showFloatingDrawToolbar
                     ? "bg-accent text-accent-foreground border-accent"
                     : "bg-background/80 border-border"
               )}
-              style={{ right: 60 }}
               onClick={() => setShowFloatingDrawToolbar(prev => !prev)}
             >
               <Pencil className="h-5 w-5" />
             </button>
 
-            {/* Floating Draw Toolbar - landscape: vertical strip to the left of tactical buttons */}
+            {/* Floating Draw Toolbar - landscape: vertical strip on LEFT side to avoid tactical buttons */}
             {showFloatingDrawToolbar && (
-              <div className="absolute top-1/2 -translate-y-1/2 z-[55] animate-fade-in" style={{ right: 56 }}>
+              <div className="absolute top-1/2 -translate-y-1/2 left-2 z-[55] animate-fade-in">
                 <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-2 flex flex-col items-center gap-2">
                   <Button 
                     variant={drawingTool === "pen" ? "default" : "outline"} 
@@ -4864,9 +4863,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         )}
 
-        {/* Floating Pitch Shortcuts - pinned to top right of pitch in landscape */}
+        {/* Floating Pitch Shortcuts - pinned below score tracker to avoid overlap */}
         {!readOnly && pinPitchShortcuts && (
-          <div className="absolute right-2 top-2 z-[55] flex items-center gap-1">
+          <div className="absolute right-2 top-14 z-[55] flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-10 w-10 bg-background/70 backdrop-blur border border-border" onClick={handleResetFormation}>
               <RotateCcw className="h-5 w-5" />
             </Button>
