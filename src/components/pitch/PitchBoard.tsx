@@ -5010,7 +5010,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         />
 
         {/* Landscape Event Selector Sheet - only show in non-readOnly mode */}
-        {!readOnly && (
+        {!readOnly && !gameInProgress && (
           <LandscapeEventSelector
             open={landscapeEventSelectorOpen}
             onOpenChange={setLandscapeEventSelectorOpen}
@@ -5100,7 +5100,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           eventId={linkedEventId || ''} 
           teamId={teamId}
           teamName={teamName} 
-          onLinkEvent={readOnly ? undefined : handleLinkEvent}
+          onLinkEvent={readOnly || gameInProgress ? undefined : handleLinkEvent}
           showScoreToggle={gameInProgress && !hideScores}
           scoreExpanded={showScoreInPortrait}
           onToggleScore={() => setShowScoreInPortrait(!showScoreInPortrait)}
