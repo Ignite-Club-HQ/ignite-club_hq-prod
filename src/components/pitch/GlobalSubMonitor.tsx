@@ -934,58 +934,32 @@ export default function GlobalSubMonitor() {
     if (!pendingAutoSub) return;
 
     const pitchState = loadPitchState();
-    const timerState = loadTimerState();
-    if (!pitchState || !timerState) return;
-    
-    // Recalculate remaining plan instead of just marking as executed
-    // This ensures equal playing time is maintained
-    const now = Date.now();
-    const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-    const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
-    const currentHalf = timerState.currentHalf;
-    const halfDurationSeconds = timerState.minutesPerHalf * 60;
-    
-    const benchPlayers = pitchState.players.filter(p => p.position === null);
-    
-    if (benchPlayers.length > 0) {
-      // Recalculate plan from current state
-      const recalculatedPlan = recalculateRemainingPlan(
-        pitchState.players,
-        getTeamSizeNumber(pitchState.teamSize),
-        halfDurationSeconds,
-        currentElapsed,
-        currentHalf,
-        pendingAutoSub,
-        true
-      );
-      
-      savePitchState({
-        ...pitchState,
-        autoSubPlan: recalculatedPlan,
-        autoSubActive: recalculatedPlan.length > 0,
-        lastUpdateTime: Date.now(),
-      });
-    } else {
-      // No bench players left, just remove the skipped sub
-      const updatedPlan = pitchState.autoSubPlan.filter(sub => 
-        !(sub.time === pendingAutoSub.time && 
-          sub.half === pendingAutoSub.half && 
-          sub.playerOut.id === pendingAutoSub.playerOut.id)
-      );
-      
-      savePitchState({
-        ...pitchState,
-        autoSubPlan: updatedPlan,
-        autoSubActive: updatedPlan.filter(s => !s.executed).length > 0,
-        lastUpdateTime: Date.now(),
-      });
-    }
+    if (!pitchState) return;
+
+    const subsToSkip = [pendingAutoSub, ...pendingBatchSubs];
+    const skippedIds = new Set(
+      subsToSkip.map(sub => `${sub.half}-${sub.time}-${sub.playerOut.id}`)
+    );
+
+    const updatedPlan = pitchState.autoSubPlan.map(sub => {
+      const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
+      return skippedIds.has(subId) ? { ...sub, executed: true } : sub;
+    });
+
+    const remainingSubs = updatedPlan.filter(sub => !sub.executed);
+
+    savePitchState({
+      ...pitchState,
+      autoSubPlan: updatedPlan,
+      autoSubActive: remainingSubs.length > 0,
+      lastUpdateTime: Date.now(),
+    });
     
     setSubConfirmDialogOpen(false);
     setPendingAutoSub(null);
     setPendingBatchSubs([]);
     lastCheckedSubRef.current = null;
-  }, [pendingAutoSub]);
+  }, [pendingAutoSub, pendingBatchSubs]);
 
   return (
     <>
