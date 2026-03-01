@@ -179,9 +179,11 @@ function createSubPlan(
   }
   
   // Calculate remaining game time based on when we're starting
-  const remainingInCurrentHalf = halfDurationSeconds - startElapsedSeconds;
+  // Clamp elapsed time to half duration to avoid negative remaining time
+  const clampedStartElapsed = Math.min(startElapsedSeconds, halfDurationSeconds);
+  const remainingInCurrentHalf = halfDurationSeconds - clampedStartElapsed;
   const remainingHalves = startHalf === 1 ? remainingInCurrentHalf + halfDurationSeconds : remainingInCurrentHalf;
-  const totalRemainingSeconds = remainingHalves;
+  const totalRemainingSeconds = Math.max(remainingHalves, 0);
   const fieldPositions = teamSize - 1; // minus GK
   const totalOutfieldPlayers = outfieldPlayers.length;
   
