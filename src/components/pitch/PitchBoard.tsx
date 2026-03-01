@@ -4694,24 +4694,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Setup Tab */}
                 {bottomSheetTab === "setup" && (
                   <div className="space-y-4 px-1">
-                    {/* Tactical Mode Selector */}
-                    <TacticalModeSelector value={tacticalMode} onChange={handleTacticalModeChange} readOnly={readOnly} />
-                    {tacticalFormationSuggestion && (
-                      <div className="rounded-lg border border-border bg-muted/60 p-2.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-xs text-foreground">
-                            Suggested for <span className="font-semibold">{tacticalFormationSuggestion.mode === "attack" ? "Attack" : "Defend"}</span>: <span className="font-semibold">{tacticalFormationSuggestion.formationName}</span>
-                          </p>
-                          <button type="button" onClick={handleDismissTacticalSuggestion} className="rounded-md p-1 text-muted-foreground hover:text-foreground" aria-label="Dismiss formation suggestion">
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                        <div className="mt-2 flex items-center gap-2">
-                          <Button type="button" size="sm" className="h-8" onClick={handleApplyTacticalSuggestion}>Apply formation</Button>
-                          <Button type="button" size="sm" variant="ghost" className="h-8" onClick={handleDismissTacticalSuggestion}>Dismiss</Button>
-                        </div>
-                      </div>
-                    )}
+                    {/* Tactical Mode is in the landscape header bar */}
                     {/* Segmented controls for core settings - landscape */}
                     <div className="space-y-3">
                       <div className="space-y-1.5">
