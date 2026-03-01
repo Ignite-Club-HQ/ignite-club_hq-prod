@@ -275,7 +275,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [pendingBatchSubs, setPendingBatchSubs] = useState<SubstitutionEvent[]>([]);
   const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
-  const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "subs" | "setup">("bench");
+  const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
   const [pinPitchShortcuts, setPinPitchShortcuts] = useState(true);
@@ -3881,7 +3881,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </>
           )}
 
-          {/* Stats & Reset */}
+          {/* Auto-Subs button */}
+          {!readOnly && !disableAutoSubs && !subMode && !swapMode && (
+            <Button
+              variant={autoSubActive ? "secondary" : "ghost"}
+              size="sm"
+              className="h-8 shrink-0 gap-1 px-2 text-xs"
+              onClick={autoSubActive ? () => { setBottomSheetTab("bench"); setToolbarCollapsed(false); } : handleOpenNewPlan}
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              {autoSubActive ? "Auto ✓" : "Auto"}
+            </Button>
+          )}
+
           {!readOnly && (
             <>
               <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleResetFormation}>
@@ -4454,7 +4466,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                 {/* Tabs */}
                 <div className="flex border-b border-border px-2 gap-1">
-                {(["bench", "subs", "setup"] as const).map(tab => (
+                {(["bench", "setup"] as const).map(tab => (
                   <button
                     key={tab}
                     onClick={() => setBottomSheetTab(tab)}
@@ -4465,7 +4477,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    {tab === "bench" ? `Bench (${playersOnBench.length})` : tab === "subs" ? "Subs" : "Setup"}
+                    {tab === "bench" ? `Bench (${playersOnBench.length})` : "Setup"}
                   </button>
                 ))}
 
@@ -4479,6 +4491,30 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Bench Tab */}
                 {bottomSheetTab === "bench" && (
                   <div className="space-y-3">
+                    {/* Auto-Sub Manager - shown inline when active */}
+                    {!readOnly && autoSubActive && !disableAutoSubs && (
+                      <div className="pb-2 border-b border-border">
+                        <Suspense fallback={<DialogLoader />}>
+                          <AutoSubManager
+                            autoSubPlan={autoSubPlan}
+                            autoSubPaused={autoSubPaused}
+                            players={players}
+                            lockedPlayerIds={lockedPlayerIds}
+                            currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+                            currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+                            minutesPerHalf={minutesPerHalf}
+                            onTogglePause={handleTogglePauseAutoSub}
+                            onCancelPlan={handleCancelAutoSubPlan}
+                            onSkipNext={handleSkipNextSub}
+                            onExecuteNow={handleExecuteNow}
+                            onEditPlan={handleOpenEditPlan}
+                            onRegeneratePlan={handleRegeneratePlan}
+                            onToggleLockPlayer={handleToggleLockPlayer}
+                            compact
+                          />
+                        </Suspense>
+                      </div>
+                    )}
                     {/* Position Filter Chips - sticky */}
                     <div className="sticky top-[-12px] z-10 bg-background py-2 -mx-3 px-3">
                       <div className="flex items-center gap-2">
@@ -4599,82 +4635,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </div>
                         ))}
                     </div>
-                  </div>
-                )}
-
-                {/* Subs Tab */}
-                {bottomSheetTab === "subs" && (
-                  <div className="space-y-3">
-                    {!readOnly && (
-                      <>
-                        {/* Auto-Subs section - shown first */}
-                        {!disableAutoSubs && !subMode && !swapMode && (
-                          <div className={cn(autoSubActive && "pb-2 border-b border-border")}>
-                            {!autoSubActive ? (
-                              <Button 
-                                variant="outline" 
-                                className="w-full h-12 text-base" 
-                                onClick={handleOpenNewPlan}
-                              >
-                                <Calendar className="h-4 w-4 mr-1.5" />
-                                Auto-Subs
-                              </Button>
-                            ) : (
-                              <Suspense fallback={<DialogLoader />}>
-                                <AutoSubManager
-                                  autoSubPlan={autoSubPlan}
-                                  autoSubPaused={autoSubPaused}
-                                  players={players}
-                                  lockedPlayerIds={lockedPlayerIds}
-                                  currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-                                  currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-                                  minutesPerHalf={minutesPerHalf}
-                                  onTogglePause={handleTogglePauseAutoSub}
-                                  onCancelPlan={handleCancelAutoSubPlan}
-                                  onSkipNext={handleSkipNextSub}
-                                  onExecuteNow={handleExecuteNow}
-                                  onEditPlan={handleOpenEditPlan}
-                                  onRegeneratePlan={handleRegeneratePlan}
-                                  onToggleLockPlayer={handleToggleLockPlayer}
-                                  compact
-                                />
-                              </Suspense>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Manual mode hint when auto-subs disabled */}
-                        {disableAutoSubs && !subMode && !swapMode && (
-                          <p className="text-sm text-muted-foreground text-center py-4">
-                            Manual mode — use Sub & Swap buttons above
-                          </p>
-                        )}
-
-                        {/* Sub/Swap mode active UI */}
-                        {(subMode || swapMode) && (
-                          <>
-                            <Button
-                              variant="default"
-                              className="w-full h-10 text-sm"
-                              onClick={() => { subMode ? toggleSubMode() : toggleSwapMode(); setToolbarCollapsed(true); }}
-                            >
-                              {subMode ? <><RefreshCw className="h-4 w-4 mr-1.5" />Cancel Sub</> : <><ArrowLeftRight className="h-4 w-4 mr-1.5" />Cancel Swap</>}
-                            </Button>
-                            {subMode && selectedOnPitch && (
-                              <Button variant="outline" className="w-full h-9 text-xs" onClick={() => setSubPreviewOpen(true)}>
-                                <List className="h-3.5 w-3.5 mr-1.5" />
-                                Options
-                              </Button>
-                            )}
-                            {subMode && (
-                              <p className="text-xs text-muted-foreground text-center">
-                                {selectedOnPitch ? "Select bench player" : "Select on pitch"}
-                              </p>
-                            )}
-                          </>
-                        )}
-                      </>
-                    )}
                   </div>
                 )}
 
@@ -5263,6 +5223,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 </span>
               </button>
             )}
+
+            {/* Auto-Subs FAB */}
+            {!disableAutoSubs && !subMode && !swapMode && (
+              <button
+                onClick={autoSubActive ? () => { setBottomSheetTab("bench"); setPortraitSheetOpen(true); } : handleOpenNewPlan}
+                className={cn(
+                  "flex items-center gap-2 rounded-full shadow-lg transition-colors px-3 py-2",
+                  autoSubActive 
+                    ? "bg-secondary text-secondary-foreground" 
+                    : "bg-muted text-foreground hover:bg-muted/80 border border-border"
+                )}
+              >
+                <Calendar className="h-4 w-4" />
+                <span className="text-sm font-medium">
+                  {autoSubActive ? "Auto ✓" : "Auto"}
+                </span>
+              </button>
+            )}
           </div>
         )}
 
@@ -5440,7 +5418,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                 {/* Tabs */}
                 <div className="flex border-b border-border px-2 gap-1">
-                  {(["bench", "subs", "setup"] as const).map(tab => (
+                  {(["bench", "setup"] as const).map(tab => (
                     <button
                       key={tab}
                       onClick={() => setBottomSheetTab(tab)}
@@ -5451,7 +5429,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           : "text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      {tab === "bench" ? `Bench (${playersOnBench.length})` : tab === "subs" ? "Subs" : "Setup"}
+                      {tab === "bench" ? `Bench (${playersOnBench.length})` : "Setup"}
                     </button>
                   ))}
 
@@ -5465,6 +5443,29 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Bench Tab */}
                 {bottomSheetTab === "bench" && (
                   <div className="space-y-3">
+                    {/* Auto-Sub Manager - shown inline when active */}
+                    {!readOnly && autoSubActive && !disableAutoSubs && (
+                      <div className="pb-2 border-b border-border">
+                        <Suspense fallback={<DialogLoader />}>
+                          <AutoSubManager
+                            autoSubPlan={autoSubPlan}
+                            autoSubPaused={autoSubPaused}
+                            players={players}
+                            lockedPlayerIds={lockedPlayerIds}
+                            currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+                            currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+                            minutesPerHalf={minutesPerHalf}
+                            onTogglePause={handleTogglePauseAutoSub}
+                            onCancelPlan={handleCancelAutoSubPlan}
+                            onSkipNext={handleSkipNextSub}
+                            onExecuteNow={handleExecuteNow}
+                            onEditPlan={handleOpenEditPlan}
+                            onRegeneratePlan={handleRegeneratePlan}
+                            onToggleLockPlayer={handleToggleLockPlayer}
+                          />
+                        </Suspense>
+                      </div>
+                    )}
                     {/* Position Filter Chips + Fill-In */}
                     <div className="flex items-center gap-2">
                       <div className="flex gap-2 flex-1 min-w-0">
@@ -5592,83 +5593,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           />
                         ))}
                     </div>
-                  </div>
-                )}
-
-                {/* Subs Tab */}
-                {bottomSheetTab === "subs" && (
-                  <div className="space-y-3">
-                    {!readOnly && (
-                      <>
-                        {/* Auto-Subs section - shown first */}
-                        {!disableAutoSubs && !subMode && !swapMode && (
-                          <div className={cn(autoSubActive && "pb-2 border-b border-border")}>
-                            {!autoSubActive ? (
-                              <Button 
-                                variant="outline" 
-                                className="w-full h-12 text-base" 
-                                onClick={handleOpenNewPlan}
-                              >
-                                <Calendar className="h-4 w-4 mr-1.5" />
-                                Auto-Subs
-                              </Button>
-                            ) : (
-                              <Suspense fallback={<DialogLoader />}>
-                                <AutoSubManager
-                                  autoSubPlan={autoSubPlan}
-                                  autoSubPaused={autoSubPaused}
-                                  players={players}
-                                  lockedPlayerIds={lockedPlayerIds}
-                                  currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-                                  currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-                                  minutesPerHalf={minutesPerHalf}
-                                  onTogglePause={handleTogglePauseAutoSub}
-                                  onCancelPlan={handleCancelAutoSubPlan}
-                                  onSkipNext={handleSkipNextSub}
-                                  onExecuteNow={handleExecuteNow}
-                                  onEditPlan={handleOpenEditPlan}
-                                  onRegeneratePlan={handleRegeneratePlan}
-                                  onToggleLockPlayer={handleToggleLockPlayer}
-                                />
-                              </Suspense>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Manual mode hint when auto-subs disabled */}
-                        {disableAutoSubs && !subMode && !swapMode && (
-                          <p className="text-sm text-muted-foreground text-center py-4">
-                            Manual mode — use Sub & Swap buttons above
-                          </p>
-                        )}
-
-                        {!readOnly && undoHistory.length > 0 && showFloatingUndo && (
-                          <Button variant="outline" className="w-full h-10 text-sm" onClick={handleUndo}>
-                            <Undo2 className="h-4 w-4 mr-1.5" />
-                            Undo Last
-                          </Button>
-                        )}
-
-                        {/* Sub/Swap mode active UI */}
-                        {(subMode || swapMode) && (
-                          <>
-                            <Button
-                              variant="default"
-                              className="w-full h-11 text-sm"
-                              onClick={() => { subMode ? toggleSubMode() : toggleSwapMode(); setPortraitSheetOpen(false); }}
-                            >
-                              {subMode ? <><RefreshCw className="h-4 w-4 mr-1.5" />Cancel Sub</> : <><ArrowLeftRight className="h-4 w-4 mr-1.5" />Cancel Swap</>}
-                            </Button>
-                            {subMode && selectedOnPitch && (
-                              <Button variant="outline" className="w-full h-10 text-xs" onClick={() => setSubPreviewOpen(true)}>
-                                <List className="h-3.5 w-3.5 mr-1.5" />
-                                Sub Options
-                              </Button>
-                            )}
-                          </>
-                        )}
-                      </>
-                    )}
                   </div>
                 )}
 
