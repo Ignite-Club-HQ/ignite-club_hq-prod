@@ -4657,10 +4657,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               <Settings2 className="h-4 w-4 mr-1.5" />
                               Positions
                             </Button>
-                            <Button variant="outline" className="h-10 text-sm" onClick={handleResetFormation}>
-                              <RotateCcw className="h-4 w-4 mr-1.5" />
-                              Reset Positions
-                            </Button>
                           </div>
                           <Suspense fallback={null}>
                             <AddFillInPlayerDialog
@@ -5650,10 +5646,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             <Button variant="outline" className="h-10 text-sm" onClick={() => setPositionEditorOpen(true)}>
                               <Settings2 className="h-4 w-4 mr-1.5" />
                               Positions
-                            </Button>
-                            <Button variant="outline" className="h-10 text-sm" onClick={handleResetFormation}>
-                              <RotateCcw className="h-4 w-4 mr-1.5" />
-                              Reset Positions
                             </Button>
                           </div>
                           <Suspense fallback={null}>
