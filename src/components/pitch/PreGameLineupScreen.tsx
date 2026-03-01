@@ -1,13 +1,12 @@
 import { useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { X, Check, RotateCcw, Zap, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Player, TeamSize, FORMATIONS, getPositionFromCoords } from "./types";
-import { PitchPosition, POSITION_COLORS, POSITION_LABELS } from "./PositionBadge";
+import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 
 const TEAM_SIZES: TeamSize[] = ["3", "4", "5", "6", "7", "8", "9", "10", "11"];
 
@@ -298,50 +297,60 @@ export default function PreGameLineupScreen({
         </div>
 
         {/* Formation visual - mini pitch with color-coded slots */}
-        <div className="relative w-full aspect-[3/4] max-h-[35vh] bg-[hsl(var(--pitch-green,120,40%,30%))] rounded-lg mx-auto my-2 max-w-sm" style={{ backgroundColor: '#2d5a27' }}>
-          {/* Pitch lines */}
-          <div className="absolute inset-[8%] border-2 border-white/30 rounded" />
-          <div className="absolute left-[8%] right-[8%] top-[50%] h-[1px] bg-white/30" />
-          <div className="absolute left-[25%] right-[25%] top-[8%] h-[18%] border-2 border-white/20 rounded-b" />
-          <div className="absolute left-[25%] right-[25%] bottom-[8%] h-[18%] border-2 border-white/20 rounded-t" />
+        <div className="sticky top-0 z-20 border-y border-border bg-background/95 backdrop-blur-sm">
+          <div className="px-4 py-2">
+            <div className="relative w-full aspect-[3/4] max-h-[30vh] bg-[hsl(var(--pitch-green,120,40%,30%))] rounded-lg mx-auto max-w-sm" style={{ backgroundColor: '#2d5a27' }}>
+              {/* Pitch lines */}
+              <div className="absolute inset-[8%] border-2 border-white/30 rounded" />
+              <div className="absolute left-[8%] right-[8%] top-[50%] h-[1px] bg-white/30" />
+              <div className="absolute left-[25%] right-[25%] top-[8%] h-[18%] border-2 border-white/20 rounded-b" />
+              <div className="absolute left-[25%] right-[25%] bottom-[8%] h-[18%] border-2 border-white/20 rounded-t" />
 
-          {/* Formation slots - color-coded by position */}
-          {slots.map((slot, i) => {
-            const player = slot.assignedPlayerId ? getPlayerById(slot.assignedPlayerId) : null;
-            const isSelected = selectedSlotIndex === i;
-            const colors = CIRCLE_COLORS[slot.pitchPosition];
+              {/* Formation slots - color-coded by position */}
+              {slots.map((slot, i) => {
+                const player = slot.assignedPlayerId ? getPlayerById(slot.assignedPlayerId) : null;
+                const isSelected = selectedSlotIndex === i;
+                const colors = CIRCLE_COLORS[slot.pitchPosition];
 
-            return (
-              <button
-                key={i}
-                className={cn(
-                  "absolute w-12 h-12 -ml-6 -mt-6 rounded-full flex flex-col items-center justify-center transition-all text-white border-2",
-                  player
-                    ? cn(colors.filled, colors.filledBorder)
-                    : isSelected
-                      ? "bg-white/40 border-white animate-pulse"
-                      : cn(colors.empty, colors.emptyBorder, "border-dashed")
-                )}
-                style={{ left: `${slot.position.x}%`, top: `${slot.position.y}%` }}
-                onClick={() => handleSlotTap(i)}
-              >
-                {player ? (
-                  <>
-                    <span className="text-[10px] font-bold leading-none truncate max-w-[40px]">
-                      {player.number || ""}
-                    </span>
-                    <span className="text-[7px] leading-none truncate max-w-[40px] mt-0.5">
-                      {player.name.split(" ")[0]}
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-[10px] font-bold text-white drop-shadow-sm">
-                    {slot.pitchPosition}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                return (
+                  <button
+                    key={i}
+                    className={cn(
+                      "absolute w-12 h-12 -ml-6 -mt-6 rounded-full flex flex-col items-center justify-center transition-all text-white border-2",
+                      player
+                        ? cn(colors.filled, colors.filledBorder)
+                        : isSelected
+                          ? "bg-white/40 border-white animate-pulse"
+                          : cn(colors.empty, colors.emptyBorder, "border-dashed")
+                    )}
+                    style={{ left: `${slot.position.x}%`, top: `${slot.position.y}%` }}
+                    onClick={() => handleSlotTap(i)}
+                  >
+                    {player ? (
+                      <>
+                        <span className="text-[10px] font-bold leading-none truncate max-w-[40px]">
+                          {player.number || ""}
+                        </span>
+                        <span className="text-[7px] leading-none truncate max-w-[40px] mt-0.5">
+                          {player.name.split(" ")[0]}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-[10px] font-bold text-white drop-shadow-sm">
+                        {slot.pitchPosition}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="mt-2 text-xs text-muted-foreground text-center">
+              {selectedSlotIndex !== null
+                ? `Assigning: ${slots[selectedSlotIndex]?.pitchPosition || "position"} — tap another circle to switch`
+                : "Tap a position circle, then pick a player"}
+            </p>
+          </div>
         </div>
 
         {/* Player picker / GK rotation section */}
