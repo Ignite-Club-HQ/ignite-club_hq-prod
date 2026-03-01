@@ -1883,6 +1883,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     setFormationChangeDialogOpen(false);
     setPendingFormationChange(null);
+    // Minimise the bottom drawer after applying
+    setToolbarCollapsed(true);
+    setPortraitSheetOpen(false);
   }, [pendingFormationChange, applyFormationChange, autoPlacePlayersOnPitch, players, persistTeamSizeToDb]);
 
   // Handle formation change dialog cancel
