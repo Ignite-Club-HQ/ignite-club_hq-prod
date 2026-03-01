@@ -1,4 +1,11 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, ArrowLeftRight, Check, AlertCircle } from "lucide-react";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
@@ -88,14 +95,14 @@ export default function BenchToSubDialog({
   const hasNoOptions = directOptions.length === 0 && swapOptions.length === 0;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[80vh] overflow-hidden flex flex-col landscape:max-h-[85vh]">
-        <DialogHeader>
-          <DialogTitle>Bring On {benchPlayer.name}</DialogTitle>
-          <p className="text-sm text-muted-foreground">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="sm:max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>Bring On {benchPlayer.name}</ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
             Select a player to come <span className="font-medium text-foreground">off</span> the pitch
-          </p>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 py-2">
           {directOptions.length > 0 && (
@@ -196,12 +203,12 @@ export default function BenchToSubDialog({
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <ResponsiveDialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full h-12 text-base">
             Cancel
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
