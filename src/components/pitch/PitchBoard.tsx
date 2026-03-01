@@ -5646,7 +5646,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                     {/* Primary actions - context-aware */}
                     <div className="grid grid-cols-2 gap-2">
-                      {!readOnly && !miniLeagueTeams && !gameInProgress && (
+                      {!readOnly && !gameInProgress && (
                         <Button variant="outline" className="h-11 text-sm" onClick={() => setShowLineupPicker(true)}>
                           <List className="h-4 w-4 mr-1.5" />
                           Select Lineup
