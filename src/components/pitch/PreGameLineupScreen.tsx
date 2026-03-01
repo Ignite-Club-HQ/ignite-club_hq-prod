@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { Label } from "@/components/ui/label";
 import { X, Check, RotateCcw, Zap, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -384,40 +384,53 @@ export default function PreGameLineupScreen({
 
         {/* Player picker / GK rotation section */}
         <div className="border-t border-border">
-          {/* GK Rotation picker */}
+          {/* GK Rotation picker - tap-to-select chips */}
           {hasGk && rotateGkAtHalftime && gkCapablePlayers.length >= 2 && (
-            <div className="px-4 py-2 border-b border-border bg-muted/30">
-              <p className="text-xs font-medium text-muted-foreground mb-1.5">GK Rotation</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground">1st Half</Label>
-                  <Select value={firstHalfGkId || ""} onValueChange={handleFirstHalfGkChange}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Select GK" />
-                    </SelectTrigger>
-                    <SelectContent className="z-[99999]">
-                      {gkCapablePlayers.map(p => (
-                        <SelectItem key={p.id} value={p.id} className="text-xs">
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            <div className="px-4 py-3 border-b border-border bg-muted/20 space-y-3">
+              <div className="space-y-1.5">
+                <p className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">1st Half GK</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {gkCapablePlayers.map(p => (
+                    <button
+                      key={p.id}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border transition-all",
+                        firstHalfGkId === p.id
+                          ? "bg-yellow-600/90 border-yellow-400/70 text-white shadow-sm"
+                          : "bg-background border-border text-foreground hover:bg-muted/50 active:bg-muted/70"
+                      )}
+                      onClick={() => handleFirstHalfGkChange(p.id)}
+                    >
+                      <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+                        {p.number || "#"}
+                      </span>
+                      {p.name.split(" ")[0]}
+                      {firstHalfGkId === p.id && <Check className="h-3 w-3 ml-0.5" />}
+                    </button>
+                  ))}
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground">2nd Half</Label>
-                  <Select value={secondHalfGkId || ""} onValueChange={setSecondHalfGkId}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Select GK" />
-                    </SelectTrigger>
-                    <SelectContent className="z-[99999]">
-                      {gkCapablePlayers.filter(p => p.id !== firstHalfGkId).map(p => (
-                        <SelectItem key={p.id} value={p.id} className="text-xs">
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">2nd Half GK</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {gkCapablePlayers.filter(p => p.id !== firstHalfGkId).map(p => (
+                    <button
+                      key={p.id}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border transition-all",
+                        secondHalfGkId === p.id
+                          ? "bg-yellow-600/90 border-yellow-400/70 text-white shadow-sm"
+                          : "bg-background border-border text-foreground hover:bg-muted/50 active:bg-muted/70"
+                      )}
+                      onClick={() => setSecondHalfGkId(p.id)}
+                    >
+                      <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+                        {p.number || "#"}
+                      </span>
+                      {p.name.split(" ")[0]}
+                      {secondHalfGkId === p.id && <Check className="h-3 w-3 ml-0.5" />}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
