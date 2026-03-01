@@ -496,6 +496,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (firstHalfGkId || secondHalfGkId) {
       console.log("[PitchBoard] Lineup confirmed with GK rotation:", { firstHalfGkId, secondHalfGkId });
     }
+    // After confirming lineup, prompt auto-sub generation
+    setTimeout(() => {
+      setAutoSubPlanEditMode(false);
+      setAutoSubPlanDialogOpen(true);
+    }, 300);
   }, []);
 
   const handleShowLineupPickerSettingChange = useCallback(async (enabled: boolean) => {
