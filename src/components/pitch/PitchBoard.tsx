@@ -1624,6 +1624,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       
       isDrawingArrowRef.current = false;
       arrowStartRef.current = null;
+      
+      // Minimize toolbar after drawing an arrow (if not pinned)
+      if (distance > 20 && !pinDrawingToolbar) {
+        setDrawingTool("none");
+        setShowFloatingDrawToolbar(false);
+      }
     };
 
     fabricCanvas.on("mouse:down", handleMouseDown);
@@ -1635,7 +1641,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       fabricCanvas.off("mouse:move", handleMouseMove);
       fabricCanvas.off("mouse:up", handleMouseUp);
     };
-  }, [fabricCanvas, drawingTool, drawingColor, createArrow]);
+  }, [fabricCanvas, drawingTool, drawingColor, createArrow, pinDrawingToolbar]);
+
+  // Minimize drawing toolbar after pen stroke completes (if not pinned)
+  useEffect(() => {
+    if (!fabricCanvas) return;
+    
+    const handlePathCreated = () => {
+      if (!pinDrawingToolbar) {
+        setDrawingTool("none");
+        setShowFloatingDrawToolbar(false);
+      }
+    };
+    
+    fabricCanvas.on("path:created", handlePathCreated);
+    return () => {
+      fabricCanvas.off("path:created", handlePathCreated);
+    };
+  }, [fabricCanvas, pinDrawingToolbar]);
 
   // Update drawing mode
   useEffect(() => {
