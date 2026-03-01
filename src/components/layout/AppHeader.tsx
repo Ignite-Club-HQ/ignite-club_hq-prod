@@ -654,14 +654,14 @@ export function AppHeader() {
                   <img 
                     src={effectiveTheme === 'dark' ? igniteIcon : igniteIconLight} 
                     alt="Ignite" 
-                    className="h-8 w-8 object-contain"
+                    className="h-9 w-9 object-contain"
                   />
                   <div className="flex flex-col leading-tight items-start">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-lg text-gradient-emerald">Ignite</span>
+                      <span className="font-bold text-xl text-gradient-emerald">Ignite</span>
                       
                     </div>
-                    <span className="text-[10px] text-muted-foreground -mt-1 text-left">Club HQ</span>
+                    <span className="text-[11px] text-muted-foreground -mt-1 text-left">Club HQ</span>
                   </div>
                 </>
               )}
