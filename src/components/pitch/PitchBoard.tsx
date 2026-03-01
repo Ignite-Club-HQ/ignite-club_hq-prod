@@ -5835,6 +5835,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               />
                             </Suspense>
                           </div>
+                          <div className="flex items-center justify-between py-1">
+                            <Label className="text-sm">Minutes per Half</Label>
+                            <div className="flex items-center gap-2">
+                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleMinutesPerHalfChange(Math.max(1, minutesPerHalf - 1))} disabled={minutesPerHalf <= 1}>
+                                <span className="text-base font-bold">−</span>
+                              </Button>
+                              <span className="text-sm font-medium w-6 text-center">{minutesPerHalf}</span>
+                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleMinutesPerHalfChange(minutesPerHalf + 1)} disabled={minutesPerHalf >= 45}>
+                                <span className="text-base font-bold">+</span>
+                              </Button>
+                            </div>
+                          </div>
                           {parseInt(teamSize) >= 7 && (
                             <div className="flex items-center justify-between py-1">
                               <Label className="text-sm">Rotate GK at Halftime</Label>
