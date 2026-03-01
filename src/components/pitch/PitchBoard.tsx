@@ -4311,9 +4311,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <Pencil className="h-5 w-5" />
             </button>
 
-            {/* Floating Draw Toolbar - landscape: vertical strip on LEFT side to avoid tactical buttons */}
+            {/* Floating Draw Toolbar - landscape: vertical strip on RIGHT side, vertically centered */}
             {showFloatingDrawToolbar && (
-              <div className="absolute bottom-14 left-2 z-[55] animate-fade-in">
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 z-[55] animate-fade-in">
                 <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-2 flex flex-col items-center gap-2">
                   <Button 
                     variant={drawingTool === "pen" ? "default" : "outline"} 
@@ -4863,9 +4863,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         )}
 
-        {/* Floating right-side controls: shortcuts + tactical mode in one unified column */}
+        {/* Floating left-side controls: shortcuts + tactical mode in one unified column */}
         {!readOnly && (
-          <div className="absolute right-1.5 top-1/2 -translate-y-1/2 z-[55] flex flex-col items-center gap-3">
+          <div className="absolute left-1.5 top-1/2 -translate-y-1/2 z-[55] flex flex-col items-center gap-3">
             {/* Pinned shortcuts (Reset / Stats) above tactical buttons */}
             {pinPitchShortcuts && (
               <div className="flex flex-col items-center gap-1">
@@ -4909,7 +4909,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
             {/* Inline formation suggestion popup */}
             {tacticalFormationSuggestion && (
-              <div className="absolute right-14 top-1/2 -translate-y-1/2 w-56 bg-background border border-border rounded-xl shadow-xl p-3.5 animate-fade-in">
+              <div className="absolute left-14 top-1/2 -translate-y-1/2 w-56 bg-background border border-border rounded-xl shadow-xl p-3.5 animate-fade-in">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm text-foreground leading-snug">
                     Try <span className="font-bold">{tacticalFormationSuggestion.formationName}</span> for{" "}
