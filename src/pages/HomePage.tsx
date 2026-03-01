@@ -1995,7 +1995,7 @@ export default function HomePage() {
                           </span>
                         )}
                       </div>
-                      <h3 className={`font-semibold truncate ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
+                      <h3 className={`font-semibold ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3.5 w-3.5" />
