@@ -2207,6 +2207,68 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setSwapPlayer2(null);
   }, []);
 
+  // Confirm pitch swap with accommodation (a third player moves to make the swap work)
+  const handleConfirmPitchSwapWithAccommodation = useCallback((accommodatorId: string, accommodatorNewPosition: string) => {
+    if (!swapPlayer1 || !swapPlayer2) return;
+    
+    const player1 = players.find(p => p.id === swapPlayer1);
+    const player2 = players.find(p => p.id === swapPlayer2);
+    const accommodator = players.find(p => p.id === accommodatorId);
+    
+    if (!player1?.position || !player2?.position || !accommodator?.position) {
+      setPitchSwapConfirmOpen(false);
+      setSwapPlayer1(null);
+      setSwapPlayer2(null);
+      return;
+    }
+    
+    const pos1 = { ...player1.position };
+    const pos2 = { ...player2.position };
+    const accPos = { ...accommodator.position };
+    const pitchPos1 = player1.currentPitchPosition;
+    const pitchPos2 = player2.currentPitchPosition;
+    const accPitchPos = accommodator.currentPitchPosition;
+    
+    pushToUndoHistory(`Swap: ${player1.name} ↔ ${player2.name} (${accommodator.name} accommodates)`, playersRef.current);
+    
+    // Determine who goes where based on accommodation:
+    // The accommodator takes the position that the mismatched player can't fill
+    // The mismatched player takes the accommodator's old position
+    setPlayers(prev => prev.map(p => {
+      if (p.id === swapPlayer1 && accommodatorNewPosition === pitchPos2) {
+        // player1 couldn't play pos2, so player1 takes accommodator's old position
+        return { ...p, position: accPos, currentPitchPosition: accPitchPos };
+      } else if (p.id === swapPlayer1) {
+        return { ...p, position: pos2, currentPitchPosition: pitchPos2 };
+      }
+      if (p.id === swapPlayer2 && accommodatorNewPosition === pitchPos1) {
+        // player2 couldn't play pos1, so player2 takes accommodator's old position
+        return { ...p, position: accPos, currentPitchPosition: accPitchPos };
+      } else if (p.id === swapPlayer2) {
+        return { ...p, position: pos1, currentPitchPosition: pitchPos1 };
+      }
+      if (p.id === accommodatorId) {
+        // Accommodator moves to the position they're covering
+        if (accommodatorNewPosition === pitchPos2) {
+          return { ...p, position: pos2, currentPitchPosition: pitchPos2 as any };
+        } else {
+          return { ...p, position: pos1, currentPitchPosition: pitchPos1 as any };
+        }
+      }
+      return p;
+    }));
+    
+    toast({ 
+      title: "Positions swapped with accommodation", 
+      description: `${player1.name} ↔ ${player2.name} (${accommodator.name} moved to ${accommodatorNewPosition})` 
+    });
+    
+    setPitchSwapConfirmOpen(false);
+    setSwapPlayer1(null);
+    setSwapPlayer2(null);
+    setSwapMode(false);
+  }, [swapPlayer1, swapPlayer2, players, toast, pushToUndoHistory]);
+
   // Cancel sub mode
   const toggleSubMode = () => {
     if (readOnly) return;
@@ -4880,8 +4942,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           onOpenChange={setPitchSwapConfirmOpen}
           player1={players.find(p => p.id === swapPlayer1) || null}
           player2={players.find(p => p.id === swapPlayer2) || null}
+          allPitchPlayers={players.filter(p => p.position !== null)}
           onConfirm={handleConfirmPitchSwap}
           onCancel={handleCancelPitchSwap}
+          onConfirmWithAccommodation={handleConfirmPitchSwapWithAccommodation}
         />
 
         {/* Swap Before Sub Dialog (step 1 of swap-based substitution) */}
@@ -6203,8 +6267,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         onOpenChange={setPitchSwapConfirmOpen}
         player1={players.find(p => p.id === swapPlayer1) || null}
         player2={players.find(p => p.id === swapPlayer2) || null}
+        allPitchPlayers={players.filter(p => p.position !== null)}
         onConfirm={handleConfirmPitchSwap}
         onCancel={handleCancelPitchSwap}
+        onConfirmWithAccommodation={handleConfirmPitchSwapWithAccommodation}
       />
 
       {/* Swap Before Sub Dialog (step 1 of swap-based substitution) */}
