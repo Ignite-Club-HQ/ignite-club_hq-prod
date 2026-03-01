@@ -262,6 +262,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const gameTimerRef = useRef<GameTimerRef>(null);
   const [autoSubPlanDialogOpen, setAutoSubPlanDialogOpen] = useState(false);
   const [autoSubPlanEditMode, setAutoSubPlanEditMode] = useState(false);
+  const [autoSubFromPreGame, setAutoSubFromPreGame] = useState(false);
   const [autoSubPlan, setAutoSubPlan] = useState<SubstitutionEvent[]>(() => savedState?.autoSubPlan || []);
   const [autoSubActive, setAutoSubActive] = useState(() => savedState?.autoSubActive || false);
   const [autoSubPaused, setAutoSubPaused] = useState(() => savedState?.autoSubPaused || false);
@@ -517,6 +518,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // After confirming lineup, prompt auto-sub generation
     setTimeout(() => {
       setAutoSubPlanEditMode(false);
+      setAutoSubFromPreGame(true);
       setAutoSubPlanDialogOpen(true);
     }, 300);
   }, []);
@@ -709,6 +711,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Open auto-sub plan dialog with minutes from pitch settings
   const openAutoSubPlanDialog = useCallback((editMode?: boolean) => {
     setAutoSubPlanEditMode(editMode === true);
+    setAutoSubFromPreGame(false);
     setAutoSubPlanDialogOpen(true);
   }, []);
 
@@ -4905,7 +4908,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           rotateGkAtHalftime={rotateGkAtHalftime}
           currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
           currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-          preferredSecondHalfGkId={preferredSecondHalfGkId}
+          showStepper={autoSubFromPreGame}
         />
 
         {/* Sub Confirm Dialog */}
@@ -6233,7 +6236,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         disablePositionSwaps={disablePositionSwaps}
         disableBatchSubs={disableBatchSubs}
         rotateGkAtHalftime={rotateGkAtHalftime}
-        preferredSecondHalfGkId={preferredSecondHalfGkId}
+        showStepper={autoSubFromPreGame}
       />
 
       {/* Sub Confirm Dialog */}
