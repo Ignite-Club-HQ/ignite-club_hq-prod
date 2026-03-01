@@ -4752,13 +4752,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         </Button>
                       </div>
                     )}
-                    {(readOnly || miniLeagueTeams || gameInProgress) && (
+                    {(readOnly || miniLeagueTeams || gameInProgress) && !readOnly && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button variant="outline" className="h-12 text-base" onClick={() => setStatsOpen(true)}>
+                          <BarChart3 className="h-4 w-4 mr-1.5" />
+                          Stats
+                        </Button>
+                        <Button variant="outline" className="h-12 text-base" onClick={handleResetFormation}>
+                          <RotateCcw className="h-4 w-4 mr-1.5" />
+                          Reset Formation
+                        </Button>
+                      </div>
+                    )}
+                    {(readOnly || miniLeagueTeams || gameInProgress) && readOnly && (
                       <Button variant="outline" className="w-full h-12 text-base" onClick={() => setStatsOpen(true)}>
                         <BarChart3 className="h-4 w-4 mr-1.5" />
                         Stats
                       </Button>
                     )}
-                    {!readOnly && (
+                    {!readOnly && !miniLeagueTeams && !gameInProgress && (
                       <Button variant="outline" className="w-full h-12 text-base" onClick={handleResetFormation}>
                         <RotateCcw className="h-4 w-4 mr-1.5" />
                         Reset Formation
