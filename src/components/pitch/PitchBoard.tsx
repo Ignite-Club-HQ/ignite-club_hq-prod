@@ -4311,14 +4311,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <Pencil className="h-5 w-5" />
             </button>
 
-            {/* Floating Draw Toolbar - landscape: vertical strip on RIGHT side, vertically centered */}
+            {/* Floating Draw Toolbar - landscape: horizontal strip above FAB on LEFT side */}
             {showFloatingDrawToolbar && (
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 z-[55] animate-fade-in">
-                <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-2 flex flex-col items-center gap-2">
+              <div className="absolute bottom-14 left-3 z-[55] animate-fade-in">
+                <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-2 flex items-center gap-2">
                   <Button 
                     variant={drawingTool === "pen" ? "default" : "outline"} 
                     size="icon"
-                    className="h-11 w-11"
+                    className="h-10 w-10"
                     onClick={() => {
                       setDrawingTool(drawingTool === "pen" ? "none" : "pen");
                       if (drawingTool !== "pen" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
@@ -4329,7 +4329,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <Button 
                     variant={drawingTool === "arrow" ? "default" : "outline"} 
                     size="icon"
-                    className="h-11 w-11"
+                    className="h-10 w-10"
                     onClick={() => {
                       setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
                       if (drawingTool !== "arrow" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
@@ -4340,7 +4340,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <Button 
                     variant="outline" 
                     size="icon" 
-                    className="h-11 w-11"
+                    className="h-10 w-10"
                     onClick={clearDrawings}
                   >
                     <Eraser className="h-5 w-5" />
@@ -4349,7 +4349,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <Button 
                       variant="destructive" 
                       size="icon" 
-                      className="h-11 w-11"
+                      className="h-10 w-10"
                       onClick={() => {
                         setDrawingTool("none");
                         setShowFloatingDrawToolbar(false);
@@ -4358,7 +4358,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       <X className="h-5 w-5" />
                     </Button>
                   )}
-                  <div className="w-full border-t border-border my-0.5" />
+                  <div className="h-8 border-l border-border mx-0.5" />
                   {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
                     <button
                       key={color}
