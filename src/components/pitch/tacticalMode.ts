@@ -126,10 +126,13 @@ export const computeTacticalOffsets = (
             if (isWide(bx)) dx = isLeft(bx) ? -10 : 10;
           }
           break;
-        case "FWD":
+        case "FWD": {
           // Forwards push highest — clear visible jump
           dy = isSmallSided ? -18 : -22;
-          if (isWide(bx)) dx = isLeft(bx) ? -12 : 12; // wide forwards spread
+          const forwards = onPitch.filter(pl => pl.currentPitchPosition === "FWD");
+          const fwdSpread = forwards.length <= 2 ? 6 : 12;
+          if (isWide(bx)) dx = isLeft(bx) ? -fwdSpread : fwdSpread;
+        }
           break;
       }
     } else if (mode === "defend") {
