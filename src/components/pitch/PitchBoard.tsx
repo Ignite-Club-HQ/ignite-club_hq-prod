@@ -4026,14 +4026,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           {/* Formation suggestion floating popup - landscape */}
           {tacticalFormationSuggestion && !readOnly && (
             <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] animate-fade-in">
-              <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 shadow-lg">
-                <span className="text-sm font-medium">
-                  Try <span className="font-bold">{tacticalFormationSuggestion.formationName}</span>?
+              <div className="flex flex-col items-center gap-1.5 bg-card border border-border rounded-xl px-4 py-3 shadow-lg max-w-[220px]">
+                <span className="text-xs text-muted-foreground text-center">
+                  {tacticalFormationSuggestion.mode === "attack"
+                    ? "More forwards for attacking play"
+                    : "Extra cover at the back"}
                 </span>
-                <Button type="button" size="sm" className="h-8 text-xs px-3" onClick={handleApplyTacticalSuggestion}>Apply</Button>
-                <button type="button" onClick={handleDismissTacticalSuggestion} className="p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted">
-                  <X className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">
+                    Switch to {tacticalFormationSuggestion.formationName}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <Button type="button" size="sm" className="h-8 text-xs px-4" onClick={handleApplyTacticalSuggestion}>Apply</Button>
+                  <button type="button" onClick={handleDismissTacticalSuggestion} className="p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -5862,14 +5871,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Formation suggestion floating popup - portrait */}
         {tacticalFormationSuggestion && !readOnly && (
           <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] animate-fade-in">
-            <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 shadow-lg">
-              <span className="text-sm font-medium">
-                Try <span className="font-bold">{tacticalFormationSuggestion.formationName}</span>?
+            <div className="flex flex-col items-center gap-1.5 bg-card border border-border rounded-xl px-4 py-3 shadow-lg max-w-[220px]">
+              <span className="text-xs text-muted-foreground text-center">
+                {tacticalFormationSuggestion.mode === "attack"
+                  ? "More forwards for attacking play"
+                  : "Extra cover at the back"}
               </span>
-              <Button type="button" size="sm" className="h-8 text-xs px-3" onClick={handleApplyTacticalSuggestion}>Apply</Button>
-              <button type="button" onClick={handleDismissTacticalSuggestion} className="p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted">
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold">
+                  Switch to {tacticalFormationSuggestion.formationName}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <Button type="button" size="sm" className="h-8 text-xs px-4" onClick={handleApplyTacticalSuggestion}>Apply</Button>
+                <button type="button" onClick={handleDismissTacticalSuggestion} className="p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
         )}
