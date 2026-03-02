@@ -71,28 +71,28 @@ const scaleCanvasObjects = (
 
   if (noScaleChange) return;
 
-  // For groups (arrows), use uniform scaling to preserve arrowhead shape.
-  // For paths (pen strokes), use non-uniform scaling for accurate positioning.
-  const uniformScale = Math.min(scaleX, scaleY);
-
+  // All objects get full non-uniform scaling so arrows span the correct
+  // relative area after aspect-ratio changes.  Triangle (arrowhead) children
+  // inside groups receive a compensation factor so they don't appear squashed.
   canvas.getObjects().forEach((obj: any) => {
-    const isGroup = typeof obj.getObjects === "function";
+    obj.set({
+      left: (obj.left ?? 0) * scaleX,
+      top: (obj.top ?? 0) * scaleY,
+      scaleX: (obj.scaleX ?? 1) * scaleX,
+      scaleY: (obj.scaleY ?? 1) * scaleY,
+    });
 
-    if (isGroup) {
-      // Arrow groups: position non-uniformly, but scale uniformly to keep shape
-      obj.set({
-        left: (obj.left ?? 0) * scaleX,
-        top: (obj.top ?? 0) * scaleY,
-        scaleX: (obj.scaleX ?? 1) * uniformScale,
-        scaleY: (obj.scaleY ?? 1) * uniformScale,
-      });
-    } else {
-      // Paths / pen strokes: full non-uniform scaling is fine
-      obj.set({
-        left: (obj.left ?? 0) * scaleX,
-        top: (obj.top ?? 0) * scaleY,
-        scaleX: (obj.scaleX ?? 1) * scaleX,
-        scaleY: (obj.scaleY ?? 1) * scaleY,
+    // Compensate arrowhead triangles inside groups so they stay proportional
+    const children = typeof obj.getObjects === "function" ? obj.getObjects() : null;
+    if (Array.isArray(children)) {
+      children.forEach((child: any) => {
+        if (child?.type === "triangle") {
+          // Undo the non-uniform distortion on the arrowhead by applying
+          // the inverse ratio so it keeps a uniform visual scale.
+          const compensation = scaleY / scaleX;
+          child.set({ scaleY: (child.scaleY ?? 1) * compensation });
+          if (typeof child.setCoords === "function") child.setCoords();
+        }
       });
     }
 
