@@ -4120,7 +4120,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           
           {/* Floating draggable timer */}
           <div 
-            className="absolute z-[61] cursor-move touch-none select-none origin-top-left"
+            className="absolute z-[70] cursor-move touch-none select-none origin-top-left"
             style={{ 
               left: floatingTimerPosition.x, 
               top: floatingTimerPosition.y,
@@ -4129,7 +4129,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             onMouseDown={handleTimerDragStart}
             onTouchStart={handleTimerTouchStart}
           >
-            <div className="flex flex-col items-center bg-black/60 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+            <div className="flex flex-col items-center bg-black backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
               {/* Main row: Score | Timer | Play | AUTO */}
               <div className="flex items-center gap-2">
                 {gameInProgress && !hideScores && (
@@ -5367,7 +5367,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       <div className="flex-1 min-h-0 relative overflow-hidden">
         {/* Floating score + timer combined row - draggable + resizable */}
         <div 
-          className={cn("absolute z-[61] select-none pointer-events-auto touch-none cursor-move", portraitTimerPosition ? "origin-top-left" : "origin-top-right")}
+          className={cn("absolute z-[70] select-none pointer-events-auto touch-none cursor-move", portraitTimerPosition ? "origin-top-left" : "origin-top-right")}
           style={{ 
             ...(portraitTimerPosition 
               ? { left: portraitTimerPosition.x, top: portraitTimerPosition.y, right: 'auto' }
@@ -5378,7 +5378,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           onTouchStart={handlePortraitTimerTouchStart}
         >
           <div className="flex flex-col items-end">
-            <div className="flex flex-col items-center bg-black/60 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+            <div className="flex flex-col items-center bg-black backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
               {/* Main row: Score | Timer | AUTO */}
               <div className="flex items-center gap-2">
                 {gameInProgress && !hideScores && !showScoreInPortrait && (
