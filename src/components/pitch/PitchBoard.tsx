@@ -5613,7 +5613,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 "bottom-3"
               )}
               onPointerDown={(e) => { e.stopPropagation(); }}
-              onClick={() => setPortraitSheetOpen(true)}
+              onClick={() => {
+                setDrawingTool("none");
+                setShowFloatingDrawToolbar(false);
+                setPortraitSheetOpen(true);
+              }}
             >
               <Users className="h-6 w-6 text-foreground" />
             </button>
@@ -5708,7 +5712,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             {portraitSheetOpen && (
               <div className="absolute inset-0 z-[60] flex flex-col pointer-events-none" style={{ height: '100%' }}>
                 <div className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")} onClick={drawingTool === "none" ? () => setPortraitSheetOpen(false) : undefined} />
-                <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col" style={{ maxHeight: `${portraitSheetHeightPct}vh`, height: 'auto' }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+                <div className="pointer-events-auto bg-background/100 border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col" style={{ maxHeight: `${portraitSheetHeightPct}vh`, height: 'auto', backgroundColor: 'hsl(var(--background))' }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
 
               {/* Handle bar - draggable */}
               <div 
