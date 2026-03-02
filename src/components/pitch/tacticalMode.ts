@@ -47,8 +47,9 @@ export const computeTacticalOffsets = (
   const isWide = (x: number) => x < 42 || x > 58;
   const isLeft = (x: number) => x < 50;
 
-  // Classify midfielders for special roles
+  // Classify lines for special roles
   const midfielders = onPitch.filter(p => p.currentPitchPosition === "MID");
+  const defenders = onPitch.filter(p => p.currentPitchPosition === "DEF");
 
   // ATTACK: pick one most-central midfielder to push higher (only when 3+ mids)
   let attackPushMidId: string | null = null;
@@ -59,9 +60,9 @@ export const computeTacticalOffsets = (
     attackPushMidId = sorted[0].id;
   }
 
-  // DEFEND: pick one central midfielder as anchor
+  // DEFEND: pick one central midfielder as anchor only for narrow midfield shapes
   let anchorMidId: string | null = null;
-  if (mode === "defend" && midfielders.length > 0) {
+  if (mode === "defend" && midfielders.length > 0 && midfielders.length <= 3) {
     const centralMids = midfielders.filter(m => !isWide(m.position!.x));
     const sorted = (centralMids.length > 0 ? centralMids : midfielders).sort((a, b) =>
       Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
@@ -145,23 +146,26 @@ export const computeTacticalOffsets = (
           dy = isSmallSided ? 26 : 28;
           if (isWide(bx)) {
             dx = isLeft(bx) ? 6 : -6; // tuck narrow
+          } else if (defenders.length >= 4) {
+            dx = bx <= 50 ? -10 : 10; // widen central pair in back-four
           } else if (bx < 50) {
-            dx = -6; // spread central-left outward
+            dx = -6;
           } else if (bx > 50) {
-            dx = 6; // spread central-right outward
+            dx = 6;
           }
           break;
         case "MID":
           // Midfield drops to protect space in front of defenders
           dy = isSmallSided ? 6 : 8;
           if (p.id === anchorMidId) {
-            // Anchor stays central
+            // Anchor stays central-ish for narrow midfield shapes
             if (bx < 45) dx = 6;
             else if (bx > 55) dx = -6;
             isAnchor = true;
           } else {
             // Wide mids tuck in, central mids spread out to avoid crowding
             if (isWide(bx)) dx = isLeft(bx) ? 8 : -8;
+            else if (midfielders.length >= 4) dx = bx <= 50 ? -10 : 10;
             else if (bx < 50) dx = -6;
             else if (bx > 50) dx = 6;
           }
