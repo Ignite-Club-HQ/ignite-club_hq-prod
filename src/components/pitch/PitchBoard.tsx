@@ -134,7 +134,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const queryClient = useQueryClient();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { isLandscape, isMobileLandscape, isTabletLandscape, isDesktopLandscape } = useIsLandscape();
+  const { isLandscape, isMobileLandscape } = useIsLandscape();
 
   // Hide status bar in landscape on native to fill the whole screen
   useEffect(() => {
@@ -4672,7 +4672,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Swipe-up zone at bottom edge to open sheet */}
         {toolbarCollapsed && (
           <div
-            className="absolute bottom-0 left-0 right-0 z-[45] flex justify-center items-end pointer-events-auto"
+            className="absolute bottom-0 left-0 right-0 z-[66] flex justify-center items-end pointer-events-auto"
             style={{ height: 56 }}
             onTouchStart={(e) => {
               const el = e.currentTarget;
@@ -4699,7 +4699,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           <>
             {/* Floating settings button - always visible in landscape when sheet closed */}
             <button
-              className="absolute bottom-3 right-3 z-[63] w-12 h-12 rounded-full bg-background/95 backdrop-blur-md border-2 border-border shadow-xl flex items-center justify-center"
+              className="absolute bottom-3 right-3 z-[70] w-12 h-12 rounded-full bg-background/95 backdrop-blur-md border-2 border-border shadow-xl flex items-center justify-center"
               onPointerDown={(e) => { e.stopPropagation(); }}
               onClick={(e) => {
                 e.stopPropagation();
@@ -4718,7 +4718,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
             <button
               className={cn(
-                "absolute bottom-3 z-[63] w-12 h-12 rounded-full backdrop-blur-md border-2 shadow-xl flex items-center justify-center",
+                "absolute bottom-3 z-[70] w-12 h-12 rounded-full backdrop-blur-md border-2 shadow-xl flex items-center justify-center",
                 drawingTool !== "none"
                   ? "bg-primary text-primary-foreground border-primary"
                   : showFloatingDrawToolbar
@@ -4737,13 +4737,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
             {/* Floating Draw Toolbar */}
             {showFloatingDrawToolbar && (
-              <div className="absolute bottom-[4.5rem] z-[64] animate-fade-in" style={{ right: 12 }}>
+              <div className="absolute bottom-[4.5rem] z-[71] animate-fade-in" style={{ right: 12 }}>
                 <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
                   <div className="flex gap-2">
                     <Button 
                       variant={drawingTool === "pen" ? "default" : "outline"} 
                       size="icon"
-                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      className="h-12 w-12"
                       onClick={() => {
                         setDrawingTool(drawingTool === "pen" ? "none" : "pen");
                         if (drawingTool !== "pen" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
@@ -4754,7 +4754,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <Button 
                       variant={drawingTool === "arrow" ? "default" : "outline"} 
                       size="icon"
-                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      className="h-12 w-12"
                       onClick={() => {
                         setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
                         if (drawingTool !== "arrow" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
@@ -4765,7 +4765,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <Button 
                       variant="outline" 
                       size="icon" 
-                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      className="h-12 w-12"
                       onClick={clearDrawings}
                     >
                       <Eraser className="h-5 w-5" />
@@ -4773,7 +4773,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <Button 
                       variant={pinDrawingToolbar ? "default" : "outline"} 
                       size="icon" 
-                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      className="h-12 w-12"
                       onClick={() => setPinDrawingToolbar(prev => !prev)}
                       title={pinDrawingToolbar ? "Unpin drawing tools" : "Pin drawing tools"}
                     >
@@ -4801,7 +4801,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
         {/* Bottom Sheet Overlay for landscape controls */}
         {!toolbarCollapsed && (
-          <div className="absolute inset-0 z-[60] flex flex-col pointer-events-none" style={{ height: '100%' }}>
+          <div className="absolute inset-0 z-[68] flex flex-col pointer-events-none" style={{ height: '100%' }}>
             {/* Backdrop - pass through when drawing */}
             <div 
               className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")}
