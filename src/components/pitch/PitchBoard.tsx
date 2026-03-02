@@ -4532,6 +4532,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   transform: "translate(-50%, -50%)",
                   zIndex: 40,
                   transition: tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined,
+                  pointerEvents: drawingEnabled ? "none" : "auto",
                 }}
               />
 
@@ -4593,6 +4594,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     })(),
                     zIndex: (subAnimationPlayers.in === player.id || subAnimationPlayers.swap === player.id) ? 40 : previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
                     cursor: readOnly ? "default" : ((subMode || swapMode) ? "pointer" : "grab"),
+                    pointerEvents: drawingEnabled ? "none" : "auto",
                   }}
                 />
               ))}
@@ -6087,6 +6089,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 transform: "translate(-50%, -50%)",
                 zIndex: 40,
                 transition: tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined,
+                pointerEvents: drawingEnabled ? "none" : "auto",
               }}
             />
 
@@ -6147,6 +6150,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   })(),
                   zIndex: (subAnimationPlayers.in === player.id || subAnimationPlayers.swap === player.id) ? 40 : previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
                   cursor: readOnly ? "default" : ((subMode || swapMode) ? "pointer" : "grab"),
+                  pointerEvents: drawingEnabled ? "none" : "auto",
                 }}
               />
             ))}
