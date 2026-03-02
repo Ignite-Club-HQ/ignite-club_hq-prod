@@ -88,6 +88,7 @@ export function useLazyFabric({
   const [isReady, setIsReady] = useState(false);
   const initializingRef = useRef(false);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const pendingRestoreJsonRef = useRef<any | null>(null);
 
   // Load Fabric module when enabled
   useEffect(() => {
@@ -117,27 +118,54 @@ export function useLazyFabric({
     // Prevent double initialization
     if (initializingRef.current) return;
 
-    // If canvas already exists, just re-enable — don't reinitialize
-    if (canvas) {
-      return;
-    }
+    const canvasEl = canvasRef.current;
+    const containerEl = containerRef.current;
 
     // If refs aren't ready yet, retry after a short delay
-    if (!canvasRef.current || !containerRef.current) {
+    if (!canvasEl || !containerEl) {
       const retryId = setTimeout(() => {
-        setRetryCount(c => c + 1);
+        setRetryCount((c) => c + 1);
       }, 150);
       return () => clearTimeout(retryId);
     }
 
-    initializingRef.current = true;
+    // If we already have a canvas bound to this DOM element, just keep it sized correctly
+    if (canvas) {
+      const boundCanvasEl = (canvas as any).lowerCanvasEl as HTMLCanvasElement | undefined;
+      const isBoundToCurrentElement = boundCanvasEl === canvasEl;
 
-    // Clean up previous canvas
-    if (cleanupRef.current) {
-      cleanupRef.current();
-      cleanupRef.current = null;
+      if (isBoundToCurrentElement) {
+        const rect = containerEl.getBoundingClientRect();
+        if (rect.width >= 10 && rect.height >= 10) {
+          const needsResize =
+            Math.abs(canvas.getWidth() - rect.width) > 1 ||
+            Math.abs(canvas.getHeight() - rect.height) > 1;
+
+          if (needsResize) {
+            canvas.setDimensions({ width: rect.width, height: rect.height });
+            canvas.renderAll();
+          }
+        }
+        return;
+      }
+
+      // Canvas is attached to a stale element (orientation/layout swap). Preserve drawings and recreate.
+      try {
+        pendingRestoreJsonRef.current = canvas.toJSON();
+      } catch (err) {
+        console.warn("[LazyFabric] Failed to serialize canvas before rebind:", err);
+        pendingRestoreJsonRef.current = null;
+      }
+
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
       setCanvas(null);
+      setIsReady(false);
     }
+
+    initializingRef.current = true;
 
     // Small delay to let container settle (especially after orientation change)
     const timeoutId = setTimeout(() => {
@@ -149,9 +177,10 @@ export function useLazyFabric({
       const container = containerRef.current;
       const rect = container.getBoundingClientRect();
 
-      // Skip if dimensions are invalid
+      // Retry if dimensions are not ready yet
       if (rect.width < 10 || rect.height < 10) {
         initializingRef.current = false;
+        setTimeout(() => setRetryCount((c) => c + 1), 150);
         return;
       }
 
@@ -204,33 +233,36 @@ export function useLazyFabric({
         newCanvas.dispose();
       };
 
+      const lockObject = (obj: any) => {
+        if (!obj) return;
+        obj.set({
+          selectable: false,
+          evented: false,
+          hasControls: false,
+          hasBorders: false,
+          lockMovementX: true,
+          lockMovementY: true,
+        });
+      };
+
       // Make all drawn objects non-selectable
-      newCanvas.on("path:created", (e: any) => {
-        if (e.path) {
-          e.path.set({
-            selectable: false,
-            evented: false,
-            hasControls: false,
-            hasBorders: false,
-            lockMovementX: true,
-            lockMovementY: true,
-          });
-        }
-      });
+      newCanvas.on("path:created", (e: any) => lockObject(e.path));
 
       // Also lock any objects added via other means (arrows, etc.)
-      newCanvas.on("object:added", (e: any) => {
-        if (e.target) {
-          e.target.set({
-            selectable: false,
-            evented: false,
-            hasControls: false,
-            hasBorders: false,
-            lockMovementX: true,
-            lockMovementY: true,
+      newCanvas.on("object:added", (e: any) => lockObject(e.target));
+
+      const restoreJson = pendingRestoreJsonRef.current;
+      if (restoreJson) {
+        pendingRestoreJsonRef.current = null;
+        Promise.resolve((newCanvas as any).loadFromJSON(restoreJson))
+          .then(() => {
+            newCanvas.getObjects().forEach((obj) => lockObject(obj));
+            newCanvas.renderAll();
+          })
+          .catch((err) => {
+            console.error("[LazyFabric] Failed to restore canvas after rebind:", err);
           });
-        }
-      });
+      }
 
       setCanvas(newCanvas);
       setIsReady(true);
