@@ -5197,34 +5197,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           teamId={teamId}
           teamName={teamName} 
           onLinkEvent={readOnly || (gameInProgress && !!linkedEventId) ? undefined : handleLinkEvent}
-          showScoreToggle={gameInProgress && !hideScores}
-          scoreExpanded={showScoreInPortrait}
-          onToggleScore={() => setShowScoreInPortrait(!showScoreInPortrait)}
-          currentScore={{ 
-            team: goals.filter(g => !g.isOpponentGoal).length, 
-            opponent: goals.filter(g => g.isOpponentGoal).length 
-          }}
         />
-      )}
-      
-      {/* Score tracker in portrait mode - show when game is in progress and expanded */}
-      {gameInProgress && showScoreInPortrait && !hideScores && (
-        <div className="px-4 py-2 bg-muted/30 border-b border-border shrink-0">
-          <ScoreTracker
-            goals={goals}
-            onAddGoal={handleAddGoal}
-            onRemoveGoal={handleRemoveGoal}
-            onUpdateGoal={handleUpdateGoal}
-            players={players}
-            currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-            elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-            teamName={teamName}
-            opponentName={opponentName}
-            readOnly={readOnly}
-            isGameFinished={gameTimerRef.current?.isGameFinished() || false}
-            miniLeagueTeams={miniLeagueTeams}
-          />
-        </div>
       )}
       
       {/* Slim Header */}
