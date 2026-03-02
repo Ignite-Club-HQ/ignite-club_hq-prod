@@ -643,8 +643,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const deltaX = moveEvent.clientX - floatingTimerDragRef.current.startX;
       const deltaY = moveEvent.clientY - floatingTimerDragRef.current.startY;
       setFloatingTimerPosition({
-        x: Math.max(0, floatingTimerDragRef.current.startPosX + deltaX),
-        y: Math.max(0, floatingTimerDragRef.current.startPosY + deltaY),
+        x: Math.max(-200, floatingTimerDragRef.current.startPosX + deltaX),
+        y: Math.max(-60, floatingTimerDragRef.current.startPosY + deltaY),
       });
     };
     
@@ -704,8 +704,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const deltaX = touch.clientX - floatingTimerDragRef.current.startX;
       const deltaY = touch.clientY - floatingTimerDragRef.current.startY;
       setFloatingTimerPosition({
-        x: Math.max(0, floatingTimerDragRef.current.startPosX + deltaX),
-        y: Math.max(0, floatingTimerDragRef.current.startPosY + deltaY),
+        x: Math.max(-200, floatingTimerDragRef.current.startPosX + deltaX),
+        y: Math.max(-60, floatingTimerDragRef.current.startPosY + deltaY),
       });
     };
     
@@ -770,8 +770,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const deltaX = t.clientX - portraitTimerDragRef.current.startX;
       const deltaY = t.clientY - portraitTimerDragRef.current.startY;
       setPortraitTimerPosition({
-        x: Math.max(0, portraitTimerDragRef.current.startPosX + deltaX),
-        y: Math.max(0, portraitTimerDragRef.current.startPosY + deltaY),
+        x: Math.max(-200, portraitTimerDragRef.current.startPosX + deltaX),
+        y: Math.max(-60, portraitTimerDragRef.current.startPosY + deltaY),
       });
     };
     
@@ -4120,7 +4120,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           
           {/* Floating draggable timer */}
           <div 
-            className="absolute z-50 cursor-move touch-none select-none origin-top-left"
+            className="absolute z-[61] cursor-move touch-none select-none origin-top-left"
             style={{ 
               left: floatingTimerPosition.x, 
               top: floatingTimerPosition.y,
