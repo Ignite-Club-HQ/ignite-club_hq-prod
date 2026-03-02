@@ -4391,6 +4391,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           <div 
             id="landscape-pitch-area"
             className={cn("w-full h-full", zoom > 1 ? "overflow-auto" : "overflow-hidden")}
+            style={{ zIndex: 0 }}
             onWheel={handleWheel}
           >
             <div 
@@ -4701,8 +4702,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           <>
             {/* Floating settings button - always visible in landscape when sheet closed */}
             <button
-              className="absolute bottom-3 right-3 z-[55] w-12 h-12 rounded-full bg-background/95 backdrop-blur-md border-2 border-border shadow-xl flex items-center justify-center"
-              onClick={() => { setSheetHeightPct(50); setToolbarCollapsed(false); }}
+              className="absolute bottom-3 right-3 z-[70] w-12 h-12 rounded-full bg-background/95 backdrop-blur-md border-2 border-border shadow-xl flex items-center justify-center"
+              onClick={(e) => { e.stopPropagation(); setSheetHeightPct(50); setToolbarCollapsed(false); }}
+              onTouchEnd={(e) => { e.stopPropagation(); }}
             >
               <Users className="h-6 w-6 text-foreground" />
             </button>
@@ -4710,7 +4712,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
             <button
               className={cn(
-                "absolute bottom-3 z-[55] w-12 h-12 rounded-full backdrop-blur-md border-2 shadow-xl flex items-center justify-center",
+                "absolute bottom-3 z-[70] w-12 h-12 rounded-full backdrop-blur-md border-2 shadow-xl flex items-center justify-center",
                 drawingTool !== "none"
                   ? "bg-primary text-primary-foreground border-primary"
                   : showFloatingDrawToolbar
@@ -4718,7 +4720,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     : "bg-background/95 border-border text-foreground"
               )}
               style={{ right: 68 }}
-              onClick={() => setShowFloatingDrawToolbar(prev => !prev)}
+              onClick={(e) => { e.stopPropagation(); setShowFloatingDrawToolbar(prev => !prev); }}
+              onTouchEnd={(e) => { e.stopPropagation(); }}
             >
               <Pencil className="h-5 w-5" />
             </button>
