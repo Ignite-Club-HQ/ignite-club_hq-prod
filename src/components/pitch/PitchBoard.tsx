@@ -3227,28 +3227,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Don't handle if drawing tool is active
     if (drawingTool !== "none") return;
     
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      const distance = getPinchDistance(e.touches);
-      setLastPinchDistance(distance);
-    }
+    // Pinch zoom disabled - pitch should not be resizable/moveable
   };
 
   const handlePitchTouchMove = (e: React.TouchEvent) => {
     // Don't handle if drawing tool is active
     if (drawingTool !== "none") return;
-    
-    // Handle pinch zoom
-    if (e.touches.length === 2 && lastPinchDistance !== null) {
-      e.preventDefault();
-      const newDistance = getPinchDistance(e.touches);
-      if (newDistance !== null) {
-        const scale = newDistance / lastPinchDistance;
-        setZoom(prev => Math.min(Math.max(prev * scale, 0.5), 3));
-        setLastPinchDistance(newDistance);
-      }
-      return;
-    }
     
     // Handle player drag - block in readOnly mode
     if (readOnly) return;
@@ -3270,10 +3254,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
 
   const handlePitchTouchEnd = (e: React.TouchEvent) => {
-    if (lastPinchDistance !== null) {
-      setLastPinchDistance(null);
-      return;
-    }
     
     if (readOnly) return;
     if (!touchDragPlayer) return;
