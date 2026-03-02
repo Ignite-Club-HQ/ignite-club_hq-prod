@@ -96,7 +96,7 @@ export const computeTacticalOffsets = (
       return Math.max(deepestY, projectedY);
     }, 20);
   })();
-  const MIN_MID_FORWARD_GAP = isSmallSided ? 14 : 12;
+  const MIN_MID_FORWARD_GAP = isSmallSided ? 20 : 18;
 
   for (const p of onPitch) {
     const bx = p.position!.x;
