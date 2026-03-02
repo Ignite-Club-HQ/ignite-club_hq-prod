@@ -3042,8 +3042,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     e.preventDefault();
     const touch = e.touches[0];
     const rect = containerRef.current.getBoundingClientRect();
-    const x = ((touch.clientX - rect.left) / rect.width) * 100 / zoom;
-    const y = ((touch.clientY - rect.top) / rect.height) * 100 / zoom;
+    const x = ((touch.clientX - rect.left) / rect.width) * 100;
+    const y = ((touch.clientY - rect.top) / rect.height) * 100;
     setBallPosition({ x: Math.max(2, Math.min(98, x)), y: Math.max(2, Math.min(98, y)) });
   };
 
@@ -3314,8 +3314,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       e.preventDefault();
       const touch = e.touches[0];
       const rect = containerRef.current.getBoundingClientRect();
-      const x = ((touch.clientX - rect.left) / rect.width) * 100 / zoom;
-      const y = ((touch.clientY - rect.top) / rect.height) * 100 / zoom;
+      const x = ((touch.clientX - rect.left) / rect.width) * 100;
+      const y = ((touch.clientY - rect.top) / rect.height) * 100;
 
       setPlayers(prev => 
         prev.map(p => 
@@ -4384,14 +4384,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
           <div 
             id="landscape-pitch-area"
-            className="w-full h-full"
+            className={cn("w-full h-full", zoom > 1 ? "overflow-auto" : "overflow-hidden")}
             onWheel={handleWheel}
           >
             <div 
               className={cn(
-                "w-full h-full origin-center transition-transform duration-100",
-                drawingTool === "none" ? "touch-none" : ""
-              )}
+              "transition-transform duration-100",
+              drawingTool === "none" && zoom <= 1 ? "touch-none" : ""
+            )}
               onDrop={handlePitchDrop}
               onDragOver={handleDragOver}
               onTouchStart={drawingTool === "none" ? handlePitchTouchStart : undefined}
@@ -4402,7 +4402,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   hsl(var(--pitch-green) / 0.85) 0%, 
                   hsl(var(--pitch-green)) 50%, 
                   hsl(var(--pitch-green) / 0.85) 100%)`,
-                transform: `scale(${zoom})`,
+                width: `${zoom * 100}%`,
+                height: `${zoom * 100}%`,
+                position: 'relative',
               }}
             >
               {/* Pitch markings */}
@@ -5955,14 +5957,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* The Pitch */}
         <div 
           id="portrait-pitch-area"
-          className="w-full h-full"
+          className={cn("w-full h-full", zoom > 1 ? "overflow-auto" : "overflow-hidden")}
           onWheel={handleWheel}
         >
           <div 
             className={cn(
-              "w-full h-full origin-center transition-transform duration-100",
-              drawingTool === "none" ? "touch-none" : ""
-            )}
+            "transition-transform duration-100",
+            drawingTool === "none" && zoom <= 1 ? "touch-none" : ""
+          )}
             onDrop={handlePitchDrop}
             onDragOver={handleDragOver}
             onTouchStart={drawingTool === "none" ? handlePitchTouchStart : undefined}
@@ -5973,7 +5975,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 hsl(var(--pitch-green) / 0.85) 0%, 
                 hsl(var(--pitch-green)) 50%, 
                 hsl(var(--pitch-green) / 0.85) 100%)`,
-              transform: `scale(${zoom})`,
+              width: `${zoom * 100}%`,
+              height: `${zoom * 100}%`,
+              position: 'relative',
             }}
           >
             {/* Pitch markings */}
