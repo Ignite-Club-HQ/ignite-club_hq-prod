@@ -3873,25 +3873,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               </>
             )}
 
-            {/* Auto-Subs button */}
-            {!readOnly && !disableAutoSubs && !subMode && !swapMode && (
-              <Button
-                variant={autoSubActive ? "secondary" : "ghost"}
-                size="sm"
-                className="h-10 shrink-0 gap-1.5 px-3 text-sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (autoSubActive) {
-                    setAutoSubPanelOpen(true);
-                  } else {
-                    handleOpenNewPlan();
-                  }
-                }}
-              >
-                <Calendar className="h-4 w-4" />
-                {autoSubActive ? "Auto ✓" : "Auto"}
-              </Button>
-            )}
           </div>
 
           <div className="flex-1" />
@@ -3962,10 +3943,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 minutesPerHalf={minutesPerHalf}
                 onMinutesPerHalfChange={handleMinutesPerHalfChange}
               />
-              {autoSubActive && (
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-1.5 py-0.5 rounded animate-pulse">
-                  AUTO
-                </span>
+              {!readOnly && !disableAutoSubs && (
+                <button
+                  className={cn(
+                    "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
+                    autoSubActive
+                      ? "bg-primary text-primary-foreground animate-pulse"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (autoSubActive) {
+                      setAutoSubPanelOpen(true);
+                    } else {
+                      handleOpenNewPlan();
+                    }
+                  }}
+                >
+                  {autoSubActive ? "AUTO" : "AUTO"}
+                </button>
               )}
               </div>
               <div className="flex items-center gap-2 mt-0.5 relative">
@@ -5287,10 +5283,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 minutesPerHalf={minutesPerHalf}
                 onMinutesPerHalfChange={handleMinutesPerHalfChange}
               />
-              {autoSubActive && (
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-1.5 py-0.5 rounded animate-pulse">
+              {!readOnly && !disableAutoSubs && (
+                <button
+                  className={cn(
+                    "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
+                    autoSubActive
+                      ? "bg-primary text-primary-foreground animate-pulse"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (autoSubActive) {
+                      setAutoSubPanelOpen(true);
+                    } else {
+                      handleOpenNewPlan();
+                    }
+                  }}
+                >
                   AUTO
-                </span>
+                </button>
               )}
               </div>
               <div className="flex items-center gap-2 mt-0.5 relative">
@@ -5403,30 +5414,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               </button>
             )}
 
-            {/* Auto-Subs FAB */}
-            {!disableAutoSubs && !subMode && !swapMode && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (autoSubActive) {
-                    setAutoSubPanelOpen(true);
-                  } else {
-                    handleOpenNewPlan();
-                  }
-                }}
-                className={cn(
-                  "flex items-center gap-2 rounded-full shadow-lg transition-colors px-3 py-2",
-                  autoSubActive
-                    ? "bg-secondary text-secondary-foreground border border-border"
-                    : "bg-muted text-foreground hover:bg-muted/80 border border-border"
-                )}
-              >
-                <Calendar className="h-4 w-4" />
-                <span className="text-sm font-medium">
-                  {autoSubActive ? "Auto ✓" : "Auto"}
-                </span>
-              </button>
-            )}
           </div>
         )}
 
