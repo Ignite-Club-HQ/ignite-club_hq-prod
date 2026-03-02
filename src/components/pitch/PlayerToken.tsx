@@ -30,7 +30,7 @@ interface PlayerTokenProps {
   isMovable?: boolean;
   isPreviewHighlight?: boolean;
   previewHighlightType?: "source" | "target" | null;
-  subAnimation?: "in" | "out" | null;
+  subAnimation?: "in" | "out" | "swap" | null;
   variant?: "pitch" | "bench";
   style?: CSSProperties;
   readOnly?: boolean;
@@ -200,6 +200,7 @@ const PlayerToken = memo(function PlayerToken({
         isSubTarget && !isSelected && "animate-pulse",
         isMovable && !isSelected && "animate-pulse",
         subAnimation === "in" && "animate-scale-in",
+        subAnimation === "swap" && "animate-scale-in",
         onClick && "cursor-pointer"
       )}
       style={style}
@@ -217,13 +218,17 @@ const PlayerToken = memo(function PlayerToken({
           isMovable && !isSelected && "border-amber-400 ring-2 ring-amber-400 bg-amber-400/20 text-amber-700 dark:text-amber-300",
           isPreviewHighlight && previewHighlightType === "source" && "border-orange-400 ring-4 ring-orange-400/60 bg-orange-400/30 scale-110 text-orange-700 dark:text-orange-300",
           isPreviewHighlight && previewHighlightType === "target" && "border-cyan-400 ring-4 ring-cyan-400/60 bg-cyan-400/30 scale-110 text-cyan-700 dark:text-cyan-300",
-          subAnimation === "in" && "border-emerald-500 ring-4 ring-emerald-500/50 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+          subAnimation === "in" && "border-emerald-500 ring-4 ring-emerald-500/50 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
+          subAnimation === "swap" && "border-blue-500 ring-4 ring-blue-500/50 bg-blue-500/20 text-blue-700 dark:text-blue-300"
         )}
         style={tokenCircleStyle}
       >
         {player.number || initials}
         {subAnimation === "in" && (
           <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-[8px] font-bold px-1 rounded">ON</span>
+        )}
+        {subAnimation === "swap" && (
+          <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[8px] font-bold px-1 rounded">MOVE</span>
         )}
         {isPreviewHighlight && previewHighlightType === "source" && !subAnimation && (
           <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[8px] font-bold px-1 rounded animate-pulse">OFF</span>
