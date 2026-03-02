@@ -38,6 +38,7 @@ const PitchPlayerActionMenu = lazy(() => import("./PitchPlayerActionMenu"));
 const SubConfirmDialog = lazy(() => import("./SubConfirmDialog"));
 const AddFillInPlayerDialog = lazy(() => import("./AddFillInPlayerDialog"));
 const AutoSubManager = lazy(() => import("./AutoSubManager"));
+const AutoSubControlPanel = lazy(() => import("./AutoSubControlPanel"));
 const PreGameLineupScreen = lazy(() => import("./PreGameLineupScreen"));
 import TacticalModeSelector from "./TacticalModeSelector";
 
@@ -1200,6 +1201,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [subAfterSwapDialogOpen, setSubAfterSwapDialogOpen] = useState(false);
   const [resetGameConfirmOpen, setResetGameConfirmOpen] = useState(false);
   const [timerFormationDropdownOpen, setTimerFormationDropdownOpen] = useState(false);
+  const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
   const [pitchPlayerActionOpen, setPitchPlayerActionOpen] = useState(false);
   const [pitchPlayerActionTarget, setPitchPlayerActionTarget] = useState<string | null>(null);
   const [benchInjuryConfirmOpen, setBenchInjuryConfirmOpen] = useState(false);
@@ -3899,9 +3901,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 onClick={(e) => {
                   e.stopPropagation();
                   if (autoSubActive) {
-                    setBottomSheetTab("bench");
-                    setSheetHeightPct(88);
-                    setToolbarCollapsed(false);
+                    setAutoSubPanelOpen(true);
                   } else {
                     handleOpenNewPlan();
                   }
@@ -5435,7 +5435,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <Pencil className="h-5 w-5" />
                 </button>
 
-
                 {/* Floating Draw Toolbar - portrait */}
                 {showFloatingDrawToolbar && (
                   <div className={cn("absolute right-3 z-[64] animate-fade-in", (subMode || swapMode) ? "bottom-[6.5rem]" : "bottom-16")}>
@@ -5447,7 +5446,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           className="h-12 w-12"
                           onClick={() => {
                             setDrawingTool(drawingTool === "pen" ? "none" : "pen");
-                            if (drawingTool !== "pen") setShowFloatingDrawToolbar(false);
+                            if (drawingTool !== "pen" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                           }}
                         >
                           <Pencil className="h-5 w-5" />
@@ -5458,7 +5457,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           className="h-12 w-12"
                           onClick={() => {
                             setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
-                            if (drawingTool !== "arrow") setShowFloatingDrawToolbar(false);
+                            if (drawingTool !== "arrow" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                           }}
                         >
                           <MoveRight className="h-5 w-5" />
@@ -5470,6 +5469,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           onClick={clearDrawings}
                         >
                           <Eraser className="h-5 w-5" />
+                        </Button>
+                        <Button 
+                          variant={pinDrawingToolbar ? "default" : "outline"} 
+                          size="icon" 
+                          className="h-12 w-12"
+                          onClick={() => setPinDrawingToolbar(prev => !prev)}
+                          title={pinDrawingToolbar ? "Unpin drawing tools" : "Pin drawing tools"}
+                        >
+                          <Pin className={cn("h-5 w-5", pinDrawingToolbar && "rotate-45")} />
                         </Button>
                       </div>
                       <div className="flex gap-2 justify-center">
@@ -5485,117 +5493,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           />
                         ))}
                       </div>
-                      </div>
                     </div>
+                  </div>
                 )}
               </>
             )}
-          </>
-        )}
 
-        {/* Swipe-up zone at bottom edge */}
-        {!portraitSheetOpen && (
-          <div
-            className="absolute bottom-0 left-0 right-0 z-[45] flex justify-center items-end pointer-events-auto"
-            style={{ height: 56 }}
-            onTouchStart={(e) => {
-              e.currentTarget.dataset.swipeStartY = String(e.touches[0].clientY);
-              e.currentTarget.dataset.swipeStartT = String(Date.now());
-            }}
-            onTouchEnd={(e) => {
-              const startY = Number(e.currentTarget.dataset.swipeStartY || 0);
-              const startT = Number(e.currentTarget.dataset.swipeStartT || 0);
-              if (!startY) return;
-              const deltaY = startY - e.changedTouches[0].clientY;
-              const elapsed = Date.now() - startT;
-              const velocity = deltaY / Math.max(elapsed, 1);
-              if (deltaY > 20 || velocity > 0.3) setPortraitSheetOpen(true);
-            }}
-          >
-            <div className="w-10 h-1 rounded-full bg-foreground/30 mb-1.5" />
-          </div>
-        )}
-
-        {/* Bottom Sheet Overlay */}
-        {portraitSheetOpen && (
-          <div className="absolute inset-0 z-[60] flex flex-col pointer-events-none" style={{ height: '100%' }}>
-            {/* Backdrop - pass through when drawing */}
-            <div 
-              className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")}
-              onClick={drawingTool === "none" ? () => setPortraitSheetOpen(false) : undefined}
-            />
-            {/* Sheet */}
-            <div 
-              data-portrait-drawer
-              className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200"
-              style={{ height: `${portraitSheetHeightPct}%` }}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Draggable header area - handle + tabs */}
-              <div
-                className="cursor-grab touch-none"
-                onTouchStart={(e) => {
-                  portraitSheetDragRef.current = { startY: e.touches[0].clientY, startPct: portraitSheetHeightPct };
-                  e.currentTarget.dataset.dragStartT = String(Date.now());
-                }}
-                onTouchMove={(e) => {
-                  if (!portraitSheetDragRef.current) return;
-                  const containerH = window.innerHeight;
-                  const deltaY = portraitSheetDragRef.current.startY - e.touches[0].clientY;
-                  const deltaPct = (deltaY / containerH) * 100;
-                  const newPct = Math.min(85, Math.max(15, portraitSheetDragRef.current.startPct + deltaPct));
-                  setPortraitSheetHeightPct(newPct);
-                }}
-                onTouchEnd={(e) => {
-                  if (!portraitSheetDragRef.current) return;
-                  const elapsed = Date.now() - Number(e.currentTarget.dataset.dragStartT || 0);
-                  const deltaY = portraitSheetDragRef.current.startY - e.changedTouches[0].clientY;
-                  const velocity = deltaY / Math.max(elapsed, 1);
-                  // Fast downward flick → close
-                  if (velocity < -0.4) {
-                    setPortraitSheetOpen(false);
-                    setPortraitSheetHeightPct(45);
-                  } else if (velocity > 0.4) {
-                    // Fast upward flick → expand
-                    setPortraitSheetHeightPct(75);
-                  } else if (portraitSheetHeightPct < 25) {
-                    setPortraitSheetOpen(false);
-                    setPortraitSheetHeightPct(45);
-                  } else if (portraitSheetHeightPct < 60) {
-                    setPortraitSheetHeightPct(45);
-                  } else {
-                    setPortraitSheetHeightPct(75);
-                  }
-                  portraitSheetDragRef.current = null;
-                }}
-              >
-                {/* Handle bar */}
-                <div className="flex justify-center pt-2 pb-1">
-                  <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
-                </div>
-
-                {/* Tabs */}
-                <div className="flex border-b border-border px-2 gap-1">
-                  {(["bench", "setup"] as const).map(tab => (
-                    <button
-                      key={tab}
-                      onClick={() => setBottomSheetTab(tab)}
-                      className={cn(
-                        "flex-1 py-2 text-sm font-medium rounded-t-md transition-colors",
-                        bottomSheetTab === tab 
-                          ? "bg-muted text-foreground border-b-2 border-primary" 
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      {tab === "bench" ? `Bench (${playersOnBench.length})` : "Settings"}
-                    </button>
-                  ))}
-
-
-                </div>
-              </div>
-
+            {/* Portrait Bottom Sheet */}
+            {portraitSheetOpen && (
+              <div className="absolute inset-0 z-[60] flex flex-col pointer-events-none" style={{ height: '100%' }}>
+                <div className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")} onClick={drawingTool === "none" ? () => setPortraitSheetOpen(false) : undefined} />
+                <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col" style={{ maxHeight: `${portraitSheetHeightPct}vh`, height: 'auto' }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
 
               {/* Tab content */}
               <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${portraitSheetHeightPct}vh - 120px)` }}>
@@ -6222,7 +6130,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             })()}
           </div>
         </div>
-      </div>
       {/* Position Editor Dialog */}
       <PlayerPositionEditor
         open={positionEditorOpen}
