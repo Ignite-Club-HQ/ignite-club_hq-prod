@@ -75,12 +75,12 @@ export const computeTacticalOffsets = (
     const gk = onPitch.find(player => player.currentPitchPosition === "GK" && player.position);
     if (!gk) return null;
 
-    let gkY = gk.position!.y + 1; // match defend-mode GK offset
+    let gkY = gk.position!.y; // match defend-mode GK offset
     if (gkY < 20) gkY = 20;
     if (gkY > 84) gkY = 84;
     return gkY;
   })();
-  const MIN_DEFENDER_GK_GAP = isSmallSided ? 8 : 10;
+  const MIN_DEFENDER_GK_GAP = isSmallSided ? 4 : 6;
 
   // In attack mode, keep midfield clearly separated from the forward line.
   const projectedDeepestForwardY = (() => {
