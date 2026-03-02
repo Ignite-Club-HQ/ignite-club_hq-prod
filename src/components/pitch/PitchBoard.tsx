@@ -3987,7 +3987,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               )}
               </div>
               {tacticalMode !== "neutral" && (
-                <span className="text-[9px] text-muted-foreground font-medium mt-0.5">
+                <span className="text-xs text-muted-foreground font-semibold mt-0.5">
                   {FORMATIONS[teamSize][selectedFormation]?.name} • {TACTICAL_MODE_LABELS[tacticalMode]}
                 </span>
               )}
@@ -5252,7 +5252,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               )}
               </div>
               {tacticalMode !== "neutral" && (
-                <span className="text-[9px] text-muted-foreground font-medium mt-0.5">
+                <span className="text-xs text-muted-foreground font-semibold mt-0.5">
                   {FORMATIONS[teamSize][selectedFormation]?.name} • {TACTICAL_MODE_LABELS[tacticalMode]}
                 </span>
               )}
