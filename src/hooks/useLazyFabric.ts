@@ -71,16 +71,25 @@ const scaleCanvasObjects = (
 
   if (noScaleChange) return;
 
-  // Use uniform scale for object dimensions to avoid distorting shapes (especially arrow tips)
-  const uniformScale = Math.sqrt(scaleX * scaleY);
-
   canvas.getObjects().forEach((obj: any) => {
     obj.set({
       left: (obj.left ?? 0) * scaleX,
       top: (obj.top ?? 0) * scaleY,
-      scaleX: (obj.scaleX ?? 1) * uniformScale,
-      scaleY: (obj.scaleY ?? 1) * uniformScale,
+      scaleX: (obj.scaleX ?? 1) * scaleX,
+      scaleY: (obj.scaleY ?? 1) * scaleY,
     });
+
+    // Keep arrowheads visually proportional after non-uniform orientation scaling
+    const groupObjects = typeof obj.getObjects === "function" ? obj.getObjects() : null;
+    if (Array.isArray(groupObjects)) {
+      groupObjects.forEach((child: any) => {
+        if (child?.type === "triangle" && scaleX > 0) {
+          child.set({
+            scaleX: (child.scaleX ?? 1) * (scaleY / scaleX),
+          });
+        }
+      });
+    }
 
     if (typeof obj.setCoords === "function") {
       obj.setCoords();
