@@ -3042,8 +3042,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     e.preventDefault();
     const touch = e.touches[0];
     const rect = containerRef.current.getBoundingClientRect();
-    const x = ((touch.clientX - rect.left) / rect.width) * 100 / zoom;
-    const y = ((touch.clientY - rect.top) / rect.height) * 100 / zoom;
+    const x = ((touch.clientX - rect.left) / rect.width) * 100;
+    const y = ((touch.clientY - rect.top) / rect.height) * 100;
     setBallPosition({ x: Math.max(2, Math.min(98, x)), y: Math.max(2, Math.min(98, y)) });
   };
 
@@ -3314,8 +3314,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       e.preventDefault();
       const touch = e.touches[0];
       const rect = containerRef.current.getBoundingClientRect();
-      const x = ((touch.clientX - rect.left) / rect.width) * 100 / zoom;
-      const y = ((touch.clientY - rect.top) / rect.height) * 100 / zoom;
+      const x = ((touch.clientX - rect.left) / rect.width) * 100;
+      const y = ((touch.clientY - rect.top) / rect.height) * 100;
 
       setPlayers(prev => 
         prev.map(p => 
