@@ -5399,7 +5399,30 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               </button>
             )}
 
-            {/* Auto-Subs FAB removed from portrait - now in bench tab */}
+            {/* Auto-Subs FAB */}
+            {!disableAutoSubs && !subMode && !swapMode && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (autoSubActive) {
+                    setAutoSubPanelOpen(true);
+                  } else {
+                    handleOpenNewPlan();
+                  }
+                }}
+                className={cn(
+                  "flex items-center gap-2 rounded-full shadow-lg transition-colors px-3 py-2",
+                  autoSubActive
+                    ? "bg-secondary text-secondary-foreground border border-border"
+                    : "bg-muted text-foreground hover:bg-muted/80 border border-border"
+                )}
+              >
+                <Calendar className="h-4 w-4" />
+                <span className="text-sm font-medium">
+                  {autoSubActive ? "Auto ✓" : "Auto"}
+                </span>
+              </button>
+            )}
           </div>
         )}
 
@@ -6296,6 +6319,29 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
         showStepper={autoSubFromPreGame}
       />
+
+      {/* Auto-Sub Control Panel */}
+      {autoSubPanelOpen && autoSubActive && (
+        <Suspense fallback={<DialogLoader />}>
+          <AutoSubControlPanel
+            autoSubPlan={autoSubPlan}
+            autoSubPaused={autoSubPaused}
+            players={players}
+            lockedPlayerIds={lockedPlayerIds}
+            currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+            currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+            minutesPerHalf={minutesPerHalf}
+            onTogglePause={handleTogglePauseAutoSub}
+            onCancelPlan={() => { handleCancelAutoSubPlan(); setAutoSubPanelOpen(false); }}
+            onSkipNext={handleSkipNextSub}
+            onExecuteNow={handleExecuteNow}
+            onEditPlan={() => { handleOpenEditPlan(); setAutoSubPanelOpen(false); }}
+            onRegeneratePlan={handleRegeneratePlan}
+            onToggleLockPlayer={handleToggleLockPlayer}
+            onClose={() => setAutoSubPanelOpen(false)}
+          />
+        </Suspense>
+      )}
 
       {/* Sub Confirm Dialog */}
       <SubConfirmDialog
