@@ -51,12 +51,20 @@ export const computeTacticalOffsets = (
   const midfielders = onPitch.filter(p => p.currentPitchPosition === "MID");
   const defenders = onPitch.filter(p => p.currentPitchPosition === "DEF");
 
-  // ATTACK with 5+ mids: identify the 2 deepest (highest y) as holding mids
+  // ATTACK with 5+ mids: detect flat vs split midfield
   const holdingMidIds = new Set<string>();
+  let isAttackFlatMidfield5 = false;
   if (mode === "attack" && midfielders.length >= 5) {
-    const sortedByDepth = [...midfielders].sort((a, b) => b.position!.y - a.position!.y);
-    holdingMidIds.add(sortedByDepth[0].id);
-    holdingMidIds.add(sortedByDepth[1].id);
+    const midYs = midfielders.map(m => m.position!.y);
+    const minY = Math.min(...midYs);
+    const maxY = Math.max(...midYs);
+    isAttackFlatMidfield5 = (maxY - minY) < 12;
+
+    if (!isAttackFlatMidfield5) {
+      const sortedByDepth = [...midfielders].sort((a, b) => b.position!.y - a.position!.y);
+      holdingMidIds.add(sortedByDepth[0].id);
+      holdingMidIds.add(sortedByDepth[1].id);
+    }
   }
 
   // DEFEND: pick one central midfielder as anchor only for narrow midfield shapes
@@ -158,7 +166,14 @@ export const computeTacticalOffsets = (
           if (isWide(bx)) dx = isLeft(bx) ? -8 : 8; // spread wide
           break;
         case "MID":
-          if (holdingMidIds.has(p.id)) {
+          if (isAttackFlatMidfield5 && midfielders.length >= 5) {
+            // Flat midfield 5 (e.g. 3-5-2): push all up evenly, spread across lanes
+            dy = isSmallSided ? -12 : -16;
+            const sortedByX = [...midfielders].sort((a, b) => a.position!.x - b.position!.x);
+            const myIndex = sortedByX.findIndex(m => m.id === p.id);
+            const lanes = [10, 28, 50, 72, 90];
+            dx = lanes[myIndex] - bx;
+          } else if (holdingMidIds.has(p.id)) {
             // Holding mids: stay deeper, only slight push forward
             dy = isSmallSided ? -4 : -6;
             if (isWide(bx)) dx = isLeft(bx) ? -6 : 6;
@@ -175,7 +190,6 @@ export const computeTacticalOffsets = (
                 Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
               );
               if (sortedByCenter[0]?.id === p.id) {
-                // Central #10: stay aligned with forward
                 dx = 0;
               } else {
                 dx = bx <= 50 ? -8 : 8;
