@@ -277,6 +277,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [pendingBatchSubs, setPendingBatchSubs] = useState<SubstitutionEvent[]>([]);
   const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
+  const [nextSubInfo, setNextSubInfo] = useState<{ playerInId: string; countdown: string } | null>(null);
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
@@ -2682,6 +2683,27 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
 
+    // Compute next sub info for bench highlighting
+    if (autoSubActive && autoSubPlan.length > 0 && !autoSubPaused) {
+      const remainingSubs = autoSubPlan.filter(s => !s.executed);
+      const nextSub = remainingSubs.find(s => s.half === currentHalf && s.time >= elapsedSeconds)
+        || remainingSubs.find(s => s.half > currentHalf)
+        || remainingSubs[0];
+      if (nextSub) {
+        const secsUntil = nextSub.half === currentHalf 
+          ? Math.max(0, nextSub.time - elapsedSeconds)
+          : nextSub.time + ((nextSub.half - currentHalf) * (gameTimerRef.current?.getMinutesPerHalf() || 10) * 60) - elapsedSeconds;
+        const mins = Math.floor(secsUntil / 60);
+        const secs = Math.floor(secsUntil % 60);
+        const countdown = `${mins}:${secs.toString().padStart(2, '0')}`;
+        setNextSubInfo({ playerInId: nextSub.playerIn.id, countdown });
+      } else {
+        setNextSubInfo(null);
+      }
+    } else {
+      setNextSubInfo(prev => prev ? null : prev);
+    }
+
     // Don't trigger subs if paused, in skip cooldown, game finished, or timer not running
     if (!autoSubActive || autoSubPlan.length === 0 || autoSubPaused) return;
     if (gameTimerRef.current?.isGameFinished()) return;
@@ -4878,6 +4900,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               variant="bench"
                               readOnly={readOnly}
                               teamColor={getPlayerTeamColor(player)}
+                              isNextSub={nextSubInfo?.playerInId === player.id}
+                              nextSubCountdown={nextSubInfo?.playerInId === player.id ? nextSubInfo.countdown : null}
                             />
                           </div>
                         ))}
@@ -5730,6 +5754,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             variant="bench"
                             readOnly={readOnly}
                             teamColor={getPlayerTeamColor(player)}
+                            isNextSub={nextSubInfo?.playerInId === player.id}
+                            nextSubCountdown={nextSubInfo?.playerInId === player.id ? nextSubInfo.countdown : null}
                           />
                         ))}
                     </div>
