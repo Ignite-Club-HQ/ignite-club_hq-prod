@@ -4695,23 +4695,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           <>
             {/* Floating settings button - always visible in landscape when sheet closed */}
             <button
-              className="absolute bottom-3 right-3 z-[55] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
+              className="absolute bottom-3 right-3 z-[55] w-12 h-12 rounded-full bg-background/95 backdrop-blur-md border-2 border-border shadow-xl flex items-center justify-center"
               onClick={() => { setSheetHeightPct(50); setToolbarCollapsed(false); }}
             >
-              <Users className="h-5 w-5 text-muted-foreground" />
+              <Users className="h-6 w-6 text-foreground" />
             </button>
 
 
             <button
               className={cn(
-                "absolute bottom-3 z-[55] w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
+                "absolute bottom-3 z-[55] w-12 h-12 rounded-full backdrop-blur-md border-2 shadow-xl flex items-center justify-center",
                 drawingTool !== "none"
                   ? "bg-primary text-primary-foreground border-primary"
                   : showFloatingDrawToolbar
                     ? "bg-accent text-accent-foreground border-accent"
-                    : "bg-background/80 border-border"
+                    : "bg-background/95 border-border text-foreground"
               )}
-              style={{ right: 60 }}
+              style={{ right: 68 }}
               onClick={() => setShowFloatingDrawToolbar(prev => !prev)}
             >
               <Pencil className="h-5 w-5" />
@@ -5586,12 +5586,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           <>
             <button
               className={cn(
-                "absolute right-3 z-[63] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center",
+                "absolute right-3 z-[63] w-12 h-12 rounded-full bg-background/95 backdrop-blur-md border-2 border-border shadow-xl flex items-center justify-center",
                 "bottom-3"
               )}
               onClick={() => setPortraitSheetOpen(true)}
             >
-              <Users className="h-5 w-5 text-muted-foreground" />
+              <Users className="h-6 w-6 text-foreground" />
             </button>
 
             {/* Floating Draw FAB - portrait */}
@@ -5599,18 +5599,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <>
                 <button
                   className={cn(
-                    "absolute z-[63] w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
+                    "absolute z-[63] w-12 h-12 rounded-full backdrop-blur-md border-2 shadow-xl flex items-center justify-center",
                     "bottom-3",
                     drawingTool !== "none"
                       ? "bg-primary text-primary-foreground border-primary"
                       : showFloatingDrawToolbar
                         ? "bg-accent text-accent-foreground border-accent"
-                        : "bg-background/80 border-border"
+                        : "bg-background/95 border-border text-foreground"
                   )}
-                  style={{ right: 60 }}
+                  style={{ right: 68 }}
                   onClick={() => setShowFloatingDrawToolbar(prev => !prev)}
                 >
-                  <Pencil className="h-5 w-5" />
+                  <Pencil className="h-6 w-6" />
                 </button>
 
                 {/* Floating Draw Toolbar - portrait */}
