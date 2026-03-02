@@ -5237,7 +5237,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
         {/* Floating undo button - below timer widget in portrait */}
         {!readOnly && showFloatingUndo && undoHistory.length > 0 && !portraitSheetOpen && (
-          <div className="absolute top-28 left-2 z-[64] animate-fade-in">
+          <div className="absolute top-2 left-2 z-[64] animate-fade-in">
             <Button 
               variant="secondary" 
               size="sm"
