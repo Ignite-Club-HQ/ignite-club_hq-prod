@@ -5170,6 +5170,29 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>,
           document.body
         )}
+
+        {/* Auto-Sub Control Panel - landscape */}
+        {autoSubPanelOpen && autoSubActive && (
+          <Suspense fallback={<DialogLoader />}>
+            <AutoSubControlPanel
+              autoSubPlan={autoSubPlan}
+              autoSubPaused={autoSubPaused}
+              players={players}
+              lockedPlayerIds={lockedPlayerIds}
+              currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+              currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+              minutesPerHalf={minutesPerHalf}
+              onTogglePause={handleTogglePauseAutoSub}
+              onCancelPlan={() => { handleCancelAutoSubPlan(); setAutoSubPanelOpen(false); }}
+              onSkipNext={handleSkipNextSub}
+              onExecuteNow={handleExecuteNow}
+              onEditPlan={() => { handleOpenEditPlan(); setAutoSubPanelOpen(false); }}
+              onRegeneratePlan={handleRegeneratePlan}
+              onToggleLockPlayer={handleToggleLockPlayer}
+              onClose={() => setAutoSubPanelOpen(false)}
+            />
+          </Suspense>
+        )}
       </div>,
       document.body
     );
