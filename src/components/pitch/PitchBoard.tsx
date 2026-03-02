@@ -4693,7 +4693,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               el.dataset.swipeStartT = String(Date.now());
             }}
             onTouchEnd={(e) => {
-              if (ignoreNextLandscapeBenchOpenRef.current) return;
+              if (ignoreNextLandscapeBenchOpenRef.current || drawingTool !== "none" || showFloatingDrawToolbar) return;
               const startY = Number(e.currentTarget.dataset.swipeStartY || 0);
               const startT = Number(e.currentTarget.dataset.swipeStartT || 0);
               if (!startY) return;
@@ -4762,6 +4762,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       variant={drawingTool === "pen" ? "default" : "outline"} 
                       size="icon"
                       className="h-12 w-12"
+                      onTouchStart={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        ignoreNextLandscapeBenchOpenRef.current = true;
+                        window.setTimeout(() => {
+                          ignoreNextLandscapeBenchOpenRef.current = false;
+                        }, 300);
+                      }}
                       onPointerDown={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -4780,6 +4788,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       variant={drawingTool === "arrow" ? "default" : "outline"} 
                       size="icon"
                       className="h-12 w-12"
+                      onTouchStart={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        ignoreNextLandscapeBenchOpenRef.current = true;
+                        window.setTimeout(() => {
+                          ignoreNextLandscapeBenchOpenRef.current = false;
+                        }, 300);
+                      }}
                       onPointerDown={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
