@@ -606,11 +606,28 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [floatingSubsPosition, setFloatingSubsPosition] = useState({ x: 16, y: 16 }); // bottom-left offset
   const floatingSubsDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
   
-  // Draggable floating timer state (for landscape mode) - positioned further right to avoid "View Only" badge
+  // Draggable + resizable floating timer state (landscape)
   const [floatingTimerPosition, setFloatingTimerPosition] = useState({ x: 8, y: 8 });
+  const [floatingTimerScale, setFloatingTimerScale] = useState(1);
   const floatingTimerDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
+  const floatingTimerPinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
   
-  // Floating timer drag handlers
+  // Portrait draggable + resizable timer state
+  const [portraitTimerPosition, setPortraitTimerPosition] = useState<{ x: number; y: number } | null>(null);
+  const [portraitTimerScale, setPortraitTimerScale] = useState(1);
+  const portraitTimerDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
+  const portraitTimerPinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
+
+  // Helper to get pinch distance
+  const getPinchDist = (touches: React.TouchList | TouchList) => {
+    const t0 = touches[0];
+    const t1 = touches[1];
+    const dx = t1.clientX - t0.clientX;
+    const dy = t1.clientY - t0.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+  
+  // Floating timer drag handlers (landscape)
   const handleTimerDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     floatingTimerDragRef.current = {
@@ -641,6 +658,35 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, [floatingTimerPosition]);
   
   const handleTimerTouchStart = useCallback((e: React.TouchEvent) => {
+    // 2-finger pinch to resize
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      floatingTimerPinchRef.current = {
+        startDist: getPinchDist(e.touches),
+        startScale: floatingTimerScale,
+      };
+      floatingTimerDragRef.current = null;
+      
+      const handleTouchMove = (moveEvent: TouchEvent) => {
+        if (!floatingTimerPinchRef.current || moveEvent.touches.length !== 2) return;
+        moveEvent.preventDefault();
+        const newDist = getPinchDist(moveEvent.touches);
+        const ratio = newDist / floatingTimerPinchRef.current.startDist;
+        setFloatingTimerScale(Math.min(2, Math.max(0.5, floatingTimerPinchRef.current.startScale * ratio)));
+      };
+      
+      const handleTouchEnd = () => {
+        floatingTimerPinchRef.current = null;
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+      };
+      
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+      return;
+    }
+    
+    // 1-finger drag
     if (e.touches.length !== 1) return;
     const touch = e.touches[0];
     floatingTimerDragRef.current = {
@@ -670,7 +716,73 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd);
-  }, [floatingTimerPosition]);
+  }, [floatingTimerPosition, floatingTimerScale]);
+
+  // Portrait timer touch handlers (drag + pinch)
+  const handlePortraitTimerTouchStart = useCallback((e: React.TouchEvent) => {
+    const container = (e.currentTarget as HTMLElement).parentElement;
+    // 2-finger pinch
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      portraitTimerPinchRef.current = {
+        startDist: getPinchDist(e.touches),
+        startScale: portraitTimerScale,
+      };
+      portraitTimerDragRef.current = null;
+      
+      const handleTouchMove = (moveEvent: TouchEvent) => {
+        if (!portraitTimerPinchRef.current || moveEvent.touches.length !== 2) return;
+        moveEvent.preventDefault();
+        const newDist = getPinchDist(moveEvent.touches);
+        const ratio = newDist / portraitTimerPinchRef.current.startDist;
+        setPortraitTimerScale(Math.min(2, Math.max(0.5, portraitTimerPinchRef.current.startScale * ratio)));
+      };
+      
+      const handleTouchEnd = () => {
+        portraitTimerPinchRef.current = null;
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+      };
+      
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+      return;
+    }
+    
+    // 1-finger drag
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    const rect = container?.getBoundingClientRect();
+    const currentX = portraitTimerPosition?.x ?? (rect ? rect.width - (e.currentTarget as HTMLElement).offsetWidth - 8 : 8);
+    const currentY = portraitTimerPosition?.y ?? 8;
+    portraitTimerDragRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      startPosX: currentX,
+      startPosY: currentY,
+    };
+    
+    const handleTouchMove = (moveEvent: TouchEvent) => {
+      if (!portraitTimerDragRef.current || moveEvent.touches.length !== 1) return;
+      moveEvent.preventDefault();
+      const t = moveEvent.touches[0];
+      const deltaX = t.clientX - portraitTimerDragRef.current.startX;
+      const deltaY = t.clientY - portraitTimerDragRef.current.startY;
+      setPortraitTimerPosition({
+        x: Math.max(0, portraitTimerDragRef.current.startPosX + deltaX),
+        y: Math.max(0, portraitTimerDragRef.current.startPosY + deltaY),
+      });
+    };
+    
+    const handleTouchEnd = () => {
+      portraitTimerDragRef.current = null;
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+    
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
+  }, [portraitTimerPosition, portraitTimerScale]);
 
 
   // Swipe gestures for bench in landscape mode
@@ -4006,10 +4118,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           
           {/* Floating draggable timer */}
           <div 
-            className="absolute z-50 cursor-move touch-none select-none"
+            className="absolute z-50 cursor-move touch-none select-none origin-top-left"
             style={{ 
               left: floatingTimerPosition.x, 
               top: floatingTimerPosition.y,
+              transform: `scale(${floatingTimerScale})`,
             }}
             onMouseDown={handleTimerDragStart}
             onTouchStart={handleTimerTouchStart}
@@ -5242,10 +5355,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
       {/* Full-screen Pitch Area */}
       <div className="flex-1 min-h-0 relative overflow-hidden">
-        {/* Floating score + timer combined row */}
+        {/* Floating score + timer combined row - draggable + resizable */}
         <div 
-          className="absolute z-[61] select-none pointer-events-auto right-2 top-2"
-          style={{ touchAction: 'auto' }}
+          className={cn("absolute z-[61] select-none pointer-events-auto touch-none cursor-move", portraitTimerPosition ? "origin-top-left" : "origin-top-right")}
+          style={{ 
+            ...(portraitTimerPosition 
+              ? { left: portraitTimerPosition.x, top: portraitTimerPosition.y, right: 'auto' }
+              : { right: 8, top: 8 }
+            ),
+            transform: `scale(${portraitTimerScale})`,
+          }}
+          onTouchStart={handlePortraitTimerTouchStart}
         >
           <div className="flex flex-col items-end">
             <div className="flex flex-col items-center bg-black/60 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
