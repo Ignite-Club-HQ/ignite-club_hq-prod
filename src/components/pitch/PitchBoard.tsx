@@ -3834,30 +3834,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
           {/* Sub-related controls group - centered */}
           <div className="flex items-center gap-3">
-            {/* Tactical mode toggle */}
-            {!readOnly && (() => {
-              const cycleOrder: TacticalMode[] = ["defend", "neutral", "attack"];
-              const currentIndex = cycleOrder.indexOf(tacticalMode);
-              const nextMode = cycleOrder[(currentIndex + 1) % 3];
-              const config: Record<TacticalMode, { icon: typeof Shield; label: string; className: string }> = {
-                defend: { icon: Shield, label: "DEF", className: "bg-blue-500/20 text-blue-500 border-blue-500/30" },
-                neutral: { icon: Circle, label: "NEU", className: "bg-muted text-foreground border-border" },
-                attack: { icon: Swords, label: "ATK", className: "bg-orange-500/20 text-orange-500 border-orange-500/30" },
-              };
-              const { icon: Icon, label, className: modeClass } = config[tacticalMode];
-              return (
-                <button
-                  onClick={() => handleTacticalModeChange(nextMode)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm font-medium transition-all duration-200 shrink-0",
-                    modeClass
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{label}</span>
-                </button>
-              );
-            })()}
 
             {/* Swap & Sub buttons */}
             {!readOnly && (
