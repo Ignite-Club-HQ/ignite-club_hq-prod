@@ -181,6 +181,43 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           const mph = saved.minutesPerHalf || 20;
           const currentTotal = getTotalSeconds(currentElapsed, saved.currentHalf, mph);
           
+          // Auto-skip subs that are more than 90s overdue (mirrors PitchBoard logic)
+          const OVERDUE_GRACE_SECONDS = 90;
+          const overdueSubs = unexecuted.filter(sub => {
+            const subTotal = getTotalSeconds(sub.time, sub.half, mph);
+            return currentTotal > subTotal + OVERDUE_GRACE_SECONDS;
+          });
+          
+          if (overdueSubs.length > 0) {
+            // Mark overdue subs as executed and reschedule remaining
+            const overdueKeys = new Set(overdueSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
+            const updatedPlan = (pitchState.autoSubPlan || []).map(s =>
+              overdueKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true } : s
+            );
+            
+            // Reschedule remaining unexecuted subs evenly across remaining time
+            const stillRemaining = updatedPlan.filter(s => !s.executed);
+            if (stillRemaining.length > 0) {
+              const totalGameSeconds = mph * 2 * 60;
+              const remainingGame = totalGameSeconds - currentTotal;
+              const interval = Math.max(Math.floor(remainingGame / (stillRemaining.length + 1)), 60);
+              let nextTime = currentTotal + interval;
+              const rescheduledPlan = updatedPlan.map(s => {
+                if (s.executed) return s;
+                const halfDur = mph * 60;
+                const newHalf: 1 | 2 = nextTime < halfDur ? 1 : 2;
+                const newTime = newHalf === 1 ? nextTime : nextTime - halfDur;
+                nextTime += interval;
+                return { ...s, half: newHalf, time: Math.floor(newTime) };
+              });
+              localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: rescheduledPlan }));
+            } else {
+              localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
+            }
+            window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
+            return; // Will pick up updated state on next poll tick
+          }
+          
           const sorted = [...unexecuted].sort((a, b) => {
             if (a.half !== b.half) return a.half - b.half;
             return a.time - b.time;
