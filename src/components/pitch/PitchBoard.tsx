@@ -3825,7 +3825,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           <div className="flex-1" />
 
           {/* Sub-related controls group - centered */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-3">
             {/* Tactical mode toggle */}
             {!readOnly && (() => {
               const cycleOrder: TacticalMode[] = ["defend", "neutral", "attack"];
