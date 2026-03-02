@@ -224,7 +224,7 @@ export default function AutoSubControlPanel({
           {/* Scrollable Mini-Timeline */}
           {showTimeline && (
             <div className="rounded-xl border border-border overflow-hidden">
-              <ScrollArea className="max-h-[200px]">
+              <ScrollArea className="max-h-[40vh]">
                 <div className="divide-y divide-border">
                   {autoSubPlan.map((sub, idx) => {
                     const isDue = !sub.executed && sub.half === currentHalf && sub.time <= currentElapsedSeconds;
