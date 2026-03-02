@@ -5498,6 +5498,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 )}
               </>
             )}
+          </>
+        )}
 
             {/* Portrait Bottom Sheet */}
             {portraitSheetOpen && (
@@ -6130,6 +6132,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             })()}
           </div>
         </div>
+      </div>
       {/* Position Editor Dialog */}
       <PlayerPositionEditor
         open={positionEditorOpen}
