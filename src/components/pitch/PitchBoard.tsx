@@ -3825,18 +3825,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
           )}
 
-          {/* Formation suggestion inline */}
-          {tacticalFormationSuggestion && !readOnly && (
-            <div className="flex items-center gap-1.5 bg-muted/60 border border-border rounded-md px-2 py-1 shrink-0 animate-fade-in">
-              <span className="text-xs">
-                Try <span className="font-bold">{tacticalFormationSuggestion.formationName}</span>?
-              </span>
-              <Button type="button" size="sm" className="h-7 text-xs px-2" onClick={handleApplyTacticalSuggestion}>Apply</Button>
-              <button type="button" onClick={handleDismissTacticalSuggestion} className="p-0.5 text-muted-foreground hover:text-foreground">
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          )}
+          {/* Formation suggestion removed from header - now rendered as floating popup on pitch */}
 
           {/* Swap & Sub buttons */}
           {!readOnly && (
@@ -4016,6 +4005,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <span className="text-[9px] font-semibold bg-primary text-primary-foreground px-2 py-0.5 rounded-full shadow-lg">
                   Drop on pitch
                 </span>
+              </div>
+            </div>
+          )}
+
+          {/* Formation suggestion floating popup - landscape */}
+          {tacticalFormationSuggestion && !readOnly && (
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] animate-fade-in">
+              <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 shadow-lg">
+                <span className="text-sm font-medium">
+                  Try <span className="font-bold">{tacticalFormationSuggestion.formationName}</span>?
+                </span>
+                <Button type="button" size="sm" className="h-8 text-xs px-3" onClick={handleApplyTacticalSuggestion}>Apply</Button>
+                <button type="button" onClick={handleDismissTacticalSuggestion} className="p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted">
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             </div>
           )}
@@ -5810,6 +5814,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <span className="text-[9px] font-semibold bg-primary text-primary-foreground px-2 py-0.5 rounded-full shadow-lg">
                 Drop on pitch
               </span>
+            </div>
+          </div>
+        )}
+
+        {/* Formation suggestion floating popup - portrait */}
+        {tacticalFormationSuggestion && !readOnly && (
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[60] animate-fade-in">
+            <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 shadow-lg">
+              <span className="text-sm font-medium">
+                Try <span className="font-bold">{tacticalFormationSuggestion.formationName}</span>?
+              </span>
+              <Button type="button" size="sm" className="h-8 text-xs px-3" onClick={handleApplyTacticalSuggestion}>Apply</Button>
+              <button type="button" onClick={handleDismissTacticalSuggestion} className="p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted">
+                <X className="h-4 w-4" />
+              </button>
             </div>
           </div>
         )}
