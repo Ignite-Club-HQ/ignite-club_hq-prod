@@ -4025,7 +4025,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
           {/* Formation suggestion floating popup - landscape */}
           {tacticalFormationSuggestion && !readOnly && (
-            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] animate-fade-in">
+            <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] animate-fade-in">
               <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 shadow-lg">
                 <span className="text-sm font-medium">
                   Try <span className="font-bold">{tacticalFormationSuggestion.formationName}</span>?
@@ -5861,7 +5861,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
         {/* Formation suggestion floating popup - portrait */}
         {tacticalFormationSuggestion && !readOnly && (
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[60] animate-fade-in">
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] animate-fade-in">
             <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 shadow-lg">
               <span className="text-sm font-medium">
                 Try <span className="font-bold">{tacticalFormationSuggestion.formationName}</span>?
