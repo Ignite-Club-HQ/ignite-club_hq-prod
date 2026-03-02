@@ -36,6 +36,9 @@ interface PlayerTokenProps {
   readOnly?: boolean;
   // Mini-league team colors
   teamColor?: string;
+  // Auto-sub next player highlight
+  isNextSub?: boolean;
+  nextSubCountdown?: string | null;
 }
 
 const PlayerToken = memo(function PlayerToken({
@@ -57,7 +60,9 @@ const PlayerToken = memo(function PlayerToken({
   variant = "pitch",
   style,
   readOnly = false,
-  teamColor
+  teamColor,
+  isNextSub = false,
+  nextSubCountdown = null
 }: PlayerTokenProps) {
   const initials = player.name
     .split(" ")
@@ -102,6 +107,7 @@ const PlayerToken = memo(function PlayerToken({
           isInvalidTarget && "opacity-50 ring-2 ring-destructive/50",
           subAnimation === "in" && "animate-scale-in ring-2 ring-emerald-500 bg-emerald-500/20",
           subAnimation === "out" && "animate-fade-in ring-2 ring-orange-500 bg-orange-500/20",
+          isNextSub && !isSelected && !isSubTarget && !subAnimation && "ring-2 ring-primary ring-offset-1 ring-offset-background bg-primary/10 border-primary/40",
           onClick && !player.isInjured && "cursor-pointer"
         )}
         style={{ ...style, ...benchBorderStyle }}
@@ -144,6 +150,9 @@ const PlayerToken = memo(function PlayerToken({
             {player.isInjured && (
               <span className="text-[9px] font-medium text-destructive bg-destructive/10 px-1 rounded">INJ</span>
             )}
+            {isNextSub && !player.isInjured && (
+              <span className="text-[9px] font-medium text-primary bg-primary/15 px-1 rounded animate-pulse">NEXT</span>
+            )}
           </div>
           <div className="flex items-center gap-1 mt-0.5">
             {player.assignedPositions && player.assignedPositions.length > 0 && (
@@ -155,6 +164,9 @@ const PlayerToken = memo(function PlayerToken({
             )}
             {minutesDisplay !== null && (
               <span className="text-[10px] font-medium text-primary ml-auto">{minutesDisplay}</span>
+            )}
+            {isNextSub && nextSubCountdown && (
+              <span className="text-[10px] font-medium text-primary ml-auto">⏱ {nextSubCountdown}</span>
             )}
           </div>
         </div>
