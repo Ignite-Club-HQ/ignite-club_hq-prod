@@ -143,7 +143,13 @@ export const computeTacticalOffsets = (
         case "DEF":
           // Defenders drop clearly deeper and tuck in compact
           dy = isSmallSided ? 26 : 28;
-          if (isWide(bx)) dx = isLeft(bx) ? 6 : -6; // tuck narrow
+          if (isWide(bx)) {
+            dx = isLeft(bx) ? 6 : -6; // tuck narrow
+          } else if (bx < 50) {
+            dx = -6; // spread central-left outward
+          } else if (bx > 50) {
+            dx = 6; // spread central-right outward
+          }
           break;
         case "MID":
           // Midfield drops to protect space in front of defenders
@@ -154,8 +160,10 @@ export const computeTacticalOffsets = (
             else if (bx > 55) dx = -6;
             isAnchor = true;
           } else {
-            // Wide mids tuck in
+            // Wide mids tuck in, central mids spread out to avoid crowding
             if (isWide(bx)) dx = isLeft(bx) ? 8 : -8;
+            else if (bx < 50) dx = -6;
+            else if (bx > 50) dx = 6;
           }
           break;
         case "FWD":
