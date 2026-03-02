@@ -147,7 +147,7 @@ export const computeTacticalOffsets = (
           if (isWide(bx)) {
             dx = isLeft(bx) ? 6 : -6; // tuck narrow
           } else if (defenders.length >= 4) {
-            dx = bx <= 50 ? -10 : 10; // widen central pair in back-four
+            dx = bx <= 50 ? -4 : 4; // central pair: slight separation, still compact
           } else if (bx < 50) {
             dx = -6;
           } else if (bx > 50) {
@@ -163,9 +163,9 @@ export const computeTacticalOffsets = (
             else if (bx > 55) dx = -6;
             isAnchor = true;
           } else if (midfielders.length >= 4) {
-            // With 4+ mids, spread everyone out evenly
-            if (isWide(bx)) dx = isLeft(bx) ? -6 : 6; // wide stay wide
-            else dx = bx <= 50 ? -10 : 10; // central pair spreads apart
+            // With 4+ mids in defend mode, stay compact with mild central separation
+            if (isWide(bx)) dx = isLeft(bx) ? 3 : -3; // slight tuck
+            else dx = bx <= 50 ? -4 : 4; // central pair not too close, not too wide
           } else {
             // Smaller midfield shapes: wide mids tuck in
             if (isWide(bx)) dx = isLeft(bx) ? 8 : -8;
