@@ -461,14 +461,14 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       <div className="flex items-center gap-2 flex-wrap">
       
       <div className={cn(
-        "flex items-center gap-2 rounded-md",
-        large ? "px-4 py-2.5" : "px-3 py-1.5",
-        isGameFinished ? "bg-primary/20" : "bg-muted"
+        "flex items-center gap-1.5 rounded-md",
+        large ? "px-4 py-2.5" : "px-2 py-1",
+        isGameFinished ? "bg-primary/20" : "bg-muted/60"
       )}>
-        <span className={cn("font-medium text-muted-foreground", large ? "text-base" : "text-sm")}>
-          {isGameFinished ? "Full Time" : (currentHalf === 1 ? "1st Half" : "2nd Half")}
+        <span className={cn("font-medium text-muted-foreground", large ? "text-base" : "text-xs")}>
+          {isGameFinished ? "FT" : (currentHalf === 1 ? "1H" : "2H")}
         </span>
-        <span className={cn("font-mono font-bold", large ? "text-2xl" : "text-lg")}>{getDisplayTime()}</span>
+        <span className={cn("font-mono font-bold tabular-nums", large ? "text-2xl" : "text-xl")}>{getDisplayTime()}</span>
       </div>
       
       {!readOnly && !hidePlayPause && (
