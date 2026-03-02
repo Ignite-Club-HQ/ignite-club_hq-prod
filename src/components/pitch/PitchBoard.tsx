@@ -3930,20 +3930,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             {!readOnly && (
               <>
                 <div className="w-px h-6 bg-border mx-1" />
-                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={(e) => {
+                <Button variant="ghost" size="sm" className="h-10 shrink-0 gap-1.5 px-3 text-sm" onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   setTimeout(() => setResetGameConfirmOpen(true), 0);
                 }}>
                   <RotateCcw className="h-5 w-5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => setStatsOpen(true)}>
+                <Button variant="ghost" size="sm" className="h-10 shrink-0 gap-1.5 px-3 text-sm" onClick={() => setStatsOpen(true)}>
                   <BarChart3 className="h-5 w-5" />
                 </Button>
               </>
             )}
             {readOnly && (
-              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => setStatsOpen(true)}>
+              <Button variant="ghost" size="sm" className="h-10 shrink-0 gap-1.5 px-3 text-sm" onClick={() => setStatsOpen(true)}>
                 <BarChart3 className="h-5 w-5" />
               </Button>
             )}
