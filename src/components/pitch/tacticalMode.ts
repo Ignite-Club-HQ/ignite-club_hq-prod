@@ -138,7 +138,7 @@ export const computeTacticalOffsets = (
     } else if (mode === "defend") {
       switch (pos) {
         case "GK":
-          dy = 4; // push deeper
+          dy = 0; // GK already deep; clamping would pull them forward
           break;
         case "DEF":
           // Defenders drop clearly deeper and tuck in compact
