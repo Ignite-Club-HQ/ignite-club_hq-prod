@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2 } from "lucide-react";
+import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PlayerToken from "./PlayerToken";
 import SoccerBall from "./SoccerBall";
@@ -41,6 +41,7 @@ const AutoSubManager = lazy(() => import("./AutoSubManager"));
 const AutoSubControlPanel = lazy(() => import("./AutoSubControlPanel"));
 const PreGameLineupScreen = lazy(() => import("./PreGameLineupScreen"));
 import TacticalModeSelector from "./TacticalModeSelector";
+import { PitchSettingsDialog } from "./PitchSettingsDialog";
 
 import { useToast } from "@/hooks/use-toast";
 
@@ -3907,6 +3908,48 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={() => setStatsOpen(true)}>
                   <BarChart3 className="h-6 w-6" />
                 </Button>
+                <PitchSettingsDialog
+                  soundEnabled={isSoundEnabled(teamId)}
+                  onSoundToggle={() => {/* sound is global */}}
+                  selectedFormation={selectedFormation}
+                  onFormationChange={handleFormationChange}
+                  formations={FORMATIONS[teamSize]}
+                  teamSize={teamSize}
+                  onTeamSizeChange={handleTeamSizeChange}
+                  minutesPerHalf={minutesPerHalf}
+                  onMinutesPerHalfChange={handleMinutesPerHalfChange}
+                  rotationSpeed={rotationSpeed}
+                  onRotationSpeedChange={handleRotationSpeedChange}
+                  disablePositionSwaps={disablePositionSwaps}
+                  onDisablePositionSwapsChange={setDisablePositionSwaps}
+                  disableBatchSubs={disableBatchSubs}
+                  onDisableBatchSubsChange={setDisableBatchSubs}
+                  rotateGkAtHalftime={rotateGkAtHalftime}
+                  onRotateGkAtHalftimeChange={setRotateGkAtHalftime}
+                  onOpenPositionEditor={() => setPositionEditorOpen(true)}
+                  mockMode={mockMode}
+                  onMockModeChange={handleMockModeChange}
+                  readOnly={readOnly}
+                  gameInProgress={gameInProgress}
+                  onResetGame={handleResetGame}
+                  onResetFormation={handleResetFormation}
+                  onOpenStats={() => setStatsOpen(true)}
+                  onSaveSettings={handleSaveSettings}
+                  isSaving={isSavingSettings}
+                  showMatchHeader={showMatchHeader}
+                  onShowMatchHeaderChange={setShowMatchHeader}
+                  hideScores={hideScores}
+                  onHideScoresChange={setHideScores}
+                  showLineupPicker={showLineupPickerSetting}
+                  onShowLineupPickerChange={handleShowLineupPickerSettingChange}
+                  onOpenLineupPicker={() => setShowLineupPicker(true)}
+                  onAddFillInPlayer={() => {
+                    // Open the bench and let user use the fill-in dialog there
+                    setToolbarCollapsed(false);
+                    setSheetHeightPct(50);
+                  }}
+                  triggerClassName="h-12 w-12"
+                />
               </>
             )}
             {readOnly && (
@@ -4581,32 +4624,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
                 </div>
 
-                {/* Tabs */}
-                <div className="flex border-b border-border px-2 gap-1">
-                {(["bench", "setup"] as const).map(tab => (
-                  <button
-                    key={tab}
-                    onClick={() => setBottomSheetTab(tab)}
-                    className={cn(
-                      "flex-1 py-2 text-sm font-medium rounded-t-md transition-colors",
-                      bottomSheetTab === tab 
-                        ? "bg-muted text-foreground border-b-2 border-primary" 
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {tab === "bench" ? `Bench (${playersOnBench.length})` : "Settings"}
-                  </button>
-                ))}
-
-
-              </div>
+                {/* Bench header */}
+                <div className="flex items-center justify-between px-3 pt-2 pb-1">
+                  <div className="w-10 h-1 rounded-full bg-muted-foreground/30 mx-auto" />
+                </div>
               </div>
 
 
               {/* Tab content */}
               <div className="overflow-y-auto p-3 flex-1 min-h-0">
-                {/* Bench Tab */}
-                {bottomSheetTab === "bench" && (
+                {/* Bench content */}
                   <div className="space-y-3">
                     {/* Position Filter Chips - sticky */}
                     <div className="sticky top-[-12px] z-10 bg-background py-2 -mx-3 px-3">
@@ -4753,124 +4780,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </div>
                     )}
                   </div>
-                )}
-
-                {/* Setup Tab */}
-                {bottomSheetTab === "setup" && (
-                  <div className="space-y-4 px-1">
-                    {/* Tactical Mode is in the landscape header bar */}
-                    {/* Segmented controls for core settings - landscape */}
-                    <div className="space-y-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">Players</Label>
-                        <div className="flex rounded-lg border border-border overflow-hidden">
-                          {(["3","4","5","6","7","8","9","10","11"] as const).map((size) => (
-                            <button
-                              key={size}
-                              type="button"
-                              disabled={readOnly}
-                              onClick={() => handleTeamSizeChange(size)}
-                              className={cn(
-                                "flex-1 py-2.5 text-base font-medium transition-colors min-w-0",
-                                teamSize === size
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-background text-muted-foreground hover:bg-accent"
-                              )}
-                            >
-                              {size}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    {/* Primary actions - context-aware */}
-                    {!readOnly && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <Button variant="outline" className="h-12 text-base" onClick={() => setShowLineupPicker(true)}>
-                          <List className="h-4 w-4 mr-1.5" />
-                          Select Lineup
-                        </Button>
-                        <Button variant="outline" className="h-12 text-base" onClick={() => setPositionEditorOpen(true)}>
-                          <Settings2 className="h-4 w-4 mr-1.5" />
-                          Positions
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* More Options - collapsible */}
-                    {!readOnly && (
-                      <Collapsible>
-                        <CollapsibleTrigger className="flex items-center justify-center w-full py-3.5 text-base text-muted-foreground hover:text-foreground transition-colors gap-2">
-                          <span>More Options</span>
-                          <ChevronDown className="h-4 w-4" />
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="space-y-2 pt-1">
-                          <div className="grid grid-cols-2 gap-2">
-                            <Button variant="outline" className="h-10 text-sm" onClick={() => setPositionEditorOpen(true)}>
-                              <Settings2 className="h-4 w-4 mr-1.5" />
-                              Positions
-                            </Button>
-                            <Suspense fallback={null}>
-                              <AddFillInPlayerDialog
-                                onAddPlayer={handleAddFillInPlayer}
-                                existingNumbers={existingJerseyNumbers}
-                              />
-                            </Suspense>
-                          </div>
-                          {!gameInProgress && (
-                            <div className="space-y-2 py-1">
-                              <Label className="text-sm">Minutes per Half</Label>
-                              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                                {[5, 7, 8, 10, 12, 15, 20, 25, 30, 35, 40, 45].map((m) => (
-                                  <Button
-                                    key={m}
-                                    type="button"
-                                    variant={minutesPerHalf === m ? "default" : "outline"}
-                                    className="h-10 px-3 text-sm shrink-0"
-                                    onClick={() => handleMinutesPerHalfChange(m)}
-                                  >
-                                    {m}m
-                                  </Button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {parseInt(teamSize) >= 7 && (
-                            <div className="flex items-center gap-4 py-1">
-                              <Label className="text-sm">Rotate GK at Halftime</Label>
-                              <Switch checked={rotateGkAtHalftime} onCheckedChange={setRotateGkAtHalftime} />
-                            </div>
-                          )}
-                          <div className="flex items-center gap-4 py-1">
-                            <Label className="text-sm">Hide Scores</Label>
-                            <Switch checked={hideScores} onCheckedChange={setHideScores} />
-                          </div>
-                          <div className="flex items-center gap-4 py-1">
-                            <Label className="text-sm">Starting Lineup Screen</Label>
-                            <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
-                          </div>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    )}
-
-                    {/* Reset Game - always visible at bottom */}
-                    {!readOnly && (
-                      <Button
-                        variant="outline"
-                        className="w-full h-12 text-base text-destructive"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setTimeout(() => setResetGameConfirmOpen(true), 0);
-                        }}
-                      >
-                        <RotateCcw className="h-4.5 w-4.5 mr-2" />
-                        Reset Game
-                      </Button>
-                    )}
-                  </div>
-                )}
-
               </div>
             </div>
           </div>
@@ -5245,6 +5154,42 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setStatsOpen(true)}>
               <BarChart3 className="h-4 w-4" />
             </Button>
+            <PitchSettingsDialog
+              soundEnabled={isSoundEnabled(teamId)}
+              onSoundToggle={() => {/* sound is global */}}
+              selectedFormation={selectedFormation}
+              onFormationChange={handleFormationChange}
+              formations={FORMATIONS[teamSize]}
+              teamSize={teamSize}
+              onTeamSizeChange={handleTeamSizeChange}
+              minutesPerHalf={minutesPerHalf}
+              onMinutesPerHalfChange={handleMinutesPerHalfChange}
+              rotationSpeed={rotationSpeed}
+              onRotationSpeedChange={handleRotationSpeedChange}
+              disablePositionSwaps={disablePositionSwaps}
+              onDisablePositionSwapsChange={setDisablePositionSwaps}
+              disableBatchSubs={disableBatchSubs}
+              onDisableBatchSubsChange={setDisableBatchSubs}
+              rotateGkAtHalftime={rotateGkAtHalftime}
+              onRotateGkAtHalftimeChange={setRotateGkAtHalftime}
+              onOpenPositionEditor={() => setPositionEditorOpen(true)}
+              mockMode={mockMode}
+              onMockModeChange={handleMockModeChange}
+              readOnly={readOnly}
+              gameInProgress={gameInProgress}
+              onResetGame={handleResetGame}
+              onResetFormation={handleResetFormation}
+              onOpenStats={() => setStatsOpen(true)}
+              onSaveSettings={handleSaveSettings}
+              isSaving={isSavingSettings}
+              showMatchHeader={showMatchHeader}
+              onShowMatchHeaderChange={setShowMatchHeader}
+              hideScores={hideScores}
+              onHideScoresChange={setHideScores}
+              showLineupPicker={showLineupPickerSetting}
+              onShowLineupPickerChange={handleShowLineupPickerSettingChange}
+              onOpenLineupPicker={() => setShowLineupPicker(true)}
+            />
           </>
         )}
         {readOnly && (
@@ -5513,8 +5458,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
               {/* Tab content */}
               <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${portraitSheetHeightPct}vh - 120px)` }}>
-                {/* Bench Tab */}
-                {bottomSheetTab === "bench" && (
+                {/* Bench content */}
                   <div className="space-y-3">
                     {/* Position Filter Chips + Fill-In */}
                     <div className="flex items-center gap-2">
@@ -5678,119 +5622,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </div>
                     )}
                   </div>
-                )}
-
-                {/* Setup Tab */}
-                {bottomSheetTab === "setup" && (
-                  <div className="space-y-3 px-1">
-                    {/* Segmented controls for core settings - portrait */}
-                    <div className="space-y-2">
-                      <div className="space-y-1">
-                        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Players</Label>
-                        <div className="flex rounded-lg border border-border overflow-hidden">
-                          {(["3","4","5","6","7","8","9","10","11"] as const).map((size) => (
-                            <button
-                              key={size}
-                              type="button"
-                              disabled={readOnly}
-                              onClick={() => handleTeamSizeChange(size)}
-                              className={cn(
-                                "flex-1 py-2 text-sm font-medium transition-colors min-w-0",
-                                teamSize === size
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-background text-muted-foreground hover:bg-accent"
-                              )}
-                            >
-                              {size}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    {/* Primary actions - context-aware */}
-                    <div className="grid grid-cols-2 gap-2">
-                      {!readOnly && (
-                        <Button variant="outline" className="h-11 text-sm" onClick={() => setShowLineupPicker(true)}>
-                          <List className="h-4 w-4 mr-1.5" />
-                          Select Lineup
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* More Options - collapsible */}
-                    {!readOnly && (
-                      <Collapsible>
-                        <CollapsibleTrigger className="flex items-center justify-center w-full py-3.5 text-base text-muted-foreground hover:text-foreground transition-colors gap-2">
-                          <span>More Options</span>
-                          <ChevronDown className="h-4 w-4" />
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="space-y-2 pt-1">
-                          <div className="grid grid-cols-2 gap-2">
-                            <Button variant="outline" className="h-10 text-sm" onClick={() => setPositionEditorOpen(true)}>
-                              <Settings2 className="h-4 w-4 mr-1.5" />
-                              Positions
-                            </Button>
-                            <Suspense fallback={null}>
-                              <AddFillInPlayerDialog
-                                onAddPlayer={handleAddFillInPlayer}
-                                existingNumbers={existingJerseyNumbers}
-                              />
-                            </Suspense>
-                          </div>
-                          {!gameInProgress && (
-                            <div className="space-y-2 py-1">
-                              <Label className="text-sm">Minutes per Half</Label>
-                              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                                {[5, 7, 8, 10, 12, 15, 20, 25, 30, 35, 40, 45].map((m) => (
-                                  <Button
-                                    key={m}
-                                    type="button"
-                                    variant={minutesPerHalf === m ? "default" : "outline"}
-                                    className="h-10 px-3 text-sm shrink-0"
-                                    onClick={() => handleMinutesPerHalfChange(m)}
-                                  >
-                                    {m}m
-                                  </Button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {parseInt(teamSize) >= 7 && (
-                            <div className="flex items-center gap-4 py-1">
-                              <Label className="text-sm">Rotate GK at Halftime</Label>
-                              <Switch checked={rotateGkAtHalftime} onCheckedChange={setRotateGkAtHalftime} />
-                            </div>
-                          )}
-                          <div className="flex items-center gap-4 py-1">
-                            <Label className="text-sm">Hide Scores</Label>
-                            <Switch checked={hideScores} onCheckedChange={setHideScores} />
-                          </div>
-                          <div className="flex items-center gap-4 py-1">
-                            <Label className="text-sm">Starting Lineup Screen</Label>
-                            <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
-                          </div>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    )}
-
-                    {/* Reset Game - always visible at bottom */}
-                    {!readOnly && (
-                      <Button
-                        variant="outline"
-                        className="w-full h-12 text-base text-destructive"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setTimeout(() => setResetGameConfirmOpen(true), 0);
-                        }}
-                      >
-                        <RotateCcw className="h-4.5 w-4.5 mr-2" />
-                        Reset Game
-                      </Button>
-                    )}
-                  </div>
-                )}
-
               </div>
             </div>
           </div>

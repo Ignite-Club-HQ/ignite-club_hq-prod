@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Suspense, lazy } from "react";
 import { Button } from "@/components/ui/button";
 import { 
   ResponsiveDialog, 
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Settings, Volume2, VolumeX, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal } from "lucide-react";
+import { Settings, Volume2, VolumeX, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TeamSize } from "./types";
 
@@ -97,6 +97,9 @@ interface PitchSettingsDialogProps {
   
   // Manual trigger lineup picker
   onOpenLineupPicker?: () => void;
+  
+  // Add fill-in player
+  onAddFillInPlayer?: () => void;
 }
 
 export function PitchSettingsDialog({
@@ -135,6 +138,7 @@ export function PitchSettingsDialog({
   showLineupPicker = false,
   onShowLineupPickerChange,
   onOpenLineupPicker,
+  onAddFillInPlayer,
 }: PitchSettingsDialogProps) {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetFormationConfirmOpen, setResetFormationConfirmOpen] = useState(false);
@@ -416,15 +420,18 @@ export function PitchSettingsDialog({
             
             {/* Quick action row */}
             <div className="flex gap-2">
-              {onOpenStats && (
+              {!readOnly && onOpenLineupPicker && (
                 <Button 
                   variant="outline" 
                   size="sm"
                   className="flex-1 h-9"
-                  onClick={onOpenStats}
+                  onClick={() => {
+                    onOpenLineupPicker();
+                    setOpen(false);
+                  }}
                 >
-                  <BarChart3 className="h-4 w-4 mr-1.5" />
-                  Stats
+                  <List className="h-4 w-4 mr-1.5" />
+                  Lineup
                 </Button>
               )}
               {!readOnly && (
@@ -432,10 +439,41 @@ export function PitchSettingsDialog({
                   variant="outline" 
                   size="sm"
                   className="flex-1 h-9"
-                  onClick={onOpenPositionEditor}
+                  onClick={() => {
+                    onOpenPositionEditor();
+                    setOpen(false);
+                  }}
                 >
                   <Settings2 className="h-4 w-4 mr-1.5" />
                   Positions
+                </Button>
+              )}
+              {onOpenStats && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="flex-1 h-9"
+                  onClick={() => {
+                    onOpenStats();
+                    setOpen(false);
+                  }}
+                >
+                  <BarChart3 className="h-4 w-4 mr-1.5" />
+                  Stats
+                </Button>
+              )}
+              {!readOnly && onAddFillInPlayer && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="flex-1 h-9"
+                  onClick={() => {
+                    onAddFillInPlayer();
+                    setOpen(false);
+                  }}
+                >
+                  <UserPlus className="h-4 w-4 mr-1.5" />
+                  Fill-In
                 </Button>
               )}
             </div>
