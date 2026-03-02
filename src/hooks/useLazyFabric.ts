@@ -71,30 +71,28 @@ const scaleCanvasObjects = (
 
   if (noScaleChange) return;
 
-  // Use axis-specific scaling so drawings keep the same relative position
-  // on the pitch when aspect ratio changes.
+  // For groups (arrows), use uniform scaling to preserve arrowhead shape.
+  // For paths (pen strokes), use non-uniform scaling for accurate positioning.
+  const uniformScale = Math.min(scaleX, scaleY);
+
   canvas.getObjects().forEach((obj: any) => {
-    obj.set({
-      left: (obj.left ?? 0) * scaleX,
-      top: (obj.top ?? 0) * scaleY,
-      scaleX: (obj.scaleX ?? 1) * scaleX,
-      scaleY: (obj.scaleY ?? 1) * scaleY,
-    });
+    const isGroup = typeof obj.getObjects === "function";
 
-    // Keep arrowheads visually proportional after non-uniform scaling.
-    const groupObjects = typeof obj.getObjects === "function" ? obj.getObjects() : null;
-    if (Array.isArray(groupObjects) && scaleX > 0 && scaleY > 0) {
-      const arrowheadCompensation = scaleY / scaleX;
-      groupObjects.forEach((child: any) => {
-        if (child?.type === "triangle") {
-          child.set({
-            scaleX: (child.scaleX ?? 1) * arrowheadCompensation,
-          });
-
-          if (typeof child.setCoords === "function") {
-            child.setCoords();
-          }
-        }
+    if (isGroup) {
+      // Arrow groups: position non-uniformly, but scale uniformly to keep shape
+      obj.set({
+        left: (obj.left ?? 0) * scaleX,
+        top: (obj.top ?? 0) * scaleY,
+        scaleX: (obj.scaleX ?? 1) * uniformScale,
+        scaleY: (obj.scaleY ?? 1) * uniformScale,
+      });
+    } else {
+      // Paths / pen strokes: full non-uniform scaling is fine
+      obj.set({
+        left: (obj.left ?? 0) * scaleX,
+        top: (obj.top ?? 0) * scaleY,
+        scaleX: (obj.scaleX ?? 1) * scaleX,
+        scaleY: (obj.scaleY ?? 1) * scaleY,
       });
     }
 
