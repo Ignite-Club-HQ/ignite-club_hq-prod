@@ -5264,23 +5264,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               </button>
             )}
 
-            {/* Auto-Subs FAB */}
-            {!disableAutoSubs && !subMode && !swapMode && (
-              <button
-                onClick={autoSubActive ? () => { setBottomSheetTab("bench"); setPortraitSheetOpen(true); } : handleOpenNewPlan}
-                className={cn(
-                  "flex items-center gap-2 rounded-full shadow-lg transition-colors px-3 py-2",
-                  autoSubActive 
-                    ? "bg-secondary text-secondary-foreground" 
-                    : "bg-muted text-foreground hover:bg-muted/80 border border-border"
-                )}
-              >
-                <Calendar className="h-4 w-4" />
-                <span className="text-sm font-medium">
-                  {autoSubActive ? "Auto ✓" : "Auto"}
-                </span>
-              </button>
-            )}
+            {/* Auto-Subs FAB removed from portrait - now in bench tab */}
           </div>
         )}
 
@@ -5610,27 +5594,38 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           />
                         ))}
                     </div>
-                    {/* Auto-Sub Manager - shown below bench when active */}
-                    {!readOnly && autoSubActive && !disableAutoSubs && (
+                    {/* Auto-Sub section in bench tab */}
+                    {!readOnly && !disableAutoSubs && (
                       <div className="pt-2 border-t border-border">
-                        <Suspense fallback={<DialogLoader />}>
-                          <AutoSubManager
-                            autoSubPlan={autoSubPlan}
-                            autoSubPaused={autoSubPaused}
-                            players={players}
-                            lockedPlayerIds={lockedPlayerIds}
-                            currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-                            currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-                            minutesPerHalf={minutesPerHalf}
-                            onTogglePause={handleTogglePauseAutoSub}
-                            onCancelPlan={handleCancelAutoSubPlan}
-                            onSkipNext={handleSkipNextSub}
-                            onExecuteNow={handleExecuteNow}
-                            onEditPlan={handleOpenEditPlan}
-                            onRegeneratePlan={handleRegeneratePlan}
-                            onToggleLockPlayer={handleToggleLockPlayer}
-                          />
-                        </Suspense>
+                        {autoSubActive ? (
+                          <Suspense fallback={<DialogLoader />}>
+                            <AutoSubManager
+                              autoSubPlan={autoSubPlan}
+                              autoSubPaused={autoSubPaused}
+                              players={players}
+                              lockedPlayerIds={lockedPlayerIds}
+                              currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+                              currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+                              minutesPerHalf={minutesPerHalf}
+                              onTogglePause={handleTogglePauseAutoSub}
+                              onCancelPlan={handleCancelAutoSubPlan}
+                              onSkipNext={handleSkipNextSub}
+                              onExecuteNow={handleExecuteNow}
+                              onEditPlan={handleOpenEditPlan}
+                              onRegeneratePlan={handleRegeneratePlan}
+                              onToggleLockPlayer={handleToggleLockPlayer}
+                            />
+                          </Suspense>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            className="w-full h-11 text-sm gap-2"
+                            onClick={handleOpenNewPlan}
+                          >
+                            <Calendar className="h-4 w-4" />
+                            Auto-Sub Plan
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
