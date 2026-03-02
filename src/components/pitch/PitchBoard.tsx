@@ -4054,24 +4054,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 )}
               </div>
             </div>
+            {/* Undo button below widget */}
+            {!readOnly && showFloatingUndo && undoHistory.length > 0 && (
+              <div className="flex justify-center mt-1.5 animate-fade-in">
+                <Button 
+                  variant="secondary" 
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); handleUndo(); }}
+                  className="shadow-md gap-1.5 opacity-90 hover:opacity-100 cursor-pointer"
+                >
+                  <Undo2 className="h-4 w-4" />
+                  Undo
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Score tracker now integrated into the floating timer widget above */}
 
-          {/* Floating undo button - top-left below header in landscape */}
-          {!readOnly && showFloatingUndo && undoHistory.length > 0 && (
-            <div className="absolute top-14 left-4 z-[9999] animate-fade-in">
-              <Button 
-                variant="secondary" 
-                size="sm"
-                onClick={handleUndo}
-                className="shadow-md gap-1.5 opacity-90 hover:opacity-100"
-              >
-                <Undo2 className="h-4 w-4" />
-                Undo
-              </Button>
-            </div>
-          )}
+          {/* Undo button now inside the floating timer widget above */}
 
           {/* Swap/Sub FABs moved to header - this section intentionally removed */}
 
