@@ -3786,8 +3786,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return createPortal(
       <div className="fixed inset-0 w-screen h-screen bg-background flex flex-col overflow-hidden" style={{ height: '100dvh', zIndex: 99999 }}>
         {/* Landscape header bar */}
-        <div className="shrink-0 h-10 bg-background border-b border-border flex items-center px-2 gap-2 z-[60]">
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose}>
+        <div className="shrink-0 h-12 bg-background border-b border-border flex items-center px-3 gap-3 z-[60]">
+          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={onClose}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <span className="text-sm font-semibold truncate">{teamName}</span>
@@ -3812,13 +3812,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   key={mode}
                   onClick={() => handleTacticalModeChange(mode)}
                   className={cn(
-                    "flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all duration-200",
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-all duration-200",
                     tacticalMode === mode
                       ? activeClass
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <Icon className="h-3.5 w-3.5" />
+                  <Icon className="h-4 w-4" />
                   <span>{label}</span>
                 </button>
               ))}
@@ -3834,10 +3834,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <Button
                   variant={swapMode ? "secondary" : "ghost"}
                   size="sm"
-                  className="h-8 shrink-0 gap-1 px-2 text-xs"
+                  className="h-10 shrink-0 gap-1.5 px-3 text-sm"
                   onClick={(e) => { e.stopPropagation(); toggleSwapMode(); }}
                 >
-                  <ArrowLeftRight className="h-3.5 w-3.5" />
+                  <ArrowLeftRight className="h-4 w-4" />
                   {swapMode ? "Cancel" : "Swap"}
                 </Button>
               )}
@@ -3845,10 +3845,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <Button
                   variant={subMode ? "secondary" : "default"}
                   size="sm"
-                  className="h-8 shrink-0 gap-1 px-2 text-xs"
+                  className="h-10 shrink-0 gap-1.5 px-3 text-sm"
                   onClick={() => { setSubMode(prev => !prev); setSelectedOnPitch(null); setSelectedOnBench(null); }}
                 >
-                  <Users className="h-3.5 w-3.5" />
+                  <Users className="h-4 w-4" />
                   {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
                 </Button>
               )}
@@ -3856,10 +3856,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 shrink-0 gap-1 px-2 text-xs text-destructive"
+                  className="h-10 shrink-0 gap-1.5 px-3 text-sm text-destructive"
                   onClick={() => { if (subMode) toggleSubMode(); else toggleSwapMode(); }}
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <X className="h-4 w-4" />
                 </Button>
               )}
             </>
@@ -3870,10 +3870,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             <Button
               variant={autoSubActive ? "secondary" : "ghost"}
               size="sm"
-              className="h-8 shrink-0 gap-1 px-2 text-xs"
+              className="h-10 shrink-0 gap-1.5 px-3 text-sm"
               onClick={autoSubActive ? () => { setBottomSheetTab("bench"); setToolbarCollapsed(false); } : handleOpenNewPlan}
             >
-              <Calendar className="h-3.5 w-3.5" />
+              <Calendar className="h-4 w-4" />
               {autoSubActive ? "Auto ✓" : "Auto"}
             </Button>
           )}
@@ -3883,27 +3883,27 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 shrink-0 gap-1 px-2 text-xs"
+              className="h-10 shrink-0 gap-1.5 px-3 text-sm"
               onClick={() => setLandscapeEventSelectorOpen(true)}
             >
-              <Link2 className="h-3.5 w-3.5" />
+              <Link2 className="h-4 w-4" />
               Link
             </Button>
           )}
 
           {!readOnly && (
             <>
-              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleResetFormation}>
-                <RotateCcw className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={handleResetFormation}>
+                <RotateCcw className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setStatsOpen(true)}>
-                <BarChart3 className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => setStatsOpen(true)}>
+                <BarChart3 className="h-5 w-5" />
               </Button>
             </>
           )}
           {readOnly && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setStatsOpen(true)}>
-              <BarChart3 className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => setStatsOpen(true)}>
+              <BarChart3 className="h-5 w-5" />
             </Button>
           )}
         </div>
