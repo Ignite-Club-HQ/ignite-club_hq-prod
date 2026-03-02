@@ -4519,7 +4519,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               className="absolute bottom-3 right-3 z-[55] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
               onClick={() => { setSheetHeightPct(50); setToolbarCollapsed(false); }}
             >
-              <ChevronUp className="h-5 w-5 text-muted-foreground" />
+              <Users className="h-5 w-5 text-muted-foreground" />
             </button>
 
 
@@ -5398,7 +5398,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               )}
               onClick={() => setPortraitSheetOpen(true)}
             >
-              <ChevronUp className="h-5 w-5 text-muted-foreground" />
+              <Users className="h-5 w-5 text-muted-foreground" />
             </button>
 
             {/* Floating Draw FAB - portrait */}
