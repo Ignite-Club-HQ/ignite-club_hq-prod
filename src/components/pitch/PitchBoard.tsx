@@ -212,8 +212,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [drawingTool, setDrawingTool] = useState<DrawingTool>("none");
   const [drawingColor, setDrawingColor] = useState("#ffffff");
   
-  // Lazy load Fabric.js - only initialize when drawing mode is enabled
+  // Lazy load Fabric.js - initialize when drawing mode is first enabled, keep alive after
   const drawingEnabled = drawingTool !== "none";
+  const [drawingEverEnabled, setDrawingEverEnabled] = useState(false);
+  useEffect(() => {
+    if (drawingEnabled && !drawingEverEnabled) {
+      setDrawingEverEnabled(true);
+    }
+  }, [drawingEnabled, drawingEverEnabled]);
   const { 
     canvas: fabricCanvas, 
     isLoading: isFabricLoading, 
@@ -223,7 +229,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   } = useLazyFabric({
     canvasRef,
     containerRef,
-    enabled: drawingEnabled,
+    enabled: drawingEverEnabled,
     initialColor: drawingColor,
     dependencies: [isLandscape],
   });
@@ -4719,7 +4725,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
             {/* Floating Draw Toolbar */}
             {showFloatingDrawToolbar && (
-              <div className="absolute bottom-16 z-[55] animate-fade-in" style={{ right: 12 }}>
+              <div className="absolute bottom-[4.5rem] z-[70] animate-fade-in" style={{ right: 12 }}>
                 <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
                   <div className="flex gap-2">
                     <Button 
