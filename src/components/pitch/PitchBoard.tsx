@@ -4116,7 +4116,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Main content area */}
         <div className="flex-1 flex overflow-hidden">
           {/* Main pitch area - full height */}
-          <div className="flex-1 h-full relative overflow-hidden">
+          <div className="flex-1 h-full relative overflow-hidden z-[65]">
           
           {/* Floating draggable timer */}
           <div 
@@ -5364,7 +5364,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       </div>
 
       {/* Full-screen Pitch Area */}
-      <div className="flex-1 min-h-0 relative overflow-hidden">
+      <div className="flex-1 min-h-0 relative overflow-hidden z-[65]">
         {/* Floating score + timer combined row - draggable + resizable */}
         <div 
           className={cn("absolute z-[70] select-none pointer-events-auto touch-none cursor-move", portraitTimerPosition ? "origin-top-left" : "origin-top-right")}
