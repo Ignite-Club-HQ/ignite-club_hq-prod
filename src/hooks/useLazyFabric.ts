@@ -199,6 +199,34 @@ export function useLazyFabric({
         newCanvas.dispose();
       };
 
+      // Make all drawn objects non-selectable
+      newCanvas.on("path:created", (e: any) => {
+        if (e.path) {
+          e.path.set({
+            selectable: false,
+            evented: false,
+            hasControls: false,
+            hasBorders: false,
+            lockMovementX: true,
+            lockMovementY: true,
+          });
+        }
+      });
+
+      // Also lock any objects added via other means (arrows, etc.)
+      newCanvas.on("object:added", (e: any) => {
+        if (e.target) {
+          e.target.set({
+            selectable: false,
+            evented: false,
+            hasControls: false,
+            hasBorders: false,
+            lockMovementX: true,
+            lockMovementY: true,
+          });
+        }
+      });
+
       setCanvas(newCanvas);
       setIsReady(true);
       initializingRef.current = false;
