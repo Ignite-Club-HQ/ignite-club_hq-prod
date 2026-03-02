@@ -5659,8 +5659,35 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             </button>
                           ))}
                         </div>
+                        </div>
                       </div>
-                    </div>
+                      {!readOnly && (
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Tactical Mode</Label>
+                          <div className="flex rounded-lg border border-border overflow-hidden">
+                            {([
+                              { key: "defend" as TacticalMode, label: "DEF", icon: Shield },
+                              { key: "neutral" as TacticalMode, label: "NEU", icon: Circle },
+                              { key: "attack" as TacticalMode, label: "ATK", icon: Swords },
+                            ]).map(({ key, label, icon: Icon }) => (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => handleTacticalModeChange(key)}
+                                className={cn(
+                                  "flex-1 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-1.5",
+                                  tacticalMode === key
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-background text-muted-foreground hover:bg-accent"
+                                )}
+                              >
+                                <Icon className="h-3.5 w-3.5" />
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                     {/* Primary actions - context-aware */}
                     <div className="grid grid-cols-2 gap-2">
