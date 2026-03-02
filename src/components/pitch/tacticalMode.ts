@@ -69,18 +69,28 @@ export const computeTacticalOffsets = (
     anchorMidId = sorted[0].id;
   }
 
-  // DEFEND with 5+ mids (e.g. 4-2-3-1): identify central attacking mid (#10)
-  const defendCentralPlaymakerId = (() => {
-    if (mode !== "defend" || midfielders.length < 5) return null;
-    const topLineCount = Math.max(1, midfielders.length - 2);
-    const highestMids = [...midfielders]
-      .sort((a, b) => a.position!.y - b.position!.y)
-      .slice(0, topLineCount);
-    const sortedByCenter = highestMids.sort((a, b) =>
-      Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
-    );
-    return sortedByCenter[0]?.id ?? null;
-  })();
+  // DEFEND with 5+ mids: detect if it's a split (4-2-3-1) or flat (3-5-2) midfield
+  let defendCentralPlaymakerId: string | null = null;
+  let isFlatMidfield5 = false;
+  if (mode === "defend" && midfielders.length >= 5) {
+    // Check if mids are on roughly the same Y line (flat) vs split lines
+    const midYs = midfielders.map(m => m.position!.y);
+    const minY = Math.min(...midYs);
+    const maxY = Math.max(...midYs);
+    isFlatMidfield5 = (maxY - minY) < 12; // within 12% = same line
+
+    if (!isFlatMidfield5) {
+      // Split midfield (e.g. 4-2-3-1): identify central attacking mid (#10)
+      const topLineCount = Math.max(1, midfielders.length - 2);
+      const highestMids = [...midfielders]
+        .sort((a, b) => a.position!.y - b.position!.y)
+        .slice(0, topLineCount);
+      const sortedByCenter = highestMids.sort((a, b) =>
+        Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
+      );
+      defendCentralPlaymakerId = sortedByCenter[0]?.id ?? null;
+    }
+  }
 
   const defendCentralForwardX = (() => {
     if (mode !== "defend") return null;
@@ -212,13 +222,19 @@ export const computeTacticalOffsets = (
             if (bx < 45) dx = 6;
             else if (bx > 55) dx = -6;
             isAnchor = true;
+          } else if (isFlatMidfield5 && midfielders.length >= 5) {
+            // Flat midfield 5 (e.g. 3-5-2): spread evenly across fixed lanes
+            const sortedByX = [...midfielders].sort((a, b) => a.position!.x - b.position!.x);
+            const myIndex = sortedByX.findIndex(m => m.id === p.id);
+            const lanes = [15, 30, 50, 70, 85];
+            dx = lanes[myIndex] - bx;
           } else if (midfielders.length >= 4) {
-            // With 4+ mids in defend mode, stay compact with mild central separation
+            // Split midfield (e.g. 4-2-3-1) or 4-mid shapes
             if (p.id === defendCentralPlaymakerId) {
               const targetX = defendCentralForwardX ?? 50;
-              dx = targetX - bx; // align #10 with striker lane
-            } else if (isWide(bx)) dx = isLeft(bx) ? 3 : -3; // slight tuck
-            else dx = bx <= 50 ? -4 : 4; // central pair not too close, not too wide
+              dx = targetX - bx;
+            } else if (isWide(bx)) dx = isLeft(bx) ? 3 : -3;
+            else dx = bx <= 50 ? -4 : 4;
           } else {
             // Smaller midfield shapes: wide mids tuck in
             if (isWide(bx)) dx = isLeft(bx) ? 8 : -8;
