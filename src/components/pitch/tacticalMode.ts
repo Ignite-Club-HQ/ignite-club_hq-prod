@@ -44,7 +44,7 @@ export const computeTacticalOffsets = (
   }
 
   const isSmallSided = parseInt(teamSize) <= 7;
-  const isWide = (x: number) => x < 40 || x > 60;
+  const isWide = (x: number) => x < 42 || x > 58;
   const isLeft = (x: number) => x < 50;
 
   // Classify midfielders for special roles
