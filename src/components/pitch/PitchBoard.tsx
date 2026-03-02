@@ -5607,9 +5607,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           <>
             <button
               className={cn(
-                "absolute right-3 z-[63] w-12 h-12 rounded-full bg-background/95 backdrop-blur-md border-2 border-border shadow-xl flex items-center justify-center",
+                "absolute right-3 z-[70] w-12 h-12 rounded-full bg-background/95 backdrop-blur-md border-2 border-border shadow-xl flex items-center justify-center",
                 "bottom-3"
               )}
+              onPointerDown={(e) => { e.stopPropagation(); }}
               onClick={() => setPortraitSheetOpen(true)}
             >
               <Users className="h-6 w-6 text-foreground" />
@@ -5620,7 +5621,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <>
                 <button
                   className={cn(
-                    "absolute z-[63] w-12 h-12 rounded-full backdrop-blur-md border-2 shadow-xl flex items-center justify-center",
+                    "absolute z-[70] w-12 h-12 rounded-full backdrop-blur-md border-2 shadow-xl flex items-center justify-center",
                     "bottom-3",
                     drawingTool !== "none"
                       ? "bg-primary text-primary-foreground border-primary"
@@ -5629,6 +5630,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         : "bg-background/95 border-border text-foreground"
                   )}
                   style={{ right: 68 }}
+                  onPointerDown={(e) => { e.stopPropagation(); }}
                   onClick={() => setShowFloatingDrawToolbar(prev => !prev)}
                 >
                   <Pencil className="h-6 w-6" />
@@ -5636,7 +5638,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                 {/* Floating Draw Toolbar - portrait */}
                 {showFloatingDrawToolbar && (
-                  <div className={cn("absolute right-3 z-[64] animate-fade-in", (subMode || swapMode) ? "bottom-[6.5rem]" : "bottom-16")}>
+                  <div className={cn("absolute right-3 z-[71] animate-fade-in", (subMode || swapMode) ? "bottom-[6.5rem]" : "bottom-16")}>
                     <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
                       <div className="flex gap-2">
                         <Button 
