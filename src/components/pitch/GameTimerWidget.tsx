@@ -519,7 +519,10 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                           Accept
                         </>
                       ) : (
-                        "View"
+                        <>
+                          <ArrowRightLeft className="h-3.5 w-3.5" />
+                          Make Early
+                        </>
                       )}
                     </Button>
                   )}
@@ -566,7 +569,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                     {actualPlayerOut?.number && `#${actualPlayerOut.number} `}
                     {actualPlayerOut?.currentPitchPosition && `leaves ${actualPlayerOut.currentPitchPosition}`}
                   </div>
-                  {selectedSub.isDue && (
+                  {!readOnly && (
                     <Select value={editedPlayerOutId || selectedSub.sub.playerOut.id} onValueChange={setEditedPlayerOutId}>
                       <SelectTrigger className="w-full h-8 mt-2 text-xs border-destructive/30">
                         <div className="flex items-center gap-1"><Pencil className="h-3 w-3" /><span>Change player</span></div>
@@ -592,7 +595,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                   <div className="text-xs text-muted-foreground mt-0.5">
                     {actualPlayerIn?.number && `#${actualPlayerIn.number} `}comes on from bench
                   </div>
-                  {selectedSub.isDue && (
+                  {!readOnly && (
                     <Select value={editedPlayerInId || selectedSub.sub.playerIn.id} onValueChange={setEditedPlayerInId}>
                       <SelectTrigger className="w-full h-8 mt-2 text-xs border-emerald-500/30">
                         <div className="flex items-center gap-1"><Pencil className="h-3 w-3" /><span>Change player</span></div>
@@ -628,20 +631,13 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
               <Button variant="outline" onClick={() => setShowConfirmDialog(false)} className="h-12 text-base sm:order-1">
                 <X className="h-4 w-4 mr-2" />Close
               </Button>
-              {selectedSub.isDue ? (
-                <>
-                  <Button variant="outline" onClick={skipSubstitution} className="h-12 text-base sm:order-2">
-                    <SkipForward className="h-4 w-4 mr-2" />Skip
-                  </Button>
-                  <Button onClick={executeSubstitution} className="h-12 text-base sm:order-3">
-                    <UserRoundCheck className="h-4 w-4 mr-2" />Confirm Sub
-                  </Button>
-                </>
-              ) : (
-                <div className="text-xs text-muted-foreground flex items-center sm:order-2">
-                  Wait for countdown to confirm
-                </div>
-              )}
+              <Button variant="outline" onClick={skipSubstitution} className="h-12 text-base sm:order-2">
+                <SkipForward className="h-4 w-4 mr-2" />Skip
+              </Button>
+              <Button onClick={executeSubstitution} className="h-12 text-base sm:order-3">
+                <UserRoundCheck className="h-4 w-4 mr-2" />
+                {selectedSub.isDue ? "Confirm Sub" : "Make Early"}
+              </Button>
             </ResponsiveDialogFooter>
           </ResponsiveDialogContent>
         </ResponsiveDialog>
