@@ -138,11 +138,11 @@ export const computeTacticalOffsets = (
     } else if (mode === "defend") {
       switch (pos) {
         case "GK":
-          dy = 2; // stay deep
+          dy = 4; // push deeper
           break;
         case "DEF":
           // Defenders drop clearly deeper and tuck in compact
-          dy = isSmallSided ? 15 : 18;
+          dy = isSmallSided ? 20 : 22;
           if (isWide(bx)) dx = isLeft(bx) ? 6 : -6; // tuck narrow
           break;
         case "MID":
