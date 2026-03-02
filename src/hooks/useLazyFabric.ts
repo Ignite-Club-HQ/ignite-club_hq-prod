@@ -89,7 +89,7 @@ const scaleCanvasObjects = (
         if (child?.type === "triangle") {
           // Undo the non-uniform distortion on the arrowhead by applying
           // the inverse ratio so it keeps a uniform visual scale.
-          const compensation = scaleY / scaleX;
+          const compensation = scaleX / scaleY;
           child.set({ scaleY: (child.scaleY ?? 1) * compensation });
           if (typeof child.setCoords === "function") child.setCoords();
         }
