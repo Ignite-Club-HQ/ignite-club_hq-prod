@@ -71,25 +71,32 @@ const scaleCanvasObjects = (
 
   if (noScaleChange) return;
 
-  // Use uniform scale to preserve stroke shapes across orientation changes.
-  // Position each object relative to its normalized (0-1) coordinate on the old canvas,
-  // then map to the new canvas dimensions uniformly.
-  const uniformScale = Math.min(scaleX, scaleY);
-
-  // Center offset: after uniform scaling the content may not fill the new canvas,
-  // so we offset to keep drawings centered.
-  const scaledWidth = fromWidth * uniformScale;
-  const scaledHeight = fromHeight * uniformScale;
-  const offsetX = (toWidth - scaledWidth) / 2;
-  const offsetY = (toHeight - scaledHeight) / 2;
-
+  // Use axis-specific scaling so drawings keep the same relative position
+  // on the pitch when aspect ratio changes.
   canvas.getObjects().forEach((obj: any) => {
     obj.set({
-      left: (obj.left ?? 0) * uniformScale + offsetX,
-      top: (obj.top ?? 0) * uniformScale + offsetY,
-      scaleX: (obj.scaleX ?? 1) * uniformScale,
-      scaleY: (obj.scaleY ?? 1) * uniformScale,
+      left: (obj.left ?? 0) * scaleX,
+      top: (obj.top ?? 0) * scaleY,
+      scaleX: (obj.scaleX ?? 1) * scaleX,
+      scaleY: (obj.scaleY ?? 1) * scaleY,
     });
+
+    // Keep arrowheads visually proportional after non-uniform scaling.
+    const groupObjects = typeof obj.getObjects === "function" ? obj.getObjects() : null;
+    if (Array.isArray(groupObjects) && scaleX > 0 && scaleY > 0) {
+      const arrowheadCompensation = scaleY / scaleX;
+      groupObjects.forEach((child: any) => {
+        if (child?.type === "triangle") {
+          child.set({
+            scaleX: (child.scaleX ?? 1) * arrowheadCompensation,
+          });
+
+          if (typeof child.setCoords === "function") {
+            child.setCoords();
+          }
+        }
+      });
+    }
 
     if (typeof obj.setCoords === "function") {
       obj.setCoords();
