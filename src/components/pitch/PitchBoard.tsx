@@ -4755,30 +4755,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </div>
                         ))}
                     </div>
-                    {/* Auto-Sub Manager - shown below bench when active */}
-                    {!readOnly && autoSubActive && !disableAutoSubs && (
-                      <div className="pt-2 border-t border-border">
-                        <Suspense fallback={<DialogLoader />}>
-                          <AutoSubManager
-                            autoSubPlan={autoSubPlan}
-                            autoSubPaused={autoSubPaused}
-                            players={players}
-                            lockedPlayerIds={lockedPlayerIds}
-                            currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-                            currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-                            minutesPerHalf={minutesPerHalf}
-                            onTogglePause={handleTogglePauseAutoSub}
-                            onCancelPlan={handleCancelAutoSubPlan}
-                            onSkipNext={handleSkipNextSub}
-                            onExecuteNow={handleExecuteNow}
-                            onEditPlan={handleOpenEditPlan}
-                            onRegeneratePlan={handleRegeneratePlan}
-                            onToggleLockPlayer={handleToggleLockPlayer}
-                            compact
-                          />
-                        </Suspense>
-                      </div>
-                    )}
                   </div>
               </div>
             </div>
@@ -5587,40 +5563,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           />
                         ))}
                     </div>
-                    {/* Auto-Sub section in bench tab */}
-                    {!readOnly && !disableAutoSubs && (
-                      <div className="pt-2 border-t border-border">
-                        {autoSubActive ? (
-                          <Suspense fallback={<DialogLoader />}>
-                            <AutoSubManager
-                              autoSubPlan={autoSubPlan}
-                              autoSubPaused={autoSubPaused}
-                              players={players}
-                              lockedPlayerIds={lockedPlayerIds}
-                              currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-                              currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-                              minutesPerHalf={minutesPerHalf}
-                              onTogglePause={handleTogglePauseAutoSub}
-                              onCancelPlan={handleCancelAutoSubPlan}
-                              onSkipNext={handleSkipNextSub}
-                              onExecuteNow={handleExecuteNow}
-                              onEditPlan={handleOpenEditPlan}
-                              onRegeneratePlan={handleRegeneratePlan}
-                              onToggleLockPlayer={handleToggleLockPlayer}
-                            />
-                          </Suspense>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            className="w-full h-11 text-sm gap-2"
-                            onClick={handleOpenNewPlan}
-                          >
-                            <Calendar className="h-4 w-4" />
-                            Auto-Sub Plan
-                          </Button>
-                        )}
-                      </div>
-                    )}
                   </div>
               </div>
             </div>
