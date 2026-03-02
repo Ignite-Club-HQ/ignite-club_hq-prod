@@ -3809,7 +3809,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return createPortal(
       <div className="fixed inset-0 w-screen h-screen bg-background flex flex-col overflow-hidden" style={{ height: '100dvh', zIndex: 99999 }}>
         {/* Landscape header bar */}
-        <div className="shrink-0 h-12 bg-background border-b border-border flex items-center px-3 gap-3 z-[60]">
+        <div className="shrink-0 h-12 bg-background border-b border-border flex items-center px-3 gap-2 z-[60]">
+          {/* Left: Back + Team name */}
           <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={onClose}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -3821,127 +3822,130 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </Badge>
           )}
           
+          {/* Sub-related controls group - pushed left */}
+          <div className="flex items-center gap-1.5 ml-2">
+            {/* Tactical mode toggle */}
+            {!readOnly && (() => {
+              const cycleOrder: TacticalMode[] = ["defend", "neutral", "attack"];
+              const currentIndex = cycleOrder.indexOf(tacticalMode);
+              const nextMode = cycleOrder[(currentIndex + 1) % 3];
+              const config: Record<TacticalMode, { icon: typeof Shield; label: string; className: string }> = {
+                defend: { icon: Shield, label: "DEF", className: "bg-blue-500/20 text-blue-500 border-blue-500/30" },
+                neutral: { icon: Circle, label: "NEU", className: "bg-muted text-foreground border-border" },
+                attack: { icon: Swords, label: "ATK", className: "bg-orange-500/20 text-orange-500 border-orange-500/30" },
+              };
+              const { icon: Icon, label, className: modeClass } = config[tacticalMode];
+              return (
+                <button
+                  onClick={() => handleTacticalModeChange(nextMode)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm font-medium transition-all duration-200 shrink-0",
+                    modeClass
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{label}</span>
+                </button>
+              );
+            })()}
+
+            {/* Swap & Sub buttons */}
+            {!readOnly && (
+              <>
+                {playersOnPitch.length >= 2 && !subMode && (
+                  <Button
+                    variant={swapMode ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-10 shrink-0 gap-1.5 px-3 text-sm"
+                    onClick={(e) => { e.stopPropagation(); toggleSwapMode(); }}
+                  >
+                    <ArrowLeftRight className="h-4 w-4" />
+                    {swapMode ? "Cancel" : "Swap"}
+                  </Button>
+                )}
+                {!swapMode && (
+                  <Button
+                    variant={subMode ? "secondary" : "default"}
+                    size="sm"
+                    className="h-10 shrink-0 gap-1.5 px-3 text-sm"
+                    onClick={() => { setSubMode(prev => !prev); setSelectedOnPitch(null); setSelectedOnBench(null); }}
+                  >
+                    <Users className="h-4 w-4" />
+                    {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
+                  </Button>
+                )}
+                {(subMode || swapMode) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-10 shrink-0 gap-1.5 px-3 text-sm text-destructive"
+                    onClick={() => { if (subMode) toggleSubMode(); else toggleSwapMode(); }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </>
+            )}
+
+            {/* Auto-Subs button */}
+            {!readOnly && !disableAutoSubs && !subMode && !swapMode && (
+              <Button
+                variant={autoSubActive ? "secondary" : "ghost"}
+                size="sm"
+                className="h-10 shrink-0 gap-1.5 px-3 text-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (autoSubActive) {
+                    setBottomSheetTab("bench");
+                    setSheetHeightPct(88);
+                    setToolbarCollapsed(false);
+                  } else {
+                    handleOpenNewPlan();
+                  }
+                }}
+              >
+                <Calendar className="h-4 w-4" />
+                {autoSubActive ? "Auto ✓" : "Auto"}
+              </Button>
+            )}
+          </div>
+
           <div className="flex-1" />
 
-          {/* Tactical mode toggle - cycles DEF → NEU → ATK */}
-          {!readOnly && (() => {
-            const cycleOrder: TacticalMode[] = ["defend", "neutral", "attack"];
-            const currentIndex = cycleOrder.indexOf(tacticalMode);
-            const nextMode = cycleOrder[(currentIndex + 1) % 3];
-            const config: Record<TacticalMode, { icon: typeof Shield; label: string; className: string }> = {
-              defend: { icon: Shield, label: "DEF", className: "bg-blue-500/20 text-blue-500 border-blue-500/30" },
-              neutral: { icon: Circle, label: "NEU", className: "bg-muted text-foreground border-border" },
-              attack: { icon: Swords, label: "ATK", className: "bg-orange-500/20 text-orange-500 border-orange-500/30" },
-            };
-            const { icon: Icon, label, className: modeClass } = config[tacticalMode];
-            return (
-              <button
-                onClick={() => handleTacticalModeChange(nextMode)}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm font-medium transition-all duration-200 shrink-0",
-                  modeClass
-                )}
+          {/* Right: Utility controls */}
+          <div className="flex items-center gap-1">
+            {!readOnly && !linkedEventId && !subMode && !swapMode && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 shrink-0 gap-1.5 px-3 text-sm"
+                onClick={() => setLandscapeEventSelectorOpen(true)}
               >
-                <Icon className="h-4 w-4" />
-                <span>{label}</span>
-              </button>
-            );
-          })()}
-
-          {/* Formation suggestion removed from header - now rendered as floating popup on pitch */}
-
-          {/* Swap & Sub buttons */}
-          {!readOnly && (
-            <>
-              {playersOnPitch.length >= 2 && !subMode && (
-                <Button
-                  variant={swapMode ? "secondary" : "ghost"}
-                  size="sm"
-                  className="h-10 shrink-0 gap-1.5 px-3 text-sm"
-                  onClick={(e) => { e.stopPropagation(); toggleSwapMode(); }}
-                >
-                  <ArrowLeftRight className="h-4 w-4" />
-                  {swapMode ? "Cancel" : "Swap"}
-                </Button>
-              )}
-              {!swapMode && (
-                <Button
-                  variant={subMode ? "secondary" : "default"}
-                  size="sm"
-                  className="h-10 shrink-0 gap-1.5 px-3 text-sm"
-                  onClick={() => { setSubMode(prev => !prev); setSelectedOnPitch(null); setSelectedOnBench(null); }}
-                >
-                  <Users className="h-4 w-4" />
-                  {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
-                </Button>
-              )}
-              {(subMode || swapMode) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-10 shrink-0 gap-1.5 px-3 text-sm text-destructive"
-                  onClick={() => { if (subMode) toggleSubMode(); else toggleSwapMode(); }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </>
-          )}
-
-          {/* Auto-Subs button */}
-          {!readOnly && !disableAutoSubs && !subMode && !swapMode && (
-            <Button
-              variant={autoSubActive ? "secondary" : "ghost"}
-              size="sm"
-              className="h-10 shrink-0 gap-1.5 px-3 text-sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (autoSubActive) {
-                  setBottomSheetTab("bench");
-                  setSheetHeightPct(88);
-                  setToolbarCollapsed(false);
-                } else {
-                  handleOpenNewPlan();
-                }
-              }}
-            >
-              <Calendar className="h-4 w-4" />
-              {autoSubActive ? "Auto ✓" : "Auto"}
-            </Button>
-          )}
-
-          {/* Link Game button - show when no event linked and not read-only */}
-          {!readOnly && !linkedEventId && !subMode && !swapMode && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-10 shrink-0 gap-1.5 px-3 text-sm"
-              onClick={() => setLandscapeEventSelectorOpen(true)}
-            >
-              <Link2 className="h-4 w-4" />
-              Link
-            </Button>
-          )}
-
-          {!readOnly && (
-            <>
-              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setTimeout(() => setResetGameConfirmOpen(true), 0);
-              }}>
-                <RotateCcw className="h-5 w-5" />
+                <Link2 className="h-4 w-4" />
+                Link
               </Button>
+            )}
+            {!readOnly && (
+              <>
+                <div className="w-px h-6 bg-border mx-1" />
+                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setTimeout(() => setResetGameConfirmOpen(true), 0);
+                }}>
+                  <RotateCcw className="h-5 w-5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => setStatsOpen(true)}>
+                  <BarChart3 className="h-5 w-5" />
+                </Button>
+              </>
+            )}
+            {readOnly && (
               <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => setStatsOpen(true)}>
                 <BarChart3 className="h-5 w-5" />
               </Button>
-            </>
-          )}
-          {readOnly && (
-            <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => setStatsOpen(true)}>
-              <BarChart3 className="h-5 w-5" />
-            </Button>
-          )}
+            )}
+          </div>
         </div>
         
         {/* Main content area */}
