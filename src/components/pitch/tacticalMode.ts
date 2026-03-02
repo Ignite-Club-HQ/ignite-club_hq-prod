@@ -212,8 +212,8 @@ export const computeBallOffset = (
 ): { dx: number; dy: number } => {
   if (mode === "neutral") return { dx: 0, dy: 0 };
 
-  // Start with a mode-based nudge to keep ball in a sensible area
-  let dy = mode === "attack" ? -4 : 3;
+  // Start at center dot (no mode-based nudge)
+  let dy = 0;
   let dx = 0;
 
   const bx = ballPosition.x + dx;
