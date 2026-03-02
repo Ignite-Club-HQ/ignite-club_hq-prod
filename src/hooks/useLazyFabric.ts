@@ -56,6 +56,35 @@ export const prefetchFabric = (): void => {
   }
 };
 
+const scaleCanvasObjects = (
+  canvas: FabricCanvas,
+  fromWidth: number,
+  fromHeight: number,
+  toWidth: number,
+  toHeight: number
+): void => {
+  if (fromWidth <= 0 || fromHeight <= 0 || toWidth <= 0 || toHeight <= 0) return;
+
+  const scaleX = toWidth / fromWidth;
+  const scaleY = toHeight / fromHeight;
+  const noScaleChange = Math.abs(scaleX - 1) < 0.001 && Math.abs(scaleY - 1) < 0.001;
+
+  if (noScaleChange) return;
+
+  canvas.getObjects().forEach((obj: any) => {
+    obj.set({
+      left: (obj.left ?? 0) * scaleX,
+      top: (obj.top ?? 0) * scaleY,
+      scaleX: (obj.scaleX ?? 1) * scaleX,
+      scaleY: (obj.scaleY ?? 1) * scaleY,
+    });
+
+    if (typeof obj.setCoords === "function") {
+      obj.setCoords();
+    }
+  });
+};
+
 interface UseLazyFabricOptions {
   canvasRef: React.RefObject<HTMLCanvasElement>;
   containerRef: React.RefObject<HTMLDivElement>;
@@ -74,6 +103,12 @@ interface UseLazyFabricReturn {
   disposeCanvas: () => void;
 }
 
+interface PendingRestoreState {
+  json: any;
+  width: number;
+  height: number;
+}
+
 export function useLazyFabric({
   canvasRef,
   containerRef,
@@ -88,7 +123,7 @@ export function useLazyFabric({
   const [isReady, setIsReady] = useState(false);
   const initializingRef = useRef(false);
   const cleanupRef = useRef<(() => void) | null>(null);
-  const pendingRestoreJsonRef = useRef<any | null>(null);
+  const pendingRestoreJsonRef = useRef<PendingRestoreState | null>(null);
 
   // Load Fabric module when enabled
   useEffect(() => {
@@ -137,21 +172,23 @@ export function useLazyFabric({
       if (isBoundToCurrentElement) {
         const rect = containerEl.getBoundingClientRect();
         if (rect.width >= 10 && rect.height >= 10) {
-          const needsResize =
-            Math.abs(canvas.getWidth() - rect.width) > 1 ||
-            Math.abs(canvas.getHeight() - rect.height) > 1;
+            const previousWidth = canvas.getWidth();
+            const previousHeight = canvas.getHeight();
 
-          if (needsResize) {
             canvas.setDimensions({ width: rect.width, height: rect.height });
+            scaleCanvasObjects(canvas, previousWidth, previousHeight, rect.width, rect.height);
             canvas.renderAll();
-          }
         }
         return;
       }
 
       // Canvas is attached to a stale element (orientation/layout swap). Preserve drawings and recreate.
       try {
-        pendingRestoreJsonRef.current = canvas.toJSON();
+        pendingRestoreJsonRef.current = {
+          json: canvas.toJSON(),
+          width: canvas.getWidth(),
+          height: canvas.getHeight(),
+        };
       } catch (err) {
         console.warn("[LazyFabric] Failed to serialize canvas before rebind:", err);
         pendingRestoreJsonRef.current = null;
@@ -251,11 +288,18 @@ export function useLazyFabric({
       // Also lock any objects added via other means (arrows, etc.)
       newCanvas.on("object:added", (e: any) => lockObject(e.target));
 
-      const restoreJson = pendingRestoreJsonRef.current;
-      if (restoreJson) {
+      const restoreState = pendingRestoreJsonRef.current;
+      if (restoreState) {
         pendingRestoreJsonRef.current = null;
-        Promise.resolve((newCanvas as any).loadFromJSON(restoreJson))
+        Promise.resolve((newCanvas as any).loadFromJSON(restoreState.json))
           .then(() => {
+            scaleCanvasObjects(
+              newCanvas,
+              restoreState.width,
+              restoreState.height,
+              newCanvas.getWidth(),
+              newCanvas.getHeight()
+            );
             newCanvas.getObjects().forEach((obj) => lockObject(obj));
             newCanvas.renderAll();
           })
