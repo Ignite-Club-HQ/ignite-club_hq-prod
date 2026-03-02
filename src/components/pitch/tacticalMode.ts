@@ -142,7 +142,7 @@ export const computeTacticalOffsets = (
           break;
         case "DEF":
           // Defenders drop clearly deeper and tuck in compact
-          dy = isSmallSided ? 20 : 22;
+          dy = isSmallSided ? 26 : 28;
           if (isWide(bx)) dx = isLeft(bx) ? 6 : -6; // tuck narrow
           break;
         case "MID":
