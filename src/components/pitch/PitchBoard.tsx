@@ -3964,7 +3964,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
           {/* Floating score tracker in landscape mode */}
           {gameInProgress && !hideScores && (
-            <div className="absolute top-2 right-14 z-[61]">
+            <div className="absolute top-2 right-14 z-[55]">
               <ScoreTracker
                 goals={goals}
                 onAddGoal={handleAddGoal}
@@ -4439,7 +4439,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             />
             {/* Sheet */}
             <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col"
-              style={{ height: `${sheetHeightPct}%` }}
+              style={{ maxHeight: `${sheetHeightPct}%`, height: 'auto' }}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
             >
