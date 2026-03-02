@@ -51,15 +51,6 @@ export const computeTacticalOffsets = (
   const midfielders = onPitch.filter(p => p.currentPitchPosition === "MID");
   const defenders = onPitch.filter(p => p.currentPitchPosition === "DEF");
 
-  // ATTACK: pick one most-central midfielder to push higher (only when 3+ mids)
-  let attackPushMidId: string | null = null;
-  if (mode === "attack" && midfielders.length >= 3) {
-    const sorted = [...midfielders].sort((a, b) =>
-      Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
-    );
-    attackPushMidId = sorted[0].id;
-  }
-
   // ATTACK with 5+ mids: identify the 2 deepest (highest y) as holding mids
   const holdingMidIds = new Set<string>();
   if (mode === "attack" && midfielders.length >= 5) {
@@ -77,6 +68,29 @@ export const computeTacticalOffsets = (
     );
     anchorMidId = sorted[0].id;
   }
+
+  // DEFEND with 5+ mids (e.g. 4-2-3-1): identify central attacking mid (#10)
+  const defendCentralPlaymakerId = (() => {
+    if (mode !== "defend" || midfielders.length < 5) return null;
+    const topLineCount = Math.max(1, midfielders.length - 2);
+    const highestMids = [...midfielders]
+      .sort((a, b) => a.position!.y - b.position!.y)
+      .slice(0, topLineCount);
+    const sortedByCenter = highestMids.sort((a, b) =>
+      Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
+    );
+    return sortedByCenter[0]?.id ?? null;
+  })();
+
+  const defendCentralForwardX = (() => {
+    if (mode !== "defend") return null;
+    const forwards = onPitch.filter(p => p.currentPitchPosition === "FWD" && p.position);
+    if (forwards.length === 0) return null;
+    const mostCentralForward = [...forwards].sort((a, b) =>
+      Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
+    )[0];
+    return mostCentralForward.position!.x;
+  })();
 
   const centralDefendersInBackFour = defenders.length >= 4
     ? [...defenders]
@@ -200,7 +214,10 @@ export const computeTacticalOffsets = (
             isAnchor = true;
           } else if (midfielders.length >= 4) {
             // With 4+ mids in defend mode, stay compact with mild central separation
-            if (isWide(bx)) dx = isLeft(bx) ? 3 : -3; // slight tuck
+            if (p.id === defendCentralPlaymakerId) {
+              const targetX = defendCentralForwardX ?? 50;
+              dx = targetX - bx; // align #10 with striker lane
+            } else if (isWide(bx)) dx = isLeft(bx) ? 3 : -3; // slight tuck
             else dx = bx <= 50 ? -4 : 4; // central pair not too close, not too wide
           } else {
             // Smaller midfield shapes: wide mids tuck in
