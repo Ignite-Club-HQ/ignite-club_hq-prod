@@ -3986,11 +3986,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 </span>
               )}
               </div>
-              {tacticalMode !== "neutral" && (
-                <span className="text-xs text-muted-foreground font-semibold mt-0.5">
-                  {FORMATIONS[teamSize][selectedFormation]?.name} • {TACTICAL_MODE_LABELS[tacticalMode]}
-                </span>
-              )}
+              <div className="flex items-center gap-1 mt-0.5">
+                <button
+                  className="text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors"
+                  onClick={(e) => { e.stopPropagation(); if (!readOnly) { const next = (selectedFormation + 1) % FORMATIONS[teamSize].length; handleFormationChange(String(next)); } }}
+                >
+                  {FORMATIONS[teamSize][selectedFormation]?.name}
+                </button>
+                <span className="text-xs text-muted-foreground">•</span>
+                <button
+                  className="text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors"
+                  onClick={(e) => { e.stopPropagation(); if (!readOnly) { const order: TacticalMode[] = ["defend", "neutral", "attack"]; const next = order[(order.indexOf(tacticalMode) + 1) % 3]; handleTacticalModeChange(next); } }}
+                >
+                  {TACTICAL_MODE_LABELS[tacticalMode]}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -5251,11 +5261,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 </span>
               )}
               </div>
-              {tacticalMode !== "neutral" && (
-                <span className="text-xs text-muted-foreground font-semibold mt-0.5">
-                  {FORMATIONS[teamSize][selectedFormation]?.name} • {TACTICAL_MODE_LABELS[tacticalMode]}
-                </span>
-              )}
+              <div className="flex items-center gap-1 mt-0.5">
+                <button
+                  className="text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors"
+                  onClick={(e) => { e.stopPropagation(); if (!readOnly) { const next = (selectedFormation + 1) % FORMATIONS[teamSize].length; handleFormationChange(String(next)); } }}
+                >
+                  {FORMATIONS[teamSize][selectedFormation]?.name}
+                </button>
+                <span className="text-xs text-muted-foreground">•</span>
+                <button
+                  className="text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors"
+                  onClick={(e) => { e.stopPropagation(); if (!readOnly) { const order: TacticalMode[] = ["defend", "neutral", "attack"]; const next = order[(order.indexOf(tacticalMode) + 1) % 3]; handleTacticalModeChange(next); } }}
+                >
+                  {TACTICAL_MODE_LABELS[tacticalMode]}
+                </button>
+              </div>
             </div>
           </div>
         </div>
