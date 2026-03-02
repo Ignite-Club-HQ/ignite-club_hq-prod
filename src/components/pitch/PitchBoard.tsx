@@ -5597,6 +5597,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <div className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")} onClick={drawingTool === "none" ? () => setPortraitSheetOpen(false) : undefined} />
                 <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col" style={{ maxHeight: `${portraitSheetHeightPct}vh`, height: 'auto' }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
 
+              {/* Handle bar */}
+              <div className="flex justify-center pt-2 pb-1">
+                <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+              </div>
+
               {/* Tab content */}
               <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${portraitSheetHeightPct}vh - 120px)` }}>
                 {/* Bench content */}
