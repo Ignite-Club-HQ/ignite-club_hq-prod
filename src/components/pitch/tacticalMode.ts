@@ -147,7 +147,7 @@ export const computeTacticalOffsets = (
           break;
         case "MID":
           // Midfield drops to protect space in front of defenders
-          dy = isSmallSided ? 10 : 12;
+          dy = isSmallSided ? 6 : 8;
           if (p.id === anchorMidId) {
             // Anchor stays central
             if (bx < 45) dx = 6;
