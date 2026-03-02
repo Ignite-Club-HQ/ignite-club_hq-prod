@@ -280,7 +280,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
   const [pinPitchShortcuts, setPinPitchShortcuts] = useState(true);
-  const [sheetHeightPct, setSheetHeightPct] = useState(60);
+  const [sheetHeightPct, setSheetHeightPct] = useState(35);
   const sheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
   const [portraitSheetOpen, setPortraitSheetOpen] = useState(false);
   const [portraitSheetHeightPct, setPortraitSheetHeightPct] = useState(45);
@@ -2379,7 +2379,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (newSubMode) {
       setBenchCollapsed(false);
       if (isLandscape) {
-        setSheetHeightPct(88);
+        setSheetHeightPct(50);
         setToolbarCollapsed(false);
         setBottomSheetTab("bench");
       }
@@ -4426,7 +4426,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               const elapsed = Date.now() - startT;
               const velocity = deltaY / Math.max(elapsed, 1);
               // Open on fast flick (velocity > 0.3px/ms) or sufficient distance (>20px)
-              if (deltaY > 20 || velocity > 0.3) { setSheetHeightPct(88); setToolbarCollapsed(false); }
+              if (deltaY > 20 || velocity > 0.3) { setSheetHeightPct(50); setToolbarCollapsed(false); }
             }}
           >
             <div className="w-10 h-1 rounded-full bg-foreground/30 mb-1.5" />
@@ -4439,7 +4439,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             {/* Floating settings button - always visible in landscape when sheet closed */}
             <button
               className="absolute bottom-3 right-3 z-[55] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
-              onClick={() => { setSheetHeightPct(88); setToolbarCollapsed(false); }}
+              onClick={() => { setSheetHeightPct(50); setToolbarCollapsed(false); }}
             >
               <ChevronUp className="h-5 w-5 text-muted-foreground" />
             </button>
@@ -4550,7 +4550,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   const containerH = window.innerHeight;
                   const deltaY = sheetDragRef.current.startY - e.touches[0].clientY;
                   const deltaPct = (deltaY / containerH) * 100;
-                  const newPct = Math.min(92, Math.max(25, sheetDragRef.current.startPct + deltaPct));
+                  const newPct = Math.min(55, Math.max(25, sheetDragRef.current.startPct + deltaPct));
                   setSheetHeightPct(newPct);
                 }}
                 onTouchEnd={(e) => {
@@ -4561,17 +4561,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   // Fast downward flick → collapse
                   if (velocity < -0.4) {
                     setToolbarCollapsed(true);
-                    setSheetHeightPct(60);
+                    setSheetHeightPct(35);
                   } else if (velocity > 0.4) {
                     // Fast upward flick → expand
-                    setSheetHeightPct(88);
-                  } else if (sheetHeightPct < 40) {
+                    setSheetHeightPct(50);
+                  } else if (sheetHeightPct < 30) {
                     setToolbarCollapsed(true);
-                    setSheetHeightPct(60);
-                  } else if (sheetHeightPct < 74) {
-                    setSheetHeightPct(60);
+                    setSheetHeightPct(35);
+                  } else if (sheetHeightPct < 42) {
+                    setSheetHeightPct(35);
                   } else {
-                    setSheetHeightPct(88);
+                    setSheetHeightPct(50);
                   }
                   sheetDragRef.current = null;
                 }}
