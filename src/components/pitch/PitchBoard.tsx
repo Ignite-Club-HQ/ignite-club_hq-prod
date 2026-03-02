@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2 } from "lucide-react";
+import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PlayerToken from "./PlayerToken";
 import SoccerBall from "./SoccerBall";
@@ -41,6 +41,7 @@ const AutoSubManager = lazy(() => import("./AutoSubManager"));
 const AutoSubControlPanel = lazy(() => import("./AutoSubControlPanel"));
 const PreGameLineupScreen = lazy(() => import("./PreGameLineupScreen"));
 import TacticalModeSelector from "./TacticalModeSelector";
+import { PitchSettingsDialog } from "./PitchSettingsDialog";
 
 import { useToast } from "@/hooks/use-toast";
 
@@ -261,6 +262,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Auto-sub plan state
   const gameTimerRef = useRef<GameTimerRef>(null);
+  const regeneratePlanRef = useRef<(() => void) | null>(null);
   const [autoSubPlanDialogOpen, setAutoSubPlanDialogOpen] = useState(false);
   const [autoSubPlanEditMode, setAutoSubPlanEditMode] = useState(false);
   const [autoSubFromPreGame, setAutoSubFromPreGame] = useState(false);
@@ -276,11 +278,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [pendingBatchSubs, setPendingBatchSubs] = useState<SubstitutionEvent[]>([]);
   const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
+  const [nextSubInfo, setNextSubInfo] = useState<{ playerInId: string; playerOutId: string; countdown: string } | null>(null);
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
   const [pinPitchShortcuts, setPinPitchShortcuts] = useState(true);
-  const [sheetHeightPct, setSheetHeightPct] = useState(60);
+  const [sheetHeightPct, setSheetHeightPct] = useState(35);
   const sheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
   const [portraitSheetOpen, setPortraitSheetOpen] = useState(false);
   const [portraitSheetHeightPct, setPortraitSheetHeightPct] = useState(45);
@@ -605,11 +608,28 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [floatingSubsPosition, setFloatingSubsPosition] = useState({ x: 16, y: 16 }); // bottom-left offset
   const floatingSubsDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
   
-  // Draggable floating timer state (for landscape mode) - positioned further right to avoid "View Only" badge
+  // Draggable + resizable floating timer state (landscape)
   const [floatingTimerPosition, setFloatingTimerPosition] = useState({ x: 8, y: 8 });
+  const [floatingTimerScale, setFloatingTimerScale] = useState(1);
   const floatingTimerDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
+  const floatingTimerPinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
   
-  // Floating timer drag handlers
+  // Portrait draggable + resizable timer state
+  const [portraitTimerPosition, setPortraitTimerPosition] = useState<{ x: number; y: number } | null>(null);
+  const [portraitTimerScale, setPortraitTimerScale] = useState(1);
+  const portraitTimerDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
+  const portraitTimerPinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
+
+  // Helper to get pinch distance
+  const getPinchDist = (touches: React.TouchList | TouchList) => {
+    const t0 = touches[0];
+    const t1 = touches[1];
+    const dx = t1.clientX - t0.clientX;
+    const dy = t1.clientY - t0.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+  
+  // Floating timer drag handlers (landscape)
   const handleTimerDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     floatingTimerDragRef.current = {
@@ -624,8 +644,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const deltaX = moveEvent.clientX - floatingTimerDragRef.current.startX;
       const deltaY = moveEvent.clientY - floatingTimerDragRef.current.startY;
       setFloatingTimerPosition({
-        x: Math.max(0, floatingTimerDragRef.current.startPosX + deltaX),
-        y: Math.max(0, floatingTimerDragRef.current.startPosY + deltaY),
+        x: Math.max(-200, floatingTimerDragRef.current.startPosX + deltaX),
+        y: Math.max(-220, floatingTimerDragRef.current.startPosY + deltaY),
       });
     };
     
@@ -640,6 +660,35 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, [floatingTimerPosition]);
   
   const handleTimerTouchStart = useCallback((e: React.TouchEvent) => {
+    // 2-finger pinch to resize
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      floatingTimerPinchRef.current = {
+        startDist: getPinchDist(e.touches),
+        startScale: floatingTimerScale,
+      };
+      floatingTimerDragRef.current = null;
+      
+      const handleTouchMove = (moveEvent: TouchEvent) => {
+        if (!floatingTimerPinchRef.current || moveEvent.touches.length !== 2) return;
+        moveEvent.preventDefault();
+        const newDist = getPinchDist(moveEvent.touches);
+        const ratio = newDist / floatingTimerPinchRef.current.startDist;
+        setFloatingTimerScale(Math.min(2, Math.max(0.5, floatingTimerPinchRef.current.startScale * ratio)));
+      };
+      
+      const handleTouchEnd = () => {
+        floatingTimerPinchRef.current = null;
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+      };
+      
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+      return;
+    }
+    
+    // 1-finger drag
     if (e.touches.length !== 1) return;
     const touch = e.touches[0];
     floatingTimerDragRef.current = {
@@ -656,8 +705,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const deltaX = touch.clientX - floatingTimerDragRef.current.startX;
       const deltaY = touch.clientY - floatingTimerDragRef.current.startY;
       setFloatingTimerPosition({
-        x: Math.max(0, floatingTimerDragRef.current.startPosX + deltaX),
-        y: Math.max(0, floatingTimerDragRef.current.startPosY + deltaY),
+        x: Math.max(-200, floatingTimerDragRef.current.startPosX + deltaX),
+        y: Math.max(-220, floatingTimerDragRef.current.startPosY + deltaY),
       });
     };
     
@@ -669,7 +718,73 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd);
-  }, [floatingTimerPosition]);
+  }, [floatingTimerPosition, floatingTimerScale]);
+
+  // Portrait timer touch handlers (drag + pinch)
+  const handlePortraitTimerTouchStart = useCallback((e: React.TouchEvent) => {
+    const container = (e.currentTarget as HTMLElement).parentElement;
+    // 2-finger pinch
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      portraitTimerPinchRef.current = {
+        startDist: getPinchDist(e.touches),
+        startScale: portraitTimerScale,
+      };
+      portraitTimerDragRef.current = null;
+      
+      const handleTouchMove = (moveEvent: TouchEvent) => {
+        if (!portraitTimerPinchRef.current || moveEvent.touches.length !== 2) return;
+        moveEvent.preventDefault();
+        const newDist = getPinchDist(moveEvent.touches);
+        const ratio = newDist / portraitTimerPinchRef.current.startDist;
+        setPortraitTimerScale(Math.min(2, Math.max(0.5, portraitTimerPinchRef.current.startScale * ratio)));
+      };
+      
+      const handleTouchEnd = () => {
+        portraitTimerPinchRef.current = null;
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+      };
+      
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+      return;
+    }
+    
+    // 1-finger drag
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    const rect = container?.getBoundingClientRect();
+    const currentX = portraitTimerPosition?.x ?? (rect ? rect.width - (e.currentTarget as HTMLElement).offsetWidth - 8 : 8);
+    const currentY = portraitTimerPosition?.y ?? 8;
+    portraitTimerDragRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      startPosX: currentX,
+      startPosY: currentY,
+    };
+    
+    const handleTouchMove = (moveEvent: TouchEvent) => {
+      if (!portraitTimerDragRef.current || moveEvent.touches.length !== 1) return;
+      moveEvent.preventDefault();
+      const t = moveEvent.touches[0];
+      const deltaX = t.clientX - portraitTimerDragRef.current.startX;
+      const deltaY = t.clientY - portraitTimerDragRef.current.startY;
+      setPortraitTimerPosition({
+        x: Math.max(-200, portraitTimerDragRef.current.startPosX + deltaX),
+        y: Math.max(-220, portraitTimerDragRef.current.startPosY + deltaY),
+      });
+    };
+    
+    const handleTouchEnd = () => {
+      portraitTimerDragRef.current = null;
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+    
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
+  }, [portraitTimerPosition, portraitTimerScale]);
 
 
   // Swipe gestures for bench in landscape mode
@@ -1238,6 +1353,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [resetGameConfirmOpen, setResetGameConfirmOpen] = useState(false);
   const [timerFormationDropdownOpen, setTimerFormationDropdownOpen] = useState(false);
   const [timerTacticalDropdownOpen, setTimerTacticalDropdownOpen] = useState(false);
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
   const [pitchPlayerActionOpen, setPitchPlayerActionOpen] = useState(false);
   const [pitchPlayerActionTarget, setPitchPlayerActionTarget] = useState<string | null>(null);
@@ -1920,7 +2037,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     });
 
     toast({ title: "Formation applied", description: `${formation.name} formation set` });
-  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers]);
+
+    // Auto-regenerate the plan if auto-subs are active
+    if (autoSubActive) {
+      setTimeout(() => {
+        regeneratePlanRef.current?.();
+      }, 300);
+    }
+  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers, autoSubActive]);
 
   // Handle formation change dialog confirm
   const handleFormationChangeConfirm = useCallback(() => {
@@ -1942,7 +2066,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Minimise the bottom drawer after applying
     setToolbarCollapsed(true);
     setPortraitSheetOpen(false);
-  }, [pendingFormationChange, applyFormationChange, autoPlacePlayersOnPitch, players, persistTeamSizeToDb]);
+
+    // Auto-regenerate the plan if auto-subs are active
+    if (autoSubActive) {
+      setTimeout(() => {
+        regeneratePlanRef.current?.();
+        toast({ title: "Auto-sub plan updated", description: "Plan regenerated to account for formation change" });
+      }, 300);
+    }
+  }, [pendingFormationChange, applyFormationChange, autoPlacePlayersOnPitch, players, persistTeamSizeToDb, autoSubActive, toast]);
 
   // Handle formation change dialog cancel
   const handleFormationChangeCancel = useCallback(() => {
@@ -2289,7 +2421,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setSwapPlayer1(null);
     setSwapPlayer2(null);
     setSwapMode(false);
-  }, [swapPlayer1, swapPlayer2, players, toast, pushToUndoHistory]);
+
+    // Auto-regenerate the plan if auto-subs are active
+    if (autoSubActive) {
+      setTimeout(() => {
+        regeneratePlanRef.current?.();
+        toast({ title: "Auto-sub plan updated", description: "Plan regenerated to account for position swap" });
+      }, 200);
+    }
+  }, [swapPlayer1, swapPlayer2, players, toast, pushToUndoHistory, autoSubActive]);
 
   // Cancel position swap
   const handleCancelPitchSwap = useCallback(() => {
@@ -2358,7 +2498,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setSwapPlayer1(null);
     setSwapPlayer2(null);
     setSwapMode(false);
-  }, [swapPlayer1, swapPlayer2, players, toast, pushToUndoHistory]);
+
+    // Auto-regenerate the plan if auto-subs are active
+    if (autoSubActive) {
+      setTimeout(() => {
+        regeneratePlanRef.current?.();
+        toast({ title: "Auto-sub plan updated", description: "Plan regenerated to account for position swap" });
+      }, 200);
+    }
+  }, [swapPlayer1, swapPlayer2, players, toast, pushToUndoHistory, autoSubActive]);
 
   // Cancel sub mode
   const toggleSubMode = () => {
@@ -2379,7 +2527,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (newSubMode) {
       setBenchCollapsed(false);
       if (isLandscape) {
-        setSheetHeightPct(88);
+        setSheetHeightPct(50);
         setToolbarCollapsed(false);
         setBottomSheetTab("bench");
       }
@@ -2531,7 +2679,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     });
   }, [autoSubPlan, players, teamSize, toast]);
 
-  // Track last update time for minutes played calculation
+  // Keep ref in sync so earlier callbacks can call it
+  regeneratePlanRef.current = handleRegeneratePlan;
+
   const lastTimeUpdateRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
   const hasInitializedTimeRef = useRef(false);
   const skipCooldownRef = useRef<number>(0); // Timestamp of last skip to prevent immediate re-trigger
@@ -2566,6 +2716,27 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       }));
     }
     lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
+
+    // Compute next sub info for bench highlighting
+    if (autoSubActive && autoSubPlan.length > 0 && !autoSubPaused) {
+      const remainingSubs = autoSubPlan.filter(s => !s.executed);
+      const nextSub = remainingSubs.find(s => s.half === currentHalf && s.time >= elapsedSeconds)
+        || remainingSubs.find(s => s.half > currentHalf)
+        || remainingSubs[0];
+      if (nextSub) {
+        const secsUntil = nextSub.half === currentHalf 
+          ? Math.max(0, nextSub.time - elapsedSeconds)
+          : nextSub.time + ((nextSub.half - currentHalf) * (gameTimerRef.current?.getMinutesPerHalf() || 10) * 60) - elapsedSeconds;
+        const mins = Math.floor(secsUntil / 60);
+        const secs = Math.floor(secsUntil % 60);
+        const countdown = `${mins}:${secs.toString().padStart(2, '0')}`;
+        setNextSubInfo({ playerInId: nextSub.playerIn.id, playerOutId: nextSub.playerOut.id, countdown });
+      } else {
+        setNextSubInfo(null);
+      }
+    } else {
+      setNextSubInfo(prev => prev ? null : prev);
+    }
 
     // Don't trigger subs if paused, in skip cooldown, game finished, or timer not running
     if (!autoSubActive || autoSubPlan.length === 0 || autoSubPaused) return;
@@ -3112,10 +3283,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Don't handle if drawing tool is active
     if (drawingTool !== "none") return;
     
+    // Pinch zoom (2 fingers) - zoom without moving pitch
     if (e.touches.length === 2) {
-      e.preventDefault();
-      const distance = getPinchDistance(e.touches);
-      setLastPinchDistance(distance);
+      const dist = getPinchDistance(e.touches);
+      if (dist !== null) {
+        setLastPinchDistance(dist);
+      }
     }
   };
 
@@ -3123,14 +3296,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Don't handle if drawing tool is active
     if (drawingTool !== "none") return;
     
-    // Handle pinch zoom
+    // Pinch zoom (2 fingers)
     if (e.touches.length === 2 && lastPinchDistance !== null) {
       e.preventDefault();
-      const newDistance = getPinchDistance(e.touches);
-      if (newDistance !== null) {
-        const scale = newDistance / lastPinchDistance;
-        setZoom(prev => Math.min(Math.max(prev * scale, 0.5), 3));
-        setLastPinchDistance(newDistance);
+      const dist = getPinchDistance(e.touches);
+      if (dist !== null) {
+        const delta = (dist - lastPinchDistance) * 0.005;
+        setZoom(prev => Math.min(Math.max(prev + delta, 1), 3));
+        setLastPinchDistance(dist);
       }
       return;
     }
@@ -3155,9 +3328,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
 
   const handlePitchTouchEnd = (e: React.TouchEvent) => {
-    if (lastPinchDistance !== null) {
+    // Reset pinch distance when fingers lift
+    if (e.touches.length < 2) {
       setLastPinchDistance(null);
-      return;
     }
     
     if (readOnly) return;
@@ -3191,7 +3364,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      setZoom(prev => Math.min(Math.max(prev + delta, 0.5), 3));
+      setZoom(prev => Math.min(Math.max(prev + delta, 1), 3));
     }
   };
 
@@ -3901,38 +4074,118 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             {!readOnly && (
               <>
                 <div className="w-px h-6 bg-border mx-1" />
-                <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={handleResetFormation} title="Reset Formation">
-                  <RotateCcw className="h-6 w-6" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={() => setStatsOpen(true)}>
-                  <BarChart3 className="h-6 w-6" />
-                </Button>
+                <div className="relative">
+                  <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={() => setSettingsMenuOpen(prev => !prev)}>
+                    <Settings className="h-6 w-6" />
+                  </Button>
+                  {settingsMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
+                      <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[99999] min-w-[180px] py-1">
+                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
+                          <RotateCcw className="h-4 w-4" />
+                          Reset Formation
+                        </button>
+                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setStatsOpen(true); setSettingsMenuOpen(false); }}>
+                          <BarChart3 className="h-4 w-4" />
+                          Match Stats
+                        </button>
+                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setResetGameConfirmOpen(true); setSettingsMenuOpen(false); }}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                          <span className="text-destructive">Reset Game</span>
+                        </button>
+                        <div className="h-px bg-border mx-2 my-1" />
+                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsDialogOpen(true); setSettingsMenuOpen(false); }}>
+                          <Settings2 className="h-4 w-4" />
+                          All Settings
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <PitchSettingsDialog
+                  soundEnabled={isSoundEnabled(teamId)}
+                  onSoundToggle={() => {}}
+                  selectedFormation={selectedFormation}
+                  onFormationChange={handleFormationChange}
+                  formations={FORMATIONS[teamSize]}
+                  teamSize={teamSize}
+                  onTeamSizeChange={handleTeamSizeChange}
+                  minutesPerHalf={minutesPerHalf}
+                  onMinutesPerHalfChange={handleMinutesPerHalfChange}
+                  rotationSpeed={rotationSpeed}
+                  onRotationSpeedChange={handleRotationSpeedChange}
+                  disablePositionSwaps={disablePositionSwaps}
+                  onDisablePositionSwapsChange={setDisablePositionSwaps}
+                  disableBatchSubs={disableBatchSubs}
+                  onDisableBatchSubsChange={setDisableBatchSubs}
+                  rotateGkAtHalftime={rotateGkAtHalftime}
+                  onRotateGkAtHalftimeChange={setRotateGkAtHalftime}
+                  onOpenPositionEditor={() => setPositionEditorOpen(true)}
+                  mockMode={mockMode}
+                  onMockModeChange={handleMockModeChange}
+                  readOnly={readOnly}
+                  gameInProgress={gameInProgress}
+                  onResetGame={handleResetGame}
+                  onResetFormation={handleResetFormation}
+                  onOpenStats={() => setStatsOpen(true)}
+                  onSaveSettings={handleSaveSettings}
+                  isSaving={isSavingSettings}
+                  showMatchHeader={showMatchHeader}
+                  onShowMatchHeaderChange={setShowMatchHeader}
+                  hideScores={hideScores}
+                  onHideScoresChange={setHideScores}
+                  showLineupPicker={showLineupPickerSetting}
+                  onShowLineupPickerChange={handleShowLineupPickerSettingChange}
+                  onOpenLineupPicker={() => setShowLineupPicker(true)}
+                  onAddFillInPlayer={() => {
+                    setToolbarCollapsed(false);
+                    setSheetHeightPct(50);
+                  }}
+                  hideTrigger
+                  externalOpen={settingsDialogOpen}
+                  onExternalOpenChange={setSettingsDialogOpen}
+                />
               </>
             )}
             {readOnly && (
-              <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={() => setStatsOpen(true)}>
-                <BarChart3 className="h-6 w-6" />
-              </Button>
+              <div className="relative">
+                <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={() => setSettingsMenuOpen(prev => !prev)}>
+                  <Settings className="h-6 w-6" />
+                </Button>
+                {settingsMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
+                    <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[99999] min-w-[180px] py-1">
+                      <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setStatsOpen(true); setSettingsMenuOpen(false); }}>
+                        <BarChart3 className="h-4 w-4" />
+                        Match Stats
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
         
         {/* Main content area */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-visible">
           {/* Main pitch area - full height */}
-          <div className="flex-1 h-full relative overflow-hidden">
+          <div className="flex-1 h-full relative overflow-visible z-[65]">
           
           {/* Floating draggable timer */}
           <div 
-            className="absolute z-50 cursor-move touch-none select-none"
+            className="absolute z-[70] cursor-move touch-none select-none origin-top-left"
             style={{ 
               left: floatingTimerPosition.x, 
               top: floatingTimerPosition.y,
+              transform: `scale(${floatingTimerScale})`,
             }}
             onMouseDown={handleTimerDragStart}
             onTouchStart={handleTimerTouchStart}
           >
-            <div className="flex flex-col items-center bg-black/60 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+            <div className="flex flex-col items-center bg-zinc-800 rounded-lg px-3 py-1.5 shadow-lg">
               {/* Main row: Score | Timer | Play | AUTO */}
               <div className="flex items-center gap-2">
                 {gameInProgress && !hideScores && (
@@ -3989,19 +4242,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               {/* Bottom row: Formation • Tactical */}
               <div className="flex items-center gap-1.5 mt-0.5 relative">
                 <button
-                  className="text-xs text-white/60 font-medium hover:text-white/90 transition-colors px-1.5 py-0.5 rounded hover:bg-white/10 active:bg-white/20"
+                  className="text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px] flex items-center"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerFormationDropdownOpen(prev => !prev); }}
                 >
                   {FORMATIONS[teamSize][selectedFormation]?.name} ▾
                 </button>
-                <span className="text-white/30 text-xs">•</span>
+                <span className="text-white/30 text-sm">•</span>
                 <button
-                  className="flex items-center gap-1 text-xs text-white/60 font-medium hover:text-white/90 transition-colors px-1.5 py-0.5 rounded hover:bg-white/10 active:bg-white/20"
+                  className="flex items-center gap-1.5 text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px]"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerTacticalDropdownOpen(prev => !prev); }}
                 >
-                  {tacticalMode === "defend" && <Shield className="h-3 w-3 text-blue-400" />}
-                  {tacticalMode === "neutral" && <Circle className="h-3 w-3 text-white/60" />}
-                  {tacticalMode === "attack" && <Swords className="h-3 w-3 text-orange-400" />}
+                  {tacticalMode === "defend" && <Shield className="h-4 w-4 text-blue-400" />}
+                  {tacticalMode === "neutral" && <Circle className="h-4 w-4 text-white/60" />}
+                  {tacticalMode === "attack" && <Swords className="h-4 w-4 text-orange-400" />}
                   {TACTICAL_MODE_LABELS[tacticalMode]} ▾
                 </button>
                 {/* Tactical dropdown */}
@@ -4316,6 +4569,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   subAnimation={subAnimationPlayers.in === player.id ? "in" : subAnimationPlayers.swap === player.id ? "swap" : null}
                   readOnly={readOnly}
                   teamColor={getPlayerTeamColor(player)}
+                  isNextSub={nextSubInfo?.playerOutId === player.id}
+                  nextSubCountdown={nextSubInfo?.playerOutId === player.id ? nextSubInfo.countdown : null}
                   style={{
                     position: "absolute",
                     ...(() => {
@@ -4426,7 +4681,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               const elapsed = Date.now() - startT;
               const velocity = deltaY / Math.max(elapsed, 1);
               // Open on fast flick (velocity > 0.3px/ms) or sufficient distance (>20px)
-              if (deltaY > 20 || velocity > 0.3) { setSheetHeightPct(88); setToolbarCollapsed(false); }
+              if (deltaY > 20 || velocity > 0.3) { setSheetHeightPct(50); setToolbarCollapsed(false); }
             }}
           >
             <div className="w-10 h-1 rounded-full bg-foreground/30 mb-1.5" />
@@ -4439,9 +4694,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             {/* Floating settings button - always visible in landscape when sheet closed */}
             <button
               className="absolute bottom-3 right-3 z-[55] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
-              onClick={() => { setSheetHeightPct(88); setToolbarCollapsed(false); }}
+              onClick={() => { setSheetHeightPct(50); setToolbarCollapsed(false); }}
             >
-              <ChevronUp className="h-5 w-5 text-muted-foreground" />
+              <Users className="h-5 w-5 text-muted-foreground" />
             </button>
 
 
@@ -4550,28 +4805,32 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   const containerH = window.innerHeight;
                   const deltaY = sheetDragRef.current.startY - e.touches[0].clientY;
                   const deltaPct = (deltaY / containerH) * 100;
-                  const newPct = Math.min(92, Math.max(25, sheetDragRef.current.startPct + deltaPct));
+                  const newPct = Math.min(85, Math.max(25, sheetDragRef.current.startPct + deltaPct));
                   setSheetHeightPct(newPct);
                 }}
                 onTouchEnd={(e) => {
-                  if (!sheetDragRef.current) return;
-                  const elapsed = Date.now() - Number(e.currentTarget.dataset.dragStartT || 0);
-                  const deltaY = sheetDragRef.current.startY - e.changedTouches[0].clientY;
+                  const elapsed = Date.now() - Number(e.currentTarget.dataset.dragStartT || "0");
+                  const deltaY = sheetDragRef.current ? sheetDragRef.current.startY - e.changedTouches[0].clientY : 0;
                   const velocity = deltaY / Math.max(elapsed, 1);
-                  // Fast downward flick → collapse
                   if (velocity < -0.4) {
                     setToolbarCollapsed(true);
-                    setSheetHeightPct(60);
+                    setSheetHeightPct(35);
                   } else if (velocity > 0.4) {
                     // Fast upward flick → expand
-                    setSheetHeightPct(88);
-                  } else if (sheetHeightPct < 40) {
+                    if (sheetHeightPct > 55) {
+                      setSheetHeightPct(80);
+                    } else {
+                      setSheetHeightPct(50);
+                    }
+                  } else if (sheetHeightPct < 30) {
                     setToolbarCollapsed(true);
-                    setSheetHeightPct(60);
-                  } else if (sheetHeightPct < 74) {
-                    setSheetHeightPct(60);
+                    setSheetHeightPct(35);
+                  } else if (sheetHeightPct < 42) {
+                    setSheetHeightPct(35);
+                  } else if (sheetHeightPct < 65) {
+                    setSheetHeightPct(50);
                   } else {
-                    setSheetHeightPct(88);
+                    setSheetHeightPct(80);
                   }
                   sheetDragRef.current = null;
                 }}
@@ -4580,33 +4839,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <div className="flex justify-center pt-2 pb-1">
                   <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
                 </div>
-
-                {/* Tabs */}
-                <div className="flex border-b border-border px-2 gap-1">
-                {(["bench", "setup"] as const).map(tab => (
-                  <button
-                    key={tab}
-                    onClick={() => setBottomSheetTab(tab)}
-                    className={cn(
-                      "flex-1 py-2 text-sm font-medium rounded-t-md transition-colors",
-                      bottomSheetTab === tab 
-                        ? "bg-muted text-foreground border-b-2 border-primary" 
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {tab === "bench" ? `Bench (${playersOnBench.length})` : "Settings"}
-                  </button>
-                ))}
-
-
-              </div>
               </div>
 
 
               {/* Tab content */}
               <div className="overflow-y-auto p-3 flex-1 min-h-0">
-                {/* Bench Tab */}
-                {bottomSheetTab === "bench" && (
+                {/* Bench content */}
                   <div className="space-y-3">
                     {/* Position Filter Chips - sticky */}
                     <div className="sticky top-[-12px] z-10 bg-background py-2 -mx-3 px-3">
@@ -4724,175 +4962,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               variant="bench"
                               readOnly={readOnly}
                               teamColor={getPlayerTeamColor(player)}
+                              isNextSub={nextSubInfo?.playerInId === player.id}
+                              nextSubCountdown={nextSubInfo?.playerInId === player.id ? nextSubInfo.countdown : null}
                             />
                           </div>
                         ))}
                     </div>
-                    {/* Auto-Sub Manager - shown below bench when active */}
-                    {!readOnly && autoSubActive && !disableAutoSubs && (
-                      <div className="pt-2 border-t border-border">
-                        <Suspense fallback={<DialogLoader />}>
-                          <AutoSubManager
-                            autoSubPlan={autoSubPlan}
-                            autoSubPaused={autoSubPaused}
-                            players={players}
-                            lockedPlayerIds={lockedPlayerIds}
-                            currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-                            currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-                            minutesPerHalf={minutesPerHalf}
-                            onTogglePause={handleTogglePauseAutoSub}
-                            onCancelPlan={handleCancelAutoSubPlan}
-                            onSkipNext={handleSkipNextSub}
-                            onExecuteNow={handleExecuteNow}
-                            onEditPlan={handleOpenEditPlan}
-                            onRegeneratePlan={handleRegeneratePlan}
-                            onToggleLockPlayer={handleToggleLockPlayer}
-                            compact
-                          />
-                        </Suspense>
-                      </div>
-                    )}
                   </div>
-                )}
-
-                {/* Setup Tab */}
-                {bottomSheetTab === "setup" && (
-                  <div className="space-y-4 px-1">
-                    {/* Tactical Mode is in the landscape header bar */}
-                    {/* Segmented controls for core settings - landscape */}
-                    <div className="space-y-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">Players</Label>
-                        <div className="flex rounded-lg border border-border overflow-hidden">
-                          {(["3","4","5","6","7","8","9","10","11"] as const).map((size) => (
-                            <button
-                              key={size}
-                              type="button"
-                              disabled={readOnly}
-                              onClick={() => handleTeamSizeChange(size)}
-                              className={cn(
-                                "flex-1 py-2.5 text-base font-medium transition-colors min-w-0",
-                                teamSize === size
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-background text-muted-foreground hover:bg-accent"
-                              )}
-                            >
-                              {size}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">Formation</Label>
-                        <div className="flex rounded-lg border border-border overflow-hidden">
-                          {FORMATIONS[teamSize].map((f, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              disabled={readOnly}
-                              onClick={() => handleFormationChange(i.toString())}
-                              className={cn(
-                                "flex-1 py-2.5 text-base font-medium transition-colors",
-                                selectedFormation === i
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-background text-muted-foreground hover:bg-accent"
-                              )}
-                            >
-                              {f.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Primary actions - context-aware */}
-                    {!readOnly && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <Button variant="outline" className="h-12 text-base" onClick={() => setShowLineupPicker(true)}>
-                          <List className="h-4 w-4 mr-1.5" />
-                          Select Lineup
-                        </Button>
-                        <Button variant="outline" className="h-12 text-base" onClick={() => setPositionEditorOpen(true)}>
-                          <Settings2 className="h-4 w-4 mr-1.5" />
-                          Positions
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* More Options - collapsible */}
-                    {!readOnly && (
-                      <Collapsible>
-                        <CollapsibleTrigger className="flex items-center justify-center w-full py-3.5 text-base text-muted-foreground hover:text-foreground transition-colors gap-2">
-                          <span>More Options</span>
-                          <ChevronDown className="h-4 w-4" />
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="space-y-2 pt-1">
-                          <div className="grid grid-cols-2 gap-2">
-                            <Button variant="outline" className="h-10 text-sm" onClick={() => setPositionEditorOpen(true)}>
-                              <Settings2 className="h-4 w-4 mr-1.5" />
-                              Positions
-                            </Button>
-                            <Suspense fallback={null}>
-                              <AddFillInPlayerDialog
-                                onAddPlayer={handleAddFillInPlayer}
-                                existingNumbers={existingJerseyNumbers}
-                              />
-                            </Suspense>
-                          </div>
-                          {!gameInProgress && (
-                            <div className="space-y-2 py-1">
-                              <Label className="text-sm">Minutes per Half</Label>
-                              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                                {[5, 7, 8, 10, 12, 15, 20, 25, 30, 35, 40, 45].map((m) => (
-                                  <Button
-                                    key={m}
-                                    type="button"
-                                    variant={minutesPerHalf === m ? "default" : "outline"}
-                                    className="h-10 px-3 text-sm shrink-0"
-                                    onClick={() => handleMinutesPerHalfChange(m)}
-                                  >
-                                    {m}m
-                                  </Button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {parseInt(teamSize) >= 7 && (
-                            <div className="flex items-center gap-4 py-1">
-                              <Label className="text-sm">Rotate GK at Halftime</Label>
-                              <Switch checked={rotateGkAtHalftime} onCheckedChange={setRotateGkAtHalftime} />
-                            </div>
-                          )}
-                          <div className="flex items-center gap-4 py-1">
-                            <Label className="text-sm">Hide Scores</Label>
-                            <Switch checked={hideScores} onCheckedChange={setHideScores} />
-                          </div>
-                          <div className="flex items-center gap-4 py-1">
-                            <Label className="text-sm">Starting Lineup Screen</Label>
-                            <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
-                          </div>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    )}
-
-                    {/* Reset Game - always visible at bottom */}
-                    {!readOnly && (
-                      <Button
-                        variant="outline"
-                        className="w-full h-12 text-base text-destructive"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setTimeout(() => setResetGameConfirmOpen(true), 0);
-                        }}
-                      >
-                        <RotateCcw className="h-4.5 w-4.5 mr-2" />
-                        Reset Game
-                      </Button>
-                    )}
-                  </div>
-                )}
-
               </div>
             </div>
           </div>
@@ -5219,34 +5295,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           teamId={teamId}
           teamName={teamName} 
           onLinkEvent={readOnly || (gameInProgress && !!linkedEventId) ? undefined : handleLinkEvent}
-          showScoreToggle={gameInProgress && !hideScores}
-          scoreExpanded={showScoreInPortrait}
-          onToggleScore={() => setShowScoreInPortrait(!showScoreInPortrait)}
-          currentScore={{ 
-            team: goals.filter(g => !g.isOpponentGoal).length, 
-            opponent: goals.filter(g => g.isOpponentGoal).length 
-          }}
         />
-      )}
-      
-      {/* Score tracker in portrait mode - show when game is in progress and expanded */}
-      {gameInProgress && showScoreInPortrait && !hideScores && (
-        <div className="px-4 py-2 bg-muted/30 border-b border-border shrink-0">
-          <ScoreTracker
-            goals={goals}
-            onAddGoal={handleAddGoal}
-            onRemoveGoal={handleRemoveGoal}
-            onUpdateGoal={handleUpdateGoal}
-            players={players}
-            currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-            elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-            teamName={teamName}
-            opponentName={opponentName}
-            readOnly={readOnly}
-            isGameFinished={gameTimerRef.current?.isGameFinished() || false}
-            miniLeagueTeams={miniLeagueTeams}
-          />
-        </div>
       )}
       
       {/* Slim Header */}
@@ -5288,34 +5337,104 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               </Button>
             )}
             <div className="w-px h-5 bg-border mx-0.5 shrink-0" />
-            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setTimeout(() => setResetGameConfirmOpen(true), 0);
-            }}>
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setStatsOpen(true)}>
-              <BarChart3 className="h-4 w-4" />
-            </Button>
+            <div className="relative">
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setSettingsMenuOpen(prev => !prev)}>
+                <Settings className="h-4 w-4" />
+              </Button>
+              {settingsMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
+                  <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[99999] min-w-[170px] py-1">
+                    {!readOnly && (
+                      <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
+                        <RotateCcw className="h-4 w-4" />
+                        Reset Formation
+                      </button>
+                    )}
+                    <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setStatsOpen(true); setSettingsMenuOpen(false); }}>
+                      <BarChart3 className="h-4 w-4" />
+                      Match Stats
+                    </button>
+                    {!readOnly && (
+                      <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setResetGameConfirmOpen(true); setSettingsMenuOpen(false); }}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                        <span className="text-destructive">Reset Game</span>
+                      </button>
+                    )}
+                    {!readOnly && (
+                      <>
+                        <div className="h-px bg-border mx-2 my-1" />
+                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsDialogOpen(true); setSettingsMenuOpen(false); }}>
+                          <Settings2 className="h-4 w-4" />
+                          All Settings
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+            {!readOnly && (
+              <PitchSettingsDialog
+                soundEnabled={isSoundEnabled(teamId)}
+                onSoundToggle={() => {}}
+                selectedFormation={selectedFormation}
+                onFormationChange={handleFormationChange}
+                formations={FORMATIONS[teamSize]}
+                teamSize={teamSize}
+                onTeamSizeChange={handleTeamSizeChange}
+                minutesPerHalf={minutesPerHalf}
+                onMinutesPerHalfChange={handleMinutesPerHalfChange}
+                rotationSpeed={rotationSpeed}
+                onRotationSpeedChange={handleRotationSpeedChange}
+                disablePositionSwaps={disablePositionSwaps}
+                onDisablePositionSwapsChange={setDisablePositionSwaps}
+                disableBatchSubs={disableBatchSubs}
+                onDisableBatchSubsChange={setDisableBatchSubs}
+                rotateGkAtHalftime={rotateGkAtHalftime}
+                onRotateGkAtHalftimeChange={setRotateGkAtHalftime}
+                onOpenPositionEditor={() => setPositionEditorOpen(true)}
+                mockMode={mockMode}
+                onMockModeChange={handleMockModeChange}
+                readOnly={readOnly}
+                gameInProgress={gameInProgress}
+                onResetGame={handleResetGame}
+                onResetFormation={handleResetFormation}
+                onOpenStats={() => setStatsOpen(true)}
+                onSaveSettings={handleSaveSettings}
+                isSaving={isSavingSettings}
+                showMatchHeader={showMatchHeader}
+                onShowMatchHeaderChange={setShowMatchHeader}
+                hideScores={hideScores}
+                onHideScoresChange={setHideScores}
+                showLineupPicker={showLineupPickerSetting}
+                onShowLineupPickerChange={handleShowLineupPickerSettingChange}
+                onOpenLineupPicker={() => setShowLineupPicker(true)}
+                hideTrigger
+                externalOpen={settingsDialogOpen}
+                onExternalOpenChange={setSettingsDialogOpen}
+              />
+            )}
           </>
-        )}
-        {readOnly && (
-          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setStatsOpen(true)}>
-            <BarChart3 className="h-4 w-4" />
-          </Button>
         )}
       </div>
 
       {/* Full-screen Pitch Area */}
-      <div className="flex-1 min-h-0 relative overflow-hidden">
-        {/* Floating score + timer combined row */}
+      <div className="flex-1 min-h-0 relative overflow-visible z-[65]">
+        {/* Floating score + timer combined row - draggable + resizable */}
         <div 
-          className="absolute z-[61] select-none pointer-events-auto right-2 top-2"
-          style={{ touchAction: 'auto' }}
+          className={cn("absolute z-[70] select-none pointer-events-auto touch-none cursor-move", portraitTimerPosition ? "origin-top-left" : "origin-top-right")}
+          style={{ 
+            ...(portraitTimerPosition 
+              ? { left: portraitTimerPosition.x, top: portraitTimerPosition.y, right: 'auto' }
+              : { right: 8, top: 8 }
+            ),
+            transform: `scale(${portraitTimerScale})`,
+          }}
+          onTouchStart={handlePortraitTimerTouchStart}
         >
           <div className="flex flex-col items-end">
-            <div className="flex flex-col items-center bg-black/60 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+            <div className="flex flex-col items-center bg-zinc-800 rounded-lg px-3 py-1.5 shadow-lg">
               {/* Main row: Score | Timer | AUTO */}
               <div className="flex items-center gap-2">
                 {gameInProgress && !hideScores && !showScoreInPortrait && (
@@ -5372,19 +5491,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               {/* Bottom row: Formation • Tactical */}
               <div className="flex items-center gap-1.5 mt-0.5 relative">
                 <button
-                  className="text-xs text-white/60 font-medium hover:text-white/90 transition-colors px-1.5 py-0.5 rounded hover:bg-white/10 active:bg-white/20"
+                  className="text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px] flex items-center"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerFormationDropdownOpen(prev => !prev); }}
                 >
                   {FORMATIONS[teamSize][selectedFormation]?.name} ▾
                 </button>
-                <span className="text-white/30 text-xs">•</span>
+                <span className="text-white/30 text-sm">•</span>
                 <button
-                  className="flex items-center gap-1 text-xs text-white/60 font-medium hover:text-white/90 transition-colors px-1.5 py-0.5 rounded hover:bg-white/10 active:bg-white/20"
+                  className="flex items-center gap-1.5 text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px]"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerTacticalDropdownOpen(prev => !prev); }}
                 >
-                  {tacticalMode === "defend" && <Shield className="h-3 w-3 text-blue-400" />}
-                  {tacticalMode === "neutral" && <Circle className="h-3 w-3 text-white/60" />}
-                  {tacticalMode === "attack" && <Swords className="h-3 w-3 text-orange-400" />}
+                  {tacticalMode === "defend" && <Shield className="h-4 w-4 text-blue-400" />}
+                  {tacticalMode === "neutral" && <Circle className="h-4 w-4 text-white/60" />}
+                  {tacticalMode === "attack" && <Swords className="h-4 w-4 text-orange-400" />}
                   {TACTICAL_MODE_LABELS[tacticalMode]} ▾
                 </button>
                 {/* Tactical dropdown - portrait */}
@@ -5470,7 +5589,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               )}
               onClick={() => setPortraitSheetOpen(true)}
             >
-              <ChevronUp className="h-5 w-5 text-muted-foreground" />
+              <Users className="h-5 w-5 text-muted-foreground" />
             </button>
 
             {/* Floating Draw FAB - portrait */}
@@ -5564,10 +5683,41 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <div className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")} onClick={drawingTool === "none" ? () => setPortraitSheetOpen(false) : undefined} />
                 <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col" style={{ maxHeight: `${portraitSheetHeightPct}vh`, height: 'auto' }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
 
+              {/* Handle bar - draggable */}
+              <div 
+                className="flex justify-center pt-2 pb-1 cursor-grab touch-none"
+                onTouchStart={(e) => {
+                  portraitSheetDragRef.current = { startY: e.touches[0].clientY, startPct: portraitSheetHeightPct };
+                }}
+                onTouchMove={(e) => {
+                  if (!portraitSheetDragRef.current) return;
+                  const deltaY = portraitSheetDragRef.current.startY - e.touches[0].clientY;
+                  const deltaPct = (deltaY / window.innerHeight) * 100;
+                  const newPct = Math.min(85, Math.max(30, portraitSheetDragRef.current.startPct + deltaPct));
+                  setPortraitSheetHeightPct(newPct);
+                }}
+                onTouchEnd={() => {
+                  if (!portraitSheetDragRef.current) return;
+                  // Snap to nearest point: 45, 65, 85
+                  if (portraitSheetHeightPct < 38) {
+                    setPortraitSheetOpen(false);
+                    setPortraitSheetHeightPct(45);
+                  } else if (portraitSheetHeightPct < 55) {
+                    setPortraitSheetHeightPct(45);
+                  } else if (portraitSheetHeightPct < 75) {
+                    setPortraitSheetHeightPct(65);
+                  } else {
+                    setPortraitSheetHeightPct(85);
+                  }
+                  portraitSheetDragRef.current = null;
+                }}
+              >
+                <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+              </div>
+
               {/* Tab content */}
-              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${portraitSheetHeightPct}vh - 120px)` }}>
-                {/* Bench Tab */}
-                {bottomSheetTab === "bench" && (
+              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${portraitSheetHeightPct}vh - 60px)` }}>
+                {/* Bench content */}
                   <div className="space-y-3">
                     {/* Position Filter Chips + Fill-In */}
                     <div className="flex items-center gap-2">
@@ -5693,206 +5843,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             variant="bench"
                             readOnly={readOnly}
                             teamColor={getPlayerTeamColor(player)}
+                            isNextSub={nextSubInfo?.playerInId === player.id}
+                            nextSubCountdown={nextSubInfo?.playerInId === player.id ? nextSubInfo.countdown : null}
                           />
                         ))}
                     </div>
-                    {/* Auto-Sub section in bench tab */}
-                    {!readOnly && !disableAutoSubs && (
-                      <div className="pt-2 border-t border-border">
-                        {autoSubActive ? (
-                          <Suspense fallback={<DialogLoader />}>
-                            <AutoSubManager
-                              autoSubPlan={autoSubPlan}
-                              autoSubPaused={autoSubPaused}
-                              players={players}
-                              lockedPlayerIds={lockedPlayerIds}
-                              currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-                              currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-                              minutesPerHalf={minutesPerHalf}
-                              onTogglePause={handleTogglePauseAutoSub}
-                              onCancelPlan={handleCancelAutoSubPlan}
-                              onSkipNext={handleSkipNextSub}
-                              onExecuteNow={handleExecuteNow}
-                              onEditPlan={handleOpenEditPlan}
-                              onRegeneratePlan={handleRegeneratePlan}
-                              onToggleLockPlayer={handleToggleLockPlayer}
-                            />
-                          </Suspense>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            className="w-full h-11 text-sm gap-2"
-                            onClick={handleOpenNewPlan}
-                          >
-                            <Calendar className="h-4 w-4" />
-                            Auto-Sub Plan
-                          </Button>
-                        )}
-                      </div>
-                    )}
                   </div>
-                )}
-
-                {/* Setup Tab */}
-                {bottomSheetTab === "setup" && (
-                  <div className="space-y-3 px-1">
-                    {/* Segmented controls for core settings - portrait */}
-                    <div className="space-y-2">
-                      <div className="space-y-1">
-                        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Players</Label>
-                        <div className="flex rounded-lg border border-border overflow-hidden">
-                          {(["3","4","5","6","7","8","9","10","11"] as const).map((size) => (
-                            <button
-                              key={size}
-                              type="button"
-                              disabled={readOnly}
-                              onClick={() => handleTeamSizeChange(size)}
-                              className={cn(
-                                "flex-1 py-2 text-sm font-medium transition-colors min-w-0",
-                                teamSize === size
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-background text-muted-foreground hover:bg-accent"
-                              )}
-                            >
-                              {size}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Formation</Label>
-                        <div className="flex rounded-lg border border-border overflow-hidden">
-                          {FORMATIONS[teamSize].map((f, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              disabled={readOnly}
-                              onClick={() => handleFormationChange(i.toString())}
-                              className={cn(
-                                "flex-1 py-2 text-sm font-medium transition-colors",
-                                selectedFormation === i
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-background text-muted-foreground hover:bg-accent"
-                              )}
-                            >
-                              {f.name}
-                            </button>
-                          ))}
-                        </div>
-                        </div>
-                      </div>
-                      {!readOnly && (
-                        <div className="space-y-1">
-                          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Tactical Mode</Label>
-                          <div className="flex rounded-lg border border-border overflow-hidden">
-                            {([
-                              { key: "defend" as TacticalMode, label: "DEF", icon: Shield },
-                              { key: "neutral" as TacticalMode, label: "NEU", icon: Circle },
-                              { key: "attack" as TacticalMode, label: "ATK", icon: Swords },
-                            ]).map(({ key, label, icon: Icon }) => (
-                              <button
-                                key={key}
-                                type="button"
-                                onClick={() => handleTacticalModeChange(key)}
-                                className={cn(
-                                  "flex-1 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-1.5",
-                                  tacticalMode === key
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-background text-muted-foreground hover:bg-accent"
-                                )}
-                              >
-                                <Icon className="h-3.5 w-3.5" />
-                                {label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                    {/* Primary actions - context-aware */}
-                    <div className="grid grid-cols-2 gap-2">
-                      {!readOnly && (
-                        <Button variant="outline" className="h-11 text-sm" onClick={() => setShowLineupPicker(true)}>
-                          <List className="h-4 w-4 mr-1.5" />
-                          Select Lineup
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* More Options - collapsible */}
-                    {!readOnly && (
-                      <Collapsible>
-                        <CollapsibleTrigger className="flex items-center justify-center w-full py-3.5 text-base text-muted-foreground hover:text-foreground transition-colors gap-2">
-                          <span>More Options</span>
-                          <ChevronDown className="h-4 w-4" />
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="space-y-2 pt-1">
-                          <div className="grid grid-cols-2 gap-2">
-                            <Button variant="outline" className="h-10 text-sm" onClick={() => setPositionEditorOpen(true)}>
-                              <Settings2 className="h-4 w-4 mr-1.5" />
-                              Positions
-                            </Button>
-                            <Suspense fallback={null}>
-                              <AddFillInPlayerDialog
-                                onAddPlayer={handleAddFillInPlayer}
-                                existingNumbers={existingJerseyNumbers}
-                              />
-                            </Suspense>
-                          </div>
-                          {!gameInProgress && (
-                            <div className="space-y-2 py-1">
-                              <Label className="text-sm">Minutes per Half</Label>
-                              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                                {[5, 7, 8, 10, 12, 15, 20, 25, 30, 35, 40, 45].map((m) => (
-                                  <Button
-                                    key={m}
-                                    type="button"
-                                    variant={minutesPerHalf === m ? "default" : "outline"}
-                                    className="h-10 px-3 text-sm shrink-0"
-                                    onClick={() => handleMinutesPerHalfChange(m)}
-                                  >
-                                    {m}m
-                                  </Button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {parseInt(teamSize) >= 7 && (
-                            <div className="flex items-center gap-4 py-1">
-                              <Label className="text-sm">Rotate GK at Halftime</Label>
-                              <Switch checked={rotateGkAtHalftime} onCheckedChange={setRotateGkAtHalftime} />
-                            </div>
-                          )}
-                          <div className="flex items-center gap-4 py-1">
-                            <Label className="text-sm">Hide Scores</Label>
-                            <Switch checked={hideScores} onCheckedChange={setHideScores} />
-                          </div>
-                          <div className="flex items-center gap-4 py-1">
-                            <Label className="text-sm">Starting Lineup Screen</Label>
-                            <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
-                          </div>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    )}
-
-                    {/* Reset Game - always visible at bottom */}
-                    {!readOnly && (
-                      <Button
-                        variant="outline"
-                        className="w-full h-12 text-base text-destructive"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setTimeout(() => setResetGameConfirmOpen(true), 0);
-                        }}
-                      >
-                        <RotateCcw className="h-4.5 w-4.5 mr-2" />
-                        Reset Game
-                      </Button>
-                    )}
-                  </div>
-                )}
-
               </div>
             </div>
           </div>
@@ -6146,6 +6102,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 subAnimation={subAnimationPlayers.in === player.id ? "in" : subAnimationPlayers.swap === player.id ? "swap" : null}
                 readOnly={readOnly}
                 teamColor={getPlayerTeamColor(player)}
+                isNextSub={nextSubInfo?.playerOutId === player.id}
+                nextSubCountdown={nextSubInfo?.playerOutId === player.id ? nextSubInfo.countdown : null}
                 style={{
                   position: "absolute",
                   ...(() => {

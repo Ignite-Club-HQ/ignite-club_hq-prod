@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Suspense, lazy } from "react";
 import { Button } from "@/components/ui/button";
 import { 
   ResponsiveDialog, 
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Settings, Volume2, VolumeX, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal } from "lucide-react";
+import { Settings, Volume2, VolumeX, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TeamSize } from "./types";
 
@@ -70,6 +70,13 @@ interface PitchSettingsDialogProps {
   // Optional trigger button customization
   triggerClassName?: string;
   
+  // External open control (no trigger button rendered when provided)
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
+  
+  // Hide trigger button (when using external control)
+  hideTrigger?: boolean;
+  
   // Reset game
   onResetGame?: () => void;
   
@@ -97,6 +104,9 @@ interface PitchSettingsDialogProps {
   
   // Manual trigger lineup picker
   onOpenLineupPicker?: () => void;
+  
+  // Add fill-in player
+  onAddFillInPlayer?: () => void;
 }
 
 export function PitchSettingsDialog({
@@ -123,6 +133,9 @@ export function PitchSettingsDialog({
   readOnly = false,
   gameInProgress = false,
   triggerClassName,
+  externalOpen,
+  onExternalOpenChange,
+  hideTrigger = false,
   onResetGame,
   onResetFormation,
   onOpenStats,
@@ -135,23 +148,29 @@ export function PitchSettingsDialog({
   showLineupPicker = false,
   onShowLineupPickerChange,
   onOpenLineupPicker,
+  onAddFillInPlayer,
 }: PitchSettingsDialogProps) {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetFormationConfirmOpen, setResetFormationConfirmOpen] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = onExternalOpenChange || setInternalOpen;
   
   return (
     <>
     <ResponsiveDialog open={open} onOpenChange={setOpen}>
-      <Button 
-        variant="outline" 
-        size="icon" 
-        className={cn("h-10 w-10", triggerClassName)}
-        onClick={() => setOpen(true)}
-      >
-        <Settings className="h-5 w-5" />
-      </Button>
+      {!hideTrigger && (
+        <Button 
+          variant="outline" 
+          size="icon" 
+          className={cn("h-10 w-10", triggerClassName)}
+          onClick={() => setOpen(true)}
+        >
+          <Settings className="h-5 w-5" />
+        </Button>
+      )}
         <ResponsiveDialogContent 
           className="z-[99999] max-h-[85vh] sm:max-h-[80vh] flex flex-col"
         >
@@ -416,15 +435,19 @@ export function PitchSettingsDialog({
             
             {/* Quick action row */}
             <div className="flex gap-2">
-              {onOpenStats && (
+              {!readOnly && onOpenLineupPicker && (
                 <Button 
                   variant="outline" 
                   size="sm"
                   className="flex-1 h-9"
-                  onClick={onOpenStats}
+                  disabled={gameInProgress}
+                  onClick={() => {
+                    onOpenLineupPicker();
+                    setOpen(false);
+                  }}
                 >
-                  <BarChart3 className="h-4 w-4 mr-1.5" />
-                  Stats
+                  <List className="h-4 w-4 mr-1.5" />
+                  Lineup
                 </Button>
               )}
               {!readOnly && (
@@ -432,10 +455,41 @@ export function PitchSettingsDialog({
                   variant="outline" 
                   size="sm"
                   className="flex-1 h-9"
-                  onClick={onOpenPositionEditor}
+                  onClick={() => {
+                    onOpenPositionEditor();
+                    setOpen(false);
+                  }}
                 >
                   <Settings2 className="h-4 w-4 mr-1.5" />
                   Positions
+                </Button>
+              )}
+              {onOpenStats && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="flex-1 h-9"
+                  onClick={() => {
+                    onOpenStats();
+                    setOpen(false);
+                  }}
+                >
+                  <BarChart3 className="h-4 w-4 mr-1.5" />
+                  Stats
+                </Button>
+              )}
+              {!readOnly && onAddFillInPlayer && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="flex-1 h-9"
+                  onClick={() => {
+                    onAddFillInPlayer();
+                    setOpen(false);
+                  }}
+                >
+                  <UserPlus className="h-4 w-4 mr-1.5" />
+                  Fill-In
                 </Button>
               )}
             </div>

@@ -15,7 +15,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { Play, Pause, Timer, ExternalLink, X, ArrowRightLeft, Clock, UserRoundCheck, ChevronDown, ChevronUp, ArrowDown, ArrowUp, SkipForward, Pencil } from "lucide-react";
+import { Play, Pause, Timer, ExternalLink, X, ArrowRightLeft, Clock, UserRoundCheck, ChevronDown, ChevronUp, ArrowDown, ArrowUp, SkipForward, Pencil, Eye } from "lucide-react";
 import { Goal } from "./types";
 import { PitchPosition } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
@@ -136,6 +136,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const availableBenchPlayers = useMemo(() => allPlayers.filter(p => p.position === null && !p.isInjured), [allPlayers]);
 
   const selectedSub = allSubs[selectedSubIndex] || null;
+  const isSelectedSubActionable = selectedSub ? (
+    selectedSub.isDue || selectedSubIndex === 0 || allSubs.slice(0, selectedSubIndex).every(s => s.isDue)
+  ) : false;
 
   const actualPlayerOut = useMemo(() => {
     if (!selectedSub) return null;
@@ -180,6 +183,43 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         if (pitchState.autoSubActive && unexecuted.length > 0 && saved.isRunning) {
           const mph = saved.minutesPerHalf || 20;
           const currentTotal = getTotalSeconds(currentElapsed, saved.currentHalf, mph);
+          
+          // Auto-skip subs that are more than 90s overdue (mirrors PitchBoard logic)
+          const OVERDUE_GRACE_SECONDS = 90;
+          const overdueSubs = unexecuted.filter(sub => {
+            const subTotal = getTotalSeconds(sub.time, sub.half, mph);
+            return currentTotal > subTotal + OVERDUE_GRACE_SECONDS;
+          });
+          
+          if (overdueSubs.length > 0) {
+            // Mark overdue subs as executed and reschedule remaining
+            const overdueKeys = new Set(overdueSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
+            const updatedPlan = (pitchState.autoSubPlan || []).map(s =>
+              overdueKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true } : s
+            );
+            
+            // Reschedule remaining unexecuted subs evenly across remaining time
+            const stillRemaining = updatedPlan.filter(s => !s.executed);
+            if (stillRemaining.length > 0) {
+              const totalGameSeconds = mph * 2 * 60;
+              const remainingGame = totalGameSeconds - currentTotal;
+              const interval = Math.max(Math.floor(remainingGame / (stillRemaining.length + 1)), 60);
+              let nextTime = currentTotal + interval;
+              const rescheduledPlan = updatedPlan.map(s => {
+                if (s.executed) return s;
+                const halfDur = mph * 60;
+                const newHalf: 1 | 2 = nextTime < halfDur ? 1 : 2;
+                const newTime = newHalf === 1 ? nextTime : nextTime - halfDur;
+                nextTime += interval;
+                return { ...s, half: newHalf, time: Math.floor(newTime) };
+              });
+              localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: rescheduledPlan }));
+            } else {
+              localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
+            }
+            window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
+            return; // Will pick up updated state on next poll tick
+          }
           
           const sorted = [...unexecuted].sort((a, b) => {
             if (a.half !== b.half) return a.half - b.half;
@@ -518,10 +558,15 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                           <UserRoundCheck className="h-3.5 w-3.5" />
                           Accept
                         </>
-                      ) : (
+                      ) : idx === 0 || allSubs.slice(0, idx).every(s => s.isDue) ? (
                         <>
                           <ArrowRightLeft className="h-3.5 w-3.5" />
                           Make Early
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="h-3.5 w-3.5" />
+                          View
                         </>
                       )}
                     </Button>
@@ -569,7 +614,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                     {actualPlayerOut?.number && `#${actualPlayerOut.number} `}
                     {actualPlayerOut?.currentPitchPosition && `leaves ${actualPlayerOut.currentPitchPosition}`}
                   </div>
-                  {!readOnly && (
+                  {!readOnly && isSelectedSubActionable && (
                     <Select value={editedPlayerOutId || selectedSub.sub.playerOut.id} onValueChange={setEditedPlayerOutId}>
                       <SelectTrigger className="w-full h-8 mt-2 text-xs border-destructive/30">
                         <div className="flex items-center gap-1"><Pencil className="h-3 w-3" /><span>Change player</span></div>
@@ -595,7 +640,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                   <div className="text-xs text-muted-foreground mt-0.5">
                     {actualPlayerIn?.number && `#${actualPlayerIn.number} `}comes on from bench
                   </div>
-                  {!readOnly && (
+                  {!readOnly && isSelectedSubActionable && (
                     <Select value={editedPlayerInId || selectedSub.sub.playerIn.id} onValueChange={setEditedPlayerInId}>
                       <SelectTrigger className="w-full h-8 mt-2 text-xs border-emerald-500/30">
                         <div className="flex items-center gap-1"><Pencil className="h-3 w-3" /><span>Change player</span></div>
@@ -631,13 +676,17 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
               <Button variant="outline" onClick={() => setShowConfirmDialog(false)} className="h-12 text-base sm:order-1">
                 <X className="h-4 w-4 mr-2" />Close
               </Button>
-              <Button variant="outline" onClick={skipSubstitution} className="h-12 text-base sm:order-2">
-                <SkipForward className="h-4 w-4 mr-2" />Skip
-              </Button>
-              <Button onClick={executeSubstitution} className="h-12 text-base sm:order-3">
-                <UserRoundCheck className="h-4 w-4 mr-2" />
-                {selectedSub.isDue ? "Confirm Sub" : "Make Early"}
-              </Button>
+              {isSelectedSubActionable && (
+                <>
+                  <Button variant="outline" onClick={skipSubstitution} className="h-12 text-base sm:order-2">
+                    <SkipForward className="h-4 w-4 mr-2" />Skip
+                  </Button>
+                  <Button onClick={executeSubstitution} className="h-12 text-base sm:order-3">
+                    <UserRoundCheck className="h-4 w-4 mr-2" />
+                    {selectedSub.isDue ? "Confirm Sub" : "Make Early"}
+                  </Button>
+                </>
+              )}
             </ResponsiveDialogFooter>
           </ResponsiveDialogContent>
         </ResponsiveDialog>
