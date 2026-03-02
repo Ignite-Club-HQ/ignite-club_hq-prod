@@ -166,8 +166,8 @@ export default function ScoreTracker({
   // Get players on pitch for scorer selection
   const playersOnPitch = players.filter((p) => p.position !== null);
 
-  // Combine readOnly and isGameFinished for score locking
-  const isLocked = readOnly || isGameFinished;
+  // Combine readOnly for score locking (isGameFinished no longer blocks adding goals)
+  const isLocked = readOnly;
 
   // Get players by team for mini-league mode
   const teamAPlayersOnPitch = isMiniLeague ? players.filter(p => p.position !== null && p.teamSide === "a") : [];
