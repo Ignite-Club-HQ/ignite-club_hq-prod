@@ -119,12 +119,13 @@ export const computeTacticalOffsets = (
         case "MID":
           // Midfield pushes much higher, noticeably closer to forwards
           dy = isSmallSided ? -12 : -16;
-          if (p.id === attackPushMidId) {
-            // Central playmaker tucks central
+          if (p.id === attackPushMidId && midfielders.length < 4) {
+            // Central playmaker tucks central (only for 3-mid shapes)
             if (isWide(bx)) dx = isLeft(bx) ? 4 : -4;
           } else {
-            // Wide mids spread out significantly
+            // Spread all mids outward
             if (isWide(bx)) dx = isLeft(bx) ? -10 : 10;
+            else if (midfielders.length >= 4) dx = bx <= 50 ? -8 : 8;
           }
           break;
         case "FWD": {
