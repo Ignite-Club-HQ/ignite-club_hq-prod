@@ -5247,26 +5247,60 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       )}
       
       {/* Slim Header */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border shrink-0 bg-background">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border shrink-0 bg-background">
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-sm font-semibold flex-1 truncate">{teamName} - Pitch Board</h1>
+        <h1 className="text-sm font-semibold flex-1 truncate min-w-0">{teamName}</h1>
         {readOnly && (
-          <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
+          <Badge variant="secondary" className="text-xs px-1.5 py-0.5 shrink-0">
             <Eye className="h-3 w-3 mr-1" />
             View Only
           </Badge>
         )}
         {!readOnly && (
           <>
-            <Button variant="ghost" size="icon" className="h-10 w-10" onClick={handleResetFormation}>
-              <RotateCcw className="h-5 w-5" />
+            {/* Swap button */}
+            {playersOnPitch.length >= 2 && !subMode && (
+              <Button
+                variant={swapMode ? "outline" : "ghost"}
+                size="sm"
+                className="h-9 shrink-0 gap-1 px-2 text-xs"
+                onClick={toggleSwapMode}
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+                {swapMode ? "Cancel" : "Swap"}
+              </Button>
+            )}
+            {/* Sub button */}
+            {!swapMode && (
+              <Button
+                variant={subMode ? "secondary" : "default"}
+                size="sm"
+                className="h-9 shrink-0 gap-1 px-2 text-xs"
+                onClick={() => { setSubMode(prev => !prev); setSelectedOnPitch(null); setSelectedOnBench(null); }}
+              >
+                <Users className="h-4 w-4" />
+                {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
+              </Button>
+            )}
+            <div className="w-px h-5 bg-border mx-0.5 shrink-0" />
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setTimeout(() => setResetGameConfirmOpen(true), 0);
+            }}>
+              <RotateCcw className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setStatsOpen(true)}>
-              <BarChart3 className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setStatsOpen(true)}>
+              <BarChart3 className="h-4 w-4" />
             </Button>
           </>
+        )}
+        {readOnly && (
+          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setStatsOpen(true)}>
+            <BarChart3 className="h-4 w-4" />
+          </Button>
         )}
       </div>
 
@@ -5421,57 +5455,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         )}
 
-        {/* Floating FABs for Sub/Swap */}
-        {!readOnly && !portraitSheetOpen && (
-          <div className="absolute left-3 z-[63] flex flex-col gap-2 animate-fade-in"
-            style={{ bottom: subMode || swapMode ? 64 : 32 }}
-          >
-            {/* Swap Positions FAB */}
-            {playersOnPitch.length >= 2 && !subMode && (
-              <button
-                onClick={(e) => { e.stopPropagation(); toggleSwapMode(); }}
-                className={cn(
-                  "flex items-center gap-2 rounded-full shadow-lg transition-colors px-3 py-2",
-                  swapMode 
-                    ? "bg-accent text-accent-foreground" 
-                    : "bg-muted text-foreground hover:bg-muted/80 border border-border"
-                )}
-              >
-                <ArrowLeftRight className="h-4 w-4" />
-                <span className="text-sm font-medium">
-                  {swapMode ? "Cancel" : "Swap"}
-                </span>
-              </button>
-            )}
-
-            {/* Make Sub FAB */}
-            {!swapMode && (
-              <button
-                onClick={() => {
-                  setSubMode(prev => !prev);
-                  setSelectedOnPitch(null);
-                  setSelectedOnBench(null);
-                  if (subMode) {
-                    // Turning off sub mode - close sheet if open
-                    setPortraitSheetOpen(false);
-                  }
-                }}
-                className={cn(
-                  "flex items-center gap-2 rounded-full shadow-lg transition-colors px-3 py-2",
-                  subMode 
-                    ? "bg-secondary text-secondary-foreground" 
-                    : "bg-primary text-primary-foreground hover:bg-primary/90"
-                )}
-              >
-                <Users className="h-4 w-4" />
-                <span className="text-sm font-medium">
-                  {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
-                </span>
-              </button>
-            )}
-
-          </div>
-        )}
+        {/* Swap/Sub FABs moved to header */}
 
         {/* Floating settings button - bottom right to open sheet */}
         {!portraitSheetOpen && (
@@ -5479,7 +5463,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             <button
               className={cn(
                 "absolute right-3 z-[63] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center",
-                (subMode || swapMode) ? "bottom-14" : "bottom-3"
+                "bottom-3"
               )}
               onClick={() => setPortraitSheetOpen(true)}
             >
@@ -5492,7 +5476,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <button
                   className={cn(
                     "absolute z-[63] w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
-                    (subMode || swapMode) ? "bottom-14" : "bottom-3",
+                    "bottom-3",
                     drawingTool !== "none"
                       ? "bg-primary text-primary-foreground border-primary"
                       : showFloatingDrawToolbar
