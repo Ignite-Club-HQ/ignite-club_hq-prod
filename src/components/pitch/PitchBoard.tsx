@@ -4749,28 +4749,32 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   const containerH = window.innerHeight;
                   const deltaY = sheetDragRef.current.startY - e.touches[0].clientY;
                   const deltaPct = (deltaY / containerH) * 100;
-                  const newPct = Math.min(55, Math.max(25, sheetDragRef.current.startPct + deltaPct));
+                  const newPct = Math.min(85, Math.max(25, sheetDragRef.current.startPct + deltaPct));
                   setSheetHeightPct(newPct);
                 }}
                 onTouchEnd={(e) => {
-                  if (!sheetDragRef.current) return;
-                  const elapsed = Date.now() - Number(e.currentTarget.dataset.dragStartT || 0);
-                  const deltaY = sheetDragRef.current.startY - e.changedTouches[0].clientY;
+                  const elapsed = Date.now() - Number(e.currentTarget.dataset.dragStartT || "0");
+                  const deltaY = sheetDragRef.current ? sheetDragRef.current.startY - e.changedTouches[0].clientY : 0;
                   const velocity = deltaY / Math.max(elapsed, 1);
-                  // Fast downward flick → collapse
                   if (velocity < -0.4) {
                     setToolbarCollapsed(true);
                     setSheetHeightPct(35);
                   } else if (velocity > 0.4) {
                     // Fast upward flick → expand
-                    setSheetHeightPct(50);
+                    if (sheetHeightPct > 55) {
+                      setSheetHeightPct(80);
+                    } else {
+                      setSheetHeightPct(50);
+                    }
                   } else if (sheetHeightPct < 30) {
                     setToolbarCollapsed(true);
                     setSheetHeightPct(35);
                   } else if (sheetHeightPct < 42) {
                     setSheetHeightPct(35);
-                  } else {
+                  } else if (sheetHeightPct < 65) {
                     setSheetHeightPct(50);
+                  } else {
+                    setSheetHeightPct(80);
                   }
                   sheetDragRef.current = null;
                 }}
@@ -5623,13 +5627,40 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <div className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")} onClick={drawingTool === "none" ? () => setPortraitSheetOpen(false) : undefined} />
                 <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col" style={{ maxHeight: `${portraitSheetHeightPct}vh`, height: 'auto' }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
 
-              {/* Handle bar */}
-              <div className="flex justify-center pt-2 pb-1">
+              {/* Handle bar - draggable */}
+              <div 
+                className="flex justify-center pt-2 pb-1 cursor-grab touch-none"
+                onTouchStart={(e) => {
+                  portraitSheetDragRef.current = { startY: e.touches[0].clientY, startPct: portraitSheetHeightPct };
+                }}
+                onTouchMove={(e) => {
+                  if (!portraitSheetDragRef.current) return;
+                  const deltaY = portraitSheetDragRef.current.startY - e.touches[0].clientY;
+                  const deltaPct = (deltaY / window.innerHeight) * 100;
+                  const newPct = Math.min(85, Math.max(30, portraitSheetDragRef.current.startPct + deltaPct));
+                  setPortraitSheetHeightPct(newPct);
+                }}
+                onTouchEnd={() => {
+                  if (!portraitSheetDragRef.current) return;
+                  // Snap to nearest point: 45, 65, 85
+                  if (portraitSheetHeightPct < 38) {
+                    setPortraitSheetOpen(false);
+                    setPortraitSheetHeightPct(45);
+                  } else if (portraitSheetHeightPct < 55) {
+                    setPortraitSheetHeightPct(45);
+                  } else if (portraitSheetHeightPct < 75) {
+                    setPortraitSheetHeightPct(65);
+                  } else {
+                    setPortraitSheetHeightPct(85);
+                  }
+                  portraitSheetDragRef.current = null;
+                }}
+              >
                 <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
               </div>
 
               {/* Tab content */}
-              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${portraitSheetHeightPct}vh - 120px)` }}>
+              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${portraitSheetHeightPct}vh - 60px)` }}>
                 {/* Bench content */}
                   <div className="space-y-3">
                     {/* Position Filter Chips + Fill-In */}
