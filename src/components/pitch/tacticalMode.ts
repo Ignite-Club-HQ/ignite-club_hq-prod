@@ -148,7 +148,7 @@ export const computeTacticalOffsets = (
           if (isWide(bx)) {
             dx = isLeft(bx) ? 6 : -6; // tuck narrow
           } else if (defenders.length >= 4) {
-            dx = bx <= 50 ? -4 : 4; // central pair: slight separation, still compact
+            dx = bx <= 50 ? -6 : 6; // central pair spread to match central mids visually
           } else if (bx < 50) {
             dx = -6;
           } else if (bx > 50) {
