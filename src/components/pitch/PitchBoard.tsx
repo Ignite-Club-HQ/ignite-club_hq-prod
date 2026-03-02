@@ -3967,9 +3967,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
           )}
 
-          {/* Floating undo button - shows for 30 seconds after a sub/swap, positioned above Sub/Swap FABs */}
+          {/* Floating undo button - top-left below header in landscape */}
           {!readOnly && showFloatingUndo && undoHistory.length > 0 && (
-            <div className="absolute bottom-4 right-4 z-[9999] animate-fade-in">
+            <div className="absolute top-14 left-4 z-[9999] animate-fade-in">
               <Button 
                 variant="secondary" 
                 size="sm"
@@ -5156,12 +5156,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         </div>
 
-        {/* Floating undo button - bottom-right, above the chevron-up arrow */}
+        {/* Floating undo button - top-right of pitch area in portrait */}
         {!readOnly && showFloatingUndo && undoHistory.length > 0 && !portraitSheetOpen && (
-          <div
-            className="absolute right-2 z-[64] animate-fade-in"
-            style={{ bottom: subMode || swapMode ? 56 : 64 }}
-          >
+          <div className="absolute top-2 left-2 z-[64] animate-fade-in">
             <Button 
               variant="secondary" 
               size="sm"
