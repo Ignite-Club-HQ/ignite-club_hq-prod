@@ -60,6 +60,14 @@ export const computeTacticalOffsets = (
     attackPushMidId = sorted[0].id;
   }
 
+  // ATTACK with 5+ mids: identify the 2 deepest (highest y) as holding mids
+  const holdingMidIds = new Set<string>();
+  if (mode === "attack" && midfielders.length >= 5) {
+    const sortedByDepth = [...midfielders].sort((a, b) => b.position!.y - a.position!.y);
+    holdingMidIds.add(sortedByDepth[0].id);
+    holdingMidIds.add(sortedByDepth[1].id);
+  }
+
   // DEFEND: pick one central midfielder as anchor only for narrow midfield shapes
   let anchorMidId: string | null = null;
   if (mode === "defend" && midfielders.length > 0 && midfielders.length <= 3) {
@@ -126,13 +134,14 @@ export const computeTacticalOffsets = (
           if (isWide(bx)) dx = isLeft(bx) ? -8 : 8; // spread wide
           break;
         case "MID":
-          // Midfield pushes much higher, noticeably closer to forwards
-          dy = isSmallSided ? -12 : -16;
-          if (p.id === attackPushMidId && midfielders.length < 4) {
-            // Central playmaker tucks central (only for 3-mid shapes)
-            if (isWide(bx)) dx = isLeft(bx) ? 4 : -4;
+          if (holdingMidIds.has(p.id)) {
+            // Holding mids: stay deeper, only slight push forward
+            dy = isSmallSided ? -4 : -6;
+            if (isWide(bx)) dx = isLeft(bx) ? -6 : 6;
+            else dx = bx <= 50 ? -6 : 6;
           } else {
-            // Spread all mids outward
+            // Attacking mids: push much higher toward forwards
+            dy = isSmallSided ? -16 : -20;
             if (isWide(bx)) dx = isLeft(bx) ? -10 : 10;
             else if (midfielders.length >= 4) dx = bx <= 50 ? -8 : 8;
           }
