@@ -142,8 +142,23 @@ export const computeTacticalOffsets = (
           } else {
             // Attacking mids: push much higher toward forwards
             dy = isSmallSided ? -16 : -20;
-            if (isWide(bx)) dx = isLeft(bx) ? -10 : 10;
-            else if (midfielders.length >= 4) dx = bx <= 50 ? -8 : 8;
+            if (isWide(bx)) {
+              dx = isLeft(bx) ? -10 : 10;
+            } else if (holdingMidIds.size > 0) {
+              // 5+ mid shape (e.g. 4-2-3-1): most central attacking mid stays as #10
+              const attackingMids = midfielders.filter(m => !holdingMidIds.has(m.id));
+              const sortedByCenter = [...attackingMids].sort((a, b) =>
+                Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
+              );
+              if (sortedByCenter[0]?.id === p.id) {
+                // Central #10: stay aligned with forward
+                dx = 0;
+              } else {
+                dx = bx <= 50 ? -8 : 8;
+              }
+            } else if (midfielders.length >= 4) {
+              dx = bx <= 50 ? -8 : 8;
+            }
           }
           break;
         case "FWD": {
