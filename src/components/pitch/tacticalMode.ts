@@ -162,10 +162,13 @@ export const computeTacticalOffsets = (
             if (bx < 45) dx = 6;
             else if (bx > 55) dx = -6;
             isAnchor = true;
+          } else if (midfielders.length >= 4) {
+            // With 4+ mids, spread everyone out evenly
+            if (isWide(bx)) dx = isLeft(bx) ? -6 : 6; // wide stay wide
+            else dx = bx <= 50 ? -10 : 10; // central pair spreads apart
           } else {
-            // Wide mids tuck in, central mids spread out to avoid crowding
+            // Smaller midfield shapes: wide mids tuck in
             if (isWide(bx)) dx = isLeft(bx) ? 8 : -8;
-            else if (midfielders.length >= 4) dx = bx <= 50 ? -10 : 10;
             else if (bx < 50) dx = -6;
             else if (bx > 50) dx = 6;
           }
