@@ -225,7 +225,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   } = useLazyFabric({
     canvasRef,
     containerRef,
-    enabled: drawingEnabled,
+    enabled: drawingEnabled || drawingEverEnabledRef.current,
     initialColor: drawingColor,
     dependencies: [isLandscape],
   });
