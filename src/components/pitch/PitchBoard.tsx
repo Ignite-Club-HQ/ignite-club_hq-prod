@@ -4060,12 +4060,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 </div>
                 <div className="text-center space-y-1">
                   <p className="text-base font-bold">
-                    Switch to {tacticalFormationSuggestion.formationName}
+                    Try {tacticalFormationSuggestion.formationName}?
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {tacticalFormationSuggestion.mode === "attack"
-                      ? "More forwards for attacking play!"
-                      : "Extra defenders for solid cover!"}
+                      ? "More forwards for attacking play"
+                      : "Extra defenders for solid cover"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 w-full mt-1">
@@ -5907,12 +5907,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               </div>
               <div className="text-center space-y-1">
                 <p className="text-base font-bold">
-                  Switch to {tacticalFormationSuggestion.formationName}
+                  Try {tacticalFormationSuggestion.formationName}?
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {tacticalFormationSuggestion.mode === "attack"
-                    ? "More forwards for attacking play!"
-                    : "Extra defenders for solid cover!"}
+                    ? "More forwards for attacking play"
+                    : "Extra defenders for solid cover"}
                 </p>
               </div>
               <div className="flex items-center gap-2 w-full mt-1">
