@@ -3930,6 +3930,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           >
             <div className="flex flex-col items-center bg-background/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg">
               <div className="flex items-center gap-2.5">
+              {gameInProgress && !hideScores && (
+                <ScoreTracker
+                  goals={goals}
+                  onAddGoal={handleAddGoal}
+                  onRemoveGoal={handleRemoveGoal}
+                  onUpdateGoal={handleUpdateGoal}
+                  players={players}
+                  currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+                  elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+                  teamName={teamName}
+                  opponentName={opponentName}
+                  readOnly={readOnly}
+                  isGameFinished={gameTimerRef.current?.isGameFinished() || false}
+                  miniLeagueTeams={miniLeagueTeams}
+                  mini
+                />
+              )}
               <GameTimer 
                 key={timerResetKey}
                 ref={gameTimerRef} 
@@ -4009,26 +4026,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
           </div>
 
-          {/* Floating score tracker in landscape mode */}
-          {gameInProgress && !hideScores && (
-            <div className="absolute top-2 right-14 z-[55]">
-              <ScoreTracker
-                goals={goals}
-                onAddGoal={handleAddGoal}
-                onRemoveGoal={handleRemoveGoal}
-                onUpdateGoal={handleUpdateGoal}
-                players={players}
-                currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-                elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-                teamName={teamName}
-                opponentName={opponentName}
-                readOnly={readOnly}
-                isGameFinished={gameTimerRef.current?.isGameFinished() || false}
-                miniLeagueTeams={miniLeagueTeams}
-                mini
-              />
-            </div>
-          )}
+          {/* Score tracker now integrated into the floating timer widget above */}
 
           {/* Floating undo button - top-left below header in landscape */}
           {!readOnly && showFloatingUndo && undoHistory.length > 0 && (
