@@ -4749,14 +4749,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
             {/* Floating Draw Toolbar */}
             {showFloatingDrawToolbar && (
-              <div className="absolute bottom-[4.5rem] z-[71] animate-fade-in" style={{ right: 12 }}>
+              <div className="absolute bottom-[4.5rem] z-[71] animate-fade-in" style={{ right: 12 }} onPointerDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
                 <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
                   <div className="flex gap-2">
                     <Button 
                       variant={drawingTool === "pen" ? "default" : "outline"} 
                       size="icon"
                       className="h-12 w-12"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setDrawingTool(drawingTool === "pen" ? "none" : "pen");
                         if (drawingTool !== "pen" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                       }}
@@ -4767,7 +4768,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       variant={drawingTool === "arrow" ? "default" : "outline"} 
                       size="icon"
                       className="h-12 w-12"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
                         if (drawingTool !== "arrow" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                       }}
