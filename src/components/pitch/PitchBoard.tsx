@@ -712,10 +712,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Open auto-sub plan dialog with minutes from pitch settings
   const openAutoSubPlanDialog = useCallback((editMode?: boolean) => {
+    if (gameTimerRef.current?.isGameFinished()) {
+      toast({ title: "Game has finished", description: "Auto-sub plans can only be created during an active game" });
+      return;
+    }
     setAutoSubPlanEditMode(editMode === true);
     setAutoSubFromPreGame(false);
     setAutoSubPlanDialogOpen(true);
-  }, []);
+  }, [toast]);
 
   const handleOpenNewPlan = useCallback(() => openAutoSubPlanDialog(false), [openAutoSubPlanDialog]);
   const handleOpenEditPlan = useCallback(() => openAutoSubPlanDialog(true), [openAutoSubPlanDialog]);
