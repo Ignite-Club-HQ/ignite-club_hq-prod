@@ -117,6 +117,11 @@ export function useLazyFabric({
     // Prevent double initialization
     if (initializingRef.current) return;
 
+    // If canvas already exists, just re-enable — don't reinitialize
+    if (canvas) {
+      return;
+    }
+
     // If refs aren't ready yet, retry after a short delay
     if (!canvasRef.current || !containerRef.current) {
       const retryId = setTimeout(() => {
@@ -241,7 +246,7 @@ export function useLazyFabric({
       initializingRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, fabricModule, retryCount, ...dependencies]);
+  }, [enabled, fabricModule, retryCount, canvas, ...dependencies]);
 
   // When disabled, just turn off drawing mode but keep canvas alive to preserve drawings
   useEffect(() => {
