@@ -129,6 +129,7 @@ export function useLazyFabric({
   const initializingRef = useRef(false);
   const cleanupRef = useRef<(() => void) | null>(null);
   const pendingRestoreJsonRef = useRef<PendingRestoreState | null>(null);
+  const resizeRafRef = useRef<number | null>(null);
 
   // Load Fabric module when enabled
   useEffect(() => {
@@ -148,6 +149,18 @@ export function useLazyFabric({
 
   // Track a retry counter to re-trigger effect when refs aren't ready
   const [retryCount, setRetryCount] = useState(0);
+
+  const resizeCanvasToContainer = useCallback((targetCanvas: FabricCanvas, targetContainer: HTMLDivElement) => {
+    const rect = targetContainer.getBoundingClientRect();
+    if (rect.width < 10 || rect.height < 10) return;
+
+    const previousWidth = targetCanvas.getWidth();
+    const previousHeight = targetCanvas.getHeight();
+
+    targetCanvas.setDimensions({ width: rect.width, height: rect.height });
+    scaleCanvasObjects(targetCanvas, previousWidth, previousHeight, rect.width, rect.height);
+    targetCanvas.renderAll();
+  }, []);
 
   // Initialize canvas when module is loaded and enabled
   useEffect(() => {
@@ -175,15 +188,7 @@ export function useLazyFabric({
       const isBoundToCurrentElement = boundCanvasEl === canvasEl;
 
       if (isBoundToCurrentElement) {
-        const rect = containerEl.getBoundingClientRect();
-        if (rect.width >= 10 && rect.height >= 10) {
-            const previousWidth = canvas.getWidth();
-            const previousHeight = canvas.getHeight();
-
-            canvas.setDimensions({ width: rect.width, height: rect.height });
-            scaleCanvasObjects(canvas, previousWidth, previousHeight, rect.width, rect.height);
-            canvas.renderAll();
-        }
+        resizeCanvasToContainer(canvas, containerEl);
         return;
       }
 
@@ -327,7 +332,46 @@ export function useLazyFabric({
       initializingRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, fabricModule, retryCount, canvas, ...dependencies]);
+  }, [enabled, fabricModule, retryCount, canvas, resizeCanvasToContainer, ...dependencies]);
+
+  useEffect(() => {
+    if (!canvas) return;
+
+    const scheduleResizeSync = () => {
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+      }
+
+      resizeRafRef.current = requestAnimationFrame(() => {
+        resizeRafRef.current = null;
+        const currentContainer = containerRef.current;
+        if (!currentContainer) return;
+        resizeCanvasToContainer(canvas, currentContainer);
+      });
+    };
+
+    const container = containerRef.current;
+    const resizeObserver = typeof ResizeObserver !== "undefined" && container
+      ? new ResizeObserver(() => scheduleResizeSync())
+      : null;
+
+    if (container && resizeObserver) {
+      resizeObserver.observe(container);
+    }
+
+    window.addEventListener("resize", scheduleResizeSync);
+    window.addEventListener("orientationchange", scheduleResizeSync);
+
+    return () => {
+      window.removeEventListener("resize", scheduleResizeSync);
+      window.removeEventListener("orientationchange", scheduleResizeSync);
+      resizeObserver?.disconnect();
+      if (resizeRafRef.current !== null) {
+        cancelAnimationFrame(resizeRafRef.current);
+        resizeRafRef.current = null;
+      }
+    };
+  }, [canvas, containerRef, resizeCanvasToContainer]);
 
   // When disabled, just turn off drawing mode but keep canvas alive to preserve drawings
   useEffect(() => {
