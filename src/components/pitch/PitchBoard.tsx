@@ -4689,19 +4689,30 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             style={{ height: 56 }}
             onTouchStart={(e) => {
               const el = e.currentTarget;
+              if (ignoreNextLandscapeBenchOpenRef.current || drawingTool !== "none" || showFloatingDrawToolbar) {
+                delete el.dataset.swipeStartY;
+                delete el.dataset.swipeStartT;
+                return;
+              }
               el.dataset.swipeStartY = String(e.touches[0].clientY);
               el.dataset.swipeStartT = String(Date.now());
             }}
             onTouchEnd={(e) => {
-              if (ignoreNextLandscapeBenchOpenRef.current || drawingTool !== "none" || showFloatingDrawToolbar) return;
               const startY = Number(e.currentTarget.dataset.swipeStartY || 0);
               const startT = Number(e.currentTarget.dataset.swipeStartT || 0);
-              if (!startY) return;
+              delete e.currentTarget.dataset.swipeStartY;
+              delete e.currentTarget.dataset.swipeStartT;
+              if (ignoreNextLandscapeBenchOpenRef.current || drawingTool !== "none" || showFloatingDrawToolbar) return;
+              if (!startY || !startT) return;
               const deltaY = startY - e.changedTouches[0].clientY;
               const elapsed = Date.now() - startT;
               const velocity = deltaY / Math.max(elapsed, 1);
               // Open on fast flick (velocity > 0.3px/ms) or sufficient distance (>20px)
               if (deltaY > 20 || velocity > 0.3) { setSheetHeightPct(50); setToolbarCollapsed(false); }
+            }}
+            onTouchCancel={(e) => {
+              delete e.currentTarget.dataset.swipeStartY;
+              delete e.currentTarget.dataset.swipeStartT;
             }}
           >
             <div className="w-10 h-1 rounded-full bg-foreground/30 mb-1.5" />
@@ -4744,7 +4755,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     : "bg-background/95 border-border text-foreground"
               )}
               style={{ right: 68 }}
-              onPointerDown={(e) => { e.stopPropagation(); }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                ignoreNextLandscapeBenchOpenRef.current = true;
+                window.setTimeout(() => {
+                  ignoreNextLandscapeBenchOpenRef.current = false;
+                }, 300);
+              }}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                ignoreNextLandscapeBenchOpenRef.current = true;
+                window.setTimeout(() => {
+                  ignoreNextLandscapeBenchOpenRef.current = false;
+                }, 300);
+              }}
               onClick={(e) => {
                 e.stopPropagation();
                 setShowFloatingDrawToolbar(prev => !prev);
