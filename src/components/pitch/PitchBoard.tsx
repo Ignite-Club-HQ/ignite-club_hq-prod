@@ -3928,8 +3928,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             onMouseDown={handleTimerDragStart}
             onTouchStart={handleTimerTouchStart}
           >
-            <div className="flex flex-col items-center bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col items-center bg-background/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg">
+              <div className="flex items-center gap-2.5">
               <GameTimer 
                 key={timerResetKey}
                 ref={gameTimerRef} 
@@ -3946,7 +3946,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               {!readOnly && !disableAutoSubs && (
                 <button
                   className={cn(
-                    "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
+                    "text-xs font-bold uppercase tracking-wider px-2 py-1 rounded transition-colors",
                     autoSubActive
                       ? "bg-primary text-primary-foreground animate-pulse"
                       : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -3960,25 +3960,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     }
                   }}
                 >
-                  {autoSubActive ? "AUTO" : "AUTO"}
+                  AUTO
                 </button>
               )}
               </div>
-              <div className="flex items-center gap-2 mt-0.5 relative">
+              <div className="flex items-center gap-2 mt-1 relative">
                 <button
-                  className="text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors px-1.5 py-1 rounded hover:bg-muted/50 active:bg-muted"
+                  className="text-sm text-muted-foreground font-semibold hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted/50 active:bg-muted"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerFormationDropdownOpen(prev => !prev); }}
                 >
                   {FORMATIONS[teamSize][selectedFormation]?.name} ▾
                 </button>
-                <span className="text-xs text-muted-foreground">•</span>
+                <span className="text-sm text-muted-foreground">•</span>
                 <button
-                  className="flex items-center gap-1 text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors px-1.5 py-1 rounded hover:bg-muted/50 active:bg-muted"
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground font-semibold hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted/50 active:bg-muted"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) { const order: TacticalMode[] = ["defend", "neutral", "attack"]; const next = order[(order.indexOf(tacticalMode) + 1) % 3]; handleTacticalModeChange(next); } }}
                 >
-                  {tacticalMode === "defend" && <Shield className="h-3 w-3 text-blue-500" />}
-                  {tacticalMode === "neutral" && <Circle className="h-3 w-3" />}
-                  {tacticalMode === "attack" && <Swords className="h-3 w-3 text-orange-500" />}
+                  {tacticalMode === "defend" && <Shield className="h-3.5 w-3.5 text-blue-500" />}
+                  {tacticalMode === "neutral" && <Circle className="h-3.5 w-3.5" />}
+                  {tacticalMode === "attack" && <Swords className="h-3.5 w-3.5 text-orange-500" />}
                   {TACTICAL_MODE_LABELS[tacticalMode]}
                 </button>
                 {/* Formation dropdown */}
