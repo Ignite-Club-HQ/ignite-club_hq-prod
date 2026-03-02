@@ -712,10 +712,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Open auto-sub plan dialog with minutes from pitch settings
   const openAutoSubPlanDialog = useCallback((editMode?: boolean) => {
+    if (gameTimerRef.current?.isGameFinished()) {
+      toast({ title: "Game has finished", description: "Auto-sub plans can only be created during an active game" });
+      return;
+    }
     setAutoSubPlanEditMode(editMode === true);
     setAutoSubFromPreGame(false);
     setAutoSubPlanDialogOpen(true);
-  }, []);
+  }, [toast]);
 
   const handleOpenNewPlan = useCallback(() => openAutoSubPlanDialog(false), [openAutoSubPlanDialog]);
   const handleOpenEditPlan = useCallback(() => openAutoSubPlanDialog(true), [openAutoSubPlanDialog]);
@@ -2361,7 +2365,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
 
   // Auto-sub plan handlers
+  const planActivationTimeRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
+
   const handleStartAutoSubPlan = useCallback((plan: SubstitutionEvent[]) => {
+    // Record when the plan was activated so we only alert for subs scheduled AFTER this point
+    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
+    const currentHalf = gameTimerRef.current?.getCurrentHalf() || 1;
+    planActivationTimeRef.current = { seconds: currentElapsed, half: currentHalf };
     setAutoSubPlan(plan);
     setAutoSubActive(true);
     toast({ title: "Auto-sub plan started", description: `${plan.length} substitutions scheduled` });
@@ -2373,6 +2383,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setAutoSubPaused(false);
     setPendingAutoSub(null);
     setSubConfirmDialogOpen(false);
+    planActivationTimeRef.current = null;
     toast({ title: "Auto-sub plan cancelled" });
   }, [toast]);
 
@@ -2532,14 +2543,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (!autoSubActive || autoSubPlan.length === 0 || autoSubPaused) return;
     if (Date.now() - skipCooldownRef.current < 3000) return; // 3s cooldown after skip
     
-    // Find all unexecuted subs for current half that are due (skip locked players)
-    const dueSubs = autoSubPlan.filter(sub => 
-      !sub.executed && 
-      sub.half === currentHalf && 
-      elapsedSeconds >= sub.time &&
-      !pendingAutoSub &&
-      !lockedPlayerIds.has(sub.playerOut.id)
-    );
+    // Find all unexecuted subs for current half that are due
+    // Only consider subs scheduled AFTER the plan was activated (ignore past subs)
+    const activationTime = planActivationTimeRef.current;
+    const dueSubs = autoSubPlan.filter(sub => {
+      if (sub.executed) return false;
+      if (sub.half !== currentHalf) return false;
+      if (elapsedSeconds < sub.time) return false;
+      if (pendingAutoSub) return false;
+      if (lockedPlayerIds.has(sub.playerOut.id)) return false;
+      // Skip subs that were already in the past when the plan was activated
+      if (activationTime && sub.half === activationTime.half && sub.time < activationTime.seconds) return false;
+      if (activationTime && sub.half < activationTime.half) return false;
+      return true;
+    });
     
     if (dueSubs.length > 0) {
       // Group subs by time - find the earliest time and get all subs at that time
@@ -4468,7 +4485,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    {tab === "bench" ? `Bench (${playersOnBench.length})` : "Setup"}
+                    {tab === "bench" ? `Bench (${playersOnBench.length})` : "Settings"}
                   </button>
                 ))}
 
@@ -5022,7 +5039,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           open={statsOpen}
           onOpenChange={setStatsOpen}
           players={players}
-          elapsedGameTime={gameTimerRef.current?.getElapsedSeconds() || 0}
+          elapsedGameTime={((gameTimerRef.current?.getCurrentHalf() || 1) === 2 ? (gameTimerRef.current?.getMinutesPerHalf() || 0) * 60 : 0) + (gameTimerRef.current?.getElapsedSeconds() || 0)}
           goals={goals}
           teamName={teamName}
           opponentName={opponentName}
@@ -5425,7 +5442,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           : "text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      {tab === "bench" ? `Bench (${playersOnBench.length})` : "Setup"}
+                      {tab === "bench" ? `Bench (${playersOnBench.length})` : "Settings"}
                     </button>
                   ))}
 
@@ -6232,7 +6249,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         open={statsOpen}
         onOpenChange={setStatsOpen}
         players={players}
-        elapsedGameTime={gameTimerRef.current?.getElapsedSeconds() || 0}
+        elapsedGameTime={((gameTimerRef.current?.getCurrentHalf() || 1) === 2 ? (gameTimerRef.current?.getMinutesPerHalf() || 0) * 60 : 0) + (gameTimerRef.current?.getElapsedSeconds() || 0)}
         goals={goals}
         teamName={teamName}
         opponentName={opponentName}

@@ -44,24 +44,32 @@ export const computeTacticalOffsets = (
   }
 
   const isSmallSided = parseInt(teamSize) <= 7;
-  const isWide = (x: number) => x < 40 || x > 60;
+  const isWide = (x: number) => x < 42 || x > 58;
   const isLeft = (x: number) => x < 50;
 
-  // Classify midfielders for special roles
+  // Classify lines for special roles
   const midfielders = onPitch.filter(p => p.currentPitchPosition === "MID");
+  const defenders = onPitch.filter(p => p.currentPitchPosition === "DEF");
 
-  // ATTACK: pick one most-central midfielder to push higher
-  let attackPushMidId: string | null = null;
-  if (mode === "attack" && midfielders.length > 0) {
-    const sorted = [...midfielders].sort((a, b) =>
-      Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
-    );
-    attackPushMidId = sorted[0].id;
+  // ATTACK with 5+ mids: detect flat vs split midfield
+  const holdingMidIds = new Set<string>();
+  let isAttackFlatMidfield5 = false;
+  if (mode === "attack" && midfielders.length >= 5) {
+    const midYs = midfielders.map(m => m.position!.y);
+    const minY = Math.min(...midYs);
+    const maxY = Math.max(...midYs);
+    isAttackFlatMidfield5 = (maxY - minY) < 12;
+
+    if (!isAttackFlatMidfield5) {
+      const sortedByDepth = [...midfielders].sort((a, b) => b.position!.y - a.position!.y);
+      holdingMidIds.add(sortedByDepth[0].id);
+      holdingMidIds.add(sortedByDepth[1].id);
+    }
   }
 
-  // DEFEND: pick one central midfielder as anchor
+  // DEFEND: pick one central midfielder as anchor only for narrow midfield shapes
   let anchorMidId: string | null = null;
-  if (mode === "defend" && midfielders.length > 0) {
+  if (mode === "defend" && midfielders.length > 0 && midfielders.length <= 3) {
     const centralMids = midfielders.filter(m => !isWide(m.position!.x));
     const sorted = (centralMids.length > 0 ? centralMids : midfielders).sort((a, b) =>
       Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
@@ -69,18 +77,60 @@ export const computeTacticalOffsets = (
     anchorMidId = sorted[0].id;
   }
 
+  // DEFEND with 5+ mids: detect if it's a split (4-2-3-1) or flat (3-5-2) midfield
+  let defendCentralPlaymakerId: string | null = null;
+  let isFlatMidfield5 = false;
+  if (mode === "defend" && midfielders.length >= 5) {
+    // Check if mids are on roughly the same Y line (flat) vs split lines
+    const midYs = midfielders.map(m => m.position!.y);
+    const minY = Math.min(...midYs);
+    const maxY = Math.max(...midYs);
+    isFlatMidfield5 = (maxY - minY) < 12; // within 12% = same line
+
+    if (!isFlatMidfield5) {
+      // Split midfield (e.g. 4-2-3-1): identify central attacking mid (#10)
+      const topLineCount = Math.max(1, midfielders.length - 2);
+      const highestMids = [...midfielders]
+        .sort((a, b) => a.position!.y - b.position!.y)
+        .slice(0, topLineCount);
+      const sortedByCenter = highestMids.sort((a, b) =>
+        Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
+      );
+      defendCentralPlaymakerId = sortedByCenter[0]?.id ?? null;
+    }
+  }
+
+  const defendCentralForwardX = (() => {
+    if (mode !== "defend") return null;
+    const forwards = onPitch.filter(p => p.currentPitchPosition === "FWD" && p.position);
+    if (forwards.length === 0) return null;
+    const mostCentralForward = [...forwards].sort((a, b) =>
+      Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
+    )[0];
+    return mostCentralForward.position!.x;
+  })();
+
+  const centralDefendersInBackFour = defenders.length >= 4
+    ? [...defenders]
+        .sort((a, b) => Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50))
+        .slice(0, 2)
+        .sort((a, b) => a.position!.x - b.position!.x)
+    : [];
+  const leftCentralDefenderId = centralDefendersInBackFour[0]?.id ?? null;
+  const rightCentralDefenderId = centralDefendersInBackFour[1]?.id ?? null;
+
   // In defend mode, keep a clear visual channel between defenders and goalkeeper.
   const projectedGoalkeeperY = (() => {
     if (mode !== "defend") return null;
     const gk = onPitch.find(player => player.currentPitchPosition === "GK" && player.position);
     if (!gk) return null;
 
-    let gkY = gk.position!.y + 1; // match defend-mode GK offset
+    let gkY = gk.position!.y; // match defend-mode GK offset
     if (gkY < 20) gkY = 20;
     if (gkY > 84) gkY = 84;
     return gkY;
   })();
-  const MIN_DEFENDER_GK_GAP = isSmallSided ? 13 : 14;
+  const MIN_DEFENDER_GK_GAP = isSmallSided ? 8 : 10;
 
   // In attack mode, keep midfield clearly separated from the forward line.
   const projectedDeepestForwardY = (() => {
@@ -96,7 +146,7 @@ export const computeTacticalOffsets = (
       return Math.max(deepestY, projectedY);
     }, 20);
   })();
-  const MIN_MID_FORWARD_GAP = isSmallSided ? 14 : 12;
+  const MIN_MID_FORWARD_GAP = isSmallSided ? 20 : 18;
 
   for (const p of onPitch) {
     const bx = p.position!.x;
@@ -108,57 +158,108 @@ export const computeTacticalOffsets = (
     if (mode === "attack") {
       switch (pos) {
         case "GK":
-          dy = -2; // sweeper-keeper: barely off line
+          dy = -4; // sweeper-keeper: step off line
           break;
         case "DEF":
-          // Push up slightly to compress space; wide defenders spread
-          dy = isSmallSided ? -3 : -4;
-          if (isWide(bx)) dx = isLeft(bx) ? -2 : 2; // spread wide
+          // Back line steps up to compress space; wide defenders spread
+          dy = isSmallSided ? -6 : -8;
+          if (isWide(bx)) dx = isLeft(bx) ? -8 : 8; // spread wide
           break;
         case "MID":
-          // Midfield pushes noticeably higher (all mids keep same vertical line)
-          dy = isSmallSided ? -5 : -7;
-          if (p.id === attackPushMidId) {
-            // Central playmaker only adjusts horizontally to stay aligned vertically
-            if (isWide(bx)) dx = isLeft(bx) ? 2 : -2; // tuck central
+          if (isAttackFlatMidfield5 && midfielders.length >= 5) {
+            // Flat midfield 5 (e.g. 3-5-2): push all up evenly, spread across lanes
+            dy = isSmallSided ? -12 : -16;
+            const sortedByX = [...midfielders].sort((a, b) => a.position!.x - b.position!.x);
+            const myIndex = sortedByX.findIndex(m => m.id === p.id);
+            const lanes = [10, 28, 50, 72, 90];
+            dx = lanes[myIndex] - bx;
+          } else if (holdingMidIds.has(p.id)) {
+            // Holding mids: stay deeper, only slight push forward
+            dy = isSmallSided ? -4 : -6;
+            if (isWide(bx)) dx = isLeft(bx) ? -6 : 6;
+            else dx = bx <= 50 ? -6 : 6;
           } else {
-            // Wide mids spread out
-            if (isWide(bx)) dx = isLeft(bx) ? -3 : 3;
+            // Attacking mids: push much higher toward forwards
+            dy = isSmallSided ? -16 : -20;
+            if (isWide(bx)) {
+              dx = isLeft(bx) ? -10 : 10;
+            } else if (holdingMidIds.size > 0) {
+              // 5+ mid shape (e.g. 4-2-3-1): most central attacking mid stays as #10
+              const attackingMids = midfielders.filter(m => !holdingMidIds.has(m.id));
+              const sortedByCenter = [...attackingMids].sort((a, b) =>
+                Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
+              );
+              if (sortedByCenter[0]?.id === p.id) {
+                dx = 0;
+              } else {
+                dx = bx <= 50 ? -8 : 8;
+              }
+            } else if (midfielders.length >= 4) {
+              dx = bx <= 50 ? -8 : 8;
+            }
           }
           break;
-        case "FWD":
-          // Forwards push highest, stretch the pitch
-          dy = isSmallSided ? -6 : -8;
-          if (isWide(bx)) dx = isLeft(bx) ? -3 : 3; // wide forwards spread
+        case "FWD": {
+          // Forwards push highest — clear visible jump
+          dy = isSmallSided ? -18 : -22;
+          const forwards = onPitch.filter(pl => pl.currentPitchPosition === "FWD");
+          const fwdSpread = forwards.length <= 2 ? 6 : 12;
+          if (isWide(bx)) dx = isLeft(bx) ? -fwdSpread : fwdSpread;
+        }
           break;
       }
     } else if (mode === "defend") {
       switch (pos) {
         case "GK":
-          dy = 1; // stay deep
+          dy = 0; // GK already deep; clamping would pull them forward
           break;
         case "DEF":
-          // Defenders drop deep and tuck in to be compact
-          dy = isSmallSided ? 4 : 6;
-          if (isWide(bx)) dx = isLeft(bx) ? 2 : -2; // tuck narrow
+          // Defenders drop clearly deeper and tuck in compact
+          dy = isSmallSided ? 26 : 28;
+          if (p.id === leftCentralDefenderId) {
+            dx = (50 - 7) - bx; // fixed central-left lane in back-four
+          } else if (p.id === rightCentralDefenderId) {
+            dx = (50 + 7) - bx; // fixed central-right lane in back-four
+          } else if (isWide(bx)) {
+            dx = isLeft(bx) ? 6 : -6; // tuck narrow
+          } else if (bx < 50) {
+            dx = -6;
+          } else if (bx > 50) {
+            dx = 6;
+          }
           break;
         case "MID":
-          // Midfield drops moderately to shield defence (all mids keep same vertical line)
-          dy = isSmallSided ? 2 : 4;
+          // Midfield drops to protect space in front of defenders
+          dy = isSmallSided ? 6 : 8;
           if (p.id === anchorMidId) {
-            // Anchor only adjusts horizontally to stay central
-            if (bx < 45) dx = 2;
-            else if (bx > 55) dx = -2;
+            // Anchor stays central-ish for narrow midfield shapes
+            if (bx < 45) dx = 6;
+            else if (bx > 55) dx = -6;
             isAnchor = true;
+          } else if (isFlatMidfield5 && midfielders.length >= 5) {
+            // Flat midfield 5 (e.g. 3-5-2): spread evenly across fixed lanes
+            const sortedByX = [...midfielders].sort((a, b) => a.position!.x - b.position!.x);
+            const myIndex = sortedByX.findIndex(m => m.id === p.id);
+            const lanes = [15, 30, 50, 70, 85];
+            dx = lanes[myIndex] - bx;
+          } else if (midfielders.length >= 4) {
+            // Split midfield (e.g. 4-2-3-1) or 4-mid shapes
+            if (p.id === defendCentralPlaymakerId) {
+              const targetX = defendCentralForwardX ?? 50;
+              dx = targetX - bx;
+            } else if (isWide(bx)) dx = isLeft(bx) ? 3 : -3;
+            else dx = bx <= 50 ? -4 : 4;
           } else {
-            // Wide mids tuck in
-            if (isWide(bx)) dx = isLeft(bx) ? 2 : -2;
+            // Smaller midfield shapes: wide mids tuck in
+            if (isWide(bx)) dx = isLeft(bx) ? 8 : -8;
+            else if (bx < 50) dx = -6;
+            else if (bx > 50) dx = 6;
           }
           break;
         case "FWD":
-          // Forwards drop only a little — stay as outlet
-          dy = isSmallSided ? 2 : 3;
-          if (isWide(bx)) dx = isLeft(bx) ? 1 : -1; // slight tuck
+          // Forwards drop slightly but remain as outlet
+          dy = isSmallSided ? 4 : 6;
+          if (isWide(bx)) dx = isLeft(bx) ? 6 : -6; // tuck in
           break;
       }
     }
@@ -209,8 +310,8 @@ export const computeBallOffset = (
 ): { dx: number; dy: number } => {
   if (mode === "neutral") return { dx: 0, dy: 0 };
 
-  // Start with a mode-based nudge to keep ball in a sensible area
-  let dy = mode === "attack" ? -4 : 3;
+  // Start at center dot (no mode-based nudge)
+  let dy = 0;
   let dx = 0;
 
   const bx = ballPosition.x + dx;
