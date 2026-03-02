@@ -1171,7 +1171,39 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [subMode, setSubMode] = useState(false);
   const [selectedOnPitch, setSelectedOnPitch] = useState<string | null>(null);
   const [selectedOnBench, setSelectedOnBench] = useState<string | null>(null);
-  const [subAnimationPlayers, setSubAnimationPlayers] = useState<{ in: string | null; out: string | null }>({ in: null, out: null });
+  const [subAnimationPlayers, setSubAnimationPlayers] = useState<{ in: string | null; out: string | null; swap: string | null }>({ in: null, out: null, swap: null });
+  const subAnimationTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  // Sequential chain animation helper
+  const runSubAnimation = useCallback((playerOutId: string, playerInId: string, swapPlayerId?: string) => {
+    // Clear any existing animation timers
+    subAnimationTimers.current.forEach(t => clearTimeout(t));
+    subAnimationTimers.current = [];
+
+    // Step 1: Immediately highlight player going off
+    setSubAnimationPlayers({ in: null, out: playerOutId, swap: null });
+
+    // Step 2: After 500ms, show player coming on
+    const t1 = setTimeout(() => {
+      setSubAnimationPlayers({ in: playerInId, out: playerOutId, swap: null });
+    }, 500);
+    subAnimationTimers.current.push(t1);
+
+    // Step 3: After 1000ms, show swap player moving (if applicable)
+    if (swapPlayerId) {
+      const t2 = setTimeout(() => {
+        setSubAnimationPlayers({ in: playerInId, out: playerOutId, swap: swapPlayerId });
+      }, 1000);
+      subAnimationTimers.current.push(t2);
+    }
+
+    // Step 4: Clear all animations
+    const tClear = setTimeout(() => {
+      setSubAnimationPlayers({ in: null, out: null, swap: null });
+      subAnimationTimers.current = [];
+    }, swapPlayerId ? 2500 : 1800);
+    subAnimationTimers.current.push(tClear);
+  }, []);
 
   // Manual substitution confirmation dialog state
   const [manualSubConfirmOpen, setManualSubConfirmOpen] = useState(false);
@@ -1975,29 +2007,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const removePosition = { ...playerToRemove.position };
     const swapPosition = { ...playerToSwap.position };
     
-    setSubAnimationPlayers({ in: pendingSubBenchPlayer, out: playerToRemoveId });
+    runSubAnimation(playerToRemoveId, pendingSubBenchPlayer!, playerToSwapId);
     
     setPlayers(prev => prev.map(p => {
       if (p.id === playerToRemoveId) {
-        // This player goes to bench
         return { ...p, position: null, currentPitchPosition: undefined };
       }
       if (p.id === playerToSwapId) {
-        // This player moves to the removed player's position
         return { ...p, position: removePosition, currentPitchPosition: requiredPosition };
       }
       if (p.id === pendingSubBenchPlayer) {
-        // Bench player comes on to the swapped player's old position
         return { ...p, position: swapPosition, currentPitchPosition: playerToSwap.currentPitchPosition };
       }
       return p;
     }));
     
     toast({ title: "Substitution made", description: `${benchPlayer.name} comes on, ${playerToRemove.name} off` });
-    
-    setTimeout(() => {
-      setSubAnimationPlayers({ in: null, out: null });
-    }, 1500);
     
     setPositionSwapDialogOpen(false);
     setPendingSubBenchPlayer(null);
@@ -2119,29 +2144,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const pitchPositionType = pitchPlayer.currentPitchPosition;
     const swapPosition = { ...swapPlayer.position };
     
-    setSubAnimationPlayers({ in: pendingSwapBasedSub.benchPlayerId, out: pendingSwapBasedSub.pitchPlayerId });
+    runSubAnimation(pendingSwapBasedSub.pitchPlayerId, pendingSwapBasedSub.benchPlayerId, pendingSwapBasedSub.swapPlayerId);
     
     setPlayers(prev => prev.map(p => {
       if (p.id === pendingSwapBasedSub.pitchPlayerId) {
-        // This player goes to bench
         return { ...p, position: null, currentPitchPosition: undefined };
       }
       if (p.id === pendingSwapBasedSub.swapPlayerId) {
-        // This player moves to the removed player's position
         return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
       }
       if (p.id === pendingSwapBasedSub.benchPlayerId) {
-        // Bench player comes on to the swapped player's old position
         return { ...p, position: swapPosition, currentPitchPosition: swapPlayer.currentPitchPosition };
       }
       return p;
     }));
     
     toast({ title: "Substitution made", description: `${benchPlayer.name} comes on, ${pitchPlayer.name} off` });
-    
-    setTimeout(() => {
-      setSubAnimationPlayers({ in: null, out: null });
-    }, 1500);
     
     setSubAfterSwapDialogOpen(false);
     setPendingSwapBasedSub(null);
@@ -2764,8 +2782,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Apply all player changes at once
     setPlayers(updatedPlayers);
     
-    // Set animation for primary sub only
-    setSubAnimationPlayers({ in: pendingAutoSub.playerIn.id, out: pendingAutoSub.playerOut.id });
+    const primarySwapPlayer = pendingAutoSub.positionSwap?.player?.id;
+    runSubAnimation(pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id, primarySwapPlayer);
     
     // Mark all processed subs as executed
     setAutoSubPlan(prev => prev.map(sub => {
@@ -2780,10 +2798,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       ? `${successCount} substitutions made`
       : `${pendingAutoSub.playerIn.name} replaces ${pendingAutoSub.playerOut.name}`;
     toast({ title: allPendingSubs.length > 1 ? "Substitutions made" : "Substitution made", description: toastDescription });
-    
-    setTimeout(() => {
-      setSubAnimationPlayers({ in: null, out: null });
-    }, 1500);
     
     setSubConfirmDialogOpen(false);
     setPendingAutoSub(null);
@@ -3727,19 +3741,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const swapPosition = { ...swapPlayer.position };
       const swapPositionType = swapPlayer.currentPitchPosition;
       
-      setSubAnimationPlayers({ in: pendingManualSub.benchPlayerId, out: pendingManualSub.pitchPlayerId });
+      runSubAnimation(pendingManualSub.pitchPlayerId, pendingManualSub.benchPlayerId, pendingManualSub.swapPlayerId);
       
       setPlayers(prev => prev.map(p => {
         if (p.id === pendingManualSub.pitchPlayerId) {
-          // This player goes to bench
           return { ...p, position: null, currentPitchPosition: undefined };
         }
         if (p.id === pendingManualSub.swapPlayerId) {
-          // This player moves to the removed player's position
           return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
         }
         if (p.id === pendingManualSub.benchPlayerId) {
-          // Bench player comes on to the swapped player's old position
           return { ...p, position: swapPosition, currentPitchPosition: swapPositionType };
         }
         return p;
@@ -3753,7 +3764,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const pitchPosition = { ...pitchPlayer.position };
       const pitchPositionType = pitchPlayer.currentPitchPosition;
       
-      setSubAnimationPlayers({ in: pendingManualSub.benchPlayerId, out: pendingManualSub.pitchPlayerId });
+      runSubAnimation(pendingManualSub.pitchPlayerId, pendingManualSub.benchPlayerId);
       
       setPlayers(prev => prev.map(p => {
         if (p.id === pendingManualSub.pitchPlayerId) {
@@ -3767,10 +3778,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       
       toast({ title: "Substitution made", description: `${benchPlayer.name} replaces ${pitchPlayer.name}` });
     }
-    
-    setTimeout(() => {
-      setSubAnimationPlayers({ in: null, out: null });
-    }, 1500);
     
     // Reset state - exit sub mode after completing a sub
     setManualSubConfirmOpen(false);
@@ -4306,7 +4313,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   isMovable={movablePitchPlayerIds.has(player.id)}
                   isPreviewHighlight={previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id}
                   previewHighlightType={previewSwapPlayers.sourceId === player.id ? "source" : previewSwapPlayers.targetId === player.id ? "target" : null}
-                  subAnimation={subAnimationPlayers.in === player.id ? "in" : null}
+                  subAnimation={subAnimationPlayers.in === player.id ? "in" : subAnimationPlayers.swap === player.id ? "swap" : null}
                   readOnly={readOnly}
                   teamColor={getPlayerTeamColor(player)}
                   style={{
@@ -4320,10 +4327,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         left: `${player.position!.x + tx}%`,
                         top: `${player.position!.y + ty}%`,
                         transform: "translate(-50%, -50%)",
-                        transition: isDragging ? "none" : "left 0.4s ease-out, top 0.4s ease-out",
+                        transition: isDragging ? "none" : "left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
                       };
                     })(),
-                    zIndex: previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
+                    zIndex: (subAnimationPlayers.in === player.id || subAnimationPlayers.swap === player.id) ? 40 : previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
                     cursor: readOnly ? "default" : ((subMode || swapMode) ? "pointer" : "grab"),
                   }}
                 />
@@ -6136,7 +6143,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 isMovable={movablePitchPlayerIds.has(player.id)}
                 isPreviewHighlight={previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id}
                 previewHighlightType={previewSwapPlayers.sourceId === player.id ? "source" : previewSwapPlayers.targetId === player.id ? "target" : null}
-                subAnimation={subAnimationPlayers.in === player.id ? "in" : null}
+                subAnimation={subAnimationPlayers.in === player.id ? "in" : subAnimationPlayers.swap === player.id ? "swap" : null}
                 readOnly={readOnly}
                 teamColor={getPlayerTeamColor(player)}
                 style={{
@@ -6150,10 +6157,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       left: `${player.position!.x + tx}%`,
                       top: `${player.position!.y + ty}%`,
                       transform: "translate(-50%, -50%)",
-                      transition: isDragging ? "none" : "left 0.4s ease-out, top 0.4s ease-out",
+                      transition: isDragging ? "none" : "left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
                     };
                   })(),
-                  zIndex: previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
+                  zIndex: (subAnimationPlayers.in === player.id || subAnimationPlayers.swap === player.id) ? 40 : previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
                   cursor: readOnly ? "default" : ((subMode || swapMode) ? "pointer" : "grab"),
                 }}
               />
