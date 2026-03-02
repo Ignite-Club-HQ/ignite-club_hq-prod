@@ -5288,11 +5288,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               </Button>
             )}
             <div className="w-px h-5 bg-border mx-0.5 shrink-0" />
-            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setTimeout(() => setResetGameConfirmOpen(true), 0);
-            }}>
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={handleResetFormation} title="Reset Formation">
               <RotateCcw className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setStatsOpen(true)}>
