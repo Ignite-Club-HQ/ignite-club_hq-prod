@@ -3928,9 +3928,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             onMouseDown={handleTimerDragStart}
             onTouchStart={handleTimerTouchStart}
           >
-            <div className="flex flex-col items-center bg-background/95 backdrop-blur-md rounded-xl px-5 py-3 shadow-xl border border-border/50">
-              {/* Top row: Score | Timer | AUTO */}
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col items-center bg-black/60 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+              {/* Main row: Score | Timer | Play | AUTO */}
+              <div className="flex items-center gap-2">
                 {gameInProgress && !hideScores && (
                   <ScoreTracker
                     goals={goals}
@@ -3951,7 +3951,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <GameTimer 
                   key={timerResetKey}
                   ref={gameTimerRef} 
-                  large
+                  compact
                   teamId={teamId} 
                   teamName={teamName} 
                   onTimeUpdate={handleTimerUpdate} 
@@ -3964,10 +3964,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {!readOnly && !disableAutoSubs && (
                   <button
                     className={cn(
-                      "text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md transition-colors",
+                      "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
                       autoSubActive
                         ? "bg-primary text-primary-foreground animate-pulse"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        : "bg-white/20 text-white/70 hover:bg-white/30"
                     )}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -3983,21 +3983,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 )}
               </div>
               {/* Bottom row: Formation • Tactical */}
-              <div className="flex items-center gap-2 mt-1.5 relative">
+              <div className="flex items-center gap-1.5 mt-0.5 relative">
                 <button
-                  className="text-sm text-muted-foreground font-semibold hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted/50 active:bg-muted"
+                  className="text-xs text-white/60 font-medium hover:text-white/90 transition-colors px-1.5 py-0.5 rounded hover:bg-white/10 active:bg-white/20"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerFormationDropdownOpen(prev => !prev); }}
                 >
                   {FORMATIONS[teamSize][selectedFormation]?.name} ▾
                 </button>
-                <span className="text-sm text-muted-foreground">•</span>
+                <span className="text-white/30 text-xs">•</span>
                 <button
-                  className="flex items-center gap-1.5 text-sm text-muted-foreground font-semibold hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted/50 active:bg-muted"
+                  className="flex items-center gap-1 text-xs text-white/60 font-medium hover:text-white/90 transition-colors px-1.5 py-0.5 rounded hover:bg-white/10 active:bg-white/20"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) { const order: TacticalMode[] = ["defend", "neutral", "attack"]; const next = order[(order.indexOf(tacticalMode) + 1) % 3]; handleTacticalModeChange(next); } }}
                 >
-                  {tacticalMode === "defend" && <Shield className="h-3.5 w-3.5 text-blue-500" />}
-                  {tacticalMode === "neutral" && <Circle className="h-3.5 w-3.5" />}
-                  {tacticalMode === "attack" && <Swords className="h-3.5 w-3.5 text-orange-500" />}
+                  {tacticalMode === "defend" && <Shield className="h-3 w-3 text-blue-400" />}
+                  {tacticalMode === "neutral" && <Circle className="h-3 w-3 text-white/60" />}
+                  {tacticalMode === "attack" && <Swords className="h-3 w-3 text-orange-400" />}
                   {TACTICAL_MODE_LABELS[tacticalMode]}
                 </button>
                 {/* Formation dropdown */}
