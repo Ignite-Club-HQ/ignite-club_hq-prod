@@ -4662,11 +4662,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <div className="flex justify-center pt-2 pb-1">
                   <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
                 </div>
-
-                {/* Bench header */}
-                <div className="flex items-center justify-between px-3 pt-2 pb-1">
-                  <div className="w-10 h-1 rounded-full bg-muted-foreground/30 mx-auto" />
-                </div>
               </div>
 
 
