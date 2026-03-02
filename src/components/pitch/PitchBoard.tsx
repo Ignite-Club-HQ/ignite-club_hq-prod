@@ -3872,7 +3872,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               variant={autoSubActive ? "secondary" : "ghost"}
               size="sm"
               className="h-10 shrink-0 gap-1.5 px-3 text-sm"
-              onClick={autoSubActive ? () => { setBottomSheetTab("bench"); setSheetHeightPct(88); setToolbarCollapsed(false); } : handleOpenNewPlan}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (autoSubActive) {
+                  setBottomSheetTab("bench");
+                  setSheetHeightPct(88);
+                  setToolbarCollapsed(false);
+                } else {
+                  handleOpenNewPlan();
+                }
+              }}
             >
               <Calendar className="h-4 w-4" />
               {autoSubActive ? "Auto ✓" : "Auto"}
