@@ -644,7 +644,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const deltaY = moveEvent.clientY - floatingTimerDragRef.current.startY;
       setFloatingTimerPosition({
         x: Math.max(-200, floatingTimerDragRef.current.startPosX + deltaX),
-        y: Math.max(-60, floatingTimerDragRef.current.startPosY + deltaY),
+        y: Math.max(-220, floatingTimerDragRef.current.startPosY + deltaY),
       });
     };
     
@@ -705,7 +705,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const deltaY = touch.clientY - floatingTimerDragRef.current.startY;
       setFloatingTimerPosition({
         x: Math.max(-200, floatingTimerDragRef.current.startPosX + deltaX),
-        y: Math.max(-60, floatingTimerDragRef.current.startPosY + deltaY),
+        y: Math.max(-220, floatingTimerDragRef.current.startPosY + deltaY),
       });
     };
     
@@ -771,7 +771,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const deltaY = t.clientY - portraitTimerDragRef.current.startY;
       setPortraitTimerPosition({
         x: Math.max(-200, portraitTimerDragRef.current.startPosX + deltaX),
-        y: Math.max(-60, portraitTimerDragRef.current.startPosY + deltaY),
+        y: Math.max(-220, portraitTimerDragRef.current.startPosY + deltaY),
       });
     };
     
