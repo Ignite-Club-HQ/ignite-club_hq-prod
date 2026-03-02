@@ -25,7 +25,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 // Lazy load PitchBoard - it's a heavy 4k+ line component with Fabric.js
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 import GameTimerWidget from "@/components/pitch/GameTimerWidget";
-import PendingSubWidget from "@/components/pitch/PendingSubWidget";
+
 import { MiniLeagueGameWidgets } from "@/components/MiniLeagueGameWidgets";
 import { APP_STORE_URL, PLAY_STORE_URL } from "@/components/AppStoreDownloadGuide";
 import { Link, useNavigate } from "react-router-dom";
@@ -1497,30 +1497,10 @@ export default function HomePage() {
         );
         
         return (
-          <>
-            <GameTimerWidget 
-              onOpenPitchBoard={hasEditAccess ? openPitchBoard : undefined}
-              readOnly={!hasEditAccess}
-            />
-            <PendingSubWidget 
-              readOnly={!hasEditAccess}
-              onAcceptSub={() => {
-                if (!hasEditAccess) return;
-                // Open pitch board for the active game team
-                const timerState = localStorage.getItem('pitch-board-timer-state');
-                if (timerState) {
-                  try {
-                    const parsed = JSON.parse(timerState);
-                    if (parsed.teamId && parsed.teamName) {
-                      openPitchBoard(parsed.teamId, parsed.teamName, false);
-                    }
-                  } catch {
-                    // Ignore parsing errors
-                  }
-                }
-              }} 
-            />
-          </>
+          <GameTimerWidget 
+            onOpenPitchBoard={hasEditAccess ? openPitchBoard : undefined}
+            readOnly={!hasEditAccess}
+          />
         );
       })()}
 
