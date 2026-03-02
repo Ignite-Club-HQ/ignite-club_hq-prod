@@ -1205,6 +1205,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [subAfterSwapDialogOpen, setSubAfterSwapDialogOpen] = useState(false);
   const [resetGameConfirmOpen, setResetGameConfirmOpen] = useState(false);
   const [timerFormationDropdownOpen, setTimerFormationDropdownOpen] = useState(false);
+  const [timerTacticalDropdownOpen, setTimerTacticalDropdownOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
   const [pitchPlayerActionOpen, setPitchPlayerActionOpen] = useState(false);
   const [pitchPlayerActionTarget, setPitchPlayerActionTarget] = useState<string | null>(null);
@@ -3993,13 +3994,40 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <span className="text-white/30 text-xs">•</span>
                 <button
                   className="flex items-center gap-1 text-xs text-white/60 font-medium hover:text-white/90 transition-colors px-1.5 py-0.5 rounded hover:bg-white/10 active:bg-white/20"
-                  onClick={(e) => { e.stopPropagation(); if (!readOnly) { const order: TacticalMode[] = ["defend", "neutral", "attack"]; const next = order[(order.indexOf(tacticalMode) + 1) % 3]; handleTacticalModeChange(next); } }}
+                  onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerTacticalDropdownOpen(prev => !prev); }}
                 >
                   {tacticalMode === "defend" && <Shield className="h-3 w-3 text-blue-400" />}
                   {tacticalMode === "neutral" && <Circle className="h-3 w-3 text-white/60" />}
                   {tacticalMode === "attack" && <Swords className="h-3 w-3 text-orange-400" />}
-                  {TACTICAL_MODE_LABELS[tacticalMode]}
+                  {TACTICAL_MODE_LABELS[tacticalMode]} ▾
                 </button>
+                {/* Tactical dropdown */}
+                {timerTacticalDropdownOpen && (
+                  <>
+                  <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerTacticalDropdownOpen(false); }} />
+                  <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[130px] py-1">
+                    {(["defend", "neutral", "attack"] as TacticalMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center gap-2",
+                          mode === tacticalMode && "bg-muted font-semibold"
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTacticalModeChange(mode);
+                          setTimerTacticalDropdownOpen(false);
+                        }}
+                      >
+                        {mode === "defend" && <Shield className="h-3.5 w-3.5 text-blue-500" />}
+                        {mode === "neutral" && <Circle className="h-3.5 w-3.5 text-muted-foreground" />}
+                        {mode === "attack" && <Swords className="h-3.5 w-3.5 text-orange-500" />}
+                        {TACTICAL_MODE_LABELS[mode]}
+                      </button>
+                    ))}
+                  </div>
+                  </>
+                )}
                 {/* Formation dropdown */}
                 {timerFormationDropdownOpen && (
                   <>
@@ -5314,13 +5342,40 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <span className="text-xs text-muted-foreground">•</span>
                 <button
                   className="flex items-center gap-1 text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors px-1.5 py-1 rounded hover:bg-muted/50 active:bg-muted"
-                  onClick={(e) => { e.stopPropagation(); if (!readOnly) { const order: TacticalMode[] = ["defend", "neutral", "attack"]; const next = order[(order.indexOf(tacticalMode) + 1) % 3]; handleTacticalModeChange(next); } }}
+                  onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerTacticalDropdownOpen(prev => !prev); }}
                 >
                   {tacticalMode === "defend" && <Shield className="h-3 w-3 text-blue-500" />}
                   {tacticalMode === "neutral" && <Circle className="h-3 w-3" />}
                   {tacticalMode === "attack" && <Swords className="h-3 w-3 text-orange-500" />}
-                  {TACTICAL_MODE_LABELS[tacticalMode]}
+                  {TACTICAL_MODE_LABELS[tacticalMode]} ▾
                 </button>
+                {/* Tactical dropdown - portrait */}
+                {timerTacticalDropdownOpen && (
+                  <>
+                  <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerTacticalDropdownOpen(false); }} />
+                  <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[130px] py-1">
+                    {(["defend", "neutral", "attack"] as TacticalMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center gap-2",
+                          mode === tacticalMode && "bg-muted font-semibold"
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTacticalModeChange(mode);
+                          setTimerTacticalDropdownOpen(false);
+                        }}
+                      >
+                        {mode === "defend" && <Shield className="h-3.5 w-3.5 text-blue-500" />}
+                        {mode === "neutral" && <Circle className="h-3.5 w-3.5 text-muted-foreground" />}
+                        {mode === "attack" && <Swords className="h-3.5 w-3.5 text-orange-500" />}
+                        {TACTICAL_MODE_LABELS[mode]}
+                      </button>
+                    ))}
+                  </div>
+                  </>
+                )}
                 {/* Formation dropdown */}
                 {timerFormationDropdownOpen && (
                   <>
