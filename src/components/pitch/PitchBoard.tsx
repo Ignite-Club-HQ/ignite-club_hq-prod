@@ -4468,7 +4468,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    {tab === "bench" ? `Bench (${playersOnBench.length})` : "Setup"}
+                    {tab === "bench" ? `Bench (${playersOnBench.length})` : "Settings"}
                   </button>
                 ))}
 
@@ -5425,7 +5425,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           : "text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      {tab === "bench" ? `Bench (${playersOnBench.length})` : "Setup"}
+                      {tab === "bench" ? `Bench (${playersOnBench.length})` : "Settings"}
                     </button>
                   ))}
 
