@@ -623,7 +623,10 @@ export default function GlobalSubMonitor() {
                 // Audio may fail silently
               }
             }
-            showBrowserNotification("🔄 Substitution Alert", notificationBody);
+            showBrowserNotification("🔄 Substitution Alert", notificationBody, () => {
+              // On click, re-trigger the sub confirmation dialog
+              window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
+            });
           });
         }
         
@@ -655,7 +658,48 @@ export default function GlobalSubMonitor() {
     return true;
   }, []);
 
-  // Set up smart polling - only when needed
+  // Force-open sub confirmation from notification click
+  const forceOpenSubConfirmation = useCallback(() => {
+    const pitchState = loadPitchState();
+    const timerState = loadTimerState();
+    if (!pitchState || !timerState) return;
+
+    // Calculate current elapsed time
+    const now = Date.now();
+    const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
+    const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+    const currentHalf = timerState.currentHalf;
+
+    // Find unexecuted subs that are due
+    const dueSubs = pitchState.autoSubPlan?.filter(sub => 
+      !sub.executed && 
+      sub.half === currentHalf && 
+      currentElapsed >= sub.time
+    ) || [];
+
+    if (dueSubs.length > 0) {
+      const earliestTime = Math.min(...dueSubs.map(s => s.time));
+      const batchSubs = dueSubs.filter(s => s.time === earliestTime);
+      const [primarySub, ...additionalSubs] = batchSubs;
+      setCurrentPlayers(pitchState.players);
+      setPendingAutoSub(primarySub);
+      setPendingBatchSubs(additionalSubs);
+      setSubConfirmDialogOpen(true);
+      return;
+    }
+
+    // No pending subs - show the most recent executed sub in read-only mode
+    const executedSubs = pitchState.autoSubPlan?.filter(s => s.executed) || [];
+    if (executedSubs.length > 0) {
+      const lastExecuted = executedSubs[executedSubs.length - 1];
+      setCurrentPlayers(pitchState.players);
+      setPendingAutoSub(lastExecuted);
+      setPendingBatchSubs([]);
+      setSubConfirmDialogOpen(true);
+    }
+  }, []);
+
+
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval> | null = null;
     let syncIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -713,6 +757,10 @@ export default function GlobalSubMonitor() {
       }
     };
     
+    // Listen for notification clicks requesting sub confirmation
+    const handleOpenSubConfirmation = () => forceOpenSubConfirmation();
+    window.addEventListener('open-sub-confirmation', handleOpenSubConfirmation);
+    
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('storage', handleStorageChange);
     
@@ -724,6 +772,7 @@ export default function GlobalSubMonitor() {
       if (syncIntervalId) clearInterval(syncIntervalId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('open-sub-confirmation', handleOpenSubConfirmation);
     };
   }, [checkForPendingSubs, checkForGameFinished, hasActiveGame, syncToDatabase]);
 
@@ -885,58 +934,32 @@ export default function GlobalSubMonitor() {
     if (!pendingAutoSub) return;
 
     const pitchState = loadPitchState();
-    const timerState = loadTimerState();
-    if (!pitchState || !timerState) return;
-    
-    // Recalculate remaining plan instead of just marking as executed
-    // This ensures equal playing time is maintained
-    const now = Date.now();
-    const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-    const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
-    const currentHalf = timerState.currentHalf;
-    const halfDurationSeconds = timerState.minutesPerHalf * 60;
-    
-    const benchPlayers = pitchState.players.filter(p => p.position === null);
-    
-    if (benchPlayers.length > 0) {
-      // Recalculate plan from current state
-      const recalculatedPlan = recalculateRemainingPlan(
-        pitchState.players,
-        getTeamSizeNumber(pitchState.teamSize),
-        halfDurationSeconds,
-        currentElapsed,
-        currentHalf,
-        pendingAutoSub,
-        true
-      );
-      
-      savePitchState({
-        ...pitchState,
-        autoSubPlan: recalculatedPlan,
-        autoSubActive: recalculatedPlan.length > 0,
-        lastUpdateTime: Date.now(),
-      });
-    } else {
-      // No bench players left, just remove the skipped sub
-      const updatedPlan = pitchState.autoSubPlan.filter(sub => 
-        !(sub.time === pendingAutoSub.time && 
-          sub.half === pendingAutoSub.half && 
-          sub.playerOut.id === pendingAutoSub.playerOut.id)
-      );
-      
-      savePitchState({
-        ...pitchState,
-        autoSubPlan: updatedPlan,
-        autoSubActive: updatedPlan.filter(s => !s.executed).length > 0,
-        lastUpdateTime: Date.now(),
-      });
-    }
+    if (!pitchState) return;
+
+    const subsToSkip = [pendingAutoSub, ...pendingBatchSubs];
+    const skippedIds = new Set(
+      subsToSkip.map(sub => `${sub.half}-${sub.time}-${sub.playerOut.id}`)
+    );
+
+    const updatedPlan = pitchState.autoSubPlan.map(sub => {
+      const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
+      return skippedIds.has(subId) ? { ...sub, executed: true } : sub;
+    });
+
+    const remainingSubs = updatedPlan.filter(sub => !sub.executed);
+
+    savePitchState({
+      ...pitchState,
+      autoSubPlan: updatedPlan,
+      autoSubActive: remainingSubs.length > 0,
+      lastUpdateTime: Date.now(),
+    });
     
     setSubConfirmDialogOpen(false);
     setPendingAutoSub(null);
     setPendingBatchSubs([]);
     lastCheckedSubRef.current = null;
-  }, [pendingAutoSub]);
+  }, [pendingAutoSub, pendingBatchSubs]);
 
   return (
     <>

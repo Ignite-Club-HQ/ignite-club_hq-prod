@@ -7,7 +7,7 @@ import {
   ResponsiveDialogDescription,
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
-import { ArrowRight, Users, LogIn, LogOut } from "lucide-react";
+import { Users, ArrowDown, ArrowUp, ArrowLeftRight, Check, X } from "lucide-react";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { cn } from "@/lib/utils";
 import { Player } from "./types";
@@ -55,16 +55,21 @@ export default function FormationChangeDialog({
   const playersGoingToBench = benchMoves.filter(m => m.direction === "to-bench");
   const hasChanges = positionSwaps.length > 0 || benchMoves.length > 0;
 
+  // Build numbered steps
+  let stepNumber = 0;
+
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
-      <ResponsiveDialogContent className="max-w-md">
+      <ResponsiveDialogContent className="max-w-md max-h-[80vh] overflow-hidden flex flex-col">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2 text-lg">
             <Users className="h-5 w-5" />
             {isTeamSizeChange ? "Team Size Change" : "Formation Change"}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            {isTeamSizeChange ? (
+            {hasChanges ? (
+              "Follow these steps on the pitch"
+            ) : isTeamSizeChange ? (
               <>
                 Change from <span className="font-semibold text-foreground">{currentTeamSize} players</span> ({currentFormation}) to{" "}
                 <span className="font-semibold text-foreground">{newTeamSize} players</span> ({newFormation})
@@ -78,133 +83,105 @@ export default function FormationChangeDialog({
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
-        <div className="space-y-3 py-2">
+        <div className="flex-1 overflow-y-auto space-y-3 py-2">
           {!hasChanges ? (
             <p className="text-sm text-muted-foreground">
               No player changes needed. Players will maintain their current roles.
             </p>
           ) : (
             <>
-              {/* Players going to bench */}
-              {playersGoingToBench.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <LogOut className="h-3.5 w-3.5" />
-                    Going to Bench
-                  </p>
-                  <div className="space-y-1.5">
-                    {playersGoingToBench.map((move) => {
-                      const posColors = move.position ? POSITION_COLORS[move.position] : null;
-                      return (
-                        <div
-                          key={move.player.id}
-                          className="flex items-center justify-between p-3 rounded-lg border border-border bg-destructive/5"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-destructive/20 flex items-center justify-center text-sm font-bold text-destructive">
-                              {move.player.number || move.player.name.slice(0, 2).toUpperCase()}
-                            </div>
-                            <span className="font-medium">{move.player.name}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            {posColors && (
-                              <span className={cn("font-bold", posColors.text)}>
-                                {move.position}
-                              </span>
-                            )}
-                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-muted-foreground font-medium">Bench</span>
-                          </div>
-                        </div>
-                      );
-                    })}
+              {/* Players going to bench — red steps */}
+              {playersGoingToBench.map((move) => {
+                stepNumber++;
+                const posColors = move.position ? POSITION_COLORS[move.position] : null;
+                return (
+                  <div
+                    key={`bench-${move.player.id}`}
+                    className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20"
+                  >
+                    <div className="flex items-center justify-center w-7 h-7 rounded-full bg-destructive text-destructive-foreground text-sm font-bold flex-shrink-0">
+                      {stepNumber}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold">
+                        Move {move.player.name} to the bench
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-0.5">
+                        {move.player.number ? `#${move.player.number} ` : ''}
+                        {posColors && `leaves ${move.position}`}
+                      </div>
+                    </div>
+                    <ArrowDown className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
                   </div>
-                </div>
-              )}
+                );
+              })}
 
-              {/* Players coming on to pitch */}
-              {playersGoingToPitch.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <LogIn className="h-3.5 w-3.5" />
-                    Coming on to Pitch
-                  </p>
-                  <div className="space-y-1.5">
-                    {playersGoingToPitch.map((move) => {
-                      const posColors = move.position ? POSITION_COLORS[move.position] : null;
-                      return (
-                        <div
-                          key={move.player.id}
-                          className="flex items-center justify-between p-3 rounded-lg border border-border bg-primary/5"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary">
-                              {move.player.number || move.player.name.slice(0, 2).toUpperCase()}
-                            </div>
-                            <span className="font-medium">{move.player.name}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="text-muted-foreground font-medium">Bench</span>
-                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                            {posColors && (
-                              <span className={cn("font-bold", posColors.text)}>
-                                {move.position}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+              {/* Players coming on to pitch — green steps */}
+              {playersGoingToPitch.map((move) => {
+                stepNumber++;
+                const posColors = move.position ? POSITION_COLORS[move.position] : null;
+                return (
+                  <div
+                    key={`pitch-${move.player.id}`}
+                    className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20"
+                  >
+                    <div className="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500 text-white text-sm font-bold flex-shrink-0">
+                      {stepNumber}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold">
+                        Move {move.player.name} to {move.position || 'the pitch'}
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-0.5">
+                        {move.player.number ? `#${move.player.number} ` : ''}
+                        comes on from bench
+                      </div>
+                    </div>
+                    <ArrowUp className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
                   </div>
-                </div>
-              )}
+                );
+              })}
 
-              {/* Position swaps */}
-              {positionSwaps.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <ArrowRight className="h-3.5 w-3.5" />
-                    Position Changes
-                  </p>
-                  <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
-                    {positionSwaps.map((swap) => {
-                      const fromColors = POSITION_COLORS[swap.fromPosition];
-                      const toColors = POSITION_COLORS[swap.toPosition];
-                      return (
-                        <div
-                          key={swap.player.id}
-                          className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/50"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary">
-                              {swap.player.number || swap.player.name.slice(0, 2).toUpperCase()}
-                            </div>
-                            <span className="font-medium">{swap.player.name}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className={cn("font-bold", fromColors.text)}>
-                              {swap.fromPosition}
-                            </span>
-                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                            <span className={cn("font-bold", toColors.text)}>
-                              {swap.toPosition}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+              {/* Position swaps — blue steps */}
+              {positionSwaps.map((swap) => {
+                stepNumber++;
+                const toColors = POSITION_COLORS[swap.toPosition];
+                return (
+                  <div
+                    key={`swap-${swap.player.id}`}
+                    className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20"
+                  >
+                    <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-500 text-white text-sm font-bold flex-shrink-0">
+                      {stepNumber}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold">
+                        Move {swap.player.name} to {swap.toPosition}
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-0.5">
+                        {swap.player.number ? `#${swap.player.number} ` : ''}
+                        shifts from {swap.fromPosition}
+                      </div>
+                    </div>
+                    {toColors && (
+                      <span className={cn("text-sm font-bold flex-shrink-0 mt-1", toColors.text)}>
+                        {swap.toPosition}
+                      </span>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })}
             </>
           )}
         </div>
 
         <ResponsiveDialogFooter className="flex-row gap-2 sm:gap-2">
-          <Button variant="outline" onClick={onCancel} className="flex-1 h-12 text-base">
+          <Button variant="outline" onClick={onCancel} className="flex-1 gap-2 h-12 text-base">
+            <X className="h-4 w-4" />
             Cancel
           </Button>
-          <Button onClick={onConfirm} className="flex-1 h-12 text-base">
+          <Button onClick={onConfirm} className="flex-1 gap-2 h-12 text-base">
+            <Check className="h-4 w-4" />
             Apply {isTeamSizeChange ? "Change" : "Formation"}
           </Button>
         </ResponsiveDialogFooter>

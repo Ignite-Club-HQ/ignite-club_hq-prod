@@ -875,10 +875,13 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
   });
 
   return (
-    <Card className={`hover:border-primary/50 transition-colors ${event.is_cancelled ? "opacity-60" : ""}`}>
+    <Card 
+      className={`hover:border-primary/50 transition-colors cursor-pointer ${event.is_cancelled ? "opacity-60" : ""}`}
+      onClick={() => navigate(`/events/${event.id}`)}
+    >
       <CardContent className="p-4">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
             <Badge className={eventTypeColors[event.type]} variant="secondary">
               {event.type}
             </Badge>
@@ -891,11 +894,19 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
             {event.is_cancelled && (
               <Badge variant="destructive">Cancelled</Badge>
             )}
-            <span className="text-xs text-muted-foreground flex items-center gap-1">
-              <span>{getSportEmoji(event.clubs.sport)}</span>
-              {event.clubs.name}
-            </span>
-            <div className="flex-1" />
+            {event.teams?.name ? (
+              <span className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                <span>{getSportEmoji(event.clubs.sport)}</span>
+                {event.teams.name}
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <span>{getSportEmoji(event.clubs.sport)}</span>
+                {event.clubs.name}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 shrink-0 ml-auto">
             {isAdmin && (
               <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                 {!event.is_cancelled && (
@@ -919,7 +930,6 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
                         disabled={remindMutation.isPending}
                         onClick={async (e) => {
                           e.preventDefault();
-                          // Fetch count of non-RSVP members first
                           const { data: rsvps } = await supabase
                             .from("rsvps")
                             .select("user_id")
@@ -969,117 +979,117 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
-
-                {/* Cancel Dialog */}
-                {isRecurring ? (
-                  <RecurringCancelEventDialog
-                    open={cancelDialogOpen}
-                    onOpenChange={setCancelDialogOpen}
-                    eventTitle={event.title}
-                    teamId={event.team_id}
-                    clubId={event.club_id}
-                    miniLeagueId={event.mini_league_id}
-                    onSingleAction={(customMessage, sendPushNotification) => cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })}
-                    onSeriesAction={(customMessage, sendPushNotification) => cancelEventMutation.mutate({ cancelType: 'series', customMessage, sendPushNotification })}
-                    isPending={cancelEventMutation.isPending}
-                  />
-                ) : (
-                  <CancelEventConfirmDialog
-                    open={cancelDialogOpen}
-                    onOpenChange={setCancelDialogOpen}
-                    eventId={event.id}
-                    eventTitle={event.title}
-                    teamId={event.team_id}
-                    clubId={event.club_id}
-                    miniLeagueId={event.mini_league_id}
-                    onConfirm={(customMessage, sendPushNotification) => cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })}
-                    isPending={cancelEventMutation.isPending}
-                  />
-                )}
-
-                {/* Delete Dialog */}
-                {isRecurring ? (
-                  <RecurringEventActionDialog
-                    open={deleteDialogOpen}
-                    onOpenChange={setDeleteDialogOpen}
-                    title="Delete Event?"
-                    description="This will permanently delete the event(s). This action cannot be undone."
-                    actionLabel="Delete"
-                    actionVariant="destructive"
-                    onSingleAction={() => deleteEventMutation.mutate('single')}
-                    onSeriesAction={() => deleteEventMutation.mutate('series')}
-                    isPending={deleteEventMutation.isPending}
-                  />
-                ) : (
-                  <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Event?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete this event. This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction 
-                          onClick={() => deleteEventMutation.mutate('single')} 
-                          className="bg-destructive text-destructive-foreground"
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
-
-                {/* Remind Dialog */}
-                <AlertDialog open={remindDialogOpen} onOpenChange={setRemindDialogOpen}>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Send Reminders?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {nonRsvpCount === 0 
-                          ? "Everyone has already RSVPed to this event!"
-                          : `This will send a reminder notification to ${nonRsvpCount} member${nonRsvpCount === 1 ? '' : 's'} who haven't RSVPed yet.`
-                        }
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      {nonRsvpCount !== 0 && (
-                        <AlertDialogAction 
-                          onClick={() => remindMutation.mutate()}
-                          disabled={remindMutation.isPending}
-                        >
-                          Send Reminders
-                        </AlertDialogAction>
-                      )}
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
               </div>
             )}
           </div>
-          <Link to={`/events/${event.id}`} className="block">
-            <h3 className={`font-semibold ${event.is_cancelled ? "line-through" : ""}`}>
-              {event.title}
-              {event.type === "game" && event.opponent && (
-                <span className="font-normal text-muted-foreground"> vs {event.opponent}</span>
-              )}
-            </h3>
-            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" />
-                {format(parseISO(event.event_date), "EEE, MMM d 'at' h:mm a")}
-              </span>
-              {event.suburb && (
-                <span className="flex items-center gap-1">
-                  <MapPin className="h-3.5 w-3.5" />
-                  {event.suburb}
-                </span>
-              )}
-            </div>
-          </Link>
+        </div>
+        <h3 className={`font-semibold ${event.is_cancelled ? "line-through" : ""}`}>
+          {event.title}
+          {event.type === "game" && event.opponent && (
+            <span className="font-normal text-muted-foreground"> vs {event.opponent}</span>
+          )}
+        </h3>
+        <div className="flex items-center gap-4 text-sm text-muted-foreground mt-0.5 flex-wrap">
+          <span className="flex items-center gap-1">
+            <Clock className="h-3.5 w-3.5" />
+            {format(parseISO(event.event_date), "EEE, MMM d 'at' h:mm a")}
+          </span>
+          {event.suburb && (
+            <span className="flex items-center gap-1">
+              <MapPin className="h-3.5 w-3.5" />
+              {event.suburb}
+            </span>
+          )}
+        </div>
+
+        {/* Cancel Dialog */}
+        <div onClick={(e) => e.stopPropagation()}>
+          {isRecurring ? (
+            <RecurringCancelEventDialog
+              open={cancelDialogOpen}
+              onOpenChange={setCancelDialogOpen}
+              eventTitle={event.title}
+              teamId={event.team_id}
+              clubId={event.club_id}
+              miniLeagueId={event.mini_league_id}
+              onSingleAction={(customMessage, sendPushNotification) => cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })}
+              onSeriesAction={(customMessage, sendPushNotification) => cancelEventMutation.mutate({ cancelType: 'series', customMessage, sendPushNotification })}
+              isPending={cancelEventMutation.isPending}
+            />
+          ) : (
+            <CancelEventConfirmDialog
+              open={cancelDialogOpen}
+              onOpenChange={setCancelDialogOpen}
+              eventId={event.id}
+              eventTitle={event.title}
+              teamId={event.team_id}
+              clubId={event.club_id}
+              miniLeagueId={event.mini_league_id}
+              onConfirm={(customMessage, sendPushNotification) => cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })}
+              isPending={cancelEventMutation.isPending}
+            />
+          )}
+
+          {/* Delete Dialog */}
+          {isRecurring ? (
+            <RecurringEventActionDialog
+              open={deleteDialogOpen}
+              onOpenChange={setDeleteDialogOpen}
+              title="Delete Event?"
+              description="This will permanently delete the event(s). This action cannot be undone."
+              actionLabel="Delete"
+              actionVariant="destructive"
+              onSingleAction={() => deleteEventMutation.mutate('single')}
+              onSeriesAction={() => deleteEventMutation.mutate('series')}
+              isPending={deleteEventMutation.isPending}
+            />
+          ) : (
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Event?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete this event. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={() => deleteEventMutation.mutate('single')} 
+                    className="bg-destructive text-destructive-foreground"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+
+          {/* Remind Dialog */}
+          <AlertDialog open={remindDialogOpen} onOpenChange={setRemindDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Send Reminders?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {nonRsvpCount === 0 
+                    ? "Everyone has already RSVPed to this event!"
+                    : `This will send a reminder notification to ${nonRsvpCount} member${nonRsvpCount === 1 ? '' : 's'} who haven't RSVPed yet.`
+                  }
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                {nonRsvpCount !== 0 && (
+                  <AlertDialogAction 
+                    onClick={() => remindMutation.mutate()}
+                    disabled={remindMutation.isPending}
+                  >
+                    Send Reminders
+                  </AlertDialogAction>
+                )}
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </CardContent>
     </Card>

@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame } from "lucide-react";
+import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PlayerToken from "./PlayerToken";
 import SoccerBall from "./SoccerBall";
@@ -275,9 +275,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [pendingBatchSubs, setPendingBatchSubs] = useState<SubstitutionEvent[]>([]);
   const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
-  const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "subs" | "setup">("bench");
+  const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
-  const [sheetHeightPct, setSheetHeightPct] = useState(50);
+  const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
+  const [pinPitchShortcuts, setPinPitchShortcuts] = useState(true);
+  const [sheetHeightPct, setSheetHeightPct] = useState(35);
   const sheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
   const [portraitSheetOpen, setPortraitSheetOpen] = useState(false);
   const [portraitSheetHeightPct, setPortraitSheetHeightPct] = useState(45);
@@ -2406,26 +2408,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       || remainingSubs[0];
     if (!nextSub) return;
 
-    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
-    const halfDurationSeconds = minsPerHalf * 60;
-    const benchPlayers = players.filter(p => p.position === null);
     const skippedId = `${nextSub.half}-${nextSub.time}-${nextSub.playerOut.id}`;
+    const updatedPlan = autoSubPlan.map(sub => {
+      const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
+      return subId === skippedId ? { ...sub, executed: true } : sub;
+    });
 
-    if (benchPlayers.length > 0) {
-      const recalculated = recalculateRemainingPlan(
-        players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, nextSub, rotateGkAtHalftime
-      );
-      const cleanedPlan = recalculated.filter(
-        sub => `${sub.half}-${sub.time}-${sub.playerOut.id}` !== skippedId
-      );
-      setAutoSubPlan(cleanedPlan);
-      toast({ title: "Substitution skipped", description: `Plan recalculated with ${cleanedPlan.length} remaining subs` });
-    } else {
-      setAutoSubPlan(prev => prev.filter(s => s !== nextSub));
-      toast({ title: "Substitution skipped" });
-    }
+    const remainingCount = updatedPlan.filter(sub => !sub.executed).length;
+    setAutoSubPlan(updatedPlan);
+    setAutoSubActive(remainingCount > 0);
+
+    toast({
+      title: "Substitution skipped",
+      description: remainingCount > 0
+        ? `${remainingCount} planned substitution${remainingCount === 1 ? "" : "s"} remaining`
+        : "No more planned substitutions",
+    });
+
     skipCooldownRef.current = Date.now();
-  }, [autoSubPlan, players, teamSize, toast]);
+  }, [autoSubPlan, toast]);
 
   const handleExecuteNow = useCallback(() => {
     const remainingSubs = autoSubPlan.filter(s => !s.executed);
@@ -2755,50 +2756,29 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Combine primary and batch subs for skipping
     const allPendingSubs = [pendingAutoSub, ...pendingBatchSubs];
     const skippedIds = allPendingSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`);
-    
-    // Instead of just marking as executed, recalculate remaining subs
-    const minutesPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
-    const halfDurationSeconds = minutesPerHalf * 60;
-    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-    const currentHalf = gameTimerRef.current?.getCurrentHalf() || 1;
-    
-    const benchPlayers = players.filter(p => p.position === null);
-    
-    if (benchPlayers.length > 0) {
-      // Recalculate plan from current state
-      const recalculatedPlan = recalculateRemainingPlan(
-        players,
-        parseInt(teamSize),
-        halfDurationSeconds,
-        currentElapsed,
-        currentHalf,
-        pendingAutoSub,
-        rotateGkAtHalftime
-      );
 
-      const cleanedPlan = recalculatedPlan.filter(sub => 
-        !skippedIds.includes(`${sub.half}-${sub.time}-${sub.playerOut.id}`)
-      );
-      
-      setAutoSubPlan(cleanedPlan);
-      const skippedCount = allPendingSubs.length;
-      toast({ 
-        title: skippedCount > 1 ? `${skippedCount} substitutions skipped` : "Substitution skipped", 
-        description: `Plan recalculated with ${cleanedPlan.length} remaining subs` 
-      });
-    } else {
-      // No bench players left, just remove the skipped subs
-      setAutoSubPlan(prev => prev.filter(sub => 
-        !skippedIds.includes(`${sub.half}-${sub.time}-${sub.playerOut.id}`)
-      ));
-      toast({ title: allPendingSubs.length > 1 ? "Substitutions skipped" : "Substitution skipped" });
-    }
+    const updatedPlan = autoSubPlan.map(sub => {
+      const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
+      return skippedIds.includes(subId) ? { ...sub, executed: true } : sub;
+    });
+
+    const remainingCount = updatedPlan.filter(sub => !sub.executed).length;
+    setAutoSubPlan(updatedPlan);
+    setAutoSubActive(remainingCount > 0);
+
+    const skippedCount = allPendingSubs.length;
+    toast({ 
+      title: skippedCount > 1 ? `${skippedCount} substitutions skipped` : "Substitution skipped", 
+      description: remainingCount > 0
+        ? `${remainingCount} planned substitution${remainingCount === 1 ? "" : "s"} remaining`
+        : "No more planned substitutions"
+    });
     
     skipCooldownRef.current = Date.now();
     setSubConfirmDialogOpen(false);
     setPendingAutoSub(null);
     setPendingBatchSubs([]);
-  }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, players, teamSize, toast]);
+  }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, toast]);
 
   // Ball drag handlers
   const handleBallDragStart = () => {
@@ -3788,29 +3768,144 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   if (isLandscape) {
     return createPortal(
       <div className="fixed inset-0 w-screen h-screen bg-background flex flex-col overflow-hidden" style={{ height: '100dvh', zIndex: 99999 }}>
-        {/* LinkedEventHeader removed from top in landscape - now integrated into toolbar */}
+        {/* Landscape header bar */}
+        <div className="shrink-0 h-10 bg-background border-b border-border flex items-center px-2 gap-2 z-[60]">
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <span className="text-sm font-semibold truncate">{teamName}</span>
+          {readOnly && (
+            <Badge variant="secondary" className="text-[10px] shrink-0">
+              <Eye className="h-3 w-3 mr-1" />
+              View Only
+            </Badge>
+          )}
+          
+          <div className="flex-1" />
+
+          {/* Tactical mode selector */}
+          {!readOnly && (
+            <div className="flex items-center gap-0.5 bg-muted/50 rounded-md p-0.5 shrink-0">
+              {([
+                { value: "defend" as TacticalMode, icon: Shield, label: "DEF", activeClass: "bg-blue-500/20 text-blue-500 shadow-sm" },
+                { value: "neutral" as TacticalMode, icon: Circle, label: "NEU", activeClass: "bg-background text-foreground shadow-sm" },
+                { value: "attack" as TacticalMode, icon: Swords, label: "ATK", activeClass: "bg-orange-500/20 text-orange-500 shadow-sm" },
+              ]).map(({ value: mode, icon: Icon, label, activeClass }) => (
+                <button
+                  key={mode}
+                  onClick={() => handleTacticalModeChange(mode)}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all duration-200",
+                    tacticalMode === mode
+                      ? activeClass
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Formation suggestion inline */}
+          {tacticalFormationSuggestion && !readOnly && (
+            <div className="flex items-center gap-1.5 bg-muted/60 border border-border rounded-md px-2 py-1 shrink-0 animate-fade-in">
+              <span className="text-xs">
+                Try <span className="font-bold">{tacticalFormationSuggestion.formationName}</span>?
+              </span>
+              <Button type="button" size="sm" className="h-7 text-xs px-2" onClick={handleApplyTacticalSuggestion}>Apply</Button>
+              <button type="button" onClick={handleDismissTacticalSuggestion} className="p-0.5 text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Swap & Sub buttons */}
+          {!readOnly && (
+            <>
+              {playersOnPitch.length >= 2 && !subMode && (
+                <Button
+                  variant={swapMode ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-8 shrink-0 gap-1 px-2 text-xs"
+                  onClick={(e) => { e.stopPropagation(); toggleSwapMode(); }}
+                >
+                  <ArrowLeftRight className="h-3.5 w-3.5" />
+                  {swapMode ? "Cancel" : "Swap"}
+                </Button>
+              )}
+              {!swapMode && (
+                <Button
+                  variant={subMode ? "secondary" : "default"}
+                  size="sm"
+                  className="h-8 shrink-0 gap-1 px-2 text-xs"
+                  onClick={() => { setSubMode(prev => !prev); setSelectedOnPitch(null); setSelectedOnBench(null); }}
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
+                </Button>
+              )}
+              {(subMode || swapMode) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 shrink-0 gap-1 px-2 text-xs text-destructive"
+                  onClick={() => { if (subMode) toggleSubMode(); else toggleSwapMode(); }}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </>
+          )}
+
+          {/* Auto-Subs button */}
+          {!readOnly && !disableAutoSubs && !subMode && !swapMode && (
+            <Button
+              variant={autoSubActive ? "secondary" : "ghost"}
+              size="sm"
+              className="h-8 shrink-0 gap-1 px-2 text-xs"
+              onClick={autoSubActive ? () => { setBottomSheetTab("bench"); setToolbarCollapsed(false); } : handleOpenNewPlan}
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              {autoSubActive ? "Auto ✓" : "Auto"}
+            </Button>
+          )}
+
+          {/* Link Game button - show when no event linked and not read-only */}
+          {!readOnly && !linkedEventId && !subMode && !swapMode && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 shrink-0 gap-1 px-2 text-xs"
+              onClick={() => setLandscapeEventSelectorOpen(true)}
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              Link
+            </Button>
+          )}
+
+          {!readOnly && (
+            <>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleResetFormation}>
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setStatsOpen(true)}>
+                <BarChart3 className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          {readOnly && (
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setStatsOpen(true)}>
+              <BarChart3 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
         
         {/* Main content area */}
         <div className="flex-1 flex overflow-hidden">
           {/* Main pitch area - full height */}
           <div className="flex-1 h-full relative overflow-hidden">
-            {/* Top left: Close button + Read-only badge */}
-            <div className="absolute top-2 left-2 z-50 flex items-center gap-2">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={onClose}
-                className="bg-background/80 backdrop-blur-sm"
-              >
-                <X className="h-5 w-5" />
-              </Button>
-              {readOnly && (
-                <Badge variant="secondary" className="bg-background/80 backdrop-blur-sm">
-                  <Eye className="h-3 w-3 mr-1" />
-                  View Only
-                </Badge>
-              )}
-            </div>
           
           {/* Floating draggable timer */}
           <div 
@@ -3872,9 +3967,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
           )}
 
-          {/* Floating undo button - shows for 30 seconds after a sub/swap, positioned above Sub/Swap FABs */}
+          {/* Floating undo button - top-left below header in landscape */}
           {!readOnly && showFloatingUndo && undoHistory.length > 0 && (
-            <div className="absolute bottom-4 right-4 z-[9999] animate-fade-in">
+            <div className="absolute top-14 left-4 z-[9999] animate-fade-in">
               <Button 
                 variant="secondary" 
                 size="sm"
@@ -3887,86 +3982,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
           )}
 
-          {/* Floating FABs - always visible on pitch in landscape */}
-          {!readOnly && (
-            <div 
-              className="absolute z-50 flex flex-col gap-2 animate-fade-in"
-              style={{
-                bottom: floatingSubsPosition.y,
-                left: floatingSubsPosition.x,
-                touchAction: "none",
-              }}
-            >
-              {/* Swap Positions FAB */}
-              {playersOnPitch.length >= 2 && !subMode && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleSwapMode();
-                  }}
-                  className={cn(
-                    "flex items-center gap-2 rounded-full shadow-lg transition-colors",
-                    isTabletLandscape || isDesktopLandscape ? "px-4 py-3" : "px-3 py-2",
-                    swapMode 
-                      ? "bg-accent text-accent-foreground" 
-                      : "bg-muted text-foreground hover:bg-muted/80 border border-border"
-                  )}
-                >
-                  <ArrowLeftRight className={isTabletLandscape || isDesktopLandscape ? "h-5 w-5" : "h-4 w-4"} />
-                  <span className={isTabletLandscape || isDesktopLandscape ? "text-base font-medium" : "text-sm font-medium"}>
-                    {swapMode ? "Cancel" : "Swap Pos"}
-                  </span>
-                </button>
-              )}
-
-              {/* Make Sub FAB */}
-              {!swapMode && (
-                <button
-                  onClick={() => {
-                    if (!floatingSubsDragRef.current) {
-                      setSubMode(prev => !prev);
-                      setSelectedOnPitch(null);
-                      setSelectedOnBench(null);
-                    }
-                  }}
-                  onTouchStart={(e) => {
-                    const touch = e.touches[0];
-                    floatingSubsDragRef.current = {
-                      startX: touch.clientX,
-                      startY: touch.clientY,
-                      startPosX: floatingSubsPosition.x,
-                      startPosY: floatingSubsPosition.y,
-                    };
-                  }}
-                  onTouchMove={(e) => {
-                    if (!floatingSubsDragRef.current) return;
-                    const touch = e.touches[0];
-                    const deltaX = touch.clientX - floatingSubsDragRef.current.startX;
-                    const deltaY = floatingSubsDragRef.current.startY - touch.clientY;
-                    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
-                      const newX = Math.max(8, Math.min(200, floatingSubsDragRef.current.startPosX + deltaX));
-                      const newY = Math.max(8, Math.min(300, floatingSubsDragRef.current.startPosY + deltaY));
-                      setFloatingSubsPosition({ x: newX, y: newY });
-                      e.preventDefault();
-                    }
-                  }}
-                  onTouchEnd={() => { floatingSubsDragRef.current = null; }}
-                  className={cn(
-                    "flex items-center gap-2 rounded-full shadow-lg transition-colors cursor-grab active:cursor-grabbing",
-                    isTabletLandscape || isDesktopLandscape ? "px-4 py-3" : "px-3 py-2",
-                    subMode 
-                      ? "bg-secondary text-secondary-foreground" 
-                      : "bg-primary text-primary-foreground hover:bg-primary/90"
-                  )}
-                >
-                  <Users className={isTabletLandscape || isDesktopLandscape ? "h-5 w-5" : "h-4 w-4"} />
-                  <span className={isTabletLandscape || isDesktopLandscape ? "text-base font-medium" : "text-sm font-medium"}>
-                    {subMode ? "Cancel" : `Make Sub (${playersOnBench.length})`}
-                  </span>
-                </button>
-              )}
-            </div>
-          )}
+          {/* Swap/Sub FABs moved to header - this section intentionally removed */}
 
           {/* Bench drag floating indicator - landscape */}
           {benchDragPlayer && benchDragPos && (
@@ -4091,9 +4107,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <div 
                 ref={isLandscape ? containerRef : undefined}
                 className="absolute inset-0 w-full h-full"
+                onPointerUp={() => {
+                  if (showFloatingDrawToolbar && !pinDrawingToolbar) {
+                    setTimeout(() => {
+                      setDrawingTool("none");
+                      setShowFloatingDrawToolbar(false);
+                    }, 50);
+                  }
+                }}
                 style={{
-                  zIndex: drawingTool !== "none" ? 30 : 5,
-                  pointerEvents: drawingTool !== "none" ? "auto" : "none",
+                  zIndex: drawingTool !== "none" || showFloatingDrawToolbar ? 30 : 5,
+                  pointerEvents: drawingTool !== "none" || showFloatingDrawToolbar ? "auto" : "none",
                   touchAction: "none",
                 }}
               >
@@ -4321,7 +4345,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
                       onClick={() => {
                         setDrawingTool(drawingTool === "pen" ? "none" : "pen");
-                        if (drawingTool !== "pen") setShowFloatingDrawToolbar(false);
+                        if (drawingTool !== "pen" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                       }}
                     >
                       <Pencil className="h-5 w-5" />
@@ -4332,7 +4356,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
                       onClick={() => {
                         setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
-                        if (drawingTool !== "arrow") setShowFloatingDrawToolbar(false);
+                        if (drawingTool !== "arrow" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                       }}
                     >
                       <MoveRight className="h-5 w-5" />
@@ -4345,19 +4369,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     >
                       <Eraser className="h-5 w-5" />
                     </Button>
-                    {drawingTool !== "none" && (
-                      <Button 
-                        variant="destructive" 
-                        size="icon" 
-                        className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
-                        onClick={() => {
-                          setDrawingTool("none");
-                          setShowFloatingDrawToolbar(false);
-                        }}
-                      >
-                        <X className="h-5 w-5" />
-                      </Button>
-                    )}
+                    <Button 
+                      variant={pinDrawingToolbar ? "default" : "outline"} 
+                      size="icon" 
+                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      onClick={() => setPinDrawingToolbar(prev => !prev)}
+                      title={pinDrawingToolbar ? "Unpin drawing tools" : "Pin drawing tools"}
+                    >
+                      <Pin className={cn("h-5 w-5", pinDrawingToolbar && "rotate-45")} />
+                    </Button>
                   </div>
                   <div className="flex gap-2 justify-center">
                     {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
@@ -4387,7 +4407,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               onClick={drawingTool === "none" ? () => setToolbarCollapsed(true) : undefined}
             />
             {/* Sheet */}
-            <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200"
+            <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col"
               style={{ height: `${sheetHeightPct}%` }}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
@@ -4415,17 +4435,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   // Fast downward flick → collapse
                   if (velocity < -0.4) {
                     setToolbarCollapsed(true);
-                    setSheetHeightPct(50);
+                    setSheetHeightPct(35);
                   } else if (velocity > 0.4) {
                     // Fast upward flick → expand
-                    setSheetHeightPct(82);
+                    setSheetHeightPct(75);
                   } else if (sheetHeightPct < 25) {
                     setToolbarCollapsed(true);
-                    setSheetHeightPct(50);
-                  } else if (sheetHeightPct < 65) {
-                    setSheetHeightPct(50);
+                    setSheetHeightPct(35);
+                  } else if (sheetHeightPct < 55) {
+                    setSheetHeightPct(35);
                   } else {
-                    setSheetHeightPct(82);
+                    setSheetHeightPct(75);
                   }
                   sheetDragRef.current = null;
                 }}
@@ -4437,7 +4457,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                 {/* Tabs */}
                 <div className="flex border-b border-border px-2 gap-1">
-                {(["bench", "subs", "setup"] as const).map(tab => (
+                {(["bench", "setup"] as const).map(tab => (
                   <button
                     key={tab}
                     onClick={() => setBottomSheetTab(tab)}
@@ -4448,7 +4468,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    {tab === "bench" ? `Bench (${playersOnBench.length})` : tab === "subs" ? "Subs" : "Setup"}
+                    {tab === "bench" ? `Bench (${playersOnBench.length})` : "Setup"}
                   </button>
                 ))}
 
@@ -4458,13 +4478,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
 
               {/* Tab content */}
-              <div className="overflow-y-auto p-3" style={{ maxHeight: `calc(${sheetHeightPct}vh - 120px)` }}>
+              <div className="overflow-y-auto p-3 flex-1 min-h-0">
                 {/* Bench Tab */}
                 {bottomSheetTab === "bench" && (
                   <div className="space-y-3">
-                    {/* Position Filter Chips + Fill-In */}
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-2 flex-1 min-w-0">
+                    {/* Position Filter Chips - sticky */}
+                    <div className="sticky top-[-12px] z-10 bg-background py-2 -mx-3 px-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-2 flex-1 min-w-0">
                         {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
                           const count = playersOnBench.filter(p => p.assignedPositions?.includes(pos) || !p.assignedPositions?.length).length;
                           const totalCount = players.filter(p => p.assignedPositions?.includes(pos)).length;
@@ -4492,6 +4513,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </button>
                         )}
                       </div>
+                    </div>
                     </div>
                     {/* Bench Players - horizontal scroll */}
                     <div 
@@ -4580,99 +4602,29 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           </div>
                         ))}
                     </div>
-                  </div>
-                )}
-
-                {/* Subs Tab */}
-                {bottomSheetTab === "subs" && (
-                  <div className="space-y-3">
-                    {!readOnly && (
-                      <>
-                        {/* Auto-Subs section - shown first */}
-                        {!disableAutoSubs && !subMode && !swapMode && (
-                          <div className={cn(autoSubActive && "pb-2 border-b border-border")}>
-                            {!autoSubActive ? (
-                              <Button 
-                                variant="outline" 
-                                className="w-full h-12 text-base" 
-                                onClick={handleOpenNewPlan}
-                              >
-                                <Calendar className="h-4 w-4 mr-1.5" />
-                                Auto-Subs
-                              </Button>
-                            ) : (
-                              <Suspense fallback={<DialogLoader />}>
-                                <AutoSubManager
-                                  autoSubPlan={autoSubPlan}
-                                  autoSubPaused={autoSubPaused}
-                                  players={players}
-                                  lockedPlayerIds={lockedPlayerIds}
-                                  currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-                                  currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-                                  minutesPerHalf={minutesPerHalf}
-                                  onTogglePause={handleTogglePauseAutoSub}
-                                  onCancelPlan={handleCancelAutoSubPlan}
-                                  onSkipNext={handleSkipNextSub}
-                                  onExecuteNow={handleExecuteNow}
-                                  onEditPlan={handleOpenEditPlan}
-                                  onRegeneratePlan={handleRegeneratePlan}
-                                  onToggleLockPlayer={handleToggleLockPlayer}
-                                  compact
-                                />
-                              </Suspense>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Make Sub / Swap - shown when not in a mode */}
-                        {!subMode && !swapMode && (
-                          <>
-                            <Button
-                              variant="outline"
-                              className="w-full h-12 text-base"
-                              onClick={() => { toggleSubMode(); setToolbarCollapsed(true); }}
-                            >
-                              <RefreshCw className="h-4 w-4 mr-1.5" />
-                              Make Sub
-                            </Button>
-
-                            {playersOnPitch.length >= 2 && (
-                              <Button
-                                variant="outline"
-                                className="w-full h-12 text-base"
-                                onClick={() => { toggleSwapMode(); setToolbarCollapsed(true); }}
-                              >
-                                <ArrowLeftRight className="h-4 w-4 mr-1.5" />
-                                Swap Positions
-                              </Button>
-                            )}
-                          </>
-                        )}
-
-                        {/* Sub/Swap mode active UI */}
-                        {(subMode || swapMode) && (
-                          <>
-                            <Button
-                              variant="default"
-                              className="w-full h-10 text-sm"
-                              onClick={() => { subMode ? toggleSubMode() : toggleSwapMode(); setToolbarCollapsed(true); }}
-                            >
-                              {subMode ? <><RefreshCw className="h-4 w-4 mr-1.5" />Cancel Sub</> : <><ArrowLeftRight className="h-4 w-4 mr-1.5" />Cancel Swap</>}
-                            </Button>
-                            {subMode && selectedOnPitch && (
-                              <Button variant="outline" className="w-full h-9 text-xs" onClick={() => setSubPreviewOpen(true)}>
-                                <List className="h-3.5 w-3.5 mr-1.5" />
-                                Options
-                              </Button>
-                            )}
-                            {subMode && (
-                              <p className="text-xs text-muted-foreground text-center">
-                                {selectedOnPitch ? "Select bench player" : "Select on pitch"}
-                              </p>
-                            )}
-                          </>
-                        )}
-                      </>
+                    {/* Auto-Sub Manager - shown below bench when active */}
+                    {!readOnly && autoSubActive && !disableAutoSubs && (
+                      <div className="pt-2 border-t border-border">
+                        <Suspense fallback={<DialogLoader />}>
+                          <AutoSubManager
+                            autoSubPlan={autoSubPlan}
+                            autoSubPaused={autoSubPaused}
+                            players={players}
+                            lockedPlayerIds={lockedPlayerIds}
+                            currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+                            currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+                            minutesPerHalf={minutesPerHalf}
+                            onTogglePause={handleTogglePauseAutoSub}
+                            onCancelPlan={handleCancelAutoSubPlan}
+                            onSkipNext={handleSkipNextSub}
+                            onExecuteNow={handleExecuteNow}
+                            onEditPlan={handleOpenEditPlan}
+                            onRegeneratePlan={handleRegeneratePlan}
+                            onToggleLockPlayer={handleToggleLockPlayer}
+                            compact
+                          />
+                        </Suspense>
+                      </div>
                     )}
                   </div>
                 )}
@@ -4680,24 +4632,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Setup Tab */}
                 {bottomSheetTab === "setup" && (
                   <div className="space-y-4 px-1">
-                    {/* Tactical Mode Selector */}
-                    <TacticalModeSelector value={tacticalMode} onChange={handleTacticalModeChange} readOnly={readOnly} />
-                    {tacticalFormationSuggestion && (
-                      <div className="rounded-lg border border-border bg-muted/60 p-2.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-xs text-foreground">
-                            Suggested for <span className="font-semibold">{tacticalFormationSuggestion.mode === "attack" ? "Attack" : "Defend"}</span>: <span className="font-semibold">{tacticalFormationSuggestion.formationName}</span>
-                          </p>
-                          <button type="button" onClick={handleDismissTacticalSuggestion} className="rounded-md p-1 text-muted-foreground hover:text-foreground" aria-label="Dismiss formation suggestion">
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                        <div className="mt-2 flex items-center gap-2">
-                          <Button type="button" size="sm" className="h-8" onClick={handleApplyTacticalSuggestion}>Apply formation</Button>
-                          <Button type="button" size="sm" variant="ghost" className="h-8" onClick={handleDismissTacticalSuggestion}>Dismiss</Button>
-                        </div>
-                      </div>
-                    )}
+                    {/* Tactical Mode is in the landscape header bar */}
                     {/* Segmented controls for core settings - landscape */}
                     <div className="space-y-3">
                       <div className="space-y-1.5">
@@ -4745,19 +4680,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     </div>
 
                     {/* Primary actions - context-aware */}
-                    {!readOnly && !miniLeagueTeams && !gameInProgress && (
+                    {!readOnly && (
                       <div className="grid grid-cols-2 gap-3">
                         <Button variant="outline" className="h-12 text-base" onClick={() => setShowLineupPicker(true)}>
                           <List className="h-4 w-4 mr-1.5" />
                           Select Lineup
-                        </Button>
-                        <Button variant="outline" className="h-12 text-base" onClick={() => setStatsOpen(true)}>
-                          <BarChart3 className="h-4 w-4 mr-1.5" />
-                          Stats
-                        </Button>
-                        <Button variant="outline" className="h-12 text-base" onClick={handleResetFormation}>
-                          <RotateCcw className="h-4 w-4 mr-1.5" />
-                          Reset Formation
                         </Button>
                         <Button variant="outline" className="h-12 text-base" onClick={() => setPositionEditorOpen(true)}>
                           <Settings2 className="h-4 w-4 mr-1.5" />
@@ -4765,31 +4692,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         </Button>
                       </div>
                     )}
-                    {(readOnly || miniLeagueTeams || gameInProgress) && !readOnly && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <Button variant="outline" className="h-12 text-base" onClick={() => setStatsOpen(true)}>
-                          <BarChart3 className="h-4 w-4 mr-1.5" />
-                          Stats
-                        </Button>
-                        <Button variant="outline" className="h-12 text-base" onClick={handleResetFormation}>
-                          <RotateCcw className="h-4 w-4 mr-1.5" />
-                          Reset Formation
-                        </Button>
-                      </div>
-                    )}
-                    {(readOnly || miniLeagueTeams || gameInProgress) && readOnly && (
-                      <Button variant="outline" className="w-full h-12 text-base" onClick={() => setStatsOpen(true)}>
-                        <BarChart3 className="h-4 w-4 mr-1.5" />
-                        Stats
-                      </Button>
-                    )}
 
                     {/* More Options - collapsible */}
                     {!readOnly && (
                       <Collapsible>
-                        <CollapsibleTrigger className="flex items-center justify-center w-full py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors gap-1.5">
+                        <CollapsibleTrigger className="flex items-center justify-center w-full py-3.5 text-base text-muted-foreground hover:text-foreground transition-colors gap-2">
                           <span>More Options</span>
-                          <ChevronDown className="h-3.5 w-3.5" />
+                          <ChevronDown className="h-4 w-4" />
                         </CollapsibleTrigger>
                         <CollapsibleContent className="space-y-2 pt-1">
                           <div className="grid grid-cols-2 gap-2">
@@ -4823,16 +4732,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             </div>
                           )}
                           {parseInt(teamSize) >= 7 && (
-                            <div className="flex items-center justify-between py-1">
+                            <div className="flex items-center gap-4 py-1">
                               <Label className="text-sm">Rotate GK at Halftime</Label>
                               <Switch checked={rotateGkAtHalftime} onCheckedChange={setRotateGkAtHalftime} />
                             </div>
                           )}
-                          <div className="flex items-center justify-between py-1">
+                          <div className="flex items-center gap-4 py-1">
                             <Label className="text-sm">Hide Scores</Label>
                             <Switch checked={hideScores} onCheckedChange={setHideScores} />
                           </div>
-                          <div className="flex items-center justify-between py-1">
+                          <div className="flex items-center gap-4 py-1">
                             <Label className="text-sm">Starting Lineup Screen</Label>
                             <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
                           </div>
@@ -4842,7 +4751,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                     {/* Reset Game - always visible at bottom */}
                     {!readOnly && (
-                      <Button variant="outline" className="w-full h-12 text-base text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
+                      <Button
+                        variant="outline"
+                        className="w-full h-12 text-base text-destructive"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setTimeout(() => setResetGameConfirmOpen(true), 0);
+                        }}
+                      >
                         <RotateCcw className="h-4.5 w-4.5 mr-2" />
                         Reset Game
                       </Button>
@@ -4855,10 +4772,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         )}
 
+        {/* Floating Pitch Shortcuts moved to landscape header bar */}
+
+        {/* Tactical Mode moved to landscape header bar */}
+
         {/* Sub mode instruction banner */}
         {subMode && (
           <div className={cn(
-            "absolute top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-lg animate-fade-in",
+            "absolute top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-lg animate-fade-in",
             "bg-primary text-primary-foreground"
           )}>
             <p className="text-sm font-medium">
@@ -4873,7 +4794,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Swap mode instruction banner */}
         {swapMode && (
           <div className={cn(
-            "absolute top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-lg animate-fade-in",
+            "absolute top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-lg animate-fade-in",
             swapPlayer1 && getValidSwapPlayerIds.size === 0 
               ? "bg-destructive text-destructive-foreground" 
               : "bg-primary text-primary-foreground"
@@ -5032,8 +4953,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           onCancel={handleCancelSwapBasedSub}
         />
 
-        {/* Landscape Event Selector Sheet - only show in non-readOnly mode */}
-        {!readOnly && !gameInProgress && (
+        {/* Landscape Event Selector Sheet - allow linking mid-game if no event linked */}
+        {!readOnly && (!gameInProgress || !linkedEventId) && (
           <LandscapeEventSelector
             open={landscapeEventSelectorOpen}
             onOpenChange={setLandscapeEventSelectorOpen}
@@ -5185,7 +5106,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           className="absolute z-[61] select-none pointer-events-auto right-2 top-2"
           style={{ touchAction: 'auto' }}
         >
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-col items-end gap-1.5">
             {/* Score tracker (mini) */}
             {gameInProgress && !hideScores && !showScoreInPortrait && (
               <ScoreTracker
@@ -5235,12 +5156,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         </div>
 
-        {/* Floating undo button - bottom-right, above the chevron-up arrow */}
+        {/* Floating undo button - top-right of pitch area in portrait */}
         {!readOnly && showFloatingUndo && undoHistory.length > 0 && !portraitSheetOpen && (
-          <div
-            className="absolute right-2 z-[64] animate-fade-in"
-            style={{ bottom: subMode || swapMode ? 56 : 64 }}
-          >
+          <div className="absolute top-14 left-2 z-[64] animate-fade-in">
             <Button 
               variant="secondary" 
               size="sm"
@@ -5298,6 +5216,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <Users className="h-4 w-4" />
                 <span className="text-sm font-medium">
                   {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
+                </span>
+              </button>
+            )}
+
+            {/* Auto-Subs FAB */}
+            {!disableAutoSubs && !subMode && !swapMode && (
+              <button
+                onClick={autoSubActive ? () => { setBottomSheetTab("bench"); setPortraitSheetOpen(true); } : handleOpenNewPlan}
+                className={cn(
+                  "flex items-center gap-2 rounded-full shadow-lg transition-colors px-3 py-2",
+                  autoSubActive 
+                    ? "bg-secondary text-secondary-foreground" 
+                    : "bg-muted text-foreground hover:bg-muted/80 border border-border"
+                )}
+              >
+                <Calendar className="h-4 w-4" />
+                <span className="text-sm font-medium">
+                  {autoSubActive ? "Auto ✓" : "Auto"}
                 </span>
               </button>
             )}
@@ -5372,19 +5308,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         >
                           <Eraser className="h-5 w-5" />
                         </Button>
-                        {drawingTool !== "none" && (
-                          <Button 
-                            variant="destructive" 
-                            size="icon" 
-                            className="h-12 w-12"
-                            onClick={() => {
-                              setDrawingTool("none");
-                              setShowFloatingDrawToolbar(false);
-                            }}
-                          >
-                            <X className="h-5 w-5" />
-                          </Button>
-                        )}
                       </div>
                       <div className="flex gap-2 justify-center">
                         {["#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308"].map(color => (
@@ -5491,7 +5414,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                 {/* Tabs */}
                 <div className="flex border-b border-border px-2 gap-1">
-                  {(["bench", "subs", "setup"] as const).map(tab => (
+                  {(["bench", "setup"] as const).map(tab => (
                     <button
                       key={tab}
                       onClick={() => setBottomSheetTab(tab)}
@@ -5502,7 +5425,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           : "text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      {tab === "bench" ? `Bench (${playersOnBench.length})` : tab === "subs" ? "Subs" : "Setup"}
+                      {tab === "bench" ? `Bench (${playersOnBench.length})` : "Setup"}
                     </button>
                   ))}
 
@@ -5643,100 +5566,28 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           />
                         ))}
                     </div>
-                  </div>
-                )}
-
-                {/* Subs Tab */}
-                {bottomSheetTab === "subs" && (
-                  <div className="space-y-3">
-                    {!readOnly && (
-                      <>
-                        {/* Auto-Subs section - shown first */}
-                        {!disableAutoSubs && !subMode && !swapMode && (
-                          <div className={cn(autoSubActive && "pb-2 border-b border-border")}>
-                            {!autoSubActive ? (
-                              <Button 
-                                variant="outline" 
-                                className="w-full h-12 text-base" 
-                                onClick={handleOpenNewPlan}
-                              >
-                                <Calendar className="h-4 w-4 mr-1.5" />
-                                Auto-Subs
-                              </Button>
-                            ) : (
-                              <Suspense fallback={<DialogLoader />}>
-                                <AutoSubManager
-                                  autoSubPlan={autoSubPlan}
-                                  autoSubPaused={autoSubPaused}
-                                  players={players}
-                                  lockedPlayerIds={lockedPlayerIds}
-                                  currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-                                  currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-                                  minutesPerHalf={minutesPerHalf}
-                                  onTogglePause={handleTogglePauseAutoSub}
-                                  onCancelPlan={handleCancelAutoSubPlan}
-                                  onSkipNext={handleSkipNextSub}
-                                  onExecuteNow={handleExecuteNow}
-                                  onEditPlan={handleOpenEditPlan}
-                                  onRegeneratePlan={handleRegeneratePlan}
-                                  onToggleLockPlayer={handleToggleLockPlayer}
-                                />
-                              </Suspense>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Make Sub / Swap - shown when not in a mode */}
-                        {!subMode && !swapMode && (
-                          <>
-                            <Button
-                              variant="outline"
-                              className="w-full h-12 text-base"
-                              onClick={() => { toggleSubMode(); setPortraitSheetOpen(false); }}
-                            >
-                              <RefreshCw className="h-4 w-4 mr-1.5" />
-                              Make Sub
-                            </Button>
-
-                            {playersOnPitch.length >= 2 && (
-                              <Button
-                                variant="outline"
-                                className="w-full h-12 text-base"
-                                onClick={() => { toggleSwapMode(); setPortraitSheetOpen(false); }}
-                              >
-                                <ArrowLeftRight className="h-4 w-4 mr-1.5" />
-                                Swap Positions
-                              </Button>
-                            )}
-                          </>
-                        )}
-
-                        {!readOnly && undoHistory.length > 0 && showFloatingUndo && (
-                          <Button variant="outline" className="w-full h-10 text-sm" onClick={handleUndo}>
-                            <Undo2 className="h-4 w-4 mr-1.5" />
-                            Undo Last
-                          </Button>
-                        )}
-
-                        {/* Sub/Swap mode active UI */}
-                        {(subMode || swapMode) && (
-                          <>
-                            <Button
-                              variant="default"
-                              className="w-full h-11 text-sm"
-                              onClick={() => { subMode ? toggleSubMode() : toggleSwapMode(); setPortraitSheetOpen(false); }}
-                            >
-                              {subMode ? <><RefreshCw className="h-4 w-4 mr-1.5" />Cancel Sub</> : <><ArrowLeftRight className="h-4 w-4 mr-1.5" />Cancel Swap</>}
-                            </Button>
-                            {subMode && selectedOnPitch && (
-                              <Button variant="outline" className="w-full h-10 text-xs" onClick={() => setSubPreviewOpen(true)}>
-                                <List className="h-3.5 w-3.5 mr-1.5" />
-                                Sub Options
-                              </Button>
-                            )}
-                          </>
-                        )}
-                      </>
+                    {/* Auto-Sub Manager - shown below bench when active */}
+                    {!readOnly && autoSubActive && !disableAutoSubs && (
+                      <div className="pt-2 border-t border-border">
+                        <Suspense fallback={<DialogLoader />}>
+                          <AutoSubManager
+                            autoSubPlan={autoSubPlan}
+                            autoSubPaused={autoSubPaused}
+                            players={players}
+                            lockedPlayerIds={lockedPlayerIds}
+                            currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+                            currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+                            minutesPerHalf={minutesPerHalf}
+                            onTogglePause={handleTogglePauseAutoSub}
+                            onCancelPlan={handleCancelAutoSubPlan}
+                            onSkipNext={handleSkipNextSub}
+                            onExecuteNow={handleExecuteNow}
+                            onEditPlan={handleOpenEditPlan}
+                            onRegeneratePlan={handleRegeneratePlan}
+                            onToggleLockPlayer={handleToggleLockPlayer}
+                          />
+                        </Suspense>
+                      </div>
                     )}
                   </div>
                 )}
@@ -5744,24 +5595,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Setup Tab */}
                 {bottomSheetTab === "setup" && (
                   <div className="space-y-3 px-1">
-                    {/* Tactical Mode Selector */}
-                    <TacticalModeSelector value={tacticalMode} onChange={handleTacticalModeChange} readOnly={readOnly} />
-                    {tacticalFormationSuggestion && (
-                      <div className="rounded-lg border border-border bg-muted/60 p-2.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-xs text-foreground">
-                            Suggested for <span className="font-semibold">{tacticalFormationSuggestion.mode === "attack" ? "Attack" : "Defend"}</span>: <span className="font-semibold">{tacticalFormationSuggestion.formationName}</span>
-                          </p>
-                          <button type="button" onClick={handleDismissTacticalSuggestion} className="rounded-md p-1 text-muted-foreground hover:text-foreground" aria-label="Dismiss formation suggestion">
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                        <div className="mt-2 flex items-center gap-2">
-                          <Button type="button" size="sm" className="h-8" onClick={handleApplyTacticalSuggestion}>Apply formation</Button>
-                          <Button type="button" size="sm" variant="ghost" className="h-8" onClick={handleDismissTacticalSuggestion}>Dismiss</Button>
-                        </div>
-                      </div>
-                    )}
                     {/* Segmented controls for core settings - portrait */}
                     <div className="space-y-2">
                       <div className="space-y-1">
@@ -5810,20 +5643,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                     {/* Primary actions - context-aware */}
                     <div className="grid grid-cols-2 gap-2">
-                      {!readOnly && !miniLeagueTeams && !gameInProgress && (
+                      {!readOnly && (
                         <Button variant="outline" className="h-11 text-sm" onClick={() => setShowLineupPicker(true)}>
                           <List className="h-4 w-4 mr-1.5" />
                           Select Lineup
-                        </Button>
-                      )}
-                      <Button variant="outline" className="h-11 text-sm" onClick={() => setStatsOpen(true)}>
-                        <BarChart3 className="h-4 w-4 mr-1.5" />
-                        Stats
-                      </Button>
-                      {!readOnly && (
-                        <Button variant="outline" className="h-11 text-sm" onClick={handleResetFormation}>
-                          <RotateCcw className="h-4 w-4 mr-1.5" />
-                          Reset Formation
                         </Button>
                       )}
                     </div>
@@ -5831,9 +5654,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     {/* More Options - collapsible */}
                     {!readOnly && (
                       <Collapsible>
-                        <CollapsibleTrigger className="flex items-center justify-center w-full py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors gap-1.5">
+                        <CollapsibleTrigger className="flex items-center justify-center w-full py-3.5 text-base text-muted-foreground hover:text-foreground transition-colors gap-2">
                           <span>More Options</span>
-                          <ChevronDown className="h-3.5 w-3.5" />
+                          <ChevronDown className="h-4 w-4" />
                         </CollapsibleTrigger>
                         <CollapsibleContent className="space-y-2 pt-1">
                           <div className="grid grid-cols-2 gap-2">
@@ -5867,16 +5690,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             </div>
                           )}
                           {parseInt(teamSize) >= 7 && (
-                            <div className="flex items-center justify-between py-1">
+                            <div className="flex items-center gap-4 py-1">
                               <Label className="text-sm">Rotate GK at Halftime</Label>
                               <Switch checked={rotateGkAtHalftime} onCheckedChange={setRotateGkAtHalftime} />
                             </div>
                           )}
-                          <div className="flex items-center justify-between py-1">
+                          <div className="flex items-center gap-4 py-1">
                             <Label className="text-sm">Hide Scores</Label>
                             <Switch checked={hideScores} onCheckedChange={setHideScores} />
                           </div>
-                          <div className="flex items-center justify-between py-1">
+                          <div className="flex items-center gap-4 py-1">
                             <Label className="text-sm">Starting Lineup Screen</Label>
                             <Switch checked={showLineupPickerSetting} onCheckedChange={handleShowLineupPickerSettingChange} />
                           </div>
@@ -5886,7 +5709,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                     {/* Reset Game - always visible at bottom */}
                     {!readOnly && (
-                      <Button variant="outline" className="w-full h-12 text-base text-destructive" onClick={() => setResetGameConfirmOpen(true)}>
+                      <Button
+                        variant="outline"
+                        className="w-full h-12 text-base text-destructive"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setTimeout(() => setResetGameConfirmOpen(true), 0);
+                        }}
+                      >
                         <RotateCcw className="h-4.5 w-4.5 mr-2" />
                         Reset Game
                       </Button>
@@ -6038,9 +5869,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             <div 
               ref={!isLandscape ? containerRef : undefined}
               className="absolute inset-0 w-full h-full"
+              onPointerUp={(e) => {
+                if (showFloatingDrawToolbar && !pinDrawingToolbar) {
+                  setTimeout(() => {
+                    setDrawingTool("none");
+                    setShowFloatingDrawToolbar(false);
+                  }, 50);
+                }
+              }}
               style={{
-                zIndex: drawingTool !== "none" ? 65 : 5,
-                pointerEvents: drawingTool !== "none" ? "auto" : "none",
+                zIndex: drawingTool !== "none" || showFloatingDrawToolbar ? 65 : 5,
+                pointerEvents: drawingTool !== "none" || showFloatingDrawToolbar ? "auto" : "none",
                 touchAction: "none",
               }}
             >
@@ -6224,7 +6063,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
       {/* Reset Game Confirmation */}
       {resetGameConfirmOpen && createPortal(
-        <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" onClick={() => setResetGameConfirmOpen(false)} />,
+        <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
         document.body
       )}
       {resetGameConfirmOpen && createPortal(
@@ -6311,6 +6150,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         disablePositionSwaps={disablePositionSwaps}
         disableBatchSubs={disableBatchSubs}
         rotateGkAtHalftime={rotateGkAtHalftime}
+        currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+        currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
         showStepper={autoSubFromPreGame}
       />
 

@@ -635,6 +635,10 @@ export default function NotificationsPage() {
           }
         }
         break;
+      case "pending_sub":
+        // Trigger GlobalSubMonitor to show the sub confirmation dialog
+        window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
+        break;
       case "points_awarded":
       case "reward_redeemed":
       case "player_of_match":

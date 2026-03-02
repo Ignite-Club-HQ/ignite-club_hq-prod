@@ -61,6 +61,7 @@ export default function SubConfirmDialog({
   
   const allSubs = substitution ? [substitution, ...batchSubstitutions] : [];
   const isBatchSub = allSubs.length > 1;
+  const alreadyExecuted = substitution?.executed === true;
   
   useEffect(() => {
     setCountdown(secondsUntilDue);
@@ -178,7 +179,12 @@ export default function SubConfirmDialog({
       <ResponsiveDialogContent className={cn("sm:max-w-sm", isBatchSub && "sm:max-w-md")}>
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2 text-lg">
-            {isBatchSub ? (
+            {alreadyExecuted ? (
+              <>
+                <Check className="h-5 w-5 text-muted-foreground" />
+                Substitution Already Made
+              </>
+            ) : isBatchSub ? (
               <>
                 <Users className="h-5 w-5" />
                 {isDue ? `Make ${allSubs.length} Substitutions` : `${allSubs.length} Upcoming Substitutions`}
@@ -191,11 +197,13 @@ export default function SubConfirmDialog({
             )}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            {isDue 
-              ? `Follow these ${getTotalSteps()} steps on the pitch`
-              : substitution.time === 0 && substitution.half === 2 
-                ? "Halftime substitution" 
-                : `${formatTime(substitution.time)} - ${substitution.half === 1 ? "1st" : "2nd"} Half`}
+            {alreadyExecuted
+              ? "This substitution has already been completed"
+              : isDue 
+                ? `Follow these ${getTotalSteps()} steps on the pitch`
+                : substitution.time === 0 && substitution.half === 2 
+                  ? "Halftime substitution" 
+                  : `${formatTime(substitution.time)} - ${substitution.half === 1 ? "1st" : "2nd"} Half`}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
         
@@ -231,13 +239,13 @@ export default function SubConfirmDialog({
           </Button>
           {isDue && (
             <>
-              <Button variant="outline" onClick={onSkip} className="gap-2 h-12 text-base">
+              <Button variant="outline" onClick={onSkip} disabled={alreadyExecuted} className="gap-2 h-12 text-base">
                 <X className="h-4 w-4" />
                 Skip
               </Button>
-              <Button onClick={onConfirm} className="flex-1 gap-2 h-12 text-base">
+              <Button onClick={onConfirm} disabled={alreadyExecuted} className="flex-1 gap-2 h-12 text-base">
                 <Check className="h-4 w-4" />
-                Confirm{isBatchSub ? ` All` : ''}
+                {alreadyExecuted ? 'Done' : `Confirm${isBatchSub ? ` All` : ''}`}
               </Button>
             </>
           )}
