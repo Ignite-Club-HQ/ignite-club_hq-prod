@@ -440,6 +440,7 @@ export function PitchSettingsDialog({
                   variant="outline" 
                   size="sm"
                   className="flex-1 h-9"
+                  disabled={gameInProgress}
                   onClick={() => {
                     onOpenLineupPicker();
                     setOpen(false);
