@@ -70,6 +70,15 @@ export const computeTacticalOffsets = (
     anchorMidId = sorted[0].id;
   }
 
+  const centralDefendersInBackFour = defenders.length >= 4
+    ? [...defenders]
+        .sort((a, b) => Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50))
+        .slice(0, 2)
+        .sort((a, b) => a.position!.x - b.position!.x)
+    : [];
+  const leftCentralDefenderId = centralDefendersInBackFour[0]?.id ?? null;
+  const rightCentralDefenderId = centralDefendersInBackFour[1]?.id ?? null;
+
   // In defend mode, keep a clear visual channel between defenders and goalkeeper.
   const projectedGoalkeeperY = (() => {
     if (mode !== "defend") return null;
@@ -145,10 +154,12 @@ export const computeTacticalOffsets = (
         case "DEF":
           // Defenders drop clearly deeper and tuck in compact
           dy = isSmallSided ? 26 : 28;
-          if (isWide(bx)) {
+          if (p.id === leftCentralDefenderId) {
+            dx = (50 - 7) - bx; // fixed central-left lane in back-four
+          } else if (p.id === rightCentralDefenderId) {
+            dx = (50 + 7) - bx; // fixed central-right lane in back-four
+          } else if (isWide(bx)) {
             dx = isLeft(bx) ? 6 : -6; // tuck narrow
-          } else if (defenders.length >= 4) {
-            dx = bx <= 50 ? -6 : 6; // central pair spread to match central mids visually
           } else if (bx < 50) {
             dx = -6;
           } else if (bx > 50) {
