@@ -291,6 +291,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [pinPitchShortcuts, setPinPitchShortcuts] = useState(true);
   const [sheetHeightPct, setSheetHeightPct] = useState(35);
   const sheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
+  const ignoreNextLandscapeBackdropClickRef = useRef(false);
   const [portraitSheetOpen, setPortraitSheetOpen] = useState(false);
   const [portraitSheetHeightPct, setPortraitSheetHeightPct] = useState(45);
   const portraitSheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
@@ -4702,9 +4703,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           <>
             {/* Floating settings button - always visible in landscape when sheet closed */}
             <button
-              className="absolute bottom-3 right-3 z-[70] w-12 h-12 rounded-full bg-background/95 backdrop-blur-md border-2 border-border shadow-xl flex items-center justify-center"
-              onClick={(e) => { e.stopPropagation(); setSheetHeightPct(50); setToolbarCollapsed(false); }}
-              onTouchEnd={(e) => { e.stopPropagation(); }}
+              className="absolute bottom-3 right-3 z-[63] w-12 h-12 rounded-full bg-background/95 backdrop-blur-md border-2 border-border shadow-xl flex items-center justify-center"
+              onPointerDown={(e) => { e.stopPropagation(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                ignoreNextLandscapeBackdropClickRef.current = true;
+                setBottomSheetTab("bench");
+                setSheetHeightPct(50);
+                setToolbarCollapsed(false);
+                window.setTimeout(() => {
+                  ignoreNextLandscapeBackdropClickRef.current = false;
+                }, 0);
+              }}
             >
               <Users className="h-6 w-6 text-foreground" />
             </button>
@@ -4712,7 +4722,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
             <button
               className={cn(
-                "absolute bottom-3 z-[70] w-12 h-12 rounded-full backdrop-blur-md border-2 shadow-xl flex items-center justify-center",
+                "absolute bottom-3 z-[63] w-12 h-12 rounded-full backdrop-blur-md border-2 shadow-xl flex items-center justify-center",
                 drawingTool !== "none"
                   ? "bg-primary text-primary-foreground border-primary"
                   : showFloatingDrawToolbar
@@ -4720,15 +4730,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     : "bg-background/95 border-border text-foreground"
               )}
               style={{ right: 68 }}
-              onClick={(e) => { e.stopPropagation(); setShowFloatingDrawToolbar(prev => !prev); }}
-              onTouchEnd={(e) => { e.stopPropagation(); }}
+              onPointerDown={(e) => { e.stopPropagation(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowFloatingDrawToolbar(prev => !prev);
+              }}
             >
-              <Pencil className="h-5 w-5" />
+              <Pencil className="h-6 w-6" />
             </button>
 
             {/* Floating Draw Toolbar */}
             {showFloatingDrawToolbar && (
-              <div className="absolute bottom-[4.5rem] z-[70] animate-fade-in" style={{ right: 12 }}>
+              <div className="absolute bottom-[4.5rem] z-[64] animate-fade-in" style={{ right: 12 }}>
                 <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
                   <div className="flex gap-2">
                     <Button 
@@ -4796,7 +4809,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             {/* Backdrop - pass through when drawing */}
             <div 
               className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")}
-              onClick={drawingTool === "none" ? () => setToolbarCollapsed(true) : undefined}
+              onClick={drawingTool === "none" ? () => {
+                if (ignoreNextLandscapeBackdropClickRef.current) return;
+                setToolbarCollapsed(true);
+              } : undefined}
             />
             {/* Sheet */}
             <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col"
