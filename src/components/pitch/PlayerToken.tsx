@@ -248,6 +248,9 @@ const PlayerToken = memo(function PlayerToken({
         {isPreviewHighlight && previewHighlightType === "target" && !subAnimation && (
           <span className="absolute -top-1 -right-1 bg-cyan-500 text-white text-[8px] font-bold px-1 rounded animate-pulse">MOVE</span>
         )}
+        {isNextSub && !subAnimation && !isPreviewHighlight && !isSelected && (
+          <span className="absolute -bottom-1 -right-1 bg-orange-500 text-white text-[7px] font-bold px-0.5 rounded animate-pulse">OFF</span>
+        )}
         {player.currentPitchPosition && !subAnimation && !isPreviewHighlight && (
           <span 
             className={cn(
@@ -273,6 +276,11 @@ const PlayerToken = memo(function PlayerToken({
         {minutesDisplay !== null && (
           <span className="text-[9px] font-medium text-primary bg-background/90 px-1.5 rounded-full border border-primary/30">
             {minutesDisplay}
+          </span>
+        )}
+        {isNextSub && nextSubCountdown && (
+          <span className="text-[8px] font-medium text-orange-600 dark:text-orange-400 bg-background/90 px-1 rounded-full border border-orange-400/40">
+            ⏱ {nextSubCountdown}
           </span>
         )}
       </div>

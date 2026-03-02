@@ -277,7 +277,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [pendingBatchSubs, setPendingBatchSubs] = useState<SubstitutionEvent[]>([]);
   const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
-  const [nextSubInfo, setNextSubInfo] = useState<{ playerInId: string; countdown: string } | null>(null);
+  const [nextSubInfo, setNextSubInfo] = useState<{ playerInId: string; playerOutId: string; countdown: string } | null>(null);
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
@@ -2696,7 +2696,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         const mins = Math.floor(secsUntil / 60);
         const secs = Math.floor(secsUntil % 60);
         const countdown = `${mins}:${secs.toString().padStart(2, '0')}`;
-        setNextSubInfo({ playerInId: nextSub.playerIn.id, countdown });
+        setNextSubInfo({ playerInId: nextSub.playerIn.id, playerOutId: nextSub.playerOut.id, countdown });
       } else {
         setNextSubInfo(null);
       }
@@ -4513,6 +4513,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   subAnimation={subAnimationPlayers.in === player.id ? "in" : subAnimationPlayers.swap === player.id ? "swap" : null}
                   readOnly={readOnly}
                   teamColor={getPlayerTeamColor(player)}
+                  isNextSub={nextSubInfo?.playerOutId === player.id}
+                  nextSubCountdown={nextSubInfo?.playerOutId === player.id ? nextSubInfo.countdown : null}
                   style={{
                     position: "absolute",
                     ...(() => {
@@ -6013,6 +6015,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 subAnimation={subAnimationPlayers.in === player.id ? "in" : subAnimationPlayers.swap === player.id ? "swap" : null}
                 readOnly={readOnly}
                 teamColor={getPlayerTeamColor(player)}
+                isNextSub={nextSubInfo?.playerOutId === player.id}
+                nextSubCountdown={nextSubInfo?.playerOutId === player.id ? nextSubInfo.countdown : null}
                 style={{
                   position: "absolute",
                   ...(() => {
