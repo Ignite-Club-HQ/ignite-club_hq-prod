@@ -279,7 +279,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
   const [pinPitchShortcuts, setPinPitchShortcuts] = useState(true);
-  const [sheetHeightPct, setSheetHeightPct] = useState(35);
+  const [sheetHeightPct, setSheetHeightPct] = useState(45);
   const sheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
   const [portraitSheetOpen, setPortraitSheetOpen] = useState(false);
   const [portraitSheetHeightPct, setPortraitSheetHeightPct] = useState(45);
@@ -4456,17 +4456,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   // Fast downward flick → collapse
                   if (velocity < -0.4) {
                     setToolbarCollapsed(true);
-                    setSheetHeightPct(35);
+                    setSheetHeightPct(45);
                   } else if (velocity > 0.4) {
                     // Fast upward flick → expand
-                    setSheetHeightPct(75);
-                  } else if (sheetHeightPct < 25) {
+                    setSheetHeightPct(85);
+                  } else if (sheetHeightPct < 30) {
                     setToolbarCollapsed(true);
-                    setSheetHeightPct(35);
-                  } else if (sheetHeightPct < 55) {
-                    setSheetHeightPct(35);
+                    setSheetHeightPct(45);
+                  } else if (sheetHeightPct < 65) {
+                    setSheetHeightPct(45);
                   } else {
-                    setSheetHeightPct(75);
+                    setSheetHeightPct(85);
                   }
                   sheetDragRef.current = null;
                 }}
