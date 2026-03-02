@@ -6,6 +6,7 @@ type FabricPencilBrush = import("fabric").PencilBrush;
 type FabricLine = typeof import("fabric").Line;
 type FabricTriangle = typeof import("fabric").Triangle;
 type FabricGroup = typeof import("fabric").Group;
+type FabricPath = typeof import("fabric").Path;
 
 interface FabricModule {
   Canvas: typeof import("fabric").Canvas;
@@ -13,6 +14,7 @@ interface FabricModule {
   Line: FabricLine;
   Triangle: FabricTriangle;
   Group: FabricGroup;
+  Path: FabricPath;
 }
 
 // Cached promise for the Fabric module
@@ -33,6 +35,7 @@ const loadFabricModule = (): Promise<FabricModule> => {
         Line: module.Line,
         Triangle: module.Triangle,
         Group: module.Group,
+        Path: module.Path,
       };
       return fabricModuleCache;
     });
@@ -71,9 +74,8 @@ const scaleCanvasObjects = (
 
   if (noScaleChange) return;
 
-  // All objects get full non-uniform scaling so arrows span the correct
-  // relative area after aspect-ratio changes.  Triangle (arrowhead) children
-  // inside groups receive a compensation factor so they don't appear squashed.
+  // All objects get full non-uniform scaling so drawings keep their
+  // relative placement on the stretched pitch across orientation changes.
   canvas.getObjects().forEach((obj: any) => {
     obj.set({
       left: (obj.left ?? 0) * scaleX,
@@ -81,20 +83,6 @@ const scaleCanvasObjects = (
       scaleX: (obj.scaleX ?? 1) * scaleX,
       scaleY: (obj.scaleY ?? 1) * scaleY,
     });
-
-    // Compensate arrowhead triangles inside groups so they stay proportional
-    const children = typeof obj.getObjects === "function" ? obj.getObjects() : null;
-    if (Array.isArray(children)) {
-      children.forEach((child: any) => {
-        if (child?.type === "triangle") {
-          // Undo the non-uniform distortion on the arrowhead by applying
-          // the inverse ratio so it keeps a uniform visual scale.
-          const compensation = scaleX / scaleY;
-          child.set({ scaleY: (child.scaleY ?? 1) * compensation });
-          if (typeof child.setCoords === "function") child.setCoords();
-        }
-      });
-    }
 
     if (typeof obj.setCoords === "function") {
       obj.setCoords();

@@ -1693,39 +1693,35 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Create arrow helper - uses lazy-loaded fabric module
   const createArrow = useCallback((startX: number, startY: number, endX: number, endY: number, color: string) => {
     if (!fabricModule) return null;
-    
-    const { Line, Triangle, Group } = fabricModule;
+
+    const { Path } = fabricModule;
     const angle = Math.atan2(endY - startY, endX - startX);
     const headLength = 12;
-    
-    // Main line
-    const line = new Line([startX, startY, endX, endY], {
+    const headSpread = Math.PI / 7;
+
+    const leftHeadX = endX - headLength * Math.cos(angle - headSpread);
+    const leftHeadY = endY - headLength * Math.sin(angle - headSpread);
+    const rightHeadX = endX - headLength * Math.cos(angle + headSpread);
+    const rightHeadY = endY - headLength * Math.sin(angle + headSpread);
+
+    const arrowPathData = [
+      `M ${startX} ${startY}`,
+      `L ${endX} ${endY}`,
+      `M ${endX} ${endY}`,
+      `L ${leftHeadX} ${leftHeadY}`,
+      `M ${endX} ${endY}`,
+      `L ${rightHeadX} ${rightHeadY}`,
+    ].join(" ");
+
+    return new Path(arrowPathData, {
       stroke: color,
       strokeWidth: 3,
+      fill: "",
+      strokeLineCap: "round",
+      strokeLineJoin: "round",
       selectable: false,
       evented: false,
     });
-    
-    // Arrow head
-    const triangle = new Triangle({
-      left: endX,
-      top: endY,
-      width: headLength,
-      height: headLength,
-      fill: color,
-      angle: (angle * 180 / Math.PI) + 90,
-      originX: 'center',
-      originY: 'center',
-      selectable: false,
-      evented: false,
-    });
-    
-    const group = new Group([line, triangle], {
-      selectable: false,
-      evented: false,
-    });
-    
-    return group;
   }, [fabricModule]);
 
   // Handle arrow drawing
