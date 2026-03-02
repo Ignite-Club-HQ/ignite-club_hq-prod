@@ -130,7 +130,7 @@ export const computeTacticalOffsets = (
     if (gkY > 84) gkY = 84;
     return gkY;
   })();
-  const MIN_DEFENDER_GK_GAP = isSmallSided ? 2 : 2;
+  const MIN_DEFENDER_GK_GAP = isSmallSided ? 8 : 10;
 
   // In attack mode, keep midfield clearly separated from the forward line.
   const projectedDeepestForwardY = (() => {
