@@ -3928,60 +3928,62 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             onMouseDown={handleTimerDragStart}
             onTouchStart={handleTimerTouchStart}
           >
-            <div className="flex flex-col items-center bg-background/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg">
-              <div className="flex items-center gap-2.5">
-              {gameInProgress && !hideScores && (
-                <ScoreTracker
-                  goals={goals}
-                  onAddGoal={handleAddGoal}
-                  onRemoveGoal={handleRemoveGoal}
-                  onUpdateGoal={handleUpdateGoal}
-                  players={players}
-                  currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-                  elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-                  teamName={teamName}
-                  opponentName={opponentName}
+            <div className="flex flex-col items-center bg-background/95 backdrop-blur-md rounded-xl px-5 py-3 shadow-xl border border-border/50">
+              {/* Top row: Score | Timer | AUTO */}
+              <div className="flex items-center gap-3">
+                {gameInProgress && !hideScores && (
+                  <ScoreTracker
+                    goals={goals}
+                    onAddGoal={handleAddGoal}
+                    onRemoveGoal={handleRemoveGoal}
+                    onUpdateGoal={handleUpdateGoal}
+                    players={players}
+                    currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+                    elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+                    teamName={teamName}
+                    opponentName={opponentName}
+                    readOnly={readOnly}
+                    isGameFinished={gameTimerRef.current?.isGameFinished() || false}
+                    miniLeagueTeams={miniLeagueTeams}
+                    mini
+                  />
+                )}
+                <GameTimer 
+                  key={timerResetKey}
+                  ref={gameTimerRef} 
+                  large
+                  teamId={teamId} 
+                  teamName={teamName} 
+                  onTimeUpdate={handleTimerUpdate} 
+                  onHalfChange={handleHalfChange} 
                   readOnly={readOnly}
-                  isGameFinished={gameTimerRef.current?.isGameFinished() || false}
-                  miniLeagueTeams={miniLeagueTeams}
-                  mini
+                  hideExtras
+                  minutesPerHalf={minutesPerHalf}
+                  onMinutesPerHalfChange={handleMinutesPerHalfChange}
                 />
-              )}
-              <GameTimer 
-                key={timerResetKey}
-                ref={gameTimerRef} 
-                compact
-                teamId={teamId} 
-                teamName={teamName} 
-                onTimeUpdate={handleTimerUpdate} 
-                onHalfChange={handleHalfChange} 
-                readOnly={readOnly}
-                hideExtras
-                minutesPerHalf={minutesPerHalf}
-                onMinutesPerHalfChange={handleMinutesPerHalfChange}
-              />
-              {!readOnly && !disableAutoSubs && (
-                <button
-                  className={cn(
-                    "text-xs font-bold uppercase tracking-wider px-2 py-1 rounded transition-colors",
-                    autoSubActive
-                      ? "bg-primary text-primary-foreground animate-pulse"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (autoSubActive) {
-                      setAutoSubPanelOpen(true);
-                    } else {
-                      handleOpenNewPlan();
-                    }
-                  }}
-                >
-                  AUTO
-                </button>
-              )}
+                {!readOnly && !disableAutoSubs && (
+                  <button
+                    className={cn(
+                      "text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md transition-colors",
+                      autoSubActive
+                        ? "bg-primary text-primary-foreground animate-pulse"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (autoSubActive) {
+                        setAutoSubPanelOpen(true);
+                      } else {
+                        handleOpenNewPlan();
+                      }
+                    }}
+                  >
+                    AUTO
+                  </button>
+                )}
               </div>
-              <div className="flex items-center gap-2 mt-1 relative">
+              {/* Bottom row: Formation • Tactical */}
+              <div className="flex items-center gap-2 mt-1.5 relative">
                 <button
                   className="text-sm text-muted-foreground font-semibold hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted/50 active:bg-muted"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerFormationDropdownOpen(prev => !prev); }}
