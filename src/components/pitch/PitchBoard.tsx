@@ -3989,19 +3989,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               {/* Bottom row: Formation • Tactical */}
               <div className="flex items-center gap-1.5 mt-0.5 relative">
                 <button
-                  className="text-xs text-white/60 font-medium hover:text-white/90 transition-colors px-1.5 py-0.5 rounded hover:bg-white/10 active:bg-white/20"
+                  className="text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px] flex items-center"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerFormationDropdownOpen(prev => !prev); }}
                 >
                   {FORMATIONS[teamSize][selectedFormation]?.name} ▾
                 </button>
-                <span className="text-white/30 text-xs">•</span>
+                <span className="text-white/30 text-sm">•</span>
                 <button
-                  className="flex items-center gap-1 text-xs text-white/60 font-medium hover:text-white/90 transition-colors px-1.5 py-0.5 rounded hover:bg-white/10 active:bg-white/20"
+                  className="flex items-center gap-1.5 text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px]"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerTacticalDropdownOpen(prev => !prev); }}
                 >
-                  {tacticalMode === "defend" && <Shield className="h-3 w-3 text-blue-400" />}
-                  {tacticalMode === "neutral" && <Circle className="h-3 w-3 text-white/60" />}
-                  {tacticalMode === "attack" && <Swords className="h-3 w-3 text-orange-400" />}
+                  {tacticalMode === "defend" && <Shield className="h-4 w-4 text-blue-400" />}
+                  {tacticalMode === "neutral" && <Circle className="h-4 w-4 text-white/60" />}
+                  {tacticalMode === "attack" && <Swords className="h-4 w-4 text-orange-400" />}
                   {TACTICAL_MODE_LABELS[tacticalMode]} ▾
                 </button>
                 {/* Tactical dropdown */}
@@ -5368,19 +5368,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               {/* Bottom row: Formation • Tactical */}
               <div className="flex items-center gap-1.5 mt-0.5 relative">
                 <button
-                  className="text-xs text-white/60 font-medium hover:text-white/90 transition-colors px-1.5 py-0.5 rounded hover:bg-white/10 active:bg-white/20"
+                  className="text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px] flex items-center"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerFormationDropdownOpen(prev => !prev); }}
                 >
                   {FORMATIONS[teamSize][selectedFormation]?.name} ▾
                 </button>
-                <span className="text-white/30 text-xs">•</span>
+                <span className="text-white/30 text-sm">•</span>
                 <button
-                  className="flex items-center gap-1 text-xs text-white/60 font-medium hover:text-white/90 transition-colors px-1.5 py-0.5 rounded hover:bg-white/10 active:bg-white/20"
+                  className="flex items-center gap-1.5 text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px]"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerTacticalDropdownOpen(prev => !prev); }}
                 >
-                  {tacticalMode === "defend" && <Shield className="h-3 w-3 text-blue-400" />}
-                  {tacticalMode === "neutral" && <Circle className="h-3 w-3 text-white/60" />}
-                  {tacticalMode === "attack" && <Swords className="h-3 w-3 text-orange-400" />}
+                  {tacticalMode === "defend" && <Shield className="h-4 w-4 text-blue-400" />}
+                  {tacticalMode === "neutral" && <Circle className="h-4 w-4 text-white/60" />}
+                  {tacticalMode === "attack" && <Swords className="h-4 w-4 text-orange-400" />}
                   {TACTICAL_MODE_LABELS[tacticalMode]} ▾
                 </button>
                 {/* Tactical dropdown - portrait */}
