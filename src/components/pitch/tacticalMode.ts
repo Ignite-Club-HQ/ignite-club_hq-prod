@@ -108,57 +108,57 @@ export const computeTacticalOffsets = (
     if (mode === "attack") {
       switch (pos) {
         case "GK":
-          dy = -2; // sweeper-keeper: barely off line
+          dy = -3; // sweeper-keeper: step off line
           break;
         case "DEF":
-          // Push up slightly to compress space; wide defenders spread
-          dy = isSmallSided ? -3 : -4;
-          if (isWide(bx)) dx = isLeft(bx) ? -2 : 2; // spread wide
+          // Back line steps up to compress space; wide defenders spread
+          dy = isSmallSided ? -5 : -7;
+          if (isWide(bx)) dx = isLeft(bx) ? -4 : 4; // spread wide
           break;
         case "MID":
-          // Midfield pushes noticeably higher (all mids keep same vertical line)
-          dy = isSmallSided ? -5 : -7;
+          // Midfield pushes much higher, noticeably closer to forwards
+          dy = isSmallSided ? -9 : -12;
           if (p.id === attackPushMidId) {
-            // Central playmaker only adjusts horizontally to stay aligned vertically
-            if (isWide(bx)) dx = isLeft(bx) ? 2 : -2; // tuck central
+            // Central playmaker tucks central
+            if (isWide(bx)) dx = isLeft(bx) ? 3 : -3;
           } else {
-            // Wide mids spread out
-            if (isWide(bx)) dx = isLeft(bx) ? -3 : 3;
+            // Wide mids spread out significantly
+            if (isWide(bx)) dx = isLeft(bx) ? -5 : 5;
           }
           break;
         case "FWD":
-          // Forwards push highest, stretch the pitch
-          dy = isSmallSided ? -6 : -8;
-          if (isWide(bx)) dx = isLeft(bx) ? -3 : 3; // wide forwards spread
+          // Forwards push highest — clear visible jump
+          dy = isSmallSided ? -11 : -15;
+          if (isWide(bx)) dx = isLeft(bx) ? -5 : 5; // wide forwards spread
           break;
       }
     } else if (mode === "defend") {
       switch (pos) {
         case "GK":
-          dy = 1; // stay deep
+          dy = 2; // stay deep
           break;
         case "DEF":
-          // Defenders drop deep and tuck in to be compact
-          dy = isSmallSided ? 4 : 6;
-          if (isWide(bx)) dx = isLeft(bx) ? 2 : -2; // tuck narrow
+          // Defenders drop clearly deeper and tuck in compact
+          dy = isSmallSided ? 7 : 10;
+          if (isWide(bx)) dx = isLeft(bx) ? 3 : -3; // tuck narrow
           break;
         case "MID":
-          // Midfield drops moderately to shield defence (all mids keep same vertical line)
-          dy = isSmallSided ? 2 : 4;
+          // Midfield drops to protect space in front of defenders
+          dy = isSmallSided ? 4 : 6;
           if (p.id === anchorMidId) {
-            // Anchor only adjusts horizontally to stay central
-            if (bx < 45) dx = 2;
-            else if (bx > 55) dx = -2;
+            // Anchor stays central
+            if (bx < 45) dx = 3;
+            else if (bx > 55) dx = -3;
             isAnchor = true;
           } else {
             // Wide mids tuck in
-            if (isWide(bx)) dx = isLeft(bx) ? 2 : -2;
+            if (isWide(bx)) dx = isLeft(bx) ? 3 : -3;
           }
           break;
         case "FWD":
-          // Forwards drop only a little — stay as outlet
-          dy = isSmallSided ? 2 : 3;
-          if (isWide(bx)) dx = isLeft(bx) ? 1 : -1; // slight tuck
+          // Forwards drop slightly but remain as outlet
+          dy = isSmallSided ? 3 : 5;
+          if (isWide(bx)) dx = isLeft(bx) ? 2 : -2; // slight tuck
           break;
       }
     }
