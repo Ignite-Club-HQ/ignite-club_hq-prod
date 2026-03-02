@@ -5277,77 +5277,77 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           className="absolute z-[61] select-none pointer-events-auto right-2 top-2"
           style={{ touchAction: 'auto' }}
         >
-          <div className="flex flex-col items-end gap-1.5">
-            {/* Score tracker (mini) */}
-            {gameInProgress && !hideScores && !showScoreInPortrait && (
-              <ScoreTracker
-                goals={goals}
-                onAddGoal={handleAddGoal}
-                onRemoveGoal={handleRemoveGoal}
-                onUpdateGoal={handleUpdateGoal}
-                players={players}
-                currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
-                elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
-                teamName={teamName}
-                opponentName={opponentName}
-                readOnly={readOnly}
-                isGameFinished={gameTimerRef.current?.isGameFinished() || false}
-                miniLeagueTeams={miniLeagueTeams}
-                mini
-              />
-            )}
-            {/* Timer */}
-            <div className="flex flex-col items-center bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+          <div className="flex flex-col items-end">
+            <div className="flex flex-col items-center bg-black/60 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg">
+              {/* Main row: Score | Timer | AUTO */}
               <div className="flex items-center gap-2">
-              <GameTimer 
-                key={timerResetKey}
-                ref={gameTimerRef} 
-                compact
-                teamId={teamId} 
-                teamName={teamName} 
-                onTimeUpdate={handleTimerUpdate} 
-                onHalfChange={handleHalfChange} 
-                readOnly={readOnly}
-                hideExtras
-                minutesPerHalf={minutesPerHalf}
-                onMinutesPerHalfChange={handleMinutesPerHalfChange}
-              />
-              {!readOnly && !disableAutoSubs && (
-                <button
-                  className={cn(
-                    "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
-                    autoSubActive
-                      ? "bg-primary text-primary-foreground animate-pulse"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (autoSubActive) {
-                      setAutoSubPanelOpen(true);
-                    } else {
-                      handleOpenNewPlan();
-                    }
-                  }}
-                >
-                  AUTO
-                </button>
-              )}
+                {gameInProgress && !hideScores && !showScoreInPortrait && (
+                  <ScoreTracker
+                    goals={goals}
+                    onAddGoal={handleAddGoal}
+                    onRemoveGoal={handleRemoveGoal}
+                    onUpdateGoal={handleUpdateGoal}
+                    players={players}
+                    currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
+                    elapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
+                    teamName={teamName}
+                    opponentName={opponentName}
+                    readOnly={readOnly}
+                    isGameFinished={gameTimerRef.current?.isGameFinished() || false}
+                    miniLeagueTeams={miniLeagueTeams}
+                    mini
+                  />
+                )}
+                <GameTimer 
+                  key={timerResetKey}
+                  ref={gameTimerRef} 
+                  compact
+                  teamId={teamId} 
+                  teamName={teamName} 
+                  onTimeUpdate={handleTimerUpdate} 
+                  onHalfChange={handleHalfChange} 
+                  readOnly={readOnly}
+                  hideExtras
+                  minutesPerHalf={minutesPerHalf}
+                  onMinutesPerHalfChange={handleMinutesPerHalfChange}
+                />
+                {!readOnly && !disableAutoSubs && (
+                  <button
+                    className={cn(
+                      "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
+                      autoSubActive
+                        ? "bg-primary text-primary-foreground animate-pulse"
+                        : "bg-white/20 text-white/70 hover:bg-white/30"
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (autoSubActive) {
+                        setAutoSubPanelOpen(true);
+                      } else {
+                        handleOpenNewPlan();
+                      }
+                    }}
+                  >
+                    AUTO
+                  </button>
+                )}
               </div>
-              <div className="flex items-center gap-2 mt-0.5 relative">
+              {/* Bottom row: Formation • Tactical */}
+              <div className="flex items-center gap-1.5 mt-0.5 relative">
                 <button
-                  className="text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors px-1.5 py-1 rounded hover:bg-muted/50 active:bg-muted"
+                  className="text-xs text-white/60 font-medium hover:text-white/90 transition-colors px-1.5 py-0.5 rounded hover:bg-white/10 active:bg-white/20"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerFormationDropdownOpen(prev => !prev); }}
                 >
                   {FORMATIONS[teamSize][selectedFormation]?.name} ▾
                 </button>
-                <span className="text-xs text-muted-foreground">•</span>
+                <span className="text-white/30 text-xs">•</span>
                 <button
-                  className="flex items-center gap-1 text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors px-1.5 py-1 rounded hover:bg-muted/50 active:bg-muted"
+                  className="flex items-center gap-1 text-xs text-white/60 font-medium hover:text-white/90 transition-colors px-1.5 py-0.5 rounded hover:bg-white/10 active:bg-white/20"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerTacticalDropdownOpen(prev => !prev); }}
                 >
-                  {tacticalMode === "defend" && <Shield className="h-3 w-3 text-blue-500" />}
-                  {tacticalMode === "neutral" && <Circle className="h-3 w-3" />}
-                  {tacticalMode === "attack" && <Swords className="h-3 w-3 text-orange-500" />}
+                  {tacticalMode === "defend" && <Shield className="h-3 w-3 text-blue-400" />}
+                  {tacticalMode === "neutral" && <Circle className="h-3 w-3 text-white/60" />}
+                  {tacticalMode === "attack" && <Swords className="h-3 w-3 text-orange-400" />}
                   {TACTICAL_MODE_LABELS[tacticalMode]} ▾
                 </button>
                 {/* Tactical dropdown - portrait */}
