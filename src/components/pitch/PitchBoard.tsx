@@ -1680,15 +1680,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     drawingToolRef.current = drawingTool;
   }, [drawingTool]);
 
-  // Disable drawing mode when any overlay/panel opens (settings, bench sheet, etc.)
+  // Disable drawing mode when any overlay/panel opens (settings, bench sheet, timer interactions, etc.)
   useEffect(() => {
-    if (settingsMenuOpen || portraitSheetOpen || settingsDialogOpen || autoSubPanelOpen) {
+    if (settingsMenuOpen || portraitSheetOpen || settingsDialogOpen || autoSubPanelOpen || !toolbarCollapsed) {
       if (drawingTool !== "none") {
         setDrawingTool("none");
         setShowFloatingDrawToolbar(false);
       }
     }
-  }, [settingsMenuOpen, portraitSheetOpen, settingsDialogOpen, autoSubPanelOpen, drawingTool]);
+  }, [settingsMenuOpen, portraitSheetOpen, settingsDialogOpen, autoSubPanelOpen, toolbarCollapsed, drawingTool]);
 
   // Create arrow helper - uses lazy-loaded fabric module
   const createArrow = useCallback((startX: number, startY: number, endX: number, endY: number, color: string) => {
