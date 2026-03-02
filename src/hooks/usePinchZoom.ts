@@ -6,16 +6,13 @@ interface PinchZoomState {
   translateY: number;
 }
 
-interface PinchZoomHandlers {
-  onTouchStart: (e: TouchEvent) => void;
-  onTouchMove: (e: TouchEvent) => void;
-  onTouchEnd: () => void;
-}
-
-interface UsePinchZoomReturn extends PinchZoomHandlers {
+interface UsePinchZoomReturn {
   scale: number;
   translateX: number;
   translateY: number;
+  onTouchStart: (e: TouchEvent) => void;
+  onTouchMove: (e: TouchEvent) => void;
+  onTouchEnd: () => void;
   resetZoom: () => void;
 }
 
@@ -25,6 +22,10 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
     translateX: 0,
     translateY: 0,
   });
+
+  // Use a ref to always have the latest state for callbacks
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   const initialDistance = useRef<number | null>(null);
   const initialScale = useRef<number>(1);
@@ -49,12 +50,12 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
     if (e.touches.length === 2) {
       isPinching.current = true;
       initialDistance.current = getDistance(e.touches[0], e.touches[1]);
-      initialScale.current = state.scale;
+      initialScale.current = stateRef.current.scale;
       initialCenter.current = getCenter(e.touches[0], e.touches[1]);
-      lastTranslate.current = { x: state.translateX, y: state.translateY };
+      lastTranslate.current = { x: stateRef.current.translateX, y: stateRef.current.translateY };
       e.preventDefault();
     }
-  }, [state.scale, state.translateX, state.translateY]);
+  }, []);
 
   const onTouchMove = useCallback((e: TouchEvent) => {
     if (e.touches.length === 2 && initialDistance.current && isPinching.current) {
@@ -63,12 +64,10 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
       const currentDistance = getDistance(e.touches[0], e.touches[1]);
       const currentCenter = getCenter(e.touches[0], e.touches[1]);
       
-      // Calculate new scale
       const scaleRatio = currentDistance / initialDistance.current;
       let newScale = initialScale.current * scaleRatio;
       newScale = Math.min(Math.max(newScale, minScale), maxScale);
       
-      // Calculate translation to zoom towards center of pinch
       let newTranslateX = lastTranslate.current.x;
       let newTranslateY = lastTranslate.current.y;
       
@@ -79,7 +78,6 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
         newTranslateY = lastTranslate.current.y + centerDeltaY;
       }
       
-      // Reset translation if scale is back to 1
       if (newScale <= 1) {
         newTranslateX = 0;
         newTranslateY = 0;
@@ -98,11 +96,11 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
     initialCenter.current = null;
     isPinching.current = false;
     
-    // Snap back to scale 1 if close
-    if (state.scale < 1.1) {
+    // Always snap back if close to 1 — read from ref to avoid stale closure
+    if (stateRef.current.scale < 1.15) {
       setState({ scale: 1, translateX: 0, translateY: 0 });
     }
-  }, [state.scale]);
+  }, []);
 
   const resetZoom = useCallback(() => {
     setState({ scale: 1, translateX: 0, translateY: 0 });
