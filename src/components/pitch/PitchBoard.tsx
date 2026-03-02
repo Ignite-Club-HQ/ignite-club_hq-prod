@@ -4713,10 +4713,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           <>
             {/* Floating settings button - always visible in landscape when sheet closed */}
             <button
-              className="absolute bottom-3 right-3 z-[70] w-12 h-12 rounded-full bg-background/95 backdrop-blur-md border-2 border-border shadow-xl flex items-center justify-center"
+              className={cn(
+                "absolute bottom-3 right-3 z-[70] w-12 h-12 rounded-full bg-background/95 backdrop-blur-md border-2 border-border shadow-xl flex items-center justify-center",
+                showFloatingDrawToolbar && "pointer-events-none opacity-70"
+              )}
               onPointerDown={(e) => { e.stopPropagation(); }}
               onClick={(e) => {
                 e.stopPropagation();
+                if (showFloatingDrawToolbar) return;
                 ignoreNextLandscapeBackdropClickRef.current = true;
                 setBottomSheetTab("bench");
                 setSheetHeightPct(50);
@@ -4758,14 +4762,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       variant={drawingTool === "pen" ? "default" : "outline"} 
                       size="icon"
                       className="h-12 w-12"
-                      onClick={(e) => {
+                      onPointerDown={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
                         ignoreNextLandscapeBenchOpenRef.current = true;
                         window.setTimeout(() => {
                           ignoreNextLandscapeBenchOpenRef.current = false;
-                        }, 250);
-                        setDrawingTool(drawingTool === "pen" ? "none" : "pen");
-                        if (drawingTool !== "pen" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
+                        }, 300);
+                        const nextTool = drawingTool === "pen" ? "none" : "pen";
+                        setDrawingTool(nextTool);
+                        if (nextTool !== "none" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                       }}
                     >
                       <Pencil className="h-5 w-5" />
@@ -4774,14 +4780,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       variant={drawingTool === "arrow" ? "default" : "outline"} 
                       size="icon"
                       className="h-12 w-12"
-                      onClick={(e) => {
+                      onPointerDown={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
                         ignoreNextLandscapeBenchOpenRef.current = true;
                         window.setTimeout(() => {
                           ignoreNextLandscapeBenchOpenRef.current = false;
-                        }, 250);
-                        setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
-                        if (drawingTool !== "arrow" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
+                        }, 300);
+                        const nextTool = drawingTool === "arrow" ? "none" : "arrow";
+                        setDrawingTool(nextTool);
+                        if (nextTool !== "none" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                       }}
                     >
                       <MoveRight className="h-5 w-5" />
@@ -5666,16 +5674,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
                 {/* Floating Draw Toolbar - portrait */}
                 {showFloatingDrawToolbar && (
-                  <div className={cn("absolute right-3 z-[71] animate-fade-in", (subMode || swapMode) ? "bottom-[6.5rem]" : "bottom-16")}>
+                  <div className={cn("absolute right-3 z-[71] animate-fade-in", (subMode || swapMode) ? "bottom-[6.5rem]" : "bottom-16")} onPointerDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
                     <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
                       <div className="flex gap-2">
                         <Button 
                           variant={drawingTool === "pen" ? "default" : "outline"} 
                           size="icon"
                           className="h-12 w-12"
-                          onClick={() => {
-                            setDrawingTool(drawingTool === "pen" ? "none" : "pen");
-                            if (drawingTool !== "pen" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const nextTool = drawingTool === "pen" ? "none" : "pen";
+                            setDrawingTool(nextTool);
+                            if (nextTool !== "none" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                           }}
                         >
                           <Pencil className="h-5 w-5" />
@@ -5684,9 +5695,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           variant={drawingTool === "arrow" ? "default" : "outline"} 
                           size="icon"
                           className="h-12 w-12"
-                          onClick={() => {
-                            setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
-                            if (drawingTool !== "arrow" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const nextTool = drawingTool === "arrow" ? "none" : "arrow";
+                            setDrawingTool(nextTool);
+                            if (nextTool !== "none" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                           }}
                         >
                           <MoveRight className="h-5 w-5" />
