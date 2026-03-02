@@ -212,14 +212,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [drawingTool, setDrawingTool] = useState<DrawingTool>("none");
   const [drawingColor, setDrawingColor] = useState("#ffffff");
   
-  // Lazy load Fabric.js - initialize when drawing mode is first enabled, keep alive after
+  // Lazy load Fabric.js - initialize when drawing mode is enabled
   const drawingEnabled = drawingTool !== "none";
-  const [drawingEverEnabled, setDrawingEverEnabled] = useState(false);
-  useEffect(() => {
-    if (drawingEnabled && !drawingEverEnabled) {
-      setDrawingEverEnabled(true);
-    }
-  }, [drawingEnabled, drawingEverEnabled]);
+  const drawingEverEnabledRef = useRef(false);
+  if (drawingEnabled) drawingEverEnabledRef.current = true;
   const { 
     canvas: fabricCanvas, 
     isLoading: isFabricLoading, 
@@ -229,7 +225,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   } = useLazyFabric({
     canvasRef,
     containerRef,
-    enabled: drawingEverEnabled,
+    enabled: drawingEnabled,
     initialColor: drawingColor,
     dependencies: [isLandscape],
   });

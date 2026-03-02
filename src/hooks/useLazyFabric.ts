@@ -105,20 +105,33 @@ export function useLazyFabric({
       });
   }, [enabled, fabricModule]);
 
+  // Track a retry counter to re-trigger effect when refs aren't ready
+  const [retryCount, setRetryCount] = useState(0);
+
   // Initialize canvas when module is loaded and enabled
   useEffect(() => {
-    if (!enabled || !fabricModule || !canvasRef.current || !containerRef.current) {
+    if (!enabled || !fabricModule) {
       return;
     }
 
     // Prevent double initialization
     if (initializingRef.current) return;
+
+    // If refs aren't ready yet, retry after a short delay
+    if (!canvasRef.current || !containerRef.current) {
+      const retryId = setTimeout(() => {
+        setRetryCount(c => c + 1);
+      }, 150);
+      return () => clearTimeout(retryId);
+    }
+
     initializingRef.current = true;
 
     // Clean up previous canvas
     if (cleanupRef.current) {
       cleanupRef.current();
       cleanupRef.current = null;
+      setCanvas(null);
     }
 
     // Small delay to let container settle (especially after orientation change)
@@ -200,17 +213,14 @@ export function useLazyFabric({
       initializingRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, fabricModule, ...dependencies]);
+  }, [enabled, fabricModule, retryCount, ...dependencies]);
 
-  // Cleanup on unmount or when disabled
+  // When disabled, just turn off drawing mode but keep canvas alive to preserve drawings
   useEffect(() => {
-    if (!enabled && cleanupRef.current) {
-      cleanupRef.current();
-      cleanupRef.current = null;
-      setCanvas(null);
-      setIsReady(false);
+    if (!enabled && canvas) {
+      canvas.isDrawingMode = false;
     }
-  }, [enabled]);
+  }, [enabled, canvas]);
 
   // Final cleanup on unmount
   useEffect(() => {
