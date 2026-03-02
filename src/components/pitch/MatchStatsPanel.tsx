@@ -87,7 +87,7 @@ export default function MatchStatsPanel({ open, onOpenChange, players, elapsedGa
           <div className={`grid ${!hideScores ? 'grid-cols-2' : 'grid-cols-2'} gap-3`}>
             <div className="bg-muted/50 rounded-lg p-3 text-center">
               <p className="text-2xl font-bold">{formatTime(elapsedGameTime)}</p>
-              <p className="text-xs text-muted-foreground">Game Time</p>
+              <p className="text-xs text-muted-foreground">Total Game Time</p>
             </div>
             <div className="bg-muted/50 rounded-lg p-3 text-center">
               <p className="text-2xl font-bold">{formatTime(avgMinutes)}</p>
