@@ -4026,22 +4026,29 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           {/* Formation suggestion floating popup - landscape */}
           {tacticalFormationSuggestion && !readOnly && (
             <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] animate-fade-in">
-              <div className="flex flex-col items-center gap-1.5 bg-card border border-border rounded-xl px-4 py-3 shadow-lg max-w-[220px]">
-                <span className="text-xs text-muted-foreground text-center">
+              <div className="flex flex-col items-center gap-3 bg-card border border-border rounded-2xl px-6 py-5 shadow-xl max-w-[280px]">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
                   {tacticalFormationSuggestion.mode === "attack"
-                    ? "More forwards for attacking play"
-                    : "Extra cover at the back"}
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">
-                    Switch to {tacticalFormationSuggestion.formationName}
-                  </span>
+                    ? <Swords className="h-5 w-5 text-primary" />
+                    : <Shield className="h-5 w-5 text-primary" />}
                 </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <Button type="button" size="sm" className="h-8 text-xs px-4" onClick={handleApplyTacticalSuggestion}>Apply</Button>
-                  <button type="button" onClick={handleDismissTacticalSuggestion} className="p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted">
-                    <X className="h-4 w-4" />
-                  </button>
+                <div className="text-center space-y-1">
+                  <p className="text-base font-bold">
+                    Switch to {tacticalFormationSuggestion.formationName}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {tacticalFormationSuggestion.mode === "attack"
+                      ? "More forwards for attacking play!"
+                      : "Extra defenders for solid cover!"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 w-full mt-1">
+                  <Button type="button" className="flex-1 h-10" onClick={handleApplyTacticalSuggestion}>
+                    Apply
+                  </Button>
+                  <Button type="button" variant="outline" className="flex-1 h-10" onClick={handleDismissTacticalSuggestion}>
+                    Dismiss
+                  </Button>
                 </div>
               </div>
             </div>
@@ -5866,22 +5873,29 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Formation suggestion floating popup - portrait */}
         {tacticalFormationSuggestion && !readOnly && (
           <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] animate-fade-in">
-            <div className="flex flex-col items-center gap-1.5 bg-card border border-border rounded-xl px-4 py-3 shadow-lg max-w-[220px]">
-              <span className="text-xs text-muted-foreground text-center">
+            <div className="flex flex-col items-center gap-3 bg-card border border-border rounded-2xl px-6 py-5 shadow-xl max-w-[280px]">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
                 {tacticalFormationSuggestion.mode === "attack"
-                  ? "More forwards for attacking play"
-                  : "Extra cover at the back"}
-              </span>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold">
-                  Switch to {tacticalFormationSuggestion.formationName}
-                </span>
+                  ? <Swords className="h-5 w-5 text-primary" />
+                  : <Shield className="h-5 w-5 text-primary" />}
               </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <Button type="button" size="sm" className="h-8 text-xs px-4" onClick={handleApplyTacticalSuggestion}>Apply</Button>
-                <button type="button" onClick={handleDismissTacticalSuggestion} className="p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted">
-                  <X className="h-4 w-4" />
-                </button>
+              <div className="text-center space-y-1">
+                <p className="text-base font-bold">
+                  Switch to {tacticalFormationSuggestion.formationName}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {tacticalFormationSuggestion.mode === "attack"
+                    ? "More forwards for attacking play!"
+                    : "Extra defenders for solid cover!"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 w-full mt-1">
+                <Button type="button" className="flex-1 h-10" onClick={handleApplyTacticalSuggestion}>
+                  Apply
+                </Button>
+                <Button type="button" variant="outline" className="flex-1 h-10" onClick={handleDismissTacticalSuggestion}>
+                  Dismiss
+                </Button>
               </div>
             </div>
           </div>
