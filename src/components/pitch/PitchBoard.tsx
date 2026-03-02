@@ -1199,6 +1199,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const benchDragStartTouch = useRef<{ x: number; y: number } | null>(null);
   const [subAfterSwapDialogOpen, setSubAfterSwapDialogOpen] = useState(false);
   const [resetGameConfirmOpen, setResetGameConfirmOpen] = useState(false);
+  const [timerFormationDropdownOpen, setTimerFormationDropdownOpen] = useState(false);
   const [pitchPlayerActionOpen, setPitchPlayerActionOpen] = useState(false);
   const [pitchPlayerActionTarget, setPitchPlayerActionTarget] = useState<string | null>(null);
   const [benchInjuryConfirmOpen, setBenchInjuryConfirmOpen] = useState(false);
@@ -3986,20 +3987,47 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 </span>
               )}
               </div>
-              <div className="flex items-center gap-1 mt-0.5">
+              <div className="flex items-center gap-2 mt-0.5 relative">
                 <button
-                  className="text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors"
-                  onClick={(e) => { e.stopPropagation(); if (!readOnly) { const next = (selectedFormation + 1) % FORMATIONS[teamSize].length; handleFormationChange(String(next)); } }}
+                  className="text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors px-1.5 py-1 rounded hover:bg-muted/50 active:bg-muted"
+                  onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerFormationDropdownOpen(prev => !prev); }}
                 >
-                  {FORMATIONS[teamSize][selectedFormation]?.name}
+                  {FORMATIONS[teamSize][selectedFormation]?.name} ▾
                 </button>
                 <span className="text-xs text-muted-foreground">•</span>
                 <button
-                  className="text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors"
+                  className="flex items-center gap-1 text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors px-1.5 py-1 rounded hover:bg-muted/50 active:bg-muted"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) { const order: TacticalMode[] = ["defend", "neutral", "attack"]; const next = order[(order.indexOf(tacticalMode) + 1) % 3]; handleTacticalModeChange(next); } }}
                 >
+                  {tacticalMode === "defend" && <Shield className="h-3 w-3 text-blue-500" />}
+                  {tacticalMode === "neutral" && <Circle className="h-3 w-3" />}
+                  {tacticalMode === "attack" && <Swords className="h-3 w-3 text-orange-500" />}
                   {TACTICAL_MODE_LABELS[tacticalMode]}
                 </button>
+                {/* Formation dropdown */}
+                {timerFormationDropdownOpen && (
+                  <>
+                  <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerFormationDropdownOpen(false); }} />
+                  <div className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[140px] py-1 max-h-48 overflow-y-auto">
+                    {FORMATIONS[teamSize].map((f, i) => (
+                      <button
+                        key={i}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors",
+                          i === selectedFormation && "bg-muted font-semibold"
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFormationChange(String(i));
+                          setTimerFormationDropdownOpen(false);
+                        }}
+                      >
+                        {f.name}
+                      </button>
+                    ))}
+                  </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -5261,20 +5289,47 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 </span>
               )}
               </div>
-              <div className="flex items-center gap-1 mt-0.5">
+              <div className="flex items-center gap-2 mt-0.5 relative">
                 <button
-                  className="text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors"
-                  onClick={(e) => { e.stopPropagation(); if (!readOnly) { const next = (selectedFormation + 1) % FORMATIONS[teamSize].length; handleFormationChange(String(next)); } }}
+                  className="text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors px-1.5 py-1 rounded hover:bg-muted/50 active:bg-muted"
+                  onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerFormationDropdownOpen(prev => !prev); }}
                 >
-                  {FORMATIONS[teamSize][selectedFormation]?.name}
+                  {FORMATIONS[teamSize][selectedFormation]?.name} ▾
                 </button>
                 <span className="text-xs text-muted-foreground">•</span>
                 <button
-                  className="text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors"
+                  className="flex items-center gap-1 text-xs text-muted-foreground font-semibold hover:text-foreground transition-colors px-1.5 py-1 rounded hover:bg-muted/50 active:bg-muted"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) { const order: TacticalMode[] = ["defend", "neutral", "attack"]; const next = order[(order.indexOf(tacticalMode) + 1) % 3]; handleTacticalModeChange(next); } }}
                 >
+                  {tacticalMode === "defend" && <Shield className="h-3 w-3 text-blue-500" />}
+                  {tacticalMode === "neutral" && <Circle className="h-3 w-3" />}
+                  {tacticalMode === "attack" && <Swords className="h-3 w-3 text-orange-500" />}
                   {TACTICAL_MODE_LABELS[tacticalMode]}
                 </button>
+                {/* Formation dropdown */}
+                {timerFormationDropdownOpen && (
+                  <>
+                  <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerFormationDropdownOpen(false); }} />
+                  <div className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[140px] py-1 max-h-48 overflow-y-auto">
+                    {FORMATIONS[teamSize].map((f, i) => (
+                      <button
+                        key={i}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors",
+                          i === selectedFormation && "bg-muted font-semibold"
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFormationChange(String(i));
+                          setTimerFormationDropdownOpen(false);
+                        }}
+                      >
+                        {f.name}
+                      </button>
+                    ))}
+                  </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
