@@ -2313,6 +2313,7 @@ export type Database = {
           created_at: string
           event_id: string | null
           formation_used: string | null
+          half_duration: number | null
           id: string
           is_active: boolean
           pitch_state: Json
@@ -2327,6 +2328,7 @@ export type Database = {
           created_at?: string
           event_id?: string | null
           formation_used?: string | null
+          half_duration?: number | null
           id?: string
           is_active?: boolean
           pitch_state?: Json
@@ -2341,6 +2343,7 @@ export type Database = {
           created_at?: string
           event_id?: string | null
           formation_used?: string | null
+          half_duration?: number | null
           id?: string
           is_active?: boolean
           pitch_state?: Json
