@@ -2540,13 +2540,35 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
 
-    // Don't trigger subs if paused or in skip cooldown
+    // Don't trigger subs if paused, in skip cooldown, game finished, or timer not running
     if (!autoSubActive || autoSubPlan.length === 0 || autoSubPaused) return;
+    if (gameTimerRef.current?.isGameFinished()) return;
+    if (!gameTimerRef.current?.isRunning?.()) return;
     if (Date.now() - skipCooldownRef.current < 3000) return; // 3s cooldown after skip
     
-    // Find all unexecuted subs for current half that are due
-    // Only consider subs scheduled AFTER the plan was activated (ignore past subs)
+    // Grace period: subs more than 90s overdue are auto-skipped
+    const OVERDUE_GRACE_SECONDS = 90;
     const activationTime = planActivationTimeRef.current;
+    
+    // Auto-skip any overdue subs beyond the grace period
+    const overdueSubs = autoSubPlan.filter(sub => {
+      if (sub.executed) return false;
+      if (sub.half !== currentHalf) return false;
+      if (activationTime && sub.half === activationTime.half && sub.time < activationTime.seconds) return false;
+      if (activationTime && sub.half < activationTime.half) return false;
+      return elapsedSeconds > sub.time + OVERDUE_GRACE_SECONDS;
+    });
+    
+    if (overdueSubs.length > 0) {
+      setAutoSubPlan(prev => {
+        const overdueKeys = new Set(overdueSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
+        return prev.map(s => overdueKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true } : s);
+      });
+      toast({ title: `${overdueSubs.length} missed sub${overdueSubs.length > 1 ? 's' : ''} skipped`, description: "Plan adjusted for remaining time" });
+      return; // Let next tick handle remaining subs
+    }
+    
+    // Find all unexecuted subs for current half that are due (within grace period)
     const dueSubs = autoSubPlan.filter(sub => {
       if (sub.executed) return false;
       if (sub.half !== currentHalf) return false;
@@ -2582,7 +2604,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       setPendingBatchSubs(additionalSubs);
       setSubConfirmDialogOpen(true);
     }
-  }, [autoSubActive, autoSubPlan, autoSubPaused, pendingAutoSub, createSubNotification, gameInProgress, lockedPlayerIds]);
+  }, [autoSubActive, autoSubPlan, autoSubPaused, pendingAutoSub, createSubNotification, gameInProgress, lockedPlayerIds, toast]);
 
   // Half change callback - check for halftime subs (including batch)
   const handleHalfChange = useCallback((newHalf: 1 | 2) => {
