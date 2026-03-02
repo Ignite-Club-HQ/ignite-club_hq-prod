@@ -288,6 +288,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [sheetHeightPct, setSheetHeightPct] = useState(35);
   const sheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
   const ignoreNextLandscapeBackdropClickRef = useRef(false);
+  const ignoreNextLandscapeBenchOpenRef = useRef(false);
   const [portraitSheetOpen, setPortraitSheetOpen] = useState(false);
   const [portraitSheetHeightPct, setPortraitSheetHeightPct] = useState(45);
   const portraitSheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
@@ -4692,6 +4693,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               el.dataset.swipeStartT = String(Date.now());
             }}
             onTouchEnd={(e) => {
+              if (ignoreNextLandscapeBenchOpenRef.current) return;
               const startY = Number(e.currentTarget.dataset.swipeStartY || 0);
               const startT = Number(e.currentTarget.dataset.swipeStartT || 0);
               if (!startY) return;
@@ -4758,6 +4760,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       className="h-12 w-12"
                       onClick={(e) => {
                         e.stopPropagation();
+                        ignoreNextLandscapeBenchOpenRef.current = true;
+                        window.setTimeout(() => {
+                          ignoreNextLandscapeBenchOpenRef.current = false;
+                        }, 250);
                         setDrawingTool(drawingTool === "pen" ? "none" : "pen");
                         if (drawingTool !== "pen" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                       }}
@@ -4770,6 +4776,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       className="h-12 w-12"
                       onClick={(e) => {
                         e.stopPropagation();
+                        ignoreNextLandscapeBenchOpenRef.current = true;
+                        window.setTimeout(() => {
+                          ignoreNextLandscapeBenchOpenRef.current = false;
+                        }, 250);
                         setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
                         if (drawingTool !== "arrow" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                       }}
