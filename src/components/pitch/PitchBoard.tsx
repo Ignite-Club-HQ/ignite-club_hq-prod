@@ -262,6 +262,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Auto-sub plan state
   const gameTimerRef = useRef<GameTimerRef>(null);
+  const regeneratePlanRef = useRef<(() => void) | null>(null);
   const [autoSubPlanDialogOpen, setAutoSubPlanDialogOpen] = useState(false);
   const [autoSubPlanEditMode, setAutoSubPlanEditMode] = useState(false);
   const [autoSubFromPreGame, setAutoSubFromPreGame] = useState(false);
@@ -2036,7 +2037,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     });
 
     toast({ title: "Formation applied", description: `${formation.name} formation set` });
-  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers]);
+
+    // Auto-regenerate the plan if auto-subs are active
+    if (autoSubActive) {
+      setTimeout(() => {
+        regeneratePlanRef.current?.();
+      }, 300);
+    }
+  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers, autoSubActive]);
 
   // Handle formation change dialog confirm
   const handleFormationChangeConfirm = useCallback(() => {
@@ -2058,7 +2066,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Minimise the bottom drawer after applying
     setToolbarCollapsed(true);
     setPortraitSheetOpen(false);
-  }, [pendingFormationChange, applyFormationChange, autoPlacePlayersOnPitch, players, persistTeamSizeToDb]);
+
+    // Auto-regenerate the plan if auto-subs are active
+    if (autoSubActive) {
+      setTimeout(() => {
+        regeneratePlanRef.current?.();
+        toast({ title: "Auto-sub plan updated", description: "Plan regenerated to account for formation change" });
+      }, 300);
+    }
+  }, [pendingFormationChange, applyFormationChange, autoPlacePlayersOnPitch, players, persistTeamSizeToDb, autoSubActive, toast]);
 
   // Handle formation change dialog cancel
   const handleFormationChangeCancel = useCallback(() => {
@@ -2405,7 +2421,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setSwapPlayer1(null);
     setSwapPlayer2(null);
     setSwapMode(false);
-  }, [swapPlayer1, swapPlayer2, players, toast, pushToUndoHistory]);
+
+    // Auto-regenerate the plan if auto-subs are active
+    if (autoSubActive) {
+      setTimeout(() => {
+        regeneratePlanRef.current?.();
+        toast({ title: "Auto-sub plan updated", description: "Plan regenerated to account for position swap" });
+      }, 200);
+    }
+  }, [swapPlayer1, swapPlayer2, players, toast, pushToUndoHistory, autoSubActive]);
 
   // Cancel position swap
   const handleCancelPitchSwap = useCallback(() => {
@@ -2474,7 +2498,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setSwapPlayer1(null);
     setSwapPlayer2(null);
     setSwapMode(false);
-  }, [swapPlayer1, swapPlayer2, players, toast, pushToUndoHistory]);
+
+    // Auto-regenerate the plan if auto-subs are active
+    if (autoSubActive) {
+      setTimeout(() => {
+        regeneratePlanRef.current?.();
+        toast({ title: "Auto-sub plan updated", description: "Plan regenerated to account for position swap" });
+      }, 200);
+    }
+  }, [swapPlayer1, swapPlayer2, players, toast, pushToUndoHistory, autoSubActive]);
 
   // Cancel sub mode
   const toggleSubMode = () => {
@@ -2647,7 +2679,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     });
   }, [autoSubPlan, players, teamSize, toast]);
 
-  // Track last update time for minutes played calculation
+  // Keep ref in sync so earlier callbacks can call it
+  regeneratePlanRef.current = handleRegeneratePlan;
+
   const lastTimeUpdateRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
   const hasInitializedTimeRef = useRef(false);
   const skipCooldownRef = useRef<number>(0); // Timestamp of last skip to prevent immediate re-trigger
