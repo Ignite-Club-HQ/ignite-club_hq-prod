@@ -1239,6 +1239,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [resetGameConfirmOpen, setResetGameConfirmOpen] = useState(false);
   const [timerFormationDropdownOpen, setTimerFormationDropdownOpen] = useState(false);
   const [timerTacticalDropdownOpen, setTimerTacticalDropdownOpen] = useState(false);
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
   const [pitchPlayerActionOpen, setPitchPlayerActionOpen] = useState(false);
   const [pitchPlayerActionTarget, setPitchPlayerActionTarget] = useState<string | null>(null);
@@ -3902,15 +3904,34 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             {!readOnly && (
               <>
                 <div className="w-px h-6 bg-border mx-1" />
-                <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={handleResetFormation} title="Reset Formation">
-                  <RotateCcw className="h-6 w-6" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={() => setStatsOpen(true)}>
-                  <BarChart3 className="h-6 w-6" />
-                </Button>
+                <div className="relative">
+                  <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={() => setSettingsMenuOpen(prev => !prev)}>
+                    <Settings className="h-6 w-6" />
+                  </Button>
+                  {settingsMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-[59]" onClick={() => setSettingsMenuOpen(false)} />
+                      <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[180px] py-1">
+                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
+                          <RotateCcw className="h-4 w-4" />
+                          Reset Formation
+                        </button>
+                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setStatsOpen(true); setSettingsMenuOpen(false); }}>
+                          <BarChart3 className="h-4 w-4" />
+                          Match Stats
+                        </button>
+                        <div className="h-px bg-border mx-2 my-1" />
+                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsDialogOpen(true); setSettingsMenuOpen(false); }}>
+                          <Settings2 className="h-4 w-4" />
+                          All Settings
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
                 <PitchSettingsDialog
                   soundEnabled={isSoundEnabled(teamId)}
-                  onSoundToggle={() => {/* sound is global */}}
+                  onSoundToggle={() => {}}
                   selectedFormation={selectedFormation}
                   onFormationChange={handleFormationChange}
                   formations={FORMATIONS[teamSize]}
@@ -3944,18 +3965,32 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   onShowLineupPickerChange={handleShowLineupPickerSettingChange}
                   onOpenLineupPicker={() => setShowLineupPicker(true)}
                   onAddFillInPlayer={() => {
-                    // Open the bench and let user use the fill-in dialog there
                     setToolbarCollapsed(false);
                     setSheetHeightPct(50);
                   }}
-                  triggerClassName="h-12 w-12"
+                  hideTrigger
+                  externalOpen={settingsDialogOpen}
+                  onExternalOpenChange={setSettingsDialogOpen}
                 />
               </>
             )}
             {readOnly && (
-              <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={() => setStatsOpen(true)}>
-                <BarChart3 className="h-6 w-6" />
-              </Button>
+              <div className="relative">
+                <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={() => setSettingsMenuOpen(prev => !prev)}>
+                  <Settings className="h-6 w-6" />
+                </Button>
+                {settingsMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-[59]" onClick={() => setSettingsMenuOpen(false)} />
+                    <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[180px] py-1">
+                      <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setStatsOpen(true); setSettingsMenuOpen(false); }}>
+                        <BarChart3 className="h-4 w-4" />
+                        Match Stats
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -5124,54 +5159,79 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               </Button>
             )}
             <div className="w-px h-5 bg-border mx-0.5 shrink-0" />
-            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={handleResetFormation} title="Reset Formation">
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setStatsOpen(true)}>
-              <BarChart3 className="h-4 w-4" />
-            </Button>
-            <PitchSettingsDialog
-              soundEnabled={isSoundEnabled(teamId)}
-              onSoundToggle={() => {/* sound is global */}}
-              selectedFormation={selectedFormation}
-              onFormationChange={handleFormationChange}
-              formations={FORMATIONS[teamSize]}
-              teamSize={teamSize}
-              onTeamSizeChange={handleTeamSizeChange}
-              minutesPerHalf={minutesPerHalf}
-              onMinutesPerHalfChange={handleMinutesPerHalfChange}
-              rotationSpeed={rotationSpeed}
-              onRotationSpeedChange={handleRotationSpeedChange}
-              disablePositionSwaps={disablePositionSwaps}
-              onDisablePositionSwapsChange={setDisablePositionSwaps}
-              disableBatchSubs={disableBatchSubs}
-              onDisableBatchSubsChange={setDisableBatchSubs}
-              rotateGkAtHalftime={rotateGkAtHalftime}
-              onRotateGkAtHalftimeChange={setRotateGkAtHalftime}
-              onOpenPositionEditor={() => setPositionEditorOpen(true)}
-              mockMode={mockMode}
-              onMockModeChange={handleMockModeChange}
-              readOnly={readOnly}
-              gameInProgress={gameInProgress}
-              onResetGame={handleResetGame}
-              onResetFormation={handleResetFormation}
-              onOpenStats={() => setStatsOpen(true)}
-              onSaveSettings={handleSaveSettings}
-              isSaving={isSavingSettings}
-              showMatchHeader={showMatchHeader}
-              onShowMatchHeaderChange={setShowMatchHeader}
-              hideScores={hideScores}
-              onHideScoresChange={setHideScores}
-              showLineupPicker={showLineupPickerSetting}
-              onShowLineupPickerChange={handleShowLineupPickerSettingChange}
-              onOpenLineupPicker={() => setShowLineupPicker(true)}
-            />
+            <div className="relative">
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setSettingsMenuOpen(prev => !prev)}>
+                <Settings className="h-4 w-4" />
+              </Button>
+              {settingsMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-[59]" onClick={() => setSettingsMenuOpen(false)} />
+                  <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[170px] py-1">
+                    {!readOnly && (
+                      <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
+                        <RotateCcw className="h-4 w-4" />
+                        Reset Formation
+                      </button>
+                    )}
+                    <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setStatsOpen(true); setSettingsMenuOpen(false); }}>
+                      <BarChart3 className="h-4 w-4" />
+                      Match Stats
+                    </button>
+                    {!readOnly && (
+                      <>
+                        <div className="h-px bg-border mx-2 my-1" />
+                        <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setSettingsDialogOpen(true); setSettingsMenuOpen(false); }}>
+                          <Settings2 className="h-4 w-4" />
+                          All Settings
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+            {!readOnly && (
+              <PitchSettingsDialog
+                soundEnabled={isSoundEnabled(teamId)}
+                onSoundToggle={() => {}}
+                selectedFormation={selectedFormation}
+                onFormationChange={handleFormationChange}
+                formations={FORMATIONS[teamSize]}
+                teamSize={teamSize}
+                onTeamSizeChange={handleTeamSizeChange}
+                minutesPerHalf={minutesPerHalf}
+                onMinutesPerHalfChange={handleMinutesPerHalfChange}
+                rotationSpeed={rotationSpeed}
+                onRotationSpeedChange={handleRotationSpeedChange}
+                disablePositionSwaps={disablePositionSwaps}
+                onDisablePositionSwapsChange={setDisablePositionSwaps}
+                disableBatchSubs={disableBatchSubs}
+                onDisableBatchSubsChange={setDisableBatchSubs}
+                rotateGkAtHalftime={rotateGkAtHalftime}
+                onRotateGkAtHalftimeChange={setRotateGkAtHalftime}
+                onOpenPositionEditor={() => setPositionEditorOpen(true)}
+                mockMode={mockMode}
+                onMockModeChange={handleMockModeChange}
+                readOnly={readOnly}
+                gameInProgress={gameInProgress}
+                onResetGame={handleResetGame}
+                onResetFormation={handleResetFormation}
+                onOpenStats={() => setStatsOpen(true)}
+                onSaveSettings={handleSaveSettings}
+                isSaving={isSavingSettings}
+                showMatchHeader={showMatchHeader}
+                onShowMatchHeaderChange={setShowMatchHeader}
+                hideScores={hideScores}
+                onHideScoresChange={setHideScores}
+                showLineupPicker={showLineupPickerSetting}
+                onShowLineupPickerChange={handleShowLineupPickerSettingChange}
+                onOpenLineupPicker={() => setShowLineupPicker(true)}
+                hideTrigger
+                externalOpen={settingsDialogOpen}
+                onExternalOpenChange={setSettingsDialogOpen}
+              />
+            )}
           </>
-        )}
-        {readOnly && (
-          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setStatsOpen(true)}>
-            <BarChart3 className="h-4 w-4" />
-          </Button>
         )}
       </div>
 

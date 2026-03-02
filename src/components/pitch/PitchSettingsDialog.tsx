@@ -70,6 +70,13 @@ interface PitchSettingsDialogProps {
   // Optional trigger button customization
   triggerClassName?: string;
   
+  // External open control (no trigger button rendered when provided)
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
+  
+  // Hide trigger button (when using external control)
+  hideTrigger?: boolean;
+  
   // Reset game
   onResetGame?: () => void;
   
@@ -126,6 +133,9 @@ export function PitchSettingsDialog({
   readOnly = false,
   gameInProgress = false,
   triggerClassName,
+  externalOpen,
+  onExternalOpenChange,
+  hideTrigger = false,
   onResetGame,
   onResetFormation,
   onOpenStats,
@@ -142,20 +152,25 @@ export function PitchSettingsDialog({
 }: PitchSettingsDialogProps) {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetFormationConfirmOpen, setResetFormationConfirmOpen] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = onExternalOpenChange || setInternalOpen;
   
   return (
     <>
     <ResponsiveDialog open={open} onOpenChange={setOpen}>
-      <Button 
-        variant="outline" 
-        size="icon" 
-        className={cn("h-10 w-10", triggerClassName)}
-        onClick={() => setOpen(true)}
-      >
-        <Settings className="h-5 w-5" />
-      </Button>
+      {!hideTrigger && (
+        <Button 
+          variant="outline" 
+          size="icon" 
+          className={cn("h-10 w-10", triggerClassName)}
+          onClick={() => setOpen(true)}
+        >
+          <Settings className="h-5 w-5" />
+        </Button>
+      )}
         <ResponsiveDialogContent 
           className="z-[99999] max-h-[85vh] sm:max-h-[80vh] flex flex-col"
         >
