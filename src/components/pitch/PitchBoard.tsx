@@ -3249,12 +3249,30 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Don't handle if drawing tool is active
     if (drawingTool !== "none") return;
     
-    // Pinch zoom disabled - pitch should not be resizable/moveable
+    // Pinch zoom (2 fingers) - zoom without moving pitch
+    if (e.touches.length === 2) {
+      const dist = getPinchDistance(e.touches);
+      if (dist !== null) {
+        setLastPinchDistance(dist);
+      }
+    }
   };
 
   const handlePitchTouchMove = (e: React.TouchEvent) => {
     // Don't handle if drawing tool is active
     if (drawingTool !== "none") return;
+    
+    // Pinch zoom (2 fingers)
+    if (e.touches.length === 2 && lastPinchDistance !== null) {
+      e.preventDefault();
+      const dist = getPinchDistance(e.touches);
+      if (dist !== null) {
+        const delta = (dist - lastPinchDistance) * 0.005;
+        setZoom(prev => Math.min(Math.max(prev + delta, 1), 3));
+        setLastPinchDistance(dist);
+      }
+      return;
+    }
     
     // Handle player drag - block in readOnly mode
     if (readOnly) return;
@@ -3276,6 +3294,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
 
   const handlePitchTouchEnd = (e: React.TouchEvent) => {
+    // Reset pinch distance when fingers lift
+    if (e.touches.length < 2) {
+      setLastPinchDistance(null);
+    }
     
     if (readOnly) return;
     if (!touchDragPlayer) return;
@@ -3308,7 +3330,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      setZoom(prev => Math.min(Math.max(prev + delta, 0.5), 3));
+      setZoom(prev => Math.min(Math.max(prev + delta, 1), 3));
     }
   };
 
