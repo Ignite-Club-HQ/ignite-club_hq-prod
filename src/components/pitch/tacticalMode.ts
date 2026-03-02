@@ -50,9 +50,9 @@ export const computeTacticalOffsets = (
   // Classify midfielders for special roles
   const midfielders = onPitch.filter(p => p.currentPitchPosition === "MID");
 
-  // ATTACK: pick one most-central midfielder to push higher
+  // ATTACK: pick one most-central midfielder to push higher (only when 3+ mids)
   let attackPushMidId: string | null = null;
-  if (mode === "attack" && midfielders.length > 0) {
+  if (mode === "attack" && midfielders.length >= 3) {
     const sorted = [...midfielders].sort((a, b) =>
       Math.abs(a.position!.x - 50) - Math.abs(b.position!.x - 50)
     );
