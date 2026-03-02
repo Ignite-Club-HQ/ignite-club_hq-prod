@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Play, Pause, Timer, ExternalLink, X } from "lucide-react";
-import { useIsLandscape } from "@/hooks/useIsLandscape";
+import { Play, Pause, Timer, ExternalLink, X, ArrowRightLeft, Clock, UserRoundCheck, ChevronRight } from "lucide-react";
+import { Goal } from "./types";
 
 // Active timer key - mirrors the one in GameTimer.tsx
 const ACTIVE_TIMER_KEY = 'pitch-board-timer-state';
 const TIMER_STORAGE_KEY_BASE = 'pitch-board-timer-state-team';
+const PITCH_STATE_KEY = "ignite-pitch-board-state";
 
 interface TimerState {
   minutesPerHalf: number;
@@ -20,39 +21,37 @@ interface TimerState {
   isGameFinished?: boolean;
 }
 
+interface SubstitutionEvent {
+  time: number;
+  half: 1 | 2;
+  playerOut: { id: string; name: string; number?: number };
+  playerIn: { id: string; name: string; number?: number };
+  executed?: boolean;
+}
+
+interface PitchBoardState {
+  teamId: string;
+  autoSubPlan: SubstitutionEvent[];
+  autoSubActive: boolean;
+  autoSubPaused: boolean;
+  goals?: Goal[];
+}
+
 const getTeamTimerStorageKey = (teamId: string) => {
   return `${TIMER_STORAGE_KEY_BASE}-${teamId}`;
 };
 
-/**
- * Load the active timer state for display in widget.
- * First checks the ACTIVE_TIMER_KEY, then validates against team-specific storage
- * to ensure we're showing the correct timer even after navigation.
- */
 const loadActiveTimerState = (): TimerState | null => {
   try {
-    // First, check the active timer key
     const activeRaw = localStorage.getItem(ACTIVE_TIMER_KEY);
     if (!activeRaw) return null;
-    
     const activeState = JSON.parse(activeRaw) as TimerState;
-    
-    // If the active state has a teamId, verify it exists in team-specific storage
-    // This ensures we don't show stale data from a cleared timer
     if (activeState.teamId) {
       const teamKey = getTeamTimerStorageKey(activeState.teamId);
       const teamRaw = localStorage.getItem(teamKey);
-      
-      if (teamRaw) {
-        // Use the team-specific state as it's more reliable
-        return JSON.parse(teamRaw) as TimerState;
-      }
-      
-      // Team-specific storage doesn't exist but active key does - 
-      // this could happen during migration, so trust the active key
+      if (teamRaw) return JSON.parse(teamRaw) as TimerState;
       return activeState;
     }
-    
     return activeState;
   } catch (e) {
     console.error('Failed to load active timer state:', e);
@@ -60,15 +59,9 @@ const loadActiveTimerState = (): TimerState | null => {
   return null;
 };
 
-/**
- * Save timer state to both active key and team-specific key
- */
 const saveTimerState = (state: TimerState) => {
   try {
-    // Save to active key for widgets
     localStorage.setItem(ACTIVE_TIMER_KEY, JSON.stringify(state));
-    
-    // Also save to team-specific key for isolation
     if (state.teamId) {
       const teamKey = getTeamTimerStorageKey(state.teamId);
       localStorage.setItem(teamKey, JSON.stringify(state));
@@ -78,39 +71,96 @@ const saveTimerState = (state: TimerState) => {
   }
 };
 
+interface NextSubInfo {
+  playerOut: string;
+  playerIn: string;
+  isDue: boolean;
+  secondsUntil: number;
+}
+
 interface GameTimerWidgetProps {
   onOpenPitchBoard?: (teamId: string, teamName: string) => void;
-  /** If true, only show timer info - no controls to edit */
   readOnly?: boolean;
 }
 
 export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: GameTimerWidgetProps) {
   const [timerState, setTimerState] = useState<TimerState | null>(null);
   const [displaySeconds, setDisplaySeconds] = useState(0);
-  const { isLandscape } = useIsLandscape();
+  const [homeGoals, setHomeGoals] = useState(0);
+  const [awayGoals, setAwayGoals] = useState(0);
+  const [nextSub, setNextSub] = useState<NextSubInfo | null>(null);
+  const [totalUpcomingSubs, setTotalUpcomingSubs] = useState(0);
 
-  // Load and sync timer state
+  // Load and sync all state
   useEffect(() => {
-    const checkTimerState = () => {
+    const checkState = () => {
       const saved = loadActiveTimerState();
       if (saved) {
         let currentElapsed = saved.elapsedSeconds;
-        
-        // Calculate time elapsed since last update if running
         if (saved.isRunning && saved.lastUpdateTime) {
           const secondsPassed = Math.floor((Date.now() - saved.lastUpdateTime) / 1000);
           currentElapsed = Math.min(saved.elapsedSeconds + secondsPassed, saved.minutesPerHalf * 60);
         }
-        
         setTimerState(saved);
         setDisplaySeconds(currentElapsed);
+
+        // Load pitch state for goals and subs
+        try {
+          const pitchRaw = localStorage.getItem(PITCH_STATE_KEY);
+          if (pitchRaw) {
+            const pitchState: PitchBoardState = JSON.parse(pitchRaw);
+            
+            // Score
+            const goals = pitchState.goals || [];
+            setHomeGoals(goals.filter(g => !g.isOpponentGoal).length);
+            setAwayGoals(goals.filter(g => g.isOpponentGoal).length);
+            
+            // Next sub
+            const unexecutedSubs = pitchState.autoSubPlan?.filter(s => !s.executed) || [];
+            setTotalUpcomingSubs(unexecutedSubs.length);
+            
+            if (pitchState.autoSubActive && unexecutedSubs.length > 0 && saved.isRunning) {
+              const sorted = [...unexecutedSubs].sort((a, b) => {
+                if (a.half !== b.half) return a.half - b.half;
+                return a.time - b.time;
+              });
+              
+              const minutesPerHalf = saved.minutesPerHalf || 20;
+              const currentHalf = saved.currentHalf || 1;
+              const currentTotalSeconds = currentHalf === 1 
+                ? currentElapsed 
+                : (minutesPerHalf * 60) + currentElapsed;
+              
+              const first = sorted[0];
+              const subTotalSeconds = first.half === 1 ? first.time : (minutesPerHalf * 60) + first.time;
+              const isDue = subTotalSeconds <= currentTotalSeconds;
+              const secondsUntil = Math.max(0, subTotalSeconds - currentTotalSeconds);
+              
+              setNextSub({
+                playerOut: first.playerOut.name,
+                playerIn: first.playerIn.name,
+                isDue,
+                secondsUntil,
+              });
+            } else {
+              setNextSub(null);
+            }
+          } else {
+            setHomeGoals(0);
+            setAwayGoals(0);
+            setNextSub(null);
+            setTotalUpcomingSubs(0);
+          }
+        } catch {
+          // ignore
+        }
       } else {
         setTimerState(null);
       }
     };
 
-    checkTimerState();
-    const interval = setInterval(checkTimerState, 1000);
+    checkState();
+    const interval = setInterval(checkState, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -124,7 +174,6 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const toggleTimer = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!timerState) return;
-    
     const newState = {
       ...timerState,
       isRunning: !timerState.isRunning,
@@ -144,17 +193,10 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
   const handleDismiss = (e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    // Clear the active timer key
     localStorage.removeItem(ACTIVE_TIMER_KEY);
-    
-    // Also clear the team-specific key if we have a teamId
     if (timerState?.teamId) {
-      const teamKey = getTeamTimerStorageKey(timerState.teamId);
-      localStorage.removeItem(teamKey);
+      localStorage.removeItem(getTeamTimerStorageKey(timerState.teamId));
     }
-    
-    // Clear auto-sub plan from pitch state before removing it
     const pitchStateRaw = localStorage.getItem('pitch-board-state');
     if (pitchStateRaw) {
       try {
@@ -163,9 +205,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         pitchState.autoSubActive = false;
         pitchState.autoSubPaused = false;
         localStorage.setItem('pitch-board-state', JSON.stringify(pitchState));
-      } catch (e) {
-        console.error('Failed to clear auto-sub plan:', e);
-      }
+      } catch { /* ignore */ }
     }
     localStorage.removeItem('pitch-board-state');
     setTimerState(null);
@@ -177,103 +217,67 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     return null;
   }
 
-  // Compact layout for landscape mode - positioned top-left
-  if (isLandscape) {
-    return (
-      <Card className="border-primary/30 bg-primary/5 relative w-fit">
-        {!readOnly && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-0 right-0 h-5 w-5 text-muted-foreground hover:text-foreground"
-            onClick={handleDismiss}
-          >
-            <X className="h-3 w-3" />
-          </Button>
-        )}
-        <CardContent className={`p-2 ${!readOnly ? 'pr-6' : ''}`}>
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-full bg-primary/10 shrink-0">
-              <Timer className={`h-4 w-4 text-primary ${timerState.isRunning ? 'animate-pulse' : ''}`} />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                {timerState.currentHalf === 1 ? "1H" : "2H"}
-              </span>
-              <span className="font-mono text-sm font-bold text-primary">
-                {formatTime(displaySeconds, timerState.currentHalf, timerState.minutesPerHalf)}
-              </span>
-              {timerState.isRunning && (
-                <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />
-              )}
-            </div>
-            {!readOnly && (
-              <div className="flex items-center gap-1 shrink-0">
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  className="h-7 w-7"
-                  onClick={toggleTimer}
-                >
-                  {timerState.isRunning ? (
-                    <Pause className="h-3.5 w-3.5" />
-                  ) : (
-                    <Play className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-                {timerState.teamId && timerState.teamName && onOpenPitchBoard && (
-                  <Button 
-                    variant="default" 
-                    size="icon" 
-                    className="h-7 w-7"
-                    onClick={handleOpenPitchBoard}
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const halfLabel = timerState.currentHalf === 1 ? "1st Half" : "2nd Half";
+  const hasScore = homeGoals > 0 || awayGoals > 0;
+
+  const formatSubCountdown = () => {
+    if (!nextSub) return "";
+    if (nextSub.isDue) return "Sub due now";
+    const mins = Math.floor(nextSub.secondsUntil / 60);
+    const secs = nextSub.secondsUntil % 60;
+    if (mins > 0) return `Sub in ${mins}:${secs.toString().padStart(2, '0')}`;
+    return `Sub in ${secs}s`;
+  };
 
   return (
-    <Card className="border-primary/30 bg-primary/5 relative">
+    <Card className={`relative ${nextSub?.isDue ? "border-warning/50 bg-warning/5" : "border-primary/30 bg-primary/5"}`}>
       {!readOnly && (
         <Button
           variant="ghost"
           size="icon"
-          className="absolute top-1 right-1 h-6 w-6 text-muted-foreground hover:text-foreground"
+          className="absolute top-1 right-1 h-6 w-6 text-muted-foreground hover:text-foreground z-10"
           onClick={handleDismiss}
         >
           <X className="h-4 w-4" />
         </Button>
       )}
-      <CardContent className={`p-4 ${!readOnly ? 'pr-8' : ''}`}>
-        <div className="flex items-center gap-4">
-          <div className="p-3 rounded-full bg-primary/10 shrink-0">
-            <Timer className={`h-6 w-6 text-primary ${timerState.isRunning ? 'animate-pulse' : ''}`} />
+      <CardContent className="p-3 pr-8">
+        {/* Main row: Timer + Score + Controls */}
+        <div className="flex items-center gap-3">
+          {/* Timer icon */}
+          <div className={`p-2.5 rounded-full shrink-0 ${nextSub?.isDue ? "bg-warning/20" : "bg-primary/10"}`}>
+            <Timer className={`h-5 w-5 ${nextSub?.isDue ? "text-warning" : "text-primary"} ${timerState.isRunning ? 'animate-pulse' : ''}`} />
           </div>
+          
+          {/* Timer info */}
           <div className="flex-1 min-w-0">
-            <p className="font-semibold flex items-center gap-2">
-              {timerState.teamName || "Game In Progress"}
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xl font-bold text-primary">
+                {formatTime(displaySeconds, timerState.currentHalf, timerState.minutesPerHalf)}
+              </span>
               {timerState.isRunning && (
                 <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
               )}
-            </p>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                {timerState.currentHalf === 1 ? "1st Half" : "2nd Half"}
-              </span>
-              <span className="font-mono text-lg font-bold text-primary">
-                {formatTime(displaySeconds, timerState.currentHalf, timerState.minutesPerHalf)}
-              </span>
+              {hasScore && (
+                <span className="text-sm font-semibold text-muted-foreground ml-1">
+                  {homeGoals} - {awayGoals}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">{halfLabel}</span>
+              {timerState.teamName && (
+                <>
+                  <span className="text-xs text-muted-foreground">·</span>
+                  <span className="text-xs text-muted-foreground truncate">{timerState.teamName}</span>
+                </>
+              )}
             </div>
           </div>
+          
+          {/* Controls */}
           {!readOnly && (
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
               <Button 
                 variant="outline" 
                 size="icon" 
@@ -299,6 +303,34 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             </div>
           )}
         </div>
+
+        {/* Next sub row */}
+        {nextSub && (
+          <div className={`mt-2 flex items-center gap-2 rounded-md px-2.5 py-1.5 ${nextSub.isDue ? "bg-warning/15 border border-warning/30" : "bg-muted/50"}`}>
+            {nextSub.isDue ? (
+              <ArrowRightLeft className="h-4 w-4 text-warning shrink-0" />
+            ) : (
+              <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+            )}
+            <span className={`text-xs font-medium flex-1 truncate ${nextSub.isDue ? "text-warning" : "text-muted-foreground"}`}>
+              {formatSubCountdown()} — {nextSub.playerOut} → {nextSub.playerIn}
+            </span>
+            {totalUpcomingSubs > 1 && (
+              <span className="text-[10px] text-muted-foreground shrink-0">+{totalUpcomingSubs - 1} more</span>
+            )}
+            {!readOnly && nextSub.isDue && onOpenPitchBoard && timerState.teamId && timerState.teamName && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs gap-1 text-warning shrink-0"
+                onClick={handleOpenPitchBoard}
+              >
+                <UserRoundCheck className="h-3.5 w-3.5" />
+                Accept
+              </Button>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
