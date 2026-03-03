@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Settings, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Minus, Scale, Equal } from "lucide-react";
+import { Settings, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Minus, Scale, Equal, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TeamSize } from "./types";
 
@@ -443,23 +443,24 @@ export function PitchSettingsDialog({
               </Button>
             )}
             
+            {/* Setup Game - launches lineup + auto-subs workflow */}
+            {!readOnly && onOpenLineupPicker && (
+              <Button 
+                variant="default" 
+                className="w-full h-10"
+                disabled={gameInProgress}
+                onClick={() => {
+                  onOpenLineupPicker();
+                  setOpen(false);
+                }}
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Setup Game
+              </Button>
+            )}
+
             {/* Quick action row */}
             <div className="flex gap-2">
-              {!readOnly && onOpenLineupPicker && (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="flex-1 h-9"
-                  disabled={gameInProgress}
-                  onClick={() => {
-                    onOpenLineupPicker();
-                    setOpen(false);
-                  }}
-                >
-                  <List className="h-4 w-4 mr-1.5" />
-                  Lineup
-                </Button>
-              )}
               {!readOnly && (
                 <Button 
                   variant="outline" 
@@ -472,20 +473,6 @@ export function PitchSettingsDialog({
                 >
                   <Settings2 className="h-4 w-4 mr-1.5" />
                   Positions
-                </Button>
-              )}
-              {onOpenStats && (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="flex-1 h-9"
-                  onClick={() => {
-                    onOpenStats();
-                    setOpen(false);
-                  }}
-                >
-                  <BarChart3 className="h-4 w-4 mr-1.5" />
-                  Stats
                 </Button>
               )}
               {!readOnly && onAddFillInPlayer && (
