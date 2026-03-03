@@ -1702,23 +1702,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const headLength = Math.max(10, Math.min(24, shaftLength * 0.18));
     const headSpread = Math.PI / 7;
 
-    const leftHeadX = endX - headLength * Math.cos(angle - headSpread);
-    const leftHeadY = endY - headLength * Math.sin(angle - headSpread);
-    const rightHeadX = endX - headLength * Math.cos(angle + headSpread);
-    const rightHeadY = endY - headLength * Math.sin(angle + headSpread);
+    const leftHeadX = dx - headLength * Math.cos(angle - headSpread);
+    const leftHeadY = dy - headLength * Math.sin(angle - headSpread);
+    const rightHeadX = dx - headLength * Math.cos(angle + headSpread);
+    const rightHeadY = dy - headLength * Math.sin(angle + headSpread);
 
     const arrowPathData = [
-      ["M", startX, startY],
-      ["L", endX, endY],
-      ["M", endX, endY],
+      ["M", 0, 0],
+      ["L", dx, dy],
+      ["M", dx, dy],
       ["L", leftHeadX, leftHeadY],
-      ["M", endX, endY],
+      ["M", dx, dy],
       ["L", rightHeadX, rightHeadY],
     ];
 
     return new Path(arrowPathData as any, {
-      left: 0,
-      top: 0,
+      left: startX,
+      top: startY,
       originX: "left",
       originY: "top",
       stroke: color,
@@ -1745,15 +1745,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     const getArrowPointer = (eventPayload: any) => {
       if (eventPayload?.scenePoint) return eventPayload.scenePoint;
-      if (eventPayload?.pointer) return eventPayload.pointer;
 
       const nativeEvent = eventPayload?.e ?? eventPayload;
       const canvasWithScenePoint = fabricCanvas as any;
       if (typeof canvasWithScenePoint.getScenePoint === "function") {
-        return canvasWithScenePoint.getScenePoint(nativeEvent);
+        const scenePoint = canvasWithScenePoint.getScenePoint(nativeEvent);
+        if (scenePoint?.x !== undefined && scenePoint?.y !== undefined) {
+          return scenePoint;
+        }
       }
 
-      return fabricCanvas.getViewportPoint(nativeEvent);
+      return eventPayload?.viewportPoint ?? eventPayload?.pointer ?? fabricCanvas.getViewportPoint(nativeEvent);
     };
 
     const handleMouseDown = (e: any) => {
