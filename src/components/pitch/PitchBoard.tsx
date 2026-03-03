@@ -2761,7 +2761,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
 
     // Compute next sub info for bench highlighting
-    if (autoSubActive && autoSubPlan.length > 0 && !autoSubPaused) {
+    const isFinished = gameTimerRef.current?.isGameFinished();
+    if (autoSubActive && autoSubPlan.length > 0 && !autoSubPaused && !isFinished) {
       const remainingSubs = autoSubPlan.filter(s => !s.executed);
       const nextSub = remainingSubs.find(s => s.half === currentHalf && s.time >= elapsedSeconds)
         || remainingSubs.find(s => s.half > currentHalf)
@@ -2778,6 +2779,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         setNextSubInfo(null);
       }
     } else {
+      if (isFinished) {
+        setNextSubInfo(null);
+        setSubDuePlayerIds(new Set());
+        if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
+      }
       setNextSubInfo(prev => prev ? null : prev);
     }
 
