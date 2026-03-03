@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Settings, Volume2, VolumeX, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus } from "lucide-react";
+import { Settings, Volume2, VolumeX, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Minus, Scale, Equal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TeamSize } from "./types";
 
@@ -262,21 +262,30 @@ export function PitchSettingsDialog({
                     </SelectTrigger>
                      <SelectContent className="z-[99999] bg-popover">
                       <SelectItem value="1">
-                        <div>
-                          <span>Minimal</span>
-                          <p className="text-[10px] text-muted-foreground">1 sub at a time, fewer windows</p>
+                        <div className="flex items-center gap-2">
+                          <Minus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <div>
+                            <span>Minimal</span>
+                            <p className="text-[10px] text-muted-foreground">1 sub at a time, fewer windows</p>
+                          </div>
                         </div>
                       </SelectItem>
                       <SelectItem value="2">
-                        <div>
-                          <span>Balanced</span>
-                          <p className="text-[10px] text-muted-foreground">2 subs at a time, good mix</p>
+                        <div className="flex items-center gap-2">
+                          <Scale className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <div>
+                            <span>Balanced</span>
+                            <p className="text-[10px] text-muted-foreground">2 subs at a time, good mix</p>
+                          </div>
                         </div>
                       </SelectItem>
                       <SelectItem value="3">
-                        <div>
-                          <span>Equal Time</span>
-                          <p className="text-[10px] text-muted-foreground">Up to 3 subs, max fairness</p>
+                        <div className="flex items-center gap-2">
+                          <Equal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <div>
+                            <span>Equal Time</span>
+                            <p className="text-[10px] text-muted-foreground">Up to 3 subs, max fairness</p>
+                          </div>
                         </div>
                       </SelectItem>
                     </SelectContent>
