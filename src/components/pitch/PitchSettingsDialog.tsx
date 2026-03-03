@@ -259,7 +259,7 @@ export function PitchSettingsDialog({
                   >
                     <SelectTrigger className="h-10">
                       <SelectValue>
-                        {rotationSpeed === 1 ? 'Minimal' : rotationSpeed === 3 ? 'Equal Time' : 'Balanced'}
+                        {rotationSpeed === 1 ? 'Minimal' : rotationSpeed === 3 ? 'Batch' : 'Balanced'}
                       </SelectValue>
                     </SelectTrigger>
                      <SelectContent className="z-[99999] bg-popover">
@@ -268,7 +268,7 @@ export function PitchSettingsDialog({
                           <Minus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <div>
                             <span>Minimal</span>
-                            <p className="text-[10px] text-muted-foreground">1 sub at a time, fewer windows</p>
+                            <p className="text-[10px] text-muted-foreground">1 sub per window, more frequent</p>
                           </div>
                         </div>
                       </SelectItem>
@@ -277,7 +277,7 @@ export function PitchSettingsDialog({
                           <Scale className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <div>
                             <span>Balanced</span>
-                            <p className="text-[10px] text-muted-foreground">2 subs at a time, good mix</p>
+                            <p className="text-[10px] text-muted-foreground">2 subs per window, moderate</p>
                           </div>
                         </div>
                       </SelectItem>
@@ -285,8 +285,8 @@ export function PitchSettingsDialog({
                         <div className="flex items-center gap-2">
                           <Equal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <div>
-                            <span>Equal Time</span>
-                            <p className="text-[10px] text-muted-foreground">Up to 3 subs, max fairness</p>
+                            <span>Batch</span>
+                            <p className="text-[10px] text-muted-foreground">3 subs per window, fewer stops</p>
                           </div>
                         </div>
                       </SelectItem>
