@@ -1,57 +1,59 @@
 
 
-# Automated Android Publishing to Google Play
+## Plan: Subs Manager as a Match Duty (Not a Permanent Role)
 
-## What You Need to Do (Outside Lovable)
+### Concept
 
-### Step 1: Create a Google Cloud Service Account
-1. Go to **Google Play Console** > **Setup** > **API access**
-2. Click **Link** to connect your Google Cloud project (or create one)
-3. Click **Create new service account** -- this takes you to Google Cloud Console
-4. In Google Cloud Console, create a service account with any name (e.g. "codemagic-publish")
-5. Grant it no special Cloud roles (permissions come from Play Console)
-6. Create a **JSON key** for the service account and download it
+Instead of adding a permanent `subs_manager` role, we add "Subs Manager" as a new duty type in the `AddDutySheet`. When a coach/admin assigns this duty to a parent for a specific match, that parent gets:
 
-### Step 2: Grant Permissions in Play Console
-1. Back in **Google Play Console** > **Setup** > **API access**, you should see the new service account listed
-2. Click **Manage** next to it
-3. Under **App permissions**, add your app and grant **Release to production, exclude devices, and use Play App Signing**
-4. Save
+1. **Edit access** to the pitch board for that match only
+2. **Push/in-app notifications** for subs, half-time, full-time for that match only
 
-### Step 3: Add the JSON Key to Codemagic
-1. In **Codemagic** > **Teams** > **Global variables & secrets** (or your app settings)
-2. Create a new environment variable:
-   - Name: `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS`
-   - Value: paste the **entire contents** of the downloaded JSON key file
-   - Mark as **Secure**
-3. Add it to your existing `android_signing` group (or create a new group like `google_play` and reference both groups)
+No database schema changes needed -- the existing `event_group_duties` and `duties` tables already support named duties with `assigned_to` user IDs.
 
-### Step 4: I Will Update codemagic.yaml
-Once you confirm the above is done, I will add the `publishing` section to your Android workflow:
+### Changes
 
-```yaml
-publishing:
-  google_play:
-    credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
-    track: internal          # Start with internal testing track
-    submit_as_draft: true    # Review before going live
-```
+**1. Add "Subs Manager" duty option to `AddDutySheet.tsx`**
 
-This publishes your AAB directly to Google Play's **internal testing** track as a draft. You can change `track` to `alpha`, `beta`, or `production` later, and set `submit_as_draft: false` to auto-submit.
+- Add a new entry to `ALL_DUTY_OPTIONS`: `{ id: "Subs Manager", label: "Subs Manager", icon: UserCog, description: "Pitch board access" }`
+- Include it in `MINI_LEAGUE_MATCH_DUTIES` (alongside Referee, Linesperson)
+- For regular (non-mini-league) game events, it will also appear in the full duty list
 
----
+**2. Grant pitch board edit access based on duty assignment**
 
-## Technical Details
+- **`EventGroupPitchPage.tsx`** (~line 121-143): In the `userCanEdit` query, also check `event_group_duties` for a "Subs Manager" duty assigned to the current user for the current group. If found, grant edit access.
 
-- The `publishing` block is added to the existing `android-debug-workflow` in `codemagic.yaml`
-- The environment group referencing the service account credentials will be added to the workflow's `environment.groups` list
-- No other workflow changes are needed -- the existing build already produces the signed `.aab` artifact that Google Play expects
+- **`TeamDetailPage.tsx`** (~line 353): For regular team events, when a pitch board is opened with a `linkedEventId`, check if the user has a "Subs Manager" duty assigned on that event's `duties` table. If so, set `readOnly = false`.
 
-## Steps Summary
-1. You: Create service account + JSON key in Google Cloud
-2. You: Grant Play Console permissions to the service account
-3. You: Add the JSON key as `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` in Codemagic
-4. Me: Update `codemagic.yaml` with the publishing config
+- **`HomePage.tsx`** (~line 1062-1070): For the home page pitch board widget, when opening a team's pitch board that has a `linkedEventId`, check if the user has a "Subs Manager" duty on the linked event. If so, include it in the editable list rather than read-only.
 
-Let me know once steps 1-3 are done and I will make the code change.
+**3. Include Subs Manager assignees in push notifications**
+
+- **`check-pending-subs/index.ts`** (~line 48-63): In `getTeamStaffUserIds`, also query `event_group_duties` (for mini-league matches) and `duties` (for regular events) where `name = 'Subs Manager'` and `assigned_to IS NOT NULL`, using the `linkedEventId` from the active game's pitch state. Add those user IDs to the notification recipient list.
+
+- **`PitchBoard.tsx`** (~line 2078-2082): In `notifyFormationOrSizeChange`, also query duties for "Subs Manager" assignees and include them in push notification recipients.
+
+**4. MiniLeagueGameWidgets.tsx**
+
+- In the `isAdmin` check that determines `readOnly` for the pitch board, also check if the current user is the "Subs Manager" assignee for that specific event group.
+
+### Files to Change
+
+| File | Change |
+|------|--------|
+| `AddDutySheet.tsx` | Add "Subs Manager" duty option with `UserCog` icon |
+| `EventGroupPitchPage.tsx` | Check `event_group_duties` for Subs Manager assignment to grant edit access |
+| `TeamDetailPage.tsx` | Check `duties` table for Subs Manager on linked event |
+| `HomePage.tsx` | Include Subs Manager check when determining `readOnly` |
+| `MiniLeagueGameWidgets.tsx` | Include Subs Manager check for `isAdmin` |
+| `PitchBoard.tsx` | Include Subs Manager assignees in formation change notifications |
+| `check-pending-subs/index.ts` | Query duties tables for Subs Manager assignees alongside team staff |
+
+### How It Works End-to-End
+
+1. Coach creates a match event and adds a "Subs Manager" duty
+2. Coach assigns the duty to a parent
+3. Parent opens the pitch board for that match -- system detects the duty and grants full edit access (not read-only)
+4. Parent receives push notifications for subs, half-time, full-time for that match
+5. Duty is scoped to that event only -- no permanent role elevation
 
