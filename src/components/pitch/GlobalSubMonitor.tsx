@@ -294,6 +294,7 @@ const recalculateRemainingPlan = (
     const gkReplacement = gkOnBench || (() => {
       const benchAtEnd = outfieldPlayers
         .filter(p => !currentOnPitch.has(p.id))
+        .filter(p => p.assignedPositions?.includes("GK"))
         .sort((a, b) => (a.minutesPlayed || 0) - (b.minutesPlayed || 0));
       return benchAtEnd[0] || null;
     })();
