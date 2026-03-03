@@ -500,6 +500,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       
       if (error) throw error;
       
+      // Invalidate the team-subscription query so parent pages pick up new defaults
+      queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
+      
       toast({
         title: "Settings saved",
         description: "Your pitch settings have been saved successfully.",
