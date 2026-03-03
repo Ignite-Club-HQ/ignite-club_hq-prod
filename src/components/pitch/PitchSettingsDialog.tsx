@@ -260,10 +260,25 @@ export function PitchSettingsDialog({
                     <SelectTrigger className="h-10">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="z-[99999] bg-popover">
-                      <SelectItem value="1">Slow</SelectItem>
-                      <SelectItem value="2">Normal</SelectItem>
-                      <SelectItem value="3">Fast</SelectItem>
+                     <SelectContent className="z-[99999] bg-popover">
+                      <SelectItem value="1">
+                        <div>
+                          <span>Minimal</span>
+                          <p className="text-[10px] text-muted-foreground">1 sub at a time, fewer windows</p>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="2">
+                        <div>
+                          <span>Balanced</span>
+                          <p className="text-[10px] text-muted-foreground">2 subs at a time, good mix</p>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="3">
+                        <div>
+                          <span>Equal Time</span>
+                          <p className="text-[10px] text-muted-foreground">Up to 3 subs, max fairness</p>
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
