@@ -262,6 +262,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const toggleTimer = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!timerState) return;
+    // Don't allow resuming if at half-time boundary - user needs to start 2nd half from pitch board
+    const isAtHalfBoundary = timerState.isRunning && displaySeconds >= timerState.minutesPerHalf * 60;
+    if (isAtHalfBoundary) return;
     saveTimerState({ ...timerState, isRunning: !timerState.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: displaySeconds });
     setTimerState(prev => prev ? { ...prev, isRunning: !prev.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: displaySeconds } : null);
   };
@@ -489,11 +492,18 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             </div>
             
             <div className="flex items-center gap-1.5 shrink-0">
-              {!readOnly && (
-                <Button variant="outline" size="icon" className="h-10 w-10" onClick={toggleTimer}>
-                  {timerState.isRunning ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-                </Button>
-              )}
+              {!readOnly && (() => {
+                // At half time boundary, the widget may read isRunning=true from localStorage
+                // before the GameTimer component processes the half-time pause.
+                // Detect this and show Play instead of Pause.
+                const isEffectivelyPaused = !timerState.isRunning || 
+                  (timerState.isRunning && displaySeconds >= timerState.minutesPerHalf * 60);
+                return (
+                  <Button variant="outline" size="icon" className="h-10 w-10" onClick={toggleTimer}>
+                    {!isEffectivelyPaused ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                  </Button>
+                );
+              })()}
               {timerState.teamId && timerState.teamName && onOpenPitchBoard && (
                 <Button variant="default" size="icon" className="h-10 w-10" onClick={handleOpenPitchBoard}>
                   <ExternalLink className="h-5 w-5" />
