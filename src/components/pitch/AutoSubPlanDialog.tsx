@@ -811,10 +811,6 @@ function DialogInner({
       </div>
       
       <div className="flex gap-2 justify-end mt-4">
-        <Button variant="ghost" onClick={handleGenerate} className="gap-2 mr-auto">
-          <RefreshCw className="h-4 w-4" />
-          Regenerate
-        </Button>
         <Button variant="outline" onClick={onClose}>
           Cancel
         </Button>
