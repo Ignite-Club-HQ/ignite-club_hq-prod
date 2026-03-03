@@ -326,12 +326,12 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
         // CRITICAL: Validate both players are in correct positions before executing
         // playerOut must exist and be on pitch (has position)
         // playerIn must exist and be on bench (no position)
-        if (!currentPlayerOut?.position || !currentPlayerIn || currentPlayerIn.position !== null) {
+        if (!currentPlayerOut?.position || !currentPlayerIn || !!currentPlayerIn.position) {
           console.log('[PendingSubWidget] Invalid sub state, skipping without player changes:', {
             playerOut: playerOut.name,
             playerOutOnPitch: !!currentPlayerOut?.position,
             playerIn: playerIn.name,
-            playerInOnBench: currentPlayerIn?.position === null
+            playerInOnBench: !currentPlayerIn?.position
           });
           
           // Mark sub as executed but DON'T change any player positions

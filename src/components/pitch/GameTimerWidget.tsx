@@ -321,7 +321,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       const currentPlayerOut = pitchState.players.find(p => p.id === playerOut.id);
       const currentPlayerIn = pitchState.players.find(p => p.id === playerIn.id);
 
-      if (!currentPlayerOut?.position || !currentPlayerIn || currentPlayerIn.position !== null) {
+      if (!currentPlayerOut?.position || !currentPlayerIn || !!currentPlayerIn.position) {
         // Invalid state - mark as executed but don't swap
         const updatedPlan = pitchState.autoSubPlan.map(s =>
           s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half
