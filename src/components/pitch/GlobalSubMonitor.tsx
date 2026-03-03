@@ -588,6 +588,10 @@ export default function GlobalSubMonitor() {
     const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
     const currentHalf = timerState.currentHalf;
 
+    // Don't show sub notifications if game is finished
+    const halfDuration = timerState.minutesPerHalf * 60;
+    if (timerState.currentHalf === 2 && currentElapsed >= halfDuration) return;
+
     // Find all unexecuted subs for current half that are due
     const dueSubs = pitchState.autoSubPlan.filter(sub => 
       !sub.executed && 
