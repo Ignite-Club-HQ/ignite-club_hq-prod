@@ -1716,21 +1716,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       ["L", rightHeadX, rightHeadY],
     ];
 
-    const { minX, minY } = arrowPathData.reduce(
-      (acc, entry) => {
-        const x = Number(entry[1]);
-        const y = Number(entry[2]);
-        return {
-          minX: Number.isFinite(x) ? Math.min(acc.minX, x) : acc.minX,
-          minY: Number.isFinite(y) ? Math.min(acc.minY, y) : acc.minY,
-        };
-      },
-      { minX: Number.POSITIVE_INFINITY, minY: Number.POSITIVE_INFINITY }
-    );
-
     return new Path(arrowPathData as any, {
-      left: startX + (Number.isFinite(minX) ? minX : 0),
-      top: startY + (Number.isFinite(minY) ? minY : 0),
+      left: startX,
+      top: startY,
       originX: "left",
       originY: "top",
       stroke: color,
