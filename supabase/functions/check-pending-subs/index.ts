@@ -259,7 +259,7 @@ async function checkGames(supabase: any): Promise<number> {
 
     // Find next unexecuted sub for current half that's due
     // Skip subs that are more than 90 seconds overdue (matches client-side auto-skip)
-    const AUTO_SKIP_THRESHOLD_SECS = 90;
+    const AUTO_SKIP_THRESHOLD_SECS = 60;
     const nextSub = pitchState.autoSubPlan.find((sub: SubstitutionEvent) => {
       const absoluteSubTime = getAbsoluteSubTime(sub);
       const overdueSeconds = currentElapsed - sub.time;
