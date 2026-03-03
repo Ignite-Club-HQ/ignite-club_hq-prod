@@ -123,6 +123,8 @@ export const NOTIFICATION_ICON_CONFIG: Record<string, NotificationIconConfig> = 
   
   // Pitch board types
   pending_sub: { iconName: 'ArrowLeftRight', colorClass: 'text-orange-500', emoji: '🔄' },
+  half_time: { iconName: 'Timer', colorClass: 'text-yellow-500', emoji: '⏸️' },
+  game_finished: { iconName: 'Trophy', colorClass: 'text-amber-500', emoji: '🏆' },
   formation_change: { iconName: 'LayoutGrid', colorClass: 'text-blue-500', emoji: '⚽' },
 };
 

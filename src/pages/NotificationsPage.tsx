@@ -639,6 +639,11 @@ export default function NotificationsPage() {
         // Trigger GlobalSubMonitor to show the sub confirmation dialog
         window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
         break;
+      case "half_time":
+      case "game_finished":
+        // Navigate to pitch board for half-time and full-time notifications
+        navigate("/pitch-board");
+        break;
       case "formation_change":
         // Navigate to the team's pitch board - relatedId is team_id
         if (relatedId) {
