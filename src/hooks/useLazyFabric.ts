@@ -74,41 +74,24 @@ const getArrowHeadLength = (dx: number, dy: number) => {
   return clamp(shaftLength * 0.18, 10, 24);
 };
 
-const getArrowPathBounds = (path: any[]) => {
-  let minX = Number.POSITIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-
-  path.forEach((entry) => {
-    if (!Array.isArray(entry)) return;
-    const x = Number(entry[1]);
-    const y = Number(entry[2]);
-
-    if (Number.isFinite(x)) minX = Math.min(minX, x);
-    if (Number.isFinite(y)) minY = Math.min(minY, y);
-  });
-
-  return {
-    minX: Number.isFinite(minX) ? minX : 0,
-    minY: Number.isFinite(minY) ? minY : 0,
-  };
-};
-
-const buildArrowPathData = (dx: number, dy: number) => {
+const buildArrowPathData = (startX: number, startY: number, endX: number, endY: number) => {
+  const dx = endX - startX;
+  const dy = endY - startY;
   const angle = Math.atan2(dy, dx);
   const headLength = getArrowHeadLength(dx, dy);
   const headSpread = Math.PI / 7;
 
-  const leftHeadX = dx - headLength * Math.cos(angle - headSpread);
-  const leftHeadY = dy - headLength * Math.sin(angle - headSpread);
-  const rightHeadX = dx - headLength * Math.cos(angle + headSpread);
-  const rightHeadY = dy - headLength * Math.sin(angle + headSpread);
+  const leftHeadX = endX - headLength * Math.cos(angle - headSpread);
+  const leftHeadY = endY - headLength * Math.sin(angle - headSpread);
+  const rightHeadX = endX - headLength * Math.cos(angle + headSpread);
+  const rightHeadY = endY - headLength * Math.sin(angle + headSpread);
 
   return [
-    ["M", 0, 0],
-    ["L", dx, dy],
-    ["M", dx, dy],
+    ["M", startX, startY],
+    ["L", endX, endY],
+    ["M", endX, endY],
     ["L", leftHeadX, leftHeadY],
-    ["M", dx, dy],
+    ["M", endX, endY],
     ["L", rightHeadX, rightHeadY],
   ];
 };
@@ -136,12 +119,11 @@ const extractArrowDataFromPathObject = (obj: any): PitchArrowData | null => {
     return null;
   }
 
-  const isRelativePath = Math.abs(startXRaw) < 0.001 && Math.abs(startYRaw) < 0.001;
+  const isLegacyRelativePath = Math.abs(startXRaw) < 0.001 && Math.abs(startYRaw) < 0.001;
 
-  if (isRelativePath) {
+  if (isLegacyRelativePath) {
     const left = Number(obj?.left ?? 0);
     const top = Number(obj?.top ?? 0);
-    const { minX, minY } = getArrowPathBounds(path);
 
     if (!Number.isFinite(left) || !Number.isFinite(top)) {
       return null;
@@ -149,10 +131,10 @@ const extractArrowDataFromPathObject = (obj: any): PitchArrowData | null => {
 
     return {
       kind: "pitch-arrow",
-      startX: left + (startXRaw - minX),
-      startY: top + (startYRaw - minY),
-      endX: left + (endXRaw - minX),
-      endY: top + (endYRaw - minY),
+      startX: left,
+      startY: top,
+      endX: left + endXRaw,
+      endY: top + endYRaw,
     };
   }
 
@@ -194,16 +176,14 @@ const scaleArrowPathObject = (obj: any, scaleX: number, scaleY: number): boolean
   const nextEndX = arrowData.endX * scaleX;
   const nextEndY = arrowData.endY * scaleY;
 
-  const nextPath = buildArrowPathData(nextEndX - nextStartX, nextEndY - nextStartY);
-
   obj.set({
-    left: nextStartX,
-    top: nextStartY,
+    left: 0,
+    top: 0,
     originX: "left",
     originY: "top",
     scaleX: 1,
     scaleY: 1,
-    path: nextPath,
+    path: buildArrowPathData(nextStartX, nextStartY, nextEndX, nextEndY),
     data: {
       ...arrowData,
       kind: "pitch-arrow",
