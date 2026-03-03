@@ -1695,32 +1695,46 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (!fabricModule) return null;
 
     const { Path } = fabricModule;
-    const angle = Math.atan2(endY - startY, endX - startX);
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const angle = Math.atan2(dy, dx);
     const headLength = 12;
     const headSpread = Math.PI / 7;
 
-    const leftHeadX = endX - headLength * Math.cos(angle - headSpread);
-    const leftHeadY = endY - headLength * Math.sin(angle - headSpread);
-    const rightHeadX = endX - headLength * Math.cos(angle + headSpread);
-    const rightHeadY = endY - headLength * Math.sin(angle + headSpread);
+    const leftHeadX = dx - headLength * Math.cos(angle - headSpread);
+    const leftHeadY = dy - headLength * Math.sin(angle - headSpread);
+    const rightHeadX = dx - headLength * Math.cos(angle + headSpread);
+    const rightHeadY = dy - headLength * Math.sin(angle + headSpread);
 
     const arrowPathData = [
-      `M ${startX} ${startY}`,
-      `L ${endX} ${endY}`,
-      `M ${endX} ${endY}`,
-      `L ${leftHeadX} ${leftHeadY}`,
-      `M ${endX} ${endY}`,
-      `L ${rightHeadX} ${rightHeadY}`,
-    ].join(" ");
+      ["M", 0, 0],
+      ["L", dx, dy],
+      ["M", dx, dy],
+      ["L", leftHeadX, leftHeadY],
+      ["M", dx, dy],
+      ["L", rightHeadX, rightHeadY],
+    ];
 
-    return new Path(arrowPathData, {
+    return new Path(arrowPathData as any, {
+      left: startX,
+      top: startY,
+      originX: "left",
+      originY: "top",
       stroke: color,
       strokeWidth: 3,
+      strokeUniform: true,
       fill: "",
       strokeLineCap: "round",
       strokeLineJoin: "round",
       selectable: false,
       evented: false,
+      data: {
+        kind: "pitch-arrow",
+        startX,
+        startY,
+        endX,
+        endY,
+      },
     });
   }, [fabricModule]);
 
