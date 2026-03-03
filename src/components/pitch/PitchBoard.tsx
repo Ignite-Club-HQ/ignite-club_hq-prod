@@ -4395,28 +4395,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   minutesPerHalf={minutesPerHalf}
                   onMinutesPerHalfChange={handleMinutesPerHalfChange}
                 />
-                {!readOnly && !disableAutoSubs && (
-                  <button
-                    className={cn(
-                      "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
-                      autoSubActive
-                        ? "bg-primary text-primary-foreground animate-pulse"
-                        : "bg-white/20 text-white/70 hover:bg-white/30"
-                    )}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (autoSubActive) {
-                        setAutoSubPanelOpen(true);
-                      } else {
-                        handleOpenNewPlan();
-                      }
-                    }}
-                  >
-                    AUTO
-                  </button>
-                )}
               </div>
-              {/* Bottom row: Formation • Tactical */}
+              {/* Bottom row: Formation • Tactical • Auto indicator */}
               <div className="flex items-center gap-1.5 mt-0.5 relative">
                 <button
                   className="text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px] flex items-center"
@@ -4434,6 +4414,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   {tacticalMode === "attack" && <Swords className="h-4 w-4 text-orange-400" />}
                   {TACTICAL_MODE_LABELS[tacticalMode]} ▾
                 </button>
+                {!readOnly && !disableAutoSubs && autoSubActive && (
+                  <>
+                    <span className="text-white/30 text-sm">•</span>
+                    <button
+                      className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-primary px-1.5 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAutoSubPanelOpen(true);
+                      }}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                      Auto
+                    </button>
+                  </>
+                )}
                 {/* Tactical dropdown */}
                 {timerTacticalDropdownOpen && (
                   <>
@@ -5735,28 +5730,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   minutesPerHalf={minutesPerHalf}
                   onMinutesPerHalfChange={handleMinutesPerHalfChange}
                 />
-                {!readOnly && !disableAutoSubs && (
-                  <button
-                    className={cn(
-                      "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
-                      autoSubActive
-                        ? "bg-primary text-primary-foreground animate-pulse"
-                        : "bg-white/20 text-white/70 hover:bg-white/30"
-                    )}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (autoSubActive) {
-                        setAutoSubPanelOpen(true);
-                      } else {
-                        handleOpenNewPlan();
-                      }
-                    }}
-                  >
-                    AUTO
-                  </button>
-                )}
               </div>
-              {/* Bottom row: Formation • Tactical */}
+              {/* Bottom row: Formation • Tactical • Auto indicator */}
               <div className="flex items-center gap-1.5 mt-0.5 relative">
                 <button
                   className="text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px] flex items-center"
@@ -5774,6 +5749,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   {tacticalMode === "attack" && <Swords className="h-4 w-4 text-orange-400" />}
                   {TACTICAL_MODE_LABELS[tacticalMode]} ▾
                 </button>
+                {!readOnly && !disableAutoSubs && autoSubActive && (
+                  <>
+                    <span className="text-white/30 text-sm">•</span>
+                    <button
+                      className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-primary px-1.5 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAutoSubPanelOpen(true);
+                      }}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                      Auto
+                    </button>
+                  </>
+                )}
                 {/* Tactical dropdown - portrait */}
                 {timerTacticalDropdownOpen && (
                   <>
