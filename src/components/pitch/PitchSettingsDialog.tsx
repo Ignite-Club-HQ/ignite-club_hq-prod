@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Settings, Volume2, VolumeX, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Minus, Scale, Equal } from "lucide-react";
+import { Settings, Users, Trash2, BarChart3, Settings2, Save, X, ChevronDown, RotateCcw, CalendarCheck, EyeOff, SlidersHorizontal, List, UserPlus, Minus, Scale, Equal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TeamSize } from "./types";
 
@@ -21,9 +21,6 @@ interface Formation {
 }
 
 interface PitchSettingsDialogProps {
-  // Sound
-  soundEnabled: boolean;
-  onSoundToggle: (enabled: boolean) => void;
   
   // Formation
   selectedFormation: number;
@@ -110,8 +107,6 @@ interface PitchSettingsDialogProps {
 }
 
 export function PitchSettingsDialog({
-  soundEnabled,
-  onSoundToggle,
   selectedFormation,
   onFormationChange,
   formations,
@@ -411,17 +406,6 @@ export function PitchSettingsDialog({
                   </div>
                 )}
 
-                <div className="flex items-center justify-between py-1.5">
-                  <div className="flex items-center gap-2">
-                    {soundEnabled ? <Volume2 className="h-4 w-4 text-muted-foreground" /> : <VolumeX className="h-4 w-4 text-muted-foreground" />}
-                    <Label htmlFor="sound-toggle" className="text-sm">Sound</Label>
-                  </div>
-                  <Switch
-                    id="sound-toggle"
-                    checked={soundEnabled}
-                    onCheckedChange={onSoundToggle}
-                  />
-                </div>
 
                 {/* Mock data toggle */}
                 {!readOnly && (

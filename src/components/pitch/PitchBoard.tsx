@@ -75,8 +75,7 @@ import {
   loadPitchState,
   clearPitchState,
   loadTimerStateForMinutes,
-  recalculateRemainingPlan,
-  isSoundEnabled
+  recalculateRemainingPlan
 } from "./pitchStateUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 
@@ -2765,9 +2764,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const msg = batchSubs.length > 0
       ? `Time for ${batchSubs.length + 1} substitutions`
       : `Execute now: ${playerOutName} ➜ ${playerInName}`;
-    if (isSoundEnabled(teamId)) {
-      playSubAlertBeep(msg);
-    }
+    playSubAlertBeep(msg);
   }, [autoSubPlan, teamId]);
 
   const handleRegeneratePlan = useCallback(() => {
@@ -2927,9 +2924,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const notificationBody = batchSubs.length > 1
         ? `Time for ${batchSubs.length} substitutions`
         : `Time to sub: ${playerOutName} ➜ ${playerInName}`;
-      if (isSoundEnabled(teamId)) {
-        playSubAlertBeep(notificationBody);
-      }
+      playSubAlertBeep(notificationBody);
       
       // Create database notification (triggers server-side push)
       createSubNotification(notificationBody);
@@ -2969,9 +2964,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           const notificationBody = halftimeSubs.length > 1
             ? `Halftime: ${halftimeSubs.length} substitutions`
             : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
-          if (isSoundEnabled(teamId)) {
-            playSubAlertBeep(notificationBody);
-          }
+          playSubAlertBeep(notificationBody);
           createSubNotification(notificationBody);
           
           setPendingAutoSub(primarySub);
@@ -2998,9 +2991,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         
         setTimeout(() => {
           const notificationBody = `Halftime GK swap: ${currentGk.name} ➜ ${secondHalfGk.name}`;
-          if (isSoundEnabled(teamId)) {
-            playSubAlertBeep(notificationBody);
-          }
+          playSubAlertBeep(notificationBody);
           createSubNotification(notificationBody);
           
           setPendingAutoSub(gkSwapEvent);
@@ -4280,8 +4271,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   )}
                 </div>
                 <PitchSettingsDialog
-                  soundEnabled={isSoundEnabled(teamId)}
-                  onSoundToggle={() => {}}
                   selectedFormation={selectedFormation}
                   onFormationChange={handleFormationChange}
                   formations={FORMATIONS[teamSize]}
@@ -5637,8 +5626,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
             {!readOnly && (
               <PitchSettingsDialog
-                soundEnabled={isSoundEnabled(teamId)}
-                onSoundToggle={() => {}}
                 selectedFormation={selectedFormation}
                 onFormationChange={handleFormationChange}
                 formations={FORMATIONS[teamSize]}
