@@ -2804,7 +2804,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const skippedId = `${nextSub.half}-${nextSub.time}-${nextSub.playerOut.id}`;
     const updatedPlan = autoSubPlan.map(sub => {
       const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
-      return subId === skippedId ? { ...sub, executed: true } : sub;
+      return subId === skippedId ? { ...sub, executed: true, skipped: true } : sub;
     });
 
     const remainingCount = updatedPlan.filter(sub => !sub.executed).length;
@@ -3228,7 +3228,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     const updatedPlan = autoSubPlan.map(sub => {
       const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
-      return skippedIds.includes(subId) ? { ...sub, executed: true } : sub;
+      return skippedIds.includes(subId) ? { ...sub, executed: true, skipped: true } : sub;
     });
 
     const remainingCount = updatedPlan.filter(sub => !sub.executed).length;

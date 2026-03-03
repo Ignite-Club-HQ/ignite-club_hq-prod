@@ -34,6 +34,7 @@ interface SubstitutionEvent {
     toPosition: PitchPosition;
   };
   executed?: boolean;
+  skipped?: boolean;
 }
 
 interface SubConfirmDialogProps {
@@ -61,7 +62,8 @@ export default function SubConfirmDialog({
   
   const allSubs = substitution ? [substitution, ...batchSubstitutions] : [];
   const isBatchSub = allSubs.length > 1;
-  const alreadyExecuted = substitution?.executed === true;
+  const alreadyExecuted = substitution?.executed === true && !substitution?.skipped;
+  const wasSkipped = substitution?.skipped === true;
   
   useEffect(() => {
     setCountdown(secondsUntilDue);
@@ -179,7 +181,12 @@ export default function SubConfirmDialog({
       <ResponsiveDialogContent className={cn("sm:max-w-sm", isBatchSub && "sm:max-w-md")}>
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2 text-lg">
-            {alreadyExecuted ? (
+            {wasSkipped ? (
+              <>
+                <X className="h-5 w-5 text-muted-foreground" />
+                Substitution Was Skipped
+              </>
+            ) : alreadyExecuted ? (
               <>
                 <Check className="h-5 w-5 text-muted-foreground" />
                 Substitution Already Made
@@ -197,7 +204,9 @@ export default function SubConfirmDialog({
             )}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            {alreadyExecuted
+            {wasSkipped
+              ? "This substitution was skipped and not made"
+              : alreadyExecuted
               ? "This substitution has already been completed"
               : isDue 
                 ? `Follow these ${getTotalSteps()} steps on the pitch`
@@ -234,7 +243,7 @@ export default function SubConfirmDialog({
             <X className="h-4 w-4" />
             Close
           </Button>
-          {isDue && (
+          {isDue && !wasSkipped && (
             <>
               <Button variant="outline" onClick={onSkip} disabled={alreadyExecuted} className="gap-2 h-12 text-base">
                 <X className="h-4 w-4" />
