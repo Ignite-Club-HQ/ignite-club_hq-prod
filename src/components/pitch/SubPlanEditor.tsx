@@ -232,7 +232,7 @@ export default function SubPlanEditor({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
-          {plan.length} substitution{plan.length !== 1 ? "s" : ""} planned
+          {plan.length} sub{plan.length !== 1 ? "s" : ""} planned · {new Set([...plan.map(s => s.playerOut.id), ...plan.map(s => s.playerIn.id)]).size} players
         </p>
         <Button
           size="sm"
