@@ -195,11 +195,10 @@ const scaleArrowPathObject = (obj: any, scaleX: number, scaleY: number): boolean
   const nextEndY = arrowData.endY * scaleY;
 
   const nextPath = buildArrowPathData(nextEndX - nextStartX, nextEndY - nextStartY);
-  const { minX, minY } = getArrowPathBounds(nextPath);
 
   obj.set({
-    left: nextStartX + minX,
-    top: nextStartY + minY,
+    left: nextStartX,
+    top: nextStartY,
     originX: "left",
     originY: "top",
     scaleX: 1,
