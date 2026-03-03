@@ -2072,6 +2072,45 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setPortraitSheetOpen(false);
   }, []);
 
+  // Send push notification to team coaches/admins when formation or team size changes
+  const notifyFormationOrSizeChange = useCallback(async (changeType: 'formation' | 'team_size', detail: string) => {
+    if (!user?.id || readOnly) return;
+    try {
+      const { data: staffRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("team_id", teamId)
+        .in("role", ["coach", "team_admin"]);
+      
+      const recipientIds = new Set<string>();
+      staffRoles?.forEach(r => {
+        if (r.user_id !== user.id) recipientIds.add(r.user_id);
+      });
+
+      const title = changeType === 'formation' 
+        ? `⚽ ${teamName} - Formation Changed`
+        : `⚽ ${teamName} - Team Size Changed`;
+      const body = changeType === 'formation'
+        ? `Formation changed to ${detail}`
+        : `Team size changed to ${detail} players`;
+
+      for (const userId of recipientIds) {
+        supabase.functions.invoke("send-push-notification", {
+          body: {
+            userId,
+            title,
+            body,
+            url: `/teams/${teamId}`,
+            tag: `pitch-change-${teamId}`,
+            notificationType: "pitch_board",
+          },
+        }).catch(() => {});
+      }
+    } catch (e) {
+      console.error("Failed to send formation change notification:", e);
+    }
+  }, [user?.id, teamId, teamName, readOnly]);
+
   const applyFormationChange = useCallback((index: number) => {
     const formation = FORMATIONS[teamSize][index];
     if (!formation) return;
@@ -2124,13 +2163,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     toast({ title: "Formation applied", description: `${formation.name} formation set` });
 
+    // Notify team staff about the formation change
+    notifyFormationOrSizeChange('formation', formation.name);
+
     // Auto-regenerate the plan if auto-subs are active
     if (autoSubActive) {
       setTimeout(() => {
         regeneratePlanRef.current?.();
       }, 300);
     }
-  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers, autoSubActive]);
+  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers, autoSubActive, notifyFormationOrSizeChange]);
 
   // Handle formation change dialog confirm
   const handleFormationChangeConfirm = useCallback(() => {
@@ -2143,6 +2185,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         const placedPlayers = autoPlacePlayersOnPitch(players, newSize, 0);
         setPlayers(placedPlayers);
         persistTeamSizeToDb(newSize);
+        // Notify team staff about the team size change
+        notifyFormationOrSizeChange('team_size', newSize);
       } else {
         applyFormationChange(pendingFormationChange.index);
       }
@@ -2160,7 +2204,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         toast({ title: "Auto-sub plan updated", description: "Plan regenerated to account for formation change" });
       }, 300);
     }
-  }, [pendingFormationChange, applyFormationChange, autoPlacePlayersOnPitch, players, persistTeamSizeToDb, autoSubActive, toast]);
+  }, [pendingFormationChange, applyFormationChange, autoPlacePlayersOnPitch, players, persistTeamSizeToDb, autoSubActive, toast, notifyFormationOrSizeChange]);
 
   // Handle formation change dialog cancel
   const handleFormationChangeCancel = useCallback(() => {
