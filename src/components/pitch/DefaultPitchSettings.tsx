@@ -58,9 +58,9 @@ const FORMATIONS: Record<TeamSize, { name: string }[]> = {
 const TEAM_SIZES: TeamSize[] = ["3", "4", "5", "6", "7", "8", "9", "10", "11"];
 const MINUTES_OPTIONS = [5, 7, 10, 12, 15, 20, 25, 30, 35, 40, 45];
 const ROTATION_SPEEDS = [
-  { value: "1", label: "Slow (fewer subs)" },
-  { value: "2", label: "Normal" },
-  { value: "3", label: "Fast (more subs)" },
+  { value: "1", label: "Minimal" },
+  { value: "2", label: "Balanced" },
+  { value: "3", label: "Equal Time" },
 ];
 
 interface DefaultPitchSettingsProps {
