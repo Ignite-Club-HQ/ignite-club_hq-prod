@@ -31,6 +31,7 @@ interface SubstitutionEvent {
     toPosition: PitchPosition;
   };
   executed?: boolean;
+  skipped?: boolean;
 }
 
 interface TimerState {
@@ -975,7 +976,7 @@ export default function GlobalSubMonitor() {
 
     const updatedPlan = pitchState.autoSubPlan.map(sub => {
       const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
-      return skippedIds.has(subId) ? { ...sub, executed: true } : sub;
+      return skippedIds.has(subId) ? { ...sub, executed: true, skipped: true } : sub;
     });
 
     const remainingSubs = updatedPlan.filter(sub => !sub.executed);

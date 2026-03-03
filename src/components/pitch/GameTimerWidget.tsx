@@ -399,7 +399,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
       let updatedPlan = pitchState.autoSubPlan.map(s =>
         s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half
-          ? { ...s, executed: true } : s
+          ? { ...s, executed: true, skipped: true } : s
       );
 
       const remaining = updatedPlan.filter(s => !s.executed);
