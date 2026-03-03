@@ -450,11 +450,12 @@ function createSubPlan(
         .filter(p => !currentOnPitch.has(p.id))
         .map(p => ({ player: p, time: playingTime.get(p.id) || 0 }))
         .sort((a, b) => a.time - b.time);
-      // Only consider players who have GK in their assigned positions (multi-position players)
+      // Prefer players who have GK in their assigned positions
       const gkEligible = benchAtHalftime.filter(p => 
         p.player.assignedPositions?.includes("GK")
       );
-      return gkEligible[0]?.player || null;
+      // Fallback: pick the least-played bench player if no GK-specialist exists
+      return gkEligible[0]?.player || benchAtHalftime[0]?.player || null;
     })();
     
     if (gkReplacementPlayer) {

@@ -143,7 +143,7 @@ const recalculateRemainingPlan = (
   
   if (outfieldOnBench.length === 0) {
     if (rotateGkAtHalftime && gkOnPitch && currentHalf === 1) {
-      const gkReplacement = gkOnBench || null;
+      const gkReplacement = gkOnBench || benchPlayers.sort((a, b) => (a.minutesPlayed || 0) - (b.minutesPlayed || 0))[0] || null;
       if (gkReplacement) {
         plan.push({
           time: 0,
@@ -294,9 +294,10 @@ const recalculateRemainingPlan = (
     const gkReplacement = gkOnBench || (() => {
       const benchAtEnd = outfieldPlayers
         .filter(p => !currentOnPitch.has(p.id))
-        .filter(p => p.assignedPositions?.includes("GK"))
         .sort((a, b) => (a.minutesPlayed || 0) - (b.minutesPlayed || 0));
-      return benchAtEnd[0] || null;
+      // Prefer GK-eligible players, fallback to least-played bench player
+      const gkEligible = benchAtEnd.filter(p => p.assignedPositions?.includes("GK"));
+      return gkEligible[0] || benchAtEnd[0] || null;
     })();
     if (gkReplacement) {
       plan.push({
