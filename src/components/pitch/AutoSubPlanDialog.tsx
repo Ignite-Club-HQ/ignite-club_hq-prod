@@ -505,12 +505,17 @@ function createSubPlan(
     simLastTime = sub.time;
     simLastHalf = sub.half;
     
-    // Apply the sub
+    // Apply the sub — track positions through simulation, not from the main algo's final state
+    const outPos = simOnPitch.get(sub.playerOut.id);
     simOnPitch.delete(sub.playerOut.id);
-    const pos = sub.positionSwap ? sub.positionSwap.fromPosition : currentOnPitch.get(sub.playerOut.id);
-    if (pos) simOnPitch.set(sub.playerIn.id, pos);
     if (sub.positionSwap) {
-      simOnPitch.set(sub.positionSwap.player.id, sub.positionSwap.toPosition);
+      // Incoming player takes the swap player's position
+      const swapFromPos = simOnPitch.get(sub.positionSwap.player.id);
+      if (swapFromPos) simOnPitch.set(sub.playerIn.id, swapFromPos);
+      // Swap player moves to the outgoing player's position
+      if (outPos) simOnPitch.set(sub.positionSwap.player.id, outPos);
+    } else {
+      if (outPos) simOnPitch.set(sub.playerIn.id, outPos);
     }
   }
   // Add remaining game time

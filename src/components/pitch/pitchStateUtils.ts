@@ -291,6 +291,13 @@ export const recalculateRemainingPlan = (
       
       if (onPitchCandidates.length === 0 || benchCandidates.length === 0) break;
       
+      // Use 30s minimum threshold — don't swap players with near-equal time
+      if (subIdx === 0) {
+        const mostPlayed = onPitchCandidates[0];
+        const leastPlayed = benchCandidates[0];
+        if ((mostPlayed.time - leastPlayed.time) < 30) break;
+      }
+      
       let playerOut: Player | undefined;
       let playerIn: Player | undefined;
       let positionSwap: SubstitutionEvent["positionSwap"] | undefined;
@@ -298,6 +305,10 @@ export const recalculateRemainingPlan = (
       for (const benchEntry of benchCandidates) {
         for (const pitchEntry of onPitchCandidates) {
           const pitchPos = currentOnPitch.get(pitchEntry.id);
+          const timeDiff = pitchEntry.time - benchEntry.time;
+          
+          // 30s threshold: skip candidates with near-equal playing time
+          if (timeDiff < 30) continue;
           
           if (!benchEntry.player.assignedPositions?.length || 
               benchEntry.player.assignedPositions.includes(pitchPos!)) {
@@ -310,8 +321,15 @@ export const recalculateRemainingPlan = (
       }
       
       if (!playerOut || !playerIn) {
-        playerOut = onPitchCandidates[0].player;
-        playerIn = benchCandidates[0].player;
+        // Fallback: still require 30s threshold
+        const fallbackOut = onPitchCandidates[0];
+        const fallbackIn = benchCandidates[0];
+        if ((fallbackOut.time - fallbackIn.time) >= 30) {
+          playerOut = fallbackOut.player;
+          playerIn = fallbackIn.player;
+        } else {
+          break;
+        }
       }
       
       const sub: SubstitutionEvent = {
