@@ -258,7 +258,9 @@ export function PitchSettingsDialog({
                     disabled={readOnly}
                   >
                     <SelectTrigger className="h-10">
-                      <SelectValue />
+                      <SelectValue>
+                        {rotationSpeed === 1 ? 'Minimal' : rotationSpeed === 3 ? 'Equal Time' : 'Balanced'}
+                      </SelectValue>
                     </SelectTrigger>
                      <SelectContent className="z-[99999] bg-popover">
                       <SelectItem value="1">
