@@ -2071,20 +2071,49 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setPortraitSheetOpen(false);
   }, []);
 
-  // Send push notification to team coaches/admins when formation or team size changes
+  // Send push notification to team coaches/admins and Subs Manager assignees when formation or team size changes
   const notifyFormationOrSizeChange = useCallback(async (changeType: 'formation' | 'team_size', detail: string) => {
     if (!user?.id || readOnly) return;
     try {
+      const recipientIds = new Set<string>();
+
+      // Get team coaches/admins
       const { data: staffRoles } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("team_id", teamId)
         .in("role", ["coach", "team_admin"]);
       
-      const recipientIds = new Set<string>();
       staffRoles?.forEach(r => {
         if (r.user_id !== user.id) recipientIds.add(r.user_id);
       });
+
+      // Also include Subs Manager assignees for this event
+      if (linkedEventId) {
+        const isEventGroup = teamId.startsWith("event-group-");
+        if (isEventGroup) {
+          const groupId = teamId.replace("event-group-", "");
+          const { data: subsManagers } = await supabase
+            .from("event_group_duties")
+            .select("assigned_to")
+            .eq("group_id", groupId)
+            .eq("name", "Subs Manager")
+            .not("assigned_to", "is", null);
+          subsManagers?.forEach(d => {
+            if (d.assigned_to && d.assigned_to !== user.id) recipientIds.add(d.assigned_to);
+          });
+        } else {
+          const { data: subsManagers } = await supabase
+            .from("duties")
+            .select("assigned_to")
+            .eq("event_id", linkedEventId)
+            .eq("name", "Subs Manager")
+            .not("assigned_to", "is", null);
+          subsManagers?.forEach(d => {
+            if (d.assigned_to && d.assigned_to !== user.id) recipientIds.add(d.assigned_to);
+          });
+        }
+      }
 
       const title = changeType === 'formation' 
         ? `⚽ ${teamName} - Formation Changed`
@@ -2108,7 +2137,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     } catch (e) {
       console.error("Failed to send formation change notification:", e);
     }
-  }, [user?.id, teamId, teamName, readOnly]);
+  }, [user?.id, teamId, teamName, readOnly, linkedEventId]);
 
   const applyFormationChange = useCallback((index: number) => {
     const formation = FORMATIONS[teamSize][index];

@@ -117,9 +117,9 @@ export default function EventGroupPitchPage() {
     enabled: !!group?.event?.mini_league_id,
   });
 
-  // Check if user can edit pitch board (club_admin, league_admin, coach, app_admin)
+  // Check if user can edit pitch board (club_admin, league_admin, coach, app_admin, or Subs Manager duty)
   const { data: userCanEdit } = useQuery({
-    queryKey: ["mini-league-edit-permission", user?.id, leagueSettings?.club_id],
+    queryKey: ["mini-league-edit-permission", user?.id, leagueSettings?.club_id, groupId],
     queryFn: async () => {
       if (!user || !leagueSettings?.club_id) return false;
       
@@ -137,7 +137,23 @@ export default function EventGroupPitchPage() {
         .eq("user_id", user.id)
         .eq("role", "app_admin");
       
-      return (roles && roles.length > 0) || (appAdminRoles && appAdminRoles.length > 0);
+      const hasAdminRole = (roles && roles.length > 0) || (appAdminRoles && appAdminRoles.length > 0);
+      if (hasAdminRole) return true;
+
+      // Check if user has "Subs Manager" duty for this specific group
+      if (groupId) {
+        const { data: subsManagerDuty } = await supabase
+          .from("event_group_duties")
+          .select("id")
+          .eq("group_id", groupId)
+          .eq("name", "Subs Manager")
+          .eq("assigned_to", user.id)
+          .maybeSingle();
+        
+        if (subsManagerDuty) return true;
+      }
+
+      return false;
     },
     enabled: !!user && !!leagueSettings?.club_id,
   });

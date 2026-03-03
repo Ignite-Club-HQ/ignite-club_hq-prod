@@ -45,22 +45,54 @@ const CHECK_INTERVAL_MS = 10000;
 const TOTAL_DURATION_MS = 55000;
 
 // Get coaches and team admins for a specific team
-async function getTeamStaffUserIds(supabase: any, teamId: string | null | undefined): Promise<string[]> {
-  if (!teamId) return [];
+async function getTeamStaffUserIds(supabase: any, teamId: string | null | undefined, linkedEventId?: string): Promise<string[]> {
+  const userIds = new Set<string>();
 
-  const { data, error } = await supabase
-    .from('user_roles')
-    .select('user_id')
-    .eq('team_id', teamId)
-    .in('role', ['team_admin', 'coach']);
+  if (teamId) {
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('team_id', teamId)
+      .in('role', ['team_admin', 'coach']);
 
-  if (error || !data) {
-    console.error('[CHECK-SUBS] Error fetching team staff:', error?.message);
-    return [];
+    if (error) {
+      console.error('[CHECK-SUBS] Error fetching team staff:', error?.message);
+    } else if (data) {
+      data.forEach((r: any) => userIds.add(r.user_id as string));
+    }
   }
 
-  // Deduplicate
-  return [...new Set(data.map((r: any) => r.user_id as string))];
+  // Also include Subs Manager duty assignees
+  if (linkedEventId) {
+    // Check regular event duties
+    const { data: dutyAssignees } = await supabase
+      .from('duties')
+      .select('assigned_to')
+      .eq('event_id', linkedEventId)
+      .eq('name', 'Subs Manager')
+      .not('assigned_to', 'is', null);
+    
+    dutyAssignees?.forEach((d: any) => {
+      if (d.assigned_to) userIds.add(d.assigned_to);
+    });
+  }
+
+  // Check event_group_duties for mini-league matches (teamId starts with "event-group-")
+  if (teamId?.startsWith('event-group-')) {
+    const groupId = teamId.replace('event-group-', '');
+    const { data: groupDutyAssignees } = await supabase
+      .from('event_group_duties')
+      .select('assigned_to')
+      .eq('group_id', groupId)
+      .eq('name', 'Subs Manager')
+      .not('assigned_to', 'is', null);
+    
+    groupDutyAssignees?.forEach((d: any) => {
+      if (d.assigned_to) userIds.add(d.assigned_to);
+    });
+  }
+
+  return [...userIds];
 }
 
 // Send push notification via edge function
@@ -267,7 +299,7 @@ async function checkGames(supabase: any): Promise<number> {
         const teamName = timerState.teamName || 'Your team';
         const teamId = timerState.teamId || game.team_id;
         const linkedEventId = pitchState.linkedEventId;
-        const staffUserIds = await getTeamStaffUserIds(supabase, teamId);
+        const staffUserIds = await getTeamStaffUserIds(supabase, teamId, linkedEventId);
         
         notificationsSent += await notifyTeamStaff(
           supabase, staffUserIds, game.user_id, game.id,
@@ -292,7 +324,7 @@ async function checkGames(supabase: any): Promise<number> {
     const linkedEventId = pitchState.linkedEventId;
 
     // Get team staff (coaches + team_admins) for this specific team
-    const staffUserIds = await getTeamStaffUserIds(supabase, teamId);
+    const staffUserIds = await getTeamStaffUserIds(supabase, teamId, linkedEventId);
 
     const getAbsoluteSubTime = (sub: SubstitutionEvent) => {
       return sub.half === 1 ? sub.time : halfDurationSecs + sub.time;
