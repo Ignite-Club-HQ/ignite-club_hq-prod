@@ -4531,7 +4531,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 ref={isLandscape ? containerRef : undefined}
                 className="absolute inset-0 w-full h-full"
                 onPointerUp={() => {
-                  if (showFloatingDrawToolbar && !pinDrawingToolbar) {
+                  if (showFloatingDrawToolbar && !pinDrawingToolbar && !isDrawingArrowRef.current && drawingTool === "none") {
                     setTimeout(() => {
                       setDrawingTool("none");
                       setShowFloatingDrawToolbar(false);
@@ -6162,8 +6162,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             <div 
               ref={!isLandscape ? containerRef : undefined}
               className="absolute inset-0 w-full h-full"
-              onPointerUp={(e) => {
-                if (showFloatingDrawToolbar && !pinDrawingToolbar) {
+              onPointerUp={() => {
+                if (showFloatingDrawToolbar && !pinDrawingToolbar && !isDrawingArrowRef.current && drawingTool === "none") {
                   setTimeout(() => {
                     setDrawingTool("none");
                     setShowFloatingDrawToolbar(false);
