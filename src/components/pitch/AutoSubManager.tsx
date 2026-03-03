@@ -222,7 +222,7 @@ export default function AutoSubManager({
 
           {/* Timeline */}
           {showTimeline && (
-            <ScrollArea className="max-h-[180px]">
+            <ScrollArea className="max-h-[50vh]">
               <div className="space-y-0">
                 {[1, 2].map((half) => {
                   const halfSubs = autoSubPlan
