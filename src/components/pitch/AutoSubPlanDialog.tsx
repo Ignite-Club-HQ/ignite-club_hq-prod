@@ -228,16 +228,18 @@ function createSubPlan(
   const totalSubsNeeded = Math.max(minSubsNeeded, outfieldOnBench.length);
   const idealWindows = Math.ceil(totalSubsNeeded / subsAtOnce);
   
-  // Apply rotation speed modifier - but keep windows low to reduce interruptions
+  // Apply rotation speed modifier
+  // All modes ensure every bench player gets rotated in — the difference is batch size,
+  // which affects how many sub windows are needed (more windows = more interruptions)
   let subWindowsPerHalf: number;
   switch (rotationSpeed) {
-    case 1: // Slow - fewest windows
-      subWindowsPerHalf = Math.max(1, Math.ceil(idealWindows / 2));
+    case 1: // Minimal - 1 sub at a time, so needs more windows but less disruption per window
+      subWindowsPerHalf = Math.max(2, totalSubsNeeded);
       break;
-    case 3: // Fast - slightly more windows for finer control
+    case 3: // Equal Time - bigger batches, slightly more windows for finer control
       subWindowsPerHalf = Math.max(2, idealWindows);
       break;
-    case 2: // Medium - balanced
+    case 2: // Balanced
     default:
       subWindowsPerHalf = Math.max(1, idealWindows);
       break;
