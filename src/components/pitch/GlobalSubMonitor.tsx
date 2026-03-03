@@ -793,7 +793,7 @@ export default function GlobalSubMonitor() {
     // playerIn must be on bench (position === null)
     
     // If playerIn doesn't exist or is already on pitch, skip without modifying positions
-    if (!currentPlayerIn || currentPlayerIn.position !== null) {
+    if (!currentPlayerIn || !!currentPlayerIn.position) {
       console.log('[GlobalSubMonitor] Skipping sub - playerIn not on bench:', {
         playerIn: playerIn.name,
         found: !!currentPlayerIn,
@@ -824,7 +824,7 @@ export default function GlobalSubMonitor() {
     }
     
     // If playerOut doesn't exist or is already off pitch, skip without modifying positions
-    if (!currentPlayerOut || currentPlayerOut.position === null) {
+    if (!currentPlayerOut?.position) {
       console.log('[GlobalSubMonitor] Skipping sub - playerOut not on pitch:', {
         playerOut: playerOut.name,
         found: !!currentPlayerOut,
