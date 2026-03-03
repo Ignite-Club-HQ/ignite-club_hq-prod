@@ -755,6 +755,11 @@ export default function AutoSubPlanDialog({
                   <span className="font-medium text-foreground">Subs</span>
                 </div>
               )}
+              <DialogPrimitive.Close asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                  <X className="h-4 w-4" />
+                </Button>
+              </DialogPrimitive.Close>
             </div>
           </div>
           
