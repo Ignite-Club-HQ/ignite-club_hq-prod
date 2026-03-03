@@ -15,6 +15,7 @@ interface PlayerTimeForecast {
   predictedMinutes: number;
   percentageOfGame: number;
   startsOnPitch: boolean;
+  gkRole?: 'full' | '1h' | '2h'; // GK for full game, 1st half, or 2nd half
 }
 
 // Calculate playing time forecast for each player based on the plan
@@ -39,6 +40,23 @@ function calculateTimeForecasts(
   
   // Track who's on pitch at any moment
   const currentOnPitch = new Set(playersOnPitch.map(p => p.id));
+  
+  // Determine GK roles
+  const startingGk = playersOnPitch.find(p => p.currentPitchPosition === "GK");
+  // Find the halftime GK swap (a sub at time 0 in half 2 involving the starting GK)
+  const gkSwapSub = startingGk 
+    ? plan.find(s => s.half === 2 && s.time === 0 && s.playerOut.id === startingGk.id)
+    : null;
+  
+  const gkRoles = new Map<string, 'full' | '1h' | '2h'>();
+  if (startingGk) {
+    if (gkSwapSub) {
+      gkRoles.set(startingGk.id, '1h');
+      gkRoles.set(gkSwapSub.playerIn.id, '2h');
+    } else {
+      gkRoles.set(startingGk.id, 'full');
+    }
+  }
   
   // Process each half
   for (const half of [1, 2]) {
@@ -70,7 +88,8 @@ function calculateTimeForecasts(
     player,
     predictedMinutes: Math.round((timeOnPitch.get(player.id) || 0) / 60),
     percentageOfGame: Math.round(((timeOnPitch.get(player.id) || 0) / 60 / totalGameMinutes) * 100),
-    startsOnPitch: startsOnPitchMap.get(player.id) || false
+    startsOnPitch: startsOnPitchMap.get(player.id) || false,
+    gkRole: gkRoles.get(player.id),
   })).sort((a, b) => b.predictedMinutes - a.predictedMinutes);
 }
 
@@ -754,6 +773,14 @@ function DialogInner({
                       >
                         {forecast.startsOnPitch ? 'Start' : 'Bench'}
                       </Badge>
+                      {forecast.gkRole && (
+                        <Badge 
+                          variant="outline" 
+                          className="text-xs px-1.5 py-0 border-amber-500/50 text-amber-600"
+                        >
+                          {forecast.gkRole === 'full' ? 'GK' : forecast.gkRole === '1h' ? 'GK 1H' : 'GK 2H'}
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Progress 
