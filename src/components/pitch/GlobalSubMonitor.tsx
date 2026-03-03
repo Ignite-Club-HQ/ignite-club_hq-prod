@@ -611,32 +611,23 @@ export default function GlobalSubMonitor() {
       if (lastCheckedSubRef.current !== subKey) {
         lastCheckedSubRef.current = subKey;
         
-        // Play alert beep with notification
+        // Play alert beep (dialog itself is the in-app alert)
         const notificationBody = batchSubs.length > 1
           ? `Time for ${batchSubs.length} substitutions`
           : `${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} → Bench. ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`} → ${primarySub.playerOut.currentPitchPosition || 'Pitch'}`;
-        
-        // Request permission if needed, then show notification (only if preference enabled)
-        if (pitchBoardNotificationsEnabled) {
-          requestNotificationPermission().then(() => {
-            // Only play beep if sound is enabled in timer settings
-            if (timerState.soundEnabled) {
-              try {
-                playSubAlertBeep();
-              } catch {
-                // Audio may fail silently
-              }
-            }
-            showBrowserNotification("🔄 Substitution Alert", notificationBody, () => {
-              // On click, re-trigger the sub confirmation dialog
-              window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
-            });
-          });
+
+        if (timerState.soundEnabled) {
+          try {
+            playSubAlertBeep();
+          } catch {
+            // Audio may fail silently
+          }
         }
-        
-        // Create database notification (triggers server-side push)
-        createPitchBoardNotification('pending_sub', notificationBody);
-        
+
+        // IMPORTANT: Do not create browser/DB notifications here.
+        // Server-side check-pending-subs already sends pending_sub notifications,
+        // and triggering them here causes duplicate device notifications.
+
         // Set up dialog with batch subs
         setCurrentPlayers(pitchState.players);
         setPendingAutoSub(primarySub);
