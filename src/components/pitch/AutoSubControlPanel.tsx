@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Pause, Play, SkipForward, RefreshCw, Lock, Unlock,
-  X, Check, Pencil, Clock, ChevronDown, ChevronUp, MoreHorizontal
+  X, Check, Pencil, Clock, ChevronDown, ChevronUp, ArrowRightLeft
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Player, SubstitutionEvent } from "./types";
@@ -134,19 +134,28 @@ export default function AutoSubControlPanel({
             </div>
           )}
 
-          {/* Primary Actions: Pause + Skip */}
-          <div className="grid grid-cols-2 gap-2">
+          {/* Primary Actions: Pause + Make Early + Skip */}
+          <div className="grid grid-cols-3 gap-2">
             <Button
               variant={autoSubPaused ? "default" : "outline"}
-              className="h-11 gap-2"
+              className="h-11 gap-1.5"
               onClick={onTogglePause}
             >
               {autoSubPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
               {autoSubPaused ? "Resume" : "Pause"}
             </Button>
             <Button
+              variant="default"
+              className="h-11 gap-1.5"
+              onClick={onExecuteNow}
+              disabled={!nextSub || autoSubPaused}
+            >
+              <ArrowRightLeft className="h-4 w-4" />
+              Make Early
+            </Button>
+            <Button
               variant="outline"
-              className="h-11 gap-2"
+              className="h-11 gap-1.5"
               onClick={onSkipNext}
               disabled={!nextSub || autoSubPaused}
             >
