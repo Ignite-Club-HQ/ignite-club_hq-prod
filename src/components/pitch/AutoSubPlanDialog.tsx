@@ -447,6 +447,15 @@ function createSubPlan(
     });
   }
   
+  // Snap subs scheduled within 60s of the start of a half to time 0 (half-time sub)
+  // This avoids scheduling a sub e.g. 14 seconds into the 2nd half when it should just happen at half time
+  const HALF_BOUNDARY_THRESHOLD = 60;
+  for (const sub of plan) {
+    if (sub.time > 0 && sub.time <= HALF_BOUNDARY_THRESHOLD) {
+      sub.time = 0;
+    }
+  }
+  
   plan.sort((a, b) => {
     if (a.half !== b.half) return a.half - b.half;
     return a.time - b.time;
