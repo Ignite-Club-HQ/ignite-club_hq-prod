@@ -223,50 +223,97 @@ export default function AutoSubManager({
           {/* Timeline */}
           {showTimeline && (
             <ScrollArea className="max-h-[180px]">
-              <div className="space-y-1">
-                {autoSubPlan.map((sub, idx) => {
-                  const isDue = !sub.executed && sub.half === currentHalf && sub.time <= currentElapsedSeconds;
-                  const isNext = nextSub && sub === nextSub;
+              <div className="space-y-0">
+                {[1, 2].map((half) => {
+                  const halfSubs = autoSubPlan
+                    .map((sub, idx) => ({ sub, idx }))
+                    .filter(({ sub }) => sub.half === half);
+                  if (halfSubs.length === 0) return null;
+
+                  // Group by time
+                  const groups: { time: number; items: { sub: SubstitutionEvent; idx: number }[] }[] = [];
+                  halfSubs.forEach(({ sub, idx }) => {
+                    const existing = groups.find(g => g.time === sub.time);
+                    if (existing) {
+                      existing.items.push({ sub, idx });
+                    } else {
+                      groups.push({ time: sub.time, items: [{ sub, idx }] });
+                    }
+                  });
+                  groups.sort((a, b) => a.time - b.time);
+
                   return (
-                    <div
-                      key={idx}
-                      className={cn(
-                        "flex items-center gap-2 px-2 py-1.5 rounded text-xs",
-                        sub.executed 
-                          ? "bg-muted/30 text-muted-foreground line-through" 
-                          : isNext 
-                            ? "bg-primary/10 border border-primary/30" 
-                            : isDue 
-                              ? "bg-amber-500/10 border border-amber-500/30"
-                              : "bg-muted/20"
-                      )}
-                    >
-                      <div className="shrink-0">
-                        {sub.executed ? (
-                          <Check className="h-3 w-3 text-green-500" />
-                        ) : isNext ? (
-                          <Clock className="h-3 w-3 text-primary" />
-                        ) : (
-                          <div className="w-3 h-3 rounded-full border border-muted-foreground/40" />
-                        )}
+                    <div key={half}>
+                      <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground bg-muted/40 rounded-t">
+                        {half === 1 ? "1st Half" : "2nd Half"}
                       </div>
-                      <Badge variant="secondary" className="font-mono text-[10px] h-5 shrink-0">
-                        {sub.half === 2 && sub.time === 0 
-                          ? "HT" 
-                          : `${sub.half === 2 ? "2H " : ""}${formatTime(sub.time)}`}
-                      </Badge>
-                      <div className="flex items-center gap-1 min-w-0 flex-1">
-                        <span className="text-destructive truncate">
-                          ↓{sub.playerOut.name}
-                        </span>
-                        <span className="text-muted-foreground">→</span>
-                        <span className="text-green-600 dark:text-green-400 truncate">
-                          ↑{sub.playerIn.name}
-                        </span>
-                      </div>
-                      {!sub.executed && lockedPlayerIds.has(sub.playerOut.id) && (
-                        <Lock className="h-3 w-3 text-amber-500 shrink-0" />
-                      )}
+                      {groups.map((group) => {
+                        const timeLabel = group.time === 0 && half === 2
+                          ? "HT"
+                          : `${half === 2 ? "2H " : ""}${formatTime(group.time)}`;
+                        const allExecuted = group.items.every(({ sub }) => sub.executed);
+                        const anyNext = group.items.some(({ sub }) => nextSub && sub === nextSub);
+                        const anyDue = group.items.some(({ sub }) => !sub.executed && sub.half === currentHalf && sub.time <= currentElapsedSeconds);
+
+                        return (
+                          <div
+                            key={`${half}-${group.time}`}
+                            className={cn(
+                              "flex gap-2 px-2 py-1.5 text-xs",
+                              allExecuted
+                                ? "bg-muted/30"
+                                : anyNext
+                                  ? "bg-primary/10 border border-primary/30"
+                                  : anyDue
+                                    ? "bg-amber-500/10 border border-amber-500/30"
+                                    : "bg-muted/20",
+                              "rounded mb-1"
+                            )}
+                          >
+                            {/* Status + time column */}
+                            <div className="flex flex-col items-center pt-0.5 shrink-0 w-12">
+                              <div className="shrink-0 mb-0.5">
+                                {allExecuted ? (
+                                  <Check className="h-3 w-3 text-green-500" />
+                                ) : anyNext ? (
+                                  <Clock className="h-3 w-3 text-primary" />
+                                ) : (
+                                  <div className="w-3 h-3 rounded-full border border-muted-foreground/40" />
+                                )}
+                              </div>
+                              <Badge variant="secondary" className="font-mono text-[10px] h-5">
+                                {timeLabel}
+                              </Badge>
+                              {group.items.length > 1 && (
+                                <div className="w-px flex-1 bg-border mt-0.5" />
+                              )}
+                            </div>
+                            {/* Subs column */}
+                            <div className="flex-1 space-y-0.5 min-w-0">
+                              {group.items.map(({ sub, idx }) => (
+                                <div
+                                  key={idx}
+                                  className={cn(
+                                    "flex items-center gap-1",
+                                    sub.executed && "line-through text-muted-foreground"
+                                  )}
+                                >
+                                  <span className="text-destructive truncate">
+                                    ↓{sub.playerOut.name}
+                                  </span>
+                                  <span className="text-muted-foreground">→</span>
+                                  <span className="text-green-600 dark:text-green-400 truncate">
+                                    ↑{sub.playerIn.name}
+                                  </span>
+                                  {!sub.executed && lockedPlayerIds.has(sub.playerOut.id) && (
+                                    <Lock className="h-3 w-3 text-amber-500 shrink-0" />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })}
