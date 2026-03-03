@@ -3017,13 +3017,33 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     runSubAnimation(pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id, primarySwapPlayer);
     
     // Mark all processed subs as executed
-    setAutoSubPlan(prev => prev.map(sub => {
+    // Mark all processed subs as executed
+    const updatedPlan = autoSubPlan.map(sub => {
       const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
       if (executedSubIds.includes(subId)) {
         return { ...sub, executed: true };
       }
       return sub;
-    }));
+    });
+    
+    // Recalculate remaining sub timings if the sub was late
+    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
+    const half = gameTimerRef.current?.getCurrentHalf() || 1;
+    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
+    const halfDurationSeconds = minsPerHalf * 60;
+    const remainingSubs = updatedPlan.filter(sub => !sub.executed);
+    
+    let finalPlan = updatedPlan;
+    if (remainingSubs.length > 0) {
+      const executedSubs = updatedPlan.filter(sub => sub.executed);
+      const recalculated = recalculateRemainingPlan(
+        updatedPlayers, parseInt(teamSize), halfDurationSeconds, currentElapsed, half as 1 | 2, pendingAutoSub, rotateGkAtHalftime
+      );
+      finalPlan = [...executedSubs, ...recalculated];
+    }
+    
+    setAutoSubPlan(finalPlan);
+    setPlayers(updatedPlayers);
     
     const toastDescription = allPendingSubs.length > 1
       ? `${successCount} substitutions made`
@@ -3037,14 +3057,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
     
     // Check if all subs executed
-    const remainingSubs = autoSubPlan.filter(sub => 
-      !sub.executed && !executedSubIds.includes(`${sub.half}-${sub.time}-${sub.playerOut.id}`)
-    );
-    if (remainingSubs.length === 0) {
+    if (finalPlan.filter(sub => !sub.executed).length === 0) {
       setAutoSubActive(false);
       toast({ title: "All substitutions complete" });
     }
-  }, [pendingAutoSub, pendingBatchSubs, players, autoSubPlan, toast, pushToUndoHistory]);
+  }, [pendingAutoSub, pendingBatchSubs, players, autoSubPlan, toast, pushToUndoHistory, teamSize, rotateGkAtHalftime]);
 
   const handleSkipAutoSub = useCallback(() => {
     if (!pendingAutoSub) return;
