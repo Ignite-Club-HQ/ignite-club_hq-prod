@@ -209,37 +209,45 @@ function createSubPlan(
   const minSubsNeeded = Math.max(outfieldOnBench.length, Math.ceil(totalOutfieldPlayers / 2));
   
   // Determine how many players to sub at once based on rotation speed and bench size
-  // Only batch subs if there are 2+ bench players and batch subs not disabled
+  // Key principle: batch as many subs together as possible to reduce interruptions
+  // With a large bench, we want to swap multiple players simultaneously
   let subsAtOnce = 1;
   if (!disableBatchSubs && outfieldOnBench.length >= 2) {
+    // Scale batch size with bench size to reduce total number of interruptions
+    const benchSize = outfieldOnBench.length;
     switch (rotationSpeed) {
-      case 1: // Slow - always single subs
-        subsAtOnce = 1;
+      case 1: // Slow - batch half the bench at a time
+        subsAtOnce = Math.max(1, Math.min(Math.floor(benchSize / 2), fieldPositions));
         break;
-      case 2: // Medium - up to 2 at a time if bench allows
-        subsAtOnce = Math.min(2, outfieldOnBench.length);
+      case 2: // Medium - batch most of the bench at a time
+        subsAtOnce = Math.max(2, Math.min(Math.ceil(benchSize * 0.7), fieldPositions));
         break;
-      case 3: // Fast - up to 3 at a time if bench allows
-        subsAtOnce = Math.min(3, outfieldOnBench.length);
+      case 3: // Fast - swap entire bench at once if possible
+        subsAtOnce = Math.min(benchSize, fieldPositions);
         break;
       default:
-        subsAtOnce = 1;
+        subsAtOnce = Math.max(1, Math.min(Math.floor(benchSize / 2), fieldPositions));
     }
   }
   
-  // Apply rotation speed - controls how many sub windows per half
-  // Since we're doing batch subs now, we need fewer windows
+  // Calculate the ideal number of sub windows to achieve equal playing time
+  // Goal: minimize interruptions while maintaining fairness
+  // Each window swaps up to subsAtOnce players, so we need fewer windows with bigger batches
+  const totalSubsNeeded = Math.max(minSubsNeeded, outfieldOnBench.length);
+  const idealWindows = Math.ceil(totalSubsNeeded / subsAtOnce);
+  
+  // Apply rotation speed modifier - but keep windows low to reduce interruptions
   let subWindowsPerHalf: number;
   switch (rotationSpeed) {
-    case 1: // Slow - fewer windows
-      subWindowsPerHalf = Math.max(2, Math.ceil(minSubsNeeded / subsAtOnce));
+    case 1: // Slow - fewest windows
+      subWindowsPerHalf = Math.max(1, Math.ceil(idealWindows / 2));
       break;
-    case 3: // Fast - more windows
-      subWindowsPerHalf = Math.max(4, Math.ceil(minSubsNeeded * 1.5 / subsAtOnce));
+    case 3: // Fast - slightly more windows for finer control
+      subWindowsPerHalf = Math.max(2, idealWindows);
       break;
     case 2: // Medium - balanced
     default:
-      subWindowsPerHalf = Math.max(3, Math.ceil(minSubsNeeded * 1.2 / subsAtOnce));
+      subWindowsPerHalf = Math.max(1, idealWindows);
       break;
   }
   
