@@ -598,6 +598,11 @@ export function AppHeader() {
         // Trigger GlobalSubMonitor to show the sub confirmation dialog
         window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
         return;
+      case "formation_change":
+        if (relatedId) {
+          navigate(`/teams/${relatedId}`);
+        }
+        return;
     }
 
     navigate("/notifications");

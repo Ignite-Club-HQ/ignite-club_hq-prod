@@ -2073,7 +2073,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, []);
 
   // Send push notification to team coaches/admins and Subs Manager assignees when formation or team size changes
-  const notifyFormationOrSizeChange = useCallback(async (changeType: 'formation' | 'team_size', detail: string) => {
+  const notifyFormationOrSizeChange = useCallback(async (
+    changeType: 'formation' | 'team_size', 
+    detail: string,
+    changeDetails?: {
+      positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition }[];
+      benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[];
+    }
+  ) => {
     if (!user?.id || readOnly) return;
     try {
       const recipientIds = new Set<string>();
@@ -2116,14 +2123,49 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         }
       }
 
+      // Build detailed change description for notification body
+      const changeParts: string[] = [];
+      if (changeDetails) {
+        const benchExits = changeDetails.benchMoves.filter(m => m.direction === "to-bench");
+        const pitchEntries = changeDetails.benchMoves.filter(m => m.direction === "to-pitch");
+        const swaps = changeDetails.positionSwaps;
+        
+        if (benchExits.length > 0) {
+          changeParts.push(`📤 Off: ${benchExits.map(m => m.player.name).join(", ")}`);
+        }
+        if (pitchEntries.length > 0) {
+          changeParts.push(`📥 On: ${pitchEntries.map(m => `${m.player.name} (${m.position || ""})`).join(", ")}`);
+        }
+        if (swaps.length > 0) {
+          changeParts.push(`🔄 Moved: ${swaps.map(s => `${s.player.name} ${s.fromPosition}→${s.toPosition}`).join(", ")}`);
+        }
+      }
+
       const title = changeType === 'formation' 
         ? `⚽ ${teamName} - Formation Changed`
         : `⚽ ${teamName} - Team Size Changed`;
-      const body = changeType === 'formation'
+      const baseSummary = changeType === 'formation'
         ? `Formation changed to ${detail}`
         : `Team size changed to ${detail} players`;
+      const body = changeParts.length > 0 
+        ? `${baseSummary}\n${changeParts.join("\n")}`
+        : baseSummary;
+
+      // Create in-app notifications with details
+      const notificationMessage = changeParts.length > 0
+        ? `${baseSummary} — ${changeParts.join(" • ")}`
+        : baseSummary;
 
       for (const userId of recipientIds) {
+        // In-app notification
+        supabase.from("notifications").insert({
+          user_id: userId,
+          type: "formation_change",
+          message: notificationMessage,
+          related_id: teamId,
+        }).then(() => {});
+
+        // Push notification
         supabase.functions.invoke("send-push-notification", {
           body: {
             userId,
@@ -2140,7 +2182,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [user?.id, teamId, teamName, readOnly, linkedEventId]);
 
-  const applyFormationChange = useCallback((index: number) => {
+  const applyFormationChange = useCallback((index: number, changeDetails?: { positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition }[]; benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] }) => {
     const formation = FORMATIONS[teamSize][index];
     if (!formation) return;
 
@@ -2193,7 +2235,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     toast({ title: "Formation applied", description: `${formation.name} formation set` });
 
     // Notify team staff about the formation change
-    notifyFormationOrSizeChange('formation', formation.name);
+    notifyFormationOrSizeChange('formation', formation.name, changeDetails);
 
     // Auto-regenerate the plan if auto-subs are active
     if (autoSubActive) {
@@ -2215,9 +2257,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         setPlayers(placedPlayers);
         persistTeamSizeToDb(newSize);
         // Notify team staff about the team size change
-        notifyFormationOrSizeChange('team_size', newSize);
+        notifyFormationOrSizeChange('team_size', newSize, {
+          positionSwaps: pendingFormationChange.positionSwaps,
+          benchMoves: pendingFormationChange.benchMoves,
+        });
       } else {
-        applyFormationChange(pendingFormationChange.index);
+        applyFormationChange(pendingFormationChange.index, {
+          positionSwaps: pendingFormationChange.positionSwaps,
+          benchMoves: pendingFormationChange.benchMoves,
+        });
       }
     }
     setFormationChangeDialogOpen(false);
