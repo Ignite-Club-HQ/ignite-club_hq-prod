@@ -1698,7 +1698,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const dx = endX - startX;
     const dy = endY - startY;
     const angle = Math.atan2(dy, dx);
-    const headLength = 12;
+    const shaftLength = Math.hypot(dx, dy);
+    const headLength = Math.max(10, Math.min(24, shaftLength * 0.18));
     const headSpread = Math.PI / 7;
 
     const leftHeadX = dx - headLength * Math.cos(angle - headSpread);
@@ -1724,7 +1725,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       strokeWidth: 3,
       strokeUniform: true,
       fill: "",
-      strokeLineCap: "round",
+      strokeLineCap: "butt",
       strokeLineJoin: "round",
       selectable: false,
       evented: false,

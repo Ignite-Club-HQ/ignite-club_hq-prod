@@ -67,9 +67,16 @@ interface PitchArrowData {
   endY?: number;
 }
 
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+const getArrowHeadLength = (dx: number, dy: number) => {
+  const shaftLength = Math.hypot(dx, dy);
+  return clamp(shaftLength * 0.18, 10, 24);
+};
+
 const buildArrowPathData = (dx: number, dy: number) => {
   const angle = Math.atan2(dy, dx);
-  const headLength = 12;
+  const headLength = getArrowHeadLength(dx, dy);
   const headSpread = Math.PI / 7;
 
   const leftHeadX = dx - headLength * Math.cos(angle - headSpread);
@@ -87,11 +94,70 @@ const buildArrowPathData = (dx: number, dy: number) => {
   ];
 };
 
-const scaleArrowPathObject = (obj: any, scaleX: number, scaleY: number): boolean => {
-  const arrowData = obj?.data as PitchArrowData | undefined;
+const isLikelyArrowPath = (path: any): boolean => {
+  if (!Array.isArray(path) || path.length !== 6) return false;
 
-  if (obj?.type !== "path" || arrowData?.kind !== "pitch-arrow") {
+  const expectedCommands = ["M", "L", "M", "L", "M", "L"];
+  return expectedCommands.every((command, index) => {
+    const entry = path[index];
+    return Array.isArray(entry) && String(entry[0]).toUpperCase() === command;
+  });
+};
+
+const extractArrowDataFromPathObject = (obj: any): PitchArrowData | null => {
+  const path = obj?.path;
+  if (!isLikelyArrowPath(path)) return null;
+
+  const startXRaw = Number(path?.[0]?.[1]);
+  const startYRaw = Number(path?.[0]?.[2]);
+  const endXRaw = Number(path?.[1]?.[1]);
+  const endYRaw = Number(path?.[1]?.[2]);
+
+  if (![startXRaw, startYRaw, endXRaw, endYRaw].every((value) => Number.isFinite(value))) {
+    return null;
+  }
+
+  const isRelativePath = Math.abs(startXRaw) < 0.001 && Math.abs(startYRaw) < 0.001;
+
+  if (isRelativePath) {
+    const left = Number(obj?.left ?? 0);
+    const top = Number(obj?.top ?? 0);
+
+    if (!Number.isFinite(left) || !Number.isFinite(top)) {
+      return null;
+    }
+
+    return {
+      kind: "pitch-arrow",
+      startX: left,
+      startY: top,
+      endX: left + endXRaw,
+      endY: top + endYRaw,
+    };
+  }
+
+  return {
+    kind: "pitch-arrow",
+    startX: startXRaw,
+    startY: startYRaw,
+    endX: endXRaw,
+    endY: endYRaw,
+  };
+};
+
+const scaleArrowPathObject = (obj: any, scaleX: number, scaleY: number): boolean => {
+  if (obj?.type !== "path") {
     return false;
+  }
+
+  let arrowData = obj?.data as PitchArrowData | undefined;
+
+  if (arrowData?.kind !== "pitch-arrow") {
+    const migratedArrowData = extractArrowDataFromPathObject(obj);
+    if (!migratedArrowData) {
+      return false;
+    }
+    arrowData = migratedArrowData;
   }
 
   if (
@@ -111,11 +177,14 @@ const scaleArrowPathObject = (obj: any, scaleX: number, scaleY: number): boolean
   obj.set({
     left: nextStartX,
     top: nextStartY,
+    originX: "left",
+    originY: "top",
     scaleX: 1,
     scaleY: 1,
     path: buildArrowPathData(nextEndX - nextStartX, nextEndY - nextStartY),
     data: {
       ...arrowData,
+      kind: "pitch-arrow",
       startX: nextStartX,
       startY: nextStartY,
       endX: nextEndX,
