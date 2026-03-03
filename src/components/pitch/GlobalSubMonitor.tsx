@@ -908,13 +908,37 @@ export default function GlobalSubMonitor() {
       return sub;
     });
     
-    // Check if all subs are done
-    const remainingSubs = updatedPlan.filter(sub => !sub.executed);
+    // Recalculate remaining sub timings so subsequent subs are redistributed
+    const timerState = loadTimerState();
+    const executedPlan = updatedPlan.filter(sub => sub.executed);
+    let finalPlan = updatedPlan;
+    
+    if (timerState && updatedPlan.some(sub => !sub.executed)) {
+      const now = Date.now();
+      const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
+      const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+      const halfDuration = timerState.minutesPerHalf * 60;
+      
+      const recalculated = recalculateRemainingPlan(
+        updatedPlayers,
+        getTeamSizeNumber(pitchState.teamSize),
+        halfDuration,
+        currentElapsed,
+        timerState.currentHalf as 1 | 2,
+        pendingAutoSub,
+        true
+      );
+      
+      // Merge: keep executed subs + use recalculated for remaining
+      finalPlan = [...executedPlan, ...recalculated];
+    }
+    
+    const remainingSubs = finalPlan.filter(sub => !sub.executed);
     
     savePitchState({
       ...pitchState,
       players: updatedPlayers,
-      autoSubPlan: updatedPlan,
+      autoSubPlan: finalPlan,
       autoSubActive: remainingSubs.length > 0,
       lastUpdateTime: Date.now(),
     });
