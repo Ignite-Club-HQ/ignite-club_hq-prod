@@ -1702,25 +1702,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const headLength = Math.max(10, Math.min(24, shaftLength * 0.18));
     const headSpread = Math.PI / 7;
 
-    const leftHeadX = dx - headLength * Math.cos(angle - headSpread);
-    const leftHeadY = dy - headLength * Math.sin(angle - headSpread);
-    const rightHeadX = dx - headLength * Math.cos(angle + headSpread);
-    const rightHeadY = dy - headLength * Math.sin(angle + headSpread);
+    const leftHeadX = endX - headLength * Math.cos(angle - headSpread);
+    const leftHeadY = endY - headLength * Math.sin(angle - headSpread);
+    const rightHeadX = endX - headLength * Math.cos(angle + headSpread);
+    const rightHeadY = endY - headLength * Math.sin(angle + headSpread);
 
     const arrowPathData = [
-      ["M", 0, 0],
-      ["L", dx, dy],
-      ["M", dx, dy],
+      ["M", startX, startY],
+      ["L", endX, endY],
+      ["M", endX, endY],
       ["L", leftHeadX, leftHeadY],
-      ["M", dx, dy],
+      ["M", endX, endY],
       ["L", rightHeadX, rightHeadY],
     ];
 
-    return new Path(arrowPathData as any, {
-      left: startX,
-      top: startY,
-      originX: "left",
-      originY: "top",
+    const arrow = new Path(arrowPathData as any, {
       stroke: color,
       strokeWidth: 3,
       strokeUniform: true,
@@ -1737,6 +1733,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         endY,
       },
     });
+
+    return arrow;
   }, [fabricModule]);
 
   // Handle arrow drawing
