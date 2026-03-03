@@ -4142,7 +4142,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={() => setSettingsMenuOpen(prev => !prev)}>
                     <Settings className="h-6 w-6" />
                   </Button>
-                  {settingsMenuOpen && (
+                  {settingsMenuOpen && createPortal(
                     <>
                       <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
                       <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[180px] py-1">
@@ -4164,7 +4164,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           All Settings
                         </button>
                       </div>
-                    </>
+                    </>,
+                    document.body
                   )}
                 </div>
                 <PitchSettingsDialog
@@ -4217,7 +4218,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={() => setSettingsMenuOpen(prev => !prev)}>
                   <Settings className="h-6 w-6" />
                 </Button>
-                {settingsMenuOpen && (
+                {settingsMenuOpen && createPortal(
                   <>
                     <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
                     <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[180px] py-1">
@@ -4226,7 +4227,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         Match Stats
                       </button>
                     </div>
-                  </>
+                  </>,
+                  document.body
                 )}
               </div>
             )}
