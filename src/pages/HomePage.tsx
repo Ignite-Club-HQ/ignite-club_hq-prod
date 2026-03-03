@@ -1498,7 +1498,7 @@ export default function HomePage() {
         
         return (
           <GameTimerWidget 
-            onOpenPitchBoard={hasEditAccess ? openPitchBoard : undefined}
+            onOpenPitchBoard={(teamId, teamName) => openPitchBoard(teamId, teamName, !hasEditAccess)}
             readOnly={!hasEditAccess}
           />
         );
