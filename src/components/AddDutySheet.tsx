@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Loader2, Utensils, Flag, PaintBucket, Megaphone, FileText } from "lucide-react";
+import { Loader2, Utensils, Flag, PaintBucket, Megaphone, FileText, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ const ALL_DUTY_OPTIONS = [
   { id: "Linesperson", label: "Linesperson", icon: Flag, description: "Line calls" },
   { id: "Linemarker", label: "Linemarker", icon: PaintBucket, description: "Mark the pitch" },
   { id: "Referee", label: "Referee", icon: Megaphone, description: "Officiate the game" },
+  { id: "Subs Manager", label: "Subs Manager", icon: UserCog, description: "Pitch board access" },
   { id: "custom", label: "Other", icon: FileText, description: "Custom duty" },
 ];
 
@@ -25,7 +26,7 @@ const ALL_DUTY_OPTIONS = [
 const MINI_LEAGUE_SESSION_DUTIES = ["Canteen", "Linemarker", "custom"];
 
 // For mini league match level: only Referee and Linesperson
-const MINI_LEAGUE_MATCH_DUTIES = ["Linesperson", "Referee"];
+const MINI_LEAGUE_MATCH_DUTIES = ["Linesperson", "Referee", "Subs Manager"];
 
 export type DutyContext = "session" | "match";
 

@@ -37,6 +37,7 @@ interface ActiveMiniLeagueMatch {
   teamAScore: number;
   teamBScore: number;
   isAdmin: boolean;
+  isSubsManager: boolean;
   minutesPerHalf: number;
 }
 
@@ -201,6 +202,19 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
         const isAdmin = userLeagueMemberships.isAppAdmin || 
           userLeagueMemberships.adminLeagueIds.includes(league.id);
 
+        // Check if user has "Subs Manager" duty for this specific group
+        let isSubsManagerForGroup = false;
+        if (!isAdmin && user) {
+          const { data: subsManagerDuty } = await supabase
+            .from("event_group_duties")
+            .select("id")
+            .eq("group_id", group.id)
+            .eq("name", "Subs Manager")
+            .eq("assigned_to", user.id)
+            .maybeSingle();
+          isSubsManagerForGroup = !!subsManagerDuty;
+        }
+
         activeMatches.push({
           id: group.id,
           name: group.name,
@@ -217,6 +231,7 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
           teamAScore,
           teamBScore,
           isAdmin,
+          isSubsManager: isSubsManagerForGroup,
           minutesPerHalf: league.minutes_per_half || 10,
         });
       }
@@ -385,7 +400,7 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
             })()}
             initialMinutesPerHalf={activePitchBoard.minutesPerHalf}
             initialLinkedEventId={activePitchBoard.eventId}
-            readOnly={!activePitchBoard.isAdmin}
+            readOnly={!activePitchBoard.isAdmin && !activePitchBoard.isSubsManager}
           />
         </Suspense>,
         document.body
