@@ -5613,6 +5613,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         Reset Formation
                       </button>
                     )}
+                    {!readOnly && !disableAutoSubs && (
+                      <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { if (autoSubActive) { setAutoSubPanelOpen(true); } else { handleOpenNewPlan(); } setSettingsMenuOpen(false); }}>
+                        <RefreshCw className="h-4 w-4" />
+                        {autoSubActive ? "Auto Sub Plan" : "Auto Subs"}
+                      </button>
+                    )}
                     <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setStatsOpen(true); setSettingsMenuOpen(false); }}>
                       <BarChart3 className="h-4 w-4" />
                       Match Stats
