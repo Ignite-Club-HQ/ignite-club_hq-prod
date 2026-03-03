@@ -437,14 +437,25 @@ function createSubPlan(
   }
   
   // Handle GK substitution at halftime (only if we haven't passed halftime)
-  if (rotateGkAtHalftime && gkOnBench && gkOnPitch && startHalf === 1) {
-    plan.push({
-      time: 0,
-      half: 2,
-      playerOut: gkOnPitch,
-      playerIn: gkOnBench,
-      executed: false,
-    });
+  if (rotateGkAtHalftime && gkOnPitch && startHalf === 1) {
+    // Use dedicated GK bench player if available, otherwise pick the least-played bench player
+    const gkReplacementPlayer = gkOnBench || (() => {
+      const benchAtHalftime = outfieldPlayers
+        .filter(p => !currentOnPitch.has(p.id))
+        .map(p => ({ player: p, time: playingTime.get(p.id) || 0 }))
+        .sort((a, b) => a.time - b.time);
+      return benchAtHalftime[0]?.player || null;
+    })();
+    
+    if (gkReplacementPlayer) {
+      plan.push({
+        time: 0,
+        half: 2,
+        playerOut: gkOnPitch,
+        playerIn: gkReplacementPlayer,
+        executed: false,
+      });
+    }
   }
   
   // Snap subs scheduled within 60s of the start of a half to time 0 (half-time sub)
