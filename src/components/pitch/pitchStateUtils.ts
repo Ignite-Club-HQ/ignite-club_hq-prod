@@ -208,8 +208,8 @@ export const recalculateRemainingPlan = (
   
   const minSubInterval = 120;
   
-  // Cap at 2 subs at a time to keep things manageable for coaches
-  const subsAtOnce = Math.min(2, outfieldOnBench.length);
+  // Scale subs at once based on bench size for better throughput
+  const subsAtOnce = Math.min(outfieldOnBench.length >= 4 ? 3 : 2, outfieldOnBench.length);
   
   const subsNeeded = Math.min(
     outfieldOnBench.length,
