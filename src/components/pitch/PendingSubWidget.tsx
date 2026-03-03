@@ -347,8 +347,10 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
           
           toast({
-            title: "Sub not made – players already moved",
-            description: `${playerOut.name} is no longer on pitch or ${playerIn.name} is already playing. No changes were made.`,
+            title: "Sub couldn't be made",
+            description: !currentPlayerOut?.position 
+              ? `${playerOut.name} is already off the pitch` 
+              : `${playerIn.name} is already on the pitch`,
             variant: "destructive",
           });
           

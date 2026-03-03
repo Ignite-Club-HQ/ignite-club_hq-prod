@@ -329,7 +329,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         );
         localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
         window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
-        toast({ title: "Sub not made – players already moved", description: `${playerOut.name} is no longer on pitch or ${playerIn.name} is already playing. No changes were made.`, variant: "destructive" });
+        toast({ title: "Sub couldn't be made", description: !currentPlayerOut?.position ? `${playerOut.name} is already off the pitch` : `${playerIn.name} is already on the pitch`, variant: "destructive" });
         setShowConfirmDialog(false);
         return;
       }
