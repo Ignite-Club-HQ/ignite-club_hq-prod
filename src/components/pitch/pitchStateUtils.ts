@@ -205,12 +205,11 @@ export const recalculateRemainingPlan = (
   
   const minSubInterval = 120;
   
-  // Batch subs: swap multiple bench players at the same time to reduce interruptions
-  const benchSize = outfieldOnBench.length;
-  const subsAtOnce = Math.max(1, Math.min(Math.ceil(benchSize * 0.7), fieldPositions));
+  // Cap at 2 subs at a time to keep things manageable for coaches
+  const subsAtOnce = Math.min(2, outfieldOnBench.length);
   
   const subsNeeded = Math.min(
-    benchSize,
+    outfieldOnBench.length,
     Math.floor(totalRemainingSeconds / minSubInterval)
   );
   

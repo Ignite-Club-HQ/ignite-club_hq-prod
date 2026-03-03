@@ -213,20 +213,12 @@ function createSubPlan(
   // With a large bench, we want to swap multiple players simultaneously
   let subsAtOnce = 1;
   if (!disableBatchSubs && outfieldOnBench.length >= 2) {
-    // Scale batch size with bench size to reduce total number of interruptions
-    const benchSize = outfieldOnBench.length;
+    // Cap at 2 subs at a time to keep things manageable
     switch (rotationSpeed) {
-      case 1: // Slow - batch half the bench at a time
-        subsAtOnce = Math.max(1, Math.min(Math.floor(benchSize / 2), fieldPositions));
-        break;
-      case 2: // Medium - batch most of the bench at a time
-        subsAtOnce = Math.max(2, Math.min(Math.ceil(benchSize * 0.7), fieldPositions));
-        break;
-      case 3: // Fast - swap entire bench at once if possible
-        subsAtOnce = Math.min(benchSize, fieldPositions);
-        break;
-      default:
-        subsAtOnce = Math.max(1, Math.min(Math.floor(benchSize / 2), fieldPositions));
+      case 1: subsAtOnce = 1; break;
+      case 2: subsAtOnce = Math.min(2, outfieldOnBench.length); break;
+      case 3: subsAtOnce = Math.min(2, outfieldOnBench.length); break;
+      default: subsAtOnce = 1;
     }
   }
   
