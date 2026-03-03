@@ -80,6 +80,9 @@ import {
 } from "./pitchStateUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 
+const SAVED_DEFAULT_TEAM_SIZES: TeamSize[] = ["3", "4", "5", "7", "9", "11"];
+const isSavedDefaultTeamSize = (value: string): value is TeamSize => SAVED_DEFAULT_TEAM_SIZES.includes(value as TeamSize);
+
 interface PitchBoardProps {
   teamId: string;
   teamName: string;
@@ -190,8 +193,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Determine initial team size - prefer saved state, then DB value, then default
   const getInitialTeamSize = (): TeamSize => {
     if (savedState?.teamSize) return savedState.teamSize;
-    if (initialTeamSize && ["4", "7", "9", "11"].includes(String(initialTeamSize))) {
-      return String(initialTeamSize) as TeamSize;
+    const candidateSize = String(initialTeamSize || "");
+    if (candidateSize && isSavedDefaultTeamSize(candidateSize)) {
+      return candidateSize;
     }
     return "7";
   };
@@ -309,6 +313,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return initialShowLineupPicker && !!initialLinkedEventId && !savedState && !readOnly && !miniLeagueTeams;
   });
   const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
+  const savedTeamDefaultsRef = useRef({
+    minutesPerHalf: initialMinutesPerHalf,
+    rotationSpeed: initialRotationSpeed,
+    disablePositionSwaps: initialDisablePositionSwaps,
+    disableBatchSubs: initialDisableBatchSubs,
+    rotateGkAtHalftime: initialRotateGkAtHalftime,
+    teamSize: getInitialTeamSize(),
+    formation: initialFormation || null,
+  });
   
   // Tactical mode state
   type TacticalFormationSuggestion = {
@@ -343,10 +356,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   
   // Sync team size and formation from props if no saved state - runs on mount and when props change
   useEffect(() => {
+    // Keep local reset defaults in sync with backend defaults
+    const candidateSize = String(initialTeamSize || "");
+    const nextDefaultSize: TeamSize = isSavedDefaultTeamSize(candidateSize) ? candidateSize : "7";
+    savedTeamDefaultsRef.current = {
+      minutesPerHalf: initialMinutesPerHalf,
+      rotationSpeed: initialRotationSpeed,
+      disablePositionSwaps: initialDisablePositionSwaps,
+      disableBatchSubs: initialDisableBatchSubs,
+      rotateGkAtHalftime: initialRotateGkAtHalftime,
+      teamSize: nextDefaultSize,
+      formation: initialFormation || null,
+    };
+
     // Only sync if there's no saved state for this team (fresh session)
     if (!savedState && initialTeamSize) {
       const validSize = String(initialTeamSize) as TeamSize;
-      if (["4", "7", "9", "11"].includes(validSize)) {
+      if (isSavedDefaultTeamSize(validSize)) {
         setTeamSize(validSize);
         // Also update formation if provided
         if (initialFormation) {
@@ -360,7 +386,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         }
       }
     }
-  }, [initialTeamSize, initialFormation, savedState]);
+  }, [initialTeamSize, initialFormation, initialMinutesPerHalf, initialRotationSpeed, initialDisablePositionSwaps, initialDisableBatchSubs, initialRotateGkAtHalftime, savedState]);
 
   // Save settings to database when they change
   const handleRotationSpeedChange = useCallback(async (speed: number) => {
@@ -499,9 +525,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         }, { onConflict: 'team_id' });
       
       if (error) throw error;
+
+      const savedFormation = FORMATIONS[teamSize][selectedFormation]?.name || null;
+      savedTeamDefaultsRef.current = {
+        minutesPerHalf,
+        rotationSpeed,
+        disablePositionSwaps,
+        disableBatchSubs,
+        rotateGkAtHalftime,
+        teamSize,
+        formation: savedFormation,
+      };
       
-      // Invalidate the team-subscription query so parent pages pick up new defaults
-      queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
+      // Invalidate subscription queries so parent pages pick up new defaults
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] }),
+        queryClient.invalidateQueries({ queryKey: ["team-subscription-for-pitch", teamId] }),
+      ]);
       
       toast({
         title: "Settings saved",
@@ -517,7 +557,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     } finally {
       setIsSavingSettings(false);
     }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, showLineupPickerSetting, toast]);
+  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, showLineupPickerSetting, queryClient, toast]);
 
   // handleTacticalModeChange is defined after handleFormationChange (see below)
 
@@ -3148,22 +3188,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Stop the timer first
     gameTimerRef.current?.resetTimer();
     
-    // Reset pitch settings to team defaults from props
-    setMinutesPerHalf(initialMinutesPerHalf);
-    setRotationSpeed(initialRotationSpeed);
-    setDisablePositionSwaps(initialDisablePositionSwaps);
+    // Reset pitch settings to last saved team defaults
+    const savedDefaults = savedTeamDefaultsRef.current;
+    setMinutesPerHalf(savedDefaults.minutesPerHalf);
+    setRotationSpeed(savedDefaults.rotationSpeed);
+    setDisablePositionSwaps(savedDefaults.disablePositionSwaps);
+    setDisableBatchSubs(savedDefaults.disableBatchSubs);
+    setRotateGkAtHalftime(savedDefaults.rotateGkAtHalftime);
     
-    // Reset team size to initial value
-    const defaultTeamSize: TeamSize = initialTeamSize && ["4", "7", "9", "11"].includes(String(initialTeamSize)) 
-      ? String(initialTeamSize) as TeamSize 
-      : "7";
+    // Reset team size to saved default value
+    const defaultTeamSize: TeamSize = savedDefaults.teamSize;
     setTeamSize(defaultTeamSize);
     
-    // Reset formation to initial value for the team size
+    // Reset formation to saved default value for the team size
     const formations = FORMATIONS[defaultTeamSize];
     let defaultFormationIndex = 0;
-    if (initialFormation) {
-      const index = formations.findIndex(f => f.name === initialFormation);
+    if (savedDefaults.formation) {
+      const index = formations.findIndex(f => f.name === savedDefaults.formation);
       if (index >= 0) defaultFormationIndex = index;
     }
     setSelectedFormation(defaultFormationIndex);
@@ -3204,7 +3245,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       title: "Game Reset",
       description: "All player minutes and settings have been reset to defaults.",
     });
-  }, [players, initialMinutesPerHalf, initialRotationSpeed, initialDisablePositionSwaps, initialTeamSize, initialFormation, autoPlacePlayersOnPitch, toast]);
+  }, [players, autoPlacePlayersOnPitch, toast]);
 
   // Reset formation only - moves players back to formation positions and ball to center
   const handleResetFormation = useCallback(() => {
