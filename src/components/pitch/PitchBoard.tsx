@@ -4278,6 +4278,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <>
                       <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
                       <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[180px] py-1">
+                        {!gameInProgress && (
+                          <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setShowLineupPicker(true); setSettingsMenuOpen(false); }}>
+                            <Play className="h-4 w-4" />
+                            Setup Game
+                          </button>
+                        )}
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
                           <RotateCcw className="h-4 w-4" />
                           Reset Formation
@@ -5631,6 +5637,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <>
                   <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
                   <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[99999] min-w-[170px] py-1">
+                    {!readOnly && !gameInProgress && (
+                      <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setShowLineupPicker(true); setSettingsMenuOpen(false); }}>
+                        <Play className="h-4 w-4" />
+                        Setup Game
+                      </button>
+                    )}
                     {!readOnly && (
                       <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
                         <RotateCcw className="h-4 w-4" />
