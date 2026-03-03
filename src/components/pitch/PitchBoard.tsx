@@ -4362,7 +4362,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             onMouseDown={handleTimerDragStart}
             onTouchStart={handleTimerTouchStart}
           >
-             <div className="flex flex-col items-center bg-zinc-800 rounded-lg px-3 py-1.5 shadow-lg w-min">
+             <div className="flex flex-col items-center bg-zinc-800 rounded-lg px-3 py-1.5 shadow-lg">
                {/* Main row: Score | Timer | Play */}
                <div className="flex items-center gap-2">
                 {gameInProgress && !hideScores && (
@@ -5694,7 +5694,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           onTouchStart={handlePortraitTimerTouchStart}
         >
            <div className="flex flex-col items-end">
-            <div className="flex flex-col items-center bg-zinc-800 rounded-lg px-3 py-1.5 shadow-lg w-min">
+            <div className="flex flex-col items-center bg-zinc-800 rounded-lg px-3 py-1.5 shadow-lg">
               {/* Main row: Score | Timer */}
               <div className="flex items-center gap-2">
                 {gameInProgress && !hideScores && !showScoreInPortrait && (
