@@ -62,6 +62,12 @@ export default function AutoSubControlPanel({
       || remainingSubs[0];
   }, [remainingSubs, currentHalf, currentElapsedSeconds]);
 
+  // All subs scheduled at the same time as the next sub
+  const nextBatchSubs = useMemo(() => {
+    if (!nextSub) return [];
+    return remainingSubs.filter(s => s.half === nextSub.half && s.time === nextSub.time);
+  }, [remainingSubs, nextSub]);
+
   const onPitchPlayers = useMemo(() =>
     players.filter(p => p.position !== null && p.currentPitchPosition !== "GK"),
     [players]
@@ -91,7 +97,7 @@ export default function AutoSubControlPanel({
           </div>
 
           {/* Next Sub Card */}
-          {nextSub ? (
+          {nextBatchSubs.length > 0 ? (
             <button
               type="button"
               className={cn(
@@ -105,28 +111,40 @@ export default function AutoSubControlPanel({
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
-                  Next Sub {!autoSubPaused && <span className="text-primary font-semibold">· Tap to execute</span>}
+                  {nextBatchSubs.length > 1 ? `Next ${nextBatchSubs.length} Subs` : "Next Sub"}
+                  {!autoSubPaused && <span className="text-primary font-semibold"> · Tap to execute</span>}
                 </span>
                 <Badge variant="secondary" className="font-mono text-xs h-6 px-2">
-                  {nextSub.half === 2 && nextSub.time === 0
+                  {nextSub!.half === 2 && nextSub!.time === 0
                     ? "HT"
-                    : `${nextSub.half === 2 ? "2H " : ""}${formatTime(nextSub.time)}`}
+                    : `${nextSub!.half === 2 ? "2H " : ""}${formatTime(nextSub!.time)}`}
                 </Badge>
               </div>
-              <div className="flex items-center gap-2 text-base">
-                <span className="text-destructive font-semibold truncate">
-                  ↓ {nextSub.playerOut.number ? `#${nextSub.playerOut.number} ` : ""}{nextSub.playerOut.name}
-                </span>
-                <span className="text-muted-foreground text-sm">→</span>
-                <span className="text-green-600 dark:text-green-400 font-semibold truncate">
-                  ↑ {nextSub.playerIn.number ? `#${nextSub.playerIn.number} ` : ""}{nextSub.playerIn.name}
-                </span>
+              <div className="space-y-1.5">
+                {nextBatchSubs.map((sub, idx) => (
+                  <div key={idx}>
+                    {nextBatchSubs.length > 1 && (
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-0.5">
+                        Sub {idx + 1}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-base">
+                      <span className="text-destructive font-semibold truncate">
+                        ↓ {sub.playerOut.number ? `#${sub.playerOut.number} ` : ""}{sub.playerOut.name}
+                      </span>
+                      <span className="text-muted-foreground text-sm">→</span>
+                      <span className="text-green-600 dark:text-green-400 font-semibold truncate">
+                        ↑ {sub.playerIn.number ? `#${sub.playerIn.number} ` : ""}{sub.playerIn.name}
+                      </span>
+                    </div>
+                    {sub.positionSwap && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        + {sub.positionSwap.player.name} moves {sub.positionSwap.fromPosition} → {sub.positionSwap.toPosition}
+                      </p>
+                    )}
+                  </div>
+                ))}
               </div>
-              {nextSub.positionSwap && (
-                <p className="text-xs text-muted-foreground mt-1.5">
-                  + {nextSub.positionSwap.player.name} moves {nextSub.positionSwap.fromPosition} → {nextSub.positionSwap.toPosition}
-                </p>
-              )}
             </button>
           ) : (
             <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
