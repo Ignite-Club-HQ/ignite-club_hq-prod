@@ -180,7 +180,7 @@ export const recalculateRemainingPlan = (
   
   if (outfieldOnBench.length === 0) {
     if (rotateGkAtHalftime && gkOnPitch && currentHalf === 1) {
-      const gkReplacement = gkOnBench || benchPlayers.sort((a, b) => (a.minutesPlayed || 0) - (b.minutesPlayed || 0))[0] || null;
+      const gkReplacement = gkOnBench || benchPlayers.filter(p => p.assignedPositions?.includes("GK") || !p.assignedPositions?.length).sort((a, b) => (a.minutesPlayed || 0) - (b.minutesPlayed || 0))[0] || null;
       if (gkReplacement) {
         plan.push({
           time: 0,
