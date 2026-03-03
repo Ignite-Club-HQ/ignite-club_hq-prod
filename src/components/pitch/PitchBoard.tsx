@@ -4362,9 +4362,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             onMouseDown={handleTimerDragStart}
             onTouchStart={handleTimerTouchStart}
           >
-            <div className="flex flex-col items-center bg-zinc-800 rounded-lg px-3 py-1.5 shadow-lg">
-              {/* Main row: Score | Timer | Play | AUTO */}
-              <div className="flex items-center gap-2">
+             <div className="flex flex-col items-center bg-zinc-800 rounded-lg px-3 py-1.5 shadow-lg">
+               {/* Main row: Score | Timer | Play */}
+               <div className="flex items-center gap-2">
                 {gameInProgress && !hideScores && (
                   <ScoreTracker
                     goals={goals}
@@ -4395,8 +4395,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   minutesPerHalf={minutesPerHalf}
                   onMinutesPerHalfChange={handleMinutesPerHalfChange}
                 />
+                {!readOnly && !disableAutoSubs && autoSubActive && (
+                  <button
+                    className="flex items-center justify-center w-5 h-5 rounded-full"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAutoSubPanelOpen(true);
+                    }}
+                    title="Auto Subs active"
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
+                  </button>
+                )}
               </div>
-              {/* Bottom row: Formation • Tactical • Auto indicator */}
+              {/* Bottom row: Formation • Tactical */}
               <div className="flex items-center gap-1.5 mt-0.5 relative">
                 <button
                   className="text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px] flex items-center"
@@ -4414,21 +4426,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   {tacticalMode === "attack" && <Swords className="h-4 w-4 text-orange-400" />}
                   {TACTICAL_MODE_LABELS[tacticalMode]} ▾
                 </button>
-                {!readOnly && !disableAutoSubs && autoSubActive && (
-                  <>
-                    <span className="text-white/30 text-sm">•</span>
-                    <button
-                      className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-primary px-1.5 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px]"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setAutoSubPanelOpen(true);
-                      }}
-                    >
-                      <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                      Auto
-                    </button>
-                  </>
-                )}
                 {/* Tactical dropdown */}
                 {timerTacticalDropdownOpen && (
                   <>
@@ -5696,9 +5693,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           }}
           onTouchStart={handlePortraitTimerTouchStart}
         >
-          <div className="flex flex-col items-end">
+           <div className="flex flex-col items-end">
             <div className="flex flex-col items-center bg-zinc-800 rounded-lg px-3 py-1.5 shadow-lg">
-              {/* Main row: Score | Timer | AUTO */}
+              {/* Main row: Score | Timer */}
               <div className="flex items-center gap-2">
                 {gameInProgress && !hideScores && !showScoreInPortrait && (
                   <ScoreTracker
@@ -5730,8 +5727,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   minutesPerHalf={minutesPerHalf}
                   onMinutesPerHalfChange={handleMinutesPerHalfChange}
                 />
+                {!readOnly && !disableAutoSubs && autoSubActive && (
+                  <button
+                    className="flex items-center justify-center w-5 h-5 rounded-full"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAutoSubPanelOpen(true);
+                    }}
+                    title="Auto Subs active"
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
+                  </button>
+                )}
               </div>
-              {/* Bottom row: Formation • Tactical • Auto indicator */}
+              {/* Bottom row: Formation • Tactical */}
               <div className="flex items-center gap-1.5 mt-0.5 relative">
                 <button
                   className="text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px] flex items-center"
@@ -5749,21 +5758,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   {tacticalMode === "attack" && <Swords className="h-4 w-4 text-orange-400" />}
                   {TACTICAL_MODE_LABELS[tacticalMode]} ▾
                 </button>
-                {!readOnly && !disableAutoSubs && autoSubActive && (
-                  <>
-                    <span className="text-white/30 text-sm">•</span>
-                    <button
-                      className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-primary px-1.5 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px]"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setAutoSubPanelOpen(true);
-                      }}
-                    >
-                      <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                      Auto
-                    </button>
-                  </>
-                )}
                 {/* Tactical dropdown - portrait */}
                 {timerTacticalDropdownOpen && (
                   <>
