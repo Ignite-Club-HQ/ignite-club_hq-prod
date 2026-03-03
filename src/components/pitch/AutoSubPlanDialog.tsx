@@ -213,11 +213,11 @@ function createSubPlan(
   // With a large bench, we want to swap multiple players simultaneously
   let subsAtOnce = 1;
   if (!disableBatchSubs && outfieldOnBench.length >= 2) {
-    // Cap at 2 subs at a time to keep things manageable
+    const hasLargeBench = outfieldOnBench.length >= 4;
     switch (rotationSpeed) {
       case 1: subsAtOnce = 1; break;
       case 2: subsAtOnce = Math.min(2, outfieldOnBench.length); break;
-      case 3: subsAtOnce = Math.min(2, outfieldOnBench.length); break;
+      case 3: subsAtOnce = Math.min(hasLargeBench ? 3 : 2, outfieldOnBench.length); break;
       default: subsAtOnce = 1;
     }
   }
@@ -284,7 +284,9 @@ function createSubPlan(
         const pitchPos = currentOnPitch.get(pitchEntry.id);
         const timeDiffCorrected = pitchEntry.time - benchEntry.time;
         
-        if (timeDiffCorrected <= 0) continue;
+        // Use a 30-second minimum threshold instead of hard zero to allow
+        // beneficial rotations when times are close but not exactly equal
+        if (timeDiffCorrected < 30) continue;
         
         const directMatch = !benchEntry.player.assignedPositions?.length || 
             benchEntry.player.assignedPositions.includes(pitchPos!);
@@ -394,7 +396,8 @@ function createSubPlan(
         
         // Only check time difference for the first sub of a batch window
         // Additional batch subs are made to rotate more players together
-        if (subIdx === 0 && mostPlayedOnPitch.time <= leastPlayedOnBench.time) break;
+        // Use 30s threshold for consistency with candidate scoring
+        if (subIdx === 0 && (mostPlayedOnPitch.time - leastPlayedOnBench.time) < 30) break;
         
         const best = findBestSubCandidate(onPitchSorted, benchSorted, usedPlayerOutIds, usedPlayerInIds);
         
@@ -476,6 +479,95 @@ function createSubPlan(
     if (a.half !== b.half) return a.half - b.half;
     return a.time - b.time;
   });
+  
+  // FAIRNESS SIMULATION PASS: verify max-min playing time spread
+  // If spread exceeds 20% of ideal time, add corrective subs
+  const simOnPitch = new Map<string, PitchPosition>();
+  outfieldOnPitch.forEach(p => simOnPitch.set(p.id, p.currentPitchPosition as PitchPosition));
+  const simTime = new Map<string, number>();
+  outfieldPlayers.forEach(p => simTime.set(p.id, p.minutesPlayed || 0));
+  
+  // Simulate the plan
+  let simLastTime = startHalf === 1 ? startElapsedSeconds : startElapsedSeconds;
+  let simLastHalf = startHalf;
+  for (const sub of plan) {
+    // Advance time for on-pitch players
+    let elapsed = 0;
+    if (sub.half === simLastHalf) {
+      elapsed = sub.time - simLastTime;
+    } else {
+      // Half changed: add remaining time from first half + time into second half
+      elapsed = (halfDurationSeconds - simLastTime) + sub.time;
+    }
+    if (elapsed > 0) {
+      simOnPitch.forEach((_, id) => simTime.set(id, (simTime.get(id) || 0) + elapsed));
+    }
+    simLastTime = sub.time;
+    simLastHalf = sub.half;
+    
+    // Apply the sub
+    simOnPitch.delete(sub.playerOut.id);
+    const pos = sub.positionSwap ? sub.positionSwap.fromPosition : currentOnPitch.get(sub.playerOut.id);
+    if (pos) simOnPitch.set(sub.playerIn.id, pos);
+    if (sub.positionSwap) {
+      simOnPitch.set(sub.positionSwap.player.id, sub.positionSwap.toPosition);
+    }
+  }
+  // Add remaining game time
+  const endElapsed = halfDurationSeconds - simLastTime;
+  if (endElapsed > 0) simOnPitch.forEach((_, id) => simTime.set(id, (simTime.get(id) || 0) + endElapsed));
+  if (simLastHalf === 1) {
+    // Add full second half
+    simOnPitch.forEach((_, id) => simTime.set(id, (simTime.get(id) || 0) + halfDurationSeconds));
+  }
+  
+  // Check fairness spread
+  const outfieldTimes = outfieldPlayers.map(p => simTime.get(p.id) || 0);
+  const maxTime = Math.max(...outfieldTimes);
+  const minTime = Math.min(...outfieldTimes);
+  const spread = maxTime - minTime;
+  const fairnessThreshold = idealSecondsPerPlayer * 0.2;
+  
+  // If spread is too large and we have room for a corrective sub, add one
+  if (spread > fairnessThreshold && spread > 60) {
+    const overplayedId = outfieldPlayers.find(p => (simTime.get(p.id) || 0) === maxTime)?.id;
+    const underplayedId = outfieldPlayers.find(p => (simTime.get(p.id) || 0) === minTime)?.id;
+    
+    if (overplayedId && underplayedId) {
+      const overplayed = getPlayer(overplayedId);
+      const underplayed = getPlayer(underplayedId);
+      
+      // Only add corrective sub if overplayed is on pitch in final state
+      if (overplayed && underplayed && simOnPitch.has(overplayedId) && !simOnPitch.has(underplayedId)) {
+        // Schedule corrective sub 2 minutes before end of last half
+        const correctiveTime = Math.max(0, halfDurationSeconds - 120);
+        const correctiveHalf = 2 as 1 | 2;
+        
+        // Don't add if there's already a sub at this time for these players
+        const alreadyExists = plan.some(s => 
+          s.half === correctiveHalf && 
+          Math.abs(s.time - correctiveTime) < 30 &&
+          (s.playerOut.id === overplayedId || s.playerIn.id === underplayedId)
+        );
+        
+        if (!alreadyExists) {
+          plan.push({
+            time: correctiveTime,
+            half: correctiveHalf,
+            playerOut: overplayed,
+            playerIn: underplayed,
+            executed: false,
+          });
+          
+          // Re-sort after adding corrective sub
+          plan.sort((a, b) => {
+            if (a.half !== b.half) return a.half - b.half;
+            return a.time - b.time;
+          });
+        }
+      }
+    }
+  }
   
   return plan;
 }
