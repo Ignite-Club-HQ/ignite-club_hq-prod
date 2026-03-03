@@ -81,17 +81,17 @@ const buildArrowPathData = (startX: number, startY: number, endX: number, endY: 
   const headLength = getArrowHeadLength(dx, dy);
   const headSpread = Math.PI / 7;
 
-  const leftHeadX = dx - headLength * Math.cos(angle - headSpread);
-  const leftHeadY = dy - headLength * Math.sin(angle - headSpread);
-  const rightHeadX = dx - headLength * Math.cos(angle + headSpread);
-  const rightHeadY = dy - headLength * Math.sin(angle + headSpread);
+  const leftHeadX = endX - headLength * Math.cos(angle - headSpread);
+  const leftHeadY = endY - headLength * Math.sin(angle - headSpread);
+  const rightHeadX = endX - headLength * Math.cos(angle + headSpread);
+  const rightHeadY = endY - headLength * Math.sin(angle + headSpread);
 
   return [
-    ["M", 0, 0],
-    ["L", dx, dy],
-    ["M", dx, dy],
+    ["M", startX, startY],
+    ["L", endX, endY],
+    ["M", endX, endY],
     ["L", leftHeadX, leftHeadY],
-    ["M", dx, dy],
+    ["M", endX, endY],
     ["L", rightHeadX, rightHeadY],
   ];
 };
@@ -176,14 +176,12 @@ const scaleArrowPathObject = (obj: any, scaleX: number, scaleY: number): boolean
   const nextEndX = arrowData.endX * scaleX;
   const nextEndY = arrowData.endY * scaleY;
 
+  const nextPath = buildArrowPathData(nextStartX, nextStartY, nextEndX, nextEndY);
+
   obj.set({
-    left: nextStartX,
-    top: nextStartY,
-    originX: "left",
-    originY: "top",
     scaleX: 1,
     scaleY: 1,
-    path: buildArrowPathData(nextStartX, nextStartY, nextEndX, nextEndY),
+    path: nextPath,
     data: {
       ...arrowData,
       kind: "pitch-arrow",
@@ -193,6 +191,19 @@ const scaleArrowPathObject = (obj: any, scaleX: number, scaleY: number): boolean
       endY: nextEndY,
     },
   });
+
+  // Let Fabric recalculate positioning from the new absolute path data
+  if (typeof obj.initialize === "function") {
+    obj.initialize(nextPath, { stroke: obj.stroke, strokeWidth: obj.strokeWidth, fill: obj.fill });
+    obj.set("data", {
+      ...arrowData,
+      kind: "pitch-arrow",
+      startX: nextStartX,
+      startY: nextStartY,
+      endX: nextEndX,
+      endY: nextEndY,
+    });
+  }
 
   if (typeof obj.setCoords === "function") {
     obj.setCoords();
