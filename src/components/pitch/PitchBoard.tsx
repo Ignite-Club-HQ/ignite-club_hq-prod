@@ -5175,7 +5175,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     </div>
                     </div>
                     {/* Auto Subs Quick Access - Landscape */}
-                    {!readOnly && !disableAutoSubs && gameInProgress && (
+                    {!readOnly && !disableAutoSubs && (gameInProgress || autoSubPlan.length > 0) && (
                       <div className="px-1 py-1">
                         {autoSubPlan.length > 0 ? (
                           <button
@@ -6111,7 +6111,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </div>
                     </div>
                     {/* Auto Subs Quick Access - Portrait */}
-                    {!readOnly && !disableAutoSubs && gameInProgress && (
+                    {!readOnly && !disableAutoSubs && (gameInProgress || autoSubPlan.length > 0) && (
                       <div className="py-1">
                         {autoSubPlan.length > 0 ? (
                           <button
