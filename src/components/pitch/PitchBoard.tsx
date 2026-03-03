@@ -4364,7 +4364,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           >
              <div className="flex flex-col items-center bg-zinc-800 rounded-lg px-3 py-1.5 shadow-lg">
                {/* Main row: Score | Timer | Play */}
-               <div className="flex items-center gap-2">
+               <div className="flex items-center gap-2 w-full justify-center">
                 {gameInProgress && !hideScores && (
                   <ScoreTracker
                     goals={goals}
@@ -5696,7 +5696,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
            <div className="flex flex-col items-end">
             <div className="flex flex-col items-center bg-zinc-800 rounded-lg px-3 py-1.5 shadow-lg">
               {/* Main row: Score | Timer */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full justify-center">
                 {gameInProgress && !hideScores && !showScoreInPortrait && (
                   <ScoreTracker
                     goals={goals}
