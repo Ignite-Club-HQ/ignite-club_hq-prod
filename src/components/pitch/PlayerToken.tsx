@@ -39,6 +39,8 @@ interface PlayerTokenProps {
   // Auto-sub next player highlight
   isNextSub?: boolean;
   nextSubCountdown?: string | null;
+  // Sub is due NOW - strong pulse
+  isSubDue?: boolean;
 }
 
 const PlayerToken = memo(function PlayerToken({
@@ -62,7 +64,8 @@ const PlayerToken = memo(function PlayerToken({
   readOnly = false,
   teamColor,
   isNextSub = false,
-  nextSubCountdown = null
+  nextSubCountdown = null,
+  isSubDue = false
 }: PlayerTokenProps) {
   const initials = player.name
     .split(" ")
@@ -107,7 +110,8 @@ const PlayerToken = memo(function PlayerToken({
           isInvalidTarget && "opacity-50 ring-2 ring-destructive/50",
           subAnimation === "in" && "animate-scale-in ring-2 ring-emerald-500 bg-emerald-500/20",
           subAnimation === "out" && "animate-fade-in ring-2 ring-orange-500 bg-orange-500/20",
-          isNextSub && !isSelected && !isSubTarget && !subAnimation && "ring-2 ring-emerald-400 ring-offset-1 ring-offset-background bg-emerald-500/15 border-emerald-400/50",
+          isSubDue && !isSelected && !subAnimation && "ring-2 ring-orange-500 ring-offset-1 ring-offset-background animate-pulse bg-orange-500/15 border-orange-400/50",
+          isNextSub && !isSubDue && !isSelected && !isSubTarget && !subAnimation && "ring-2 ring-emerald-400 ring-offset-1 ring-offset-background bg-emerald-500/15 border-emerald-400/50",
           onClick && !player.isInjured && "cursor-pointer"
         )}
         style={{ ...style, ...benchBorderStyle }}
@@ -228,6 +232,7 @@ const PlayerToken = memo(function PlayerToken({
           isSubTarget && !isSelected && !isInvalidTarget && "border-emerald-400 ring-2 ring-emerald-400 bg-emerald-400/20 text-emerald-700 dark:text-emerald-300",
           isInvalidTarget && !isSelected && "opacity-40 border-muted-foreground/30",
           isMovable && !isSelected && "border-amber-400 ring-2 ring-amber-400 bg-amber-400/20 text-amber-700 dark:text-amber-300",
+          isSubDue && !isSelected && !subAnimation && "border-orange-500 ring-4 ring-orange-500/60 bg-orange-500/30 animate-pulse",
           isPreviewHighlight && previewHighlightType === "source" && "border-orange-400 ring-4 ring-orange-400/60 bg-orange-400/30 scale-110 text-orange-700 dark:text-orange-300",
           isPreviewHighlight && previewHighlightType === "target" && "border-cyan-400 ring-4 ring-cyan-400/60 bg-cyan-400/30 scale-110 text-cyan-700 dark:text-cyan-300",
           subAnimation === "in" && "border-emerald-500 ring-4 ring-emerald-500/50 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
@@ -248,7 +253,10 @@ const PlayerToken = memo(function PlayerToken({
         {isPreviewHighlight && previewHighlightType === "target" && !subAnimation && (
           <span className="absolute -top-1 -right-1 bg-cyan-500 text-white text-[8px] font-bold px-1 rounded animate-pulse">MOVE</span>
         )}
-        {isNextSub && !subAnimation && !isPreviewHighlight && !isSelected && (
+        {isSubDue && !subAnimation && !isPreviewHighlight && !isSelected && (
+          <span className="absolute -bottom-1 -right-1 bg-orange-500 text-white text-[7px] font-bold px-0.5 rounded animate-pulse">SUB!</span>
+        )}
+        {isNextSub && !isSubDue && !subAnimation && !isPreviewHighlight && !isSelected && (
           <span className="absolute -bottom-1 -right-1 bg-orange-500 text-white text-[7px] font-bold px-0.5 rounded animate-pulse">OFF</span>
         )}
         {player.currentPitchPosition && !subAnimation && !isPreviewHighlight && (

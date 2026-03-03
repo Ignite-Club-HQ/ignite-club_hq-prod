@@ -134,7 +134,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const queryClient = useQueryClient();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { isLandscape, isMobileLandscape, isTabletLandscape, isDesktopLandscape } = useIsLandscape();
+  const { isLandscape, isMobileLandscape } = useIsLandscape();
 
   // Hide status bar in landscape on native to fill the whole screen
   useEffect(() => {
@@ -212,8 +212,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [drawingTool, setDrawingTool] = useState<DrawingTool>("none");
   const [drawingColor, setDrawingColor] = useState("#ffffff");
   
-  // Lazy load Fabric.js - only initialize when drawing mode is enabled
+  // Lazy load Fabric.js - initialize when drawing mode is enabled
   const drawingEnabled = drawingTool !== "none";
+  const drawingEverEnabledRef = useRef(false);
+  if (drawingEnabled) drawingEverEnabledRef.current = true;
   const { 
     canvas: fabricCanvas, 
     isLoading: isFabricLoading, 
@@ -223,7 +225,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   } = useLazyFabric({
     canvasRef,
     containerRef,
-    enabled: drawingEnabled,
+    enabled: drawingEnabled || drawingEverEnabledRef.current,
     initialColor: drawingColor,
     dependencies: [isLandscape],
   });
@@ -279,12 +281,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
   const [nextSubInfo, setNextSubInfo] = useState<{ playerInId: string; playerOutId: string; countdown: string } | null>(null);
+  const [subDuePlayerIds, setSubDuePlayerIds] = useState<Set<string>>(new Set());
+  const subDueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
   const [pinPitchShortcuts, setPinPitchShortcuts] = useState(true);
   const [sheetHeightPct, setSheetHeightPct] = useState(35);
   const sheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
+  const ignoreNextLandscapeBackdropClickRef = useRef(false);
+  const ignoreNextLandscapeBenchOpenRef = useRef(false);
   const [portraitSheetOpen, setPortraitSheetOpen] = useState(false);
   const [portraitSheetHeightPct, setPortraitSheetHeightPct] = useState(45);
   const portraitSheetDragRef = useRef<{ startY: number; startPct: number } | null>(null);
@@ -1676,52 +1682,87 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     drawingToolRef.current = drawingTool;
   }, [drawingTool]);
 
+  // Disable drawing mode when any overlay/panel opens (settings, bench sheet, timer interactions, etc.)
+  useEffect(() => {
+    if (settingsMenuOpen || portraitSheetOpen || settingsDialogOpen || autoSubPanelOpen || !toolbarCollapsed) {
+      if (drawingTool !== "none") {
+        setDrawingTool("none");
+        setShowFloatingDrawToolbar(false);
+      }
+    }
+  }, [settingsMenuOpen, portraitSheetOpen, settingsDialogOpen, autoSubPanelOpen, toolbarCollapsed, drawingTool]);
+
   // Create arrow helper - uses lazy-loaded fabric module
   const createArrow = useCallback((startX: number, startY: number, endX: number, endY: number, color: string) => {
     if (!fabricModule) return null;
-    
-    const { Line, Triangle, Group } = fabricModule;
-    const angle = Math.atan2(endY - startY, endX - startX);
-    const headLength = 12;
-    
-    // Main line
-    const line = new Line([startX, startY, endX, endY], {
+
+    const { Path } = fabricModule;
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const angle = Math.atan2(dy, dx);
+    const shaftLength = Math.hypot(dx, dy);
+    const headLength = Math.max(10, Math.min(24, shaftLength * 0.18));
+    const headSpread = Math.PI / 7;
+
+    const leftHeadX = endX - headLength * Math.cos(angle - headSpread);
+    const leftHeadY = endY - headLength * Math.sin(angle - headSpread);
+    const rightHeadX = endX - headLength * Math.cos(angle + headSpread);
+    const rightHeadY = endY - headLength * Math.sin(angle + headSpread);
+
+    const arrowPathData = [
+      ["M", startX, startY],
+      ["L", endX, endY],
+      ["M", endX, endY],
+      ["L", leftHeadX, leftHeadY],
+      ["M", endX, endY],
+      ["L", rightHeadX, rightHeadY],
+    ];
+
+    const arrow = new Path(arrowPathData as any, {
       stroke: color,
       strokeWidth: 3,
+      strokeUniform: true,
+      fill: "",
+      strokeLineCap: "butt",
+      strokeLineJoin: "round",
       selectable: false,
       evented: false,
+      data: {
+        kind: "pitch-arrow",
+        startX,
+        startY,
+        endX,
+        endY,
+      },
     });
-    
-    // Arrow head
-    const triangle = new Triangle({
-      left: endX,
-      top: endY,
-      width: headLength,
-      height: headLength,
-      fill: color,
-      angle: (angle * 180 / Math.PI) + 90,
-      originX: 'center',
-      originY: 'center',
-      selectable: false,
-      evented: false,
-    });
-    
-    const group = new Group([line, triangle], {
-      selectable: false,
-      evented: false,
-    });
-    
-    return group;
+
+    return arrow;
   }, [fabricModule]);
 
   // Handle arrow drawing
   useEffect(() => {
     if (!fabricCanvas) return;
 
+    const getArrowPointer = (eventPayload: any) => {
+      if (eventPayload?.scenePoint) return eventPayload.scenePoint;
+
+      const nativeEvent = eventPayload?.e ?? eventPayload;
+      const canvasWithScenePoint = fabricCanvas as any;
+      if (typeof canvasWithScenePoint.getScenePoint === "function") {
+        const scenePoint = canvasWithScenePoint.getScenePoint(nativeEvent);
+        if (scenePoint?.x !== undefined && scenePoint?.y !== undefined) {
+          return scenePoint;
+        }
+      }
+
+      return eventPayload?.viewportPoint ?? eventPayload?.pointer ?? fabricCanvas.getViewportPoint(nativeEvent);
+    };
+
     const handleMouseDown = (e: any) => {
       if (drawingTool !== "arrow") return;
       
-      const pointer = fabricCanvas.getViewportPoint(e.e);
+      const pointer = getArrowPointer(e);
+      if (!pointer) return;
       isDrawingArrowRef.current = true;
       arrowStartRef.current = { x: pointer.x, y: pointer.y };
     };
@@ -1729,7 +1770,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const handleMouseMove = (e: any) => {
       if (!isDrawingArrowRef.current || !arrowStartRef.current || drawingTool !== "arrow") return;
       
-      const pointer = fabricCanvas.getViewportPoint(e.e);
+      const pointer = getArrowPointer(e);
+      if (!pointer) return;
       
       // Remove temp arrow
       if (tempArrowRef.current) {
@@ -1755,7 +1797,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const handleMouseUp = (e: any) => {
       if (!isDrawingArrowRef.current || !arrowStartRef.current || drawingTool !== "arrow") return;
       
-      const pointer = fabricCanvas.getViewportPoint(e.e);
+      const pointer = getArrowPointer(e);
+      if (!pointer) return;
       
       // Remove temp arrow
       if (tempArrowRef.current) {
@@ -2798,6 +2841,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       // Create database notification (triggers server-side push)
       createSubNotification(notificationBody);
       
+      // Set sub-due pulsing for all players involved in the batch
+      const dueIds = new Set<string>();
+      batchSubs.forEach(s => {
+        dueIds.add(s.playerOut.id);
+        dueIds.add(s.playerIn.id);
+      });
+      setSubDuePlayerIds(dueIds);
+      // Clear pulse after 30 seconds
+      if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
+      subDueTimerRef.current = setTimeout(() => setSubDuePlayerIds(new Set()), 30000);
+
       setPendingAutoSub(primarySub);
       setPendingBatchSubs(additionalSubs);
       setSubConfirmDialogOpen(true);
@@ -2973,6 +3027,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setSubConfirmDialogOpen(false);
     setPendingAutoSub(null);
     setPendingBatchSubs([]);
+    setSubDuePlayerIds(new Set());
+    if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
     
     // Check if all subs executed
     const remainingSubs = autoSubPlan.filter(sub => 
@@ -3012,6 +3068,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setSubConfirmDialogOpen(false);
     setPendingAutoSub(null);
     setPendingBatchSubs([]);
+    setSubDuePlayerIds(new Set());
+    if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
   }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, toast]);
 
   // Ball drag handlers
@@ -4385,6 +4443,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           <div 
             id="landscape-pitch-area"
             className={cn("w-full h-full", zoom > 1 ? "overflow-auto" : "overflow-hidden")}
+            style={{ zIndex: 0 }}
             onWheel={handleWheel}
           >
             <div 
@@ -4489,7 +4548,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 ref={isLandscape ? containerRef : undefined}
                 className="absolute inset-0 w-full h-full"
                 onPointerUp={() => {
-                  if (showFloatingDrawToolbar && !pinDrawingToolbar) {
+                  if (showFloatingDrawToolbar && !pinDrawingToolbar && !isDrawingArrowRef.current && drawingTool === "none") {
                     setTimeout(() => {
                       setDrawingTool("none");
                       setShowFloatingDrawToolbar(false);
@@ -4528,6 +4587,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   transform: "translate(-50%, -50%)",
                   zIndex: 40,
                   transition: tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined,
+                  pointerEvents: drawingEnabled ? "none" : "auto",
                 }}
               />
 
@@ -4573,6 +4633,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   teamColor={getPlayerTeamColor(player)}
                   isNextSub={nextSubInfo?.playerOutId === player.id}
                   nextSubCountdown={nextSubInfo?.playerOutId === player.id ? nextSubInfo.countdown : null}
+                  isSubDue={subDuePlayerIds.has(player.id)}
                   style={{
                     position: "absolute",
                     ...(() => {
@@ -4589,6 +4650,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     })(),
                     zIndex: (subAnimationPlayers.in === player.id || subAnimationPlayers.swap === player.id) ? 40 : previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
                     cursor: readOnly ? "default" : ((subMode || swapMode) ? "pointer" : "grab"),
+                    pointerEvents: drawingEnabled ? "none" : "auto",
                   }}
                 />
               ))}
@@ -4668,22 +4730,34 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Swipe-up zone at bottom edge to open sheet */}
         {toolbarCollapsed && (
           <div
-            className="absolute bottom-0 left-0 right-0 z-[45] flex justify-center items-end pointer-events-auto"
+            className="absolute bottom-0 left-0 right-0 z-[66] flex justify-center items-end pointer-events-auto"
             style={{ height: 56 }}
             onTouchStart={(e) => {
               const el = e.currentTarget;
+              if (ignoreNextLandscapeBenchOpenRef.current || drawingTool !== "none" || showFloatingDrawToolbar) {
+                delete el.dataset.swipeStartY;
+                delete el.dataset.swipeStartT;
+                return;
+              }
               el.dataset.swipeStartY = String(e.touches[0].clientY);
               el.dataset.swipeStartT = String(Date.now());
             }}
             onTouchEnd={(e) => {
               const startY = Number(e.currentTarget.dataset.swipeStartY || 0);
               const startT = Number(e.currentTarget.dataset.swipeStartT || 0);
-              if (!startY) return;
+              delete e.currentTarget.dataset.swipeStartY;
+              delete e.currentTarget.dataset.swipeStartT;
+              if (ignoreNextLandscapeBenchOpenRef.current || drawingTool !== "none" || showFloatingDrawToolbar) return;
+              if (!startY || !startT) return;
               const deltaY = startY - e.changedTouches[0].clientY;
               const elapsed = Date.now() - startT;
               const velocity = deltaY / Math.max(elapsed, 1);
               // Open on fast flick (velocity > 0.3px/ms) or sufficient distance (>20px)
               if (deltaY > 20 || velocity > 0.3) { setSheetHeightPct(50); setToolbarCollapsed(false); }
+            }}
+            onTouchCancel={(e) => {
+              delete e.currentTarget.dataset.swipeStartY;
+              delete e.currentTarget.dataset.swipeStartT;
             }}
           >
             <div className="w-10 h-1 rounded-full bg-foreground/30 mb-1.5" />
@@ -4695,40 +4769,88 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           <>
             {/* Floating settings button - always visible in landscape when sheet closed */}
             <button
-              className="absolute bottom-3 right-3 z-[55] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center"
-              onClick={() => { setSheetHeightPct(50); setToolbarCollapsed(false); }}
+              className={cn(
+                "absolute bottom-3 right-3 z-[70] w-12 h-12 rounded-full bg-background/95 backdrop-blur-md border-2 border-border shadow-xl flex items-center justify-center",
+                showFloatingDrawToolbar && "pointer-events-none opacity-70"
+              )}
+              onPointerDown={(e) => { e.stopPropagation(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (showFloatingDrawToolbar) return;
+                ignoreNextLandscapeBackdropClickRef.current = true;
+                setBottomSheetTab("bench");
+                setSheetHeightPct(50);
+                setToolbarCollapsed(false);
+                window.setTimeout(() => {
+                  ignoreNextLandscapeBackdropClickRef.current = false;
+                }, 0);
+              }}
             >
-              <Users className="h-5 w-5 text-muted-foreground" />
+              <Users className="h-6 w-6 text-foreground" />
             </button>
 
 
             <button
               className={cn(
-                "absolute bottom-3 z-[55] w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
+                "absolute bottom-3 z-[70] w-12 h-12 rounded-full backdrop-blur-md border-2 shadow-xl flex items-center justify-center",
                 drawingTool !== "none"
                   ? "bg-primary text-primary-foreground border-primary"
                   : showFloatingDrawToolbar
                     ? "bg-accent text-accent-foreground border-accent"
-                    : "bg-background/80 border-border"
+                    : "bg-background/95 border-border text-foreground"
               )}
-              style={{ right: 60 }}
-              onClick={() => setShowFloatingDrawToolbar(prev => !prev)}
+              style={{ right: 68 }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                ignoreNextLandscapeBenchOpenRef.current = true;
+                window.setTimeout(() => {
+                  ignoreNextLandscapeBenchOpenRef.current = false;
+                }, 300);
+              }}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                ignoreNextLandscapeBenchOpenRef.current = true;
+                window.setTimeout(() => {
+                  ignoreNextLandscapeBenchOpenRef.current = false;
+                }, 300);
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowFloatingDrawToolbar(prev => !prev);
+              }}
             >
-              <Pencil className="h-5 w-5" />
+              <Pencil className="h-6 w-6" />
             </button>
 
             {/* Floating Draw Toolbar */}
             {showFloatingDrawToolbar && (
-              <div className="absolute bottom-16 z-[55] animate-fade-in" style={{ right: 12 }}>
+              <div className="absolute bottom-[4.5rem] z-[71] animate-fade-in" style={{ right: 12 }} onPointerDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
                 <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
                   <div className="flex gap-2">
                     <Button 
                       variant={drawingTool === "pen" ? "default" : "outline"} 
                       size="icon"
-                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
-                      onClick={() => {
-                        setDrawingTool(drawingTool === "pen" ? "none" : "pen");
-                        if (drawingTool !== "pen" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
+                      className="h-12 w-12"
+                      onTouchStart={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        ignoreNextLandscapeBenchOpenRef.current = true;
+                        window.setTimeout(() => {
+                          ignoreNextLandscapeBenchOpenRef.current = false;
+                        }, 300);
+                      }}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        ignoreNextLandscapeBenchOpenRef.current = true;
+                        window.setTimeout(() => {
+                          ignoreNextLandscapeBenchOpenRef.current = false;
+                        }, 300);
+                        const nextTool = drawingTool === "pen" ? "none" : "pen";
+                        setDrawingTool(nextTool);
+                        if (nextTool !== "none" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                       }}
                     >
                       <Pencil className="h-5 w-5" />
@@ -4736,10 +4858,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <Button 
                       variant={drawingTool === "arrow" ? "default" : "outline"} 
                       size="icon"
-                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
-                      onClick={() => {
-                        setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
-                        if (drawingTool !== "arrow" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
+                      className="h-12 w-12"
+                      onTouchStart={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        ignoreNextLandscapeBenchOpenRef.current = true;
+                        window.setTimeout(() => {
+                          ignoreNextLandscapeBenchOpenRef.current = false;
+                        }, 300);
+                      }}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        ignoreNextLandscapeBenchOpenRef.current = true;
+                        window.setTimeout(() => {
+                          ignoreNextLandscapeBenchOpenRef.current = false;
+                        }, 300);
+                        const nextTool = drawingTool === "arrow" ? "none" : "arrow";
+                        setDrawingTool(nextTool);
+                        if (nextTool !== "none" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                       }}
                     >
                       <MoveRight className="h-5 w-5" />
@@ -4747,7 +4884,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <Button 
                       variant="outline" 
                       size="icon" 
-                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      className="h-12 w-12"
                       onClick={clearDrawings}
                     >
                       <Eraser className="h-5 w-5" />
@@ -4755,7 +4892,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <Button 
                       variant={pinDrawingToolbar ? "default" : "outline"} 
                       size="icon" 
-                      className={isTabletLandscape || isDesktopLandscape ? "h-12 w-12" : "h-10 w-10"}
+                      className="h-12 w-12"
                       onClick={() => setPinDrawingToolbar(prev => !prev)}
                       title={pinDrawingToolbar ? "Unpin drawing tools" : "Pin drawing tools"}
                     >
@@ -4783,11 +4920,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
         {/* Bottom Sheet Overlay for landscape controls */}
         {!toolbarCollapsed && (
-          <div className="absolute inset-0 z-[60] flex flex-col pointer-events-none" style={{ height: '100%' }}>
+          <div className="absolute inset-0 z-[68] flex flex-col pointer-events-none" style={{ height: '100%' }}>
             {/* Backdrop - pass through when drawing */}
             <div 
               className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")}
-              onClick={drawingTool === "none" ? () => setToolbarCollapsed(true) : undefined}
+              onClick={drawingTool === "none" ? () => {
+                if (ignoreNextLandscapeBackdropClickRef.current) return;
+                setToolbarCollapsed(true);
+              } : undefined}
             />
             {/* Sheet */}
             <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col"
@@ -4966,6 +5106,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               teamColor={getPlayerTeamColor(player)}
                               isNextSub={nextSubInfo?.playerInId === player.id}
                               nextSubCountdown={nextSubInfo?.playerInId === player.id ? nextSubInfo.countdown : null}
+                              isSubDue={subDuePlayerIds.has(player.id)}
                             />
                           </div>
                         ))}
@@ -5586,12 +5727,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           <>
             <button
               className={cn(
-                "absolute right-3 z-[63] w-10 h-10 rounded-full bg-background/80 backdrop-blur border border-border shadow-lg flex items-center justify-center",
+                "absolute right-3 z-[70] w-12 h-12 rounded-full bg-background/95 backdrop-blur-md border-2 border-border shadow-xl flex items-center justify-center",
                 "bottom-3"
               )}
-              onClick={() => setPortraitSheetOpen(true)}
+              onPointerDown={(e) => { e.stopPropagation(); }}
+              onClick={() => {
+                setDrawingTool("none");
+                setShowFloatingDrawToolbar(false);
+                setPortraitSheetOpen(true);
+              }}
             >
-              <Users className="h-5 w-5 text-muted-foreground" />
+              <Users className="h-6 w-6 text-foreground" />
             </button>
 
             {/* Floating Draw FAB - portrait */}
@@ -5599,32 +5745,36 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               <>
                 <button
                   className={cn(
-                    "absolute z-[63] w-10 h-10 rounded-full backdrop-blur border shadow-lg flex items-center justify-center",
+                    "absolute z-[70] w-12 h-12 rounded-full backdrop-blur-md border-2 shadow-xl flex items-center justify-center",
                     "bottom-3",
                     drawingTool !== "none"
                       ? "bg-primary text-primary-foreground border-primary"
                       : showFloatingDrawToolbar
                         ? "bg-accent text-accent-foreground border-accent"
-                        : "bg-background/80 border-border"
+                        : "bg-background/95 border-border text-foreground"
                   )}
-                  style={{ right: 60 }}
+                  style={{ right: 68 }}
+                  onPointerDown={(e) => { e.stopPropagation(); }}
                   onClick={() => setShowFloatingDrawToolbar(prev => !prev)}
                 >
-                  <Pencil className="h-5 w-5" />
+                  <Pencil className="h-6 w-6" />
                 </button>
 
                 {/* Floating Draw Toolbar - portrait */}
                 {showFloatingDrawToolbar && (
-                  <div className={cn("absolute right-3 z-[64] animate-fade-in", (subMode || swapMode) ? "bottom-[6.5rem]" : "bottom-16")}>
+                  <div className={cn("absolute right-3 z-[71] animate-fade-in", (subMode || swapMode) ? "bottom-[6.5rem]" : "bottom-16")} onPointerDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
                     <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl p-3 flex flex-col gap-3">
                       <div className="flex gap-2">
                         <Button 
                           variant={drawingTool === "pen" ? "default" : "outline"} 
                           size="icon"
                           className="h-12 w-12"
-                          onClick={() => {
-                            setDrawingTool(drawingTool === "pen" ? "none" : "pen");
-                            if (drawingTool !== "pen" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const nextTool = drawingTool === "pen" ? "none" : "pen";
+                            setDrawingTool(nextTool);
+                            if (nextTool !== "none" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                           }}
                         >
                           <Pencil className="h-5 w-5" />
@@ -5633,9 +5783,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           variant={drawingTool === "arrow" ? "default" : "outline"} 
                           size="icon"
                           className="h-12 w-12"
-                          onClick={() => {
-                            setDrawingTool(drawingTool === "arrow" ? "none" : "arrow");
-                            if (drawingTool !== "arrow" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const nextTool = drawingTool === "arrow" ? "none" : "arrow";
+                            setDrawingTool(nextTool);
+                            if (nextTool !== "none" && !pinDrawingToolbar) setShowFloatingDrawToolbar(false);
                           }}
                         >
                           <MoveRight className="h-5 w-5" />
@@ -5683,7 +5836,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             {portraitSheetOpen && (
               <div className="absolute inset-0 z-[60] flex flex-col pointer-events-none" style={{ height: '100%' }}>
                 <div className={cn("flex-1", drawingTool === "none" ? "pointer-events-auto" : "pointer-events-none")} onClick={drawingTool === "none" ? () => setPortraitSheetOpen(false) : undefined} />
-                <div className="pointer-events-auto bg-background border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col" style={{ maxHeight: `${portraitSheetHeightPct}vh`, height: 'auto' }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+                <div className="pointer-events-auto bg-background/100 border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-200 flex flex-col" style={{ maxHeight: `${portraitSheetHeightPct}vh`, height: 'auto', backgroundColor: 'hsl(var(--background))' }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
 
               {/* Handle bar - draggable */}
               <div 
@@ -5847,6 +6000,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             teamColor={getPlayerTeamColor(player)}
                             isNextSub={nextSubInfo?.playerInId === player.id}
                             nextSubCountdown={nextSubInfo?.playerInId === player.id ? nextSubInfo.countdown : null}
+                            isSubDue={subDuePlayerIds.has(player.id)}
                           />
                         ))}
                     </div>
@@ -6028,8 +6182,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             <div 
               ref={!isLandscape ? containerRef : undefined}
               className="absolute inset-0 w-full h-full"
-              onPointerUp={(e) => {
-                if (showFloatingDrawToolbar && !pinDrawingToolbar) {
+              onPointerUp={() => {
+                if (showFloatingDrawToolbar && !pinDrawingToolbar && !isDrawingArrowRef.current && drawingTool === "none") {
                   setTimeout(() => {
                     setDrawingTool("none");
                     setShowFloatingDrawToolbar(false);
@@ -6064,6 +6218,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 transform: "translate(-50%, -50%)",
                 zIndex: 40,
                 transition: tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined,
+                pointerEvents: drawingEnabled ? "none" : "auto",
               }}
             />
 
@@ -6108,6 +6263,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 teamColor={getPlayerTeamColor(player)}
                 isNextSub={nextSubInfo?.playerOutId === player.id}
                 nextSubCountdown={nextSubInfo?.playerOutId === player.id ? nextSubInfo.countdown : null}
+                isSubDue={subDuePlayerIds.has(player.id)}
                 style={{
                   position: "absolute",
                   ...(() => {
@@ -6124,6 +6280,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   })(),
                   zIndex: (subAnimationPlayers.in === player.id || subAnimationPlayers.swap === player.id) ? 40 : previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
                   cursor: readOnly ? "default" : ((subMode || swapMode) ? "pointer" : "grab"),
+                  pointerEvents: drawingEnabled ? "none" : "auto",
                 }}
               />
             ))}

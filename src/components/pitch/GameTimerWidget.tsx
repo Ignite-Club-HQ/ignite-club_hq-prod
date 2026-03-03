@@ -487,18 +487,18 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
               </div>
             </div>
             
-            {!readOnly && (
-              <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
+              {!readOnly && (
                 <Button variant="outline" size="icon" className="h-10 w-10" onClick={toggleTimer}>
                   {timerState.isRunning ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
                 </Button>
-                {timerState.teamId && timerState.teamName && onOpenPitchBoard && (
-                  <Button variant="default" size="icon" className="h-10 w-10" onClick={handleOpenPitchBoard}>
-                    <ExternalLink className="h-5 w-5" />
-                  </Button>
-                )}
-              </div>
-            )}
+              )}
+              {timerState.teamId && timerState.teamName && onOpenPitchBoard && (
+                <Button variant="default" size="icon" className="h-10 w-10" onClick={handleOpenPitchBoard}>
+                  <ExternalLink className="h-5 w-5" />
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Next sub summary row (always visible when subs exist) */}
