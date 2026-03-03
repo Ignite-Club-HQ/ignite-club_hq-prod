@@ -6726,19 +6726,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         document.body
       )}
 
-      <FormationChangeDialog
-        open={formationChangeDialogOpen}
-        onOpenChange={setFormationChangeDialogOpen}
-        currentFormation={FORMATIONS[teamSize][selectedFormation]?.name || ""}
-        newFormation={pendingFormationChange ? FORMATIONS[pendingFormationChange.newTeamSize || teamSize][pendingFormationChange.index]?.name || "" : ""}
-        positionSwaps={pendingFormationChange?.positionSwaps || []}
-        benchMoves={pendingFormationChange?.benchMoves || []}
-        onConfirm={handleFormationChangeConfirm}
-        onCancel={handleFormationChangeCancel}
-        isTeamSizeChange={!!pendingFormationChange?.newTeamSize}
-        currentTeamSize={teamSize}
-        newTeamSize={pendingFormationChange?.newTeamSize}
-      />
+      {/* FormationChangeDialog rendered once in landscape section above */}
 
       {/* Auto-Sub Plan Dialog */}
       <AutoSubPlanDialog
