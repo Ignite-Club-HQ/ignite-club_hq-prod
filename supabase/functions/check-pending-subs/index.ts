@@ -229,6 +229,19 @@ async function checkGames(supabase: any): Promise<number> {
     if (!pitchState.autoSubActive || pitchState.autoSubPaused || !pitchState.autoSubPlan?.length) continue;
 
     const now = Date.now();
+
+    // Skip stale games - if lastUpdateTime is more than 2 minutes ago,
+    // the client has stopped syncing and this game is abandoned
+    const STALE_THRESHOLD_MS = 120_000; // 2 minutes
+    if (timerState.lastUpdateTime > 0 && (now - timerState.lastUpdateTime) > STALE_THRESHOLD_MS) {
+      console.log(`[CHECK-SUBS] Game ${game.id} is stale (last update ${Math.floor((now - timerState.lastUpdateTime) / 1000)}s ago), marking inactive`);
+      await supabase
+        .from('active_games')
+        .update({ is_active: false })
+        .eq('id', game.id);
+      continue;
+    }
+
     const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
     const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
     const currentHalf = timerState.currentHalf;
