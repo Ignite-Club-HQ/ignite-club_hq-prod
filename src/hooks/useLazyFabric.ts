@@ -74,6 +74,25 @@ const getArrowHeadLength = (dx: number, dy: number) => {
   return clamp(shaftLength * 0.18, 10, 24);
 };
 
+const getArrowPathBounds = (path: any[]) => {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+
+  path.forEach((entry) => {
+    if (!Array.isArray(entry)) return;
+    const x = Number(entry[1]);
+    const y = Number(entry[2]);
+
+    if (Number.isFinite(x)) minX = Math.min(minX, x);
+    if (Number.isFinite(y)) minY = Math.min(minY, y);
+  });
+
+  return {
+    minX: Number.isFinite(minX) ? minX : 0,
+    minY: Number.isFinite(minY) ? minY : 0,
+  };
+};
+
 const buildArrowPathData = (dx: number, dy: number) => {
   const angle = Math.atan2(dy, dx);
   const headLength = getArrowHeadLength(dx, dy);
@@ -122,6 +141,7 @@ const extractArrowDataFromPathObject = (obj: any): PitchArrowData | null => {
   if (isRelativePath) {
     const left = Number(obj?.left ?? 0);
     const top = Number(obj?.top ?? 0);
+    const { minX, minY } = getArrowPathBounds(path);
 
     if (!Number.isFinite(left) || !Number.isFinite(top)) {
       return null;
@@ -129,10 +149,10 @@ const extractArrowDataFromPathObject = (obj: any): PitchArrowData | null => {
 
     return {
       kind: "pitch-arrow",
-      startX: left,
-      startY: top,
-      endX: left + endXRaw,
-      endY: top + endYRaw,
+      startX: left + (startXRaw - minX),
+      startY: top + (startYRaw - minY),
+      endX: left + (endXRaw - minX),
+      endY: top + (endYRaw - minY),
     };
   }
 
@@ -174,14 +194,17 @@ const scaleArrowPathObject = (obj: any, scaleX: number, scaleY: number): boolean
   const nextEndX = arrowData.endX * scaleX;
   const nextEndY = arrowData.endY * scaleY;
 
+  const nextPath = buildArrowPathData(nextEndX - nextStartX, nextEndY - nextStartY);
+  const { minX, minY } = getArrowPathBounds(nextPath);
+
   obj.set({
-    left: nextStartX,
-    top: nextStartY,
+    left: nextStartX + minX,
+    top: nextStartY + minY,
     originX: "left",
     originY: "top",
     scaleX: 1,
     scaleY: 1,
-    path: buildArrowPathData(nextEndX - nextStartX, nextEndY - nextStartY),
+    path: nextPath,
     data: {
       ...arrowData,
       kind: "pitch-arrow",
