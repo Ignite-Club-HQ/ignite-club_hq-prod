@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings } from "lucide-react";
+import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PlayerToken from "./PlayerToken";
 import SoccerBall from "./SoccerBall";
@@ -101,6 +101,7 @@ interface PitchBoardProps {
   initialTeamSize?: number;
   initialFormation?: string;
   readOnly?: boolean;
+  isSubsManager?: boolean;
   initialLinkedEventId?: string | null;
   initialShowMatchHeader?: boolean;
   initialShowLineupPicker?: boolean;
@@ -129,7 +130,7 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
   </div>
 );
 
-export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, miniLeagueTeams }: PitchBoardProps) {
+export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, miniLeagueTeams }: PitchBoardProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
@@ -4199,6 +4200,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               View Only
             </Badge>
           )}
+          {!readOnly && isSubsManager && (
+            <Badge variant="default" className="text-[10px] shrink-0 bg-primary/90">
+              <UserCog className="h-3 w-3 mr-1" />
+              Subs Manager
+            </Badge>
+          )}
           
           <div className="flex-1" />
 
@@ -5581,6 +5588,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           <Badge variant="secondary" className="text-xs px-1.5 py-0.5 shrink-0">
             <Eye className="h-3 w-3 mr-1" />
             View Only
+          </Badge>
+        )}
+        {!readOnly && isSubsManager && (
+          <Badge variant="default" className="text-xs px-1.5 py-0.5 shrink-0 bg-primary/90">
+            <UserCog className="h-3 w-3 mr-1" />
+            Subs Manager
           </Badge>
         )}
         {!readOnly && (
