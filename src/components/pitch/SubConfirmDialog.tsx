@@ -220,17 +220,14 @@ export default function SubConfirmDialog({
           </div>
         )}
         
-        {/* Scrollable area for batch subs */}
-        <ScrollArea className={cn(
-          "py-2",
-          isBatchSub && "max-h-[40vh]"
-        )}>
-          <div className="space-y-3 pr-2">
+        {/* Scrollable area for sub steps */}
+        <div className="overflow-y-auto overscroll-contain py-2" style={{ maxHeight: '50vh' }}>
+          <div className="space-y-3 pr-1">
             {allSubs.map((sub, index) => (
               renderSubSteps(sub, getStepOffset(index), index)
             ))}
           </div>
-        </ScrollArea>
+        </div>
         
         <ResponsiveDialogFooter className="flex-row gap-2 sm:gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="gap-2 h-12 text-base">

@@ -80,6 +80,9 @@ import {
 } from "./pitchStateUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 
+const SAVED_DEFAULT_TEAM_SIZES: TeamSize[] = ["3", "4", "5", "7", "9", "11"];
+const isSavedDefaultTeamSize = (value: string): value is TeamSize => SAVED_DEFAULT_TEAM_SIZES.includes(value as TeamSize);
+
 interface PitchBoardProps {
   teamId: string;
   teamName: string;
@@ -190,8 +193,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Determine initial team size - prefer saved state, then DB value, then default
   const getInitialTeamSize = (): TeamSize => {
     if (savedState?.teamSize) return savedState.teamSize;
-    if (initialTeamSize && ["4", "7", "9", "11"].includes(String(initialTeamSize))) {
-      return String(initialTeamSize) as TeamSize;
+    const candidateSize = String(initialTeamSize || "");
+    if (candidateSize && isSavedDefaultTeamSize(candidateSize)) {
+      return candidateSize;
     }
     return "7";
   };
@@ -309,6 +313,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return initialShowLineupPicker && !!initialLinkedEventId && !savedState && !readOnly && !miniLeagueTeams;
   });
   const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
+  const savedTeamDefaultsRef = useRef({
+    minutesPerHalf: initialMinutesPerHalf,
+    rotationSpeed: initialRotationSpeed,
+    disablePositionSwaps: initialDisablePositionSwaps,
+    disableBatchSubs: initialDisableBatchSubs,
+    rotateGkAtHalftime: initialRotateGkAtHalftime,
+    teamSize: getInitialTeamSize(),
+    formation: initialFormation || null,
+  });
   
   // Tactical mode state
   type TacticalFormationSuggestion = {
@@ -343,10 +356,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   
   // Sync team size and formation from props if no saved state - runs on mount and when props change
   useEffect(() => {
+    // Keep local reset defaults in sync with backend defaults
+    const candidateSize = String(initialTeamSize || "");
+    const nextDefaultSize: TeamSize = isSavedDefaultTeamSize(candidateSize) ? candidateSize : "7";
+    savedTeamDefaultsRef.current = {
+      minutesPerHalf: initialMinutesPerHalf,
+      rotationSpeed: initialRotationSpeed,
+      disablePositionSwaps: initialDisablePositionSwaps,
+      disableBatchSubs: initialDisableBatchSubs,
+      rotateGkAtHalftime: initialRotateGkAtHalftime,
+      teamSize: nextDefaultSize,
+      formation: initialFormation || null,
+    };
+
     // Only sync if there's no saved state for this team (fresh session)
     if (!savedState && initialTeamSize) {
       const validSize = String(initialTeamSize) as TeamSize;
-      if (["4", "7", "9", "11"].includes(validSize)) {
+      if (isSavedDefaultTeamSize(validSize)) {
         setTeamSize(validSize);
         // Also update formation if provided
         if (initialFormation) {
@@ -360,7 +386,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         }
       }
     }
-  }, [initialTeamSize, initialFormation, savedState]);
+  }, [initialTeamSize, initialFormation, initialMinutesPerHalf, initialRotationSpeed, initialDisablePositionSwaps, initialDisableBatchSubs, initialRotateGkAtHalftime, savedState]);
 
   // Save settings to database when they change
   const handleRotationSpeedChange = useCallback(async (speed: number) => {
@@ -499,6 +525,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         }, { onConflict: 'team_id' });
       
       if (error) throw error;
+
+      const savedFormation = FORMATIONS[teamSize][selectedFormation]?.name || null;
+      savedTeamDefaultsRef.current = {
+        minutesPerHalf,
+        rotationSpeed,
+        disablePositionSwaps,
+        disableBatchSubs,
+        rotateGkAtHalftime,
+        teamSize,
+        formation: savedFormation,
+      };
+      
+      // Invalidate subscription queries so parent pages pick up new defaults
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] }),
+        queryClient.invalidateQueries({ queryKey: ["team-subscription-for-pitch", teamId] }),
+      ]);
       
       toast({
         title: "Settings saved",
@@ -514,7 +557,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     } finally {
       setIsSavingSettings(false);
     }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, showLineupPickerSetting, toast]);
+  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, showLineupPickerSetting, queryClient, toast]);
 
   // handleTacticalModeChange is defined after handleFormationChange (see below)
 
@@ -2029,6 +2072,45 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setPortraitSheetOpen(false);
   }, []);
 
+  // Send push notification to team coaches/admins when formation or team size changes
+  const notifyFormationOrSizeChange = useCallback(async (changeType: 'formation' | 'team_size', detail: string) => {
+    if (!user?.id || readOnly) return;
+    try {
+      const { data: staffRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("team_id", teamId)
+        .in("role", ["coach", "team_admin"]);
+      
+      const recipientIds = new Set<string>();
+      staffRoles?.forEach(r => {
+        if (r.user_id !== user.id) recipientIds.add(r.user_id);
+      });
+
+      const title = changeType === 'formation' 
+        ? `⚽ ${teamName} - Formation Changed`
+        : `⚽ ${teamName} - Team Size Changed`;
+      const body = changeType === 'formation'
+        ? `Formation changed to ${detail}`
+        : `Team size changed to ${detail} players`;
+
+      for (const userId of recipientIds) {
+        supabase.functions.invoke("send-push-notification", {
+          body: {
+            userId,
+            title,
+            body,
+            url: `/teams/${teamId}`,
+            tag: `pitch-change-${teamId}`,
+            notificationType: "pitch_board",
+          },
+        }).catch(() => {});
+      }
+    } catch (e) {
+      console.error("Failed to send formation change notification:", e);
+    }
+  }, [user?.id, teamId, teamName, readOnly]);
+
   const applyFormationChange = useCallback((index: number) => {
     const formation = FORMATIONS[teamSize][index];
     if (!formation) return;
@@ -2081,13 +2163,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     toast({ title: "Formation applied", description: `${formation.name} formation set` });
 
+    // Notify team staff about the formation change
+    notifyFormationOrSizeChange('formation', formation.name);
+
     // Auto-regenerate the plan if auto-subs are active
     if (autoSubActive) {
       setTimeout(() => {
         regeneratePlanRef.current?.();
       }, 300);
     }
-  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers, autoSubActive]);
+  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers, autoSubActive, notifyFormationOrSizeChange]);
 
   // Handle formation change dialog confirm
   const handleFormationChangeConfirm = useCallback(() => {
@@ -2100,6 +2185,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         const placedPlayers = autoPlacePlayersOnPitch(players, newSize, 0);
         setPlayers(placedPlayers);
         persistTeamSizeToDb(newSize);
+        // Notify team staff about the team size change
+        notifyFormationOrSizeChange('team_size', newSize);
       } else {
         applyFormationChange(pendingFormationChange.index);
       }
@@ -2117,7 +2204,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         toast({ title: "Auto-sub plan updated", description: "Plan regenerated to account for formation change" });
       }, 300);
     }
-  }, [pendingFormationChange, applyFormationChange, autoPlacePlayersOnPitch, players, persistTeamSizeToDb, autoSubActive, toast]);
+  }, [pendingFormationChange, applyFormationChange, autoPlacePlayersOnPitch, players, persistTeamSizeToDb, autoSubActive, toast, notifyFormationOrSizeChange]);
 
   // Handle formation change dialog cancel
   const handleFormationChangeCancel = useCallback(() => {
@@ -2761,7 +2848,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
 
     // Compute next sub info for bench highlighting
-    if (autoSubActive && autoSubPlan.length > 0 && !autoSubPaused) {
+    const isFinished = gameTimerRef.current?.isGameFinished();
+    if (autoSubActive && autoSubPlan.length > 0 && !autoSubPaused && !isFinished) {
       const remainingSubs = autoSubPlan.filter(s => !s.executed);
       const nextSub = remainingSubs.find(s => s.half === currentHalf && s.time >= elapsedSeconds)
         || remainingSubs.find(s => s.half > currentHalf)
@@ -2778,6 +2866,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         setNextSubInfo(null);
       }
     } else {
+      if (isFinished) {
+        setNextSubInfo(null);
+        setSubDuePlayerIds(new Set());
+        if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
+      }
       setNextSubInfo(prev => prev ? null : prev);
     }
 
@@ -3011,13 +3104,33 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     runSubAnimation(pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id, primarySwapPlayer);
     
     // Mark all processed subs as executed
-    setAutoSubPlan(prev => prev.map(sub => {
+    // Mark all processed subs as executed
+    const updatedPlan = autoSubPlan.map(sub => {
       const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
       if (executedSubIds.includes(subId)) {
         return { ...sub, executed: true };
       }
       return sub;
-    }));
+    });
+    
+    // Recalculate remaining sub timings if the sub was late
+    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
+    const half = gameTimerRef.current?.getCurrentHalf() || 1;
+    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
+    const halfDurationSeconds = minsPerHalf * 60;
+    const remainingSubs = updatedPlan.filter(sub => !sub.executed);
+    
+    let finalPlan = updatedPlan;
+    if (remainingSubs.length > 0) {
+      const executedSubs = updatedPlan.filter(sub => sub.executed);
+      const recalculated = recalculateRemainingPlan(
+        updatedPlayers, parseInt(teamSize), halfDurationSeconds, currentElapsed, half as 1 | 2, pendingAutoSub, rotateGkAtHalftime
+      );
+      finalPlan = [...executedSubs, ...recalculated];
+    }
+    
+    setAutoSubPlan(finalPlan);
+    setPlayers(updatedPlayers);
     
     const toastDescription = allPendingSubs.length > 1
       ? `${successCount} substitutions made`
@@ -3031,14 +3144,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
     
     // Check if all subs executed
-    const remainingSubs = autoSubPlan.filter(sub => 
-      !sub.executed && !executedSubIds.includes(`${sub.half}-${sub.time}-${sub.playerOut.id}`)
-    );
-    if (remainingSubs.length === 0) {
+    if (finalPlan.filter(sub => !sub.executed).length === 0) {
       setAutoSubActive(false);
       toast({ title: "All substitutions complete" });
     }
-  }, [pendingAutoSub, pendingBatchSubs, players, autoSubPlan, toast, pushToUndoHistory]);
+  }, [pendingAutoSub, pendingBatchSubs, players, autoSubPlan, toast, pushToUndoHistory, teamSize, rotateGkAtHalftime]);
 
   const handleSkipAutoSub = useCallback(() => {
     if (!pendingAutoSub) return;
@@ -3122,22 +3232,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Stop the timer first
     gameTimerRef.current?.resetTimer();
     
-    // Reset pitch settings to team defaults from props
-    setMinutesPerHalf(initialMinutesPerHalf);
-    setRotationSpeed(initialRotationSpeed);
-    setDisablePositionSwaps(initialDisablePositionSwaps);
+    // Reset pitch settings to last saved team defaults
+    const savedDefaults = savedTeamDefaultsRef.current;
+    setMinutesPerHalf(savedDefaults.minutesPerHalf);
+    setRotationSpeed(savedDefaults.rotationSpeed);
+    setDisablePositionSwaps(savedDefaults.disablePositionSwaps);
+    setDisableBatchSubs(savedDefaults.disableBatchSubs);
+    setRotateGkAtHalftime(savedDefaults.rotateGkAtHalftime);
     
-    // Reset team size to initial value
-    const defaultTeamSize: TeamSize = initialTeamSize && ["4", "7", "9", "11"].includes(String(initialTeamSize)) 
-      ? String(initialTeamSize) as TeamSize 
-      : "7";
+    // Reset team size to saved default value
+    const defaultTeamSize: TeamSize = savedDefaults.teamSize;
     setTeamSize(defaultTeamSize);
     
-    // Reset formation to initial value for the team size
+    // Reset formation to saved default value for the team size
     const formations = FORMATIONS[defaultTeamSize];
     let defaultFormationIndex = 0;
-    if (initialFormation) {
-      const index = formations.findIndex(f => f.name === initialFormation);
+    if (savedDefaults.formation) {
+      const index = formations.findIndex(f => f.name === savedDefaults.formation);
       if (index >= 0) defaultFormationIndex = index;
     }
     setSelectedFormation(defaultFormationIndex);
@@ -3178,7 +3289,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       title: "Game Reset",
       description: "All player minutes and settings have been reset to defaults.",
     });
-  }, [players, initialMinutesPerHalf, initialRotationSpeed, initialDisablePositionSwaps, initialTeamSize, initialFormation, autoPlacePlayersOnPitch, toast]);
+  }, [players, autoPlacePlayersOnPitch, toast]);
 
   // Reset formation only - moves players back to formation positions and ball to center
   const handleResetFormation = useCallback(() => {
@@ -4136,14 +4247,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={() => setSettingsMenuOpen(prev => !prev)}>
                     <Settings className="h-6 w-6" />
                   </Button>
-                  {settingsMenuOpen && (
+                  {settingsMenuOpen && createPortal(
                     <>
                       <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
-                      <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[99999] min-w-[180px] py-1">
+                      <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[180px] py-1">
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
                           <RotateCcw className="h-4 w-4" />
                           Reset Formation
                         </button>
+                        {!disableAutoSubs && (
+                          <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { if (autoSubActive) { setAutoSubPanelOpen(true); } else { handleOpenNewPlan(); } setSettingsMenuOpen(false); }}>
+                            <RefreshCw className="h-4 w-4" />
+                            {autoSubActive ? "Auto Sub Plan" : "Auto Subs"}
+                          </button>
+                        )}
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setStatsOpen(true); setSettingsMenuOpen(false); }}>
                           <BarChart3 className="h-4 w-4" />
                           Match Stats
@@ -4158,7 +4275,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                           All Settings
                         </button>
                       </div>
-                    </>
+                    </>,
+                    document.body
                   )}
                 </div>
                 <PitchSettingsDialog
@@ -4211,16 +4329,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <Button variant="ghost" size="icon" className="h-12 w-12 shrink-0" onClick={() => setSettingsMenuOpen(prev => !prev)}>
                   <Settings className="h-6 w-6" />
                 </Button>
-                {settingsMenuOpen && (
+                {settingsMenuOpen && createPortal(
                   <>
                     <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
-                    <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[99999] min-w-[180px] py-1">
+                    <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[180px] py-1">
                       <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setStatsOpen(true); setSettingsMenuOpen(false); }}>
                         <BarChart3 className="h-4 w-4" />
                         Match Stats
                       </button>
                     </div>
-                  </>
+                  </>,
+                  document.body
                 )}
               </div>
             )}
@@ -4243,9 +4362,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             onMouseDown={handleTimerDragStart}
             onTouchStart={handleTimerTouchStart}
           >
-            <div className="flex flex-col items-center bg-zinc-800 rounded-lg px-3 py-1.5 shadow-lg">
-              {/* Main row: Score | Timer | Play | AUTO */}
-              <div className="flex items-center gap-2">
+             <div className="flex flex-col items-center bg-zinc-800 rounded-lg px-3 py-1.5 shadow-lg">
+               {/* Main row: Score | Timer | Play */}
+               <div className="flex items-center gap-2 w-full justify-center">
                 {gameInProgress && !hideScores && (
                   <ScoreTracker
                     goals={goals}
@@ -4276,24 +4395,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   minutesPerHalf={minutesPerHalf}
                   onMinutesPerHalfChange={handleMinutesPerHalfChange}
                 />
-                {!readOnly && !disableAutoSubs && (
+                {!readOnly && !disableAutoSubs && autoSubActive && (
                   <button
-                    className={cn(
-                      "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
-                      autoSubActive
-                        ? "bg-primary text-primary-foreground animate-pulse"
-                        : "bg-white/20 text-white/70 hover:bg-white/30"
-                    )}
+                    className="flex items-center justify-center w-5 h-5 rounded-full"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (autoSubActive) {
-                        setAutoSubPanelOpen(true);
-                      } else {
-                        handleOpenNewPlan();
-                      }
+                      setAutoSubPanelOpen(true);
                     }}
+                    title="Auto Subs active"
                   >
-                    AUTO
+                    <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
                   </button>
                 )}
               </div>
@@ -5494,6 +5605,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         Reset Formation
                       </button>
                     )}
+                    {!readOnly && !disableAutoSubs && (
+                      <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { if (autoSubActive) { setAutoSubPanelOpen(true); } else { handleOpenNewPlan(); } setSettingsMenuOpen(false); }}>
+                        <RefreshCw className="h-4 w-4" />
+                        {autoSubActive ? "Auto Sub Plan" : "Auto Subs"}
+                      </button>
+                    )}
                     <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { setStatsOpen(true); setSettingsMenuOpen(false); }}>
                       <BarChart3 className="h-4 w-4" />
                       Match Stats
@@ -5576,10 +5693,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           }}
           onTouchStart={handlePortraitTimerTouchStart}
         >
-          <div className="flex flex-col items-end">
+           <div className="flex flex-col items-end">
             <div className="flex flex-col items-center bg-zinc-800 rounded-lg px-3 py-1.5 shadow-lg">
-              {/* Main row: Score | Timer | AUTO */}
-              <div className="flex items-center gap-2">
+              {/* Main row: Score | Timer */}
+              <div className="flex items-center gap-2 w-full justify-center">
                 {gameInProgress && !hideScores && !showScoreInPortrait && (
                   <ScoreTracker
                     goals={goals}
@@ -5610,24 +5727,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   minutesPerHalf={minutesPerHalf}
                   onMinutesPerHalfChange={handleMinutesPerHalfChange}
                 />
-                {!readOnly && !disableAutoSubs && (
+                {!readOnly && !disableAutoSubs && autoSubActive && (
                   <button
-                    className={cn(
-                      "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
-                      autoSubActive
-                        ? "bg-primary text-primary-foreground animate-pulse"
-                        : "bg-white/20 text-white/70 hover:bg-white/30"
-                    )}
+                    className="flex items-center justify-center w-5 h-5 rounded-full"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (autoSubActive) {
-                        setAutoSubPanelOpen(true);
-                      } else {
-                        handleOpenNewPlan();
-                      }
+                      setAutoSubPanelOpen(true);
                     }}
+                    title="Auto Subs active"
                   >
-                    AUTO
+                    <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
                   </button>
                 )}
               </div>

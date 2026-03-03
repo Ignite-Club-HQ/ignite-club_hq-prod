@@ -189,8 +189,8 @@ async function notifyTeamStaff(
       console.error(`[CHECK-SUBS] Notification insert error for ${userId}:`, notifError.message);
     }
 
-    // Push notification
-    await sendPushNotification(supabase, userId, pushTitle, pushBody, pushUrl, pushTag, 'pitch_board');
+    // Push notification is handled automatically by the DB trigger on notifications table insert
+    // No need to call sendPushNotification explicitly here
 
     // Email notification
     await sendPitchBoardEmail(
@@ -229,10 +229,64 @@ async function checkGames(supabase: any): Promise<number> {
     if (!pitchState.autoSubActive || pitchState.autoSubPaused || !pitchState.autoSubPlan?.length) continue;
 
     const now = Date.now();
-    const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-    const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
-    const currentHalf = timerState.currentHalf;
     const halfDurationSecs = timerState.minutesPerHalf * 60;
+
+    // Calculate current elapsed time
+    const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
+    const rawElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+    
+    // Cap elapsed at half duration - if we're past it, the client is at half-time/full-time
+    // and hasn't transitioned yet. Don't let the elapsed overshoot.
+    const currentElapsed = Math.min(rawElapsed, halfDurationSecs);
+    const currentHalf = timerState.currentHalf;
+
+    // Detect half-time boundary: timer shows running but elapsed has reached/exceeded half duration
+    // This happens when the client pauses at half-time but the DB state hasn't synced yet
+    const isAtHalfTimeBoundary = timerState.currentHalf === 1 && rawElapsed >= halfDurationSecs;
+    const isAtFullTimeBoundary = timerState.currentHalf === 2 && rawElapsed >= halfDurationSecs;
+
+    // Skip stale games - if lastUpdateTime is more than 2 minutes ago,
+    // the client has stopped syncing and this game is abandoned.
+    // BUT: use a much longer threshold during half-time/full-time boundaries
+    // because the client legitimately stops syncing during breaks.
+    const STALE_THRESHOLD_MS = (isAtHalfTimeBoundary || isAtFullTimeBoundary) ? 600_000 : 120_000; // 10min at breaks, 2min normally
+    if (timerState.lastUpdateTime > 0 && (now - timerState.lastUpdateTime) > STALE_THRESHOLD_MS) {
+      console.log(`[CHECK-SUBS] Game ${game.id} is stale (last update ${Math.floor((now - timerState.lastUpdateTime) / 1000)}s ago), marking inactive`);
+      await supabase
+        .from('active_games')
+        .update({ is_active: false })
+        .eq('id', game.id);
+      continue;
+    }
+
+    // If at half-time boundary, don't process subs - the game is paused between halves
+    if (isAtHalfTimeBoundary) {
+      // Still send half-time notification if not already sent
+      const halfTimeMarker = game.last_sub_check_time || 0;
+      if (halfTimeMarker < halfDurationSecs) {
+        const teamName = timerState.teamName || 'Your team';
+        const teamId = timerState.teamId || game.team_id;
+        const linkedEventId = pitchState.linkedEventId;
+        const staffUserIds = await getTeamStaffUserIds(supabase, teamId);
+        
+        notificationsSent += await notifyTeamStaff(
+          supabase, staffUserIds, game.user_id, game.id,
+          teamId, teamName, linkedEventId,
+          'half_time', `⏸️ ${teamName} - Half Time!`, 'half_time',
+          `⏸️ Half Time!`, `${teamName} - Half Time`,
+          undefined, undefined, undefined, timerState.minutesPerHalf, 1
+        );
+        
+        // Mark half-time as notified
+        await supabase
+          .from('active_games')
+          .update({ last_sub_check_time: halfDurationSecs })
+          .eq('id', game.id);
+        
+        console.log(`[CHECK-SUBS] Half time notification sent for game ${game.id}`);
+      }
+      continue; // Skip sub processing during half-time
+    }
     const teamName = timerState.teamName || 'Your team';
     const teamId = timerState.teamId || game.team_id;
     const linkedEventId = pitchState.linkedEventId;
@@ -245,13 +299,37 @@ async function checkGames(supabase: any): Promise<number> {
     };
 
     // Find next unexecuted sub for current half that's due
+    // Skip subs that are more than 90 seconds overdue (matches client-side auto-skip)
+    const AUTO_SKIP_THRESHOLD_SECS = 60;
     const nextSub = pitchState.autoSubPlan.find((sub: SubstitutionEvent) => {
       const absoluteSubTime = getAbsoluteSubTime(sub);
+      const overdueSeconds = currentElapsed - sub.time;
       return !sub.executed &&
         sub.half === currentHalf &&
         currentElapsed >= sub.time &&
+        overdueSeconds <= AUTO_SKIP_THRESHOLD_SECS &&
         absoluteSubTime > (game.last_sub_check_time || 0);
     });
+
+    // Also advance last_sub_check_time past any severely overdue subs so we don't re-check them
+    const overdueSubs = pitchState.autoSubPlan.filter((sub: SubstitutionEvent) => {
+      const absoluteSubTime = getAbsoluteSubTime(sub);
+      const overdueSeconds = currentElapsed - sub.time;
+      return !sub.executed &&
+        sub.half === currentHalf &&
+        currentElapsed >= sub.time &&
+        overdueSeconds > AUTO_SKIP_THRESHOLD_SECS &&
+        absoluteSubTime > (game.last_sub_check_time || 0);
+    });
+
+    if (overdueSubs.length > 0) {
+      const maxOverdueAbsTime = Math.max(...overdueSubs.map((s: SubstitutionEvent) => getAbsoluteSubTime(s)));
+      console.log(`[CHECK-SUBS] Game ${game.id}: Skipping ${overdueSubs.length} overdue sub(s) (>90s past due)`);
+      await supabase
+        .from('active_games')
+        .update({ last_sub_check_time: Math.max(maxOverdueAbsTime, game.last_sub_check_time || 0) })
+        .eq('id', game.id);
+    }
 
     if (nextSub) {
       const playerOutName = nextSub.playerOut.name || `#${nextSub.playerOut.number}`;
@@ -282,24 +360,7 @@ async function checkGames(supabase: any): Promise<number> {
       }
     }
 
-    // Check for half time
-    const isHalfTime = currentHalf === 1 && currentElapsed >= halfDurationSecs;
-
-    if (isHalfTime) {
-      const halfTimeMarker = game.last_sub_check_time || 0;
-
-      if (halfTimeMarker < halfDurationSecs) {
-        notificationsSent += await notifyTeamStaff(
-          supabase, staffUserIds, game.user_id, game.id,
-          teamId, teamName, linkedEventId,
-          'half_time', `⏸️ ${teamName} - Half Time!`, 'half_time',
-          `⏸️ Half Time!`, `${teamName} - Half Time`,
-          undefined, undefined, undefined, timerState.minutesPerHalf, 1
-        );
-
-        console.log(`[CHECK-SUBS] Half time notification sent for game ${game.id}`);
-      }
-    }
+    // Half-time is now handled above (before sub processing) to avoid stale game issues
 
     // Check for game finished
     const isGameFinished = timerState.currentHalf === 2 && currentElapsed >= halfDurationSecs;

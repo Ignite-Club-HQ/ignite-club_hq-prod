@@ -179,14 +179,17 @@ export const recalculateRemainingPlan = (
   });
   
   if (outfieldOnBench.length === 0) {
-    if (rotateGkAtHalftime && gkOnBench && gkOnPitch && currentHalf === 1) {
-      plan.push({
-        time: 0,
-        half: 2,
-        playerOut: gkOnPitch,
-        playerIn: gkOnBench,
-        executed: false,
-      });
+    if (rotateGkAtHalftime && gkOnPitch && currentHalf === 1) {
+      const gkReplacement = gkOnBench || benchPlayers.filter(p => p.assignedPositions?.includes("GK") || !p.assignedPositions?.length).sort((a, b) => (a.minutesPlayed || 0) - (b.minutesPlayed || 0))[0] || null;
+      if (gkReplacement) {
+        plan.push({
+          time: 0,
+          half: 2,
+          playerOut: gkOnPitch,
+          playerIn: gkReplacement,
+          executed: false,
+        });
+      }
     }
     return plan;
   }
@@ -204,6 +207,10 @@ export const recalculateRemainingPlan = (
   const getPlayer = (id: string) => outfieldPlayers.find(p => p.id === id);
   
   const minSubInterval = 120;
+  
+  // Scale subs at once based on bench size for better throughput
+  const subsAtOnce = Math.min(outfieldOnBench.length >= 4 ? 3 : 2, outfieldOnBench.length);
+  
   const subsNeeded = Math.min(
     outfieldOnBench.length,
     Math.floor(totalRemainingSeconds / minSubInterval)
@@ -211,12 +218,15 @@ export const recalculateRemainingPlan = (
   
   if (subsNeeded <= 0) return [];
   
+  // Calculate number of sub windows - fewer windows = fewer interruptions
+  const numWindows = Math.max(1, Math.ceil(subsNeeded / subsAtOnce));
+  
   const generateRemainingSubTimes = (): { time: number; half: 1 | 2 }[] => {
     const times: { time: number; half: 1 | 2 }[] = [];
-    const interval = totalRemainingSeconds / (subsNeeded + 1);
+    const interval = totalRemainingSeconds / (numWindows + 1);
     
     let accumulatedTime = 0;
-    for (let i = 1; i <= subsNeeded; i++) {
+    for (let i = 1; i <= numWindows; i++) {
       accumulatedTime += interval;
       
       if (currentHalf === 1) {
@@ -249,68 +259,97 @@ export const recalculateRemainingPlan = (
   const skippedInId = shouldAvoidSkippedPlayers ? skippedSub.playerIn.id : null;
 
   for (const { time, half } of subTimes) {
-    const onPitchSorted = Array.from(currentOnPitch.keys())
-      .map(id => ({ id, time: getPlayer(id)?.minutesPlayed || 0, player: getPlayer(id)! }))
-      .filter(p => p.player)
-      .sort((a, b) => b.time - a.time);
+    // Determine how many subs to make in this window
+    const benchAvailable = outfieldPlayers.filter(p => !currentOnPitch.has(p.id));
+    const subsThisWindow = Math.min(subsAtOnce, benchAvailable.length, currentOnPitch.size);
     
-    const benchSorted = outfieldPlayers
-      .filter(p => !currentOnPitch.has(p.id))
-      .map(p => ({ id: p.id, time: p.minutesPlayed || 0, player: p }))
-      .sort((a, b) => a.time - b.time);
+    const usedPlayerOutIds = new Set<string>();
+    const usedPlayerInIds = new Set<string>();
+    
+    for (let subIdx = 0; subIdx < subsThisWindow; subIdx++) {
+      const onPitchSorted = Array.from(currentOnPitch.keys())
+        .map(id => ({ id, time: getPlayer(id)?.minutesPlayed || 0, player: getPlayer(id)! }))
+        .filter(p => p.player && !usedPlayerOutIds.has(p.id))
+        .sort((a, b) => b.time - a.time);
+      
+      const benchSorted = outfieldPlayers
+        .filter(p => !currentOnPitch.has(p.id) && !usedPlayerInIds.has(p.id))
+        .map(p => ({ id: p.id, time: p.minutesPlayed || 0, player: p }))
+        .sort((a, b) => a.time - b.time);
 
-    let onPitchCandidates = onPitchSorted;
-    let benchCandidates = benchSorted;
+      let onPitchCandidates = onPitchSorted;
+      let benchCandidates = benchSorted;
 
-    // When skipping a due sub, avoid immediately proposing the same players again
-    if (plan.length === 0 && skippedOutId && skippedInId) {
-      const filteredOnPitch = onPitchSorted.filter(p => p.id !== skippedOutId);
-      const filteredBench = benchSorted.filter(p => p.id !== skippedInId);
+      // When skipping a due sub, avoid immediately proposing the same players again
+      if (plan.length === 0 && subIdx === 0 && skippedOutId && skippedInId) {
+        const filteredOnPitch = onPitchSorted.filter(p => p.id !== skippedOutId);
+        const filteredBench = benchSorted.filter(p => p.id !== skippedInId);
 
-      if (filteredOnPitch.length > 0) onPitchCandidates = filteredOnPitch;
-      if (filteredBench.length > 0) benchCandidates = filteredBench;
-    }
-    
-    if (onPitchCandidates.length === 0 || benchCandidates.length === 0) continue;
-    
-    let playerOut: Player | undefined;
-    let playerIn: Player | undefined;
-    let positionSwap: SubstitutionEvent["positionSwap"] | undefined;
-    
-    for (const benchEntry of benchCandidates) {
-      for (const pitchEntry of onPitchCandidates) {
-        const pitchPos = currentOnPitch.get(pitchEntry.id);
-        
-        if (!benchEntry.player.assignedPositions?.length || 
-            benchEntry.player.assignedPositions.includes(pitchPos!)) {
-          playerOut = pitchEntry.player;
-          playerIn = benchEntry.player;
+        if (filteredOnPitch.length > 0) onPitchCandidates = filteredOnPitch;
+        if (filteredBench.length > 0) benchCandidates = filteredBench;
+      }
+      
+      if (onPitchCandidates.length === 0 || benchCandidates.length === 0) break;
+      
+      // Use 30s minimum threshold — don't swap players with near-equal time
+      if (subIdx === 0) {
+        const mostPlayed = onPitchCandidates[0];
+        const leastPlayed = benchCandidates[0];
+        if ((mostPlayed.time - leastPlayed.time) < 30) break;
+      }
+      
+      let playerOut: Player | undefined;
+      let playerIn: Player | undefined;
+      let positionSwap: SubstitutionEvent["positionSwap"] | undefined;
+      
+      for (const benchEntry of benchCandidates) {
+        for (const pitchEntry of onPitchCandidates) {
+          const pitchPos = currentOnPitch.get(pitchEntry.id);
+          const timeDiff = pitchEntry.time - benchEntry.time;
+          
+          // 30s threshold: skip candidates with near-equal playing time
+          if (timeDiff < 30) continue;
+          
+          if (!benchEntry.player.assignedPositions?.length || 
+              benchEntry.player.assignedPositions.includes(pitchPos!)) {
+            playerOut = pitchEntry.player;
+            playerIn = benchEntry.player;
+            break;
+          }
+        }
+        if (playerOut && playerIn) break;
+      }
+      
+      if (!playerOut || !playerIn) {
+        // Fallback: still require 30s threshold
+        const fallbackOut = onPitchCandidates[0];
+        const fallbackIn = benchCandidates[0];
+        if ((fallbackOut.time - fallbackIn.time) >= 30) {
+          playerOut = fallbackOut.player;
+          playerIn = fallbackIn.player;
+        } else {
           break;
         }
       }
-      if (playerOut && playerIn) break;
-    }
-    
-    if (!playerOut || !playerIn) {
-      playerOut = onPitchCandidates[0].player;
-      playerIn = benchCandidates[0].player;
-    }
-    
-    const sub: SubstitutionEvent = {
-      time,
-      half,
-      playerOut,
-      playerIn,
-      positionSwap,
-      executed: false,
-    };
-    
-    plan.push(sub);
-    
-    const outPos = currentOnPitch.get(playerOut.id);
-    currentOnPitch.delete(playerOut.id);
-    if (outPos) {
-      currentOnPitch.set(playerIn.id, outPos);
+      
+      const sub: SubstitutionEvent = {
+        time,
+        half,
+        playerOut,
+        playerIn,
+        positionSwap,
+        executed: false,
+      };
+      
+      plan.push(sub);
+      usedPlayerOutIds.add(playerOut.id);
+      usedPlayerInIds.add(playerIn.id);
+      
+      const outPos = currentOnPitch.get(playerOut.id);
+      currentOnPitch.delete(playerOut.id);
+      if (outPos) {
+        currentOnPitch.set(playerIn.id, outPos);
+      }
     }
   }
   

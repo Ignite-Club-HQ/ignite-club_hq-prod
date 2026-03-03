@@ -142,14 +142,17 @@ const recalculateRemainingPlan = (
   });
   
   if (outfieldOnBench.length === 0) {
-    if (rotateGkAtHalftime && gkOnBench && gkOnPitch && currentHalf === 1) {
-      plan.push({
-        time: 0,
-        half: 2,
-        playerOut: gkOnPitch,
-        playerIn: gkOnBench,
-        executed: false,
-      });
+    if (rotateGkAtHalftime && gkOnPitch && currentHalf === 1) {
+      const gkReplacement = gkOnBench || benchPlayers.filter(p => p.assignedPositions?.includes("GK") || !p.assignedPositions?.length).sort((a, b) => (a.minutesPlayed || 0) - (b.minutesPlayed || 0))[0] || null;
+      if (gkReplacement) {
+        plan.push({
+          time: 0,
+          half: 2,
+          playerOut: gkOnPitch,
+          playerIn: gkReplacement,
+          executed: false,
+        });
+      }
     }
     return plan;
   }
@@ -287,14 +290,24 @@ const recalculateRemainingPlan = (
     }
   }
   
-  if (rotateGkAtHalftime && gkOnBench && gkOnPitch && currentHalf === 1) {
-    plan.push({
-      time: 0,
-      half: 2,
-      playerOut: gkOnPitch,
-      playerIn: gkOnBench,
-      executed: false,
-    });
+  if (rotateGkAtHalftime && gkOnPitch && currentHalf === 1) {
+    const gkReplacement = gkOnBench || (() => {
+      const benchAtEnd = outfieldPlayers
+        .filter(p => !currentOnPitch.has(p.id))
+        .sort((a, b) => (a.minutesPlayed || 0) - (b.minutesPlayed || 0));
+      // Eligible: GK in assigned positions, or no positions set (eligible for all)
+      const gkEligible = benchAtEnd.filter(p => p.assignedPositions?.includes("GK") || !p.assignedPositions?.length);
+      return gkEligible[0] || null;
+    })();
+    if (gkReplacement) {
+      plan.push({
+        time: 0,
+        half: 2,
+        playerOut: gkOnPitch,
+        playerIn: gkReplacement,
+        executed: false,
+      });
+    }
   }
   
   plan.sort((a, b) => {
@@ -588,6 +601,10 @@ export default function GlobalSubMonitor() {
     const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
     const currentHalf = timerState.currentHalf;
 
+    // Don't show sub notifications if game is finished
+    const halfDuration = timerState.minutesPerHalf * 60;
+    if (timerState.currentHalf === 2 && currentElapsed >= halfDuration) return;
+
     // Find all unexecuted subs for current half that are due
     const dueSubs = pitchState.autoSubPlan.filter(sub => 
       !sub.executed && 
@@ -607,32 +624,23 @@ export default function GlobalSubMonitor() {
       if (lastCheckedSubRef.current !== subKey) {
         lastCheckedSubRef.current = subKey;
         
-        // Play alert beep with notification
+        // Play alert beep (dialog itself is the in-app alert)
         const notificationBody = batchSubs.length > 1
           ? `Time for ${batchSubs.length} substitutions`
           : `${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} → Bench. ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`} → ${primarySub.playerOut.currentPitchPosition || 'Pitch'}`;
-        
-        // Request permission if needed, then show notification (only if preference enabled)
-        if (pitchBoardNotificationsEnabled) {
-          requestNotificationPermission().then(() => {
-            // Only play beep if sound is enabled in timer settings
-            if (timerState.soundEnabled) {
-              try {
-                playSubAlertBeep();
-              } catch {
-                // Audio may fail silently
-              }
-            }
-            showBrowserNotification("🔄 Substitution Alert", notificationBody, () => {
-              // On click, re-trigger the sub confirmation dialog
-              window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
-            });
-          });
+
+        if (timerState.soundEnabled) {
+          try {
+            playSubAlertBeep();
+          } catch {
+            // Audio may fail silently
+          }
         }
-        
-        // Create database notification (triggers server-side push)
-        createPitchBoardNotification('pending_sub', notificationBody);
-        
+
+        // IMPORTANT: Do not create browser/DB notifications here.
+        // Server-side check-pending-subs already sends pending_sub notifications,
+        // and triggering them here causes duplicate device notifications.
+
         // Set up dialog with batch subs
         setCurrentPlayers(pitchState.players);
         setPendingAutoSub(primarySub);
@@ -793,7 +801,7 @@ export default function GlobalSubMonitor() {
     // playerIn must be on bench (position === null)
     
     // If playerIn doesn't exist or is already on pitch, skip without modifying positions
-    if (!currentPlayerIn || currentPlayerIn.position !== null) {
+    if (!currentPlayerIn || !!currentPlayerIn.position) {
       console.log('[GlobalSubMonitor] Skipping sub - playerIn not on bench:', {
         playerIn: playerIn.name,
         found: !!currentPlayerIn,
@@ -824,7 +832,7 @@ export default function GlobalSubMonitor() {
     }
     
     // If playerOut doesn't exist or is already off pitch, skip without modifying positions
-    if (!currentPlayerOut || currentPlayerOut.position === null) {
+    if (!currentPlayerOut?.position) {
       console.log('[GlobalSubMonitor] Skipping sub - playerOut not on pitch:', {
         playerOut: playerOut.name,
         found: !!currentPlayerOut,
@@ -913,13 +921,37 @@ export default function GlobalSubMonitor() {
       return sub;
     });
     
-    // Check if all subs are done
-    const remainingSubs = updatedPlan.filter(sub => !sub.executed);
+    // Recalculate remaining sub timings so subsequent subs are redistributed
+    const timerState = loadTimerState();
+    const executedPlan = updatedPlan.filter(sub => sub.executed);
+    let finalPlan = updatedPlan;
+    
+    if (timerState && updatedPlan.some(sub => !sub.executed)) {
+      const now = Date.now();
+      const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
+      const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+      const halfDuration = timerState.minutesPerHalf * 60;
+      
+      const recalculated = recalculateRemainingPlan(
+        updatedPlayers,
+        getTeamSizeNumber(pitchState.teamSize),
+        halfDuration,
+        currentElapsed,
+        timerState.currentHalf as 1 | 2,
+        pendingAutoSub,
+        true
+      );
+      
+      // Merge: keep executed subs + use recalculated for remaining
+      finalPlan = [...executedPlan, ...recalculated];
+    }
+    
+    const remainingSubs = finalPlan.filter(sub => !sub.executed);
     
     savePitchState({
       ...pitchState,
       players: updatedPlayers,
-      autoSubPlan: updatedPlan,
+      autoSubPlan: finalPlan,
       autoSubActive: remainingSubs.length > 0,
       lastUpdateTime: Date.now(),
     });

@@ -232,7 +232,7 @@ export default function SubPlanEditor({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
-          {plan.length} substitution{plan.length !== 1 ? "s" : ""} planned
+          {plan.length} sub{plan.length !== 1 ? "s" : ""} planned · {new Set([...plan.map(s => s.playerOut.id), ...plan.map(s => s.playerIn.id)]).size} players
         </p>
         <Button
           size="sm"
@@ -333,6 +333,20 @@ export default function SubPlanEditor({
         <div className="space-y-4">
           {[1, 2].map((half) => {
             const halfSubs = plan.filter((s) => s.half === half && !s.executed);
+            
+            // Group subs by time
+            const groupedSubs: { time: number; subs: { sub: SubstitutionEvent; globalIndex: number }[] }[] = [];
+            halfSubs.forEach((sub) => {
+              const globalIndex = plan.findIndex((s) => s === sub);
+              const existing = groupedSubs.find(g => g.time === sub.time);
+              if (existing) {
+                existing.subs.push({ sub, globalIndex });
+              } else {
+                groupedSubs.push({ time: sub.time, subs: [{ sub, globalIndex }] });
+              }
+            });
+            groupedSubs.sort((a, b) => a.time - b.time);
+            
             return (
               <div key={half}>
                 <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
@@ -343,145 +357,133 @@ export default function SubPlanEditor({
                 {halfSubs.length === 0 ? (
                   <p className="text-xs text-muted-foreground">No substitutions</p>
                 ) : (
-                  <div className="space-y-1.5">
-                    {halfSubs.map((sub, idx) => {
-                      const globalIndex = plan.findIndex(
-                        (s) => s === sub
-                      );
-                      const isEditing = editingIndex === globalIndex;
-                      const isDragging = draggedIndex === globalIndex;
-                      const isDragOver = dragOverIndex === globalIndex;
-
-                      return (
-                        <div
-                          key={globalIndex}
-                          draggable={!isEditing}
-                          onDragStart={(e) => handleDragStart(e, globalIndex)}
-                          onDragEnd={handleDragEnd}
-                          onDragOver={(e) => handleDragOver(e, globalIndex)}
-                          onDragLeave={handleDragLeave}
-                          onDrop={(e) => handleDrop(e, globalIndex)}
-                          className={cn(
-                            "flex items-center gap-2 p-2 rounded-lg text-xs transition-all",
-                            isEditing ? "bg-primary/10 border border-primary/30" : "bg-muted/50",
-                            isDragging && "opacity-50",
-                            isDragOver && "border-2 border-dashed border-primary bg-primary/5",
-                            !isEditing && "cursor-grab active:cursor-grabbing"
+                  <div className="space-y-2">
+                    {groupedSubs.map((group) => (
+                      <div key={`${half}-${group.time}`} className="flex gap-2">
+                        {/* Time column - shown once per group */}
+                        <div className="flex flex-col items-center pt-2 shrink-0 w-14">
+                          <Badge
+                            variant="secondary"
+                            className="font-mono text-xs cursor-pointer hover:bg-secondary/80"
+                            onClick={() => setEditingIndex(group.subs[0].globalIndex)}
+                          >
+                            {group.time === 0 && half === 2 ? "HT" : formatTime(group.time)}
+                          </Badge>
+                          {group.subs.length > 1 && (
+                            <div className="w-px flex-1 bg-border mt-1" />
                           )}
-                        >
-                          {/* Time badge - clickable to edit */}
-                          {isEditing ? (
-                            <div className="flex gap-1">
-                              <Select
-                                value={Math.floor(sub.time / 60).toString()}
-                                onValueChange={(v) => handleUpdateSubTime(globalIndex, parseInt(v), sub.half)}
-                              >
-                                <SelectTrigger className="h-6 w-14 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent className="z-[999999] max-h-40">
-                                  {timeOptions.map((opt) => (
-                                    <SelectItem key={opt.value} value={opt.value.toString()}>
-                                      {opt.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1 shrink-0">
-                              <GripVertical className="h-3 w-3 text-muted-foreground" />
-                              <Badge
-                                variant="secondary"
-                                className="font-mono cursor-pointer hover:bg-secondary/80"
-                                onClick={() => setEditingIndex(globalIndex)}
-                              >
-                                {sub.time === 0 && sub.half === 2 ? "HT" : formatTime(sub.time)}
-                              </Badge>
-                            </div>
-                          )}
-
-                          {/* Player swap display */}
-                          <div className="flex items-center gap-1 flex-1 min-w-0">
-                            {isEditing ? (
-                              <>
-                                <Select
-                                  value={sub.playerOut.id}
-                                  onValueChange={(v) => handleUpdateSubPlayers(globalIndex, v, sub.playerIn.id)}
-                                >
-                                  <SelectTrigger className="h-6 text-xs flex-1">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent className="z-[999999] max-h-40">
-                                    {players.filter(p => p.position !== null).map((p) => (
-                                      <SelectItem key={p.id} value={p.id}>
-                                        {p.number ? `#${p.number} ` : ""}{p.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <ArrowLeftRight className="h-3 w-3 shrink-0" />
-                                <Select
-                                  value={sub.playerIn.id}
-                                  onValueChange={(v) => handleUpdateSubPlayers(globalIndex, sub.playerOut.id, v)}
-                                >
-                                  <SelectTrigger className="h-6 text-xs flex-1">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent className="z-[999999] max-h-40">
-                                    {players.filter(p => p.position === null).map((p) => (
-                                      <SelectItem key={p.id} value={p.id}>
-                                        {p.number ? `#${p.number} ` : ""}{p.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </>
-                            ) : (
-                              <div className="flex flex-col gap-0.5 min-w-0">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-destructive truncate">
-                                    ↓ {sub.playerOut.name}
-                                  </span>
-                                  <ArrowLeftRight className="h-3 w-3 mx-0.5 shrink-0" />
-                                  <span className="text-emerald-500 truncate">
-                                    ↑ {sub.playerIn.name}
-                                  </span>
-                                </div>
-                                {sub.positionSwap && (
-                                  <span className="text-[10px] text-muted-foreground">
-                                    {sub.positionSwap.player.name} moves {sub.positionSwap.fromPosition} → {sub.positionSwap.toPosition}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Edit/Delete buttons */}
-                          <div className="flex gap-1 shrink-0">
-                            {isEditing ? (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-6 w-6"
-                                onClick={() => setEditingIndex(null)}
-                              >
-                                <Clock className="h-3 w-3" />
-                              </Button>
-                            ) : (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-6 w-6 hover:bg-destructive/20 hover:text-destructive"
-                                onClick={() => handleDeleteSub(globalIndex)}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </div>
                         </div>
-                      );
-                    })}
+                        
+                        {/* Subs column */}
+                        <div className="flex-1 space-y-1">
+                          {group.subs.map(({ sub, globalIndex }) => {
+                            const isEditing = editingIndex === globalIndex;
+                            const isDragging = draggedIndex === globalIndex;
+                            const isDragOver = dragOverIndex === globalIndex;
+
+                            return (
+                              <div
+                                key={globalIndex}
+                                draggable={!isEditing}
+                                onDragStart={(e) => handleDragStart(e, globalIndex)}
+                                onDragEnd={handleDragEnd}
+                                onDragOver={(e) => handleDragOver(e, globalIndex)}
+                                onDragLeave={handleDragLeave}
+                                onDrop={(e) => handleDrop(e, globalIndex)}
+                                className={cn(
+                                  "flex items-center gap-2 p-1.5 rounded-lg text-xs transition-all",
+                                  isEditing ? "bg-primary/10 border border-primary/30" : "bg-muted/50",
+                                  isDragging && "opacity-50",
+                                  isDragOver && "border-2 border-dashed border-primary bg-primary/5",
+                                  !isEditing && "cursor-grab active:cursor-grabbing"
+                                )}
+                              >
+                                <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
+
+                                {/* Player swap display */}
+                                <div className="flex items-center gap-1 flex-1 min-w-0">
+                                  {isEditing ? (
+                                    <>
+                                      <Select
+                                        value={sub.playerOut.id}
+                                        onValueChange={(v) => handleUpdateSubPlayers(globalIndex, v, sub.playerIn.id)}
+                                      >
+                                        <SelectTrigger className="h-6 text-xs flex-1">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="z-[999999] max-h-40">
+                                          {players.filter(p => p.position !== null).map((p) => (
+                                            <SelectItem key={p.id} value={p.id}>
+                                              {p.number ? `#${p.number} ` : ""}{p.name}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      <ArrowLeftRight className="h-3 w-3 shrink-0" />
+                                      <Select
+                                        value={sub.playerIn.id}
+                                        onValueChange={(v) => handleUpdateSubPlayers(globalIndex, sub.playerOut.id, v)}
+                                      >
+                                        <SelectTrigger className="h-6 text-xs flex-1">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="z-[999999] max-h-40">
+                                          {players.filter(p => p.position === null).map((p) => (
+                                            <SelectItem key={p.id} value={p.id}>
+                                              {p.number ? `#${p.number} ` : ""}{p.name}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </>
+                                  ) : (
+                                    <div className="flex flex-col gap-0.5 min-w-0">
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-destructive truncate">
+                                          ↓ {sub.playerOut.name}
+                                        </span>
+                                        <ArrowLeftRight className="h-3 w-3 mx-0.5 shrink-0" />
+                                        <span className="text-emerald-500 truncate">
+                                          ↑ {sub.playerIn.name}
+                                        </span>
+                                      </div>
+                                      {sub.positionSwap && (
+                                        <span className="text-[10px] text-muted-foreground">
+                                          {sub.positionSwap.player.name} moves {sub.positionSwap.fromPosition} → {sub.positionSwap.toPosition}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Edit/Delete buttons */}
+                                <div className="flex gap-1 shrink-0">
+                                  {isEditing ? (
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-6 w-6"
+                                      onClick={() => setEditingIndex(null)}
+                                    >
+                                      <Clock className="h-3 w-3" />
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-6 w-6 hover:bg-destructive/20 hover:text-destructive"
+                                      onClick={() => handleDeleteSub(globalIndex)}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

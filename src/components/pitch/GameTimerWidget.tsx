@@ -178,10 +178,11 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         // Players
         setAllPlayers(pitchState.players || []);
 
-        // Subs
+        // Subs - don't show if game is finished
+        const mph = saved.minutesPerHalf || 20;
+        const isGameFinished = saved.currentHalf === 2 && currentElapsed >= mph * 60;
         const unexecuted = pitchState.autoSubPlan?.filter(s => !s.executed) || [];
-        if (pitchState.autoSubActive && unexecuted.length > 0 && saved.isRunning) {
-          const mph = saved.minutesPerHalf || 20;
+        if (pitchState.autoSubActive && unexecuted.length > 0 && saved.isRunning && !isGameFinished) {
           const currentTotal = getTotalSeconds(currentElapsed, saved.currentHalf, mph);
           
           // Auto-skip subs that are more than 90s overdue (mirrors PitchBoard logic)
@@ -261,6 +262,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const toggleTimer = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!timerState) return;
+    // Don't allow resuming if at half-time boundary - user needs to start 2nd half from pitch board
+    const isAtHalfBoundary = timerState.isRunning && displaySeconds >= timerState.minutesPerHalf * 60;
+    if (isAtHalfBoundary) return;
     saveTimerState({ ...timerState, isRunning: !timerState.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: displaySeconds });
     setTimerState(prev => prev ? { ...prev, isRunning: !prev.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: displaySeconds } : null);
   };
@@ -317,7 +321,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       const currentPlayerOut = pitchState.players.find(p => p.id === playerOut.id);
       const currentPlayerIn = pitchState.players.find(p => p.id === playerIn.id);
 
-      if (!currentPlayerOut?.position || !currentPlayerIn || currentPlayerIn.position !== null) {
+      if (!currentPlayerOut?.position || !currentPlayerIn || !!currentPlayerIn.position) {
         // Invalid state - mark as executed but don't swap
         const updatedPlan = pitchState.autoSubPlan.map(s =>
           s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half
@@ -325,7 +329,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         );
         localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
         window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
-        toast({ title: "Substitution skipped", description: "Players are not in expected positions" });
+        toast({ title: "Sub couldn't be made", description: !currentPlayerOut?.position ? `${playerOut.name} is already off the pitch` : `${playerIn.name} is already on the pitch`, variant: "destructive" });
         setShowConfirmDialog(false);
         return;
       }
@@ -488,11 +492,18 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             </div>
             
             <div className="flex items-center gap-1.5 shrink-0">
-              {!readOnly && (
-                <Button variant="outline" size="icon" className="h-10 w-10" onClick={toggleTimer}>
-                  {timerState.isRunning ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-                </Button>
-              )}
+              {!readOnly && (() => {
+                // At half time boundary, the widget may read isRunning=true from localStorage
+                // before the GameTimer component processes the half-time pause.
+                // Detect this and show Play instead of Pause.
+                const isEffectivelyPaused = !timerState.isRunning || 
+                  (timerState.isRunning && displaySeconds >= timerState.minutesPerHalf * 60);
+                return (
+                  <Button variant="outline" size="icon" className="h-10 w-10" onClick={toggleTimer}>
+                    {!isEffectivelyPaused ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                  </Button>
+                );
+              })()}
               {timerState.teamId && timerState.teamName && onOpenPitchBoard && (
                 <Button variant="default" size="icon" className="h-10 w-10" onClick={handleOpenPitchBoard}>
                   <ExternalLink className="h-5 w-5" />

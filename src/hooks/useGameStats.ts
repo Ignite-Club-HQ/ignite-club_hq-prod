@@ -151,7 +151,6 @@ export function useGameStats() {
             total_game_time: totalGameTime,
             half_duration: halfDuration,
             formation_used: formationUsed || null,
-            team_size: teamSize,
             total_substitutions: totalSubstitutions,
           },
           { onConflict: "event_id" }

@@ -15,6 +15,7 @@ interface PlayerTimeForecast {
   predictedMinutes: number;
   percentageOfGame: number;
   startsOnPitch: boolean;
+  gkRole?: 'full' | '1h' | '2h'; // GK for full game, 1st half, or 2nd half
 }
 
 // Calculate playing time forecast for each player based on the plan
@@ -39,6 +40,23 @@ function calculateTimeForecasts(
   
   // Track who's on pitch at any moment
   const currentOnPitch = new Set(playersOnPitch.map(p => p.id));
+  
+  // Determine GK roles
+  const startingGk = playersOnPitch.find(p => p.currentPitchPosition === "GK");
+  // Find the halftime GK swap (a sub at time 0 in half 2 involving the starting GK)
+  const gkSwapSub = startingGk 
+    ? plan.find(s => s.half === 2 && s.time === 0 && s.playerOut.id === startingGk.id)
+    : null;
+  
+  const gkRoles = new Map<string, 'full' | '1h' | '2h'>();
+  if (startingGk) {
+    if (gkSwapSub) {
+      gkRoles.set(startingGk.id, '1h');
+      gkRoles.set(gkSwapSub.playerIn.id, '2h');
+    } else {
+      gkRoles.set(startingGk.id, 'full');
+    }
+  }
   
   // Process each half
   for (const half of [1, 2]) {
@@ -70,7 +88,8 @@ function calculateTimeForecasts(
     player,
     predictedMinutes: Math.round((timeOnPitch.get(player.id) || 0) / 60),
     percentageOfGame: Math.round(((timeOnPitch.get(player.id) || 0) / 60 / totalGameMinutes) * 100),
-    startsOnPitch: startsOnPitchMap.get(player.id) || false
+    startsOnPitch: startsOnPitchMap.get(player.id) || false,
+    gkRole: gkRoles.get(player.id),
   })).sort((a, b) => b.predictedMinutes - a.predictedMinutes);
 }
 
@@ -209,37 +228,39 @@ function createSubPlan(
   const minSubsNeeded = Math.max(outfieldOnBench.length, Math.ceil(totalOutfieldPlayers / 2));
   
   // Determine how many players to sub at once based on rotation speed and bench size
-  // Only batch subs if there are 2+ bench players and batch subs not disabled
+  // Key principle: batch as many subs together as possible to reduce interruptions
+  // With a large bench, we want to swap multiple players simultaneously
   let subsAtOnce = 1;
   if (!disableBatchSubs && outfieldOnBench.length >= 2) {
+    const hasLargeBench = outfieldOnBench.length >= 4;
     switch (rotationSpeed) {
-      case 1: // Slow - always single subs
-        subsAtOnce = 1;
-        break;
-      case 2: // Medium - up to 2 at a time if bench allows
-        subsAtOnce = Math.min(2, outfieldOnBench.length);
-        break;
-      case 3: // Fast - up to 3 at a time if bench allows
-        subsAtOnce = Math.min(3, outfieldOnBench.length);
-        break;
-      default:
-        subsAtOnce = 1;
+      case 1: subsAtOnce = 1; break;
+      case 2: subsAtOnce = Math.min(2, outfieldOnBench.length); break;
+      case 3: subsAtOnce = Math.min(hasLargeBench ? 3 : 2, outfieldOnBench.length); break;
+      default: subsAtOnce = 1;
     }
   }
   
-  // Apply rotation speed - controls how many sub windows per half
-  // Since we're doing batch subs now, we need fewer windows
+  // Calculate the ideal number of sub windows to achieve equal playing time
+  // Goal: minimize interruptions while maintaining fairness
+  // Each window swaps up to subsAtOnce players, so we need fewer windows with bigger batches
+  const totalSubsNeeded = Math.max(minSubsNeeded, outfieldOnBench.length);
+  const idealWindows = Math.ceil(totalSubsNeeded / subsAtOnce);
+  
+  // Apply rotation speed modifier
+  // All modes ensure every bench player gets rotated in — the difference is batch size,
+  // which affects how many sub windows are needed (more windows = more interruptions)
   let subWindowsPerHalf: number;
   switch (rotationSpeed) {
-    case 1: // Slow - fewer windows
-      subWindowsPerHalf = Math.max(2, Math.ceil(minSubsNeeded / subsAtOnce));
+    case 1: // Minimal - 1 sub at a time, so needs more windows but less disruption per window
+      subWindowsPerHalf = Math.max(2, totalSubsNeeded);
       break;
-    case 3: // Fast - more windows
-      subWindowsPerHalf = Math.max(4, Math.ceil(minSubsNeeded * 1.5 / subsAtOnce));
+    case 3: // Equal Time - bigger batches, slightly more windows for finer control
+      subWindowsPerHalf = Math.max(2, idealWindows);
       break;
-    case 2: // Medium - balanced
+    case 2: // Balanced
     default:
-      subWindowsPerHalf = Math.max(3, Math.ceil(minSubsNeeded * 1.2 / subsAtOnce));
+      subWindowsPerHalf = Math.max(1, idealWindows);
       break;
   }
   
@@ -284,7 +305,9 @@ function createSubPlan(
         const pitchPos = currentOnPitch.get(pitchEntry.id);
         const timeDiffCorrected = pitchEntry.time - benchEntry.time;
         
-        if (timeDiffCorrected <= 0) continue;
+        // Use a 30-second minimum threshold instead of hard zero to allow
+        // beneficial rotations when times are close but not exactly equal
+        if (timeDiffCorrected < 30) continue;
         
         const directMatch = !benchEntry.player.assignedPositions?.length || 
             benchEntry.player.assignedPositions.includes(pitchPos!);
@@ -394,7 +417,8 @@ function createSubPlan(
         
         // Only check time difference for the first sub of a batch window
         // Additional batch subs are made to rotate more players together
-        if (subIdx === 0 && mostPlayedOnPitch.time <= leastPlayedOnBench.time) break;
+        // Use 30s threshold for consistency with candidate scoring
+        if (subIdx === 0 && (mostPlayedOnPitch.time - leastPlayedOnBench.time) < 30) break;
         
         const best = findBestSubCandidate(onPitchSorted, benchSorted, usedPlayerOutIds, usedPlayerInIds);
         
@@ -437,20 +461,139 @@ function createSubPlan(
   }
   
   // Handle GK substitution at halftime (only if we haven't passed halftime)
-  if (rotateGkAtHalftime && gkOnBench && gkOnPitch && startHalf === 1) {
-    plan.push({
-      time: 0,
-      half: 2,
-      playerOut: gkOnPitch,
-      playerIn: gkOnBench,
-      executed: false,
-    });
+  if (rotateGkAtHalftime && gkOnPitch && startHalf === 1) {
+    // Use dedicated GK bench player if available, otherwise pick a GK-eligible bench player
+    // If no one is eligible for GK, keep the original GK on pitch
+    const gkReplacementPlayer = gkOnBench || (() => {
+      const benchAtHalftime = outfieldPlayers
+        .filter(p => !currentOnPitch.has(p.id))
+        .map(p => ({ player: p, time: playingTime.get(p.id) || 0 }))
+        .sort((a, b) => a.time - b.time);
+      // Eligible: players with GK in assigned positions, OR players with no positions set (eligible for all)
+      const gkEligible = benchAtHalftime.filter(p => 
+        p.player.assignedPositions?.includes("GK") || !p.player.assignedPositions?.length
+      );
+      return gkEligible[0]?.player || null;
+    })();
+    
+    if (gkReplacementPlayer) {
+      plan.push({
+        time: 0,
+        half: 2,
+        playerOut: gkOnPitch,
+        playerIn: gkReplacementPlayer,
+        executed: false,
+      });
+    }
+  }
+  
+  // Snap subs scheduled within 60s of the start of a half to time 0 (half-time sub)
+  // This avoids scheduling a sub e.g. 14 seconds into the 2nd half when it should just happen at half time
+  const HALF_BOUNDARY_THRESHOLD = 60;
+  for (const sub of plan) {
+    if (sub.time > 0 && sub.time <= HALF_BOUNDARY_THRESHOLD) {
+      sub.time = 0;
+    }
   }
   
   plan.sort((a, b) => {
     if (a.half !== b.half) return a.half - b.half;
     return a.time - b.time;
   });
+  
+  // FAIRNESS SIMULATION PASS: verify max-min playing time spread
+  // If spread exceeds 20% of ideal time, add corrective subs
+  const simOnPitch = new Map<string, PitchPosition>();
+  outfieldOnPitch.forEach(p => simOnPitch.set(p.id, p.currentPitchPosition as PitchPosition));
+  const simTime = new Map<string, number>();
+  outfieldPlayers.forEach(p => simTime.set(p.id, p.minutesPlayed || 0));
+  
+  // Simulate the plan
+  let simLastTime = startHalf === 1 ? startElapsedSeconds : startElapsedSeconds;
+  let simLastHalf = startHalf;
+  for (const sub of plan) {
+    // Advance time for on-pitch players
+    let elapsed = 0;
+    if (sub.half === simLastHalf) {
+      elapsed = sub.time - simLastTime;
+    } else {
+      // Half changed: add remaining time from first half + time into second half
+      elapsed = (halfDurationSeconds - simLastTime) + sub.time;
+    }
+    if (elapsed > 0) {
+      simOnPitch.forEach((_, id) => simTime.set(id, (simTime.get(id) || 0) + elapsed));
+    }
+    simLastTime = sub.time;
+    simLastHalf = sub.half;
+    
+    // Apply the sub — track positions through simulation, not from the main algo's final state
+    const outPos = simOnPitch.get(sub.playerOut.id);
+    simOnPitch.delete(sub.playerOut.id);
+    if (sub.positionSwap) {
+      // Incoming player takes the swap player's position
+      const swapFromPos = simOnPitch.get(sub.positionSwap.player.id);
+      if (swapFromPos) simOnPitch.set(sub.playerIn.id, swapFromPos);
+      // Swap player moves to the outgoing player's position
+      if (outPos) simOnPitch.set(sub.positionSwap.player.id, outPos);
+    } else {
+      if (outPos) simOnPitch.set(sub.playerIn.id, outPos);
+    }
+  }
+  // Add remaining game time
+  const endElapsed = halfDurationSeconds - simLastTime;
+  if (endElapsed > 0) simOnPitch.forEach((_, id) => simTime.set(id, (simTime.get(id) || 0) + endElapsed));
+  if (simLastHalf === 1) {
+    // Add full second half
+    simOnPitch.forEach((_, id) => simTime.set(id, (simTime.get(id) || 0) + halfDurationSeconds));
+  }
+  
+  // Check fairness spread
+  const outfieldTimes = outfieldPlayers.map(p => simTime.get(p.id) || 0);
+  const maxTime = Math.max(...outfieldTimes);
+  const minTime = Math.min(...outfieldTimes);
+  const spread = maxTime - minTime;
+  const fairnessThreshold = idealSecondsPerPlayer * 0.2;
+  
+  // If spread is too large and we have room for a corrective sub, add one
+  if (spread > fairnessThreshold && spread > 60) {
+    const overplayedId = outfieldPlayers.find(p => (simTime.get(p.id) || 0) === maxTime)?.id;
+    const underplayedId = outfieldPlayers.find(p => (simTime.get(p.id) || 0) === minTime)?.id;
+    
+    if (overplayedId && underplayedId) {
+      const overplayed = getPlayer(overplayedId);
+      const underplayed = getPlayer(underplayedId);
+      
+      // Only add corrective sub if overplayed is on pitch in final state
+      if (overplayed && underplayed && simOnPitch.has(overplayedId) && !simOnPitch.has(underplayedId)) {
+        // Schedule corrective sub 2 minutes before end of last half
+        const correctiveTime = Math.max(0, halfDurationSeconds - 120);
+        const correctiveHalf = 2 as 1 | 2;
+        
+        // Don't add if there's already a sub at this time for these players
+        const alreadyExists = plan.some(s => 
+          s.half === correctiveHalf && 
+          Math.abs(s.time - correctiveTime) < 30 &&
+          (s.playerOut.id === overplayedId || s.playerIn.id === underplayedId)
+        );
+        
+        if (!alreadyExists) {
+          plan.push({
+            time: correctiveTime,
+            half: correctiveHalf,
+            playerOut: overplayed,
+            playerIn: underplayed,
+            executed: false,
+          });
+          
+          // Re-sort after adding corrective sub
+          plan.sort((a, b) => {
+            if (a.half !== b.half) return a.half - b.half;
+            return a.time - b.time;
+          });
+        }
+      }
+    }
+  }
   
   return plan;
 }
@@ -630,6 +773,14 @@ function DialogInner({
                       >
                         {forecast.startsOnPitch ? 'Start' : 'Bench'}
                       </Badge>
+                      {forecast.gkRole && (
+                        <Badge 
+                          variant="outline" 
+                          className="text-xs px-1.5 py-0 border-amber-500/50 text-amber-600"
+                        >
+                          {forecast.gkRole === 'full' ? 'GK' : forecast.gkRole === '1h' ? 'GK 1H' : 'GK 2H'}
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Progress 
@@ -660,10 +811,6 @@ function DialogInner({
       </div>
       
       <div className="flex gap-2 justify-end mt-4">
-        <Button variant="ghost" onClick={handleGenerate} className="gap-2 mr-auto">
-          <RefreshCw className="h-4 w-4" />
-          Regenerate
-        </Button>
         <Button variant="outline" onClick={onClose}>
           Cancel
         </Button>
@@ -730,6 +877,11 @@ export default function AutoSubPlanDialog({
                   <span className="font-medium text-foreground">Subs</span>
                 </div>
               )}
+              <DialogPrimitive.Close asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                  <X className="h-4 w-4" />
+                </Button>
+              </DialogPrimitive.Close>
             </div>
           </div>
           
