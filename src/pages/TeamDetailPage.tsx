@@ -1620,6 +1620,7 @@ export default function TeamDetailPage() {
             initialTeamSize={teamSubscription?.team_size}
             initialFormation={teamSubscription?.formation || undefined}
             readOnly={!canEditPitchBoard && !isSubsManager}
+            isSubsManager={!!isSubsManager}
             initialLinkedEventId={linkedEventId}
             initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
           />

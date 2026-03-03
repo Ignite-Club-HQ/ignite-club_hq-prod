@@ -401,6 +401,7 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
             initialMinutesPerHalf={activePitchBoard.minutesPerHalf}
             initialLinkedEventId={activePitchBoard.eventId}
             readOnly={!activePitchBoard.isAdmin && !activePitchBoard.isSubsManager}
+            isSubsManager={activePitchBoard.isSubsManager}
           />
         </Suspense>,
         document.body

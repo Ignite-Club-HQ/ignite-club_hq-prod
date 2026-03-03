@@ -118,10 +118,10 @@ export default function EventGroupPitchPage() {
   });
 
   // Check if user can edit pitch board (club_admin, league_admin, coach, app_admin, or Subs Manager duty)
-  const { data: userCanEdit } = useQuery({
+  const { data: editPermission } = useQuery({
     queryKey: ["mini-league-edit-permission", user?.id, leagueSettings?.club_id, groupId],
     queryFn: async () => {
-      if (!user || !leagueSettings?.club_id) return false;
+      if (!user || !leagueSettings?.club_id) return { canEdit: false, isSubsManager: false };
       
       const { data: roles } = await supabase
         .from("user_roles")
@@ -138,7 +138,7 @@ export default function EventGroupPitchPage() {
         .eq("role", "app_admin");
       
       const hasAdminRole = (roles && roles.length > 0) || (appAdminRoles && appAdminRoles.length > 0);
-      if (hasAdminRole) return true;
+      if (hasAdminRole) return { canEdit: true, isSubsManager: false };
 
       // Check if user has "Subs Manager" duty for this specific group
       if (groupId) {
@@ -150,13 +150,15 @@ export default function EventGroupPitchPage() {
           .eq("assigned_to", user.id)
           .maybeSingle();
         
-        if (subsManagerDuty) return true;
+        if (subsManagerDuty) return { canEdit: true, isSubsManager: true };
       }
 
-      return false;
+      return { canEdit: false, isSubsManager: false };
     },
     enabled: !!user && !!leagueSettings?.club_id,
   });
+  const userCanEdit = editPermission?.canEdit;
+  const isSubsManagerForGroup = editPermission?.isSubsManager;
 
   // Fetch league members for duty assignment (parents, admins, coaches - not players)
   const { data: leagueMembers } = useQuery({
@@ -542,6 +544,7 @@ export default function EventGroupPitchPage() {
             initialMinutesPerHalf={leagueSettings?.minutes_per_half || 10}
             initialTeamSize={initialTeamSize}
             readOnly={!userCanEdit}
+            isSubsManager={!!isSubsManagerForGroup}
             initialLinkedEventId={null}
             initialShowMatchHeader={false}
             miniLeagueTeams={miniLeagueTeams}
