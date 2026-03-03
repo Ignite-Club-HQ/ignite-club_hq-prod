@@ -347,8 +347,9 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
           
           toast({
-            title: "Substitution skipped",
-            description: "Players are not in expected positions",
+            title: "Sub not made – players already moved",
+            description: `${playerOut.name} is no longer on pitch or ${playerIn.name} is already playing. No changes were made.`,
+            variant: "destructive",
           });
           
           setShowConfirmDialog(false);
