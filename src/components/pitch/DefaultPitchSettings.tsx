@@ -58,9 +58,9 @@ const FORMATIONS: Record<TeamSize, { name: string }[]> = {
 const TEAM_SIZES: TeamSize[] = ["3", "4", "5", "6", "7", "8", "9", "10", "11"];
 const MINUTES_OPTIONS = [5, 7, 10, 12, 15, 20, 25, 30, 35, 40, 45];
 const ROTATION_SPEEDS = [
-  { value: "1", label: "Minimal" },
-  { value: "2", label: "Balanced" },
-  { value: "3", label: "Equal Time" },
+  { value: "1", label: "Minimal", desc: "1 sub at a time, fewer windows — less disruption" },
+  { value: "2", label: "Balanced", desc: "2 subs at a time — good mix of flow & fairness" },
+  { value: "3", label: "Equal Time", desc: "Up to 3 subs at a time, more windows — max fairness" },
 ];
 
 interface DefaultPitchSettingsProps {
@@ -193,7 +193,10 @@ export function DefaultPitchSettings({
               <SelectContent>
                 {ROTATION_SPEEDS.map((speed) => (
                   <SelectItem key={speed.value} value={speed.value}>
-                    {speed.label}
+                    <div>
+                      <span>{speed.label}</span>
+                      <p className="text-xs text-muted-foreground">{speed.desc}</p>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
