@@ -55,45 +55,49 @@ export default function MatchStatsPanel({ open, onOpenChange, players, elapsedGa
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md z-[99999] sm:max-w-md landscape:max-w-2xl max-h-[100dvh] sm:max-h-[85vh] landscape:max-h-[90vh] h-[100dvh] sm:h-auto landscape:h-auto w-full sm:w-auto landscape:w-[90vw] rounded-none sm:rounded-lg landscape:rounded-lg !top-[env(safe-area-inset-top,0px)] !translate-y-0 sm:!top-[50%] sm:!-translate-y-1/2 flex flex-col pt-2">
-        <DialogHeader className="shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
+        <DialogHeader className="shrink-0 pb-0">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Clock className="h-5 w-5 text-primary" />
             Match Statistics
           </DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-4 flex-1 min-h-0 overflow-y-auto scrollbar-hide">
+        {/* Hero stats section - fixed above scroll */}
+        <div className="shrink-0 space-y-3 pb-2">
           {/* Score display - only when scoring is enabled */}
           {!hideScores && goals.length > 0 && (
-            <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
-              <div className="flex items-center justify-center gap-6">
+            <div className="bg-gradient-to-r from-primary/15 to-primary/5 border border-primary/20 rounded-xl p-4">
+              <div className="flex items-center justify-center gap-8">
                 <div className="text-center">
-                  <p className="text-3xl font-bold">{goals.filter(g => !g.isOpponentGoal).length}</p>
-                  <p className="text-xs text-muted-foreground truncate max-w-[80px]">{teamName}</p>
+                  <p className="text-4xl font-extrabold tracking-tight">{goals.filter(g => !g.isOpponentGoal).length}</p>
+                  <p className="text-[11px] font-medium text-muted-foreground truncate max-w-[80px] mt-0.5">{teamName}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col items-center gap-0.5">
                   <Target className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-medium text-muted-foreground">-</span>
+                  <span className="text-xs font-semibold text-muted-foreground tracking-widest">VS</span>
                 </div>
                 <div className="text-center">
-                  <p className="text-3xl font-bold">{goals.filter(g => g.isOpponentGoal).length}</p>
-                  <p className="text-xs text-muted-foreground truncate max-w-[80px]">{opponentName}</p>
+                  <p className="text-4xl font-extrabold tracking-tight">{goals.filter(g => g.isOpponentGoal).length}</p>
+                  <p className="text-[11px] font-medium text-muted-foreground truncate max-w-[80px] mt-0.5">{opponentName}</p>
                 </div>
               </div>
             </div>
           )}
           
           {/* Summary stats */}
-          <div className={`grid ${!hideScores ? 'grid-cols-2' : 'grid-cols-2'} gap-3`}>
-            <div className="bg-muted/50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold">{formatTime(elapsedGameTime)}</p>
-              <p className="text-xs text-muted-foreground">Total Game Time</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/15 rounded-xl p-3 text-center">
+              <p className="text-2xl font-extrabold tracking-tight">{formatTime(elapsedGameTime)}</p>
+              <p className="text-[11px] font-medium text-muted-foreground mt-0.5">Total Game Time</p>
             </div>
-            <div className="bg-muted/50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold">{formatTime(avgMinutes)}</p>
-              <p className="text-xs text-muted-foreground">Avg per Player</p>
+            <div className="bg-gradient-to-br from-muted/80 to-muted/40 border border-border/50 rounded-xl p-3 text-center">
+              <p className="text-2xl font-extrabold tracking-tight">{formatTime(avgMinutes)}</p>
+              <p className="text-[11px] font-medium text-muted-foreground mt-0.5">Avg per Player</p>
             </div>
           </div>
+        </div>
+        
+        <div className="space-y-4 flex-1 min-h-0 overflow-y-auto scrollbar-hide">
           
           {/* Player list */}
           <div>
