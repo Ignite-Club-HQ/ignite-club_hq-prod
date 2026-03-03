@@ -311,11 +311,7 @@ export function useLazyFabric({
     const rect = targetContainer.getBoundingClientRect();
     if (rect.width < 10 || rect.height < 10) return;
 
-    const previousWidth = targetCanvas.getWidth();
-    const previousHeight = targetCanvas.getHeight();
-
     targetCanvas.setDimensions({ width: rect.width, height: rect.height });
-    scaleCanvasObjects(targetCanvas, previousWidth, previousHeight, rect.width, rect.height);
     targetCanvas.renderAll();
   }, []);
 
@@ -349,17 +345,8 @@ export function useLazyFabric({
         return;
       }
 
-      // Canvas is attached to a stale element (orientation/layout swap). Preserve drawings and recreate.
-      try {
-        pendingRestoreJsonRef.current = {
-          json: canvas.toJSON(),
-          width: canvas.getWidth(),
-          height: canvas.getHeight(),
-        };
-      } catch (err) {
-        console.warn("[LazyFabric] Failed to serialize canvas before rebind:", err);
-        pendingRestoreJsonRef.current = null;
-      }
+      // Canvas is attached to a stale element (orientation/layout swap). Clear drawings and recreate.
+      pendingRestoreJsonRef.current = null;
 
       if (cleanupRef.current) {
         cleanupRef.current();
@@ -454,26 +441,6 @@ export function useLazyFabric({
 
       // Also lock any objects added via other means (arrows, etc.)
       newCanvas.on("object:added", (e: any) => lockObject(e.target));
-
-      const restoreState = pendingRestoreJsonRef.current;
-      if (restoreState) {
-        pendingRestoreJsonRef.current = null;
-        Promise.resolve((newCanvas as any).loadFromJSON(restoreState.json))
-          .then(() => {
-            scaleCanvasObjects(
-              newCanvas,
-              restoreState.width,
-              restoreState.height,
-              newCanvas.getWidth(),
-              newCanvas.getHeight()
-            );
-            newCanvas.getObjects().forEach((obj) => lockObject(obj));
-            newCanvas.renderAll();
-          })
-          .catch((err) => {
-            console.error("[LazyFabric] Failed to restore canvas after rebind:", err);
-          });
-      }
 
       setCanvas(newCanvas);
       setIsReady(true);
