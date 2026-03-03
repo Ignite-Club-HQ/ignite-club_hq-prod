@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -52,6 +52,7 @@ export default function AutoSubControlPanel({
 }: AutoSubControlPanelProps) {
   const [showTimeline, setShowTimeline] = useState(false);
   const [showLockPanel, setShowLockPanel] = useState(false);
+  const swipeRef = useRef<{ startY: number } | null>(null);
 
   const executedSubs = useMemo(() => autoSubPlan.filter(s => s.executed), [autoSubPlan]);
   const remainingSubs = useMemo(() => autoSubPlan.filter(s => !s.executed), [autoSubPlan]);
@@ -80,8 +81,21 @@ export default function AutoSubControlPanel({
         className="relative z-[9999] w-full max-w-lg bg-background rounded-t-2xl sm:rounded-2xl shadow-2xl border border-border max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle bar (mobile feel) */}
-        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+        {/* Handle bar (mobile feel) - swipe down to close */}
+        <div 
+          className="flex justify-center pt-3 pb-1 sm:hidden cursor-grab touch-none"
+          onTouchStart={(e) => {
+            swipeRef.current = { startY: e.touches[0].clientY };
+          }}
+          onTouchEnd={(e) => {
+            if (!swipeRef.current) return;
+            const deltaY = e.changedTouches[0].clientY - swipeRef.current.startY;
+            swipeRef.current = null;
+            if (deltaY > 60) {
+              onClose();
+            }
+          }}
+        >
           <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
         </div>
 
