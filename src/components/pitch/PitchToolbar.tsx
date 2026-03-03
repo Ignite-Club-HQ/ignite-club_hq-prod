@@ -14,7 +14,7 @@ import {
   Pencil, Eraser, Trash2, MoveRight, Save, FolderOpen, Loader2, 
   ZoomIn, ZoomOut, RotateCcw, RefreshCw, Users, Settings2, List, 
   Clock, Calendar, BarChart3, Pause, Play, X, ChevronDown, ChevronUp, ChevronLeft,
-  Palette, Timer, PenTool, Eye, Database, GripHorizontal, Volume2, VolumeX, Undo2, ArrowLeftRight,
+  Palette, Timer, PenTool, Eye, Database, GripHorizontal, Undo2, ArrowLeftRight,
   Target, Link2, Link2Off
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -313,7 +313,6 @@ function PitchToolbar({
   hideSubsSection = false,
   hideDrawSection = false,
 }: PitchToolbarProps) {
-  const [soundEnabled, setSoundEnabled] = useState(true);
   const [timerRunning, setTimerRunning] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [undoConfirmOpen, setUndoConfirmOpen] = useState(false);
@@ -466,9 +465,6 @@ function PitchToolbar({
                   onTimeUpdate={onTimerUpdate} 
                   onHalfChange={onHalfChange} 
                   readOnly={readOnly}
-                  hideSoundToggle
-                  soundEnabled={soundEnabled}
-                  onSoundToggle={setSoundEnabled}
                   minutesPerHalf={minutesPerHalf}
                   onMinutesPerHalfChange={onMinutesPerHalfChange}
                 />
@@ -570,21 +566,6 @@ function PitchToolbar({
                 </Tooltip>
               </TooltipProvider>
             )}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant={soundEnabled ? "outline" : "secondary"} 
-                    size="icon" 
-                    className="h-10 w-10"
-                    onClick={() => setSoundEnabled(!soundEnabled)}
-                  >
-                    {soundEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Sound {soundEnabled ? "(On)" : "(Off)"}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
             {!readOnly && onUndo && (
               <TooltipProvider>
                 <Tooltip>
@@ -622,8 +603,6 @@ function PitchToolbar({
             )}
             {/* Settings gear - opens PitchSettingsDialog */}
             <PitchSettingsDialog
-              soundEnabled={soundEnabled}
-              onSoundToggle={setSoundEnabled}
               selectedFormation={selectedFormation}
               onFormationChange={onFormationChange}
               formations={formations}
@@ -756,7 +735,7 @@ function PitchToolbar({
               disabled={readOnly}
             >
               {timerRunning ? <Pause size={collapsedIconSizeNum} /> : <Play size={collapsedIconSizeNum} />}
-              <GameTimer ref={gameTimerRef} teamId={teamId} teamName={teamName} onTimeUpdate={(elapsed, half) => { onTimerUpdate?.(elapsed, half); if (gameTimerRef.current) setTimerRunning(gameTimerRef.current.isRunning()); }} onHalfChange={onHalfChange} readOnly={readOnly} compact hideSoundToggle hidePlayPause hideExtras soundEnabled={soundEnabled} onSoundToggle={setSoundEnabled} minutesPerHalf={minutesPerHalf} onMinutesPerHalfChange={onMinutesPerHalfChange} />
+              <GameTimer ref={gameTimerRef} teamId={teamId} teamName={teamName} onTimeUpdate={(elapsed, half) => { onTimerUpdate?.(elapsed, half); if (gameTimerRef.current) setTimerRunning(gameTimerRef.current.isRunning()); }} onHalfChange={onHalfChange} readOnly={readOnly} compact hidePlayPause hideExtras minutesPerHalf={minutesPerHalf} onMinutesPerHalfChange={onMinutesPerHalfChange} />
             </Button>
             <SyncStatusIndicator />
             {!readOnly && (
@@ -784,14 +763,17 @@ function PitchToolbar({
                   AutoSub
                 </Button>
               ) : (
-                <DropdownMenu>
+                <DropdownMenu modal={true}>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className={`${collapsedButtonHeight} px-2 text-xs gap-1`}>
                       <Settings2 size={collapsedIconSizeNum} />
                       <ChevronDown size={collapsedIconSizeNum} />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="z-[99999]">
+                  <DropdownMenuContent align="start" className="z-[99999]" collisionPadding={16}
+                    onPointerDownOutside={(e) => e.detail.originalEvent.stopPropagation()}
+                    onFocusOutside={(e) => e.preventDefault()}
+                  >
                     <DropdownMenuItem onClick={onOpenEditPlan}>
                       <Pencil className="h-4 w-4 mr-2" />
                       Edit Plan
@@ -903,7 +885,7 @@ function PitchToolbar({
             disabled={readOnly}
           >
             {timerRunning ? <Pause size={iconSizeNum} /> : <Play size={iconSizeNum} />}
-            <GameTimer ref={gameTimerRef} teamId={teamId} teamName={teamName} onTimeUpdate={(elapsed, half) => { onTimerUpdate?.(elapsed, half); if (gameTimerRef.current) setTimerRunning(gameTimerRef.current.isRunning()); }} onHalfChange={onHalfChange} readOnly={readOnly} compact hideSoundToggle hidePlayPause hideExtras soundEnabled={soundEnabled} onSoundToggle={setSoundEnabled} minutesPerHalf={minutesPerHalf} onMinutesPerHalfChange={onMinutesPerHalfChange} />
+            <GameTimer ref={gameTimerRef} teamId={teamId} teamName={teamName} onTimeUpdate={(elapsed, half) => { onTimerUpdate?.(elapsed, half); if (gameTimerRef.current) setTimerRunning(gameTimerRef.current.isRunning()); }} onHalfChange={onHalfChange} readOnly={readOnly} compact hidePlayPause hideExtras minutesPerHalf={minutesPerHalf} onMinutesPerHalfChange={onMinutesPerHalfChange} />
           </Button>
           {!readOnly && (
             <Button
@@ -930,14 +912,17 @@ function PitchToolbar({
                 AutoSub
               </Button>
             ) : (
-              <DropdownMenu>
+              <DropdownMenu modal={true}>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className={subButtonClass + " gap-1"}>
                     <Settings2 size={iconSizeNum} />
                     <ChevronDown size={12} />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="z-[99999]">
+                <DropdownMenuContent align="start" className="z-[99999]" collisionPadding={16}
+                  onPointerDownOutside={(e) => e.detail.originalEvent.stopPropagation()}
+                  onFocusOutside={(e) => e.preventDefault()}
+                >
                   <DropdownMenuItem onClick={onOpenEditPlan}>
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit Plan
@@ -984,8 +969,6 @@ function PitchToolbar({
         <div className="flex items-center gap-1 shrink-0">
           <SyncStatusIndicator />
           <PitchSettingsDialog
-            soundEnabled={soundEnabled}
-            onSoundToggle={setSoundEnabled}
             selectedFormation={selectedFormation}
             onFormationChange={onFormationChange}
             formations={formations}

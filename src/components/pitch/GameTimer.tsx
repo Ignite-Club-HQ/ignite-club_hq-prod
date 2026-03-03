@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHand
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { Play, Pause, Volume2, VolumeX } from "lucide-react";
+import { Play, Pause } from "lucide-react";
 import { showBrowserNotification, requestNotificationPermission } from "@/lib/notifications";
 
 // Helper to play audio beep
@@ -67,17 +67,15 @@ export interface GameTimerRef {
 
 interface GameTimerProps {
   compact?: boolean;
+  compactLarge?: boolean; // Larger compact mode when no score is showing
   large?: boolean; // Larger touch targets for landscape setup tab
   teamId?: string;
   teamName?: string;
   onTimeUpdate?: (elapsedSeconds: number, currentHalf: 1 | 2) => void;
   onHalfChange?: (newHalf: 1 | 2) => void;
-  readOnly?: boolean; // Allow play/pause and sound toggle, but disable reset and duration changes
-  hideExtras?: boolean; // Hide volume and reset buttons (for collapsed views)
-  hideSoundToggle?: boolean; // Hide sound toggle (when controlled externally)
-  hidePlayPause?: boolean; // Hide play/pause button (when controlled externally)
-  soundEnabled?: boolean; // External sound state
-  onSoundToggle?: (enabled: boolean) => void; // External sound toggle callback
+  readOnly?: boolean;
+  hideExtras?: boolean;
+  hidePlayPause?: boolean;
   // External minutes per half control
   minutesPerHalf?: number;
   onMinutesPerHalfChange?: (minutes: number) => void;
@@ -93,7 +91,7 @@ interface TimerState {
   currentHalf: 1 | 2;
   elapsedSeconds: number;
   isRunning: boolean;
-  soundEnabled: boolean;
+  
   lastUpdateTime: number; // timestamp to calculate elapsed time while away
   teamId?: string;
   teamName?: string;
@@ -182,6 +180,7 @@ export const clearTimerState = (teamId?: string) => {
 
 const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({ 
   compact = false,
+  compactLarge = false,
   large = false,
   teamId,
   teamName,
@@ -189,10 +188,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   onHalfChange,
   readOnly = false,
   hideExtras = false,
-  hideSoundToggle = false,
   hidePlayPause = false,
-  soundEnabled: externalSoundEnabled,
-  onSoundToggle,
   minutesPerHalf: externalMinutesPerHalf,
   onMinutesPerHalfChange,
 }, ref) => {
@@ -200,21 +196,10 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   const [currentHalf, setCurrentHalf] = useState<1 | 2>(1);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
-  const [internalSoundEnabled, setInternalSoundEnabled] = useState(true);
-  const [hasInitialized, setHasInitialized] = useState(false);
   const [isGameFinished, setIsGameFinished] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Use external sound state if provided, otherwise use internal
-  const soundEnabled = externalSoundEnabled !== undefined ? externalSoundEnabled : internalSoundEnabled;
-  const handleSoundToggle = () => {
-    if (onSoundToggle) {
-      onSoundToggle(!soundEnabled);
-    } else {
-      setInternalSoundEnabled(!soundEnabled);
-    }
-  };
 
   // Use external minutesPerHalf if provided, otherwise use internal
   const minutesPerHalf = externalMinutesPerHalf !== undefined ? externalMinutesPerHalf : internalMinutesPerHalf;
@@ -238,7 +223,6 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         setInternalMinutesPerHalf(saved.minutesPerHalf);
       }
       setCurrentHalf(saved.currentHalf);
-      setInternalSoundEnabled(saved.soundEnabled);
       setIsGameFinished(saved.isGameFinished || false);
       
       // Use the correct half duration (external prop takes priority)
@@ -272,13 +256,12 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       currentHalf,
       elapsedSeconds,
       isRunning,
-      soundEnabled,
       lastUpdateTime: Date.now(),
       teamId,
       teamName,
       isGameFinished,
     }, teamId);
-  }, [minutesPerHalf, currentHalf, elapsedSeconds, isRunning, soundEnabled, hasInitialized, teamId, teamName, isGameFinished]);
+  }, [minutesPerHalf, currentHalf, elapsedSeconds, isRunning, hasInitialized, teamId, teamName, isGameFinished]);
 
   const toggleTimer = useCallback(() => {
     // Cannot resume if game is finished
@@ -338,13 +321,13 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
               setIsRunning(false);
               setCurrentHalf(2);
               onHalfChange?.(2);
-              if (soundEnabled) playTimerBeep("Half Time! First half complete.");
+              playTimerBeep("Half Time! First half complete.");
               return 0;
             } else {
               // End of match - mark game as finished
               setIsRunning(false);
               setIsGameFinished(true);
-              if (soundEnabled) playTimerBeep("Full Time! Match complete.");
+              playTimerBeep("Full Time! Match complete.");
               return halfDurationSeconds;
             }
           }
@@ -363,7 +346,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         clearInterval(intervalRef.current);
       }
     };
-  }, [isRunning, halfDurationSeconds, currentHalf, soundEnabled, onHalfChange]);
+  }, [isRunning, halfDurationSeconds, currentHalf, onHalfChange]);
 
   // Notify parent of time updates
   useEffect(() => {
@@ -381,11 +364,12 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
 
 
   if (compact) {
+    const isLarge = compactLarge;
     return (
-      <div className="flex items-center gap-1">
+      <div className={cn("flex items-center", isLarge ? "gap-2" : "gap-1")}>
         {!hideExtras && (
           <Select value={minutesPerHalf.toString()} onValueChange={handleHalfDurationChange} disabled={readOnly || isGameFinished || isRunning || elapsedSeconds > 0}>
-            <SelectTrigger className="w-14 h-7 text-xs px-1.5">
+            <SelectTrigger className={cn(isLarge ? "w-16 h-9 text-sm px-2" : "w-14 h-7 text-xs px-1.5")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="z-[99999] bg-popover">
@@ -402,28 +386,27 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
           </Select>
         )}
         <div className={cn(
-          "flex items-center px-1.5 py-0.5 rounded text-xs",
+          "flex items-center rounded",
+          isLarge ? "px-2.5 py-1" : "px-1.5 py-0.5",
+          isLarge ? "text-sm" : "text-xs",
           isGameFinished ? "bg-primary/20" : "bg-muted"
         )}>
-          <span className="font-medium text-muted-foreground">
+          <span className={cn("font-medium text-muted-foreground", isLarge && "text-sm")}>
             {isGameFinished ? "FT" : `H${currentHalf}`}
           </span>
-          <span className="font-mono font-bold ml-1">{getDisplayTime()}</span>
+          <span className={cn("font-mono font-bold ml-1", isLarge ? "text-lg" : "")}>
+            {getDisplayTime()}
+          </span>
         </div>
         {!readOnly && !hidePlayPause && (
           <Button 
             variant="outline" 
             size="icon" 
-            className="h-8 w-8" 
+            className={cn(isLarge ? "h-10 w-10" : "h-8 w-8")} 
             onClick={toggleTimer}
             disabled={isGameFinished}
           >
-            {isRunning ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-          </Button>
-        )}
-        {!hideExtras && !readOnly && !hideSoundToggle && (
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleSoundToggle}>
-            {soundEnabled ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}
+            {isRunning ? <Pause className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} /> : <Play className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} />}
           </Button>
         )}
       </div>
@@ -480,11 +463,6 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
           disabled={isGameFinished}
         >
           {isRunning ? <Pause className={large ? "h-5 w-5" : "h-4 w-4"} /> : <Play className={large ? "h-5 w-5" : "h-4 w-4"} />}
-        </Button>
-      )}
-      {!hideExtras && !hideSoundToggle && (
-        <Button variant="outline" size="icon" onClick={handleSoundToggle}>
-          {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
         </Button>
       )}
       

@@ -639,6 +639,12 @@ export default function NotificationsPage() {
         // Trigger GlobalSubMonitor to show the sub confirmation dialog
         window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
         break;
+      case "formation_change":
+        // Navigate to the team's pitch board - relatedId is team_id
+        if (relatedId) {
+          navigate(`/teams/${relatedId}`);
+        }
+        break;
       case "points_awarded":
       case "reward_redeemed":
       case "player_of_match":

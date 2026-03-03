@@ -349,8 +349,26 @@ export default function TeamDetailPage() {
   // isClubAdmin is already defined above (before isSubscriptionLoading calculation)
   
   // All team members can view pitch board (read-only); only team admins/coaches can edit
+  // Subs Manager duty check is done dynamically when the pitch board opens with a linkedEventId
   const canAccessPitchBoard = isMember;
-  const canEditPitchBoard = isCoachOrAdmin; // Non-coaches/admins get view-only
+  const canEditPitchBoard = isCoachOrAdmin; // Non-coaches/admins get view-only (Subs Manager override handled via linkedEventId)
+
+  // Check if user has "Subs Manager" duty for the linked event
+  const { data: isSubsManager } = useQuery({
+    queryKey: ["subs-manager-duty", linkedEventId, user?.id],
+    queryFn: async () => {
+      if (!linkedEventId || !user) return false;
+      const { data } = await supabase
+        .from("duties")
+        .select("id")
+        .eq("event_id", linkedEventId)
+        .eq("name", "Subs Manager")
+        .eq("assigned_to", user.id)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!linkedEventId && !!user && !canEditPitchBoard,
+  });
 
   // Fetch pending invites for this team
   const { data: pendingInvites = [] } = useQuery({
@@ -1601,7 +1619,8 @@ export default function TeamDetailPage() {
             initialMinutesPerHalf={teamSubscription?.minutes_per_half || 10}
             initialTeamSize={teamSubscription?.team_size}
             initialFormation={teamSubscription?.formation || undefined}
-            readOnly={!canEditPitchBoard}
+            readOnly={!canEditPitchBoard && !isSubsManager}
+            isSubsManager={!!isSubsManager}
             initialLinkedEventId={linkedEventId}
             initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
           />

@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings } from "lucide-react";
+import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOpen, Loader2, ZoomIn, ZoomOut, X, RefreshCw, Users, Settings2, List, Clock, Calendar, BarChart3, Pause, Play, ChevronUp, ChevronLeft, ChevronRight, ChevronDown, Eye, ArrowLeftRight, Undo2, Flame, Shield, Circle, Swords, Pin, Link2, Settings, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PlayerToken from "./PlayerToken";
 import SoccerBall from "./SoccerBall";
@@ -75,8 +75,7 @@ import {
   loadPitchState,
   clearPitchState,
   loadTimerStateForMinutes,
-  recalculateRemainingPlan,
-  isSoundEnabled
+  recalculateRemainingPlan
 } from "./pitchStateUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 
@@ -102,6 +101,7 @@ interface PitchBoardProps {
   initialTeamSize?: number;
   initialFormation?: string;
   readOnly?: boolean;
+  isSubsManager?: boolean;
   initialLinkedEventId?: string | null;
   initialShowMatchHeader?: boolean;
   initialShowLineupPicker?: boolean;
@@ -130,7 +130,7 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
   </div>
 );
 
-export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, miniLeagueTeams }: PitchBoardProps) {
+export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 2, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, miniLeagueTeams }: PitchBoardProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
@@ -2072,29 +2072,100 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setPortraitSheetOpen(false);
   }, []);
 
-  // Send push notification to team coaches/admins when formation or team size changes
-  const notifyFormationOrSizeChange = useCallback(async (changeType: 'formation' | 'team_size', detail: string) => {
+  // Send push notification to team coaches/admins and Subs Manager assignees when formation or team size changes
+  const notifyFormationOrSizeChange = useCallback(async (
+    changeType: 'formation' | 'team_size', 
+    detail: string,
+    changeDetails?: {
+      positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition }[];
+      benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[];
+    }
+  ) => {
     if (!user?.id || readOnly) return;
     try {
+      const recipientIds = new Set<string>();
+
+      // Get team coaches/admins
       const { data: staffRoles } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("team_id", teamId)
         .in("role", ["coach", "team_admin"]);
       
-      const recipientIds = new Set<string>();
       staffRoles?.forEach(r => {
         if (r.user_id !== user.id) recipientIds.add(r.user_id);
       });
 
+      // Also include Subs Manager assignees for this event
+      if (linkedEventId) {
+        const isEventGroup = teamId.startsWith("event-group-");
+        if (isEventGroup) {
+          const groupId = teamId.replace("event-group-", "");
+          const { data: subsManagers } = await supabase
+            .from("event_group_duties")
+            .select("assigned_to")
+            .eq("group_id", groupId)
+            .eq("name", "Subs Manager")
+            .not("assigned_to", "is", null);
+          subsManagers?.forEach(d => {
+            if (d.assigned_to && d.assigned_to !== user.id) recipientIds.add(d.assigned_to);
+          });
+        } else {
+          const { data: subsManagers } = await supabase
+            .from("duties")
+            .select("assigned_to")
+            .eq("event_id", linkedEventId)
+            .eq("name", "Subs Manager")
+            .not("assigned_to", "is", null);
+          subsManagers?.forEach(d => {
+            if (d.assigned_to && d.assigned_to !== user.id) recipientIds.add(d.assigned_to);
+          });
+        }
+      }
+
+      // Build detailed change description for notification body
+      const changeParts: string[] = [];
+      if (changeDetails) {
+        const benchExits = changeDetails.benchMoves.filter(m => m.direction === "to-bench");
+        const pitchEntries = changeDetails.benchMoves.filter(m => m.direction === "to-pitch");
+        const swaps = changeDetails.positionSwaps;
+        
+        if (benchExits.length > 0) {
+          changeParts.push(`📤 Off: ${benchExits.map(m => m.player.name).join(", ")}`);
+        }
+        if (pitchEntries.length > 0) {
+          changeParts.push(`📥 On: ${pitchEntries.map(m => `${m.player.name} (${m.position || ""})`).join(", ")}`);
+        }
+        if (swaps.length > 0) {
+          changeParts.push(`🔄 Moved: ${swaps.map(s => `${s.player.name} ${s.fromPosition}→${s.toPosition}`).join(", ")}`);
+        }
+      }
+
       const title = changeType === 'formation' 
         ? `⚽ ${teamName} - Formation Changed`
         : `⚽ ${teamName} - Team Size Changed`;
-      const body = changeType === 'formation'
+      const baseSummary = changeType === 'formation'
         ? `Formation changed to ${detail}`
         : `Team size changed to ${detail} players`;
+      const body = changeParts.length > 0 
+        ? `${baseSummary}\n${changeParts.join("\n")}`
+        : baseSummary;
+
+      // Create in-app notifications with details
+      const notificationMessage = changeParts.length > 0
+        ? `${baseSummary} — ${changeParts.join(" • ")}`
+        : baseSummary;
 
       for (const userId of recipientIds) {
+        // In-app notification
+        supabase.from("notifications").insert({
+          user_id: userId,
+          type: "formation_change",
+          message: notificationMessage,
+          related_id: teamId,
+        }).then(() => {});
+
+        // Push notification
         supabase.functions.invoke("send-push-notification", {
           body: {
             userId,
@@ -2109,9 +2180,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     } catch (e) {
       console.error("Failed to send formation change notification:", e);
     }
-  }, [user?.id, teamId, teamName, readOnly]);
+  }, [user?.id, teamId, teamName, readOnly, linkedEventId]);
 
-  const applyFormationChange = useCallback((index: number) => {
+  const applyFormationChange = useCallback((index: number, changeDetails?: { positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition }[]; benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] }) => {
     const formation = FORMATIONS[teamSize][index];
     if (!formation) return;
 
@@ -2164,7 +2235,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     toast({ title: "Formation applied", description: `${formation.name} formation set` });
 
     // Notify team staff about the formation change
-    notifyFormationOrSizeChange('formation', formation.name);
+    notifyFormationOrSizeChange('formation', formation.name, changeDetails);
 
     // Auto-regenerate the plan if auto-subs are active
     if (autoSubActive) {
@@ -2186,9 +2257,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         setPlayers(placedPlayers);
         persistTeamSizeToDb(newSize);
         // Notify team staff about the team size change
-        notifyFormationOrSizeChange('team_size', newSize);
+        notifyFormationOrSizeChange('team_size', newSize, {
+          positionSwaps: pendingFormationChange.positionSwaps,
+          benchMoves: pendingFormationChange.benchMoves,
+        });
       } else {
-        applyFormationChange(pendingFormationChange.index);
+        applyFormationChange(pendingFormationChange.index, {
+          positionSwaps: pendingFormationChange.positionSwaps,
+          benchMoves: pendingFormationChange.benchMoves,
+        });
       }
     }
     setFormationChangeDialogOpen(false);
@@ -2765,9 +2842,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const msg = batchSubs.length > 0
       ? `Time for ${batchSubs.length + 1} substitutions`
       : `Execute now: ${playerOutName} ➜ ${playerInName}`;
-    if (isSoundEnabled(teamId)) {
-      playSubAlertBeep(msg);
-    }
+    playSubAlertBeep(msg);
   }, [autoSubPlan, teamId]);
 
   const handleRegeneratePlan = useCallback(() => {
@@ -2927,9 +3002,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const notificationBody = batchSubs.length > 1
         ? `Time for ${batchSubs.length} substitutions`
         : `Time to sub: ${playerOutName} ➜ ${playerInName}`;
-      if (isSoundEnabled(teamId)) {
-        playSubAlertBeep(notificationBody);
-      }
+      playSubAlertBeep(notificationBody);
       
       // Create database notification (triggers server-side push)
       createSubNotification(notificationBody);
@@ -2969,9 +3042,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           const notificationBody = halftimeSubs.length > 1
             ? `Halftime: ${halftimeSubs.length} substitutions`
             : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
-          if (isSoundEnabled(teamId)) {
-            playSubAlertBeep(notificationBody);
-          }
+          playSubAlertBeep(notificationBody);
           createSubNotification(notificationBody);
           
           setPendingAutoSub(primarySub);
@@ -2998,9 +3069,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         
         setTimeout(() => {
           const notificationBody = `Halftime GK swap: ${currentGk.name} ➜ ${secondHalfGk.name}`;
-          if (isSoundEnabled(teamId)) {
-            playSubAlertBeep(notificationBody);
-          }
+          playSubAlertBeep(notificationBody);
           createSubNotification(notificationBody);
           
           setPendingAutoSub(gkSwapEvent);
@@ -4179,6 +4248,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               View Only
             </Badge>
           )}
+          {!readOnly && isSubsManager && (
+            <Badge variant="default" className="text-[10px] shrink-0 bg-primary/90">
+              <UserCog className="h-3 w-3 mr-1" />
+              Subs Manager
+            </Badge>
+          )}
           
           <div className="flex-1" />
 
@@ -4251,6 +4326,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <>
                       <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
                       <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[180px] py-1">
+                        <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", gameInProgress ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress} onClick={() => { setShowLineupPicker(true); setSettingsMenuOpen(false); }}>
+                          <Play className="h-4 w-4" />
+                          Setup Game
+                        </button>
                         <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
                           <RotateCcw className="h-4 w-4" />
                           Reset Formation
@@ -4280,8 +4359,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   )}
                 </div>
                 <PitchSettingsDialog
-                  soundEnabled={isSoundEnabled(teamId)}
-                  onSoundToggle={() => {}}
                   selectedFormation={selectedFormation}
                   onFormationChange={handleFormationChange}
                   formations={FORMATIONS[teamSize]}
@@ -4386,6 +4463,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   key={timerResetKey}
                   ref={gameTimerRef} 
                   compact
+                  compactLarge={!(gameInProgress && !hideScores)}
                   teamId={teamId} 
                   teamName={teamName} 
                   onTimeUpdate={handleTimerUpdate} 
@@ -5089,8 +5167,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 }}
               >
                 {/* Handle bar */}
-                <div className="flex justify-center pt-2 pb-1">
+                <div className="flex items-center justify-center gap-2 pt-2 pb-1">
+                  {autoSubActive && autoSubPlan.length > 0 && (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span>
+                  )}
                   <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+                  {autoSubActive && autoSubPlan.length > 0 && (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -5132,6 +5222,36 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </div>
                     </div>
                     </div>
+                    {/* Auto Subs Quick Access - Landscape */}
+                    {!readOnly && !disableAutoSubs && (gameInProgress || autoSubPlan.length > 0) && (
+                      <div className="px-1 py-1">
+                        {autoSubPlan.length > 0 ? (
+                          <button
+                            className="w-full flex items-center justify-center gap-2 rounded-md border border-primary/30 bg-primary/10 text-primary text-sm font-medium px-3 py-2 min-h-[36px] transition-colors hover:bg-primary/20"
+                            onClick={() => {
+                              setAutoSubPanelOpen(true);
+                            }}
+                          >
+                            <ArrowLeftRight className="h-4 w-4" />
+                            Auto Subs ({autoSubPlan.filter(s => s.executed).length}/{autoSubPlan.length})
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                            </span>
+                          </button>
+                        ) : (
+                          <button
+                            className="w-full flex items-center justify-center gap-2 rounded-md border border-border bg-muted/50 text-muted-foreground text-sm font-medium px-3 py-2 min-h-[36px] transition-colors hover:bg-muted"
+                            onClick={() => {
+                              openAutoSubPlanDialog();
+                            }}
+                          >
+                            <ArrowLeftRight className="h-4 w-4" />
+                            Setup Auto Subs
+                          </button>
+                        )}
+                      </div>
+                    )}
                     {/* Bench Players - horizontal scroll */}
                     <div 
                       id="pitch-bench-landscape"
@@ -5564,6 +5684,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             View Only
           </Badge>
         )}
+        {!readOnly && isSubsManager && (
+          <Badge variant="default" className="text-xs px-1.5 py-0.5 shrink-0 bg-primary/90">
+            <UserCog className="h-3 w-3 mr-1" />
+            Subs Manager
+          </Badge>
+        )}
         {!readOnly && (
           <>
             {/* Swap button */}
@@ -5599,6 +5725,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 <>
                   <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
                   <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[99999] min-w-[170px] py-1">
+                    {!readOnly && (
+                      <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", gameInProgress ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress} onClick={() => { setShowLineupPicker(true); setSettingsMenuOpen(false); }}>
+                        <Play className="h-4 w-4" />
+                        Setup Game
+                      </button>
+                    )}
                     {!readOnly && (
                       <button className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-center gap-2" onClick={() => { handleResetFormation(); setSettingsMenuOpen(false); }}>
                         <RotateCcw className="h-4 w-4" />
@@ -5636,8 +5768,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             </div>
             {!readOnly && (
               <PitchSettingsDialog
-                soundEnabled={isSoundEnabled(teamId)}
-                onSoundToggle={() => {}}
                 selectedFormation={selectedFormation}
                 onFormationChange={handleFormationChange}
                 formations={FORMATIONS[teamSize]}
@@ -5718,6 +5848,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   key={timerResetKey}
                   ref={gameTimerRef} 
                   compact
+                  compactLarge={!(gameInProgress && !hideScores && !showScoreInPortrait)}
                   teamId={teamId} 
                   teamName={teamName} 
                   onTimeUpdate={handleTimerUpdate} 
@@ -5976,7 +6107,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   portraitSheetDragRef.current = null;
                 }}
               >
-                <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+                <div className="flex items-center justify-center gap-2">
+                  {autoSubActive && autoSubPlan.length > 0 && (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span>
+                  )}
+                  <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+                  {autoSubActive && autoSubPlan.length > 0 && (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Tab content */}
@@ -6013,6 +6158,38 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         )}
                       </div>
                     </div>
+                    {/* Auto Subs Quick Access - Portrait */}
+                    {!readOnly && !disableAutoSubs && (gameInProgress || autoSubPlan.length > 0) && (
+                      <div className="py-1">
+                        {autoSubPlan.length > 0 ? (
+                          <button
+                            className="w-full flex items-center justify-center gap-2 rounded-md border border-primary/30 bg-primary/10 text-primary text-sm font-medium px-3 py-2 min-h-[36px] transition-colors hover:bg-primary/20"
+                            onClick={() => {
+                              setPortraitSheetOpen(false);
+                              setTimeout(() => setAutoSubPanelOpen(true), 200);
+                            }}
+                          >
+                            <ArrowLeftRight className="h-4 w-4" />
+                            Auto Subs ({autoSubPlan.filter(s => s.executed).length}/{autoSubPlan.length})
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                            </span>
+                          </button>
+                        ) : (
+                          <button
+                            className="w-full flex items-center justify-center gap-2 rounded-md border border-border bg-muted/50 text-muted-foreground text-sm font-medium px-3 py-2 min-h-[36px] transition-colors hover:bg-muted"
+                            onClick={() => {
+                              setPortraitSheetOpen(false);
+                              setTimeout(() => openAutoSubPlanDialog(), 200);
+                            }}
+                          >
+                            <ArrowLeftRight className="h-4 w-4" />
+                            Setup Auto Subs
+                          </button>
+                        )}
+                      </div>
+                    )}
                     {/* Sub mode tips */}
                     {subMode && !selectedOnPitch && playersOnBench.length > 0 && (
                       <p className="text-xs text-primary font-medium bg-primary/10 px-3 py-1.5 rounded">
