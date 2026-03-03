@@ -4386,6 +4386,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   key={timerResetKey}
                   ref={gameTimerRef} 
                   compact
+                  compactLarge={!(gameInProgress && !hideScores)}
                   teamId={teamId} 
                   teamName={teamName} 
                   onTimeUpdate={handleTimerUpdate} 
@@ -5718,6 +5719,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   key={timerResetKey}
                   ref={gameTimerRef} 
                   compact
+                  compactLarge={!(gameInProgress && !hideScores && !showScoreInPortrait)}
                   teamId={teamId} 
                   teamName={teamName} 
                   onTimeUpdate={handleTimerUpdate} 

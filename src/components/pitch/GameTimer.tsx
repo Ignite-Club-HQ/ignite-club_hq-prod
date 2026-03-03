@@ -67,6 +67,7 @@ export interface GameTimerRef {
 
 interface GameTimerProps {
   compact?: boolean;
+  compactLarge?: boolean; // Larger compact mode when no score is showing
   large?: boolean; // Larger touch targets for landscape setup tab
   teamId?: string;
   teamName?: string;
@@ -182,6 +183,7 @@ export const clearTimerState = (teamId?: string) => {
 
 const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({ 
   compact = false,
+  compactLarge = false,
   large = false,
   teamId,
   teamName,
@@ -381,11 +383,12 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
 
 
   if (compact) {
+    const isLarge = compactLarge;
     return (
-      <div className="flex items-center gap-1">
+      <div className={cn("flex items-center", isLarge ? "gap-2" : "gap-1")}>
         {!hideExtras && (
           <Select value={minutesPerHalf.toString()} onValueChange={handleHalfDurationChange} disabled={readOnly || isGameFinished || isRunning || elapsedSeconds > 0}>
-            <SelectTrigger className="w-14 h-7 text-xs px-1.5">
+            <SelectTrigger className={cn(isLarge ? "w-16 h-9 text-sm px-2" : "w-14 h-7 text-xs px-1.5")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="z-[99999] bg-popover">
@@ -402,28 +405,32 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
           </Select>
         )}
         <div className={cn(
-          "flex items-center px-1.5 py-0.5 rounded text-xs",
+          "flex items-center rounded",
+          isLarge ? "px-2.5 py-1" : "px-1.5 py-0.5",
+          isLarge ? "text-sm" : "text-xs",
           isGameFinished ? "bg-primary/20" : "bg-muted"
         )}>
-          <span className="font-medium text-muted-foreground">
+          <span className={cn("font-medium text-muted-foreground", isLarge && "text-sm")}>
             {isGameFinished ? "FT" : `H${currentHalf}`}
           </span>
-          <span className="font-mono font-bold ml-1">{getDisplayTime()}</span>
+          <span className={cn("font-mono font-bold ml-1", isLarge ? "text-lg" : "")}>
+            {getDisplayTime()}
+          </span>
         </div>
         {!readOnly && !hidePlayPause && (
           <Button 
             variant="outline" 
             size="icon" 
-            className="h-8 w-8" 
+            className={cn(isLarge ? "h-10 w-10" : "h-8 w-8")} 
             onClick={toggleTimer}
             disabled={isGameFinished}
           >
-            {isRunning ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+            {isRunning ? <Pause className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} /> : <Play className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} />}
           </Button>
         )}
         {!hideExtras && !readOnly && !hideSoundToggle && (
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleSoundToggle}>
-            {soundEnabled ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}
+          <Button variant="outline" size="icon" className={cn(isLarge ? "h-10 w-10" : "h-8 w-8")} onClick={handleSoundToggle}>
+            {soundEnabled ? <Volume2 className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} /> : <VolumeX className={cn(isLarge ? "h-4 w-4" : "h-3 w-3")} />}
           </Button>
         )}
       </div>
