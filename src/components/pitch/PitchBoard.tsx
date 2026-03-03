@@ -5119,8 +5119,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 }}
               >
                 {/* Handle bar */}
-                <div className="flex justify-center pt-2 pb-1">
+                <div className="flex items-center justify-center gap-2 pt-2 pb-1">
+                  {autoSubActive && autoSubPlan.length > 0 && (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span>
+                  )}
                   <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+                  {autoSubActive && autoSubPlan.length > 0 && (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -6047,7 +6059,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   portraitSheetDragRef.current = null;
                 }}
               >
-                <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+                <div className="flex items-center justify-center gap-2">
+                  {autoSubActive && autoSubPlan.length > 0 && (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span>
+                  )}
+                  <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+                  {autoSubActive && autoSubPlan.length > 0 && (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Tab content */}
