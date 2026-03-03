@@ -784,14 +784,17 @@ function PitchToolbar({
                   AutoSub
                 </Button>
               ) : (
-                <DropdownMenu>
+                <DropdownMenu modal={true}>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className={`${collapsedButtonHeight} px-2 text-xs gap-1`}>
                       <Settings2 size={collapsedIconSizeNum} />
                       <ChevronDown size={collapsedIconSizeNum} />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="z-[99999]">
+                  <DropdownMenuContent align="start" className="z-[99999]" collisionPadding={16}
+                    onPointerDownOutside={(e) => e.detail.originalEvent.stopPropagation()}
+                    onFocusOutside={(e) => e.preventDefault()}
+                  >
                     <DropdownMenuItem onClick={onOpenEditPlan}>
                       <Pencil className="h-4 w-4 mr-2" />
                       Edit Plan
@@ -930,14 +933,17 @@ function PitchToolbar({
                 AutoSub
               </Button>
             ) : (
-              <DropdownMenu>
+              <DropdownMenu modal={true}>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className={subButtonClass + " gap-1"}>
                     <Settings2 size={iconSizeNum} />
                     <ChevronDown size={12} />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="z-[99999]">
+                <DropdownMenuContent align="start" className="z-[99999]" collisionPadding={16}
+                  onPointerDownOutside={(e) => e.detail.originalEvent.stopPropagation()}
+                  onFocusOutside={(e) => e.preventDefault()}
+                >
                   <DropdownMenuItem onClick={onOpenEditPlan}>
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit Plan
