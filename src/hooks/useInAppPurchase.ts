@@ -144,6 +144,17 @@ export function useInAppPurchase(): UseInAppPurchaseReturn {
           setPurchaseState("idle");
           return false;
         }
+        // Handle Apple Sandbox "account temporarily unavailable" error gracefully
+        if (
+          lowerMessage.includes("temporarily unavailable") ||
+          lowerMessage.includes("sandbox") ||
+          lowerMessage.includes("cannot connect to itunes")
+        ) {
+          console.warn("[IAP] Sandbox/store connectivity issue:", message);
+          setError("Unable to connect to the App Store. Please check your network connection and try again.");
+          setPurchaseState("error");
+          return false;
+        }
         console.error("[IAP] Purchase error:", err);
         setError(message);
         setPurchaseState("error");
