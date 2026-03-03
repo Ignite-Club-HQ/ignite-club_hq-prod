@@ -281,6 +281,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
   const [nextSubInfo, setNextSubInfo] = useState<{ playerInId: string; playerOutId: string; countdown: string } | null>(null);
+  const [subDuePlayerIds, setSubDuePlayerIds] = useState<Set<string>>(new Set());
+  const subDueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
@@ -2839,6 +2841,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       // Create database notification (triggers server-side push)
       createSubNotification(notificationBody);
       
+      // Set sub-due pulsing for all players involved in the batch
+      const dueIds = new Set<string>();
+      batchSubs.forEach(s => {
+        dueIds.add(s.playerOut.id);
+        dueIds.add(s.playerIn.id);
+      });
+      setSubDuePlayerIds(dueIds);
+      // Clear pulse after 30 seconds
+      if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
+      subDueTimerRef.current = setTimeout(() => setSubDuePlayerIds(new Set()), 30000);
+
       setPendingAutoSub(primarySub);
       setPendingBatchSubs(additionalSubs);
       setSubConfirmDialogOpen(true);
@@ -3014,6 +3027,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setSubConfirmDialogOpen(false);
     setPendingAutoSub(null);
     setPendingBatchSubs([]);
+    setSubDuePlayerIds(new Set());
+    if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
     
     // Check if all subs executed
     const remainingSubs = autoSubPlan.filter(sub => 
@@ -3053,6 +3068,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setSubConfirmDialogOpen(false);
     setPendingAutoSub(null);
     setPendingBatchSubs([]);
+    setSubDuePlayerIds(new Set());
+    if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
   }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, toast]);
 
   // Ball drag handlers
@@ -4616,6 +4633,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   teamColor={getPlayerTeamColor(player)}
                   isNextSub={nextSubInfo?.playerOutId === player.id}
                   nextSubCountdown={nextSubInfo?.playerOutId === player.id ? nextSubInfo.countdown : null}
+                  isSubDue={subDuePlayerIds.has(player.id)}
                   style={{
                     position: "absolute",
                     ...(() => {
@@ -5088,6 +5106,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                               teamColor={getPlayerTeamColor(player)}
                               isNextSub={nextSubInfo?.playerInId === player.id}
                               nextSubCountdown={nextSubInfo?.playerInId === player.id ? nextSubInfo.countdown : null}
+                              isSubDue={subDuePlayerIds.has(player.id)}
                             />
                           </div>
                         ))}
@@ -5981,6 +6000,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                             teamColor={getPlayerTeamColor(player)}
                             isNextSub={nextSubInfo?.playerInId === player.id}
                             nextSubCountdown={nextSubInfo?.playerInId === player.id ? nextSubInfo.countdown : null}
+                            isSubDue={subDuePlayerIds.has(player.id)}
                           />
                         ))}
                     </div>
@@ -6243,6 +6263,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 teamColor={getPlayerTeamColor(player)}
                 isNextSub={nextSubInfo?.playerOutId === player.id}
                 nextSubCountdown={nextSubInfo?.playerOutId === player.id ? nextSubInfo.countdown : null}
+                isSubDue={subDuePlayerIds.has(player.id)}
                 style={{
                   position: "absolute",
                   ...(() => {
