@@ -1716,9 +1716,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       ["L", rightHeadX, rightHeadY],
     ];
 
+    const { minX, minY } = arrowPathData.reduce(
+      (acc, entry) => {
+        const x = Number(entry[1]);
+        const y = Number(entry[2]);
+        return {
+          minX: Number.isFinite(x) ? Math.min(acc.minX, x) : acc.minX,
+          minY: Number.isFinite(y) ? Math.min(acc.minY, y) : acc.minY,
+        };
+      },
+      { minX: Number.POSITIVE_INFINITY, minY: Number.POSITIVE_INFINITY }
+    );
+
     return new Path(arrowPathData as any, {
-      left: startX,
-      top: startY,
+      left: startX + (Number.isFinite(minX) ? minX : 0),
+      top: startY + (Number.isFinite(minY) ? minY : 0),
       originX: "left",
       originY: "top",
       stroke: color,
@@ -1743,10 +1755,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   useEffect(() => {
     if (!fabricCanvas) return;
 
+    const getArrowPointer = (eventPayload: any) => {
+      if (eventPayload?.scenePoint) return eventPayload.scenePoint;
+      if (eventPayload?.pointer) return eventPayload.pointer;
+
+      const nativeEvent = eventPayload?.e ?? eventPayload;
+      const canvasWithScenePoint = fabricCanvas as any;
+      if (typeof canvasWithScenePoint.getScenePoint === "function") {
+        return canvasWithScenePoint.getScenePoint(nativeEvent);
+      }
+
+      return fabricCanvas.getViewportPoint(nativeEvent);
+    };
+
     const handleMouseDown = (e: any) => {
       if (drawingTool !== "arrow") return;
       
-      const pointer = fabricCanvas.getViewportPoint(e.e);
+      const pointer = getArrowPointer(e);
+      if (!pointer) return;
       isDrawingArrowRef.current = true;
       arrowStartRef.current = { x: pointer.x, y: pointer.y };
     };
@@ -1754,7 +1780,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const handleMouseMove = (e: any) => {
       if (!isDrawingArrowRef.current || !arrowStartRef.current || drawingTool !== "arrow") return;
       
-      const pointer = fabricCanvas.getViewportPoint(e.e);
+      const pointer = getArrowPointer(e);
+      if (!pointer) return;
       
       // Remove temp arrow
       if (tempArrowRef.current) {
@@ -1780,7 +1807,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const handleMouseUp = (e: any) => {
       if (!isDrawingArrowRef.current || !arrowStartRef.current || drawingTool !== "arrow") return;
       
-      const pointer = fabricCanvas.getViewportPoint(e.e);
+      const pointer = getArrowPointer(e);
+      if (!pointer) return;
       
       // Remove temp arrow
       if (tempArrowRef.current) {
