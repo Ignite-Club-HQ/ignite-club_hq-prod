@@ -59,6 +59,77 @@ export const prefetchFabric = (): void => {
   }
 };
 
+interface PitchArrowData {
+  kind?: string;
+  startX?: number;
+  startY?: number;
+  endX?: number;
+  endY?: number;
+}
+
+const buildArrowPathData = (dx: number, dy: number) => {
+  const angle = Math.atan2(dy, dx);
+  const headLength = 12;
+  const headSpread = Math.PI / 7;
+
+  const leftHeadX = dx - headLength * Math.cos(angle - headSpread);
+  const leftHeadY = dy - headLength * Math.sin(angle - headSpread);
+  const rightHeadX = dx - headLength * Math.cos(angle + headSpread);
+  const rightHeadY = dy - headLength * Math.sin(angle + headSpread);
+
+  return [
+    ["M", 0, 0],
+    ["L", dx, dy],
+    ["M", dx, dy],
+    ["L", leftHeadX, leftHeadY],
+    ["M", dx, dy],
+    ["L", rightHeadX, rightHeadY],
+  ];
+};
+
+const scaleArrowPathObject = (obj: any, scaleX: number, scaleY: number): boolean => {
+  const arrowData = obj?.data as PitchArrowData | undefined;
+
+  if (obj?.type !== "path" || arrowData?.kind !== "pitch-arrow") {
+    return false;
+  }
+
+  if (
+    typeof arrowData.startX !== "number" ||
+    typeof arrowData.startY !== "number" ||
+    typeof arrowData.endX !== "number" ||
+    typeof arrowData.endY !== "number"
+  ) {
+    return false;
+  }
+
+  const nextStartX = arrowData.startX * scaleX;
+  const nextStartY = arrowData.startY * scaleY;
+  const nextEndX = arrowData.endX * scaleX;
+  const nextEndY = arrowData.endY * scaleY;
+
+  obj.set({
+    left: nextStartX,
+    top: nextStartY,
+    scaleX: 1,
+    scaleY: 1,
+    path: buildArrowPathData(nextEndX - nextStartX, nextEndY - nextStartY),
+    data: {
+      ...arrowData,
+      startX: nextStartX,
+      startY: nextStartY,
+      endX: nextEndX,
+      endY: nextEndY,
+    },
+  });
+
+  if (typeof obj.setCoords === "function") {
+    obj.setCoords();
+  }
+
+  return true;
+};
+
 const scaleCanvasObjects = (
   canvas: FabricCanvas,
   fromWidth: number,
@@ -77,6 +148,10 @@ const scaleCanvasObjects = (
   // All objects get full non-uniform scaling so drawings keep their
   // relative placement on the stretched pitch across orientation changes.
   canvas.getObjects().forEach((obj: any) => {
+    if (scaleArrowPathObject(obj, scaleX, scaleY)) {
+      return;
+    }
+
     obj.set({
       left: (obj.left ?? 0) * scaleX,
       top: (obj.top ?? 0) * scaleY,
