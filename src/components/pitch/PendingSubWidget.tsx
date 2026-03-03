@@ -19,6 +19,7 @@ import {
 import { UserRoundCheck, ArrowRightLeft, ChevronRight, X, Clock, ArrowDown, ArrowUp, SkipForward, Pencil } from "lucide-react";
 import { PitchPosition } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
+import { recalculateRemainingPlan } from "./pitchStateUtils";
 
 const TIMER_STATE_KEY = "pitch-board-timer-state";
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
@@ -62,6 +63,7 @@ interface TimerState {
 interface PitchBoardState {
   teamId: string;
   players: Player[];
+  teamSize: string;
   autoSubPlan: SubstitutionEvent[];
   autoSubActive: boolean;
   autoSubPaused: boolean;
@@ -391,44 +393,23 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           return s;
         });
         
-        // If sub was made late (more than 30 seconds), regenerate remaining subs
-        if (delaySeconds > 30) {
-          console.log(`[PendingSubWidget] Sub was ${Math.round(delaySeconds / 60)}m late, regenerating remaining plan`);
+        // If sub was made late (more than 30 seconds), regenerate remaining subs using proper algorithm
+        if (delaySeconds > 30 && updatedPlan.some(s => !s.executed)) {
+          console.log(`[PendingSubWidget] Sub was ${Math.round(delaySeconds / 60)}m late, recalculating remaining plan`);
           
-          // Get remaining unexecuted subs
-          const remainingSubs = updatedPlan.filter(s => !s.executed);
+          const halfDurationSeconds = minutesPerHalf * 60;
+          const recalculated = recalculateRemainingPlan(
+            updatedPlayers,
+            parseInt(pitchState.teamSize),
+            halfDurationSeconds,
+            currentElapsedSeconds,
+            currentHalf as 1 | 2,
+            sub,
+            true
+          );
           
-          if (remainingSubs.length > 0) {
-            // Calculate time remaining in game
-            const totalGameSeconds = minutesPerHalf * 2 * 60;
-            const remainingGameSeconds = totalGameSeconds - currentTotalSeconds;
-            
-            // Redistribute remaining subs evenly across remaining time
-            const numRemainingSubs = remainingSubs.length;
-            const intervalBetweenSubs = Math.floor(remainingGameSeconds / (numRemainingSubs + 1));
-            
-            // Minimum interval of 60 seconds
-            const minInterval = 60;
-            const actualInterval = Math.max(intervalBetweenSubs, minInterval);
-            
-            let nextSubTime = currentTotalSeconds + actualInterval;
-            
-            // Update the times for remaining subs
-            updatedPlan = updatedPlan.map(s => {
-              if (s.executed) return s;
-              
-              // Calculate new half and time for this sub
-              const halfDurationSeconds = minutesPerHalf * 60;
-              const newHalf: 1 | 2 = nextSubTime < halfDurationSeconds ? 1 : 2;
-              const newTime = newHalf === 1 ? nextSubTime : nextSubTime - halfDurationSeconds;
-              
-              nextSubTime += actualInterval;
-              
-              return { ...s, half: newHalf, time: Math.floor(newTime) };
-            });
-            
-            console.log(`[PendingSubWidget] Redistributed ${numRemainingSubs} remaining subs with ${Math.round(actualInterval / 60)}m intervals`);
-          }
+          updatedPlan = [...updatedPlan.filter(s => s.executed), ...recalculated];
+          console.log(`[PendingSubWidget] Recalculated ${recalculated.length} remaining subs`);
         }
         
         const updatedState = { ...pitchState, autoSubPlan: updatedPlan, players: updatedPlayers };
