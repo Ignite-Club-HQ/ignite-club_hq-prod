@@ -142,14 +142,17 @@ const recalculateRemainingPlan = (
   });
   
   if (outfieldOnBench.length === 0) {
-    if (rotateGkAtHalftime && gkOnBench && gkOnPitch && currentHalf === 1) {
-      plan.push({
-        time: 0,
-        half: 2,
-        playerOut: gkOnPitch,
-        playerIn: gkOnBench,
-        executed: false,
-      });
+    if (rotateGkAtHalftime && gkOnPitch && currentHalf === 1) {
+      const gkReplacement = gkOnBench || null;
+      if (gkReplacement) {
+        plan.push({
+          time: 0,
+          half: 2,
+          playerOut: gkOnPitch,
+          playerIn: gkReplacement,
+          executed: false,
+        });
+      }
     }
     return plan;
   }
@@ -287,14 +290,22 @@ const recalculateRemainingPlan = (
     }
   }
   
-  if (rotateGkAtHalftime && gkOnBench && gkOnPitch && currentHalf === 1) {
-    plan.push({
-      time: 0,
-      half: 2,
-      playerOut: gkOnPitch,
-      playerIn: gkOnBench,
-      executed: false,
-    });
+  if (rotateGkAtHalftime && gkOnPitch && currentHalf === 1) {
+    const gkReplacement = gkOnBench || (() => {
+      const benchAtEnd = outfieldPlayers
+        .filter(p => !currentOnPitch.has(p.id))
+        .sort((a, b) => (a.minutesPlayed || 0) - (b.minutesPlayed || 0));
+      return benchAtEnd[0] || null;
+    })();
+    if (gkReplacement) {
+      plan.push({
+        time: 0,
+        half: 2,
+        playerOut: gkOnPitch,
+        playerIn: gkReplacement,
+        executed: false,
+      });
+    }
   }
   
   plan.sort((a, b) => {

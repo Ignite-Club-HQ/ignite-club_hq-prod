@@ -179,14 +179,17 @@ export const recalculateRemainingPlan = (
   });
   
   if (outfieldOnBench.length === 0) {
-    if (rotateGkAtHalftime && gkOnBench && gkOnPitch && currentHalf === 1) {
-      plan.push({
-        time: 0,
-        half: 2,
-        playerOut: gkOnPitch,
-        playerIn: gkOnBench,
-        executed: false,
-      });
+    if (rotateGkAtHalftime && gkOnPitch && currentHalf === 1) {
+      const gkReplacement = gkOnBench || null;
+      if (gkReplacement) {
+        plan.push({
+          time: 0,
+          half: 2,
+          playerOut: gkOnPitch,
+          playerIn: gkReplacement,
+          executed: false,
+        });
+      }
     }
     return plan;
   }
