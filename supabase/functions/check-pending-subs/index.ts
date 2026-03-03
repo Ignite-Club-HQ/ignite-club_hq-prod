@@ -258,13 +258,37 @@ async function checkGames(supabase: any): Promise<number> {
     };
 
     // Find next unexecuted sub for current half that's due
+    // Skip subs that are more than 90 seconds overdue (matches client-side auto-skip)
+    const AUTO_SKIP_THRESHOLD_SECS = 90;
     const nextSub = pitchState.autoSubPlan.find((sub: SubstitutionEvent) => {
       const absoluteSubTime = getAbsoluteSubTime(sub);
+      const overdueSeconds = currentElapsed - sub.time;
       return !sub.executed &&
         sub.half === currentHalf &&
         currentElapsed >= sub.time &&
+        overdueSeconds <= AUTO_SKIP_THRESHOLD_SECS &&
         absoluteSubTime > (game.last_sub_check_time || 0);
     });
+
+    // Also advance last_sub_check_time past any severely overdue subs so we don't re-check them
+    const overdueSubs = pitchState.autoSubPlan.filter((sub: SubstitutionEvent) => {
+      const absoluteSubTime = getAbsoluteSubTime(sub);
+      const overdueSeconds = currentElapsed - sub.time;
+      return !sub.executed &&
+        sub.half === currentHalf &&
+        currentElapsed >= sub.time &&
+        overdueSeconds > AUTO_SKIP_THRESHOLD_SECS &&
+        absoluteSubTime > (game.last_sub_check_time || 0);
+    });
+
+    if (overdueSubs.length > 0) {
+      const maxOverdueAbsTime = Math.max(...overdueSubs.map((s: SubstitutionEvent) => getAbsoluteSubTime(s)));
+      console.log(`[CHECK-SUBS] Game ${game.id}: Skipping ${overdueSubs.length} overdue sub(s) (>90s past due)`);
+      await supabase
+        .from('active_games')
+        .update({ last_sub_check_time: Math.max(maxOverdueAbsTime, game.last_sub_check_time || 0) })
+        .eq('id', game.id);
+    }
 
     if (nextSub) {
       const playerOutName = nextSub.playerOut.name || `#${nextSub.playerOut.number}`;
