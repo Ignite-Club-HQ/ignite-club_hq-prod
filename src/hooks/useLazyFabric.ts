@@ -81,17 +81,17 @@ const buildArrowPathData = (startX: number, startY: number, endX: number, endY: 
   const headLength = getArrowHeadLength(dx, dy);
   const headSpread = Math.PI / 7;
 
-  const leftHeadX = endX - headLength * Math.cos(angle - headSpread);
-  const leftHeadY = endY - headLength * Math.sin(angle - headSpread);
-  const rightHeadX = endX - headLength * Math.cos(angle + headSpread);
-  const rightHeadY = endY - headLength * Math.sin(angle + headSpread);
+  const leftHeadX = dx - headLength * Math.cos(angle - headSpread);
+  const leftHeadY = dy - headLength * Math.sin(angle - headSpread);
+  const rightHeadX = dx - headLength * Math.cos(angle + headSpread);
+  const rightHeadY = dy - headLength * Math.sin(angle + headSpread);
 
   return [
-    ["M", startX, startY],
-    ["L", endX, endY],
-    ["M", endX, endY],
+    ["M", 0, 0],
+    ["L", dx, dy],
+    ["M", dx, dy],
     ["L", leftHeadX, leftHeadY],
-    ["M", endX, endY],
+    ["M", dx, dy],
     ["L", rightHeadX, rightHeadY],
   ];
 };
@@ -177,8 +177,8 @@ const scaleArrowPathObject = (obj: any, scaleX: number, scaleY: number): boolean
   const nextEndY = arrowData.endY * scaleY;
 
   obj.set({
-    left: 0,
-    top: 0,
+    left: nextStartX,
+    top: nextStartY,
     originX: "left",
     originY: "top",
     scaleX: 1,
