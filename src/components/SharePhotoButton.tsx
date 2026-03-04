@@ -52,11 +52,11 @@ export function SharePhotoButton({ photoId, imageUrl, title }: SharePhotoButtonP
     <Button
       variant="ghost"
       size="icon"
-      className="h-10 w-10 text-muted-foreground hover:text-primary"
+      className="h-11 w-11 text-muted-foreground hover:text-primary"
       onClick={handleShare}
       title="Share photo"
     >
-      <Share2 className="h-5 w-5" />
+      <Share2 className="h-6 w-6" />
     </Button>
   );
 }
