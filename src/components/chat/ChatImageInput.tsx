@@ -99,13 +99,29 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       // Let Camera.getPhoto handle permissions natively on iOS to preserve
       // the gesture-chain context. Explicit checkPermissions/requestPermissions
       // before getPhoto breaks the gesture on first attempt.
-      console.log("[ChatImageInput] calling getPhoto (Base64 mode, single attempt)...");
-      const photo = await Camera.getPhoto({
-        resultType: CameraResultType.Base64,
-        source: CameraSource.Photos,
-        allowEditing: false,
-        quality: 80,
-      });
+      let photo: Awaited<ReturnType<typeof Camera.getPhoto>>;
+      try {
+        console.log("[ChatImageInput] calling getPhoto (Base64 mode, attempt 1)...");
+        photo = await Camera.getPhoto({
+          resultType: CameraResultType.Base64,
+          source: CameraSource.Photos,
+          allowEditing: false,
+          quality: 80,
+        });
+      } catch (firstAttemptError: unknown) {
+        // On first-ever launch iOS shows a permission dialog that can break the
+        // gesture chain, causing getPhoto to fail. Retry once automatically.
+        if (isCancelledSelectionError(firstAttemptError)) {
+          throw firstAttemptError; // genuine cancel — don't retry
+        }
+        console.warn("[ChatImageInput] getPhoto attempt 1 failed, retrying:", firstAttemptError);
+        photo = await Camera.getPhoto({
+          resultType: CameraResultType.Base64,
+          source: CameraSource.Photos,
+          allowEditing: false,
+          quality: 80,
+        });
+      }
       console.log("[ChatImageInput] getPhoto OK", {
         webPath: photo.webPath,
         path: photo.path,
