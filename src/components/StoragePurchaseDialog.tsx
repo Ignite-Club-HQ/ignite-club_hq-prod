@@ -257,34 +257,41 @@ export function StoragePurchaseDialog({
     try {
       const { NativePurchases, PURCHASE_TYPE } = await import("@capgo/native-purchases");
 
-      // First verify the product exists in the store
-      let products;
-      try {
-        products = await NativePurchases.getProducts({
+      // Verify product exists in store, preferring SUBS and falling back to INAPP
+      const productTypesToCheck = [PURCHASE_TYPE.SUBS, PURCHASE_TYPE.INAPP];
+      let matchedProduct: any = null;
+      let matchedPurchaseType: any = PURCHASE_TYPE.SUBS;
+
+      for (const type of productTypesToCheck) {
+        const result = await NativePurchases.getProducts({
           productIdentifiers: [productId],
-          productType: PURCHASE_TYPE.SUBS,
+          productType: type,
         });
-      } catch {
-        // Try as INAPP if SUBS lookup fails
-        products = await NativePurchases.getProducts({
-          productIdentifiers: [productId],
-          productType: PURCHASE_TYPE.INAPP,
-        });
+
+        if (result?.products?.length) {
+          matchedProduct = result.products[0];
+          matchedPurchaseType = type;
+          break;
+        }
       }
 
-      if (!products?.products?.length) {
-        toast.error("This storage pack is not yet available for in-app purchase. Please try again later.");
-        console.error("[IAP] Product not found in store:", productId);
+      if (!matchedProduct) {
+        toast.error("This storage pack is not available for in-app purchase on this build.");
+        console.error("[IAP] Product not found in store:", { productId, platform: Capacitor.getPlatform() });
         return;
       }
 
-      const storeProduct = products.products[0];
-      const purchaseType = storeProduct.productType === "subs" ? PURCHASE_TYPE.SUBS : PURCHASE_TYPE.INAPP;
-
-      const purchaseResult = await NativePurchases.purchaseProduct({
+      const purchaseOptions: any = {
         productIdentifier: productId,
-        productType: purchaseType,
-      });
+        productType: matchedPurchaseType,
+      };
+
+      // Android subscriptions require a plan identifier
+      if (Capacitor.getPlatform() === "android" && matchedPurchaseType === PURCHASE_TYPE.SUBS) {
+        purchaseOptions.planIdentifier = productId;
+      }
+
+      const purchaseResult = await NativePurchases.purchaseProduct(purchaseOptions);
 
       if (!purchaseResult?.transactionId) {
         throw new Error("Purchase was cancelled");

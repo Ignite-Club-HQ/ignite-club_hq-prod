@@ -84,8 +84,8 @@ export function useInAppPurchase(): UseInAppPurchaseReturn {
 
         const { NativePurchases, PURCHASE_TYPE } = await import("@capgo/native-purchases");
 
-        // Determine if this is a subscription or consumable
-        const isSubscription = !productId.includes("storage");
+        // All current IAP SKUs are recurring plans (monthly/annual)
+        const isSubscription = productId.includes("_monthly") || productId.includes("_annual");
 
         // Get product info
         setPurchaseState("purchasing");
@@ -95,7 +95,7 @@ export function useInAppPurchase(): UseInAppPurchaseReturn {
           productType: isSubscription ? PURCHASE_TYPE.SUBS : PURCHASE_TYPE.INAPP,
         };
 
-        // On Android subscriptions, planIdentifier may be needed
+        // Android subscriptions require a plan identifier
         if (isSubscription && Capacitor.getPlatform() === "android") {
           purchaseOptions.planIdentifier = productId;
         }
