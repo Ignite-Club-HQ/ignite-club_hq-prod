@@ -297,7 +297,7 @@ export const ChatMessage = memo(function ChatMessage({
       try {
         localStorage.removeItem('messages-page-cache');
       } catch {}
-      toast.success("Message deleted");
+      // Silent success - no toast
     },
     onError: (err, variables, context) => {
       if (context?.previousMessages) {

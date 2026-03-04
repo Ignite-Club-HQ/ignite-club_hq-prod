@@ -719,7 +719,7 @@ export default function MediaPage() {
     onSuccess: (_, { photoId, deleteFromVault }) => {
       // Remove from local storage cache
       removePhotoFromCache(photoId);
-      toast.success(deleteFromVault ? "Photo moved to trash" : "Photo removed from feed");
+      // Silent success - no toast
     },
     onError: (error: any, _, context) => {
       // Rollback on error
