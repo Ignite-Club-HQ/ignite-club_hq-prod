@@ -771,6 +771,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Portrait timer touch handlers (drag + pinch)
   const handlePortraitTimerTouchStart = useCallback((e: React.TouchEvent) => {
+    // Don't initiate drag if the touch target is inside a dropdown or interactive element
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-timer-dropdown]') || target.closest('button')) return;
+
     const container = (e.currentTarget as HTMLElement).parentElement;
     // 2-finger pinch
     if (e.touches.length === 2) {
@@ -1324,6 +1328,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Ball position state
   const [ballPosition, setBallPosition] = useState<{ x: number; y: number }>(() => savedState?.ballPosition || { x: 50, y: 50 });
   const [isDraggingBall, setIsDraggingBall] = useState(false);
+  const isDraggingBallRef = useRef(false);
 
   // Helper to get team color for a player in mini-league mode
   const getPlayerTeamColor = useCallback((player: Player): string | undefined => {
@@ -2156,26 +2161,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         ? `${baseSummary} — ${changeParts.join(" • ")}`
         : baseSummary;
 
-      for (const userId of recipientIds) {
-        // In-app notification
+      for (const recipientId of recipientIds) {
+        // In-app notification (DB trigger handles push delivery automatically)
         supabase.from("notifications").insert({
-          user_id: userId,
+          user_id: recipientId,
           type: "formation_change",
           message: notificationMessage,
           related_id: teamId,
         }).then(() => {});
-
-        // Push notification
-        supabase.functions.invoke("send-push-notification", {
-          body: {
-            userId,
-            title,
-            body,
-            url: `/teams/${teamId}`,
-            tag: `pitch-change-${teamId}`,
-            notificationType: "pitch_board",
-          },
-        }).catch(() => {});
       }
     } catch (e) {
       console.error("Failed to send formation change notification:", e);
@@ -3271,11 +3264,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const handleBallTouchStart = (e: React.TouchEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    isDraggingBallRef.current = true;
     setIsDraggingBall(true);
+    // Immediately update position on touch start
+    if (containerRef.current) {
+      const touch = e.touches[0];
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = ((touch.clientX - rect.left) / rect.width) * 100;
+      const y = ((touch.clientY - rect.top) / rect.height) * 100;
+      setBallPosition({ x: Math.max(2, Math.min(98, x)), y: Math.max(2, Math.min(98, y)) });
+    }
   };
 
   const handleBallTouchMove = (e: React.TouchEvent) => {
-    if (!isDraggingBall || !containerRef.current) return;
+    if (!isDraggingBallRef.current || !containerRef.current) return;
     e.preventDefault();
     const touch = e.touches[0];
     const rect = containerRef.current.getBoundingClientRect();
@@ -3285,6 +3287,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
 
   const handleBallTouchEnd = () => {
+    isDraggingBallRef.current = false;
     setIsDraggingBall(false);
   };
 
@@ -5910,7 +5913,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {timerTacticalDropdownOpen && (
                   <>
                   <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerTacticalDropdownOpen(false); }} />
-                  <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[130px] py-1">
+                   <div data-timer-dropdown className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[130px] py-1">
                     {(["defend", "neutral", "attack"] as TacticalMode[]).map((mode) => (
                       <button
                         key={mode}
@@ -5937,7 +5940,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {timerFormationDropdownOpen && (
                   <>
                   <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerFormationDropdownOpen(false); }} />
-                  <div className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[140px] py-1 max-h-48 overflow-y-auto">
+                   <div data-timer-dropdown className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[140px] py-1 max-h-48 overflow-y-auto">
                     {FORMATIONS[teamSize].map((f, i) => (
                       <button
                         key={i}
@@ -6743,7 +6746,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         document.body
       )}
 
-      {/* FormationChangeDialog rendered once in landscape section above */}
+      {/* Formation Change Dialog - portrait */}
+      <FormationChangeDialog
+        open={formationChangeDialogOpen}
+        onOpenChange={setFormationChangeDialogOpen}
+        currentFormation={FORMATIONS[teamSize][selectedFormation]?.name || ""}
+        newFormation={pendingFormationChange ? FORMATIONS[pendingFormationChange.newTeamSize || teamSize][pendingFormationChange.index]?.name || "" : ""}
+        positionSwaps={pendingFormationChange?.positionSwaps || []}
+        benchMoves={pendingFormationChange?.benchMoves || []}
+        onConfirm={handleFormationChangeConfirm}
+        onCancel={handleFormationChangeCancel}
+        isTeamSizeChange={!!pendingFormationChange?.newTeamSize}
+        currentTeamSize={teamSize}
+        newTeamSize={pendingFormationChange?.newTeamSize}
+      />
 
       {/* Auto-Sub Plan Dialog */}
       <AutoSubPlanDialog

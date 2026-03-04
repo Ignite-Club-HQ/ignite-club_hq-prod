@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -99,6 +99,11 @@ const PageLoader = () => (
   </div>
 );
 
+const MediaPhotoRedirect = () => {
+  const { photoId } = useParams();
+  return <Navigate to={`/media?photo=${photoId}`} replace />;
+};
+
 // Read stored theme synchronously to match index.html bootstrap
 const getInitialTheme = (): 'light' | 'dark' => {
   if (typeof window !== 'undefined') {
@@ -186,6 +191,7 @@ const App = () => {
                   <Route path="/messages/:teamId" element={<TeamChatPage />} />
                   <Route path="/groups/:groupId" element={<GroupChatPage />} />
                   <Route path="/media" element={<MediaPage />} />
+                  <Route path="/media/:photoId" element={<MediaPhotoRedirect />} />
                   <Route path="/vault" element={<VaultPage />} />
                   <Route path="/vault/folder/:folderId" element={<VaultPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
