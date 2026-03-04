@@ -100,7 +100,7 @@ export default function AutoSubControlPanel({
           <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
         </div>
 
-        <div className="p-4 space-y-3">
+        <div className="p-4 pb-8 space-y-3">
           {/* Header */}
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -254,7 +254,7 @@ export default function AutoSubControlPanel({
           {/* Scrollable Mini-Timeline */}
           {showTimeline && (
             <div className="rounded-xl border border-border overflow-hidden">
-              <ScrollArea className="max-h-[30vh]">
+              <ScrollArea className="max-h-[50vh]">
                 <div className="divide-y divide-border">
                   {[1, 2].map((half) => {
                     const halfSubs = autoSubPlan
