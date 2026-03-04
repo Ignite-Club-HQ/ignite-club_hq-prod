@@ -1328,6 +1328,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Ball position state
   const [ballPosition, setBallPosition] = useState<{ x: number; y: number }>(() => savedState?.ballPosition || { x: 50, y: 50 });
   const [isDraggingBall, setIsDraggingBall] = useState(false);
+  const isDraggingBallRef = useRef(false);
 
   // Helper to get team color for a player in mini-league mode
   const getPlayerTeamColor = useCallback((player: Player): string | undefined => {
@@ -3275,11 +3276,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const handleBallTouchStart = (e: React.TouchEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    isDraggingBallRef.current = true;
     setIsDraggingBall(true);
+    // Immediately update position on touch start
+    if (containerRef.current) {
+      const touch = e.touches[0];
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = ((touch.clientX - rect.left) / rect.width) * 100;
+      const y = ((touch.clientY - rect.top) / rect.height) * 100;
+      setBallPosition({ x: Math.max(2, Math.min(98, x)), y: Math.max(2, Math.min(98, y)) });
+    }
   };
 
   const handleBallTouchMove = (e: React.TouchEvent) => {
-    if (!isDraggingBall || !containerRef.current) return;
+    if (!isDraggingBallRef.current || !containerRef.current) return;
     e.preventDefault();
     const touch = e.touches[0];
     const rect = containerRef.current.getBoundingClientRect();
@@ -3289,6 +3299,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
 
   const handleBallTouchEnd = () => {
+    isDraggingBallRef.current = false;
     setIsDraggingBall(false);
   };
 
