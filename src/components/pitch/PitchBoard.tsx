@@ -5190,7 +5190,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Bench content */}
                   <div className="space-y-3">
                     {/* Position Filter Chips - sticky */}
-                    <div className="sticky top-[-12px] z-10 bg-background py-2 -mx-3 px-3">
+                    <div className="sticky top-[-12px] z-10 bg-background py-2 -mx-3 px-3 space-y-2">
                       <div className="flex items-center gap-2">
                         <div className="flex gap-2 flex-1 min-w-0">
                         {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
@@ -5221,37 +5221,37 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         )}
                       </div>
                     </div>
+                      {/* Auto Subs Quick Access - Landscape (inside sticky area) */}
+                      {!readOnly && !disableAutoSubs && (gameInProgress || autoSubPlan.length > 0) && (
+                        <>
+                          {autoSubPlan.length > 0 ? (
+                            <button
+                              className="w-full flex items-center justify-center gap-2 rounded-md border border-primary/30 bg-primary/10 text-primary text-sm font-medium px-3 py-2 min-h-[36px] transition-colors hover:bg-primary/20"
+                              onClick={() => {
+                                setAutoSubPanelOpen(true);
+                              }}
+                            >
+                              <ArrowLeftRight className="h-4 w-4" />
+                              Auto Subs ({autoSubPlan.filter(s => s.executed).length}/{autoSubPlan.length})
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                              </span>
+                            </button>
+                          ) : (
+                            <button
+                              className="w-full flex items-center justify-center gap-2 rounded-md border border-border bg-muted/50 text-muted-foreground text-sm font-medium px-3 py-2 min-h-[36px] transition-colors hover:bg-muted"
+                              onClick={() => {
+                                openAutoSubPlanDialog();
+                              }}
+                            >
+                              <ArrowLeftRight className="h-4 w-4" />
+                              Setup Auto Subs
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
-                    {/* Auto Subs Quick Access - Landscape */}
-                    {!readOnly && !disableAutoSubs && (gameInProgress || autoSubPlan.length > 0) && (
-                      <div className="px-1 py-1">
-                        {autoSubPlan.length > 0 ? (
-                          <button
-                            className="w-full flex items-center justify-center gap-2 rounded-md border border-primary/30 bg-primary/10 text-primary text-sm font-medium px-3 py-2 min-h-[36px] transition-colors hover:bg-primary/20"
-                            onClick={() => {
-                              setAutoSubPanelOpen(true);
-                            }}
-                          >
-                            <ArrowLeftRight className="h-4 w-4" />
-                            Auto Subs ({autoSubPlan.filter(s => s.executed).length}/{autoSubPlan.length})
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                            </span>
-                          </button>
-                        ) : (
-                          <button
-                            className="w-full flex items-center justify-center gap-2 rounded-md border border-border bg-muted/50 text-muted-foreground text-sm font-medium px-3 py-2 min-h-[36px] transition-colors hover:bg-muted"
-                            onClick={() => {
-                              openAutoSubPlanDialog();
-                            }}
-                          >
-                            <ArrowLeftRight className="h-4 w-4" />
-                            Setup Auto Subs
-                          </button>
-                        )}
-                      </div>
-                    )}
                     {/* Bench Players - horizontal scroll */}
                     <div 
                       id="pitch-bench-landscape"
