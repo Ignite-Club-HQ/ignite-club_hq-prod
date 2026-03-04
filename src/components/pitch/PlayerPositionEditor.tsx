@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -150,6 +151,10 @@ export default function PlayerPositionEditor({
                 </div>
               </button>
             ))}
+            <Button variant="outline" className="w-full mt-4" onClick={() => onOpenChange(false)}>
+              <X className="h-4 w-4 mr-2" />
+              Close
+            </Button>
           </div>
         )}
       </DialogContent>
