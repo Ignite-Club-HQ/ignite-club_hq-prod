@@ -530,7 +530,7 @@ export function StoragePurchaseDialog({
             </div>
 
             {/* Coming soon message */}
-            {hasStripeConfig === false && (
+            {hasStripeConfig === false && !isNativePlatform() && (
               <div className="bg-muted/50 rounded-lg p-3 text-center space-y-1">
                 <p className="text-sm font-medium">Storage purchases coming soon!</p>
                 <p className="text-xs text-muted-foreground">
@@ -544,7 +544,7 @@ export function StoragePurchaseDialog({
               className="w-full"
               size="lg"
               onClick={handlePurchase}
-              disabled={!selectedPack || !hasStripeConfig || purchaseMutation.isPending}
+              disabled={!selectedPack || (!hasStripeConfig && !isNativePlatform()) || purchaseMutation.isPending}
             >
               {purchaseMutation.isPending ? (
                 <>
