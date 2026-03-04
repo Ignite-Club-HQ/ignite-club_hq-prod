@@ -995,7 +995,7 @@ export default function MediaPage() {
                           : photo.clubs?.name}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-3">
                     {canSharePhoto(photo) && (
                       <SharePhotoButton 
                         photoId={photo.id}
@@ -1005,8 +1005,8 @@ export default function MediaPage() {
                     )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground">
-                          <MoreVertical className="h-5 w-5" />
+                        <Button variant="ghost" size="icon" className="h-11 w-11 text-muted-foreground">
+                          <MoreVertical className="h-6 w-6" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
