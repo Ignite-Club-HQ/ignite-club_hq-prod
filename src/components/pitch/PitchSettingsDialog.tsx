@@ -187,10 +187,10 @@ export function PitchSettingsDialog({
                     onValueChange={(v) => onTeamSizeChange(v as TeamSize)}
                     disabled={readOnly}
                   >
-                    <SelectTrigger className="h-10">
+                    <SelectTrigger className="h-10" data-vaul-no-drag>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="z-[99999] bg-popover">
+                    <SelectContent className="z-[99999] bg-popover" data-vaul-no-drag>
                       <SelectItem value="3">3-a-side</SelectItem>
                       <SelectItem value="4">4-a-side</SelectItem>
                       <SelectItem value="5">5-a-side</SelectItem>
@@ -208,10 +208,10 @@ export function PitchSettingsDialog({
                     onValueChange={onFormationChange}
                     disabled={readOnly}
                   >
-                    <SelectTrigger className="h-10">
+                    <SelectTrigger className="h-10" data-vaul-no-drag>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="z-[99999] bg-popover">
+                    <SelectContent className="z-[99999] bg-popover" data-vaul-no-drag>
                       {formations.map((f, i) => (
                         <SelectItem key={i} value={i.toString()}>{f.name}</SelectItem>
                       ))}
@@ -228,10 +228,10 @@ export function PitchSettingsDialog({
                     onValueChange={(v) => onMinutesPerHalfChange(parseInt(v))}
                     disabled={readOnly || gameInProgress}
                   >
-                    <SelectTrigger className="h-10">
+                    <SelectTrigger className="h-10" data-vaul-no-drag>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="z-[99999] bg-popover">
+                    <SelectContent className="z-[99999] bg-popover" data-vaul-no-drag>
                       <SelectItem value="5">5 min</SelectItem>
                       <SelectItem value="10">10 min</SelectItem>
                       <SelectItem value="15">15 min</SelectItem>
@@ -252,12 +252,12 @@ export function PitchSettingsDialog({
                     onValueChange={(v) => onRotationSpeedChange(parseInt(v))}
                     disabled={readOnly}
                   >
-                    <SelectTrigger className="h-10">
+                    <SelectTrigger className="h-10" data-vaul-no-drag>
                       <SelectValue>
                         {rotationSpeed === 1 ? 'Minimal' : rotationSpeed === 3 ? 'Batch' : 'Balanced'}
                       </SelectValue>
                     </SelectTrigger>
-                     <SelectContent className="z-[99999] bg-popover">
+                     <SelectContent className="z-[99999] bg-popover" data-vaul-no-drag>
                       <SelectItem value="1">
                         <div className="flex items-center gap-2">
                           <Minus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
