@@ -7,9 +7,6 @@ const urlCache = new Map<string, { url: string; expiresAt: number }>();
 // Cache duration: 50 minutes (signed URLs valid for 60 minutes)
 const CACHE_DURATION_MS = 50 * 60 * 1000;
 
-// Timeout for signed URL fetch — fall back to original URL if exceeded
-const FETCH_TIMEOUT_MS = 8000;
-
 export function useSignedPhotoUrl(originalUrl: string | null | undefined) {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,48 +24,22 @@ export function useSignedPhotoUrl(originalUrl: string | null | undefined) {
       return;
     }
 
-    let cancelled = false;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
     const fetchSignedUrl = async () => {
       setIsLoading(true);
-
-      // Set a timeout — if the edge function takes too long, fall back to original URL
-      const timeoutPromise = new Promise<"timeout">((resolve) => {
-        timeoutId = setTimeout(() => resolve("timeout"), FETCH_TIMEOUT_MS);
-      });
-
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          if (!cancelled) {
-            setSignedUrl(originalUrl);
-            setIsLoading(false);
-          }
+          setSignedUrl(originalUrl); // Fallback to original if not authenticated
           return;
         }
 
-        const fetchPromise = supabase.functions.invoke("get-signed-photo-url", {
+        const response = await supabase.functions.invoke("get-signed-photo-url", {
           body: { paths: [originalUrl], expiresIn: 3600 },
         });
 
-        const result = await Promise.race([fetchPromise, timeoutPromise]);
-
-        if (cancelled) return;
-
-        if (result === "timeout") {
-          console.warn("[useSignedPhotoUrl] Timed out fetching signed URL, using original:", originalUrl.substring(0, 80));
-          setSignedUrl(originalUrl);
-          setIsLoading(false);
-          return;
-        }
-
-        const response = result;
-
         if (response.error) {
-          console.error("[useSignedPhotoUrl] Error getting signed URL:", response.error);
+          console.error("Error getting signed URL:", response.error);
           setSignedUrl(originalUrl);
-          setIsLoading(false);
           return;
         }
 
@@ -76,6 +47,7 @@ export function useSignedPhotoUrl(originalUrl: string | null | undefined) {
         const newSignedUrl = signedUrls[originalUrl];
 
         if (newSignedUrl) {
+          // Cache the signed URL
           urlCache.set(originalUrl, {
             url: newSignedUrl,
             expiresAt: Date.now() + CACHE_DURATION_MS,
@@ -85,23 +57,14 @@ export function useSignedPhotoUrl(originalUrl: string | null | undefined) {
           setSignedUrl(originalUrl);
         }
       } catch (error) {
-        console.error("[useSignedPhotoUrl] Error fetching signed URL:", error);
-        if (!cancelled) {
-          setSignedUrl(originalUrl);
-        }
+        console.error("Error fetching signed URL:", error);
+        setSignedUrl(originalUrl);
       } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
       }
     };
 
     fetchSignedUrl();
-
-    return () => {
-      cancelled = true;
-      if (timeoutId) clearTimeout(timeoutId);
-    };
   }, [originalUrl]);
 
   return { signedUrl, isLoading };
@@ -143,52 +106,40 @@ export async function getSignedPhotoUrls(
     for (let i = 0; i < uncachedUrls.length; i += 50) {
       const chunk = uncachedUrls.slice(i, i + 50);
       
-      // Add timeout for batch fetch too
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-      
-      try {
-        const response = await supabase.functions.invoke("get-signed-photo-url", {
-          body: { paths: chunk, expiresIn: 3600 },
+      const response = await supabase.functions.invoke("get-signed-photo-url", {
+        body: { paths: chunk, expiresIn: 3600 },
+      });
+
+      if (response.error) {
+        console.error("Error getting signed URLs:", response.error);
+        // Fallback to original URLs
+        for (const url of chunk) {
+          result[url] = url;
+        }
+        continue;
+      }
+
+      const { signedUrls } = response.data;
+
+      // Cache and add to result
+      for (const [originalUrl, signedUrl] of Object.entries(signedUrls)) {
+        urlCache.set(originalUrl, {
+          url: signedUrl as string,
+          expiresAt: Date.now() + CACHE_DURATION_MS,
         });
+        result[originalUrl] = signedUrl as string;
+      }
 
-        clearTimeout(timeoutId);
-
-        if (response.error) {
-          console.error("[getSignedPhotoUrls] Error getting signed URLs:", response.error);
-          for (const url of chunk) {
-            result[url] = url;
-          }
-          continue;
-        }
-
-        const { signedUrls } = response.data;
-
-        // Cache and add to result
-        for (const [originalUrl, signedUrl] of Object.entries(signedUrls)) {
-          urlCache.set(originalUrl, {
-            url: signedUrl as string,
-            expiresAt: Date.now() + CACHE_DURATION_MS,
-          });
-          result[originalUrl] = signedUrl as string;
-        }
-
-        // For any URLs that weren't returned, use original
-        for (const url of chunk) {
-          if (!result[url]) {
-            result[url] = url;
-          }
-        }
-      } catch (chunkError) {
-        clearTimeout(timeoutId);
-        console.error("[getSignedPhotoUrls] Chunk fetch failed:", chunkError);
-        for (const url of chunk) {
+      // For any URLs that weren't returned, use original
+      for (const url of chunk) {
+        if (!result[url]) {
           result[url] = url;
         }
       }
     }
   } catch (error) {
-    console.error("[getSignedPhotoUrls] Error batch fetching signed URLs:", error);
+    console.error("Error batch fetching signed URLs:", error);
+    // Fallback to original URLs
     for (const url of uncachedUrls) {
       result[url] = url;
     }
