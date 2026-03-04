@@ -105,8 +105,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         source: CameraSource.Photos,
         allowEditing: false,
         quality: 80,
-        width: 1280,
-        height: 1280,
       });
       console.log("[ChatImageInput] getPhoto OK", {
         webPath: photo.webPath,

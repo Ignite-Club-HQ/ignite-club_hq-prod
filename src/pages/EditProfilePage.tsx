@@ -35,18 +35,16 @@ export default function EditProfilePage() {
     setUploadingAvatar(true);
     try {
       const { Camera: CapCamera, CameraResultType, CameraSource } = await import("@capacitor/camera");
+      const { cameraPhotoToBlob } = await import("@/lib/binaryUtils");
       const photo = await CapCamera.getPhoto({
-        resultType: CameraResultType.Uri,
+        resultType: CameraResultType.Base64,
         source: CameraSource.Photos,
         quality: 80,
-        width: 512,
-        height: 512,
+        allowEditing: false,
       });
 
-      if (!photo.webPath) throw new Error("No photo selected");
-
-      const response = await fetch(photo.webPath);
-      const blob = await response.blob();
+      const result = await cameraPhotoToBlob(photo);
+      const blob = result.blob;
       
       if (blob.size > 2 * 1024 * 1024) {
         toast({ title: "File too large", description: "Please select an image under 2MB", variant: "destructive" });

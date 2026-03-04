@@ -95,8 +95,6 @@ export function UploadFilesDialog({
         source: CameraSource.Photos,
         allowEditing: false,
         quality: 80,
-        width: 1600,
-        height: 1600,
       });
       console.log("[UploadFilesDialog] getPhoto OK", {
         webPath: photo.webPath,
