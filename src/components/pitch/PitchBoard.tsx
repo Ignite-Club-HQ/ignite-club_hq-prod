@@ -2161,26 +2161,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         ? `${baseSummary} — ${changeParts.join(" • ")}`
         : baseSummary;
 
-      for (const userId of recipientIds) {
-        // In-app notification
+      for (const recipientId of recipientIds) {
+        // In-app notification (DB trigger handles push delivery automatically)
         supabase.from("notifications").insert({
-          user_id: userId,
+          user_id: recipientId,
           type: "formation_change",
           message: notificationMessage,
           related_id: teamId,
         }).then(() => {});
-
-        // Push notification
-        supabase.functions.invoke("send-push-notification", {
-          body: {
-            userId,
-            title,
-            body,
-            url: `/teams/${teamId}`,
-            tag: `pitch-change-${teamId}`,
-            notificationType: "pitch_board",
-          },
-        }).catch(() => {});
       }
     } catch (e) {
       console.error("Failed to send formation change notification:", e);
