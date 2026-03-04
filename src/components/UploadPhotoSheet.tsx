@@ -503,8 +503,6 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         source: CameraSource.Photos,
         allowEditing: false,
         quality: 80,
-        width: 2000,
-        height: 2000,
       });
       console.log("[UploadPhotoSheet] getPhoto OK", {
         webPath: photo.webPath,
