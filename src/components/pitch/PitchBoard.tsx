@@ -5652,6 +5652,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             />
           </Suspense>
         )}
+
+        {/* Pre-Game Lineup Screen - landscape */}
+        {showLineupPicker && (
+          <Suspense fallback={<DialogLoader />}>
+            <PreGameLineupScreen
+              players={players}
+              teamSize={teamSize}
+              selectedFormation={selectedFormation}
+              rotateGkAtHalftime={rotateGkAtHalftime}
+              onConfirm={handleLineupConfirm}
+              onSkip={handleLineupSkip}
+              onClose={() => setShowLineupPicker(false)}
+              onTeamSizeChange={(size) => setTeamSize(size)}
+              onFormationChange={(index) => setSelectedFormation(index)}
+            />
+          </Suspense>
+        )}
       </div>,
       document.body
     );
@@ -5670,8 +5687,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           teamName={teamName} 
           onLinkEvent={readOnly || (gameInProgress && !!linkedEventId) ? undefined : handleLinkEvent}
         />
-      )}
-      
+        )}
+
       {/* Slim Header */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border shrink-0 bg-background">
         <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose}>
