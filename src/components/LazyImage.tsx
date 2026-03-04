@@ -25,6 +25,7 @@ function getLqipUrl(src: string): string {
 
 export function LazyImage({ src, alt, className = "", priority = false }: LazyImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const [lqipLoaded, setLqipLoaded] = useState(false);
   const [isInView, setIsInView] = useState(priority);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -42,6 +43,7 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
   useEffect(() => {
     if (prevSrcRef.current !== src) {
       setIsLoaded(false);
+      setHasError(false);
       setLqipLoaded(false);
       prevSrcRef.current = src;
     }
@@ -81,12 +83,12 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
   return (
     <>
       {/* Base placeholder - show while loading signed URL or image */}
-      {(!isLoaded && !lqipLoaded) || isLoadingSignedUrl ? (
+      {(!isLoaded && !lqipLoaded && !hasError) || isLoadingSignedUrl ? (
         <div className="absolute inset-0 bg-muted animate-pulse" />
       ) : null}
       
       {/* LQIP blurred placeholder */}
-      {hasLqip && isInView && !isLoaded && !isLoadingSignedUrl && (
+      {hasLqip && isInView && !isLoaded && !hasError && !isLoadingSignedUrl && (
         <img
           src={lqipUrl}
           alt=""
@@ -97,7 +99,7 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
       )}
       
       {/* Full quality image */}
-      {!isLoadingSignedUrl && (
+      {!isLoadingSignedUrl && !hasError && (
         <img
           ref={imgRef}
           src={isInView ? effectiveSrc : undefined}
@@ -106,7 +108,18 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
             isLoaded ? "opacity-100" : "opacity-0"
           } ${className}`}
           onLoad={() => setIsLoaded(true)}
+          onError={() => {
+            console.warn("[LazyImage] Failed to load image:", effectiveSrc?.substring(0, 80));
+            setHasError(true);
+          }}
         />
+      )}
+
+      {/* Error fallback */}
+      {hasError && (
+        <div className="absolute inset-0 bg-muted flex items-center justify-center">
+          <span className="text-xs text-muted-foreground">Image unavailable</span>
+        </div>
       )}
     </>
   );
