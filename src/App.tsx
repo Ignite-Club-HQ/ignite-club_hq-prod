@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 // Force publish - Firebase upgraded to v12.7.0 for Capacitor 8 compatibility
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -113,7 +113,19 @@ const getInitialTheme = (): 'light' | 'dark' => {
 
 const INITIAL_THEME = getInitialTheme();
 
-const App = () => (
+const App = () => {
+  // Global safety net: catch any unhandled promise rejections
+  // This prevents iOS WebView crashes from uncaught async errors
+  useEffect(() => {
+    const handler = (event: PromiseRejectionEvent) => {
+      console.error("[App] Unhandled promise rejection:", event.reason);
+      event.preventDefault(); // Prevent the error from crashing iOS WebView
+    };
+    window.addEventListener("unhandledrejection", handler);
+    return () => window.removeEventListener("unhandledrejection", handler);
+  }, []);
+
+  return (
   <ThemeProvider attribute="class" defaultTheme={INITIAL_THEME} enableSystem={false} storageKey="app-theme">
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -215,6 +227,7 @@ const App = () => (
       </AuthProvider>
     </QueryClientProvider>
   </ThemeProvider>
-);
+  );
+};
 
 export default App;
