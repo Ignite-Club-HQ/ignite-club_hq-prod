@@ -475,137 +475,141 @@ export function AppHeader() {
   });
 
   const handleNotificationClick = async (notification: typeof recentNotifications[0]) => {
-    // Mark as read first
-    if (!notification.is_read) {
-      markAsRead.mutate(notification.id);
-    }
+    try {
+      // Mark as read first
+      if (!notification.is_read) {
+        markAsRead.mutate(notification.id);
+      }
 
-    const relatedId = notification.related_id;
-    if (!relatedId) {
-      navigate("/notifications");
-      return;
-    }
+      const relatedId = notification.related_id;
+      if (!relatedId) {
+        navigate("/notifications");
+        return;
+      }
 
-    switch (notification.type) {
-      case "team_message":
-      case "message_reply":
-      case "message_reaction":
-      case "message_mention":
-        const { data: teamMessage } = await supabase
-          .from("team_messages")
-          .select("team_id")
-          .eq("id", relatedId)
-          .single();
-        if (teamMessage?.team_id) {
-          navigate(`/messages/${teamMessage.team_id}?message=${relatedId}`);
-          return;
-        }
-        const { data: clubMsgForReaction } = await supabase
-          .from("club_messages")
-          .select("club_id")
-          .eq("id", relatedId)
-          .single();
-        if (clubMsgForReaction?.club_id) {
-          navigate(`/messages/club/${clubMsgForReaction.club_id}?message=${relatedId}`);
-          return;
-        }
-        const { data: groupMsgForReaction } = await supabase
-          .from("group_messages")
-          .select("group_id")
-          .eq("id", relatedId)
-          .single();
-        if (groupMsgForReaction?.group_id) {
-          navigate(`/groups/${groupMsgForReaction.group_id}?message=${relatedId}`);
-          return;
-        }
-        const { data: broadcastMsg } = await supabase
-          .from("broadcast_messages")
-          .select("id")
-          .eq("id", relatedId)
-          .single();
-        if (broadcastMsg) {
-          navigate(`/messages/broadcast?message=${relatedId}`);
-          return;
-        }
-        break;
-      case "club_message":
-        const { data: clubMessage } = await supabase
-          .from("club_messages")
-          .select("club_id")
-          .eq("id", relatedId)
-          .single();
-        if (clubMessage?.club_id) {
-          navigate(`/messages/club/${clubMessage.club_id}?message=${relatedId}`);
-          return;
-        }
-        break;
-      case "group_message":
-        const { data: groupMessage } = await supabase
-          .from("group_messages")
-          .select("group_id")
-          .eq("id", relatedId)
-          .single();
-        if (groupMessage?.group_id) {
-          navigate(`/groups/${groupMessage.group_id}?message=${relatedId}`);
-          return;
-        }
-        break;
-      case "broadcast":
-        navigate(`/messages/broadcast?message=${relatedId}`);
-        return;
-      case "direct_message":
-        navigate(`/messages/dm/${relatedId}`);
-        return;
-      case "event_invite":
-      case "event_cancelled":
-      case "event_reminder":
-      case "duty_assigned":
-        navigate(`/events/${relatedId}`);
-        return;
-      case "photo_comment":
-      case "photo_uploaded":
-      case "photo_reaction":
-        navigate(`/media?photo=${relatedId}`);
-        return;
-      case "comment_reaction":
-      case "comment_reply":
-        if (notification.type === "comment_reply") {
-          navigate(`/media?photo=${relatedId}`);
-        } else {
-          const { data: commentData } = await supabase
-            .from("photo_comments")
-            .select("photo_id")
+      switch (notification.type) {
+        case "team_message":
+        case "message_reply":
+        case "message_reaction":
+        case "message_mention":
+          const { data: teamMessage } = await supabase
+            .from("team_messages")
+            .select("team_id")
             .eq("id", relatedId)
-            .maybeSingle();
-          if (commentData?.photo_id) {
-            navigate(`/media?photo=${commentData.photo_id}`);
+            .single();
+          if (teamMessage?.team_id) {
+            navigate(`/messages/${teamMessage.team_id}?message=${relatedId}`);
             return;
           }
-          navigate("/media");
-        }
-        return;
-      case "join_request":
-      case "join_request_approved":
-      case "join_request_denied":
-      case "join_request_processed":
-      case "role_assigned":
-        navigate("/roles");
-        return;
-      case "rsvp":
-        navigate(`/events/${relatedId}`);
-        return;
-      case "pending_sub":
-        // Trigger GlobalSubMonitor to show the sub confirmation dialog
-        window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
-        return;
-      case "formation_change":
-        if (relatedId) {
-          navigate(`/teams/${relatedId}`);
-        }
-        return;
-    }
+          const { data: clubMsgForReaction } = await supabase
+            .from("club_messages")
+            .select("club_id")
+            .eq("id", relatedId)
+            .single();
+          if (clubMsgForReaction?.club_id) {
+            navigate(`/messages/club/${clubMsgForReaction.club_id}?message=${relatedId}`);
+            return;
+          }
+          const { data: groupMsgForReaction } = await supabase
+            .from("group_messages")
+            .select("group_id")
+            .eq("id", relatedId)
+            .single();
+          if (groupMsgForReaction?.group_id) {
+            navigate(`/groups/${groupMsgForReaction.group_id}?message=${relatedId}`);
+            return;
+          }
+          const { data: broadcastMsg } = await supabase
+            .from("broadcast_messages")
+            .select("id")
+            .eq("id", relatedId)
+            .single();
+          if (broadcastMsg) {
+            navigate(`/messages/broadcast?message=${relatedId}`);
+            return;
+          }
+          break;
+        case "club_message":
+          const { data: clubMessage } = await supabase
+            .from("club_messages")
+            .select("club_id")
+            .eq("id", relatedId)
+            .single();
+          if (clubMessage?.club_id) {
+            navigate(`/messages/club/${clubMessage.club_id}?message=${relatedId}`);
+            return;
+          }
+          break;
+        case "group_message":
+          const { data: groupMessage } = await supabase
+            .from("group_messages")
+            .select("group_id")
+            .eq("id", relatedId)
+            .single();
+          if (groupMessage?.group_id) {
+            navigate(`/groups/${groupMessage.group_id}?message=${relatedId}`);
+            return;
+          }
+          break;
+        case "broadcast":
+          navigate(`/messages/broadcast?message=${relatedId}`);
+          return;
+        case "direct_message":
+          navigate(`/messages/dm/${relatedId}`);
+          return;
+        case "event_invite":
+        case "event_cancelled":
+        case "event_reminder":
+        case "duty_assigned":
+          navigate(`/events/${relatedId}`);
+          return;
+        case "photo_comment":
+        case "photo_uploaded":
+        case "photo_reaction":
+          navigate(`/media?photo=${relatedId}`);
+          return;
+        case "comment_reaction":
+        case "comment_reply":
+          if (notification.type === "comment_reply") {
+            navigate(`/media?photo=${relatedId}`);
+          } else {
+            const { data: commentData } = await supabase
+              .from("photo_comments")
+              .select("photo_id")
+              .eq("id", relatedId)
+              .maybeSingle();
+            if (commentData?.photo_id) {
+              navigate(`/media?photo=${commentData.photo_id}`);
+              return;
+            }
+            navigate("/media");
+          }
+          return;
+        case "join_request":
+        case "join_request_approved":
+        case "join_request_denied":
+        case "join_request_processed":
+        case "role_assigned":
+          navigate("/roles");
+          return;
+        case "rsvp":
+          navigate(`/events/${relatedId}`);
+          return;
+        case "pending_sub":
+          window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
+          return;
+        case "formation_change":
+          if (relatedId) {
+            navigate(`/teams/${relatedId}`);
+          }
+          return;
+      }
 
-    navigate("/notifications");
+      navigate("/notifications");
+    } catch (error) {
+      console.error("Error handling notification click:", error);
+      navigate("/notifications");
+    }
   };
 
   // Render notification icon using centralized component
@@ -862,15 +866,19 @@ export function AppHeader() {
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem 
-                onSelect={(e) => {
+                onSelect={async (e) => {
                   e.preventDefault();
                   if (isSigningOut) return;
                   setIsSigningOut(true);
-                  supabase.auth.signOut({ scope: 'local' }).finally(() => {
+                  try {
+                    await supabase.auth.signOut({ scope: 'local' });
+                  } catch (error) {
+                    console.error("Error signing out:", error);
+                  } finally {
                     setIsSigningOut(false);
                     setProfileOpen(false);
                     navigate("/auth");
-                  });
+                  }
                 }}
                 className="text-destructive focus:text-destructive py-3 px-3"
                 disabled={isSigningOut}
