@@ -100,43 +100,52 @@ export function BottomNav() {
   const navBottomInset = isAndroidNative || isNativeIOS ? "1rem" : "env(safe-area-inset-bottom, 0px)";
 
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg"
-      style={{ paddingBottom: navBottomInset }}
-    >
-      <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
-        {navItems.map(({ to, icon: Icon, label, requiresPro }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === "/"}
-            className={({ isActive }) => cn(
-              "flex flex-col items-center justify-center flex-1 py-2 transition-colors",
-              isActive ? "text-primary" : "text-muted-foreground"
-            )}
-          >
-            {({ isActive }) => (
-              <>
-                <div className={cn(
-                  "p-1.5 rounded-xl transition-all relative",
-                  isActive && "bg-primary/10"
-                )}>
-                  <Icon className="h-5 w-5" />
-                  {label === "Messages" && unreadMessagesCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
-                      {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
-                    </span>
-                  )}
-                  {requiresPro && showProLock && (
-                    <Lock className="h-3 w-3 text-muted-foreground absolute -top-1 -right-1" />
-                  )}
-                </div>
-                <span className="text-[10px] font-medium mt-0.5">{label}</span>
-              </>
-            )}
-          </NavLink>
-        ))}
-      </div>
-    </nav>
+    <>
+      {/* Solid background filler to prevent content showing through safe area below nav */}
+      {isNativePlatform && (
+        <div
+          className="fixed bottom-0 left-0 right-0 z-[49] bg-card"
+          style={{ height: `calc(4rem + ${navBottomInset} + 1rem)` }}
+        />
+      )}
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg"
+        style={{ paddingBottom: navBottomInset }}
+      >
+        <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
+          {navItems.map(({ to, icon: Icon, label, requiresPro }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === "/"}
+              className={({ isActive }) => cn(
+                "flex flex-col items-center justify-center flex-1 py-2 transition-colors",
+                isActive ? "text-primary" : "text-muted-foreground"
+              )}
+            >
+              {({ isActive }) => (
+                <>
+                  <div className={cn(
+                    "p-1.5 rounded-xl transition-all relative",
+                    isActive && "bg-primary/10"
+                  )}>
+                    <Icon className="h-5 w-5" />
+                    {label === "Messages" && unreadMessagesCount > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1">
+                        {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
+                      </span>
+                    )}
+                    {requiresPro && showProLock && (
+                      <Lock className="h-3 w-3 text-muted-foreground absolute -top-1 -right-1" />
+                    )}
+                  </div>
+                  <span className="text-[10px] font-medium mt-0.5">{label}</span>
+                </>
+              )}
+            </NavLink>
+          ))}
+        </div>
+      </nav>
+    </>
   );
 }
