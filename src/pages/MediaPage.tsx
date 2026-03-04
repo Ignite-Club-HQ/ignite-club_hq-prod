@@ -24,7 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { format, startOfDay, endOfDay, isWithinInterval } from "date-fns";
+import { format, formatDistanceToNow, startOfDay, endOfDay, isWithinInterval } from "date-fns";
 import { Link } from "react-router-dom";
 import { EmojiReactions } from "@/components/EmojiReactions";
 import { PhotoComment } from "@/components/PhotoComment";
@@ -996,9 +996,6 @@ export default function MediaPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <p className="text-xs text-muted-foreground mr-1">
-                      {format(new Date(photo.created_at), "MMM d")}
-                    </p>
                     {canSharePhoto(photo) && (
                       <SharePhotoButton 
                         photoId={photo.id}
@@ -1083,6 +1080,10 @@ export default function MediaPage() {
                       {photo.title}
                     </p>
                   )}
+
+                  <p className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(photo.created_at), { addSuffix: true })}
+                  </p>
 
                   {comments.length > 0 && !isExpanded && (
                     <button 
