@@ -78,8 +78,9 @@ export default function AutoSubControlPanel({
     <div className="fixed inset-0 z-[9998] flex items-end justify-center sm:items-center" onClick={onClose}>
       <div className="fixed inset-0 bg-black/40" />
       <div
-        className="relative z-[9999] w-full max-w-lg bg-background rounded-t-2xl sm:rounded-2xl shadow-2xl border border-border max-h-[85vh] overflow-y-auto"
+        className="relative z-[9999] w-full max-w-lg bg-background rounded-t-2xl sm:rounded-2xl shadow-2xl border border-border overflow-y-auto overscroll-contain"
         onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: 'calc(100dvh - 1rem)', WebkitOverflowScrolling: 'touch' }}
       >
         {/* Handle bar (mobile feel) - swipe down to close */}
         <div 
@@ -256,7 +257,7 @@ export default function AutoSubControlPanel({
           {/* Scrollable Mini-Timeline */}
           {showTimeline && (
             <div className="rounded-xl border border-border overflow-hidden">
-              <ScrollArea className="max-h-[40vh]">
+              <ScrollArea className="max-h-[30vh]">
                 <div className="divide-y divide-border">
                   {[1, 2].map((half) => {
                     const halfSubs = autoSubPlan
