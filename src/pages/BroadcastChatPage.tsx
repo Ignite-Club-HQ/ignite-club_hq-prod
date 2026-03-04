@@ -775,7 +775,7 @@ export default function BroadcastChatPage() {
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] overflow-hidden overscroll-none">
       {/* Header */}
-      <div className="flex items-center gap-3 py-4 border-b bg-background sticky top-0 z-10 shrink-0">
+      <div className="flex items-center gap-3 py-4 border-b bg-background sticky top-0 z-10 shrink-0 relative">
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
