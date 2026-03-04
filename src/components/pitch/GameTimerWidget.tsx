@@ -184,7 +184,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         const mph = saved.minutesPerHalf || 20;
         const isGameFinished = saved.currentHalf === 2 && currentElapsed >= mph * 60;
         const unexecuted = pitchState.autoSubPlan?.filter(s => !s.executed) || [];
-        if (pitchState.autoSubActive && unexecuted.length > 0 && saved.isRunning && !isGameFinished) {
+        if (pitchState.autoSubActive && unexecuted.length > 0 && !isGameFinished) {
           const currentTotal = getTotalSeconds(currentElapsed, saved.currentHalf, mph);
           
           // Auto-skip subs that are more than 90s overdue (mirrors PitchBoard logic)
