@@ -78,25 +78,15 @@ export function UploadFilesDialog({
     setIsPickingNativePhoto(true);
     console.log("[UploadFilesDialog] handleNativePhotoPick START");
     try {
-      let permissions = await Camera.checkPermissions();
-      console.log("[UploadFilesDialog] permissions.photos:", permissions.photos);
-      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
-        permissions = await Camera.requestPermissions({ permissions: ["photos"] });
-        console.log("[UploadFilesDialog] after request, permissions.photos:", permissions.photos);
-      }
-
-      if (permissions.photos !== "granted" && permissions.photos !== "limited") {
-        throw new Error(`Photo library access is ${permissions.photos}`);
-      }
-
+      // Let Camera.getPhoto handle permissions natively on iOS to preserve
+      // the gesture-chain context. Explicit checkPermissions/requestPermissions
+      // before getPhoto breaks the gesture on first attempt.
       console.log("[UploadFilesDialog] calling getPhoto (Base64 mode, single attempt)...");
       const photo = await Camera.getPhoto({
         resultType: CameraResultType.Base64,
         source: CameraSource.Photos,
         allowEditing: false,
         quality: 80,
-        width: 1600,
-        height: 1600,
       });
       console.log("[UploadFilesDialog] getPhoto OK", {
         webPath: photo.webPath,
