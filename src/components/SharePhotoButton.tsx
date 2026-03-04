@@ -3,40 +3,27 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 interface SharePhotoButtonProps {
+  photoId: string;
   imageUrl: string;
   title?: string;
 }
 
-export function SharePhotoButton({ imageUrl, title }: SharePhotoButtonProps) {
-  const handleShare = async () => {
-    const shareTitle = title || "Check out this photo!";
+const DEEP_LINK_BASE = "https://igniteclubhq.app";
 
-    // Try sharing as a file (avoids exposing raw Supabase URL)
-    if (navigator.share && navigator.canShare) {
-      try {
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
-        const extension = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
-        const file = new File([blob], `${shareTitle.replace(/[^a-zA-Z0-9 ]/g, "").trim() || "photo"}.${extension}`, {
-          type: blob.type || "image/jpeg",
-        });
+export function SharePhotoButton({ photoId, imageUrl, title }: SharePhotoButtonProps) {
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const shareTitle = title || "Check out this photo on Ignite!";
+    const deepLink = `${DEEP_LINK_BASE}/media/${photoId}`;
 
-        const shareData = { files: [file], title: shareTitle };
-
-        if (navigator.canShare(shareData)) {
-          await navigator.share(shareData);
-          return;
-        }
-      } catch (error) {
-        if ((error as Error).name === "AbortError") return;
-        console.log("File share failed, trying URL share:", error);
-      }
-    }
-
-    // Fallback: share as URL (web browsers without file share support)
+    // Use Web Share API for native share sheet (Messenger, WhatsApp, etc.)
     if (navigator.share) {
       try {
-        await navigator.share({ title: shareTitle, url: imageUrl });
+        await navigator.share({
+          title: shareTitle,
+          text: shareTitle,
+          url: deepLink,
+        });
         return;
       } catch (error) {
         if ((error as Error).name === "AbortError") return;
@@ -44,13 +31,13 @@ export function SharePhotoButton({ imageUrl, title }: SharePhotoButtonProps) {
       }
     }
 
-    // Final fallback: copy link to clipboard
+    // Fallback: copy deep link to clipboard
     try {
-      await navigator.clipboard.writeText(imageUrl);
+      await navigator.clipboard.writeText(deepLink);
       toast.success("Link copied to clipboard!");
     } catch {
       const textarea = document.createElement("textarea");
-      textarea.value = imageUrl;
+      textarea.value = deepLink;
       textarea.style.position = "fixed";
       textarea.style.opacity = "0";
       document.body.appendChild(textarea);

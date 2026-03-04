@@ -1001,22 +1001,10 @@ export default function MediaPage() {
                     </p>
                     {canSharePhoto(photo) && (
                       <SharePhotoButton 
+                        photoId={photo.id}
                         imageUrl={photo.file_url || photo.image_url} 
                         title={photo.title} 
                       />
-                    )}
-                    {canDeletePhoto(photo) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeletePhotoId(photo.id);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
                     )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -1025,6 +1013,15 @@ export default function MediaPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {canDeletePhoto(photo) && (
+                          <DropdownMenuItem
+                            onClick={() => setDeletePhotoId(photo.id)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Photo
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => setReportPhotoId(photo.id)}>
                           <Flag className="h-4 w-4 mr-2" />
                           Report Photo
