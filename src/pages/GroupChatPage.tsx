@@ -939,7 +939,7 @@ export default function GroupChatPage() {
       } catch {}
       // Invalidate the messages page query so latest message preview updates
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
-      toast.success("Message deleted");
+      // Silent success - no toast
     },
     onError: (err, variables, context) => {
       if (context?.previousData) {
