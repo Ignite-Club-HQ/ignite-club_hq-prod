@@ -257,34 +257,41 @@ export function StoragePurchaseDialog({
     try {
       const { NativePurchases, PURCHASE_TYPE } = await import("@capgo/native-purchases");
 
-      // First verify the product exists in the store
-      let products;
-      try {
-        products = await NativePurchases.getProducts({
+      // Verify product exists in store, preferring SUBS and falling back to INAPP
+      const productTypesToCheck = [PURCHASE_TYPE.SUBS, PURCHASE_TYPE.INAPP];
+      let matchedProduct: any = null;
+      let matchedPurchaseType: any = PURCHASE_TYPE.SUBS;
+
+      for (const type of productTypesToCheck) {
+        const result = await NativePurchases.getProducts({
           productIdentifiers: [productId],
-          productType: PURCHASE_TYPE.SUBS,
+          productType: type,
         });
-      } catch {
-        // Try as INAPP if SUBS lookup fails
-        products = await NativePurchases.getProducts({
-          productIdentifiers: [productId],
-          productType: PURCHASE_TYPE.INAPP,
-        });
+
+        if (result?.products?.length) {
+          matchedProduct = result.products[0];
+          matchedPurchaseType = type;
+          break;
+        }
       }
 
-      if (!products?.products?.length) {
-        toast.error("This storage pack is not yet available for in-app purchase. Please try again later.");
-        console.error("[IAP] Product not found in store:", productId);
+      if (!matchedProduct) {
+        toast.error("This storage pack is not available for in-app purchase on this build.");
+        console.error("[IAP] Product not found in store:", { productId, platform: Capacitor.getPlatform() });
         return;
       }
 
-      const storeProduct = products.products[0];
-      const purchaseType = storeProduct.productType === "subs" ? PURCHASE_TYPE.SUBS : PURCHASE_TYPE.INAPP;
-
-      const purchaseResult = await NativePurchases.purchaseProduct({
+      const purchaseOptions: any = {
         productIdentifier: productId,
-        productType: purchaseType,
-      });
+        productType: matchedPurchaseType,
+      };
+
+      // Android subscriptions require a plan identifier
+      if (Capacitor.getPlatform() === "android" && matchedPurchaseType === PURCHASE_TYPE.SUBS) {
+        purchaseOptions.planIdentifier = productId;
+      }
+
+      const purchaseResult = await NativePurchases.purchaseProduct(purchaseOptions);
 
       if (!purchaseResult?.transactionId) {
         throw new Error("Purchase was cancelled");
@@ -383,41 +390,48 @@ export function StoragePurchaseDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-primary" />
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md max-h-[85vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
+          <DialogHeader className="space-y-1 pb-1">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <div className="p-1.5 rounded-lg bg-primary/10">
+                <Package className="h-4 w-4 text-primary" />
+              </div>
               Manage Storage
             </DialogTitle>
-            <DialogDescription>
-              Manage storage capacity for {clubName}
+            <DialogDescription className="text-xs">
+              Storage capacity for {clubName}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            {/* Current storage info */}
-            <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Base Pro Storage</span>
-                <span className="font-medium">{baseStorageGb}GB</span>
-              </div>
-              {purchasedStorageGb > 0 && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Purchased Add-ons</span>
-                  <span className="font-medium text-primary">+{purchasedStorageGb}GB</span>
+          <div className="space-y-3">
+            {/* Current storage summary — compact pill */}
+            <div className="bg-muted/60 rounded-xl p-2.5 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col">
+                  <span className="text-muted-foreground">Base</span>
+                  <span className="font-semibold">{baseStorageGb}GB</span>
                 </div>
-              )}
-              <div className="flex items-center justify-between text-sm border-t pt-1 mt-1">
-                <span className="font-medium">Total Storage</span>
-                <span className="font-bold">{totalStorageGb}GB</span>
+                {purchasedStorageGb > 0 && (
+                  <>
+                    <span className="text-muted-foreground">+</span>
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground">Add-ons</span>
+                      <span className="font-semibold text-primary">{purchasedStorageGb}GB</span>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-muted-foreground">Total</span>
+                <span className="font-bold text-sm">{totalStorageGb}GB</span>
               </div>
             </div>
 
-            {/* Promo Code Section - hidden on native per App Store Guideline 3.1.1 */}
+            {/* Promo Code — hidden on native per App Store 3.1.1 */}
             {!isNativePlatform() && (
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Ticket className="h-4 w-4" />
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5 text-xs">
+                  <Ticket className="h-3.5 w-3.5" />
                   Redeem Promo Code
                 </Label>
                 <div className="flex gap-2">
@@ -425,14 +439,16 @@ export function StoragePurchaseDialog({
                     placeholder="Enter code"
                     value={promoCode}
                     onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                    className="uppercase"
+                    className="uppercase h-9 text-sm"
                   />
-                  <Button 
+                  <Button
+                    size="sm"
                     onClick={handleApplyPromo}
                     disabled={!promoCode.trim() || applyPromoMutation.isPending}
+                    className="h-9 px-4"
                   >
                     {applyPromoMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
                       "Apply"
                     )}
@@ -441,51 +457,53 @@ export function StoragePurchaseDialog({
               </div>
             )}
 
-            <Separator />
+            <Separator className="my-1" />
 
             {/* Scheduled Downgrade Banner */}
             {scheduledDowngradeGb != null && storageDowngradeAt && (
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 space-y-2">
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 space-y-2">
                 <div className="flex items-center gap-2 text-amber-600">
-                  <Calendar className="h-4 w-4" />
-                  <span className="text-sm font-medium">Downgrade Scheduled</span>
+                  <Calendar className="h-3.5 w-3.5" />
+                  <span className="text-xs font-medium">Downgrade Scheduled</span>
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground leading-relaxed">
                   Storage will reduce to {scheduledDowngradeGb === 0 ? "base 5GB" : `${scheduledDowngradeGb}GB`} on {new Date(storageDowngradeAt).toLocaleDateString()}
                 </p>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
+                  className="h-8 text-xs"
                   onClick={() => cancelDowngradeMutation.mutate()}
                   disabled={cancelDowngradeMutation.isPending}
                 >
                   {cancelDowngradeMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
                   ) : (
-                    <X className="h-4 w-4 mr-2" />
+                    <X className="h-3.5 w-3.5 mr-1.5" />
                   )}
                   Cancel Downgrade
                 </Button>
               </div>
             )}
 
-            {/* Downgrade Section - only show if no downgrade is scheduled */}
+            {/* Downgrade Section */}
             {purchasedStorageGb > 0 && scheduledDowngradeGb == null && (
               <>
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Minus className="h-4 w-4" />
-                    Schedule Storage Reduction
+                  <Label className="flex items-center gap-1.5 text-xs">
+                    <Minus className="h-3.5 w-3.5" />
+                    Schedule Reduction
                   </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Schedule a storage reduction for the end of your billing period. The change will take effect at your next renewal date.
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Takes effect at your next renewal date.
                   </p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {downgradeOptions.map((option) => (
                       <Button
                         key={option.gb}
                         variant="outline"
                         size="sm"
+                        className="h-7 text-xs px-2.5 rounded-lg"
                         onClick={() => handleDowngrade(option.gb)}
                         disabled={downgradeMutation.isPending}
                       >
@@ -494,13 +512,13 @@ export function StoragePurchaseDialog({
                     ))}
                   </div>
                 </div>
-                <Separator />
+                <Separator className="my-1" />
               </>
             )}
 
             {/* Billing toggle */}
-            <div className="flex items-center justify-between">
-              <Label htmlFor="annual-billing" className="text-sm">Annual billing</Label>
+            <div className="flex items-center justify-between py-1">
+              <Label htmlFor="annual-billing" className="text-xs font-medium">Annual billing</Label>
               <div className="flex items-center gap-2">
                 <Switch
                   id="annual-billing"
@@ -508,69 +526,81 @@ export function StoragePurchaseDialog({
                   onCheckedChange={setIsAnnual}
                 />
                 {isAnnual && (
-                  <Badge variant="secondary" className="text-xs bg-green-500/20 text-green-600">
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 bg-green-500/15 text-green-600 border-0">
                     Save 17%
                   </Badge>
                 )}
               </div>
             </div>
 
-            {/* Storage packs */}
+            {/* Storage packs — mobile-optimised cards */}
             <div className="space-y-2">
-              {STORAGE_PACKS.map((pack) => (
-                <Card
-                  key={pack.id}
-                  className={`cursor-pointer transition-all ${
-                    selectedPack === pack.id
-                      ? "ring-2 ring-primary border-primary"
-                      : "hover:border-primary/50"
-                  }`}
-                  onClick={() => setSelectedPack(pack.id)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${selectedPack === pack.id ? 'bg-primary/20' : 'bg-muted'}`}>
-                          <HardDrive className={`h-5 w-5 ${selectedPack === pack.id ? 'text-primary' : 'text-muted-foreground'}`} />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold">{pack.gb}GB Pack</span>
-                            {pack.popular && (
-                              <Badge variant="secondary" className="text-xs">Popular</Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Additional storage for your club
-                          </p>
-                        </div>
+              {STORAGE_PACKS.map((pack) => {
+                const isSelected = selectedPack === pack.id;
+                return (
+                  <button
+                    key={pack.id}
+                    type="button"
+                    className={`w-full text-left rounded-xl border-2 p-3 transition-all active:scale-[0.98] ${
+                      isSelected
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : "border-border bg-card hover:border-primary/40"
+                    }`}
+                    onClick={() => setSelectedPack(pack.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg shrink-0 ${isSelected ? 'bg-primary/15' : 'bg-muted'}`}>
+                        <HardDrive className={`h-4 w-4 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
                       </div>
-                      <div className="flex items-center gap-3">
-                        {formatPrice(pack.priceMonthly, pack.priceAnnual)}
-                        {selectedPack === pack.id && (
-                          <Check className="h-5 w-5 text-primary" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-sm">{pack.gb}GB</span>
+                          {pack.popular && (
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Popular</Badge>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">Additional club storage</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        {isAnnual ? (
+                          <div>
+                            <span className="text-sm font-bold">${pack.priceAnnual}</span>
+                            <span className="text-[10px] text-muted-foreground">/yr</span>
+                            <p className="text-[10px] text-green-600 font-medium">
+                              Save ${(pack.priceMonthly * 12 - pack.priceAnnual).toFixed(0)}
+                            </p>
+                          </div>
+                        ) : (
+                          <div>
+                            <span className="text-sm font-bold">${pack.priceMonthly}</span>
+                            <span className="text-[10px] text-muted-foreground">/mo</span>
+                          </div>
                         )}
                       </div>
+                      <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
+                        isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/30'
+                      }`}>
+                        {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Coming soon message */}
+            {/* Coming soon — web only */}
             {hasStripeConfig === false && !isNativePlatform() && (
-              <div className="bg-muted/50 rounded-lg p-3 text-center space-y-1">
-                <p className="text-sm font-medium">Storage purchases coming soon!</p>
-                <p className="text-xs text-muted-foreground">
-                  Use a promo code above to add storage, or check back later for purchase options.
+              <div className="bg-muted/50 rounded-xl p-3 text-center space-y-0.5">
+                <p className="text-xs font-medium">Storage purchases coming soon!</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Use a promo code to add storage, or check back later.
                 </p>
               </div>
             )}
 
             {/* Purchase button */}
             <Button
-              className="w-full"
-              size="lg"
+              className="w-full h-11 text-sm font-semibold rounded-xl"
               onClick={handlePurchase}
               disabled={!selectedPack || (!hasStripeConfig && !isNativePlatform()) || purchaseMutation.isPending}
             >
@@ -587,8 +617,8 @@ export function StoragePurchaseDialog({
               )}
             </Button>
 
-            <p className="text-xs text-center text-muted-foreground">
-              Storage add-ons are billed as recurring subscriptions and can be cancelled anytime.
+            <p className="text-[10px] text-center text-muted-foreground leading-relaxed">
+              Billed as a recurring subscription. Cancel anytime.
             </p>
 
             <SubscriptionLegalLinks />
