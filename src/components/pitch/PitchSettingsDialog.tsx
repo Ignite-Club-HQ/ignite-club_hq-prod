@@ -427,36 +427,40 @@ export function PitchSettingsDialog({
           
           {/* Footer - minimal actions */}
           <div className="pt-3 border-t border-border shrink-0 space-y-2">
-            {/* Save Settings */}
-            {!readOnly && onSaveSettings && (
-              <Button 
-                variant="default" 
-                className="w-full h-10"
-                onClick={() => {
-                  onSaveSettings();
-                  setOpen(false);
-                }}
-                disabled={isSaving}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {isSaving ? "Saving..." : "Remember for This Team"}
-              </Button>
-            )}
-            
-            {/* Setup Game - launches lineup + auto-subs workflow */}
-            {!readOnly && onOpenLineupPicker && (
-              <Button 
-                variant="default" 
-                className="w-full h-10"
-                disabled={gameInProgress}
-                onClick={() => {
-                  onOpenLineupPicker();
-                  setOpen(false);
-                }}
-              >
-                <Play className="h-4 w-4 mr-2" />
-                Setup Game
-              </Button>
+            {/* Primary actions - compact grid */}
+            {!readOnly && (onSaveSettings || onOpenLineupPicker) && (
+              <div className="grid grid-cols-2 gap-2">
+                {onSaveSettings && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="h-9 text-xs gap-1.5"
+                    onClick={() => {
+                      onSaveSettings();
+                      setOpen(false);
+                    }}
+                    disabled={isSaving}
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    {isSaving ? "Saving..." : "Save"}
+                  </Button>
+                )}
+                {onOpenLineupPicker && (
+                  <Button 
+                    variant="default" 
+                    size="sm"
+                    className="h-9 text-xs gap-1.5"
+                    disabled={gameInProgress}
+                    onClick={() => {
+                      onOpenLineupPicker();
+                      setOpen(false);
+                    }}
+                  >
+                    <Play className="h-3.5 w-3.5" />
+                    Setup Game
+                  </Button>
+                )}
+              </div>
             )}
 
             {/* Quick action row */}
@@ -465,13 +469,13 @@ export function PitchSettingsDialog({
                 <Button 
                   variant="outline" 
                   size="sm"
-                  className="flex-1 h-9"
+                  className="flex-1 h-9 text-xs"
                   onClick={() => {
                     onOpenPositionEditor();
                     setOpen(false);
                   }}
                 >
-                  <Settings2 className="h-4 w-4 mr-1.5" />
+                  <Settings2 className="h-3.5 w-3.5 mr-1.5" />
                   Positions
                 </Button>
               )}
@@ -479,13 +483,13 @@ export function PitchSettingsDialog({
                 <Button 
                   variant="outline" 
                   size="sm"
-                  className="flex-1 h-9"
+                  className="flex-1 h-9 text-xs"
                   onClick={() => {
                     onAddFillInPlayer();
                     setOpen(false);
                   }}
                 >
-                  <UserPlus className="h-4 w-4 mr-1.5" />
+                  <UserPlus className="h-3.5 w-3.5 mr-1.5" />
                   Fill-In
                 </Button>
               )}

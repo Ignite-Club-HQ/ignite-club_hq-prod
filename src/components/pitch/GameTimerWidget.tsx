@@ -19,6 +19,7 @@ import { Play, Pause, Timer, ExternalLink, X, ArrowRightLeft, Clock, UserRoundCh
 import { Goal } from "./types";
 import { PitchPosition } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
+import { recalculateRemainingPlan } from "./pitchStateUtils";
 
 // Storage keys
 const ACTIVE_TIMER_KEY = 'pitch-board-timer-state';
@@ -64,6 +65,7 @@ interface SubstitutionEvent {
 interface PitchBoardState {
   teamId: string;
   players: Player[];
+  teamSize: string;
   autoSubPlan: SubstitutionEvent[];
   autoSubActive: boolean;
   autoSubPaused: boolean;
@@ -182,7 +184,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         const mph = saved.minutesPerHalf || 20;
         const isGameFinished = saved.currentHalf === 2 && currentElapsed >= mph * 60;
         const unexecuted = pitchState.autoSubPlan?.filter(s => !s.executed) || [];
-        if (pitchState.autoSubActive && unexecuted.length > 0 && saved.isRunning && !isGameFinished) {
+        if (pitchState.autoSubActive && unexecuted.length > 0 && !isGameFinished) {
           const currentTotal = getTotalSeconds(currentElapsed, saved.currentHalf, mph);
           
           // Auto-skip subs that are more than 90s overdue (mirrors PitchBoard logic)
@@ -351,22 +353,20 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           ? { ...s, executed: true } : s
       );
 
-      if (delaySeconds > 30) {
-        const remaining = updatedPlan.filter(s => !s.executed);
-        if (remaining.length > 0) {
-          const totalGameSeconds = minutesPerHalf * 2 * 60;
-          const remainingGame = totalGameSeconds - currentTotal;
-          const interval = Math.max(Math.floor(remainingGame / (remaining.length + 1)), 60);
-          let nextTime = currentTotal + interval;
-          updatedPlan = updatedPlan.map(s => {
-            if (s.executed) return s;
-            const halfDur = minutesPerHalf * 60;
-            const newHalf: 1 | 2 = nextTime < halfDur ? 1 : 2;
-            const newTime = newHalf === 1 ? nextTime : nextTime - halfDur;
-            nextTime += interval;
-            return { ...s, half: newHalf, time: Math.floor(newTime) };
-          });
-        }
+      // Always recalculate remaining plan after executing a sub to update player assignments
+      const remaining = updatedPlan.filter(s => !s.executed);
+      if (remaining.length > 0) {
+        const halfDur = minutesPerHalf * 60;
+        const recalculated = recalculateRemainingPlan(
+          updatedPlayers,
+          parseInt(pitchState.teamSize || "7"),
+          halfDur,
+          currentElapsedSeconds,
+          currentHalf,
+          sub,
+          true
+        );
+        updatedPlan = [...updatedPlan.filter(s => s.executed), ...recalculated];
       }
 
       localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan, players: updatedPlayers }));
@@ -399,23 +399,22 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
       let updatedPlan = pitchState.autoSubPlan.map(s =>
         s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half
-          ? { ...s, executed: true } : s
+          ? { ...s, executed: true, skipped: true } : s
       );
 
       const remaining = updatedPlan.filter(s => !s.executed);
       if (remaining.length > 0) {
-        const totalGameSeconds = minutesPerHalf * 2 * 60;
-        const remainingGame = totalGameSeconds - currentTotal;
-        const interval = Math.max(Math.floor(remainingGame / (remaining.length + 1)), 60);
-        let nextTime = currentTotal + interval;
-        updatedPlan = updatedPlan.map(s => {
-          if (s.executed) return s;
-          const halfDur = minutesPerHalf * 60;
-          const newHalf: 1 | 2 = nextTime < halfDur ? 1 : 2;
-          const newTime = newHalf === 1 ? nextTime : nextTime - halfDur;
-          nextTime += interval;
-          return { ...s, half: newHalf, time: Math.floor(newTime) };
-        });
+        const halfDur = minutesPerHalf * 60;
+        const recalculated = recalculateRemainingPlan(
+          pitchState.players,
+          parseInt(pitchState.teamSize || "7"),
+          halfDur,
+          currentElapsedSeconds,
+          currentHalf,
+          sub,
+          true
+        );
+        updatedPlan = [...updatedPlan.filter(s => s.executed), ...recalculated];
       }
 
       localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
-  Pause, Play, SkipForward, RefreshCw, Lock, Unlock, 
+  Pause, Play, SkipForward, Lock, Unlock, 
   X, ChevronDown, ChevronUp, Check, Pencil, Clock,
   MoreHorizontal
 } from "lucide-react";
@@ -150,17 +150,9 @@ export default function AutoSubManager({
       {/* 3. Collapsible "More" panel */}
       {showMore && (
         <div className="rounded-lg border border-border bg-muted/20 p-2 space-y-2">
-          {/* Regenerate + Lock row */}
+          {/* Lock row */}
           <div className="flex gap-1.5">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1 flex-1"
-              onClick={onRegeneratePlan}
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Regenerate
-            </Button>
+
             <Button
               size="sm"
               variant="outline"
@@ -222,7 +214,7 @@ export default function AutoSubManager({
 
           {/* Timeline */}
           {showTimeline && (
-            <ScrollArea className="max-h-[180px]">
+            <ScrollArea className="max-h-[50vh]">
               <div className="space-y-0">
                 {[1, 2].map((half) => {
                   const halfSubs = autoSubPlan

@@ -2804,7 +2804,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const skippedId = `${nextSub.half}-${nextSub.time}-${nextSub.playerOut.id}`;
     const updatedPlan = autoSubPlan.map(sub => {
       const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
-      return subId === skippedId ? { ...sub, executed: true } : sub;
+      return subId === skippedId ? { ...sub, executed: true, skipped: true } : sub;
     });
 
     const remainingCount = updatedPlan.filter(sub => !sub.executed).length;
@@ -3228,7 +3228,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
     const updatedPlan = autoSubPlan.map(sub => {
       const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
-      return skippedIds.includes(subId) ? { ...sub, executed: true } : sub;
+      return skippedIds.includes(subId) ? { ...sub, executed: true, skipped: true } : sub;
     });
 
     const remainingCount = updatedPlan.filter(sub => !sub.executed).length;
@@ -5190,7 +5190,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {/* Bench content */}
                   <div className="space-y-3">
                     {/* Position Filter Chips - sticky */}
-                    <div className="sticky top-[-12px] z-10 bg-background py-2 -mx-3 px-3">
+                    <div className="sticky top-[-12px] z-10 bg-background py-2 -mx-3 px-3 space-y-2">
                       <div className="flex items-center gap-2">
                         <div className="flex gap-2 flex-1 min-w-0">
                         {(["GK", "DEF", "MID", "FWD"] as PitchPosition[]).map(pos => {
@@ -5221,37 +5221,37 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         )}
                       </div>
                     </div>
+                      {/* Auto Subs Quick Access - Landscape (inside sticky area) */}
+                      {!readOnly && !disableAutoSubs && (gameInProgress || autoSubPlan.length > 0) && (
+                        <>
+                          {autoSubPlan.length > 0 ? (
+                            <button
+                              className="w-full flex items-center justify-center gap-2 rounded-md border border-primary/30 bg-primary/10 text-primary text-sm font-medium px-3 py-2 min-h-[36px] transition-colors hover:bg-primary/20"
+                              onClick={() => {
+                                setAutoSubPanelOpen(true);
+                              }}
+                            >
+                              <ArrowLeftRight className="h-4 w-4" />
+                              Auto Subs ({autoSubPlan.filter(s => s.executed).length}/{autoSubPlan.length})
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                              </span>
+                            </button>
+                          ) : (
+                            <button
+                              className="w-full flex items-center justify-center gap-2 rounded-md border border-border bg-muted/50 text-muted-foreground text-sm font-medium px-3 py-2 min-h-[36px] transition-colors hover:bg-muted"
+                              onClick={() => {
+                                openAutoSubPlanDialog();
+                              }}
+                            >
+                              <ArrowLeftRight className="h-4 w-4" />
+                              Setup Auto Subs
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
-                    {/* Auto Subs Quick Access - Landscape */}
-                    {!readOnly && !disableAutoSubs && (gameInProgress || autoSubPlan.length > 0) && (
-                      <div className="px-1 py-1">
-                        {autoSubPlan.length > 0 ? (
-                          <button
-                            className="w-full flex items-center justify-center gap-2 rounded-md border border-primary/30 bg-primary/10 text-primary text-sm font-medium px-3 py-2 min-h-[36px] transition-colors hover:bg-primary/20"
-                            onClick={() => {
-                              setAutoSubPanelOpen(true);
-                            }}
-                          >
-                            <ArrowLeftRight className="h-4 w-4" />
-                            Auto Subs ({autoSubPlan.filter(s => s.executed).length}/{autoSubPlan.length})
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                            </span>
-                          </button>
-                        ) : (
-                          <button
-                            className="w-full flex items-center justify-center gap-2 rounded-md border border-border bg-muted/50 text-muted-foreground text-sm font-medium px-3 py-2 min-h-[36px] transition-colors hover:bg-muted"
-                            onClick={() => {
-                              openAutoSubPlanDialog();
-                            }}
-                          >
-                            <ArrowLeftRight className="h-4 w-4" />
-                            Setup Auto Subs
-                          </button>
-                        )}
-                      </div>
-                    )}
                     {/* Bench Players - horizontal scroll */}
                     <div 
                       id="pitch-bench-landscape"
@@ -5652,6 +5652,23 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             />
           </Suspense>
         )}
+
+        {/* Pre-Game Lineup Screen - landscape */}
+        {showLineupPicker && (
+          <Suspense fallback={<DialogLoader />}>
+            <PreGameLineupScreen
+              players={players}
+              teamSize={teamSize}
+              selectedFormation={selectedFormation}
+              rotateGkAtHalftime={rotateGkAtHalftime}
+              onConfirm={handleLineupConfirm}
+              onSkip={handleLineupSkip}
+              onClose={() => setShowLineupPicker(false)}
+              onTeamSizeChange={(size) => setTeamSize(size)}
+              onFormationChange={(index) => setSelectedFormation(index)}
+            />
+          </Suspense>
+        )}
       </div>,
       document.body
     );
@@ -5670,8 +5687,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           teamName={teamName} 
           onLinkEvent={readOnly || (gameInProgress && !!linkedEventId) ? undefined : handleLinkEvent}
         />
-      )}
-      
+        )}
+
       {/* Slim Header */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border shrink-0 bg-background">
         <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose}>
@@ -6726,19 +6743,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         document.body
       )}
 
-      <FormationChangeDialog
-        open={formationChangeDialogOpen}
-        onOpenChange={setFormationChangeDialogOpen}
-        currentFormation={FORMATIONS[teamSize][selectedFormation]?.name || ""}
-        newFormation={pendingFormationChange ? FORMATIONS[pendingFormationChange.newTeamSize || teamSize][pendingFormationChange.index]?.name || "" : ""}
-        positionSwaps={pendingFormationChange?.positionSwaps || []}
-        benchMoves={pendingFormationChange?.benchMoves || []}
-        onConfirm={handleFormationChangeConfirm}
-        onCancel={handleFormationChangeCancel}
-        isTeamSizeChange={!!pendingFormationChange?.newTeamSize}
-        currentTeamSize={teamSize}
-        newTeamSize={pendingFormationChange?.newTeamSize}
-      />
+      {/* FormationChangeDialog rendered once in landscape section above */}
 
       {/* Auto-Sub Plan Dialog */}
       <AutoSubPlanDialog

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Pause, Play, SkipForward, RefreshCw, Lock, Unlock,
+  Pause, Play, SkipForward, Lock, Unlock,
   X, Check, Pencil, Clock, ChevronDown, ChevronUp, ArrowRightLeft
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -78,8 +78,9 @@ export default function AutoSubControlPanel({
     <div className="fixed inset-0 z-[9998] flex items-end justify-center sm:items-center" onClick={onClose}>
       <div className="fixed inset-0 bg-black/40" />
       <div
-        className="relative z-[9999] w-full max-w-lg bg-background rounded-t-2xl sm:rounded-2xl shadow-2xl border border-border max-h-[85vh] overflow-y-auto"
+        className="relative z-[9999] w-full max-w-lg bg-background rounded-t-2xl sm:rounded-2xl shadow-2xl border border-border overflow-y-auto overscroll-contain"
         onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: 'calc(100dvh - 1rem)', WebkitOverflowScrolling: 'touch' }}
       >
         {/* Handle bar (mobile feel) - swipe down to close */}
         <div 
@@ -167,44 +168,41 @@ export default function AutoSubControlPanel({
           )}
 
           {/* Primary Actions: Pause + Skip */}
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant={autoSubPaused ? "default" : "outline"}
-              className="h-11 gap-1.5"
-              onClick={onTogglePause}
-            >
-              {autoSubPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-              {autoSubPaused ? "Resume" : "Pause"}
-            </Button>
-            <Button
-              variant="outline"
-              className="h-11 gap-1.5"
-              onClick={onSkipNext}
-              disabled={!nextSub || autoSubPaused}
-            >
-              <SkipForward className="h-4 w-4" />
-              Skip
-            </Button>
-          </div>
+          {remainingSubs.length > 0 && (
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant={autoSubPaused ? "default" : "outline"}
+                className="h-11 gap-1.5"
+                onClick={onTogglePause}
+              >
+                {autoSubPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                {autoSubPaused ? "Resume" : "Pause"}
+              </Button>
+              <Button
+                variant="outline"
+                className="h-11 gap-1.5"
+                onClick={onSkipNext}
+                disabled={!nextSub || autoSubPaused}
+              >
+                <SkipForward className="h-4 w-4" />
+                Skip
+              </Button>
+            </div>
+          )}
 
-          {/* Secondary Actions: Regenerate + Lock */}
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              className="h-11 gap-2"
-              onClick={onRegeneratePlan}
-            >
-              <RefreshCw className="h-4 w-4" />
-              Regenerate
-            </Button>
-            <Button
-              variant="outline"
-              className={cn("h-11 gap-2", showLockPanel && "bg-accent")}
-              onClick={() => setShowLockPanel(prev => !prev)}
-            >
-              <Lock className="h-4 w-4" />
-              Lock ({lockedPlayerIds.size})
-            </Button>
+          {/* Secondary Actions: Lock */}
+          <div className="grid grid-cols-1 gap-2">
+
+            {remainingSubs.length > 0 && (
+              <Button
+                variant="outline"
+                className={cn("h-11 gap-2", showLockPanel && "bg-accent")}
+                onClick={() => setShowLockPanel(prev => !prev)}
+              >
+                <Lock className="h-4 w-4" />
+                Lock ({lockedPlayerIds.size})
+              </Button>
+            )}
           </div>
 
           {/* Lock Player Panel */}
@@ -256,7 +254,7 @@ export default function AutoSubControlPanel({
           {/* Scrollable Mini-Timeline */}
           {showTimeline && (
             <div className="rounded-xl border border-border overflow-hidden">
-              <ScrollArea className="max-h-[40vh]">
+              <ScrollArea className="max-h-[30vh]">
                 <div className="divide-y divide-border">
                   {[1, 2].map((half) => {
                     const halfSubs = autoSubPlan
