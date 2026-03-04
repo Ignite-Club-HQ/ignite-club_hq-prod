@@ -68,6 +68,7 @@ export const PhotoComment = memo(function PhotoComment({
   const [showReportDialog, setShowReportDialog] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+  const commentRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const isOwn = userId === currentUserId;
   const { isBlocked } = useBlockedUsers();
@@ -245,16 +246,18 @@ export const PhotoComment = memo(function PhotoComment({
     };
   }, []);
 
-  // Close reaction picker when clicking outside
+  // Close reaction picker when clicking/touching outside (with delay to avoid touchend dismissal)
   useEffect(() => {
     if (!showReactionPicker) return;
     const handleClickOutside = () => setShowReactionPicker(false);
     const timer = setTimeout(() => {
       document.addEventListener('click', handleClickOutside);
-    }, 0);
+      document.addEventListener('touchend', handleClickOutside);
+    }, 300);
     return () => {
       clearTimeout(timer);
       document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('touchend', handleClickOutside);
     };
   }, [showReactionPicker]);
 
@@ -325,6 +328,7 @@ export const PhotoComment = memo(function PhotoComment({
         </Avatar>
         <div className="flex-1">
           <div
+            ref={commentRef}
             className="select-none"
             onTouchStart={handleLongPressStart}
             onTouchMove={handleTouchMove}
@@ -353,6 +357,7 @@ export const PhotoComment = memo(function PhotoComment({
             currentUserId={currentUserId}
             onEmojiClick={handleEmojiClick}
             onClose={() => setShowReactionPicker(false)}
+            anchorRef={commentRef}
           />
           {/* Reaction display */}
           <CommentReactionsDisplay
