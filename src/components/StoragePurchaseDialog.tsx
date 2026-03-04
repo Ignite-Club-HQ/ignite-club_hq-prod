@@ -251,11 +251,39 @@ export function StoragePurchaseDialog({
 
     const productId = getStorageProductId(selectedPack, isAnnual);
 
+    // Close dialog first so native purchase dialogs/errors aren't hidden behind it
+    onOpenChange(false);
+
     try {
       const { NativePurchases, PURCHASE_TYPE } = await import("@capgo/native-purchases");
+
+      // First verify the product exists in the store
+      let products;
+      try {
+        products = await NativePurchases.getProducts({
+          productIdentifiers: [productId],
+          productType: PURCHASE_TYPE.SUBS,
+        });
+      } catch {
+        // Try as INAPP if SUBS lookup fails
+        products = await NativePurchases.getProducts({
+          productIdentifiers: [productId],
+          productType: PURCHASE_TYPE.INAPP,
+        });
+      }
+
+      if (!products?.products?.length) {
+        toast.error("This storage pack is not yet available for in-app purchase. Please try again later.");
+        console.error("[IAP] Product not found in store:", productId);
+        return;
+      }
+
+      const storeProduct = products.products[0];
+      const purchaseType = storeProduct.productType === "subs" ? PURCHASE_TYPE.SUBS : PURCHASE_TYPE.INAPP;
+
       const purchaseResult = await NativePurchases.purchaseProduct({
         productIdentifier: productId,
-        productType: PURCHASE_TYPE.INAPP,
+        productType: purchaseType,
       });
 
       if (!purchaseResult?.transactionId) {
@@ -278,9 +306,9 @@ export function StoragePurchaseDialog({
       queryClient.invalidateQueries({ queryKey: ["purchased-storage", clubId] });
       queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
       toast.success("Storage purchased successfully!");
-      onOpenChange(false);
     } catch (err: any) {
-      if (err?.message?.toLowerCase().includes("cancel") || err?.message?.toLowerCase().includes("not purchased")) return;
+      const msg = err?.message?.toLowerCase() || "";
+      if (msg.includes("cancel") || msg.includes("not purchased") || msg.includes("payment not completed")) return;
       console.error("[IAP] Error:", err);
       toast.error(err?.message || "Purchase failed. Please try again.");
     }
