@@ -157,6 +157,7 @@ export default function AutoSubManager({
               variant="outline"
               className="h-8 text-xs gap-1 flex-1"
               onClick={onRegeneratePlan}
+              disabled={remainingSubs.length === 0}
             >
               <RefreshCw className="h-3.5 w-3.5" />
               Regenerate
