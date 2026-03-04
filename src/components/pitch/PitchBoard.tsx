@@ -771,6 +771,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Portrait timer touch handlers (drag + pinch)
   const handlePortraitTimerTouchStart = useCallback((e: React.TouchEvent) => {
+    // Don't initiate drag if the touch target is inside a dropdown or interactive element
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-timer-dropdown]') || target.closest('button')) return;
+
     const container = (e.currentTarget as HTMLElement).parentElement;
     // 2-finger pinch
     if (e.touches.length === 2) {
@@ -5910,7 +5914,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {timerTacticalDropdownOpen && (
                   <>
                   <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerTacticalDropdownOpen(false); }} />
-                  <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[130px] py-1">
+                   <div data-timer-dropdown className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[130px] py-1">
                     {(["defend", "neutral", "attack"] as TacticalMode[]).map((mode) => (
                       <button
                         key={mode}
@@ -5937,7 +5941,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {timerFormationDropdownOpen && (
                   <>
                   <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerFormationDropdownOpen(false); }} />
-                  <div className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[140px] py-1 max-h-48 overflow-y-auto">
+                   <div data-timer-dropdown className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[140px] py-1 max-h-48 overflow-y-auto">
                     {FORMATIONS[teamSize].map((f, i) => (
                       <button
                         key={i}
