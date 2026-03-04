@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Pause, Play, SkipForward, RefreshCw, Lock, Unlock,
+  Pause, Play, SkipForward, Lock, Unlock,
   X, Check, Pencil, Clock, ChevronDown, ChevronUp, ArrowRightLeft
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -190,17 +190,9 @@ export default function AutoSubControlPanel({
             </div>
           )}
 
-          {/* Secondary Actions: Regenerate + Lock */}
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              className="h-11 gap-2"
-              onClick={onRegeneratePlan}
-              disabled={remainingSubs.length === 0}
-            >
-              <RefreshCw className="h-4 w-4" />
-              Regenerate
-            </Button>
+          {/* Secondary Actions: Lock */}
+          <div className="grid grid-cols-1 gap-2">
+
             {remainingSubs.length > 0 && (
               <Button
                 variant="outline"
