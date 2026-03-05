@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from "react";
+import { Share } from "@capacitor/share";
 import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
 import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
@@ -1682,7 +1683,14 @@ export default function EventDetailPage() {
           onClick={async () => {
             const shareUrl = `${window.location.origin}/events/${id}`;
             try {
-              if (navigator.share) {
+              if (Capacitor.isNativePlatform()) {
+                await Share.share({
+                  title: event.title,
+                  text: `Check out this event: ${event.title}`,
+                  url: shareUrl,
+                  dialogTitle: 'Share Event',
+                });
+              } else if (navigator.share) {
                 await navigator.share({
                   title: event.title,
                   text: `Check out this event: ${event.title}`,
