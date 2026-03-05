@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Flame, RefreshCw } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Flame } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
@@ -787,15 +787,6 @@ export default function BroadcastChatPage() {
           <p className="text-sm text-muted-foreground truncate">Official updates & news</p>
         </div>
         <div className="flex items-center shrink-0">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={handleManualRefresh}
-            disabled={isAnyRefreshing}
-            className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent hover:bg-transparent"
-          >
-            <RefreshCw className={`h-4 w-4 text-foreground ${isAnyRefreshing ? 'animate-spin' : ''}`} />
-          </Button>
           <ChatSearch onSearch={setSearchQuery} />
         </div>
       </div>
