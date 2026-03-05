@@ -894,9 +894,6 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
           <div className="min-w-0 flex-1">
             <h3 className={`font-semibold leading-snug ${event.is_cancelled ? "line-through" : ""}`}>
               {event.title}
-              {event.type === "game" && event.opponent && (
-                <span className="font-normal text-muted-foreground"> vs {event.opponent}</span>
-              )}
             </h3>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -921,17 +918,6 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
             <span className="flex items-center gap-1">
               <MapPin className="h-3.5 w-3.5 shrink-0" />
               {event.suburb}
-            </span>
-          )}
-          {event.teams?.name ? (
-            <span className="flex items-center gap-1">
-              <span>{getSportEmoji(event.clubs.sport)}</span>
-              {event.teams.name}
-            </span>
-          ) : (
-            <span className="flex items-center gap-1">
-              <span>{getSportEmoji(event.clubs.sport)}</span>
-              {event.clubs.name}
             </span>
           )}
         </div>

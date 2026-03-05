@@ -2005,12 +2005,6 @@ export default function HomePage() {
                         {event.suburb}
                       </span>
                     )}
-                    {event.teams?.name && (
-                      <span className="flex items-center gap-1">
-                        <span>{getSportEmoji(event.clubs?.sport)}</span>
-                        {event.teams.name}
-                      </span>
-                    )}
                   </div>
                   {/* Admin actions - compact row */}
                   {canManageEvent(event) && (
