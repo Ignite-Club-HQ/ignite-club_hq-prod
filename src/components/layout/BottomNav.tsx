@@ -8,7 +8,7 @@ import { Capacitor } from "@capacitor/core";
 const navItems = [
   { to: "/", icon: Home, label: "Home", requiresPro: false },
   { to: "/messages", icon: MessageCircle, label: "Messages", requiresPro: false },
-  { to: "/events", icon: Calendar, label: "Events", requiresPro: false },
+  { to: "/events", icon: Calendar, label: "Schedule", requiresPro: false },
   { to: "/media", icon: Image, label: "Media", requiresPro: true },
 ];
 
@@ -134,7 +134,7 @@ export function BottomNav() {
                   )}>
                     <Icon className="h-5 w-5" aria-hidden="true" />
                     {label === "Messages" && unreadMessagesCount > 0 && (
-                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1" aria-label={`${unreadMessagesCount} unread messages`}>
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold px-1 animate-pulse-glow shadow-sm" aria-label={`${unreadMessagesCount} unread messages`}>
                         {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
                       </span>
                     )}

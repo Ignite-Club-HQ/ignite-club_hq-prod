@@ -769,11 +769,11 @@ export default function TeamDetailPage() {
               </CardContent>
             </Card>
           </Link>
-          <Link to={`/events?team=${team.id}`} aria-label="View team events">
+          <Link to={`/events?team=${team.id}`} aria-label="View team schedule">
             <Card className="hover:border-primary/50 transition-colors" role="button">
               <CardContent className="p-4 flex flex-col items-center gap-2">
                 <Calendar className="h-6 w-6 text-primary" aria-hidden="true" />
-                <span className="text-sm font-medium">Events</span>
+                <span className="text-sm font-medium">Schedule</span>
               </CardContent>
             </Card>
           </Link>
