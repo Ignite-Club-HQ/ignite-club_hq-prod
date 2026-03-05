@@ -58,7 +58,8 @@ interface DragState {
   directionLocked: 'drag' | 'scroll' | null; // null = undecided
 }
 
-const DRAG_THRESHOLD = 12; // px before drag direction is determined
+const DRAG_THRESHOLD = 8; // px before drag is committed
+const LONG_PRESS_MS = 150; // ms hold before drag activates
 
 export default function PreGameLineupScreen({
   players,
@@ -248,53 +249,70 @@ export default function PreGameLineupScreen({
     return null;
   }, []);
 
-  const handleDragStart = useCallback((playerId: string, clientX: number, clientY: number) => {
-    const newState: DragState = {
-      playerId,
-      ghostX: clientX,
-      ghostY: clientY,
-      startX: clientX,
-      startY: clientY,
-      hasMoved: false,
-      directionLocked: null,
-    };
-    setDragState(newState);
-    setSelectedSlotIndex(null);
+  // Long-press timer ref
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDragRef = useRef<{ playerId: string; startX: number; startY: number } | null>(null);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    pendingDragRef.current = null;
   }, []);
 
-  const handleDragMove = useCallback((clientX: number, clientY: number): 'drag' | 'scroll' | 'pending' => {
-    const current = dragRef.current;
-    if (!current) return 'pending';
+  const handleDragStart = useCallback((playerId: string, clientX: number, clientY: number) => {
+    // Store pending drag info; actual drag activates after long press
+    pendingDragRef.current = { playerId, startX: clientX, startY: clientY };
+    
+    longPressTimerRef.current = setTimeout(() => {
+      const pending = pendingDragRef.current;
+      if (!pending) return;
+      // Activate drag mode
+      const newState: DragState = {
+        playerId: pending.playerId,
+        ghostX: pending.startX,
+        ghostY: pending.startY,
+        startX: pending.startX,
+        startY: pending.startY,
+        hasMoved: false,
+        directionLocked: 'drag',
+      };
+      setDragState(newState);
+      setSelectedSlotIndex(null);
+      longPressTimerRef.current = null;
+    }, LONG_PRESS_MS);
+  }, []);
 
-    const dx = Math.abs(clientX - current.startX);
-    const dy = Math.abs(clientY - current.startY);
-
-    // If direction not yet locked, check threshold
-    if (!current.directionLocked) {
-      if (dx < DRAG_THRESHOLD && dy < DRAG_THRESHOLD) {
-        return 'pending'; // Not enough movement yet
+  const handleDragMove = useCallback((clientX: number, clientY: number) => {
+    // If drag not yet activated, check if user moved too much (scrolling)
+    if (pendingDragRef.current && !dragRef.current) {
+      const dx = Math.abs(clientX - pendingDragRef.current.startX);
+      const dy = Math.abs(clientY - pendingDragRef.current.startY);
+      if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
+        // User started scrolling before long press fired - cancel
+        cancelLongPress();
       }
-      // Lock direction: horizontal-ish = drag, vertical = scroll
-      const direction = dx > dy ? 'drag' : 'scroll';
-      setDragState(prev => prev ? { ...prev, directionLocked: direction } : null);
-      if (direction === 'scroll') {
-        // Cancel the drag, let native scroll happen
-        setDragState(null);
-        setHoveredSlotIndex(null);
-        return 'scroll';
-      }
+      return;
     }
 
-    if (current.directionLocked === 'scroll') return 'scroll';
+    const current = dragRef.current;
+    if (!current) return;
 
-    // We're in drag mode
-    setDragState(prev => prev ? { ...prev, ghostX: clientX, ghostY: clientY, hasMoved: true } : null);
-    const slotIdx = findSlotUnderPoint(clientX, clientY);
-    setHoveredSlotIndex(slotIdx);
-    return 'drag';
-  }, [findSlotUnderPoint]);
+    const dx = clientX - current.startX;
+    const dy = clientY - current.startY;
+    const hasMoved = current.hasMoved || Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD;
+
+    setDragState(prev => prev ? { ...prev, ghostX: clientX, ghostY: clientY, hasMoved } : null);
+
+    if (hasMoved) {
+      const slotIdx = findSlotUnderPoint(clientX, clientY);
+      setHoveredSlotIndex(slotIdx);
+    }
+  }, [findSlotUnderPoint, cancelLongPress]);
 
   const handleDragEnd = useCallback(() => {
+    cancelLongPress();
     const current = dragRef.current;
     if (current?.hasMoved && hoveredSlotIndex !== null) {
       assignPlayerToSlot(current.playerId, hoveredSlotIndex);
@@ -303,23 +321,46 @@ export default function PreGameLineupScreen({
     setHoveredSlotIndex(null);
   }, [hoveredSlotIndex, assignPlayerToSlot]);
 
-  // Global pointer/touch move & end listeners during drag
+  // Cancel long press if user scrolls before drag activates
+  useEffect(() => {
+    if (!pendingDragRef.current || dragState) return;
+    // We need a listener only while long press timer is active
+    const pending = pendingDragRef.current;
+    const onMove = (e: TouchEvent | PointerEvent) => {
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      const dx = Math.abs(clientX - pending.startX);
+      const dy = Math.abs(clientY - pending.startY);
+      if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
+        cancelLongPress();
+      }
+    };
+    const onUp = () => cancelLongPress();
+    window.addEventListener('touchmove', onMove, { passive: true });
+    window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('touchend', onUp);
+    return () => {
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('touchend', onUp);
+    };
+  });
+
+  // Global pointer/touch move & end listeners during active drag
   useEffect(() => {
     if (!dragState) return;
 
     const onPointerMove = (e: PointerEvent) => {
-      const result = handleDragMove(e.clientX, e.clientY);
-      if (result === 'drag') {
-        e.preventDefault(); // Only prevent default when actually dragging
-      }
+      e.preventDefault();
+      handleDragMove(e.clientX, e.clientY);
     };
     const onPointerUp = () => handleDragEnd();
     const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
       const t = e.touches[0];
-      const result = handleDragMove(t.clientX, t.clientY);
-      if (result === 'drag') {
-        e.preventDefault();
-      }
+      handleDragMove(t.clientX, t.clientY);
     };
     const onTouchEnd = () => handleDragEnd();
 
