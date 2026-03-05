@@ -7,6 +7,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { SkipToContent } from "@/components/SkipToContent";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
 import { PendingInviteWelcomeDialog } from "@/components/PendingInviteWelcomeDialog";
 import { useAdMobInit } from "@/hooks/useAdMob";
@@ -198,8 +199,9 @@ export function AppLayout() {
   
   return (
     <div className={`min-h-screen bg-background flex flex-col overscroll-none ${isNative ? '' : 'pt-safe'}`}>
+      <SkipToContent />
       <AppHeader />
-      <main className="flex-1 pb-20 px-4 max-w-lg mx-auto w-full">
+      <main id="main-content" aria-label="Main content" className="flex-1 pb-20 px-4 max-w-lg mx-auto w-full">
         <Outlet />
       </main>
       <BottomNav />
