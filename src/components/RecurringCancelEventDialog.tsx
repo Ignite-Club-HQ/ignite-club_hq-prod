@@ -196,24 +196,10 @@ export function RecurringCancelEventDialog({
           </div>
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isPending}
-          >
-            Keep Event
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleSingleAction}
-            disabled={isPending || isLoading}
-          >
-            Cancel This Event Only
-          </Button>
+        <DialogFooter className="flex-col gap-2 pt-2">
           <Button
             variant="default"
-            className="bg-warning text-warning-foreground hover:bg-warning/90"
+            className="w-full bg-warning text-warning-foreground hover:bg-warning/90 min-h-[44px]"
             onClick={handleSeriesAction}
             disabled={isPending || isLoading}
           >
@@ -225,6 +211,22 @@ export function RecurringCancelEventDialog({
             ) : (
               "Cancel Entire Series"
             )}
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full min-h-[44px]"
+            onClick={handleSingleAction}
+            disabled={isPending || isLoading}
+          >
+            Cancel This Event Only
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full min-h-[44px]"
+            onClick={() => onOpenChange(false)}
+            disabled={isPending}
+          >
+            Keep Event
           </Button>
         </DialogFooter>
       </DialogContent>
