@@ -3,7 +3,7 @@ import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import SoccerBall from "@/components/pitch/SoccerBall";
-import { Calendar, MapPin, Users, Clock, Plus, UserPlus, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell } from "lucide-react";
+import { Calendar, MapPin, Users, Clock, Plus, UserPlus, UserCheck, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell } from "lucide-react";
 import { RewardClaimQRDialog } from "@/components/RewardClaimQRDialog";
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
@@ -1952,34 +1952,38 @@ export default function HomePage() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {events?.map((event) => (
+            {events?.map((event) => {
+              const typeColorMap: Record<string, string> = {
+                game: 'border-l-destructive',
+                training: 'border-l-primary',
+                social: 'border-l-warning',
+              };
+              const typeBorderClass = typeColorMap[event.type] || 'border-l-primary';
+              
+              return (
               <Card 
                 key={event.id} 
-                className={`hover:border-primary/50 transition-colors cursor-pointer ${event.is_cancelled ? 'opacity-60' : ''}`}
+                className={`hover:border-primary/50 transition-colors cursor-pointer border-l-[3px] ${typeBorderClass} ${event.is_cancelled ? 'opacity-60' : ''}`}
                 onClick={() => navigate(`/events/${event.id}`)}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                      <Badge className={eventTypeColors[event.type]} variant="secondary">
-                        {event.type}
+                <CardContent className="p-3 pl-3.5">
+                  {/* Row 1: Title + RSVP */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h3 className={`font-semibold text-[15px] leading-snug truncate ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
+                      <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0 font-normal text-muted-foreground">
+                        {event.teams?.name || event.clubs?.name}
                       </Badge>
-                      {event.is_cancelled && (
-                        <Badge variant="destructive">Cancelled</Badge>
-                      )}
-                      {event.teams?.name && (
-                        <span className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                          <span>{getSportEmoji(event.clubs?.sport)}</span>
-                          {event.teams.name}
-                        </span>
-                      )}
                     </div>
-                    <div className="flex items-center gap-3 shrink-0 ml-auto">
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {event.is_cancelled && (
+                        <Badge variant="destructive" className="text-[11px] h-5">Cancelled</Badge>
+                      )}
                       {!event.is_cancelled && (
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-8"
+                          className="h-6 text-[11px] px-2 rounded-md"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -1990,133 +1994,136 @@ export default function HomePage() {
                           RSVP
                         </Button>
                       )}
-                      {canManageEvent(event) && (
-                        <>
-                          <Link to={`/events/${event.id}/edit`} onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                          {!event.is_cancelled && (
-                            <>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-8 w-8 text-primary"
-                                disabled={loadingRemindCount}
-                                onClick={async (e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setLoadingRemindCount(true);
-                                  
-                                  const { data: rsvps } = await supabase
-                                    .from("rsvps")
-                                    .select("user_id")
-                                    .eq("event_id", event.id);
-                                  
-                                  const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
-                                  
-                                  let allMemberIds: string[] = [];
-                                  
-                                  if (event.mini_league_id) {
-                                    const { data: league } = await supabase
-                                      .from("mini_leagues")
-                                      .select("club_id")
-                                      .eq("id", event.mini_league_id)
-                                      .single();
-                                    
-                                    if (league) {
-                                      const { data: playersData } = await supabase
-                                        .from("mini_league_players")
-                                        .select("parent_user_id")
-                                        .eq("mini_league_id", event.mini_league_id)
-                                        .not("parent_user_id", "is", null);
-                                      
-                                      const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
-                                      
-                                      const { data: adminRoles } = await supabase
-                                        .from("user_roles")
-                                        .select("user_id")
-                                        .eq("club_id", league.club_id)
-                                        .in("role", ["club_admin", "league_admin", "coach"]);
-                                      
-                                      const adminIds = adminRoles?.map(r => r.user_id) || [];
-                                      
-                                      allMemberIds = [...new Set([...parentIds, ...adminIds])];
-                                    }
-                                  } else {
-                                    let memberQuery = supabase.from("user_roles").select("user_id");
-                                    if (event.team_id) {
-                                      memberQuery = memberQuery.eq("team_id", event.team_id);
-                                    } else {
-                                      memberQuery = memberQuery.eq("club_id", event.club_id);
-                                    }
-                                    
-                                    const { data: members } = await memberQuery;
-                                    allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
-                                  }
-                                  const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
-                                  
-                                  setNonRsvpCount(count);
-                                  setEventToRemind(event);
-                                  setRemindDialogOpen(true);
-                                  setLoadingRemindCount(false);
-                                }}
-                              >
-                                {loadingRemindCount ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Bell className="h-4 w-4" />
-                                )}
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-8 w-8 text-warning"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setEventToCancel(event);
-                                  setCancelDialogOpen(true);
-                                }}
-                              >
-                                <XCircle className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-destructive"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setEventToDelete(event);
-                              setDeleteDialogOpen(true);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
                     </div>
                   </div>
-                  <h3 className={`font-semibold ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground mt-0.5 flex-wrap">
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5" />
-                      {formatEventDate(event.event_date)}
-                    </span>
-                    {event.suburb && (
+                  {/* Row 2: Date + location + admin actions */}
+                  <div className="flex items-center justify-between mt-0.5">
+                    <div className="flex items-center gap-3 text-[13px] text-muted-foreground flex-wrap min-w-0">
                       <span className="flex items-center gap-1">
-                        <MapPin className="h-3.5 w-3.5" />
-                        {event.suburb}
+                        <Clock className="h-3 w-3 shrink-0" />
+                        {formatEventDate(event.event_date)}
                       </span>
+                      {event.suburb && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          {event.suburb}
+                        </span>
+                      )}
+                    </div>
+                    {canManageEvent(event) && (
+                      <div className="flex items-center shrink-0 -mr-1" onClick={(e) => e.stopPropagation()}>
+                        <Link to={`/events/${event.id}/edit`} onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        </Link>
+                        {!event.is_cancelled && (
+                          <>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-7 w-7 text-primary"
+                              disabled={loadingRemindCount}
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setLoadingRemindCount(true);
+                                
+                                const { data: rsvps } = await supabase
+                                  .from("rsvps")
+                                  .select("user_id")
+                                  .eq("event_id", event.id);
+                                
+                                const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
+                                
+                                let allMemberIds: string[] = [];
+                                
+                                if (event.mini_league_id) {
+                                  const { data: league } = await supabase
+                                    .from("mini_leagues")
+                                    .select("club_id")
+                                    .eq("id", event.mini_league_id)
+                                    .single();
+                                  
+                                  if (league) {
+                                    const { data: playersData } = await supabase
+                                      .from("mini_league_players")
+                                      .select("parent_user_id")
+                                      .eq("mini_league_id", event.mini_league_id)
+                                      .not("parent_user_id", "is", null);
+                                    
+                                    const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
+                                    
+                                    const { data: adminRoles } = await supabase
+                                      .from("user_roles")
+                                      .select("user_id")
+                                      .eq("club_id", league.club_id)
+                                      .in("role", ["club_admin", "league_admin", "coach"]);
+                                    
+                                    const adminIds = adminRoles?.map(r => r.user_id) || [];
+                                    
+                                    allMemberIds = [...new Set([...parentIds, ...adminIds])];
+                                  }
+                                } else {
+                                  let memberQuery = supabase.from("user_roles").select("user_id");
+                                  if (event.team_id) {
+                                    memberQuery = memberQuery.eq("team_id", event.team_id);
+                                  } else {
+                                    memberQuery = memberQuery.eq("club_id", event.club_id);
+                                  }
+                                  
+                                  const { data: members } = await memberQuery;
+                                  allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
+                                }
+                                const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
+                                
+                                setNonRsvpCount(count);
+                                setEventToRemind(event);
+                                setRemindDialogOpen(true);
+                                setLoadingRemindCount(false);
+                              }}
+                            >
+                              {loadingRemindCount ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Bell className="h-3 w-3" />
+                              )}
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-7 w-7 text-warning"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setEventToCancel(event);
+                                setCancelDialogOpen(true);
+                              }}
+                            >
+                              <XCircle className="h-3 w-3" />
+                            </Button>
+                          </>
+                        )}
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setEventToDelete(event);
+                            setDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -2133,7 +2140,9 @@ export default function HomePage() {
             return (
               <Button 
                 variant="outline" 
-                className={`w-full h-auto py-4 flex flex-col gap-2 relative ${showAdminIndicator ? 'opacity-60' : ''}`}
+                className={`w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2 relative ${showAdminIndicator ? 'opacity-60' : ''}`}
+                aria-label={activeClubFilter ? "Create Team" : "Create Team or Club"}
+                aria-disabled={showAdminIndicator || undefined}
                 onClick={() => {
                   if (showAdminIndicator) {
                     toast({ description: "Only club admins can create teams" });
@@ -2146,7 +2155,7 @@ export default function HomePage() {
                   }
                 }}
               >
-                <UserPlus className="h-5 w-5 text-foreground" />
+                <UserPlus className="h-5 w-5 text-foreground" aria-hidden="true" />
                 <span className="text-sm">{activeClubFilter ? "Create Team" : "Create Team or Club"}</span>
                 {showAdminIndicator && (
                   <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
@@ -2158,10 +2167,11 @@ export default function HomePage() {
           })()}
           <Button 
             variant="outline" 
-            className="w-full h-auto py-4 flex flex-col gap-2"
+            className="w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2"
+            aria-label="Join Team"
             onClick={() => setTeamDialogOpen(true)}
           >
-            <UserPlus className="h-5 w-5 text-foreground" />
+            <UserCheck className="h-5 w-5 text-foreground" aria-hidden="true" />
             <span className="text-sm">Join Team</span>
           </Button>
           {(() => {
@@ -2175,7 +2185,9 @@ export default function HomePage() {
             return (
               <Button 
                 variant="outline" 
-                className={`w-full h-auto py-4 flex flex-col gap-2 relative ${showVaultRestricted ? 'opacity-60' : ''}`}
+                className={`w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2 relative ${showVaultRestricted ? 'opacity-60' : ''}`}
+                aria-label={`File Vault${showProBadge ? ' (Pro feature)' : ''}`}
+                aria-disabled={showVaultRestricted || undefined}
                 onClick={() => {
                   if (!hasVaultRoleAccess) {
                     toast({
@@ -2193,9 +2205,9 @@ export default function HomePage() {
                 }}
               >
                 <div className="flex items-center gap-1">
-                  <FolderOpen className="h-5 w-5 text-foreground" />
+                  <FolderOpen className="h-5 w-5 text-foreground" aria-hidden="true" />
                   {showProBadge && (
-                    <Lock className="h-3 w-3 text-muted-foreground" />
+                    <Lock className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
                   )}
                 </div>
                 <span className="text-sm flex items-center gap-1">
@@ -2219,7 +2231,9 @@ export default function HomePage() {
             return (
               <Button 
                 variant="outline" 
-                className={`w-full h-auto py-4 flex flex-col gap-2 relative ${showAdminIndicator ? 'opacity-60' : ''}`}
+                className={`w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2 relative ${showAdminIndicator ? 'opacity-60' : ''}`}
+                aria-label="New Event"
+                aria-disabled={showAdminIndicator || undefined}
                 onClick={() => {
                   if (showAdminIndicator) {
                     toast({
@@ -2230,7 +2244,7 @@ export default function HomePage() {
                   navigate('/events/new');
                 }}
               >
-                <Plus className="h-5 w-5 text-foreground" />
+                <Plus className="h-5 w-5 text-foreground" aria-hidden="true" />
                 <span className="text-sm">New Event</span>
                 {showAdminIndicator && (
                   <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Admin</span>
@@ -2410,6 +2424,7 @@ export default function HomePage() {
               <button 
                 onClick={() => setPitchBoardsExpanded(!pitchBoardsExpanded)}
                 className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+                aria-expanded={pitchBoardsExpanded}
               >
                 {pitchBoardsExpanded ? "Show less" : "View all"}
               </button>
@@ -2420,7 +2435,16 @@ export default function HomePage() {
               <Card 
                 key={team.id}
                 className="hover:border-primary/50 transition-colors cursor-pointer"
+                role="button"
+                tabIndex={0}
+                aria-label={`Open pitch board for ${team.name}${team.readOnly ? ' (view only)' : ''}`}
                 onClick={() => openPitchBoard(team.id, team.name, team.readOnly)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openPitchBoard(team.id, team.name, team.readOnly);
+                  }
+                }}
               >
                 <CardContent className="p-4 flex flex-col items-center gap-2 relative">
                   {team.readOnly && (
@@ -2428,8 +2452,10 @@ export default function HomePage() {
                       View
                     </Badge>
                   )}
-                  <LayoutGrid className="h-6 w-6 text-foreground" />
-                  <span className="text-sm font-medium text-center truncate w-full">{team.name}</span>
+                  <LayoutGrid className="h-6 w-6 text-foreground" aria-hidden="true" />
+                  <span className="text-sm font-medium text-center w-full" title={team.name}>
+                    <span className="block truncate">{team.name}</span>
+                  </span>
                 </CardContent>
               </Card>
             ))}
