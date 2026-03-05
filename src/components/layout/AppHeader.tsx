@@ -687,13 +687,20 @@ export function AppHeader() {
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="relative"
-                style={{ color: effectiveTheme === 'dark' ? 'hsl(160 5% 95%)' : 'hsl(160 10% 10%)' }}
+                className="relative h-11 w-11"
                 aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : "Notifications"}
               >
-                <Bell className="h-5 w-5" aria-hidden="true" />
+                <Bell 
+                  className={`h-6 w-6 transition-colors duration-200 ${
+                    unreadCount > 0 
+                      ? 'text-primary animate-bell-ring' 
+                      : 'text-muted-foreground'
+                  }`}
+                  strokeWidth={2}
+                  aria-hidden="true" 
+                />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-0.5 rounded-full bg-destructive text-[9px] font-bold leading-none flex items-center justify-center text-destructive-foreground ring-2 ring-background">
+                  <span className="absolute top-1 right-1 min-w-[15px] h-[15px] px-[3px] rounded-full bg-destructive text-[9px] font-bold leading-none flex items-center justify-center text-destructive-foreground ring-[1.5px] ring-background">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
