@@ -1914,16 +1914,16 @@ export default function HomePage() {
         </ResponsiveDialogContent>
       </ResponsiveDialog>
 
-      {/* Upcoming Events - Moved above Quick Actions */}
+      {/* Upcoming Schedule - Moved above Quick Actions */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Upcoming Events</h2>
+          <h2 className="text-lg font-semibold">Upcoming Schedule</h2>
           <Link to="/events" className="text-sm text-primary hover:underline">
             View all
           </Link>
         </div>
 
-        <div aria-live="polite" aria-busy={isLoading} aria-label={`Upcoming events${events?.length ? `, ${events.length} event${events.length === 1 ? '' : 's'}` : ''}`}>
+        <div aria-live="polite" aria-busy={isLoading} aria-label={`Upcoming schedule${events?.length ? `, ${events.length} event${events.length === 1 ? '' : 's'}` : ''}`}>
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
@@ -1945,11 +1945,11 @@ export default function HomePage() {
           <Card className="border-dashed">
             <CardContent className="p-8 text-center">
               <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No upcoming events</p>
+              <p className="text-muted-foreground">Nothing scheduled</p>
               <p className="text-sm text-muted-foreground mt-1">
                 {userClubs && userClubs.length > 0 
-                  ? "No events scheduled yet" 
-                  : "Join a club or create one to see events here"}
+                  ? "Nothing scheduled yet" 
+                  : "Join a club or create one to see your schedule"}
               </p>
             </CardContent>
           </Card>

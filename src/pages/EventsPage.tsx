@@ -64,7 +64,7 @@ const eventTypeColors: Record<EventType, string> = {
 
 export default function EventsPage() {
   const { user, profile, refreshProfile } = useAuth();
-  usePageTitle("Events");
+  usePageTitle("Schedule");
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeClubFilter } = useClubTheme();
   const teamFilter = searchParams.get("team");
@@ -425,7 +425,7 @@ export default function EventsPage() {
   return (
     <div className="py-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Events</h1>
+        <h1 className="text-2xl font-bold">Schedule</h1>
         <div className="flex items-center gap-6">
           {/* Filter button - only show if there are filters to display */}
           {((userClubs?.length || 0) > 1 || (userTeams?.length || 0) > 0) && (
