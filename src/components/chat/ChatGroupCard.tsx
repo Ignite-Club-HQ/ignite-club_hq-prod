@@ -91,6 +91,8 @@ export default function ChatGroupCard({
       <Card
         className={`hover:border-primary/50 transition-colors cursor-pointer ${hasUnread ? 'border-primary/30' : ''}`}
         onClick={handleClick}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); } }}
+        tabIndex={0}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
