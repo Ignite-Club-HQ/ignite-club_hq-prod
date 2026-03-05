@@ -805,7 +805,7 @@ export default function PreGameLineupScreen({
         <Button
           className="flex-1"
           onClick={handleConfirm}
-          disabled={benchPlayers.length > 0}
+          disabled={filledSlots < totalSlots}
         >
           <Check className="h-4 w-4 mr-1.5" />
           Confirm Lineup ({filledSlots}/{totalSlots})
