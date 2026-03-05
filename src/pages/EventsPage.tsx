@@ -914,7 +914,7 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="h-8 w-8"
+                      className="h-8 w-8 min-h-[44px] min-w-[44px]"
                       onClick={(e) => {
                         e.preventDefault();
                         navigate(`/events/${event.id}/edit`);
@@ -926,7 +926,7 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        className="h-8 w-8 text-primary"
+                        className="h-8 w-8 min-h-[44px] min-w-[44px] text-primary"
                         disabled={remindMutation.isPending}
                         onClick={async (e) => {
                           e.preventDefault();
@@ -958,7 +958,7 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
                     <Button 
                       variant="ghost" 
                       size="icon"
-                      className="h-8 w-8 text-warning"
+                      className="h-8 w-8 min-h-[44px] min-w-[44px] text-warning"
                       onClick={(e) => {
                         e.preventDefault();
                         setCancelDialogOpen(true);
@@ -971,7 +971,7 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-8 w-8 text-destructive"
+                  className="h-8 w-8 min-h-[44px] min-w-[44px] text-destructive"
                   onClick={(e) => {
                     e.preventDefault();
                     setDeleteDialogOpen(true);
