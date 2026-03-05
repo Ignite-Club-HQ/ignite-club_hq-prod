@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Building2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Building2 } from "lucide-react";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
 import { PageLoading } from "@/components/ui/page-loading";
@@ -1019,15 +1019,6 @@ export default function ClubChatPage() {
             chatId={clubId!}
             chatName={club?.name || "Club"}
           />
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={handleManualRefresh}
-            disabled={isAnyRefreshing}
-            className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent hover:bg-transparent"
-          >
-            <RefreshCw className={`h-4 w-4 text-foreground ${isAnyRefreshing ? 'animate-spin' : ''}`} />
-          </Button>
           <ChatSearch onSearch={setSearchQuery} />
         </div>
       </div>
