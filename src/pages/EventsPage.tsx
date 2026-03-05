@@ -483,44 +483,51 @@ export default function EventsPage() {
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Filter Pills with View Toggle */}
-      <div className="flex items-center justify-between gap-2 -mx-4 px-4">
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {(["all", "game", "training", "social"] as const).map((type) => (
-            <Button
-              key={type}
-              variant={filter === type ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter(type)}
-              className="shrink-0"
-              aria-label={`Filter by ${type === "all" ? "all events" : type}`}
-              aria-pressed={filter === type}
-            >
-              {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
-            </Button>
-          ))}
-        </div>
-        <ToggleGroup 
-          type="single" 
-          value={viewMode} 
-          onValueChange={(value) => value && handleViewModeChange(value as "list" | "calendar")}
-          className="bg-muted p-1 rounded-lg shrink-0"
+      {/* View Toggle - Full width tabs */}
+      <div className="flex rounded-lg bg-muted p-1 gap-1">
+        <button
+          onClick={() => handleViewModeChange("list")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
+            viewMode === "list"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          aria-label="List view"
+          aria-pressed={viewMode === "list"}
         >
-          <ToggleGroupItem 
-            value="list" 
-            aria-label="List view" 
-            className="h-8 w-8 p-0 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
+          <List className="h-4 w-4" />
+          List
+        </button>
+        <button
+          onClick={() => handleViewModeChange("calendar")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
+            viewMode === "calendar"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          aria-label="Calendar view"
+          aria-pressed={viewMode === "calendar"}
+        >
+          <CalendarDays className="h-4 w-4" />
+          Calendar
+        </button>
+      </div>
+
+      {/* Filter Pills */}
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
+        {(["all", "game", "training", "social"] as const).map((type) => (
+          <Button
+            key={type}
+            variant={filter === type ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilter(type)}
+            className="shrink-0"
+            aria-label={`Filter by ${type === "all" ? "all events" : type}`}
+            aria-pressed={filter === type}
           >
-            <List className="h-4 w-4" />
-          </ToggleGroupItem>
-          <ToggleGroupItem 
-            value="calendar" 
-            aria-label="Calendar view" 
-            className="h-8 w-8 p-0 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
-          >
-            <CalendarDays className="h-4 w-4" />
-          </ToggleGroupItem>
-        </ToggleGroup>
+            {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
+          </Button>
+        ))}
       </div>
 
       {viewMode === "calendar" ? (
