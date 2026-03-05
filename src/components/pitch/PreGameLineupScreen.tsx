@@ -55,9 +55,10 @@ interface DragState {
   startX: number;
   startY: number;
   hasMoved: boolean;
+  directionLocked: 'drag' | 'scroll' | null; // null = undecided
 }
 
-const DRAG_THRESHOLD = 8; // px before drag is committed (prevents accidental drags)
+const DRAG_THRESHOLD = 12; // px before drag direction is determined
 
 export default function PreGameLineupScreen({
   players,
@@ -255,25 +256,42 @@ export default function PreGameLineupScreen({
       startX: clientX,
       startY: clientY,
       hasMoved: false,
+      directionLocked: null,
     };
     setDragState(newState);
     setSelectedSlotIndex(null);
   }, []);
 
-  const handleDragMove = useCallback((clientX: number, clientY: number) => {
+  const handleDragMove = useCallback((clientX: number, clientY: number): 'drag' | 'scroll' | 'pending' => {
     const current = dragRef.current;
-    if (!current) return;
+    if (!current) return 'pending';
 
-    const dx = clientX - current.startX;
-    const dy = clientY - current.startY;
-    const hasMoved = current.hasMoved || Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD;
+    const dx = Math.abs(clientX - current.startX);
+    const dy = Math.abs(clientY - current.startY);
 
-    setDragState(prev => prev ? { ...prev, ghostX: clientX, ghostY: clientY, hasMoved } : null);
-
-    if (hasMoved) {
-      const slotIdx = findSlotUnderPoint(clientX, clientY);
-      setHoveredSlotIndex(slotIdx);
+    // If direction not yet locked, check threshold
+    if (!current.directionLocked) {
+      if (dx < DRAG_THRESHOLD && dy < DRAG_THRESHOLD) {
+        return 'pending'; // Not enough movement yet
+      }
+      // Lock direction: horizontal-ish = drag, vertical = scroll
+      const direction = dx > dy ? 'drag' : 'scroll';
+      setDragState(prev => prev ? { ...prev, directionLocked: direction } : null);
+      if (direction === 'scroll') {
+        // Cancel the drag, let native scroll happen
+        setDragState(null);
+        setHoveredSlotIndex(null);
+        return 'scroll';
+      }
     }
+
+    if (current.directionLocked === 'scroll') return 'scroll';
+
+    // We're in drag mode
+    setDragState(prev => prev ? { ...prev, ghostX: clientX, ghostY: clientY, hasMoved: true } : null);
+    const slotIdx = findSlotUnderPoint(clientX, clientY);
+    setHoveredSlotIndex(slotIdx);
+    return 'drag';
   }, [findSlotUnderPoint]);
 
   const handleDragEnd = useCallback(() => {
@@ -290,14 +308,18 @@ export default function PreGameLineupScreen({
     if (!dragState) return;
 
     const onPointerMove = (e: PointerEvent) => {
-      e.preventDefault();
-      handleDragMove(e.clientX, e.clientY);
+      const result = handleDragMove(e.clientX, e.clientY);
+      if (result === 'drag') {
+        e.preventDefault(); // Only prevent default when actually dragging
+      }
     };
     const onPointerUp = () => handleDragEnd();
     const onTouchMove = (e: TouchEvent) => {
-      e.preventDefault();
       const t = e.touches[0];
-      handleDragMove(t.clientX, t.clientY);
+      const result = handleDragMove(t.clientX, t.clientY);
+      if (result === 'drag') {
+        e.preventDefault();
+      }
     };
     const onTouchEnd = () => handleDragEnd();
 
@@ -632,7 +654,7 @@ export default function PreGameLineupScreen({
                             ? "border-primary/30 bg-primary/5 hover:bg-primary/10 active:bg-primary/20"
                             : "border-border bg-muted/30 opacity-50"
                     )}
-                    style={{ touchAction: 'none' }}
+                    style={{ touchAction: 'auto' }}
                     role="button"
                     tabIndex={0}
                     aria-label={`${player.name}, number ${player.number || 'unassigned'}${player.assignedPositions?.length ? `, plays ${player.assignedPositions.join(', ')}` : ', any position'}${!isEligible && selectedSlotIndex !== null ? ', not eligible for this position' : ''}. Drag to a position or tap to assign.`}
@@ -640,9 +662,8 @@ export default function PreGameLineupScreen({
                       if (!dragState) handlePickPlayer(player.id);
                     }}
                     onPointerDown={(e) => {
-                      // Only handle primary button / touch
                       if (e.button !== 0) return;
-                      e.currentTarget.setPointerCapture(e.pointerId);
+                      // Don't capture pointer - let scroll happen until direction is determined
                       handleDragStart(player.id, e.clientX, e.clientY);
                     }}
                     onKeyDown={(e) => {
