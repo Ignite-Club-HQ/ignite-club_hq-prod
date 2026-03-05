@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Calendar as CalendarIcon, MapPin, Clock, Plus, List, CalendarDays, Pencil, Trash2, XCircle, Bell, Repeat, Upload, Eye, Filter } from "lucide-react";
+import { Calendar as CalendarIcon, MapPin, Clock, Plus, List, CalendarDays, Pencil, Trash2, XCircle, Bell, Repeat, FileSpreadsheet, Eye, Filter } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -444,7 +444,7 @@ export default function EventsPage() {
               <TooltipTrigger asChild>
                 <Link to="/events/import">
                   <Button size="icon" variant="outline">
-                    <Upload className="h-4 w-4" />
+                    <FileSpreadsheet className="h-4 w-4" />
                   </Button>
                 </Link>
               </TooltipTrigger>
