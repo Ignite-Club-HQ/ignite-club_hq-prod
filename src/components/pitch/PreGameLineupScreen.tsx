@@ -1,9 +1,9 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 import { Label } from "@/components/ui/label";
-import { X, Check, RotateCcw, Zap, Shield } from "lucide-react";
+import { X, Check, RotateCcw, Zap, Shield, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Player, TeamSize, FORMATIONS, getPositionFromCoords } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
@@ -47,6 +47,18 @@ function buildSlots(formation: { positions: { x: number; y: number }[] } | undef
   }));
 }
 
+// ── Drag & Drop types ──
+interface DragState {
+  playerId: string;
+  ghostX: number;
+  ghostY: number;
+  startX: number;
+  startY: number;
+  hasMoved: boolean;
+}
+
+const DRAG_THRESHOLD = 8; // px before drag is committed (prevents accidental drags)
+
 export default function PreGameLineupScreen({
   players,
   teamSize,
@@ -68,29 +80,35 @@ export default function PreGameLineupScreen({
   const [firstHalfGkId, setFirstHalfGkId] = useState<string | null>(null);
   const [secondHalfGkId, setSecondHalfGkId] = useState<string | null>(null);
 
+  // ── Drag state ──
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const [hoveredSlotIndex, setHoveredSlotIndex] = useState<number | null>(null);
+  const slotRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const pitchContainerRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<DragState | null>(null);
+
+  // Keep ref in sync for use in event handlers
+  useEffect(() => { dragRef.current = dragState; }, [dragState]);
+
   // Whether GK is managed via dropdown (not manual slot assignment)
   const gkManagedByDropdown = hasGk && rotateGkAtHalftime;
 
   // When 1st half GK is selected from dropdown, assign them to the GK slot on pitch
   const handleFirstHalfGkChange = useCallback((playerId: string) => {
     setFirstHalfGkId(playerId);
-    // Find the GK slot and assign the player
     const gkSlotIndex = slots.findIndex(s => s.pitchPosition === "GK");
     if (gkSlotIndex >= 0) {
       setSlots(prev => prev.map((s, i) => {
         if (i === gkSlotIndex) return { ...s, assignedPlayerId: playerId };
-        // If this player was assigned elsewhere, unassign them
         if (s.assignedPlayerId === playerId) return { ...s, assignedPlayerId: null };
         return s;
       }));
     }
   }, [slots]);
 
-  // When formation/teamSize changes from parent, rebuild slots but try to keep assignments
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
     const newFormation = FORMATIONS[newSize][0];
     const newSlots = buildSlots(newFormation, newSize);
-    // Try to preserve assignments for slots that still exist
     const oldAssignments = slots.filter(s => s.assignedPlayerId).map(s => s.assignedPlayerId!);
     let idx = 0;
     for (const slot of newSlots) {
@@ -110,7 +128,6 @@ export default function PreGameLineupScreen({
   const handleFormationChange = useCallback((formationIndex: number) => {
     const newFormation = FORMATIONS[teamSize][formationIndex];
     const newSlots = buildSlots(newFormation, teamSize);
-    // Preserve assignments
     const oldAssignments = slots.filter(s => s.assignedPlayerId).map(s => s.assignedPlayerId!);
     let idx = 0;
     for (const slot of newSlots) {
@@ -124,36 +141,30 @@ export default function PreGameLineupScreen({
     onFormationChange?.(formationIndex);
   }, [teamSize, slots, onFormationChange]);
 
-  // Track assigned player IDs
   const assignedPlayerIds = useMemo(
     () => new Set(slots.filter(s => s.assignedPlayerId).map(s => s.assignedPlayerId!)),
     [slots]
   );
 
-  // Bench players (not assigned to any slot)
   const benchPlayers = useMemo(
     () => players.filter(p => !assignedPlayerIds.has(p.id) && !p.isInjured),
     [players, assignedPlayerIds]
   );
 
-  // GK-capable players (for rotation picker)
   const gkCapablePlayers = useMemo(
     () => players.filter(p => !p.isInjured && (!p.assignedPositions?.length || p.assignedPositions.includes("GK"))),
     [players]
   );
 
-  // Check if player can play a position
   const canPlayPosition = useCallback((player: Player, pitchPos: PitchPosition): boolean => {
     if (!player.assignedPositions?.length) return true;
     return player.assignedPositions.includes(pitchPos);
   }, []);
 
-  // Get filtered bench players for selected slot
   const filteredBenchPlayers = useMemo(() => {
     if (selectedSlotIndex === null) return benchPlayers;
     const slot = slots[selectedSlotIndex];
     if (!slot) return benchPlayers;
-    
     return [...benchPlayers].sort((a, b) => {
       const aEligible = canPlayPosition(a, slot.pitchPosition);
       const bEligible = canPlayPosition(b, slot.pitchPosition);
@@ -163,12 +174,10 @@ export default function PreGameLineupScreen({
     });
   }, [selectedSlotIndex, slots, benchPlayers, canPlayPosition]);
 
-  // Handle tapping a slot
   const handleSlotTap = useCallback((slotIndex: number) => {
+    if (dragState) return; // Don't handle taps during drag
     const slot = slots[slotIndex];
-    // Don't allow manual GK slot interaction when managed by dropdown
     if (gkManagedByDropdown && slot.pitchPosition === "GK") return;
-    
     if (slot.assignedPlayerId) {
       setSlots(prev => prev.map((s, i) => i === slotIndex ? { ...s, assignedPlayerId: null } : s));
       if (slot.assignedPlayerId === firstHalfGkId) setFirstHalfGkId(null);
@@ -177,14 +186,13 @@ export default function PreGameLineupScreen({
     } else {
       setSelectedSlotIndex(slotIndex);
     }
-  }, [slots, firstHalfGkId, secondHalfGkId, gkManagedByDropdown]);
+  }, [slots, firstHalfGkId, secondHalfGkId, gkManagedByDropdown, dragState]);
 
-  // Handle picking a player for selected slot
   const handlePickPlayer = useCallback((playerId: string) => {
+    if (dragState) return;
     let targetIndex = selectedSlotIndex;
     if (targetIndex === null) {
       const player = players.find(p => p.id === playerId);
-      // Skip GK slots when managed by dropdown
       const skipGk = gkManagedByDropdown;
       const matchingSlot = player?.assignedPositions?.length
         ? slots.findIndex(s => !s.assignedPlayerId && player.assignedPositions!.includes(s.pitchPosition) && !(skipGk && s.pitchPosition === "GK"))
@@ -196,26 +204,128 @@ export default function PreGameLineupScreen({
       }
       if (targetIndex < 0) return;
     }
-    
     const finalIndex = targetIndex;
     setSlots(prev => prev.map((s, i) =>
       i === finalIndex ? { ...s, assignedPlayerId: playerId } : s
     ));
-
     const slot = slots[finalIndex];
     if (slot.pitchPosition === "GK" && !firstHalfGkId) {
       setFirstHalfGkId(playerId);
     }
-
     setSelectedSlotIndex(null);
-  }, [selectedSlotIndex, slots, firstHalfGkId, players]);
+  }, [selectedSlotIndex, slots, firstHalfGkId, players, gkManagedByDropdown, dragState]);
 
-  // Auto-fill
+  // ── Drag & Drop handlers ──
+  const assignPlayerToSlot = useCallback((playerId: string, slotIndex: number) => {
+    const slot = slots[slotIndex];
+    if (gkManagedByDropdown && slot.pitchPosition === "GK") return;
+    
+    setSlots(prev => prev.map((s, i) => {
+      // If this player was in another slot, clear it
+      if (s.assignedPlayerId === playerId && i !== slotIndex) return { ...s, assignedPlayerId: null };
+      // Assign to target slot (swap out existing player if any)
+      if (i === slotIndex) return { ...s, assignedPlayerId: playerId };
+      return s;
+    }));
+    
+    if (slot.pitchPosition === "GK" && !firstHalfGkId) {
+      setFirstHalfGkId(playerId);
+    }
+    setSelectedSlotIndex(null);
+  }, [slots, gkManagedByDropdown, firstHalfGkId]);
+
+  const findSlotUnderPoint = useCallback((x: number, y: number): number | null => {
+    // Expand hit area for easier drop targeting
+    const HIT_EXPAND = 12;
+    for (const [index, el] of slotRefs.current.entries()) {
+      const rect = el.getBoundingClientRect();
+      if (
+        x >= rect.left - HIT_EXPAND &&
+        x <= rect.right + HIT_EXPAND &&
+        y >= rect.top - HIT_EXPAND &&
+        y <= rect.bottom + HIT_EXPAND
+      ) {
+        return index;
+      }
+    }
+    return null;
+  }, []);
+
+  const handleDragStart = useCallback((playerId: string, clientX: number, clientY: number) => {
+    const newState: DragState = {
+      playerId,
+      ghostX: clientX,
+      ghostY: clientY,
+      startX: clientX,
+      startY: clientY,
+      hasMoved: false,
+    };
+    setDragState(newState);
+    setSelectedSlotIndex(null);
+  }, []);
+
+  const handleDragMove = useCallback((clientX: number, clientY: number) => {
+    const current = dragRef.current;
+    if (!current) return;
+
+    const dx = clientX - current.startX;
+    const dy = clientY - current.startY;
+    const hasMoved = current.hasMoved || Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD;
+
+    setDragState(prev => prev ? { ...prev, ghostX: clientX, ghostY: clientY, hasMoved } : null);
+
+    if (hasMoved) {
+      const slotIdx = findSlotUnderPoint(clientX, clientY);
+      setHoveredSlotIndex(slotIdx);
+    }
+  }, [findSlotUnderPoint]);
+
+  const handleDragEnd = useCallback(() => {
+    const current = dragRef.current;
+    if (current?.hasMoved && hoveredSlotIndex !== null) {
+      assignPlayerToSlot(current.playerId, hoveredSlotIndex);
+    }
+    setDragState(null);
+    setHoveredSlotIndex(null);
+  }, [hoveredSlotIndex, assignPlayerToSlot]);
+
+  // Global pointer/touch move & end listeners during drag
+  useEffect(() => {
+    if (!dragState) return;
+
+    const onPointerMove = (e: PointerEvent) => {
+      e.preventDefault();
+      handleDragMove(e.clientX, e.clientY);
+    };
+    const onPointerUp = () => handleDragEnd();
+    const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      const t = e.touches[0];
+      handleDragMove(t.clientX, t.clientY);
+    };
+    const onTouchEnd = () => handleDragEnd();
+
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd);
+    window.addEventListener('touchcancel', onTouchEnd);
+
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [dragState, handleDragMove, handleDragEnd]);
+
   const handleAutoFill = useCallback(() => {
     const newSlots = [...slots];
     const used = new Set(newSlots.filter(s => s.assignedPlayerId).map(s => s.assignedPlayerId!));
     const available = players.filter(p => !used.has(p.id) && !p.isInjured);
-    
     for (const slot of newSlots) {
       if (slot.assignedPlayerId) continue;
       const specialist = available.find(
@@ -227,7 +337,6 @@ export default function PreGameLineupScreen({
       const anyone = available.find(p => !used.has(p.id));
       if (anyone) { slot.assignedPlayerId = anyone.id; used.add(anyone.id); }
     }
-    
     setSlots(newSlots);
     if (hasGk && !firstHalfGkId) {
       const gkSlot = newSlots.find(s => s.pitchPosition === "GK" && s.assignedPlayerId);
@@ -259,8 +368,11 @@ export default function PreGameLineupScreen({
 
   const formations = FORMATIONS[teamSize];
 
+  const isDragging = dragState?.hasMoved ?? false;
+  const draggedPlayer = dragState ? getPlayerById(dragState.playerId) : null;
+
   return (
-    <div className="fixed inset-0 z-[99999] bg-background flex flex-col">
+    <div className="fixed inset-0 z-[99999] bg-background flex flex-col" style={{ touchAction: isDragging ? 'none' : undefined }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}>
         <div className="flex items-center gap-2">
@@ -282,7 +394,7 @@ export default function PreGameLineupScreen({
       </div>
 
       {/* Main content - fully scrollable */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto" style={{ touchAction: isDragging ? 'none' : undefined }}>
         {/* Team size & formation selectors */}
         <div className="px-4 py-2 space-y-2 border-b border-border bg-muted/20">
           <div className="space-y-1">
@@ -332,7 +444,13 @@ export default function PreGameLineupScreen({
         {/* Formation visual - mini pitch with color-coded slots */}
         <div className="sticky top-0 z-20 border-y border-border bg-background/95 backdrop-blur-sm">
           <div className="px-4 py-2">
-            <div className="relative w-full aspect-[3/4] max-h-[30vh] bg-[hsl(var(--pitch-green,120,40%,30%))] rounded-lg mx-auto max-w-sm" style={{ backgroundColor: '#2d5a27' }} role="group" aria-label={`Formation pitch view, ${filledSlots} of ${totalSlots} positions filled`}>
+            <div
+              ref={pitchContainerRef}
+              className="relative w-full aspect-[3/4] max-h-[30vh] rounded-lg mx-auto max-w-sm"
+              style={{ backgroundColor: '#2d5a27' }}
+              role="group"
+              aria-label={`Formation pitch view, ${filledSlots} of ${totalSlots} positions filled`}
+            >
               {/* Pitch lines */}
               <div className="absolute inset-[8%] border-2 border-white/30 rounded" />
               <div className="absolute left-[8%] right-[8%] top-[50%] h-[1px] bg-white/30" />
@@ -343,20 +461,26 @@ export default function PreGameLineupScreen({
               {slots.map((slot, i) => {
                 const player = slot.assignedPlayerId ? getPlayerById(slot.assignedPlayerId) : null;
                 const isSelected = selectedSlotIndex === i;
+                const isHovered = hoveredSlotIndex === i && isDragging;
                 const colors = CIRCLE_COLORS[slot.pitchPosition];
 
                 return (
                   <button
                     key={i}
+                    ref={el => { if (el) slotRefs.current.set(i, el); else slotRefs.current.delete(i); }}
                     className={cn(
                       "absolute w-14 h-14 -ml-7 -mt-7 rounded-full flex flex-col items-center justify-center transition-all text-white border-2",
                       player
                         ? cn(colors.filled, colors.filledBorder)
-                        : isSelected
-                          ? "bg-white/40 border-white animate-pulse"
-                          : cn(colors.empty, colors.emptyBorder, "border-dashed")
+                        : isHovered
+                          ? "bg-white/60 border-white scale-125 shadow-lg shadow-white/30"
+                          : isSelected
+                            ? "bg-white/40 border-white animate-pulse"
+                            : isDragging && !player
+                              ? cn(colors.empty, colors.emptyBorder, "border-dashed scale-110")
+                              : cn(colors.empty, colors.emptyBorder, "border-dashed")
                     )}
-                    style={{ left: `${slot.position.x}%`, top: `${slot.position.y}%` }}
+                    style={{ left: `${slot.position.x}%`, top: `${slot.position.y}%`, transition: 'transform 150ms ease, background-color 150ms ease, box-shadow 150ms ease' }}
                     onClick={() => handleSlotTap(i)}
                     aria-label={player
                       ? `${slot.pitchPosition} position: ${player.name}. Tap to unassign`
@@ -382,10 +506,12 @@ export default function PreGameLineupScreen({
               })}
             </div>
 
-            <p className="mt-2 text-xs text-muted-foreground text-center">
-              {selectedSlotIndex !== null
-                ? `Assigning: ${slots[selectedSlotIndex]?.pitchPosition || "position"} — tap another circle to switch`
-                : "Tap a position circle, then pick a player"}
+            <p className="mt-2 text-xs text-muted-foreground text-center" aria-live="polite">
+              {isDragging
+                ? "Drop on a position circle to assign"
+                : selectedSlotIndex !== null
+                  ? `Assigning: ${slots[selectedSlotIndex]?.pitchPosition || "position"} — tap another circle to switch`
+                  : "Drag a player to a position, or tap to assign"}
             </p>
           </div>
         </div>
@@ -453,7 +579,7 @@ export default function PreGameLineupScreen({
             <p className="text-sm font-medium">
               {selectedSlotIndex !== null
                 ? `Pick player for ${slots[selectedSlotIndex]?.pitchPosition}`
-                : "Tap a player to auto-assign, or tap a position first"
+                : "Tap or drag players to assign"
               }
             </p>
             <div className="flex gap-1.5">
@@ -482,20 +608,40 @@ export default function PreGameLineupScreen({
               filteredBenchPlayers.map(player => {
                 const selectedSlot = selectedSlotIndex !== null ? slots[selectedSlotIndex] : null;
                 const isEligible = selectedSlot ? canPlayPosition(player, selectedSlot.pitchPosition) : true;
+                const isBeingDragged = dragState?.playerId === player.id && isDragging;
 
                 return (
-                  <button
+                  <div
                     key={player.id}
                     className={cn(
-                      "w-full flex items-center justify-between p-2.5 min-h-[48px] rounded-lg border transition-all text-left",
-                      selectedSlotIndex === null
-                        ? "border-border bg-muted/30 hover:bg-muted/50 active:bg-muted/70"
-                        : isEligible
-                          ? "border-primary/30 bg-primary/5 hover:bg-primary/10 active:bg-primary/20"
-                          : "border-border bg-muted/30 opacity-50"
+                      "w-full flex items-center justify-between p-2.5 min-h-[48px] rounded-lg border transition-all text-left select-none",
+                      isBeingDragged
+                        ? "border-primary bg-primary/10 opacity-50"
+                        : selectedSlotIndex === null
+                          ? "border-border bg-muted/30 hover:bg-muted/50 active:bg-muted/70"
+                          : isEligible
+                            ? "border-primary/30 bg-primary/5 hover:bg-primary/10 active:bg-primary/20"
+                            : "border-border bg-muted/30 opacity-50"
                     )}
-                    onClick={() => handlePickPlayer(player.id)}
-                    aria-label={`${player.name}, number ${player.number || 'unassigned'}${player.assignedPositions?.length ? `, plays ${player.assignedPositions.join(', ')}` : ', any position'}${!isEligible && selectedSlotIndex !== null ? ', not eligible for this position' : ''}`}
+                    style={{ touchAction: 'none' }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${player.name}, number ${player.number || 'unassigned'}${player.assignedPositions?.length ? `, plays ${player.assignedPositions.join(', ')}` : ', any position'}${!isEligible && selectedSlotIndex !== null ? ', not eligible for this position' : ''}. Drag to a position or tap to assign.`}
+                    onClick={() => {
+                      if (!dragState) handlePickPlayer(player.id);
+                    }}
+                    onPointerDown={(e) => {
+                      // Only handle primary button / touch
+                      if (e.button !== 0) return;
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                      handleDragStart(player.id, e.clientX, e.clientY);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handlePickPlayer(player.id);
+                      }
+                    }}
                   >
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
@@ -519,10 +665,13 @@ export default function PreGameLineupScreen({
                         </div>
                       </div>
                     </div>
-                    {selectedSlotIndex !== null && isEligible && (
-                      <Check className="h-4 w-4 text-primary shrink-0" />
-                    )}
-                  </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {selectedSlotIndex !== null && isEligible && (
+                        <Check className="h-4 w-4 text-primary" />
+                      )}
+                      <GripVertical className="h-4 w-4 text-muted-foreground/50" />
+                    </div>
+                  </div>
                 );
               })
             )}
@@ -544,6 +693,27 @@ export default function PreGameLineupScreen({
           Confirm Lineup ({filledSlots}/{totalSlots})
         </Button>
       </div>
+
+      {/* Drag ghost - floating element that follows the finger */}
+      {isDragging && draggedPlayer && (
+        <div
+          className="fixed z-[999999] pointer-events-none"
+          style={{
+            left: dragState!.ghostX,
+            top: dragState!.ghostY,
+            transform: 'translate(-50%, -80%)',
+          }}
+        >
+          <div className="flex items-center gap-2 bg-background/95 backdrop-blur-sm border-2 border-primary rounded-full px-3 py-2 shadow-2xl shadow-primary/20">
+            <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+              {draggedPlayer.number || "#"}
+            </div>
+            <span className="text-sm font-semibold text-foreground whitespace-nowrap">
+              {draggedPlayer.name}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
