@@ -77,6 +77,8 @@ export const CommentReactionPicker = memo(function CommentReactionPicker({
                   e.stopPropagation();
                   onEmojiClick(type);
                 }}
+                aria-label={`React with ${type}${userHasReaction ? ' (selected)' : ''}`}
+                aria-pressed={userHasReaction}
                 className={`h-9 w-9 p-0 text-lg shrink-0 ${
                   userHasReaction ? "bg-primary/20" : ""
                 }`}

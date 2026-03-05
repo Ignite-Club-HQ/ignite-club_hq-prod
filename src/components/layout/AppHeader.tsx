@@ -691,8 +691,9 @@ export function AppHeader() {
                 size="icon" 
                 className="relative"
                 style={{ color: effectiveTheme === 'dark' ? 'hsl(160 5% 95%)' : 'hsl(160 10% 10%)' }}
+                aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : "Notifications"}
               >
-                <Bell className="h-5 w-5" />
+                <Bell className="h-5 w-5" aria-hidden="true" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-destructive text-[10px] font-bold flex items-center justify-center text-destructive-foreground">
                     {unreadCount > 9 ? "9+" : unreadCount}

@@ -61,13 +61,15 @@ export const CommentReactionsDisplay = memo(function CommentReactionsDisplay({
                   e.stopPropagation();
                   onReactionClick(type);
                 }}
+                aria-label={`${emoji} ${type} reaction, ${count} ${count === 1 ? 'person' : 'people'}${isUserReaction ? ', you reacted' : ''}`}
+                aria-pressed={isUserReaction}
                 className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs ${
                   isUserReaction
                     ? "bg-primary/20 border border-primary/40"
                     : "bg-muted/50 hover:bg-muted"
                 }`}
               >
-                <span>{emoji}</span>
+                <span aria-hidden="true">{emoji}</span>
                 <span className="text-muted-foreground">{count}</span>
               </button>
             );
