@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense, useMemo } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -136,6 +137,7 @@ function formatEventDate(dateStr: string) {
 
 export default function HomePage() {
   const { user, profile, refreshProfile } = useAuth();
+  usePageTitle("Home");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -358,13 +360,13 @@ export default function HomePage() {
   const getRsvpIcon = (status: string | null) => {
     switch (status) {
       case "going":
-        return <CheckCircle2 className="h-4 w-4 mr-1 text-primary" />;
+        return <><CheckCircle2 className="h-4 w-4 mr-1 text-primary" aria-hidden="true" /><span className="sr-only">Going - </span></>;
       case "not_going":
-        return <X className="h-4 w-4 mr-1 text-destructive" />;
+        return <><X className="h-4 w-4 mr-1 text-destructive" aria-hidden="true" /><span className="sr-only">Not going - </span></>;
       case "maybe":
-        return <HelpCircle className="h-4 w-4 mr-1 text-warning" />;
+        return <><HelpCircle className="h-4 w-4 mr-1 text-warning" aria-hidden="true" /><span className="sr-only">Maybe - </span></>;
       default:
-        return <Minus className="h-4 w-4 mr-1 text-muted-foreground" />;
+        return <><Minus className="h-4 w-4 mr-1 text-muted-foreground" aria-hidden="true" /><span className="sr-only">No response - </span></>;
     }
   };
 

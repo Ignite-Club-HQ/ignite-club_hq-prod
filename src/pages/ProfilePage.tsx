@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { LogOut, Flame, Trophy, Users, Settings, ChevronRight, ChevronDown, Baby, Loader2, Crown, Building2, ShieldCheck, Gift, Plus, CheckCircle2, ClipboardList, Lock, FileText } from "lucide-react";
@@ -21,6 +22,7 @@ import igniteIconLight from "@/assets/ignite-icon-light.png";
 
 export default function ProfilePage() {
   const { user, profile, signOut } = useAuth();
+  usePageTitle("Profile");
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
