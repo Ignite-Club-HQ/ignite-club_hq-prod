@@ -3,14 +3,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { BellOff, Bell, Loader2, Clock } from "lucide-react";
+import { BellOff, Bell, Loader2, Clock, BellRing } from "lucide-react";
 import { toast } from "sonner";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogDescription,
+} from "@/components/ui/responsive-dialog";
 
 interface ChatMuteButtonProps {
   chatType: "team" | "club" | "group" | "dm";
@@ -140,33 +141,49 @@ export function ChatMuteButton({ chatType, chatId }: ChatMuteButtonProps) {
         )}
       </Button>
 
-      <Dialog open={showMuteDialog} onOpenChange={setShowMuteDialog}>
-        <DialogContent className="max-w-xs">
-          <DialogHeader>
-            <DialogTitle>Mute notifications</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-2 pt-2">
-            <Button
-              variant="outline"
-              className="justify-start gap-3 h-12"
+      <ResponsiveDialog open={showMuteDialog} onOpenChange={setShowMuteDialog}>
+        <ResponsiveDialogContent className="sm:max-w-sm">
+          <ResponsiveDialogHeader>
+            <div className="flex items-center justify-center mb-2">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                <BellRing className="h-6 w-6 text-muted-foreground" />
+              </div>
+            </div>
+            <ResponsiveDialogTitle className="text-center">Mute notifications</ResponsiveDialogTitle>
+            <ResponsiveDialogDescription className="text-center">
+              Choose how long to silence this chat
+            </ResponsiveDialogDescription>
+          </ResponsiveDialogHeader>
+          <div className="flex flex-col gap-3 py-4 px-1">
+            <button
+              className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:bg-accent/50 active:scale-[0.98] transition-all disabled:opacity-50"
               onClick={() => muteMutation.mutate("1hour")}
               disabled={muteMutation.isPending}
             >
-              <Clock className="h-4 w-4" />
-              <span>For 1 hour</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="justify-start gap-3 h-12"
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <Clock className="h-5 w-5 text-primary" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-medium text-foreground">For 1 hour</p>
+                <p className="text-xs text-muted-foreground">Automatically unmutes after</p>
+              </div>
+            </button>
+            <button
+              className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:bg-accent/50 active:scale-[0.98] transition-all disabled:opacity-50"
               onClick={() => muteMutation.mutate("indefinite")}
               disabled={muteMutation.isPending}
             >
-              <BellOff className="h-4 w-4" />
-              <span>Until I turn it back on</span>
-            </Button>
+              <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
+                <BellOff className="h-5 w-5 text-destructive" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-medium text-foreground">Until I turn it back on</p>
+                <p className="text-xs text-muted-foreground">Stay muted indefinitely</p>
+              </div>
+            </button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </>
   );
 }
