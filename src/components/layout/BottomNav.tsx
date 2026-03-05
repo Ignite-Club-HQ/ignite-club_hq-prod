@@ -120,13 +120,14 @@ export function BottomNav() {
               to={to}
               end={to === "/"}
               aria-label={label}
+              aria-current={undefined}
               className={({ isActive }) => cn(
                 "flex flex-col items-center justify-center flex-1 py-2 transition-colors",
                 isActive ? "text-primary" : "text-muted-foreground"
               )}
             >
               {({ isActive }) => (
-                <>
+                <span aria-current={isActive ? "page" : undefined} className="flex flex-col items-center">
                   <div className={cn(
                     "p-1.5 rounded-xl transition-all relative",
                     isActive && "bg-primary/10"
@@ -142,7 +143,7 @@ export function BottomNav() {
                     )}
                   </div>
                   <span className="text-xs font-medium mt-0.5">{label}</span>
-                </>
+                </span>
               )}
             </NavLink>
           ))}

@@ -1923,6 +1923,7 @@ export default function HomePage() {
           </Link>
         </div>
 
+        <div aria-live="polite" aria-busy={isLoading} aria-label="Upcoming events">
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
@@ -1967,6 +1968,10 @@ export default function HomePage() {
                 key={event.id} 
                 className={`hover:border-primary/50 transition-colors cursor-pointer border-l-[3px] ${typeBorderClass} ${event.is_cancelled ? 'opacity-60' : ''}`}
                 onClick={() => navigate(`/events/${event.id}`)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
+                tabIndex={0}
+                role="link"
+                aria-label={`${event.title}${event.is_cancelled ? ' (Cancelled)' : ''}`}
               >
                 <CardContent className="p-3 pl-3.5">
                   {/* Row 1: Title + RSVP */}
@@ -2128,6 +2133,7 @@ export default function HomePage() {
             })}
           </div>
         )}
+        </div>
       </section>
 
       {/* Quick Actions */}
