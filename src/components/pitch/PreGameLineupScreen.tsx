@@ -286,17 +286,19 @@ export default function PreGameLineupScreen({
         {/* Team size & formation selectors */}
         <div className="px-4 py-2 space-y-2 border-b border-border bg-muted/20">
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Players per Team</Label>
-            <div className="flex rounded-lg border border-border overflow-hidden">
+            <Label id="team-size-label" className="text-[10px] uppercase tracking-wider text-muted-foreground">Players per Team</Label>
+            <div className="flex rounded-lg border border-border overflow-hidden" role="group" aria-labelledby="team-size-label">
               {TEAM_SIZES.map(size => (
                 <button
                   key={size}
                   className={cn(
-                    "flex-1 py-1.5 text-xs font-medium transition-colors",
+                    "flex-1 min-h-[44px] text-sm font-medium transition-colors",
                     size === teamSize
                       ? "bg-primary text-primary-foreground"
                       : "bg-background hover:bg-muted text-foreground"
                   )}
+                  aria-label={`${size} players per team`}
+                  aria-pressed={size === teamSize}
                   onClick={() => handleTeamSizeChange(size)}
                 >
                   {size}
@@ -305,17 +307,19 @@ export default function PreGameLineupScreen({
             </div>
           </div>
           <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Formation</Label>
-            <div className="flex rounded-lg border border-border overflow-hidden">
+            <Label id="formation-label" className="text-[10px] uppercase tracking-wider text-muted-foreground">Formation</Label>
+            <div className="flex rounded-lg border border-border overflow-hidden" role="group" aria-labelledby="formation-label">
               {formations.map((f, i) => (
                 <button
                   key={i}
                   className={cn(
-                    "flex-1 py-1.5 text-xs font-medium transition-colors",
+                    "flex-1 min-h-[44px] text-sm font-medium transition-colors",
                     i === selectedFormation
                       ? "bg-primary text-primary-foreground"
                       : "bg-background hover:bg-muted text-foreground"
                   )}
+                  aria-label={`Formation ${f.name}`}
+                  aria-pressed={i === selectedFormation}
                   onClick={() => handleFormationChange(i)}
                 >
                   {f.name}
@@ -328,7 +332,7 @@ export default function PreGameLineupScreen({
         {/* Formation visual - mini pitch with color-coded slots */}
         <div className="sticky top-0 z-20 border-y border-border bg-background/95 backdrop-blur-sm">
           <div className="px-4 py-2">
-            <div className="relative w-full aspect-[3/4] max-h-[30vh] bg-[hsl(var(--pitch-green,120,40%,30%))] rounded-lg mx-auto max-w-sm" style={{ backgroundColor: '#2d5a27' }}>
+            <div className="relative w-full aspect-[3/4] max-h-[30vh] bg-[hsl(var(--pitch-green,120,40%,30%))] rounded-lg mx-auto max-w-sm" style={{ backgroundColor: '#2d5a27' }} role="group" aria-label={`Formation pitch view, ${filledSlots} of ${totalSlots} positions filled`}>
               {/* Pitch lines */}
               <div className="absolute inset-[8%] border-2 border-white/30 rounded" />
               <div className="absolute left-[8%] right-[8%] top-[50%] h-[1px] bg-white/30" />
@@ -345,7 +349,7 @@ export default function PreGameLineupScreen({
                   <button
                     key={i}
                     className={cn(
-                      "absolute w-12 h-12 -ml-6 -mt-6 rounded-full flex flex-col items-center justify-center transition-all text-white border-2",
+                      "absolute w-14 h-14 -ml-7 -mt-7 rounded-full flex flex-col items-center justify-center transition-all text-white border-2",
                       player
                         ? cn(colors.filled, colors.filledBorder)
                         : isSelected
@@ -354,18 +358,22 @@ export default function PreGameLineupScreen({
                     )}
                     style={{ left: `${slot.position.x}%`, top: `${slot.position.y}%` }}
                     onClick={() => handleSlotTap(i)}
+                    aria-label={player
+                      ? `${slot.pitchPosition} position: ${player.name}. Tap to unassign`
+                      : `Empty ${slot.pitchPosition} position. Tap to select`
+                    }
                   >
                     {player ? (
                       <>
-                        <span className="text-[10px] font-bold leading-none truncate max-w-[40px]">
+                        <span className="text-xs font-bold leading-none truncate max-w-[46px]">
                           {player.number || ""}
                         </span>
-                        <span className="text-[7px] leading-none truncate max-w-[40px] mt-0.5">
+                        <span className="text-[9px] leading-none truncate max-w-[46px] mt-0.5">
                           {player.name.split(" ")[0]}
                         </span>
                       </>
                     ) : (
-                      <span className="text-[10px] font-bold text-white drop-shadow-sm">
+                      <span className="text-xs font-bold text-white drop-shadow-sm">
                         {slot.pitchPosition}
                       </span>
                     )}
@@ -388,47 +396,51 @@ export default function PreGameLineupScreen({
           {hasGk && rotateGkAtHalftime && gkCapablePlayers.length >= 2 && (
             <div className="px-4 py-3 border-b border-border bg-muted/20 space-y-3">
               <div className="space-y-1.5">
-                <p className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">1st Half GK</p>
-                <div className="flex flex-wrap gap-1.5">
+                <p id="first-half-gk-label" className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">1st Half GK</p>
+                <div className="flex flex-wrap gap-2" role="group" aria-labelledby="first-half-gk-label">
                   {gkCapablePlayers.map(p => (
                     <button
                       key={p.id}
                       className={cn(
-                        "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border transition-all",
+                        "flex items-center gap-1.5 rounded-full px-3 min-h-[44px] text-sm font-medium border transition-all",
                         firstHalfGkId === p.id
                           ? "bg-yellow-600/90 border-yellow-400/70 text-white shadow-sm"
                           : "bg-background border-border text-foreground hover:bg-muted/50 active:bg-muted/70"
                       )}
+                      aria-label={`Select ${p.name} as 1st half goalkeeper`}
+                      aria-pressed={firstHalfGkId === p.id}
                       onClick={() => handleFirstHalfGkChange(p.id)}
                     >
-                      <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+                      <span className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
                         {p.number || "#"}
                       </span>
                       {p.name.split(" ")[0]}
-                      {firstHalfGkId === p.id && <Check className="h-3 w-3 ml-0.5" />}
+                      {firstHalfGkId === p.id && <Check className="h-3.5 w-3.5 ml-0.5" />}
                     </button>
                   ))}
                 </div>
               </div>
               <div className="space-y-1.5">
-                <p className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">2nd Half GK</p>
-                <div className="flex flex-wrap gap-1.5">
+                <p id="second-half-gk-label" className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">2nd Half GK</p>
+                <div className="flex flex-wrap gap-2" role="group" aria-labelledby="second-half-gk-label">
                   {gkCapablePlayers.filter(p => p.id !== firstHalfGkId).map(p => (
                     <button
                       key={p.id}
                       className={cn(
-                        "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border transition-all",
+                        "flex items-center gap-1.5 rounded-full px-3 min-h-[44px] text-sm font-medium border transition-all",
                         secondHalfGkId === p.id
                           ? "bg-yellow-600/90 border-yellow-400/70 text-white shadow-sm"
                           : "bg-background border-border text-foreground hover:bg-muted/50 active:bg-muted/70"
                       )}
+                      aria-label={`Select ${p.name} as 2nd half goalkeeper`}
+                      aria-pressed={secondHalfGkId === p.id}
                       onClick={() => setSecondHalfGkId(p.id)}
                     >
-                      <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+                      <span className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
                         {p.number || "#"}
                       </span>
                       {p.name.split(" ")[0]}
-                      {secondHalfGkId === p.id && <Check className="h-3 w-3 ml-0.5" />}
+                      {secondHalfGkId === p.id && <Check className="h-3.5 w-3.5 ml-0.5" />}
                     </button>
                   ))}
                 </div>
@@ -445,12 +457,12 @@ export default function PreGameLineupScreen({
               }
             </p>
             <div className="flex gap-1.5">
-              <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={handleAutoFill}>
-                <Zap className="h-3 w-3 mr-1" />
+              <Button variant="ghost" size="sm" className="h-11 text-sm px-3" onClick={handleAutoFill} aria-label="Auto-fill all positions">
+                <Zap className="h-4 w-4 mr-1" />
                 Auto
               </Button>
-              <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={handleClearAll}>
-                <RotateCcw className="h-3 w-3 mr-1" />
+              <Button variant="ghost" size="sm" className="h-11 text-sm px-3" onClick={handleClearAll} aria-label="Clear all assigned players">
+                <RotateCcw className="h-4 w-4 mr-1" />
                 Clear
               </Button>
             </div>
@@ -475,7 +487,7 @@ export default function PreGameLineupScreen({
                   <button
                     key={player.id}
                     className={cn(
-                      "w-full flex items-center justify-between p-2.5 rounded-lg border transition-all text-left",
+                      "w-full flex items-center justify-between p-2.5 min-h-[48px] rounded-lg border transition-all text-left",
                       selectedSlotIndex === null
                         ? "border-border bg-muted/30 hover:bg-muted/50 active:bg-muted/70"
                         : isEligible
@@ -483,6 +495,7 @@ export default function PreGameLineupScreen({
                           : "border-border bg-muted/30 opacity-50"
                     )}
                     onClick={() => handlePickPlayer(player.id)}
+                    aria-label={`${player.name}, number ${player.number || 'unassigned'}${player.assignedPositions?.length ? `, plays ${player.assignedPositions.join(', ')}` : ', any position'}${!isEligible && selectedSlotIndex !== null ? ', not eligible for this position' : ''}`}
                   >
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
