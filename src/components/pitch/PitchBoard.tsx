@@ -1493,6 +1493,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       setPlayers(autoPlacePlayersOnPitch(players, teamSize, selectedFormation));
     }
     setShowLineupPicker(false);
+    // Proceed to step 2: auto-sub setup (same as confirm flow)
+    setTimeout(() => {
+      setAutoSubPlanEditMode(false);
+      setAutoSubFromPreGame(true);
+      setAutoSubPlanDialogOpen(true);
+    }, 300);
   }, [players, teamSize, selectedFormation, autoPlacePlayersOnPitch, miniLeagueTeams]);
 
   // Save pitch state to localStorage whenever it changes (only after initialization)
