@@ -1,9 +1,9 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { X, Check, RotateCcw, Zap, Shield, GripVertical } from "lucide-react";
+import { X, Check, RotateCcw, Zap, Shield, GripVertical, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Player, TeamSize, FORMATIONS, getPositionFromCoords } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
@@ -90,21 +90,9 @@ export default function PreGameLineupScreen({
   // Keep ref in sync for use in event handlers
   useEffect(() => { dragRef.current = dragState; }, [dragState]);
 
-  // Whether GK is managed via dropdown (not manual slot assignment)
-  const gkManagedByDropdown = hasGk && rotateGkAtHalftime;
+  // GK rotation toggle state - starts with the prop value
+  const [rotateGk, setRotateGk] = useState(rotateGkAtHalftime);
 
-  // When 1st half GK is selected from dropdown, assign them to the GK slot on pitch
-  const handleFirstHalfGkChange = useCallback((playerId: string) => {
-    setFirstHalfGkId(playerId);
-    const gkSlotIndex = slots.findIndex(s => s.pitchPosition === "GK");
-    if (gkSlotIndex >= 0) {
-      setSlots(prev => prev.map((s, i) => {
-        if (i === gkSlotIndex) return { ...s, assignedPlayerId: playerId };
-        if (s.assignedPlayerId === playerId) return { ...s, assignedPlayerId: null };
-        return s;
-      }));
-    }
-  }, [slots]);
 
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
     const newFormation = FORMATIONS[newSize][0];
@@ -151,10 +139,23 @@ export default function PreGameLineupScreen({
     [players, assignedPlayerIds]
   );
 
+
   const gkCapablePlayers = useMemo(
     () => players.filter(p => !p.isInjured && (!p.assignedPositions?.length || p.assignedPositions.includes("GK"))),
     [players]
   );
+
+  // Auto-pick 2nd half GK: least-minutes GK-capable player excluding 1st half GK
+  const autoSecondHalfGk = useMemo(() => {
+    if (!rotateGk || !firstHalfGkId) return null;
+    const candidates = gkCapablePlayers
+      .filter(p => p.id !== firstHalfGkId && !p.isInjured)
+      .sort((a, b) => (a.minutesPlayed || 0) - (b.minutesPlayed || 0));
+    return candidates[0] || null;
+  }, [rotateGk, firstHalfGkId, gkCapablePlayers]);
+
+  // If no explicit 2nd half GK chosen, use auto-pick
+  const effective2ndHalfGkId = secondHalfGkId || autoSecondHalfGk?.id || null;
 
   const canPlayPosition = useCallback((player: Player, pitchPos: PitchPosition): boolean => {
     if (!player.assignedPositions?.length) return true;
@@ -177,7 +178,6 @@ export default function PreGameLineupScreen({
   const handleSlotTap = useCallback((slotIndex: number) => {
     if (dragState) return; // Don't handle taps during drag
     const slot = slots[slotIndex];
-    if (gkManagedByDropdown && slot.pitchPosition === "GK") return;
     if (slot.assignedPlayerId) {
       setSlots(prev => prev.map((s, i) => i === slotIndex ? { ...s, assignedPlayerId: null } : s));
       if (slot.assignedPlayerId === firstHalfGkId) setFirstHalfGkId(null);
@@ -186,21 +186,20 @@ export default function PreGameLineupScreen({
     } else {
       setSelectedSlotIndex(slotIndex);
     }
-  }, [slots, firstHalfGkId, secondHalfGkId, gkManagedByDropdown, dragState]);
+  }, [slots, firstHalfGkId, secondHalfGkId, dragState]);
 
   const handlePickPlayer = useCallback((playerId: string) => {
     if (dragState) return;
     let targetIndex = selectedSlotIndex;
     if (targetIndex === null) {
       const player = players.find(p => p.id === playerId);
-      const skipGk = gkManagedByDropdown;
       const matchingSlot = player?.assignedPositions?.length
-        ? slots.findIndex(s => !s.assignedPlayerId && player.assignedPositions!.includes(s.pitchPosition) && !(skipGk && s.pitchPosition === "GK"))
+        ? slots.findIndex(s => !s.assignedPlayerId && player.assignedPositions!.includes(s.pitchPosition))
         : -1;
       if (matchingSlot !== undefined && matchingSlot >= 0) {
         targetIndex = matchingSlot;
       } else {
-        targetIndex = slots.findIndex(s => !s.assignedPlayerId && !(skipGk && s.pitchPosition === "GK"));
+        targetIndex = slots.findIndex(s => !s.assignedPlayerId);
       }
       if (targetIndex < 0) return;
     }
@@ -213,26 +212,23 @@ export default function PreGameLineupScreen({
       setFirstHalfGkId(playerId);
     }
     setSelectedSlotIndex(null);
-  }, [selectedSlotIndex, slots, firstHalfGkId, players, gkManagedByDropdown, dragState]);
+  }, [selectedSlotIndex, slots, firstHalfGkId, players, dragState]);
 
   // ── Drag & Drop handlers ──
   const assignPlayerToSlot = useCallback((playerId: string, slotIndex: number) => {
     const slot = slots[slotIndex];
-    if (gkManagedByDropdown && slot.pitchPosition === "GK") return;
     
     setSlots(prev => prev.map((s, i) => {
-      // If this player was in another slot, clear it
       if (s.assignedPlayerId === playerId && i !== slotIndex) return { ...s, assignedPlayerId: null };
-      // Assign to target slot (swap out existing player if any)
       if (i === slotIndex) return { ...s, assignedPlayerId: playerId };
       return s;
     }));
     
-    if (slot.pitchPosition === "GK" && !firstHalfGkId) {
+    if (slot.pitchPosition === "GK") {
       setFirstHalfGkId(playerId);
     }
     setSelectedSlotIndex(null);
-  }, [slots, gkManagedByDropdown, firstHalfGkId]);
+  }, [slots]);
 
   const findSlotUnderPoint = useCallback((x: number, y: number): number | null => {
     // Expand hit area for easier drop targeting
@@ -359,8 +355,9 @@ export default function PreGameLineupScreen({
       }
       return { ...player, position: null as { x: number; y: number } | null, currentPitchPosition: undefined };
     });
-    onConfirm(updatedPlayers, firstHalfGkId || undefined, secondHalfGkId || undefined);
-  }, [players, slots, firstHalfGkId, secondHalfGkId, onConfirm]);
+    const finalSecondHalfGkId = rotateGk ? (effective2ndHalfGkId || undefined) : undefined;
+    onConfirm(updatedPlayers, firstHalfGkId || undefined, finalSecondHalfGkId);
+  }, [players, slots, firstHalfGkId, effective2ndHalfGkId, rotateGk, onConfirm]);
 
   const filledSlots = slots.filter(s => s.assignedPlayerId).length;
   const totalSlots = slots.length;
@@ -518,59 +515,71 @@ export default function PreGameLineupScreen({
 
         {/* Player picker / GK rotation section */}
         <div className="border-t border-border">
-          {/* GK Rotation picker - tap-to-select chips */}
-          {hasGk && rotateGkAtHalftime && gkCapablePlayers.length >= 2 && (
-            <div className="px-4 py-3 border-b border-border bg-muted/20 space-y-3">
-              <div className="space-y-1.5">
-                <p id="first-half-gk-label" className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">1st Half GK</p>
-                <div className="flex flex-wrap gap-2" role="group" aria-labelledby="first-half-gk-label">
-                  {gkCapablePlayers.map(p => (
-                    <button
-                      key={p.id}
-                      className={cn(
-                        "flex items-center gap-1.5 rounded-full px-3 min-h-[44px] text-sm font-medium border transition-all",
-                        firstHalfGkId === p.id
-                          ? "bg-yellow-600/90 border-yellow-400/70 text-white shadow-sm"
-                          : "bg-background border-border text-foreground hover:bg-muted/50 active:bg-muted/70"
-                      )}
-                      aria-label={`Select ${p.name} as 1st half goalkeeper`}
-                      aria-pressed={firstHalfGkId === p.id}
-                      onClick={() => handleFirstHalfGkChange(p.id)}
-                    >
-                      <span className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
-                        {p.number || "#"}
-                      </span>
-                      {p.name.split(" ")[0]}
-                      {firstHalfGkId === p.id && <Check className="h-3.5 w-3.5 ml-0.5" />}
-                    </button>
-                  ))}
+          {/* GK Rotation toggle + 2nd half GK picker */}
+          {hasGk && firstHalfGkId && (
+            <div className="px-4 py-3 border-b border-border bg-muted/20 space-y-2.5">
+              {/* 1st half GK display */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">1st Half GK:</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {getPlayerById(firstHalfGkId)?.name || "—"}
+                  </span>
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <p id="second-half-gk-label" className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">2nd Half GK</p>
-                <div className="flex flex-wrap gap-2" role="group" aria-labelledby="second-half-gk-label">
-                  {gkCapablePlayers.filter(p => p.id !== firstHalfGkId).map(p => (
-                    <button
-                      key={p.id}
-                      className={cn(
-                        "flex items-center gap-1.5 rounded-full px-3 min-h-[44px] text-sm font-medium border transition-all",
-                        secondHalfGkId === p.id
-                          ? "bg-yellow-600/90 border-yellow-400/70 text-white shadow-sm"
-                          : "bg-background border-border text-foreground hover:bg-muted/50 active:bg-muted/70"
-                      )}
-                      aria-label={`Select ${p.name} as 2nd half goalkeeper`}
-                      aria-pressed={secondHalfGkId === p.id}
-                      onClick={() => setSecondHalfGkId(p.id)}
-                    >
-                      <span className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
-                        {p.number || "#"}
-                      </span>
-                      {p.name.split(" ")[0]}
-                      {secondHalfGkId === p.id && <Check className="h-3.5 w-3.5 ml-0.5" />}
-                    </button>
-                  ))}
+
+              {/* Rotate GK toggle */}
+              <div className="flex items-center justify-between rounded-lg border border-border bg-background/60 px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 text-yellow-500" />
+                  <Label htmlFor="rotate-gk-toggle" className="text-sm font-medium cursor-pointer">
+                    Rotate GK at half-time
+                  </Label>
                 </div>
+                <Switch
+                  id="rotate-gk-toggle"
+                  checked={rotateGk}
+                  onCheckedChange={(checked) => {
+                    setRotateGk(checked);
+                    if (!checked) setSecondHalfGkId(null);
+                  }}
+                />
               </div>
+
+              {/* 2nd half GK picker - shown when toggle is on */}
+              {rotateGk && (
+                <div className="space-y-1.5 pl-1">
+                  <p className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground">
+                    2nd Half GK {!secondHalfGkId && effective2ndHalfGkId ? "(auto-picked)" : ""}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5" role="group" aria-label="Select 2nd half goalkeeper">
+                    {gkCapablePlayers.filter(p => p.id !== firstHalfGkId).map(p => {
+                      const isSelected = effective2ndHalfGkId === p.id;
+                      const isAutoSelected = !secondHalfGkId && autoSecondHalfGk?.id === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          className={cn(
+                            "flex items-center gap-1.5 rounded-full px-2.5 min-h-[38px] text-sm font-medium border transition-all",
+                            isSelected
+                              ? "bg-yellow-600/90 border-yellow-400/70 text-white shadow-sm"
+                              : "bg-background border-border text-foreground hover:bg-muted/50 active:bg-muted/70"
+                          )}
+                          aria-label={`Select ${p.name} as 2nd half goalkeeper${isAutoSelected ? ' (auto-selected)' : ''}`}
+                          aria-pressed={isSelected}
+                          onClick={() => setSecondHalfGkId(p.id === secondHalfGkId ? null : p.id)}
+                        >
+                          <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+                            {p.number || "#"}
+                          </span>
+                          {p.name.split(" ")[0]}
+                          {isSelected && <Check className="h-3 w-3 ml-0.5" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
