@@ -514,7 +514,7 @@ export default function EventsPage() {
       </div>
 
       {/* Filter Pills */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
+      <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
         {(["all", "game", "training", "social"] as const).map((type) => (
           <Button
             key={type}
