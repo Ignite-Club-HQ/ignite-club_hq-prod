@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Flame, RefreshCw } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Flame } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
@@ -782,24 +782,17 @@ export default function BroadcastChatPage() {
         <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
           <Flame className="h-5 w-5 text-white" />
         </div>
-        <div className="flex-1">
-          <h1 className="font-semibold">Announcements</h1>
-          <p className="text-sm text-muted-foreground">Official updates & news</p>
+        <div className="flex-1 min-w-0">
+          <h1 className="font-semibold truncate">Announcements</h1>
+          <p className="text-sm text-muted-foreground truncate">Official updates & news</p>
         </div>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={handleManualRefresh}
-          disabled={isAnyRefreshing}
-          className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent hover:bg-transparent"
-        >
-          <RefreshCw className={`h-4 w-4 text-foreground ${isAnyRefreshing ? 'animate-spin' : ''}`} />
-        </Button>
-        <ChatSearch onSearch={setSearchQuery} />
+        <div className="flex items-center shrink-0">
+          <ChatSearch onSearch={setSearchQuery} />
+        </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 py-4 flex flex-col relative" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
+      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" ref={pullRefreshRef}>
         <PullToRefreshIndicator
           pullDistance={pullDistance}
           pullProgress={pullProgress}

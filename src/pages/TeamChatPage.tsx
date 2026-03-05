@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Send, Loader2 } from "lucide-react";
 import { SecureAvatar } from "@/components/SecureAvatar";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
@@ -966,33 +966,26 @@ export default function TeamChatPage() {
           className="h-10 w-10"
           fallbackClassName="bg-secondary text-secondary-foreground"
         />
-        <div className="flex-1">
-          <h1 className="font-semibold">{team.name}</h1>
-          <p className="text-xs text-muted-foreground">{team.clubs?.name}</p>
+        <div className="flex-1 min-w-0">
+          <h1 className="font-semibold truncate">{team.name}</h1>
+          <p className="text-xs text-muted-foreground truncate">{team.clubs?.name}</p>
         </div>
-        <ChatMuteButton chatType="team" chatId={teamId!} />
-        <ChatMembersSheet
-          chatType="team"
-          chatId={teamId!}
-          chatName={team.name}
-        />
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={handleManualRefresh}
-          disabled={isAnyRefreshing}
-          className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent hover:bg-transparent"
-        >
-          <RefreshCw className={`h-4 w-4 text-foreground ${isAnyRefreshing ? 'animate-spin' : ''}`} />
-        </Button>
-        <ChatSearch onSearch={setSearchQuery} />
+        <div className="flex items-center shrink-0">
+          <ChatMuteButton chatType="team" chatId={teamId!} />
+          <ChatMembersSheet
+            chatType="team"
+            chatId={teamId!}
+            chatName={team.name}
+          />
+          <ChatSearch onSearch={setSearchQuery} />
+        </div>
       </div>
 
       {/* Spacer for fixed header */}
       <div className="shrink-0" style={{ height: '72px' }} />
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
+      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" ref={pullRefreshRef}>
         <PullToRefreshIndicator
           pullDistance={pullDistance}
           pullProgress={pullProgress}
