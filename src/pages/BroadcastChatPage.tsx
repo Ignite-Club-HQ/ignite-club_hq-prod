@@ -782,20 +782,22 @@ export default function BroadcastChatPage() {
         <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
           <Flame className="h-5 w-5 text-white" />
         </div>
-        <div className="flex-1">
-          <h1 className="font-semibold">Announcements</h1>
-          <p className="text-sm text-muted-foreground">Official updates & news</p>
+        <div className="flex-1 min-w-0">
+          <h1 className="font-semibold truncate">Announcements</h1>
+          <p className="text-sm text-muted-foreground truncate">Official updates & news</p>
         </div>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={handleManualRefresh}
-          disabled={isAnyRefreshing}
-          className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent hover:bg-transparent"
-        >
-          <RefreshCw className={`h-4 w-4 text-foreground ${isAnyRefreshing ? 'animate-spin' : ''}`} />
-        </Button>
-        <ChatSearch onSearch={setSearchQuery} />
+        <div className="flex items-center shrink-0">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleManualRefresh}
+            disabled={isAnyRefreshing}
+            className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent hover:bg-transparent"
+          >
+            <RefreshCw className={`h-4 w-4 text-foreground ${isAnyRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
+          <ChatSearch onSearch={setSearchQuery} />
+        </div>
       </div>
 
       {/* Messages */}

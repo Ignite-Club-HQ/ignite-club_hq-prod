@@ -966,26 +966,28 @@ export default function TeamChatPage() {
           className="h-10 w-10"
           fallbackClassName="bg-secondary text-secondary-foreground"
         />
-        <div className="flex-1">
-          <h1 className="font-semibold">{team.name}</h1>
-          <p className="text-xs text-muted-foreground">{team.clubs?.name}</p>
+        <div className="flex-1 min-w-0">
+          <h1 className="font-semibold truncate">{team.name}</h1>
+          <p className="text-xs text-muted-foreground truncate">{team.clubs?.name}</p>
         </div>
-        <ChatMuteButton chatType="team" chatId={teamId!} />
-        <ChatMembersSheet
-          chatType="team"
-          chatId={teamId!}
-          chatName={team.name}
-        />
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={handleManualRefresh}
-          disabled={isAnyRefreshing}
-          className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent hover:bg-transparent"
-        >
-          <RefreshCw className={`h-4 w-4 text-foreground ${isAnyRefreshing ? 'animate-spin' : ''}`} />
-        </Button>
-        <ChatSearch onSearch={setSearchQuery} />
+        <div className="flex items-center shrink-0">
+          <ChatMuteButton chatType="team" chatId={teamId!} />
+          <ChatMembersSheet
+            chatType="team"
+            chatId={teamId!}
+            chatName={team.name}
+          />
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleManualRefresh}
+            disabled={isAnyRefreshing}
+            className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent hover:bg-transparent"
+          >
+            <RefreshCw className={`h-4 w-4 text-foreground ${isAnyRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
+          <ChatSearch onSearch={setSearchQuery} />
+        </div>
       </div>
 
       {/* Spacer for fixed header */}
