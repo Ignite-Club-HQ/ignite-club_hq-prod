@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 
 interface RecurringCancelEventDialogProps {
   open: boolean;
@@ -21,6 +22,7 @@ interface RecurringCancelEventDialogProps {
   teamId: string | null;
   clubId: string;
   miniLeagueId?: string | null;
+  eventType?: string | null;
   onSingleAction: (customMessage?: string, sendPushNotification?: boolean) => void;
   onSeriesAction: (customMessage?: string, sendPushNotification?: boolean) => void;
   isPending?: boolean;
@@ -33,6 +35,7 @@ export function RecurringCancelEventDialog({
   teamId,
   clubId,
   miniLeagueId,
+  eventType,
   onSingleAction,
   onSeriesAction,
   isPending,
@@ -130,11 +133,13 @@ export function RecurringCancelEventDialog({
 
   const chatType = miniLeagueId ? "league" : (teamId ? "team" : "club");
 
+  const typeLabel = getEventTypeLabel(eventType);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Cancel Event?</DialogTitle>
+          <DialogTitle>Cancel {typeLabel}?</DialogTitle>
           <DialogDescription className="space-y-2">
             <span className="block">
               You are about to cancel "{eventTitle}".
@@ -218,7 +223,7 @@ export function RecurringCancelEventDialog({
             onClick={handleSingleAction}
             disabled={isPending || isLoading}
           >
-            Cancel This Event Only
+            Cancel This {typeLabel} Only
           </Button>
           <Button
             variant="ghost"
@@ -226,7 +231,7 @@ export function RecurringCancelEventDialog({
             onClick={() => onOpenChange(false)}
             disabled={isPending}
           >
-            Keep Event
+            Keep {typeLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
