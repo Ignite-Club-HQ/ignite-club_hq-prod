@@ -1682,13 +1682,12 @@ export default function EventDetailPage() {
           size="icon"
           className="shrink-0"
           onClick={async () => {
-            const shareUrl = `${window.location.origin}/events/${id}`;
+            const shareUrl = `https://igniteclubhq.app/events/${id}`;
             try {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
                   title: event.title,
-                  text: `Check out this event: ${event.title}`,
-                  url: shareUrl,
+                  text: `Check out this event: ${event.title}\n${shareUrl}`,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
