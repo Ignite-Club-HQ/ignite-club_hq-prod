@@ -1959,8 +1959,9 @@ export default function HomePage() {
                 onClick={() => navigate(`/events/${event.id}`)}
               >
                 <CardContent className="p-4">
+                  {/* Row 1: Badges + team name */}
                   <div className="flex items-center gap-2 mb-1">
-                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                    <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
                       <Badge className={eventTypeColors[event.type]} variant="secondary">
                         {event.type}
                       </Badge>
@@ -1974,134 +1975,147 @@ export default function HomePage() {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 shrink-0 ml-auto">
-                      {!event.is_cancelled && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8"
+                    {!event.is_cancelled && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setQuickRsvpEvent(event);
+                        }}
+                      >
+                        {getRsvpIcon(getUserRsvpStatus(event.id))}
+                        RSVP
+                      </Button>
+                    )}
+                  </div>
+                  <h3 className={`font-semibold ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
+                  {/* Row 3: Date/location + admin actions */}
+                  <div className="flex items-center justify-between mt-0.5">
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap min-w-0">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" />
+                        {formatEventDate(event.event_date)}
+                      </span>
+                      {event.suburb && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3.5 w-3.5" />
+                          {event.suburb}
+                        </span>
+                      )}
+                    </div>
+                    {canManageEvent(event) && (
+                      <div className="flex items-center gap-1 shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
+                        <Link to={`/events/${event.id}/edit`} onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                        {!event.is_cancelled && (
+                          <>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-primary"
+                              disabled={loadingRemindCount}
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setLoadingRemindCount(true);
+                                
+                                const { data: rsvps } = await supabase
+                                  .from("rsvps")
+                                  .select("user_id")
+                                  .eq("event_id", event.id);
+                                
+                                const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
+                                
+                                let allMemberIds: string[] = [];
+                                
+                                if (event.mini_league_id) {
+                                  const { data: league } = await supabase
+                                    .from("mini_leagues")
+                                    .select("club_id")
+                                    .eq("id", event.mini_league_id)
+                                    .single();
+                                  
+                                  if (league) {
+                                    const { data: playersData } = await supabase
+                                      .from("mini_league_players")
+                                      .select("parent_user_id")
+                                      .eq("mini_league_id", event.mini_league_id)
+                                      .not("parent_user_id", "is", null);
+                                    
+                                    const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
+                                    
+                                    const { data: adminRoles } = await supabase
+                                      .from("user_roles")
+                                      .select("user_id")
+                                      .eq("club_id", league.club_id)
+                                      .in("role", ["club_admin", "league_admin", "coach"]);
+                                    
+                                    const adminIds = adminRoles?.map(r => r.user_id) || [];
+                                    
+                                    allMemberIds = [...new Set([...parentIds, ...adminIds])];
+                                  }
+                                } else {
+                                  let memberQuery = supabase.from("user_roles").select("user_id");
+                                  if (event.team_id) {
+                                    memberQuery = memberQuery.eq("team_id", event.team_id);
+                                  } else {
+                                    memberQuery = memberQuery.eq("club_id", event.club_id);
+                                  }
+                                  
+                                  const { data: members } = await memberQuery;
+                                  allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
+                                }
+                                const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
+                                
+                                setNonRsvpCount(count);
+                                setEventToRemind(event);
+                                setRemindDialogOpen(true);
+                                setLoadingRemindCount(false);
+                              }}
+                            >
+                              {loadingRemindCount ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Bell className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-warning"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setEventToCancel(event);
+                                setCancelDialogOpen(true);
+                              }}
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-destructive"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            setQuickRsvpEvent(event);
+                            setEventToDelete(event);
+                            setDeleteDialogOpen(true);
                           }}
                         >
-                          {getRsvpIcon(getUserRsvpStatus(event.id))}
-                          RSVP
+                          <Trash2 className="h-4 w-4" />
                         </Button>
-                      )}
-                      {canManageEvent(event) && (
-                        <>
-                          <Link to={`/events/${event.id}/edit`} onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                          {!event.is_cancelled && (
-                            <>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-8 w-8 text-primary"
-                                disabled={loadingRemindCount}
-                                onClick={async (e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setLoadingRemindCount(true);
-                                  
-                                  const { data: rsvps } = await supabase
-                                    .from("rsvps")
-                                    .select("user_id")
-                                    .eq("event_id", event.id);
-                                  
-                                  const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
-                                  
-                                  let allMemberIds: string[] = [];
-                                  
-                                  if (event.mini_league_id) {
-                                    const { data: league } = await supabase
-                                      .from("mini_leagues")
-                                      .select("club_id")
-                                      .eq("id", event.mini_league_id)
-                                      .single();
-                                    
-                                    if (league) {
-                                      const { data: playersData } = await supabase
-                                        .from("mini_league_players")
-                                        .select("parent_user_id")
-                                        .eq("mini_league_id", event.mini_league_id)
-                                        .not("parent_user_id", "is", null);
-                                      
-                                      const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
-                                      
-                                      const { data: adminRoles } = await supabase
-                                        .from("user_roles")
-                                        .select("user_id")
-                                        .eq("club_id", league.club_id)
-                                        .in("role", ["club_admin", "league_admin", "coach"]);
-                                      
-                                      const adminIds = adminRoles?.map(r => r.user_id) || [];
-                                      
-                                      allMemberIds = [...new Set([...parentIds, ...adminIds])];
-                                    }
-                                  } else {
-                                    let memberQuery = supabase.from("user_roles").select("user_id");
-                                    if (event.team_id) {
-                                      memberQuery = memberQuery.eq("team_id", event.team_id);
-                                    } else {
-                                      memberQuery = memberQuery.eq("club_id", event.club_id);
-                                    }
-                                    
-                                    const { data: members } = await memberQuery;
-                                    allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
-                                  }
-                                  const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
-                                  
-                                  setNonRsvpCount(count);
-                                  setEventToRemind(event);
-                                  setRemindDialogOpen(true);
-                                  setLoadingRemindCount(false);
-                                }}
-                              >
-                                {loadingRemindCount ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Bell className="h-4 w-4" />
-                                )}
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-8 w-8 text-warning"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setEventToCancel(event);
-                                  setCancelDialogOpen(true);
-                                }}
-                              >
-                                <XCircle className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-destructive"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setEventToDelete(event);
-                              setDeleteDialogOpen(true);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
-                  <h3 className={`font-semibold ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground mt-0.5 flex-wrap">
                     <span className="flex items-center gap-1">
                       <Clock className="h-3.5 w-3.5" />
