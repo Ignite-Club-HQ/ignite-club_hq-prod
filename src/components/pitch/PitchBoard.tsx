@@ -771,9 +771,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Portrait timer touch handlers (drag + pinch)
   const handlePortraitTimerTouchStart = useCallback((e: React.TouchEvent) => {
-    // Don't initiate drag if the touch target is inside a dropdown or interactive element
+    // Don't initiate drag if the touch target is inside an open dropdown
     const target = e.target as HTMLElement;
-    if (target.closest('[data-timer-dropdown]') || target.closest('button')) return;
+    if (target.closest('[data-timer-dropdown]')) return;
 
     const container = (e.currentTarget as HTMLElement).parentElement;
     // 2-finger pinch
@@ -804,28 +804,42 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       return;
     }
     
-    // 1-finger drag
+    // 1-finger drag with threshold to distinguish from taps
     if (e.touches.length !== 1) return;
     const touch = e.touches[0];
     const rect = container?.getBoundingClientRect();
     const currentX = portraitTimerPosition?.x ?? (rect ? rect.width - (e.currentTarget as HTMLElement).offsetWidth - 8 : 8);
     const currentY = portraitTimerPosition?.y ?? 8;
-    portraitTimerDragRef.current = {
-      startX: touch.clientX,
-      startY: touch.clientY,
-      startPosX: currentX,
-      startPosY: currentY,
-    };
+    const startX = touch.clientX;
+    const startY = touch.clientY;
+    let isDragging = false;
+    const DRAG_THRESHOLD = 8;
     
     const handleTouchMove = (moveEvent: TouchEvent) => {
-      if (!portraitTimerDragRef.current || moveEvent.touches.length !== 1) return;
-      moveEvent.preventDefault();
+      if (moveEvent.touches.length !== 1) return;
       const t = moveEvent.touches[0];
-      const deltaX = t.clientX - portraitTimerDragRef.current.startX;
-      const deltaY = t.clientY - portraitTimerDragRef.current.startY;
+      const deltaX = t.clientX - startX;
+      const deltaY = t.clientY - startY;
+      
+      if (!isDragging) {
+        // Check if movement exceeds threshold to start dragging
+        if (Math.abs(deltaX) > DRAG_THRESHOLD || Math.abs(deltaY) > DRAG_THRESHOLD) {
+          isDragging = true;
+          portraitTimerDragRef.current = {
+            startX,
+            startY,
+            startPosX: currentX,
+            startPosY: currentY,
+          };
+        } else {
+          return;
+        }
+      }
+      
+      moveEvent.preventDefault();
       setPortraitTimerPosition({
-        x: Math.max(-200, portraitTimerDragRef.current.startPosX + deltaX),
-        y: Math.max(-220, portraitTimerDragRef.current.startPosY + deltaY),
+        x: Math.max(-200, currentX + deltaX),
+        y: Math.max(-220, currentY + deltaY),
       });
     };
     
