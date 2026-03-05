@@ -135,6 +135,12 @@ html, body {
     @apply border-border;
   }
 
+  /* Respect system font scaling on all platforms */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
   }
