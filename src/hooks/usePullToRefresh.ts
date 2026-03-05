@@ -25,8 +25,10 @@ export function usePullToRefresh({
 
   const getScrollTop = useCallback(() => {
     if (scrollableRef?.current) {
+      // Check for Radix scroll area viewport first, then use the element directly
       const viewport = scrollableRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      return viewport?.scrollTop ?? scrollableRef.current.scrollTop ?? 0;
+      if (viewport) return viewport.scrollTop ?? 0;
+      return scrollableRef.current.scrollTop ?? 0;
     }
     const container = containerRef.current;
     return container?.scrollTop ?? 0;
@@ -36,7 +38,9 @@ export function usePullToRefresh({
   const getScrollElement = useCallback((): HTMLElement | null => {
     if (scrollableRef?.current) {
       const viewport = scrollableRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      return (viewport as HTMLElement) ?? scrollableRef.current;
+      if (viewport) return viewport as HTMLElement;
+      // Return the scrollableRef directly — it IS the scrolling element
+      return scrollableRef.current;
     }
     return containerRef.current;
   }, [scrollableRef]);
