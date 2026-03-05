@@ -198,7 +198,7 @@ export default function NotificationPreferencesPage() {
                         <TableHead>User</TableHead>
                         <TableHead className="text-center">Registered</TableHead>
                         <TableHead className="text-center">Messages</TableHead>
-                        <TableHead className="text-center">Events</TableHead>
+                         <TableHead className="text-center">Schedule</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -237,7 +237,7 @@ export default function NotificationPreferencesPage() {
                       <TableRow>
                         <TableHead>User</TableHead>
                         <TableHead className="text-center">Messages</TableHead>
-                        <TableHead className="text-center">Events</TableHead>
+                        <TableHead className="text-center">Schedule</TableHead>
                         <TableHead className="text-center">Media</TableHead>
                       </TableRow>
                     </TableHeader>

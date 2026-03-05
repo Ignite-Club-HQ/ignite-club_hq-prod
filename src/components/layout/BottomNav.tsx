@@ -8,7 +8,7 @@ import { Capacitor } from "@capacitor/core";
 const navItems = [
   { to: "/", icon: Home, label: "Home", requiresPro: false },
   { to: "/messages", icon: MessageCircle, label: "Messages", requiresPro: false },
-  { to: "/events", icon: Calendar, label: "Events", requiresPro: false },
+  { to: "/events", icon: Calendar, label: "Schedule", requiresPro: false },
   { to: "/media", icon: Image, label: "Media", requiresPro: true },
 ];
 
