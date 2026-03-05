@@ -1687,8 +1687,7 @@ export default function EventDetailPage() {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
                   title: event.title,
-                  text: `Check out this event: ${event.title}`,
-                  url: shareUrl,
+                  text: `Check out this event: ${event.title}\n${shareUrl}`,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
