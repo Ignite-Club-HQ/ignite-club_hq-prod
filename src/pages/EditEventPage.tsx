@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, MapPin, Bell, Calendar, FileText, DollarSign, ChevronDown, ClipboardList, Plus, X, Repeat, Users, Building2 } from "lucide-react";
+import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -682,7 +683,7 @@ export default function EditEventPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-xl font-bold">Edit Event</h1>
+          <h1 className="text-xl font-bold">Edit {getEventTypeLabel(event?.type)}</h1>
           <p className="text-sm text-muted-foreground">
             {event.clubs?.name} {event.teams?.name && `• ${event.teams.name}`}
           </p>
@@ -1022,7 +1023,7 @@ export default function EditEventPage() {
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Quick add:</Label>
                   <div className="flex flex-wrap gap-2">
-                    {["BBQ", "Scorer", "First Aid", "Line Judge", "Water Duty", "Set Up", "Pack Up"].map((suggestion) => (
+                    {["BBQ", "Scorer", "First Aid", "Oranges", "Snacks", "Subs Manager", "Water Duty", "Set Up", "Pack Up"].map((suggestion) => (
                       <Button
                         key={suggestion}
                         type="button"

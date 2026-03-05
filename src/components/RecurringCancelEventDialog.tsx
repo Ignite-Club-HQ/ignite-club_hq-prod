@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 
 interface RecurringCancelEventDialogProps {
   open: boolean;
@@ -21,6 +22,7 @@ interface RecurringCancelEventDialogProps {
   teamId: string | null;
   clubId: string;
   miniLeagueId?: string | null;
+  eventType?: string | null;
   onSingleAction: (customMessage?: string, sendPushNotification?: boolean) => void;
   onSeriesAction: (customMessage?: string, sendPushNotification?: boolean) => void;
   isPending?: boolean;
@@ -33,6 +35,7 @@ export function RecurringCancelEventDialog({
   teamId,
   clubId,
   miniLeagueId,
+  eventType,
   onSingleAction,
   onSeriesAction,
   isPending,
@@ -130,11 +133,13 @@ export function RecurringCancelEventDialog({
 
   const chatType = miniLeagueId ? "league" : (teamId ? "team" : "club");
 
+  const typeLabel = getEventTypeLabel(eventType);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Cancel Event?</DialogTitle>
+          <DialogTitle>Cancel {typeLabel}?</DialogTitle>
           <DialogDescription className="space-y-2">
             <span className="block">
               You are about to cancel "{eventTitle}".
@@ -196,24 +201,10 @@ export function RecurringCancelEventDialog({
           </div>
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isPending}
-          >
-            Keep Event
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleSingleAction}
-            disabled={isPending || isLoading}
-          >
-            Cancel This Event Only
-          </Button>
+        <DialogFooter className="flex-col gap-2 pt-2">
           <Button
             variant="default"
-            className="bg-warning text-warning-foreground hover:bg-warning/90"
+            className="w-full bg-warning text-warning-foreground hover:bg-warning/90 min-h-[44px]"
             onClick={handleSeriesAction}
             disabled={isPending || isLoading}
           >
@@ -225,6 +216,22 @@ export function RecurringCancelEventDialog({
             ) : (
               "Cancel Entire Series"
             )}
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full min-h-[44px]"
+            onClick={handleSingleAction}
+            disabled={isPending || isLoading}
+          >
+            Cancel This {typeLabel} Only
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full min-h-[44px]"
+            onClick={() => onOpenChange(false)}
+            disabled={isPending}
+          >
+            Keep {typeLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

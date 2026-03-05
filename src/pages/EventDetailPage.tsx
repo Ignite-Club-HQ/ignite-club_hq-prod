@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical } from "lucide-react";
+import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
@@ -1724,7 +1725,7 @@ export default function EventDetailPage() {
                 <>
                   <DropdownMenuItem onClick={() => navigate(`/events/${id}/edit`)}>
                     <Pencil className="h-4 w-4 mr-2" />
-                    Edit Event
+                    Edit {getEventTypeLabel(event.type)}
                   </DropdownMenuItem>
                   {canSendReminders ? (
                     <DropdownMenuItem onClick={() => {
@@ -1747,7 +1748,7 @@ export default function EventDetailPage() {
                     className="text-warning focus:text-warning"
                   >
                     <XCircle className="h-4 w-4 mr-2" />
-                    Cancel Event
+                    Cancel {getEventTypeLabel(event.type)}
                   </DropdownMenuItem>
                 </>
               )}
@@ -1756,7 +1757,7 @@ export default function EventDetailPage() {
                 className="text-destructive focus:text-destructive"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                Delete Event
+                Delete {getEventTypeLabel(event.type)}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1799,6 +1800,7 @@ export default function EventDetailPage() {
             teamId={event.team_id}
             clubId={event.club_id}
             miniLeagueId={event.mini_league_id}
+            eventType={event.type}
             onSingleAction={(customMessage, sendPushNotification) => 
               cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
             }
@@ -1816,6 +1818,7 @@ export default function EventDetailPage() {
             teamId={event.team_id}
             clubId={event.club_id}
             miniLeagueId={event.mini_league_id}
+            eventType={event.type}
             onConfirm={(customMessage, sendPushNotification) => 
               cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
             }
@@ -1828,8 +1831,8 @@ export default function EventDetailPage() {
           <RecurringEventActionDialog
             open={deleteDialogOpen}
             onOpenChange={setDeleteDialogOpen}
-            title="Delete Event?"
-            description="This will permanently delete the event(s) and all RSVPs. This action cannot be undone."
+            title={`Delete ${getEventTypeLabel(event.type)}?`}
+            description={`This will permanently delete the ${getEventTypeLabel(event.type).toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
             actionLabel="Delete"
             actionVariant="destructive"
             onSingleAction={() => deleteEventMutation.mutate('single')}
@@ -1840,9 +1843,9 @@ export default function EventDetailPage() {
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete Event?</AlertDialogTitle>
+                <AlertDialogTitle>Delete {getEventTypeLabel(event.type)}?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will permanently delete this event and all RSVPs. This action cannot be undone.
+                  This will permanently delete this {getEventTypeLabel(event.type).toLowerCase()} and all RSVPs. This action cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
