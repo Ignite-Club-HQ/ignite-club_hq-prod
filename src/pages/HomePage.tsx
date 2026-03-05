@@ -1963,24 +1963,22 @@ export default function HomePage() {
               return (
               <Card 
                 key={event.id} 
-                className={`hover:border-primary/50 transition-colors cursor-pointer border-l-4 ${typeBorderClass} ${event.is_cancelled ? 'opacity-60' : ''}`}
+                className={`hover:border-primary/50 transition-colors cursor-pointer border-l-[3px] ${typeBorderClass} ${event.is_cancelled ? 'opacity-60' : ''}`}
                 onClick={() => navigate(`/events/${event.id}`)}
               >
-                <CardContent className="p-4">
+                <CardContent className="p-3 pl-3.5">
                   {/* Row 1: Title + RSVP */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <h3 className={`font-semibold leading-snug ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className={`font-semibold text-[15px] leading-snug truncate ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
+                    <div className="flex items-center gap-1.5 shrink-0">
                       {event.is_cancelled && (
-                        <Badge variant="destructive" className="text-xs">Cancelled</Badge>
+                        <Badge variant="destructive" className="text-[11px] h-5">Cancelled</Badge>
                       )}
                       {!event.is_cancelled && (
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-7 text-xs px-2.5"
+                          className="h-6 text-[11px] px-2 rounded-md"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -1993,129 +1991,130 @@ export default function HomePage() {
                       )}
                     </div>
                   </div>
-                  {/* Row 2: Date, location, team */}
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5 shrink-0" />
-                      {formatEventDate(event.event_date)}
-                    </span>
-                    {event.suburb && (
+                  {/* Row 2: Date + location + admin actions */}
+                  <div className="flex items-center justify-between mt-0.5">
+                    <div className="flex items-center gap-3 text-[13px] text-muted-foreground flex-wrap min-w-0">
                       <span className="flex items-center gap-1">
-                        <MapPin className="h-3.5 w-3.5 shrink-0" />
-                        {event.suburb}
+                        <Clock className="h-3 w-3 shrink-0" />
+                        {formatEventDate(event.event_date)}
                       </span>
+                      {event.suburb && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          {event.suburb}
+                        </span>
+                      )}
+                    </div>
+                    {canManageEvent(event) && (
+                      <div className="flex items-center shrink-0 -mr-1" onClick={(e) => e.stopPropagation()}>
+                        <Link to={`/events/${event.id}/edit`} onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        </Link>
+                        {!event.is_cancelled && (
+                          <>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-7 w-7 text-primary"
+                              disabled={loadingRemindCount}
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setLoadingRemindCount(true);
+                                
+                                const { data: rsvps } = await supabase
+                                  .from("rsvps")
+                                  .select("user_id")
+                                  .eq("event_id", event.id);
+                                
+                                const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
+                                
+                                let allMemberIds: string[] = [];
+                                
+                                if (event.mini_league_id) {
+                                  const { data: league } = await supabase
+                                    .from("mini_leagues")
+                                    .select("club_id")
+                                    .eq("id", event.mini_league_id)
+                                    .single();
+                                  
+                                  if (league) {
+                                    const { data: playersData } = await supabase
+                                      .from("mini_league_players")
+                                      .select("parent_user_id")
+                                      .eq("mini_league_id", event.mini_league_id)
+                                      .not("parent_user_id", "is", null);
+                                    
+                                    const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
+                                    
+                                    const { data: adminRoles } = await supabase
+                                      .from("user_roles")
+                                      .select("user_id")
+                                      .eq("club_id", league.club_id)
+                                      .in("role", ["club_admin", "league_admin", "coach"]);
+                                    
+                                    const adminIds = adminRoles?.map(r => r.user_id) || [];
+                                    
+                                    allMemberIds = [...new Set([...parentIds, ...adminIds])];
+                                  }
+                                } else {
+                                  let memberQuery = supabase.from("user_roles").select("user_id");
+                                  if (event.team_id) {
+                                    memberQuery = memberQuery.eq("team_id", event.team_id);
+                                  } else {
+                                    memberQuery = memberQuery.eq("club_id", event.club_id);
+                                  }
+                                  
+                                  const { data: members } = await memberQuery;
+                                  allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
+                                }
+                                const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
+                                
+                                setNonRsvpCount(count);
+                                setEventToRemind(event);
+                                setRemindDialogOpen(true);
+                                setLoadingRemindCount(false);
+                              }}
+                            >
+                              {loadingRemindCount ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Bell className="h-3 w-3" />
+                              )}
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-7 w-7 text-warning"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setEventToCancel(event);
+                                setCancelDialogOpen(true);
+                              }}
+                            >
+                              <XCircle className="h-3 w-3" />
+                            </Button>
+                          </>
+                        )}
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setEventToDelete(event);
+                            setDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     )}
                   </div>
-                  {/* Admin actions - compact row */}
-                  {canManageEvent(event) && (
-                    <div className="flex items-center gap-1 mt-2 -mb-1" onClick={(e) => e.stopPropagation()}>
-                      <Link to={`/events/${event.id}/edit`} onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground">
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                      </Link>
-                      {!event.is_cancelled && (
-                        <>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            className="h-7 px-2 text-xs text-primary"
-                            disabled={loadingRemindCount}
-                            onClick={async (e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setLoadingRemindCount(true);
-                              
-                              const { data: rsvps } = await supabase
-                                .from("rsvps")
-                                .select("user_id")
-                                .eq("event_id", event.id);
-                              
-                              const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
-                              
-                              let allMemberIds: string[] = [];
-                              
-                              if (event.mini_league_id) {
-                                const { data: league } = await supabase
-                                  .from("mini_leagues")
-                                  .select("club_id")
-                                  .eq("id", event.mini_league_id)
-                                  .single();
-                                
-                                if (league) {
-                                  const { data: playersData } = await supabase
-                                    .from("mini_league_players")
-                                    .select("parent_user_id")
-                                    .eq("mini_league_id", event.mini_league_id)
-                                    .not("parent_user_id", "is", null);
-                                  
-                                  const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
-                                  
-                                  const { data: adminRoles } = await supabase
-                                    .from("user_roles")
-                                    .select("user_id")
-                                    .eq("club_id", league.club_id)
-                                    .in("role", ["club_admin", "league_admin", "coach"]);
-                                  
-                                  const adminIds = adminRoles?.map(r => r.user_id) || [];
-                                  
-                                  allMemberIds = [...new Set([...parentIds, ...adminIds])];
-                                }
-                              } else {
-                                let memberQuery = supabase.from("user_roles").select("user_id");
-                                if (event.team_id) {
-                                  memberQuery = memberQuery.eq("team_id", event.team_id);
-                                } else {
-                                  memberQuery = memberQuery.eq("club_id", event.club_id);
-                                }
-                                
-                                const { data: members } = await memberQuery;
-                                allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
-                              }
-                              const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
-                              
-                              setNonRsvpCount(count);
-                              setEventToRemind(event);
-                              setRemindDialogOpen(true);
-                              setLoadingRemindCount(false);
-                            }}
-                          >
-                            {loadingRemindCount ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Bell className="h-3.5 w-3.5" />
-                            )}
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            className="h-7 px-2 text-xs text-warning"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setEventToCancel(event);
-                              setCancelDialogOpen(true);
-                            }}
-                          >
-                            <XCircle className="h-3.5 w-3.5" />
-                          </Button>
-                        </>
-                      )}
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        className="h-7 px-2 text-xs text-destructive"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setEventToDelete(event);
-                          setDeleteDialogOpen(true);
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
               );
