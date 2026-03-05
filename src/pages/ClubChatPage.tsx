@@ -1009,25 +1009,27 @@ export default function ClubChatPage() {
             {club?.name?.charAt(0)?.toUpperCase() || "C"}
           </AvatarFallback>
         </Avatar>
-        <div className="flex-1">
-          <h1 className="font-semibold">{club?.name || "Club"}</h1>
+        <div className="flex-1 min-w-0">
+          <h1 className="font-semibold truncate">{club?.name || "Club"}</h1>
         </div>
-        <ChatMuteButton chatType="club" chatId={clubId!} />
-        <ChatMembersSheet
-          chatType="club"
-          chatId={clubId!}
-          chatName={club?.name || "Club"}
-        />
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={handleManualRefresh}
-          disabled={isAnyRefreshing}
-          className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent hover:bg-transparent"
-        >
-          <RefreshCw className={`h-4 w-4 text-foreground ${isAnyRefreshing ? 'animate-spin' : ''}`} />
-        </Button>
-        <ChatSearch onSearch={setSearchQuery} />
+        <div className="flex items-center shrink-0">
+          <ChatMuteButton chatType="club" chatId={clubId!} />
+          <ChatMembersSheet
+            chatType="club"
+            chatId={clubId!}
+            chatName={club?.name || "Club"}
+          />
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleManualRefresh}
+            disabled={isAnyRefreshing}
+            className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent hover:bg-transparent"
+          >
+            <RefreshCw className={`h-4 w-4 text-foreground ${isAnyRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
+          <ChatSearch onSearch={setSearchQuery} />
+        </div>
       </div>
 
       {/* Spacer for fixed header */}

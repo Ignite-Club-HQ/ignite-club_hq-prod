@@ -1226,28 +1226,30 @@ export default function GroupChatPage() {
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1">
-          <h1 className="font-semibold">{group.name}</h1>
+        <div className="flex-1 min-w-0">
+          <h1 className="font-semibold truncate">{group.name}</h1>
         </div>
-        <ChatMuteButton chatType="group" chatId={groupId!} />
-        <ChatMembersSheet
-          chatType="group"
-          chatId={groupId!}
-          chatName={group.name}
-          teamId={group.team_id || undefined}
-          clubId={group.club_id || undefined}
-          groupAllowedRoles={group.allowed_roles}
-        />
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={handleManualRefresh}
-          disabled={isAnyRefreshing}
-          className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent hover:bg-transparent"
-        >
-          <RefreshCw className={`h-4 w-4 text-foreground ${isAnyRefreshing ? 'animate-spin' : ''}`} />
-        </Button>
-        <ChatSearch onSearch={setSearchQuery} />
+        <div className="flex items-center shrink-0">
+          <ChatMuteButton chatType="group" chatId={groupId!} />
+          <ChatMembersSheet
+            chatType="group"
+            chatId={groupId!}
+            chatName={group.name}
+            teamId={group.team_id || undefined}
+            clubId={group.club_id || undefined}
+            groupAllowedRoles={group.allowed_roles}
+          />
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleManualRefresh}
+            disabled={isAnyRefreshing}
+            className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent hover:bg-transparent"
+          >
+            <RefreshCw className={`h-4 w-4 text-foreground ${isAnyRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
+          <ChatSearch onSearch={setSearchQuery} />
+        </div>
       </div>
 
       {/* Spacer for fixed header */}
