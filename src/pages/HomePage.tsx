@@ -3,7 +3,7 @@ import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import SoccerBall from "@/components/pitch/SoccerBall";
-import { Calendar, MapPin, Users, Clock, Plus, UserPlus, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell } from "lucide-react";
+import { Calendar, MapPin, Users, Clock, Plus, UserPlus, UserCheck, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell } from "lucide-react";
 import { RewardClaimQRDialog } from "@/components/RewardClaimQRDialog";
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
@@ -2140,7 +2140,9 @@ export default function HomePage() {
             return (
               <Button 
                 variant="outline" 
-                className={`w-full h-auto py-4 flex flex-col gap-2 relative ${showAdminIndicator ? 'opacity-60' : ''}`}
+                className={`w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2 relative ${showAdminIndicator ? 'opacity-60' : ''}`}
+                aria-label={activeClubFilter ? "Create Team" : "Create Team or Club"}
+                aria-disabled={showAdminIndicator || undefined}
                 onClick={() => {
                   if (showAdminIndicator) {
                     toast({ description: "Only club admins can create teams" });
@@ -2153,7 +2155,7 @@ export default function HomePage() {
                   }
                 }}
               >
-                <UserPlus className="h-5 w-5 text-foreground" />
+                <UserPlus className="h-5 w-5 text-foreground" aria-hidden="true" />
                 <span className="text-sm">{activeClubFilter ? "Create Team" : "Create Team or Club"}</span>
                 {showAdminIndicator && (
                   <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
@@ -2165,10 +2167,11 @@ export default function HomePage() {
           })()}
           <Button 
             variant="outline" 
-            className="w-full h-auto py-4 flex flex-col gap-2"
+            className="w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2"
+            aria-label="Join Team"
             onClick={() => setTeamDialogOpen(true)}
           >
-            <UserPlus className="h-5 w-5 text-foreground" />
+            <UserCheck className="h-5 w-5 text-foreground" aria-hidden="true" />
             <span className="text-sm">Join Team</span>
           </Button>
           {(() => {
@@ -2182,7 +2185,9 @@ export default function HomePage() {
             return (
               <Button 
                 variant="outline" 
-                className={`w-full h-auto py-4 flex flex-col gap-2 relative ${showVaultRestricted ? 'opacity-60' : ''}`}
+                className={`w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2 relative ${showVaultRestricted ? 'opacity-60' : ''}`}
+                aria-label={`File Vault${showProBadge ? ' (Pro feature)' : ''}`}
+                aria-disabled={showVaultRestricted || undefined}
                 onClick={() => {
                   if (!hasVaultRoleAccess) {
                     toast({
@@ -2200,9 +2205,9 @@ export default function HomePage() {
                 }}
               >
                 <div className="flex items-center gap-1">
-                  <FolderOpen className="h-5 w-5 text-foreground" />
+                  <FolderOpen className="h-5 w-5 text-foreground" aria-hidden="true" />
                   {showProBadge && (
-                    <Lock className="h-3 w-3 text-muted-foreground" />
+                    <Lock className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
                   )}
                 </div>
                 <span className="text-sm flex items-center gap-1">
@@ -2226,7 +2231,9 @@ export default function HomePage() {
             return (
               <Button 
                 variant="outline" 
-                className={`w-full h-auto py-4 flex flex-col gap-2 relative ${showAdminIndicator ? 'opacity-60' : ''}`}
+                className={`w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2 relative ${showAdminIndicator ? 'opacity-60' : ''}`}
+                aria-label="New Event"
+                aria-disabled={showAdminIndicator || undefined}
                 onClick={() => {
                   if (showAdminIndicator) {
                     toast({
@@ -2237,7 +2244,7 @@ export default function HomePage() {
                   navigate('/events/new');
                 }}
               >
-                <Plus className="h-5 w-5 text-foreground" />
+                <Plus className="h-5 w-5 text-foreground" aria-hidden="true" />
                 <span className="text-sm">New Event</span>
                 {showAdminIndicator && (
                   <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Admin</span>
@@ -2417,6 +2424,7 @@ export default function HomePage() {
               <button 
                 onClick={() => setPitchBoardsExpanded(!pitchBoardsExpanded)}
                 className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+                aria-expanded={pitchBoardsExpanded}
               >
                 {pitchBoardsExpanded ? "Show less" : "View all"}
               </button>
@@ -2427,7 +2435,16 @@ export default function HomePage() {
               <Card 
                 key={team.id}
                 className="hover:border-primary/50 transition-colors cursor-pointer"
+                role="button"
+                tabIndex={0}
+                aria-label={`Open pitch board for ${team.name}${team.readOnly ? ' (view only)' : ''}`}
                 onClick={() => openPitchBoard(team.id, team.name, team.readOnly)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openPitchBoard(team.id, team.name, team.readOnly);
+                  }
+                }}
               >
                 <CardContent className="p-4 flex flex-col items-center gap-2 relative">
                   {team.readOnly && (
@@ -2435,8 +2452,10 @@ export default function HomePage() {
                       View
                     </Badge>
                   )}
-                  <LayoutGrid className="h-6 w-6 text-foreground" />
-                  <span className="text-sm font-medium text-center truncate w-full">{team.name}</span>
+                  <LayoutGrid className="h-6 w-6 text-foreground" aria-hidden="true" />
+                  <span className="text-sm font-medium text-center w-full" title={team.name}>
+                    <span className="block truncate">{team.name}</span>
+                  </span>
                 </CardContent>
               </Card>
             ))}
