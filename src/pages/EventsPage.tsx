@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar as CalendarIcon, MapPin, Clock, Plus, List, CalendarDays, Pencil, Trash2, XCircle, Bell, Repeat, FileSpreadsheet, Eye, Filter } from "lucide-react";
+import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -942,7 +943,7 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
                     variant="ghost" 
                     size="icon"
                     className="h-7 w-7 text-muted-foreground"
-                    aria-label="Edit event"
+                    aria-label={`Edit ${getEventTypeLabel(event.type).toLowerCase()}`}
                     onClick={(e) => {
                       e.preventDefault();
                       navigate(`/events/${event.id}/edit`);
@@ -988,7 +989,7 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
                     variant="ghost" 
                     size="icon"
                     className="h-7 w-7 text-warning"
-                    aria-label="Cancel event"
+                    aria-label={`Cancel ${getEventTypeLabel(event.type).toLowerCase()}`}
                     onClick={(e) => {
                       e.preventDefault();
                       setCancelDialogOpen(true);
@@ -1002,7 +1003,7 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
                 variant="ghost" 
                 size="icon"
                 className="h-7 w-7 text-destructive"
-                aria-label="Delete event"
+                aria-label={`Delete ${getEventTypeLabel(event.type).toLowerCase()}`}
                 onClick={(e) => {
                   e.preventDefault();
                   setDeleteDialogOpen(true);
@@ -1024,6 +1025,7 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
               teamId={event.team_id}
               clubId={event.club_id}
               miniLeagueId={event.mini_league_id}
+              eventType={event.type}
               onSingleAction={(customMessage, sendPushNotification) => cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })}
               onSeriesAction={(customMessage, sendPushNotification) => cancelEventMutation.mutate({ cancelType: 'series', customMessage, sendPushNotification })}
               isPending={cancelEventMutation.isPending}
@@ -1037,6 +1039,7 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
               teamId={event.team_id}
               clubId={event.club_id}
               miniLeagueId={event.mini_league_id}
+              eventType={event.type}
               onConfirm={(customMessage, sendPushNotification) => cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })}
               isPending={cancelEventMutation.isPending}
             />
@@ -1047,8 +1050,8 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
             <RecurringEventActionDialog
               open={deleteDialogOpen}
               onOpenChange={setDeleteDialogOpen}
-              title="Delete Event?"
-              description="This will permanently delete the event(s). This action cannot be undone."
+              title={`Delete ${getEventTypeLabel(event.type)}?`}
+              description={`This will permanently delete the ${getEventTypeLabel(event.type).toLowerCase()}(s). This action cannot be undone.`}
               actionLabel="Delete"
               actionVariant="destructive"
               onSingleAction={() => deleteEventMutation.mutate('single')}
@@ -1059,9 +1062,9 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Event?</AlertDialogTitle>
+                  <AlertDialogTitle>Delete {getEventTypeLabel(event.type)}?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will permanently delete this event. This action cannot be undone.
+                    This will permanently delete this {getEventTypeLabel(event.type).toLowerCase()}. This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

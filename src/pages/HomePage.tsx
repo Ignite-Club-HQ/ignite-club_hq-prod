@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import SoccerBall from "@/components/pitch/SoccerBall";
 import { Calendar, MapPin, Users, Clock, Plus, UserPlus, UserCheck, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell } from "lucide-react";
+import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { RewardClaimQRDialog } from "@/components/RewardClaimQRDialog";
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
@@ -2539,8 +2540,8 @@ export default function HomePage() {
             setDeleteDialogOpen(open);
             if (!open) setEventToDelete(null);
           }}
-          title="Delete Event?"
-          description="This will permanently delete the event(s) and all RSVPs. This action cannot be undone."
+          title={`Delete ${getEventTypeLabel(eventToDelete?.type)}?`}
+          description={`This will permanently delete the ${getEventTypeLabel(eventToDelete?.type).toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
           actionLabel="Delete"
           actionVariant="destructive"
           onSingleAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'single' })}
@@ -2554,9 +2555,9 @@ export default function HomePage() {
         }}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete Event?</AlertDialogTitle>
+              <AlertDialogTitle>Delete {getEventTypeLabel(eventToDelete?.type)}?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete this event and all RSVPs. This action cannot be undone.
+                This will permanently delete this {getEventTypeLabel(eventToDelete?.type).toLowerCase()} and all RSVPs. This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -2584,6 +2585,7 @@ export default function HomePage() {
           teamId={eventToCancel?.team_id}
           clubId={eventToCancel?.club_id}
           miniLeagueId={eventToCancel?.mini_league_id}
+          eventType={eventToCancel?.type}
           onSingleAction={(customMessage, sendPushNotification) => 
             cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
           }
@@ -2604,6 +2606,7 @@ export default function HomePage() {
           teamId={eventToCancel?.team_id}
           clubId={eventToCancel?.club_id}
           miniLeagueId={eventToCancel?.mini_league_id}
+          eventType={eventToCancel?.type}
           onConfirm={(customMessage, sendPushNotification) => 
             cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
           }
