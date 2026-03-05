@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { cn } from "@/lib/utils";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Image, Lock, Crown, Plus, MessageCircle, Send, Trash2, Loader2, Filter, X, Calendar, MoreVertical, Flag, ShieldAlert } from "lucide-react";
@@ -71,6 +72,7 @@ function PhotoSkeleton() {
 
 export default function MediaPage() {
   const { user } = useAuth();
+  usePageTitle("Media");
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const highlightedPhotoId = searchParams.get("photo");

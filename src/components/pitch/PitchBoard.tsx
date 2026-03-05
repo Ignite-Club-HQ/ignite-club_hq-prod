@@ -4991,7 +4991,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     ? "bg-accent text-accent-foreground border-accent"
                     : "bg-background/95 border-border text-foreground"
               )}
-              style={{ right: 68 }}
+              style={{ right: 76 }}
               onTouchStart={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -5892,16 +5892,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 )}
               </div>
               {/* Bottom row: Formation • Tactical */}
-              <div className="flex items-center gap-1.5 mt-0.5 relative">
+              <div className="flex items-center gap-2 mt-0.5 relative">
                 <button
-                  className="text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px] flex items-center"
+                   className="text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2.5 py-1.5 rounded hover:bg-white/10 active:bg-white/20 min-h-[44px] flex items-center"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerFormationDropdownOpen(prev => !prev); }}
                 >
                   {FORMATIONS[teamSize][selectedFormation]?.name} ▾
                 </button>
                 <span className="text-white/30 text-sm">•</span>
                 <button
-                  className="flex items-center gap-1.5 text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px]"
+                  className="flex items-center gap-1.5 text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2.5 py-1.5 rounded hover:bg-white/10 active:bg-white/20 min-h-[44px]"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerTacticalDropdownOpen(prev => !prev); }}
                 >
                   {tacticalMode === "defend" && <Shield className="h-4 w-4 text-blue-400" />}
@@ -6013,7 +6013,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         ? "bg-accent text-accent-foreground border-accent"
                         : "bg-background/95 border-border text-foreground"
                   )}
-                  style={{ right: 68 }}
+                  style={{ right: 76 }}
                   onPointerDown={(e) => { e.stopPropagation(); }}
                   onClick={() => setShowFloatingDrawToolbar(prev => !prev)}
                 >

@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense, useMemo } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -136,6 +137,7 @@ function formatEventDate(dateStr: string) {
 
 export default function HomePage() {
   const { user, profile, refreshProfile } = useAuth();
+  usePageTitle("Home");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -358,13 +360,13 @@ export default function HomePage() {
   const getRsvpIcon = (status: string | null) => {
     switch (status) {
       case "going":
-        return <CheckCircle2 className="h-4 w-4 mr-1 text-primary" />;
+        return <><CheckCircle2 className="h-4 w-4 mr-1 text-primary" aria-hidden="true" /><span className="sr-only">Going - </span></>;
       case "not_going":
-        return <X className="h-4 w-4 mr-1 text-destructive" />;
+        return <><X className="h-4 w-4 mr-1 text-destructive" aria-hidden="true" /><span className="sr-only">Not going - </span></>;
       case "maybe":
-        return <HelpCircle className="h-4 w-4 mr-1 text-warning" />;
+        return <><HelpCircle className="h-4 w-4 mr-1 text-warning" aria-hidden="true" /><span className="sr-only">Maybe - </span></>;
       default:
-        return <Minus className="h-4 w-4 mr-1 text-muted-foreground" />;
+        return <><Minus className="h-4 w-4 mr-1 text-muted-foreground" aria-hidden="true" /><span className="sr-only">No response - </span></>;
     }
   };
 
@@ -1921,6 +1923,7 @@ export default function HomePage() {
           </Link>
         </div>
 
+        <div aria-live="polite" aria-busy={isLoading} aria-label={`Upcoming events${events?.length ? `, ${events.length} event${events.length === 1 ? '' : 's'}` : ''}`}>
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
@@ -1965,6 +1968,10 @@ export default function HomePage() {
                 key={event.id} 
                 className={`hover:border-primary/50 transition-colors cursor-pointer border-l-[3px] ${typeBorderClass} ${event.is_cancelled ? 'opacity-60' : ''}`}
                 onClick={() => navigate(`/events/${event.id}`)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
+                tabIndex={0}
+                role="link"
+                aria-label={`${event.title}${event.is_cancelled ? ' (Cancelled)' : ''}`}
               >
                 <CardContent className="p-3 pl-3.5">
                   {/* Row 1: Title + RSVP */}
@@ -2126,6 +2133,7 @@ export default function HomePage() {
             })}
           </div>
         )}
+        </div>
       </section>
 
       {/* Quick Actions */}
