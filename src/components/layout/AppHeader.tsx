@@ -669,14 +669,12 @@ export function AppHeader() {
                     alt="Ignite" 
                     className="h-9 w-9 object-contain"
                   />
-                   <div className="flex flex-col leading-none items-start">
-                     <div className="flex items-center gap-1.5">
-                       <span className="font-bold text-[19px] text-gradient-emerald">Ignite</span>
-                       
-                     </div>
-                     <span className="text-[11px] text-muted-foreground -mt-0.5 text-left">Club HQ</span>
+                  <div className="flex flex-col leading-tight items-start">
+                    <span className="font-bold text-lg text-gradient-emerald leading-none">Ignite</span>
+                    <span className="text-[11px] text-muted-foreground leading-none">Club HQ</span>
                   </div>
                 </>
+
               )}
             </button>
           </DropdownMenuTrigger>
