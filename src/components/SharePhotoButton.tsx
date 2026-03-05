@@ -22,7 +22,7 @@ export function SharePhotoButton({ photoId, imageUrl, title }: SharePhotoButtonP
       try {
         await Share.share({
           title: shareTitle,
-          text: `${shareTitle}\n${deepLink}`,
+          text: deepLink,
           dialogTitle: "Share photo",
         });
         return;

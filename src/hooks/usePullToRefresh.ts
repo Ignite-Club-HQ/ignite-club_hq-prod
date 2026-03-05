@@ -78,10 +78,15 @@ export function usePullToRefresh({
     currentY.current = e.touches[0].clientY;
     const distance = currentY.current - startY.current;
     
+    // On Android WebView, we must preventDefault() as soon as we detect a
+    // downward gesture from the top — even during the deadzone. If we wait,
+    // the browser claims the gesture for native scrolling/overscroll and
+    // subsequent preventDefault() calls are ignored.
+    if (distance > 5 && e.cancelable) {
+      e.preventDefault();
+    }
+
     if (distance > 30) {
-      if (e.cancelable) {
-        e.preventDefault();
-      }
       isPullingRef.current = true;
       setIsPulling(true);
       const resistedDistance = Math.min((distance - 30) * 0.4, threshold * 1.2);
