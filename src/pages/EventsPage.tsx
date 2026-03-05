@@ -493,6 +493,8 @@ export default function EventsPage() {
               size="sm"
               onClick={() => setFilter(type)}
               className="shrink-0"
+              aria-label={`Filter by ${type === "all" ? "all events" : type}`}
+              aria-pressed={filter === type}
             >
               {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
             </Button>
@@ -915,18 +917,20 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
                       variant="ghost" 
                       size="icon" 
                       className="h-8 w-8 min-h-[44px] min-w-[44px]"
+                      aria-label="Edit event"
                       onClick={(e) => {
                         e.preventDefault();
                         navigate(`/events/${event.id}/edit`);
                       }}
                     >
-                      <Pencil className="h-4 w-4" />
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
                     </Button>
                     {canSendReminders && (
                       <Button 
                         variant="ghost" 
                         size="icon" 
                         className="h-8 w-8 min-h-[44px] min-w-[44px] text-primary"
+                        aria-label="Send reminders"
                         disabled={remindMutation.isPending}
                         onClick={async (e) => {
                           e.preventDefault();
@@ -952,19 +956,20 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
                           setRemindDialogOpen(true);
                         }}
                       >
-                        <Bell className="h-4 w-4" />
+                      <Bell className="h-4 w-4" aria-hidden="true" />
                       </Button>
                     )}
                     <Button 
                       variant="ghost" 
                       size="icon"
                       className="h-8 w-8 min-h-[44px] min-w-[44px] text-warning"
+                      aria-label="Cancel event"
                       onClick={(e) => {
                         e.preventDefault();
                         setCancelDialogOpen(true);
                       }}
                     >
-                      <XCircle className="h-4 w-4" />
+                      <XCircle className="h-4 w-4" aria-hidden="true" />
                     </Button>
                   </>
                 )}
@@ -972,12 +977,13 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
                   variant="ghost" 
                   size="icon" 
                   className="h-8 w-8 min-h-[44px] min-w-[44px] text-destructive"
+                  aria-label="Delete event"
                   onClick={(e) => {
                     e.preventDefault();
                     setDeleteDialogOpen(true);
                   }}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </div>
             )}
