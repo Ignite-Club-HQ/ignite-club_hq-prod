@@ -883,7 +883,7 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
     >
       <CardContent className="p-4">
         <div className="flex items-center gap-2 mb-1">
-          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
             <Badge className={eventTypeColors[event.type]} variant="secondary">
               {event.type}
             </Badge>
@@ -908,86 +908,6 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3 shrink-0 ml-auto">
-            {isAdmin && (
-              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                {!event.is_cancelled && (
-                  <>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 min-h-[44px] min-w-[44px]"
-                      aria-label="Edit event"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        navigate(`/events/${event.id}/edit`);
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" aria-hidden="true" />
-                    </Button>
-                    {canSendReminders && (
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 min-h-[44px] min-w-[44px] text-primary"
-                        aria-label="Send reminders"
-                        disabled={remindMutation.isPending}
-                        onClick={async (e) => {
-                          e.preventDefault();
-                          const { data: rsvps } = await supabase
-                            .from("rsvps")
-                            .select("user_id")
-                            .eq("event_id", event.id);
-                          
-                          const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
-                          
-                          let memberQuery = supabase.from("user_roles").select("user_id");
-                          if (event.team_id) {
-                            memberQuery = memberQuery.eq("team_id", event.team_id);
-                          } else {
-                            memberQuery = memberQuery.eq("club_id", event.club_id);
-                          }
-                          
-                          const { data: members } = await memberQuery;
-                          const allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
-                          const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
-                          
-                          setNonRsvpCount(count);
-                          setRemindDialogOpen(true);
-                        }}
-                      >
-                      <Bell className="h-4 w-4" aria-hidden="true" />
-                      </Button>
-                    )}
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      className="h-8 w-8 min-h-[44px] min-w-[44px] text-warning"
-                      aria-label="Cancel event"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setCancelDialogOpen(true);
-                      }}
-                    >
-                      <XCircle className="h-4 w-4" aria-hidden="true" />
-                    </Button>
-                  </>
-                )}
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-8 w-8 min-h-[44px] min-w-[44px] text-destructive"
-                  aria-label="Delete event"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setDeleteDialogOpen(true);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                </Button>
-              </div>
-            )}
-          </div>
         </div>
         <h3 className={`font-semibold ${event.is_cancelled ? "line-through" : ""}`}>
           {event.title}
@@ -995,16 +915,96 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
             <span className="font-normal text-muted-foreground"> vs {event.opponent}</span>
           )}
         </h3>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground mt-0.5 flex-wrap">
-          <span className="flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5" />
-            {format(parseISO(event.event_date), "EEE, MMM d 'at' h:mm a")}
-          </span>
-          {event.suburb && (
+        <div className="flex items-center justify-between mt-0.5">
+          <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap min-w-0">
             <span className="flex items-center gap-1">
-              <MapPin className="h-3.5 w-3.5" />
-              {event.suburb}
+              <Clock className="h-3.5 w-3.5" />
+              {format(parseISO(event.event_date), "EEE, MMM d 'at' h:mm a")}
             </span>
+            {event.suburb && (
+              <span className="flex items-center gap-1">
+                <MapPin className="h-3.5 w-3.5" />
+                {event.suburb}
+              </span>
+            )}
+          </div>
+          {isAdmin && (
+            <div className="flex items-center gap-1 shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
+              {!event.is_cancelled && (
+                <>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 min-h-[44px] min-w-[44px]"
+                    aria-label="Edit event"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate(`/events/${event.id}/edit`);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                  {canSendReminders && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 min-h-[44px] min-w-[44px] text-primary"
+                      aria-label="Send reminders"
+                      disabled={remindMutation.isPending}
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        const { data: rsvps } = await supabase
+                          .from("rsvps")
+                          .select("user_id")
+                          .eq("event_id", event.id);
+                        
+                        const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
+                        
+                        let memberQuery = supabase.from("user_roles").select("user_id");
+                        if (event.team_id) {
+                          memberQuery = memberQuery.eq("team_id", event.team_id);
+                        } else {
+                          memberQuery = memberQuery.eq("club_id", event.club_id);
+                        }
+                        
+                        const { data: members } = await memberQuery;
+                        const allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
+                        const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
+                        
+                        setNonRsvpCount(count);
+                        setRemindDialogOpen(true);
+                      }}
+                    >
+                    <Bell className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  )}
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    className="h-8 w-8 min-h-[44px] min-w-[44px] text-warning"
+                    aria-label="Cancel event"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setCancelDialogOpen(true);
+                    }}
+                  >
+                    <XCircle className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </>
+              )}
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 min-h-[44px] min-w-[44px] text-destructive"
+                aria-label="Delete event"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setDeleteDialogOpen(true);
+                }}
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
           )}
         </div>
 
