@@ -740,7 +740,7 @@ export default function NotificationsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3" role="list" aria-label={`${displayedNotifications.length} notification${displayedNotifications.length === 1 ? '' : 's'}`}>
           {displayedNotifications.map((notification) => (
             <SwipeableNotificationCard
               key={notification.id}

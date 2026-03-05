@@ -1923,7 +1923,7 @@ export default function HomePage() {
           </Link>
         </div>
 
-        <div aria-live="polite" aria-busy={isLoading} aria-label="Upcoming events">
+        <div aria-live="polite" aria-busy={isLoading} aria-label={`Upcoming events${events?.length ? `, ${events.length} event${events.length === 1 ? '' : 's'}` : ''}`}>
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (

@@ -98,9 +98,9 @@ export function AppLayout() {
         : "Loading your profile...";
     
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4" role="status" aria-live="polite">
         <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
         <p className="text-sm text-muted-foreground">{loadingMessage}</p>
       </div>
     );
@@ -138,11 +138,11 @@ export function AppLayout() {
   // Show retry screen if profile fetch failed (don't redirect to complete-profile)
   if (profileError && !profile) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4" role="alert" aria-live="assertive">
         <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
         {retrying ? (
           <>
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
             <p className="text-sm text-muted-foreground text-center px-4">
               Reconnecting to server...
             </p>
