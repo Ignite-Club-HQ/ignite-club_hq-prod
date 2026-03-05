@@ -448,17 +448,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   return (
     <>
       <Card className={`relative ${firstSub?.isDue ? "border-warning/50 bg-warning/5" : "border-primary/30 bg-primary/5"}`}>
-        {!readOnly && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-1 right-1 h-6 w-6 text-muted-foreground hover:text-foreground z-10"
-            onClick={handleDismiss}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
-        <CardContent className="p-3 pr-8">
+        <CardContent className="p-3">
           {/* Main row: Timer + Score + Controls */}
           <div className="flex items-center gap-3">
             <div className={`p-2.5 rounded-full shrink-0 ${firstSub?.isDue ? "bg-warning/20" : "bg-primary/10"}`}>
@@ -492,9 +482,6 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             
             <div className="flex items-center gap-1.5 shrink-0">
               {!readOnly && (() => {
-                // At half time boundary, the widget may read isRunning=true from localStorage
-                // before the GameTimer component processes the half-time pause.
-                // Detect this and show Play instead of Pause.
                 const isEffectivelyPaused = !timerState.isRunning || 
                   (timerState.isRunning && displaySeconds >= timerState.minutesPerHalf * 60);
                 return (
@@ -506,6 +493,17 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
               {timerState.teamId && timerState.teamName && onOpenPitchBoard && (
                 <Button variant="default" size="icon" className="h-10 w-10" onClick={handleOpenPitchBoard}>
                   <ExternalLink className="h-5 w-5" />
+                </Button>
+              )}
+              {!readOnly && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 text-muted-foreground hover:text-foreground"
+                  onClick={handleDismiss}
+                  title="Dismiss"
+                >
+                  <X className="h-4 w-4" />
                 </Button>
               )}
             </div>
