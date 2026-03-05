@@ -4,7 +4,7 @@ import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical } from "lucide-react";
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
@@ -46,6 +46,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -206,6 +213,7 @@ export default function EventDetailPage() {
   const [rsvpNotes, setRsvpNotes] = useState("");
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
   const [showPitchBoard, setShowPitchBoard] = useState(false);
   
   // Mini league player overrides for match generation
@@ -1655,8 +1663,8 @@ export default function EventDetailPage() {
   return (
     <div className="py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => {
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => {
           navigate('/events');
         }}>
           <ArrowLeft className="h-5 w-5" />
@@ -1664,12 +1672,15 @@ export default function EventDetailPage() {
         <Badge className={eventTypeColors[event.type as EventType]} variant="secondary">
           {event.type}
         </Badge>
+        
+        <div className="flex-1" />
+
         <Button
           variant="ghost"
           size="icon"
+          className="shrink-0"
           onClick={async () => {
             const shareUrl = `${window.location.origin}/events/${id}`;
-            
             try {
               if (navigator.share) {
                 await navigator.share({
@@ -1691,83 +1702,85 @@ export default function EventDetailPage() {
         >
           <Share2 className="h-5 w-5" />
         </Button>
-        <div className="flex-1" />
-        {(isAdmin || isAppAdmin) && !event.is_cancelled && (
-          <>
-            <Button variant="ghost" size="icon" onClick={() => navigate(`/events/${id}/edit`)}>
-              <Pencil className="h-5 w-5" />
-            </Button>
-            {canSendReminders ? (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="text-primary"
-                    disabled={remindMutation.isPending}
+
+        {/* Admin actions dropdown */}
+        {(isAdmin || isAppAdmin) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="shrink-0">
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-popover">
+              {!event.is_cancelled && (
+                <>
+                  <DropdownMenuItem onClick={() => navigate(`/events/${id}/edit`)}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit Event
+                  </DropdownMenuItem>
+                  {canSendReminders ? (
+                    <DropdownMenuItem onClick={() => {
+                      // Open reminder confirmation
+                      setReminderDialogOpen(true);
+                    }}>
+                      <Bell className="h-4 w-4 mr-2 text-primary" />
+                      Send Reminders
+                    </DropdownMenuItem>
+                  ) : !isLoadingHasTeamPro && (
+                    <DropdownMenuItem disabled>
+                      <Bell className="h-4 w-4 mr-2" />
+                      Send Reminders
+                      <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1">Pro</Badge>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => setCancelDialogOpen(true)}
+                    className="text-warning focus:text-warning"
                   >
-                    <Bell className="h-5 w-5" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Send RSVP Reminders?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will send a notification to all team members who haven't responded to this event yet.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction 
-                      onClick={() => remindMutation.mutate()}
-                      disabled={remindMutation.isPending}
-                    >
-                      {remindMutation.isPending ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Sending...
-                        </>
-                      ) : (
-                        "Send Reminders"
-                      )}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            ) : !isLoadingHasTeamPro && (
-              <div className="flex items-center gap-1 px-2">
-                <Bell className="h-5 w-5 text-muted-foreground" />
-                <span className="text-xs font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">Pro</span>
-              </div>
-            )}
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="text-warning"
-              onClick={() => setCancelDialogOpen(true)}
-            >
-              <XCircle className="h-5 w-5" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="text-destructive"
-              onClick={() => setDeleteDialogOpen(true)}
-            >
-              <Trash2 className="h-5 w-5" />
-            </Button>
-          </>
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancel Event
+                  </DropdownMenuItem>
+                </>
+              )}
+              <DropdownMenuItem 
+                onClick={() => setDeleteDialogOpen(true)}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Event
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
-        {(isAdmin || isAppAdmin) && event.is_cancelled && (
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="text-destructive"
-            onClick={() => setDeleteDialogOpen(true)}
-          >
-            <Trash2 className="h-5 w-5" />
-          </Button>
-        )}
+
+        {/* Reminder Dialog */}
+        <AlertDialog open={reminderDialogOpen} onOpenChange={setReminderDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Send RSVP Reminders?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will send a notification to all team members who haven't responded to this event yet.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={() => remindMutation.mutate()}
+                disabled={remindMutation.isPending}
+              >
+                {remindMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Send Reminders"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Cancel Dialog - handles both single and recurring */}
         {(event.is_recurring || event.parent_event_id) ? (
