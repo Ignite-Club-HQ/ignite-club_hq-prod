@@ -1969,7 +1969,12 @@ export default function HomePage() {
                 <CardContent className="p-3 pl-3.5">
                   {/* Row 1: Title + RSVP */}
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className={`font-semibold text-[15px] leading-snug truncate ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h3 className={`font-semibold text-[15px] leading-snug truncate ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
+                      {event.teams?.name && (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0 font-normal text-muted-foreground">{event.teams.name}</Badge>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {event.is_cancelled && (
                         <Badge variant="destructive" className="text-[11px] h-5">Cancelled</Badge>
