@@ -1,6 +1,7 @@
 import { Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Share } from "@capacitor/share";
 
 interface SharePhotoButtonProps {
   photoId: string;
@@ -16,7 +17,22 @@ export function SharePhotoButton({ photoId, imageUrl, title }: SharePhotoButtonP
     const shareTitle = title || "Check out this photo on Ignite!";
     const deepLink = `${DEEP_LINK_BASE}/media/${photoId}`;
 
-    // Use Web Share API for native share sheet (Messenger, WhatsApp, etc.)
+    // Use Capacitor Share on native platforms for proper share sheet
+    if ((window as any).Capacitor) {
+      try {
+        await Share.share({
+          title: shareTitle,
+          text: shareTitle,
+          url: deepLink,
+          dialogTitle: "Share photo",
+        });
+        return;
+      } catch (error) {
+        console.log("Capacitor Share failed, falling back:", error);
+      }
+    }
+
+    // Use Web Share API for browsers that support it
     if (navigator.share) {
       try {
         await navigator.share({
