@@ -58,8 +58,8 @@ interface DragState {
   directionLocked: 'drag' | 'scroll' | null; // null = undecided
 }
 
-const DRAG_THRESHOLD = 8; // px before drag is committed
-const LONG_PRESS_MS = 150; // ms hold before drag activates
+const DRAG_THRESHOLD = 12; // px movement cancels pending long-press
+const LONG_PRESS_MS = 300; // ms hold before drag activates
 
 export default function PreGameLineupScreen({
   players,
