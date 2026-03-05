@@ -190,17 +190,10 @@ export function CancelEventConfirmDialog({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isPending}
-          >
-            Keep Event
-          </Button>
+        <DialogFooter className="flex-col gap-2 sm:flex-row sm:gap-2 pt-2">
           <Button
             variant="default"
-            className="bg-warning text-warning-foreground hover:bg-warning/90"
+            className="w-full sm:w-auto bg-warning text-warning-foreground hover:bg-warning/90 min-h-[44px]"
             onClick={handleConfirm}
             disabled={isPending || isLoading}
           >
@@ -212,6 +205,14 @@ export function CancelEventConfirmDialog({
             ) : (
               "Cancel Event"
             )}
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto min-h-[44px]"
+            onClick={() => onOpenChange(false)}
+            disabled={isPending}
+          >
+            Keep Event
           </Button>
         </DialogFooter>
       </DialogContent>
