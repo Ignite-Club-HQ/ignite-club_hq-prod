@@ -62,6 +62,7 @@ import {
   Goal,
   FORMATIONS,
   getPositionFromCoords,
+  getSpecificPositionLabel,
   PITCH_STATE_KEY,
   PITCH_BOARD_OPEN_KEY,
   TIMER_STORAGE_KEY,
@@ -264,6 +265,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     newTeamSize?: TeamSize; // Set when this is a team size change
     positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[];
     benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[];
+    minorAdjustments?: { player: Player; fromLabel: string; toLabel: string }[];
   } | null>(null);
 
   // Auto-sub plan state
@@ -2056,19 +2058,27 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     
     // Position changes for players staying on pitch
+    const minorAdjustments: { player: Player; fromLabel: string; toLabel: string }[] = [];
     for (let i = 0; i < willBeOnPitch.length; i++) {
       const player = willBeOnPitch[i];
       if (player.currentPitchPosition && formation.positions[i] && playersOnPitch.some(p => p.id === player.id) && !willBeOnBench.some(p => p.id === player.id)) {
         const newPosition = getPositionFromCoords(formation.positions[i].y, teamSize);
         if (player.currentPitchPosition !== newPosition) {
           positionSwaps.push({ player, fromPosition: player.currentPitchPosition, toPosition: newPosition, fromX: player.position?.x, toX: formation.positions[i].x });
+        } else {
+          // Same category but different specific position (e.g. Left Mid → Centre Mid)
+          const fromLabel = getSpecificPositionLabel(player.position?.x, player.currentPitchPosition);
+          const toLabel = getSpecificPositionLabel(formation.positions[i].x, newPosition);
+          if (fromLabel !== toLabel) {
+            minorAdjustments.push({ player, fromLabel, toLabel });
+          }
         }
       }
     }
 
     // If there are any changes, show confirmation
-    if (positionSwaps.length > 0 || benchMoves.length > 0) {
-      setPendingFormationChange({ index, positionSwaps, benchMoves });
+    if (positionSwaps.length > 0 || benchMoves.length > 0 || minorAdjustments.length > 0) {
+      setPendingFormationChange({ index, positionSwaps, benchMoves, minorAdjustments });
       setFormationChangeDialogOpen(true);
       return;
     }
@@ -3537,18 +3547,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     
     // Position changes for players staying on pitch
+    const minorAdjustments: { player: Player; fromLabel: string; toLabel: string }[] = [];
     for (let i = 0; i < willBeOnPitch.length; i++) {
       const player = willBeOnPitch[i];
       if (player.currentPitchPosition && newFormation.positions[i] && playersOnPitch.some(p => p.id === player.id) && !willBeOnBench.some(p => p.id === player.id)) {
         const newPosition = getPositionFromCoords(newFormation.positions[i].y, newSize);
         if (player.currentPitchPosition !== newPosition) {
           positionSwaps.push({ player, fromPosition: player.currentPitchPosition, toPosition: newPosition, fromX: player.position?.x, toX: newFormation.positions[i].x });
+        } else {
+          const fromLabel = getSpecificPositionLabel(player.position?.x, player.currentPitchPosition);
+          const toLabel = getSpecificPositionLabel(newFormation.positions[i].x, newPosition);
+          if (fromLabel !== toLabel) {
+            minorAdjustments.push({ player, fromLabel, toLabel });
+          }
         }
       }
     }
     
-    if (positionSwaps.length > 0 || benchMoves.length > 0) {
-      setPendingFormationChange({ index: 0, newTeamSize: newSize, positionSwaps, benchMoves });
+    if (positionSwaps.length > 0 || benchMoves.length > 0 || minorAdjustments.length > 0) {
+      setPendingFormationChange({ index: 0, newTeamSize: newSize, positionSwaps, benchMoves, minorAdjustments });
       setFormationChangeDialogOpen(true);
       return;
     }
@@ -5491,6 +5508,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           isTeamSizeChange={!!pendingFormationChange?.newTeamSize}
           currentTeamSize={teamSize}
           newTeamSize={pendingFormationChange?.newTeamSize}
+          minorAdjustments={pendingFormationChange?.minorAdjustments || []}
         />
 
         {/* Auto-Sub Plan Dialog */}
@@ -6803,6 +6821,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         isTeamSizeChange={!!pendingFormationChange?.newTeamSize}
         currentTeamSize={teamSize}
         newTeamSize={pendingFormationChange?.newTeamSize}
+        minorAdjustments={pendingFormationChange?.minorAdjustments || []}
       />
 
       {/* Auto-Sub Plan Dialog */}
