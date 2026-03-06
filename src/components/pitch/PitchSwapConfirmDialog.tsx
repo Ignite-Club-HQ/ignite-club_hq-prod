@@ -106,26 +106,23 @@ export default function PitchSwapConfirmDialog({
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2 text-lg">
             <ArrowLeftRight className="h-5 w-5" />
-            {canSwap ? "Make This Position Swap" : "Position Swap"}
+            {canSwap ? "Confirm Position Swap" : "Position Swap"}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            {canSwap ? "Follow these steps on the pitch" : "Position mismatch — choose an option below"}
+            {canSwap ? "The following players will swap positions" : "Position mismatch — choose an option below"}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-3 py-2">
-          {/* Step 1: Move player 1 */}
-          <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+          {/* Player 1 swap */}
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
             <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-500 text-white text-sm font-bold flex-shrink-0">
-              1
+              {player1.number || player1.name.slice(0, 2).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-semibold">
-                Move {player1.name} to {pos2 || 'new position'}
-              </div>
-              <div className="text-sm text-muted-foreground mt-0.5">
-                {player1.number && `#${player1.number} `}
-                {pos1 && `moves from ${pos1}`}
+              <div className="font-semibold text-sm">{player1.name}</div>
+              <div className="text-xs text-muted-foreground">
+                {pos1 && <>{pos1} → </>}{pos2 || 'new position'}
               </div>
             </div>
             {pos2 && pos2Colors && (
@@ -133,18 +130,20 @@ export default function PitchSwapConfirmDialog({
             )}
           </div>
           
-          {/* Step 2: Move player 2 */}
-          <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+          {/* Swap arrow */}
+          <div className="flex justify-center">
+            <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+          </div>
+
+          {/* Player 2 swap */}
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
             <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-500 text-white text-sm font-bold flex-shrink-0">
-              2
+              {player2.number || player2.name.slice(0, 2).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-semibold">
-                Move {player2.name} to {pos1 || 'new position'}
-              </div>
-              <div className="text-sm text-muted-foreground mt-0.5">
-                {player2.number && `#${player2.number} `}
-                {pos2 && `moves from ${pos2}`}
+              <div className="font-semibold text-sm">{player2.name}</div>
+              <div className="text-xs text-muted-foreground">
+                {pos2 && <>{pos2} → </>}{pos1 || 'new position'}
               </div>
             </div>
             {pos1 && pos1Colors && (
