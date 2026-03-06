@@ -93,6 +93,7 @@ export default function GroupChatPage() {
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const isNativePlatform = Capacitor.isNativePlatform();
   const bottomInset = isNativeIOS ? "1rem" : "env(safe-area-inset-bottom, 0px)";
 
   // Mark group message notifications as read when opening this thread
