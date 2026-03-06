@@ -8,6 +8,7 @@ import { MentionInput } from "@/components/chat/MentionInput";
 import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users } from "lucide-react";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
+import { ChatRefreshButton } from "@/components/chat/ChatRefreshButton";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
@@ -92,6 +93,7 @@ export default function GroupChatPage() {
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const isNativePlatform = Capacitor.isNativePlatform();
   const bottomInset = isNativeIOS ? "1rem" : "env(safe-area-inset-bottom, 0px)";
 
   // Mark group message notifications as read when opening this thread
@@ -1230,6 +1232,9 @@ export default function GroupChatPage() {
           <h1 className="font-semibold truncate">{group.name}</h1>
         </div>
         <div className="flex items-center shrink-0">
+          {isNativePlatform && (
+            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          )}
           <ChatMuteButton chatType="group" chatId={groupId!} />
           <ChatMembersSheet
             chatType="group"
