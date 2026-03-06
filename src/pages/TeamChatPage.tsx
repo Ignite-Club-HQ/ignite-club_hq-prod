@@ -5,6 +5,7 @@ import { ArrowLeft, Send, Loader2 } from "lucide-react";
 import { SecureAvatar } from "@/components/SecureAvatar";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
+import { ChatRefreshButton } from "@/components/chat/ChatRefreshButton";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";

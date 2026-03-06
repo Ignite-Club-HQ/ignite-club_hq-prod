@@ -8,6 +8,7 @@ import { ArrowLeft, Send, Loader2, Crown, Lock, Flame } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
+import { ChatRefreshButton } from "@/components/chat/ChatRefreshButton";
 
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
