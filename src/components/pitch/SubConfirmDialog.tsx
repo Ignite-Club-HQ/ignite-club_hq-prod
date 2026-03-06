@@ -135,10 +135,13 @@ export default function SubConfirmDialog({
             {currentStep++}
           </div>
            <div className="flex-1 min-w-0">
-             <div className="font-semibold">
-               {playerIn.name} → {sub.positionSwap ? sub.positionSwap.fromPosition : (playerOut.currentPitchPosition || 'Pitch')}
-             </div>
-          </div>
+              <div className="font-semibold">
+                {playerIn.name} → {sub.positionSwap ? sub.positionSwap.fromPosition : (playerOut.currentPitchPosition || 'Pitch')}
+              </div>
+              <div className="text-sm text-muted-foreground mt-0.5">
+                From Bench
+              </div>
+           </div>
           <ArrowUp className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
         </div>
         
@@ -205,7 +208,7 @@ export default function SubConfirmDialog({
               : alreadyExecuted
               ? "This substitution has already been completed"
               : isDue 
-                ? `Follow these ${getTotalSteps()} steps on the pitch`
+                ? undefined
                 : substitution.time === 0 && substitution.half === 2 
                   ? "Halftime substitution" 
                   : `${formatTime(substitution.time)} - ${substitution.half === 1 ? "1st" : "2nd"} Half`}
