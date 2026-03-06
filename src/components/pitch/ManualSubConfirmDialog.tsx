@@ -70,11 +70,9 @@ export default function ManualSubConfirmDialog({
               <div className="font-semibold">
                 {playerOut.name} → Bench
               </div>
-              {playerOut.currentPitchPosition && (
-                <div className="text-sm text-muted-foreground mt-0.5">
-                  Leaves {playerOut.currentPitchPosition}
-                </div>
-              )}
+              <div className="text-sm text-muted-foreground mt-0.5">
+                From {playerOut.currentPitchPosition || 'Pitch'}
+              </div>
             </div>
             <ArrowDown className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
           </div>

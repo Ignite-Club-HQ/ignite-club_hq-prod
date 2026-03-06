@@ -616,7 +616,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
               {isDue ? "Make This Substitution" : "Upcoming Substitution"}
             </ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
-              {isDue ? "Follow these steps on the pitch" : `Sub scheduled for ${sub.half === 1 ? "1st" : "2nd"} Half`}
+              {isDue ? undefined : `Sub scheduled for ${sub.half === 1 ? "1st" : "2nd"} Half`}
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
           
@@ -643,11 +643,9 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
                 <div className="font-semibold text-sm">
                   {actualPlayerOut?.name} → Bench
                 </div>
-                {actualPlayerOut?.currentPitchPosition && (
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    Leaves {actualPlayerOut.currentPitchPosition}
-                  </div>
-                )}
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  From {actualPlayerOut?.currentPitchPosition || 'Pitch'}
+                </div>
               </div>
               <ArrowDown className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
             </div>
@@ -660,6 +658,9 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm">
                   {actualPlayerIn?.name} → {sub.positionSwap ? sub.positionSwap.fromPosition : (actualPlayerOut?.currentPitchPosition || 'Pitch')}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  From Bench
                 </div>
               </div>
               <ArrowUp className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
