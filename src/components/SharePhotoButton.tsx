@@ -43,7 +43,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
 
     const deepLink = `${DEEP_LINK_BASE}/media/${photoId}`;
 
-    // Build descriptive share text (used on web share)
+    // Build descriptive share text
     const context = teamName && clubName
       ? `${clubName} — ${teamName}`
       : clubName || teamName || "";
