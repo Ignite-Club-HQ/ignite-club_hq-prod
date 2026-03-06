@@ -8,7 +8,7 @@ import { ArrowLeft, Send, Loader2, Crown, Lock, Flame } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
-import { ChatRefreshButton } from "@/components/chat/ChatRefreshButton";
+import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
@@ -23,8 +23,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage } from "@/lib/messageCache";
-import { ChatSearch, highlightText } from "@/components/chat/ChatSearch";
-import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
+import { ChatSearchBar, highlightText } from "@/components/chat/ChatSearch";
 import { IGNITE_SUPPORT_USER_ID, isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessageReads } from "@/hooks/useMessageReads";
 import { Capacitor } from "@capacitor/core";
@@ -74,6 +73,7 @@ export default function DirectMessagePage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
@@ -633,7 +633,8 @@ export default function DirectMessagePage() {
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] overflow-hidden overscroll-none" ref={pullRefreshRef as any}>
       {/* Header - Fixed at top */}
-      <div className="fixed left-0 right-0 flex items-center justify-between gap-3 px-4 py-3 border-b bg-background z-40" style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
+      <div className="fixed left-0 right-0 flex items-center justify-between gap-3 px-4 py-3 border-b bg-background z-40 relative" style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
+        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
             <ArrowLeft className="h-5 w-5" />
@@ -661,11 +662,16 @@ export default function DirectMessagePage() {
           )}
         </div>
         <div className="flex items-center gap-1">
-          {isNativePlatform && (
-            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
-          )}
-          <ChatSearch onSearch={setSearchQuery} />
-          {!isIgniteSupportConversation && <ChatMuteButton chatType="dm" chatId={conversationId!} />}
+          <ChatHeaderMenu
+            chatType="dm"
+            chatId={conversationId!}
+            onSearchOpen={() => setSearchOpen(true)}
+            showMembers={false}
+            showMute={!isIgniteSupportConversation}
+            onRefresh={handleManualRefresh}
+            isRefreshing={isAnyRefreshing}
+            isNativePlatform={isNativePlatform}
+          />
         </div>
       </div>
 
