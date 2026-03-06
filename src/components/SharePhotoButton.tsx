@@ -64,7 +64,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
         } catch (error) {
           if ((error as Error).name !== "AbortError") {
             console.log("Capacitor Share failed, falling back to clipboard:", error);
-            await copyDeepLink(deepLink);
+            await copyDeepLink(sharePayloadText);
           }
         }
         return;
