@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -15,48 +16,9 @@ interface SharePhotoButtonProps {
 const DEEP_LINK_BASE = "https://igniteclubhq.app";
 
 export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName }: SharePhotoButtonProps) {
-  const handleShare = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const deepLink = `${DEEP_LINK_BASE}/media/${photoId}`;
+  const isSharingRef = useRef(false);
 
-    // Build descriptive share text
-    const context = teamName && clubName
-      ? `${clubName} — ${teamName}`
-      : clubName || teamName || "";
-    const shareText = context
-      ? `A new photo has been added to ${context}. Check it out!`
-      : "Check out this photo on Ignite!";
-
-    // Use Capacitor Share on native platforms for proper share sheet
-    if (Capacitor.isNativePlatform()) {
-      try {
-        await Share.share({
-          // Messenger duplicates content when title/url are separate fields.
-          // Keep everything in a single text payload.
-          text: `${shareText}\n${deepLink}`,
-          dialogTitle: "Share photo",
-        });
-        return;
-      } catch (error) {
-        console.log("Capacitor Share failed, falling back:", error);
-      }
-    }
-
-    // Use Web Share API for browsers that support it
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          // Keep one combined field to avoid Messenger duplication.
-          text: `${shareText}\n${deepLink}`,
-        });
-        return;
-      } catch (error) {
-        if ((error as Error).name === "AbortError") return;
-        console.log("Web Share failed, falling back to clipboard:", error);
-      }
-    }
-
-    // Fallback: copy deep link to clipboard
+  const copyDeepLink = async (deepLink: string) => {
     try {
       await navigator.clipboard.writeText(deepLink);
       toast.success("Link copied to clipboard!");
@@ -70,6 +32,56 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
       document.execCommand("copy");
       document.body.removeChild(textarea);
       toast.success("Link copied to clipboard!");
+    }
+  };
+
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (isSharingRef.current) return;
+    isSharingRef.current = true;
+
+    const deepLink = `${DEEP_LINK_BASE}/media/${photoId}`;
+
+    // Build descriptive share text (used on web share)
+    const context = teamName && clubName
+      ? `${clubName} — ${teamName}`
+      : clubName || teamName || "";
+    const shareText = context
+      ? `A new photo has been added to ${context}. Check it out!`
+      : "Check out this photo on Ignite!";
+
+    try {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          // Messenger on native can duplicate mixed text payloads.
+          // URL-only is the most reliable format across Android/iOS share targets.
+          await Share.share({
+            url: deepLink,
+            dialogTitle: "Share photo",
+          });
+        } catch (error) {
+          if ((error as Error).name !== "AbortError") {
+            console.log("Capacitor Share failed, falling back to clipboard:", error);
+            await copyDeepLink(deepLink);
+          }
+        }
+        return;
+      }
+
+      if (navigator.share) {
+        try {
+          await navigator.share({ text: `${shareText}\n${deepLink}` });
+          return;
+        } catch (error) {
+          if ((error as Error).name === "AbortError") return;
+          console.log("Web Share failed, falling back to clipboard:", error);
+        }
+      }
+
+      await copyDeepLink(deepLink);
+    } finally {
+      isSharingRef.current = false;
     }
   };
 
