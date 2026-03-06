@@ -794,7 +794,7 @@ export default function BroadcastChatPage() {
           <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
           <ChatHeaderMenu
             chatType="club"
-            chatId={clubId || ""}
+            chatId="broadcast"
             onSearchOpen={() => setSearchOpen(true)}
             showMembers={false}
             showMute={false}
