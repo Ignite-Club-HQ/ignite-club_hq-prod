@@ -55,8 +55,8 @@ export default function ManualSubConfirmDialog({
             <ArrowLeftRight className="h-5 w-5" />
             Make This Substitution
           </ResponsiveDialogTitle>
-          <ResponsiveDialogDescription>
-            Follow these steps on the pitch
+          <ResponsiveDialogDescription className="sr-only">
+            Substitution details
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
         
@@ -87,6 +87,9 @@ export default function ManualSubConfirmDialog({
             <div className="flex-1 min-w-0">
               <div className="font-semibold">
                 {playerIn.name} → {positionSwap ? positionSwap.fromPosition : (playerOut.currentPitchPosition || 'Pitch')}
+              </div>
+              <div className="text-sm text-muted-foreground mt-0.5">
+                From Bench
               </div>
             </div>
             <ArrowUp className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
