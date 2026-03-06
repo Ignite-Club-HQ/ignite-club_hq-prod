@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -460,8 +461,11 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                 <span className="font-mono text-xl font-bold text-primary">
                   {formatTime(displaySeconds, timerState.currentHalf, timerState.minutesPerHalf)}
                 </span>
-                {timerState.isRunning && (
-                  <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+               {timerState.isRunning && (
+                  <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-destructive/50 text-destructive gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />
+                    LIVE
+                  </Badge>
                 )}
                 {hasScore && (
                   <span className="text-sm font-semibold text-muted-foreground ml-1">
@@ -523,7 +527,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                 <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
               )}
               <span className={`text-xs font-medium flex-1 truncate ${firstSub.isDue ? "text-warning" : "text-muted-foreground"}`}>
-                {formatSubCountdown(firstSub)} — {firstSub.sub.playerOut.name} → {firstSub.sub.playerIn.name}
+                {firstSub.isDue ? "SUB TIME" : formatSubCountdown(firstSub)} — OUT {firstSub.sub.playerOut.name} · IN {firstSub.sub.playerIn.name}
               </span>
               {allSubs.length > 1 && (
                 <span className="text-[10px] text-muted-foreground shrink-0">+{allSubs.length - 1} more</span>
@@ -538,7 +542,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
           {/* Expanded sub list */}
           {subsExpanded && allSubs.length > 0 && (
-            <div className="mt-1.5 space-y-1">
+            <div className="mt-1.5 space-y-0.5">
               {allSubs.map((subInfo, idx) => (
                 <div
                   key={`${subInfo.sub.playerOut.id}-${subInfo.sub.playerIn.id}-${subInfo.sub.time}`}
@@ -551,7 +555,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                       {formatSubCountdown(subInfo)}
                     </p>
                     <p className="text-[11px] text-muted-foreground truncate">
-                      {subInfo.sub.playerOut.name} → {subInfo.sub.playerIn.name}
+                      OUT {subInfo.sub.playerOut.name} · IN {subInfo.sub.playerIn.name}
                     </p>
                   </div>
                   {!readOnly && (
@@ -567,9 +571,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                           Accept
                         </>
                       ) : idx === 0 || allSubs.slice(0, idx).every(s => s.isDue) ? (
-                        <>
+                      <>
                           <ArrowRightLeft className="h-3.5 w-3.5" />
-                          Make Early
+                          Sub Now
                         </>
                       ) : (
                         <>
@@ -691,7 +695,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                   </Button>
                   <Button onClick={executeSubstitution} className="h-12 text-base sm:order-3">
                     <UserRoundCheck className="h-4 w-4 mr-2" />
-                    {selectedSub.isDue ? "Confirm Sub" : "Make Early"}
+                    {selectedSub.isDue ? "Confirm Sub" : "Sub Now"}
                   </Button>
                 </>
               )}
