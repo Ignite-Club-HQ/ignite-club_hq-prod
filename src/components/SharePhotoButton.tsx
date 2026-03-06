@@ -51,13 +51,14 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
       ? `A new photo has been added to ${context}. Check it out!`
       : "Check out this photo on Ignite!";
 
+    const sharePayloadText = `${shareText}\n${deepLink}`;
+
     try {
       if (Capacitor.isNativePlatform()) {
         try {
-          // Messenger on native can duplicate mixed text payloads.
-          // URL-only is the most reliable format across Android/iOS share targets.
+          // Keep a single text payload so Messenger receives message + link once.
           await Share.share({
-            url: deepLink,
+            text: sharePayloadText,
             dialogTitle: "Share photo",
           });
         } catch (error) {
@@ -71,7 +72,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
 
       if (navigator.share) {
         try {
-          await navigator.share({ text: `${shareText}\n${deepLink}` });
+          await navigator.share({ text: sharePayloadText });
           return;
         } catch (error) {
           if ((error as Error).name === "AbortError") return;
