@@ -130,7 +130,7 @@ export default function PitchSwapConfirmDialog({
               </div>
             </div>
             {pos2 && pos2Colors && (
-              <span className={cn("text-sm font-bold flex-shrink-0", pos2Colors.text)}>{pos2}</span>
+              <span className={cn("text-xs font-bold flex-shrink-0 uppercase", pos2Colors.text)}>{specificPos2 || pos2}</span>
             )}
           </div>
           
@@ -151,7 +151,7 @@ export default function PitchSwapConfirmDialog({
               </div>
             </div>
             {pos1 && pos1Colors && (
-              <span className={cn("text-sm font-bold flex-shrink-0", pos1Colors.text)}>{pos1}</span>
+              <span className={cn("text-xs font-bold flex-shrink-0 uppercase", pos1Colors.text)}>{specificPos1 || pos1}</span>
             )}
           </div>
 
