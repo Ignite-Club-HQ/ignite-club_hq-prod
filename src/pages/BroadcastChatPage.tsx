@@ -65,6 +65,7 @@ export default function BroadcastChatPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const isNativePlatform = Capacitor.isNativePlatform();
 
   // Mark broadcast notifications as read when opening this thread
   useEffect(() => {
