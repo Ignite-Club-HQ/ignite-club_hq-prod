@@ -68,12 +68,13 @@ export default function ManualSubConfirmDialog({
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-semibold">
-                Move {playerOut.name} to the bench
+                {playerOut.name} → Bench
               </div>
-              <div className="text-sm text-muted-foreground mt-0.5">
-                {playerOut.number && `#${playerOut.number} `}
-                {playerOut.currentPitchPosition && `leaves ${playerOut.currentPitchPosition}`}
-              </div>
+              {playerOut.currentPitchPosition && (
+                <div className="text-sm text-muted-foreground mt-0.5">
+                  Leaves {playerOut.currentPitchPosition}
+                </div>
+              )}
             </div>
             <ArrowDown className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
           </div>
@@ -85,11 +86,7 @@ export default function ManualSubConfirmDialog({
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-semibold">
-                Move {playerIn.name} to {positionSwap ? positionSwap.fromPosition : (playerOut.currentPitchPosition || 'the pitch')}
-              </div>
-              <div className="text-sm text-muted-foreground mt-0.5">
-                {playerIn.number && `#${playerIn.number} `}
-                comes on from bench
+                {playerIn.name} → {positionSwap ? positionSwap.fromPosition : (playerOut.currentPitchPosition || 'Pitch')}
               </div>
             </div>
             <ArrowUp className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
@@ -103,11 +100,10 @@ export default function ManualSubConfirmDialog({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold">
-                  Move {positionSwap.player.name} to {positionSwap.toPosition}
+                  {positionSwap.player.name} → {positionSwap.toPosition}
                 </div>
                 <div className="text-sm text-muted-foreground mt-0.5">
-                  {positionSwap.player.number && `#${positionSwap.player.number} `}
-                  shifts from {positionSwap.fromPosition}
+                  Shifts from {positionSwap.fromPosition}
                 </div>
               </div>
               <ArrowLeftRight className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
