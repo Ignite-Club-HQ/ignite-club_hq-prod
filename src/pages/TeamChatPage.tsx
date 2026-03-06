@@ -20,7 +20,7 @@ import { ChatMessage } from "@/components/chat/ChatMessage";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
-import { ChatSearchBar, highlightText } from "@/components/chat/ChatSearch";
+
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
 import { useMessageReads } from "@/hooks/useMessageReads";
