@@ -644,7 +644,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
                   {actualPlayerOut?.name} → Bench
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  From {actualPlayerOut?.currentPitchPosition || 'Pitch'}
+                  From {actualPlayerOut?.currentPitchPosition || sub.playerOut.currentPitchPosition || 'Unknown'}
                 </div>
               </div>
               <ArrowDown className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
@@ -657,7 +657,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm">
-                  {actualPlayerIn?.name} → {sub.positionSwap ? sub.positionSwap.fromPosition : (actualPlayerOut?.currentPitchPosition || 'Pitch')}
+                  {actualPlayerIn?.name} → {sub.positionSwap ? sub.positionSwap.fromPosition : (actualPlayerOut?.currentPitchPosition || sub.playerOut.currentPitchPosition || 'Unknown')}
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   From Bench

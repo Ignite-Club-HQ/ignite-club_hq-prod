@@ -121,7 +121,7 @@ export default function SubConfirmDialog({
                {playerOut.name} → Bench
              </div>
              <div className="text-sm text-muted-foreground mt-0.5">
-               From {playerOut.currentPitchPosition || 'Pitch'}
+               From {playerOut.currentPitchPosition || sub.playerOut.currentPitchPosition || 'Unknown'}
              </div>
            </div>
           <ArrowDown className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
@@ -134,7 +134,7 @@ export default function SubConfirmDialog({
           </div>
            <div className="flex-1 min-w-0">
               <div className="font-semibold">
-                {playerIn.name} → {sub.positionSwap ? sub.positionSwap.fromPosition : (playerOut.currentPitchPosition || 'Pitch')}
+                {playerIn.name} → {sub.positionSwap ? sub.positionSwap.fromPosition : (playerOut.currentPitchPosition || sub.playerOut.currentPitchPosition || 'Unknown')}
               </div>
               <div className="text-sm text-muted-foreground mt-0.5">
                 From Bench

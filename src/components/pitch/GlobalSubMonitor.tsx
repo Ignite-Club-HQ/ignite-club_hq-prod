@@ -642,7 +642,7 @@ export default function GlobalSubMonitor() {
         // Play alert beep (dialog itself is the in-app alert)
         const notificationBody = batchSubs.length > 1
           ? `Time for ${batchSubs.length} substitutions`
-          : `${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} → Bench. ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`} → ${primarySub.playerOut.currentPitchPosition || 'Pitch'}`;
+          : `${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} → Bench. ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`} → ${primarySub.playerOut.currentPitchPosition || 'Unknown'}`;
 
         if (timerState.soundEnabled) {
           try {
