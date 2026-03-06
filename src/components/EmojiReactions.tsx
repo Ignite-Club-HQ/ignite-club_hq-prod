@@ -47,6 +47,7 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
   const handleEmojiClick = (type: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setIsPickerOpen(false);
+    if (!currentUserId) return;
     if (userReaction?.reaction_type === type) {
       onRemove();
     } else {
