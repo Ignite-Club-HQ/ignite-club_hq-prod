@@ -2958,6 +2958,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         setNextSubInfo(null);
         setSubDuePlayerIds(new Set());
         if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
+        // Close any open sub confirmation dialog
+        if (subConfirmDialogOpen) {
+          setSubConfirmDialogOpen(false);
+          setPendingAutoSub(null);
+          setPendingBatchSubs([]);
+        }
       }
       setNextSubInfo(prev => prev ? null : prev);
     }
