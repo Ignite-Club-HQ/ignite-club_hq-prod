@@ -16,7 +16,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { Play, Pause, Timer, ExternalLink, X, ArrowRightLeft, Clock, UserRoundCheck, ChevronDown, ChevronUp, ArrowDown, ArrowUp, SkipForward, Pencil, Eye } from "lucide-react";
+import { Play, Pause, Timer, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundCheck, ChevronDown, ChevronUp, ArrowDown, ArrowUp, SkipForward, Pencil, Eye } from "lucide-react";
 import { Goal } from "./types";
 import { PitchPosition } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
@@ -496,7 +496,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
               })()}
               {timerState.teamId && timerState.teamName && onOpenPitchBoard && (
                 <Button variant="default" size="icon" className="h-10 w-10" onClick={handleOpenPitchBoard}>
-                  <ExternalLink className="h-5 w-5" />
+                  <LayoutGrid className="h-5 w-5" />
                 </Button>
               )}
               {!readOnly && (
