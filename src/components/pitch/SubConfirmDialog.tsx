@@ -116,14 +116,15 @@ export default function SubConfirmDialog({
           <div className="flex items-center justify-center w-7 h-7 rounded-full bg-destructive text-destructive-foreground text-sm font-bold flex-shrink-0">
             {currentStep++}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-semibold">
-              Move {playerOut.name} to the bench
-            </div>
-            <div className="text-sm text-muted-foreground mt-0.5">
-              {playerOut.number && `#${playerOut.number} `}
-              {playerOut.currentPitchPosition && `leaves ${playerOut.currentPitchPosition}`}
-            </div>
+           <div className="flex-1 min-w-0">
+             <div className="font-semibold">
+               {playerOut.name} → Bench
+             </div>
+             {playerOut.currentPitchPosition && (
+               <div className="text-sm text-muted-foreground mt-0.5">
+                 Leaves {playerOut.currentPitchPosition}
+               </div>
+             )}
           </div>
           <ArrowDown className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
         </div>
@@ -133,14 +134,10 @@ export default function SubConfirmDialog({
           <div className="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500 text-white text-sm font-bold flex-shrink-0">
             {currentStep++}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-semibold">
-              Move {playerIn.name} to {sub.positionSwap ? sub.positionSwap.fromPosition : (playerOut.currentPitchPosition || 'the pitch')}
-            </div>
-            <div className="text-sm text-muted-foreground mt-0.5">
-              {playerIn.number && `#${playerIn.number} `}
-              comes on from bench
-            </div>
+           <div className="flex-1 min-w-0">
+             <div className="font-semibold">
+               {playerIn.name} → {sub.positionSwap ? sub.positionSwap.fromPosition : (playerOut.currentPitchPosition || 'Pitch')}
+             </div>
           </div>
           <ArrowUp className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
         </div>
@@ -151,14 +148,13 @@ export default function SubConfirmDialog({
             <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-500 text-white text-sm font-bold flex-shrink-0">
               {currentStep}
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold">
-                Move {sub.positionSwap.player.name} to {sub.positionSwap.toPosition}
-              </div>
-              <div className="text-sm text-muted-foreground mt-0.5">
-                {sub.positionSwap.player.number && `#${sub.positionSwap.player.number} `}
-                shifts from {sub.positionSwap.fromPosition}
-              </div>
+             <div className="flex-1 min-w-0">
+               <div className="font-semibold">
+                 {sub.positionSwap.player.name} → {sub.positionSwap.toPosition}
+               </div>
+               <div className="text-sm text-muted-foreground mt-0.5">
+                 Shifts from {sub.positionSwap.fromPosition}
+               </div>
             </div>
             <ArrowLeftRight className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
           </div>
