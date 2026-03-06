@@ -32,9 +32,13 @@ export function ChatMembersSheet({
   chatName,
   teamId,
   clubId,
-  groupAllowedRoles 
+  groupAllowedRoles,
+  externalOpen,
+  onExternalOpenChange,
 }: ChatMembersSheetProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = onExternalOpenChange || setInternalOpen;
   const queryClient = useQueryClient();
   const previousCountRef = useRef<number | null>(null);
   const cacheKey = `chat-members-count-${chatType}-${chatId}`;
