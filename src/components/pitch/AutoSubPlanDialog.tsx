@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -633,6 +633,29 @@ function DialogInner({
   const [plan, setPlan] = useState<SubstitutionEvent[] | null>(existingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'forecast' | 'edit'>(editMode ? 'edit' : 'forecast');
+  
+  // Auto-generate plan on mount if no existing plan
+  useEffect(() => {
+    if (plan === null && !isGenerating && !editMode) {
+      const playersOnP = players.filter(p => p.position !== null);
+      const benchP = players.filter(p => p.position === null);
+      if (playersOnP.length >= teamSize && benchP.length > 0) {
+        setIsGenerating(true);
+        setTimeout(() => {
+          try {
+            const halfDurationSeconds = minutesPerHalf * 60;
+            const generatedPlan = createSubPlan(players, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId);
+            setPlan(generatedPlan);
+          } catch (error) {
+            console.error("Error auto-generating plan:", error);
+            setPlan([]);
+          } finally {
+            setIsGenerating(false);
+          }
+        }, 10);
+      }
+    }
+  }, []); // Run once on mount
   
   const playersOnPitch = players.filter(p => p.position !== null);
   const benchPlayers = players.filter(p => p.position === null);
