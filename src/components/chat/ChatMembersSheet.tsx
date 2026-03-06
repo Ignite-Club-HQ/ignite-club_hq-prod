@@ -15,6 +15,8 @@ interface ChatMembersSheetProps {
   teamId?: string;
   clubId?: string;
   groupAllowedRoles?: string[];
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
 }
 
 interface Member {
