@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -17,7 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { UserRoundCheck, ArrowRightLeft, ChevronRight, X, Clock, ArrowDown, ArrowUp, SkipForward, Pencil } from "lucide-react";
-import { PitchPosition } from "./PositionBadge";
+import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
+import { getSpecificPositionLabel } from "./types";
 import { toast } from "@/hooks/use-toast";
 import { recalculateRemainingPlan } from "./pitchStateUtils";
 
@@ -207,6 +209,30 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
       const currentTotalSeconds = currentHalf === 1 
         ? currentElapsedSeconds 
         : (minutesPerHalf * 60) + currentElapsedSeconds;
+
+      // Find all due subs first to check for stale ones
+      const allDueSubs = sortedSubs.filter(sub => {
+        const subTotalSeconds = sub.half === 1 
+          ? sub.time 
+          : (minutesPerHalf * 60) + sub.time;
+        return subTotalSeconds <= currentTotalSeconds;
+      });
+      
+      // If multiple time groups are due, auto-skip older ones
+      if (allDueSubs.length > 0) {
+        const dueTimes = [...new Set(allDueSubs.map(s => s.time))].sort((a, b) => a - b);
+        if (dueTimes.length > 1) {
+          const latestTime = dueTimes[dueTimes.length - 1];
+          const olderSubs = allDueSubs.filter(s => s.time < latestTime);
+          const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
+          const updatedPlan = (pitchState.autoSubPlan || []).map(s =>
+            olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
+          );
+          localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
+          window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
+          return; // Will re-check on next tick
+        }
+      }
 
       // Find the best sub to show
       let bestSub: SubstitutionEvent | null = null;
@@ -470,22 +496,38 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           return s;
         });
         
-        // Regenerate remaining subs
-        const remainingSubs = updatedPlan.filter(s => !s.executed);
+        // Only redistribute FUTURE subs (not other subs due at the same time)
+        const halfDurationSeconds = minutesPerHalf * 60;
+        const skippedSubTotal = sub.half === 1 ? sub.time : halfDurationSeconds + sub.time;
         
-        if (remainingSubs.length > 0) {
+        const remainingSubs = updatedPlan.filter(s => !s.executed);
+        const stillDueSubs = remainingSubs.filter(s => {
+          const subTotal = s.half === 1 ? s.time : halfDurationSeconds + s.time;
+          return subTotal <= currentTotalSeconds;
+        });
+        const futureSubs = remainingSubs.filter(s => {
+          const subTotal = s.half === 1 ? s.time : halfDurationSeconds + s.time;
+          return subTotal > currentTotalSeconds;
+        });
+        
+        // Only redistribute future subs if there are any
+        if (futureSubs.length > 0) {
           const totalGameSeconds = minutesPerHalf * 2 * 60;
           const remainingGameSeconds = totalGameSeconds - currentTotalSeconds;
-          const numRemainingSubs = remainingSubs.length;
-          const intervalBetweenSubs = Math.floor(remainingGameSeconds / (numRemainingSubs + 1));
+          const numFutureSubs = futureSubs.length;
+          const intervalBetweenSubs = Math.floor(remainingGameSeconds / (numFutureSubs + 1));
           const actualInterval = Math.max(intervalBetweenSubs, 60);
           
           let nextSubTime = currentTotalSeconds + actualInterval;
           
+          // Build a set of future sub keys for matching
+          const futureSubKeys = new Set(futureSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`));
+          
           updatedPlan = updatedPlan.map(s => {
             if (s.executed) return s;
+            const subKey = `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`;
+            if (!futureSubKeys.has(subKey)) return s; // Keep due subs unchanged
             
-            const halfDurationSeconds = minutesPerHalf * 60;
             const newHalf: 1 | 2 = nextSubTime < halfDurationSeconds ? 1 : 2;
             const newTime = newHalf === 1 ? nextSubTime : nextSubTime - halfDurationSeconds;
             
@@ -494,7 +536,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
             return { ...s, half: newHalf, time: Math.floor(newTime) };
           });
           
-          console.log(`[PendingSubWidget] Skipped sub, redistributed ${numRemainingSubs} remaining subs`);
+          console.log(`[PendingSubWidget] Skipped sub, redistributed ${numFutureSubs} future subs, kept ${stillDueSubs.length} due subs`);
         }
         
         const updatedState = { ...pitchState, autoSubPlan: updatedPlan };
@@ -592,7 +634,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
               {isDue ? "Make This Substitution" : "Upcoming Substitution"}
             </ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
-              {isDue ? "Follow these steps on the pitch" : `Sub scheduled for ${sub.half === 1 ? "1st" : "2nd"} Half`}
+              {undefined}
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
           
@@ -610,100 +652,64 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           )}
           
           <div className="space-y-3 py-3">
-            {/* Step 1: Player coming off */}
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex-shrink-0">
-                1
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm">
-                  Move {actualPlayerOut?.name} to the bench
-                </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {actualPlayerOut?.number && `#${actualPlayerOut.number} `}
-                  {actualPlayerOut?.currentPitchPosition && `leaves ${actualPlayerOut.currentPitchPosition}`}
-                </div>
-                {/* Edit dropdown when due */}
-                {isDue && (
-                  <Select
-                    value={editedPlayerOutId || sub.playerOut.id}
-                    onValueChange={setEditedPlayerOutId}
-                  >
-                    <SelectTrigger className="w-full h-8 mt-2 text-xs border-destructive/30">
-                      <div className="flex items-center gap-1">
-                        <Pencil className="h-3 w-3" />
-                        <span>Change player</span>
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {playersOnPitch.map(p => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.number ? `#${p.number} ` : ""}{p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-              <ArrowDown className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
-            </div>
-            
-            {/* Step 2: Player coming on */}
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white text-xs font-bold flex-shrink-0">
-                2
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm">
-                  Move {actualPlayerIn?.name} to {sub.positionSwap ? sub.positionSwap.fromPosition : (actualPlayerOut?.currentPitchPosition || 'the pitch')}
-                </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {actualPlayerIn?.number && `#${actualPlayerIn.number} `}
-                  comes on from bench
-                </div>
-                {/* Edit dropdown when due */}
-                {isDue && (
-                  <Select
-                    value={editedPlayerInId || sub.playerIn.id}
-                    onValueChange={setEditedPlayerInId}
-                  >
-                    <SelectTrigger className="w-full h-8 mt-2 text-xs border-emerald-500/30">
-                      <div className="flex items-center gap-1">
-                        <Pencil className="h-3 w-3" />
-                        <span>Change player</span>
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableBenchPlayers.map(p => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.number ? `#${p.number} ` : ""}{p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-              <ArrowUp className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-            </div>
-            
-            {/* Step 3: Position swap (if applicable) */}
-            {sub.positionSwap && (
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0">
-                  3
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm">
-                    Move {sub.positionSwap.player.name} to {sub.positionSwap.toPosition}
+            {(() => {
+              const outPos = actualPlayerOut?.currentPitchPosition || sub.playerOut.currentPitchPosition;
+              const specificOutPos = outPos ? getSpecificPositionLabel(actualPlayerOut?.position?.x, outPos) : 'Unknown';
+              const inTargetPos = sub.positionSwap ? sub.positionSwap.fromPosition : outPos;
+              const specificInPos = inTargetPos ? getSpecificPositionLabel(
+                sub.positionSwap ? sub.positionSwap.player.position?.x : actualPlayerOut?.position?.x,
+                inTargetPos
+              ) : 'Unknown';
+              const inPosColors = inTargetPos ? POSITION_COLORS[inTargetPos] : null;
+              return (
+                <>
+                  {/* Player coming off */}
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex-shrink-0">
+                      {actualPlayerOut?.number || actualPlayerOut?.name?.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm">{actualPlayerOut?.name}</div>
+                      <div className="text-xs text-muted-foreground">{specificOutPos} → Bench</div>
+                    </div>
+                    <span className="text-sm font-bold text-destructive flex-shrink-0">OUT</span>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {sub.positionSwap.player.number && `#${sub.positionSwap.player.number} `}
-                    shifts from {sub.positionSwap.fromPosition}
+                  
+                  {/* Player coming on */}
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white text-xs font-bold flex-shrink-0">
+                      {actualPlayerIn?.number || actualPlayerIn?.name?.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm">{actualPlayerIn?.name}</div>
+                      <div className="text-xs text-muted-foreground">Bench → {specificInPos}</div>
+                    </div>
+                    {inPosColors && (
+                      <span className={cn("text-xs font-bold flex-shrink-0 uppercase", inPosColors.text)}>{specificInPos}</span>
+                    )}
                   </div>
-                </div>
-                <ArrowRightLeft className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
-              </div>
-            )}
+                  
+                  {/* Position swap */}
+                  {sub.positionSwap && (() => {
+                    const swapFromSpecific = getSpecificPositionLabel(sub.positionSwap!.player.position?.x, sub.positionSwap!.fromPosition);
+                    const swapToSpecific = getSpecificPositionLabel(actualPlayerOut?.position?.x, sub.positionSwap!.toPosition);
+                    const toColors = POSITION_COLORS[sub.positionSwap!.toPosition];
+                    return (
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0">
+                          {sub.positionSwap!.player.number || sub.positionSwap!.player.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm">{sub.positionSwap!.player.name}</div>
+                          <div className="text-xs text-muted-foreground">{swapFromSpecific} → {swapToSpecific}</div>
+                        </div>
+                        <span className={cn("text-xs font-bold flex-shrink-0 uppercase", toColors.text)}>{swapToSpecific}</span>
+                      </div>
+                    );
+                  })()}
+                </>
+              );
+            })()}
           </div>
 
           <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-row">

@@ -1683,17 +1683,25 @@ export default function EventDetailPage() {
           className="shrink-0"
           onClick={async () => {
             const shareUrl = `https://igniteclubhq.app/events/${id}`;
+            const clubName = event.clubs?.name || "";
+            const teamName = event.teams?.name || "";
+            const context = teamName && clubName
+              ? `${clubName} — ${teamName}`
+              : clubName || "";
+            const shareText = context
+              ? `${event.title} (${context})`
+              : event.title;
             try {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
                   title: event.title,
-                  text: shareUrl,
+                  text: `${shareText}\n${shareUrl}`,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
                 await navigator.share({
                   title: event.title,
-                  text: `Check out this event: ${event.title}`,
+                  text: shareText,
                   url: shareUrl,
                 });
               } else {
@@ -1910,17 +1918,35 @@ export default function EventDetailPage() {
               <span>${Number(eventPrice).toFixed(2)} per person</span>
             </div>
           )}
-          {/* Pitch Board button for game events */}
-          {canAccessPitchBoard && teamMembers && (
-            <Button
-              variant="default"
-              className="w-full mt-2"
-              onClick={() => setShowPitchBoard(true)}
-            >
-              <Play className="h-4 w-4 mr-2" />
-              Open Pitch Board
-            </Button>
-          )}
+          {/* Pitch Board / Start Game button for game events */}
+          {canAccessPitchBoard && teamMembers && (() => {
+            const eventTime = parseISO(event.event_date);
+            const now = new Date();
+            const minutesUntilKickoff = (eventTime.getTime() - now.getTime()) / (1000 * 60);
+            const isWithin60Min = minutesUntilKickoff <= 60;
+            const hasStarted = minutesUntilKickoff <= 0;
+            
+            return isWithin60Min ? (
+              <Button
+                variant="default"
+                size="lg"
+                className="w-full mt-2 h-14 text-lg font-bold gap-3"
+                onClick={() => setShowPitchBoard(true)}
+              >
+                <Play className="h-5 w-5" />
+                {hasStarted ? "Open Match" : "Start Game"}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                className="w-full mt-2"
+                onClick={() => setShowPitchBoard(true)}
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Open Pitch Board
+              </Button>
+            );
+          })()}
         </CardContent>
       </Card>
 

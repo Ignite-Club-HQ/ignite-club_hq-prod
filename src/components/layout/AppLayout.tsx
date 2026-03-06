@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
-import { Outlet, Navigate } from "react-router-dom";
+import { useEffect, useState, useMemo, lazy, Suspense } from "react";
+import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { AppHeader } from "./AppHeader";
 import { BottomNav } from "./BottomNav";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,10 +15,13 @@ import igniteIconLight from "@/assets/ignite-icon-light.png";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { Capacitor } from "@capacitor/core";
 
+const LazyDeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
+
 export function AppLayout() {
   const { user, profile, loading, profileLoading, profileError, refreshProfile, initialized } = useAuth();
   useAdMobInit();
   const { isThemeReady } = useClubTheme();
+  const location = useLocation();
   const [retrying, setRetrying] = useState(false);
   const [themeTimeout, setThemeTimeout] = useState(false);
   
@@ -125,6 +128,26 @@ export function AppLayout() {
   // This prevents the flash to home screen after Google Drive authentication
   if (hasPendingOAuth && typeof window !== 'undefined' && window.location.pathname !== '/vault') {
     return <Navigate to="/vault" replace />;
+  }
+
+  // DEEP LINK GATE: Before redirecting unauthenticated users to /auth,
+  // check if this is an in-app browser (Messenger, WhatsApp, etc.) on a deep-linkable route.
+  // Show the DeepLinkGate interstitial so they can bounce to the native app.
+  const isDeepLinkRoute = /^\/(events\/[^/]+|media\/[^/]+)$/.test(location.pathname);
+  const isNativePlatform = Capacitor.isNativePlatform();
+  const userAgent = navigator.userAgent || "";
+  const isInApp = !isNativePlatform && /FBAN|FBAV|Instagram|Line\/|Twitter|Snapchat|WhatsApp|LinkedInApp|Messenger/i.test(userAgent);
+
+  if (!user && isDeepLinkRoute && isInApp && !hasPendingOAuth && !hasOAuthTokensInUrl) {
+    return (
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      }>
+        <LazyDeepLinkGate />
+      </Suspense>
+    );
   }
 
   // Don't redirect to auth if:
