@@ -1002,7 +1002,9 @@ export default function MediaPage() {
                       <SharePhotoButton 
                         photoId={photo.id}
                         imageUrl={photo.file_url || photo.image_url} 
-                        title={photo.title} 
+                        title={photo.title}
+                        clubName={photo.teams?.clubs?.name || photo.clubs?.name}
+                        teamName={photo.teams?.name}
                       />
                     )}
                     <DropdownMenu>

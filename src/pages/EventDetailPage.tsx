@@ -1683,17 +1683,25 @@ export default function EventDetailPage() {
           className="shrink-0"
           onClick={async () => {
             const shareUrl = `https://igniteclubhq.app/events/${id}`;
+            const clubName = event.clubs?.name || "";
+            const teamName = event.teams?.name || "";
+            const context = teamName && clubName
+              ? `${clubName} — ${teamName}`
+              : clubName || "";
+            const shareText = context
+              ? `${event.title} (${context})`
+              : event.title;
             try {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
                   title: event.title,
-                  text: shareUrl,
+                  text: `${shareText}\n${shareUrl}`,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
                 await navigator.share({
                   title: event.title,
-                  text: `Check out this event: ${event.title}`,
+                  text: shareText,
                   url: shareUrl,
                 });
               } else {
