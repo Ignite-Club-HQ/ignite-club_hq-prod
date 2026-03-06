@@ -208,6 +208,30 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
         ? currentElapsedSeconds 
         : (minutesPerHalf * 60) + currentElapsedSeconds;
 
+      // Find all due subs first to check for stale ones
+      const allDueSubs = sortedSubs.filter(sub => {
+        const subTotalSeconds = sub.half === 1 
+          ? sub.time 
+          : (minutesPerHalf * 60) + sub.time;
+        return subTotalSeconds <= currentTotalSeconds;
+      });
+      
+      // If multiple time groups are due, auto-skip older ones
+      if (allDueSubs.length > 0) {
+        const dueTimes = [...new Set(allDueSubs.map(s => s.time))].sort((a, b) => a - b);
+        if (dueTimes.length > 1) {
+          const latestTime = dueTimes[dueTimes.length - 1];
+          const olderSubs = allDueSubs.filter(s => s.time < latestTime);
+          const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
+          const updatedPlan = (pitchState.autoSubPlan || []).map(s =>
+            olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
+          );
+          localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
+          window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
+          return; // Will re-check on next tick
+        }
+      }
+
       // Find the best sub to show
       let bestSub: SubstitutionEvent | null = null;
       let isDue = false;
