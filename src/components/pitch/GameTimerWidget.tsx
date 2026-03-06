@@ -606,7 +606,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm">{actualPlayerOut?.name} → Bench</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    From {actualPlayerOut?.currentPitchPosition || 'Pitch'}
+                    From {actualPlayerOut?.currentPitchPosition || selectedSub.sub.playerOut.currentPitchPosition || 'Unknown'}
                   </div>
                 </div>
                 <ArrowDown className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
@@ -617,7 +617,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                 <div className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white text-xs font-bold flex-shrink-0">2</div>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm">
-                    {actualPlayerIn?.name} → {selectedSub.sub.positionSwap ? selectedSub.sub.positionSwap.fromPosition : (actualPlayerOut?.currentPitchPosition || 'Pitch')}
+                    {actualPlayerIn?.name} → {selectedSub.sub.positionSwap ? selectedSub.sub.positionSwap.fromPosition : (actualPlayerOut?.currentPitchPosition || selectedSub.sub.playerOut.currentPitchPosition || 'Unknown')}
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
                     From Bench
