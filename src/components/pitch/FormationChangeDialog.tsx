@@ -26,6 +26,12 @@ interface BenchMove {
   position?: PitchPosition;
 }
 
+interface MinorAdjustment {
+  player: Player;
+  fromLabel: string;
+  toLabel: string;
+}
+
 interface FormationChangeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -33,6 +39,7 @@ interface FormationChangeDialogProps {
   newFormation: string;
   positionSwaps: PositionSwap[];
   benchMoves?: BenchMove[];
+  minorAdjustments?: MinorAdjustment[];
   onConfirm: () => void;
   onCancel: () => void;
   isTeamSizeChange?: boolean;
@@ -47,6 +54,7 @@ export default function FormationChangeDialog({
   newFormation,
   positionSwaps,
   benchMoves = [],
+  minorAdjustments = [],
   onConfirm,
   onCancel,
   isTeamSizeChange,
@@ -55,7 +63,7 @@ export default function FormationChangeDialog({
 }: FormationChangeDialogProps) {
   const playersGoingToPitch = benchMoves.filter(m => m.direction === "to-pitch");
   const playersGoingToBench = benchMoves.filter(m => m.direction === "to-bench");
-  const hasChanges = positionSwaps.length > 0 || benchMoves.length > 0;
+  const hasChanges = positionSwaps.length > 0 || benchMoves.length > 0 || minorAdjustments.length > 0;
 
   const subtitle = isTeamSizeChange
     ? `${currentTeamSize} players (${currentFormation}) → ${newTeamSize} players (${newFormation})`
@@ -151,6 +159,23 @@ export default function FormationChangeDialog({
                   </div>
                 );
               })}
+              {/* Minor adjustments — subtle compact list */}
+              {minorAdjustments.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                    Position adjustments
+                  </p>
+                  {minorAdjustments.map((adj) => (
+                    <div
+                      key={`minor-${adj.player.id}`}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded bg-muted/50 text-sm"
+                    >
+                      <span className="font-medium text-foreground">{adj.player.name}</span>
+                      <span className="text-muted-foreground text-xs">{adj.fromLabel} → {adj.toLabel}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>
