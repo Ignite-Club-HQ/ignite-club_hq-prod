@@ -7,7 +7,7 @@ import {
   ResponsiveDialogDescription,
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
-import { Users, ArrowDown, ArrowUp, ArrowLeftRight, Check, X } from "lucide-react";
+import { Users, Check, X } from "lucide-react";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { cn } from "@/lib/utils";
 import { Player } from "./types";
@@ -55,8 +55,9 @@ export default function FormationChangeDialog({
   const playersGoingToBench = benchMoves.filter(m => m.direction === "to-bench");
   const hasChanges = positionSwaps.length > 0 || benchMoves.length > 0;
 
-  // Build numbered steps
-  let stepNumber = 0;
+  const subtitle = isTeamSizeChange
+    ? `${currentTeamSize} players (${currentFormation}) → ${newTeamSize} players (${newFormation})`
+    : `${currentFormation} → ${newFormation}`;
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
@@ -67,19 +68,7 @@ export default function FormationChangeDialog({
             {isTeamSizeChange ? "Team Size Change" : "Formation Change"}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            {hasChanges ? (
-              "Follow these steps on the pitch"
-            ) : isTeamSizeChange ? (
-              <>
-                Change from <span className="font-semibold text-foreground">{currentTeamSize} players</span> ({currentFormation}) to{" "}
-                <span className="font-semibold text-foreground">{newTeamSize} players</span> ({newFormation})
-              </>
-            ) : (
-              <>
-                Change from <span className="font-semibold text-foreground">{currentFormation}</span> to{" "}
-                <span className="font-semibold text-foreground">{newFormation}</span>
-              </>
-            )}
+            {subtitle}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
@@ -90,84 +79,71 @@ export default function FormationChangeDialog({
             </p>
           ) : (
             <>
-              {/* Players going to bench — red steps */}
-              {playersGoingToBench.map((move) => {
-                stepNumber++;
-                const posColors = move.position ? POSITION_COLORS[move.position] : null;
-                return (
-                  <div
-                    key={`bench-${move.player.id}`}
-                    className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20"
-                  >
-                    <div className="flex items-center justify-center w-7 h-7 rounded-full bg-destructive text-destructive-foreground text-sm font-bold flex-shrink-0">
-                      {stepNumber}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold">
-                        Move {move.player.name} to the bench
-                      </div>
-                      <div className="text-sm text-muted-foreground mt-0.5">
-                        {move.player.number ? `#${move.player.number} ` : ''}
-                        {posColors && `leaves ${move.position}`}
-                      </div>
-                    </div>
-                    <ArrowDown className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+              {/* Players going to bench */}
+              {playersGoingToBench.map((move) => (
+                <div
+                  key={`bench-${move.player.id}`}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20"
+                >
+                  <div className="flex items-center justify-center w-7 h-7 rounded-full bg-destructive text-destructive-foreground text-sm font-bold flex-shrink-0">
+                    {move.player.number || move.player.name.slice(0, 2).toUpperCase()}
                   </div>
-                );
-              })}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm">{move.player.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {move.position || 'Pitch'} → Bench
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-destructive flex-shrink-0">OUT</span>
+                </div>
+              ))}
 
-              {/* Players coming on to pitch — green steps */}
+              {/* Players coming on to pitch */}
               {playersGoingToPitch.map((move) => {
-                stepNumber++;
                 const posColors = move.position ? POSITION_COLORS[move.position] : null;
                 return (
                   <div
                     key={`pitch-${move.player.id}`}
-                    className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20"
+                    className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20"
                   >
                     <div className="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500 text-white text-sm font-bold flex-shrink-0">
-                      {stepNumber}
+                      {move.player.number || move.player.name.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold">
-                        Move {move.player.name} to {move.position || 'the pitch'}
-                      </div>
-                      <div className="text-sm text-muted-foreground mt-0.5">
-                        {move.player.number ? `#${move.player.number} ` : ''}
-                        comes on from bench
+                      <div className="font-semibold text-sm">{move.player.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Bench → {move.position || 'Pitch'}
                       </div>
                     </div>
-                    <ArrowUp className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+                    {posColors && (
+                      <span className={cn("text-sm font-bold flex-shrink-0", posColors.text)}>
+                        {move.position}
+                      </span>
+                    )}
                   </div>
                 );
               })}
 
-              {/* Position swaps — blue steps */}
+              {/* Position swaps */}
               {positionSwaps.map((swap) => {
-                stepNumber++;
                 const toColors = POSITION_COLORS[swap.toPosition];
                 return (
                   <div
                     key={`swap-${swap.player.id}`}
-                    className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20"
+                    className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20"
                   >
                     <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-500 text-white text-sm font-bold flex-shrink-0">
-                      {stepNumber}
+                      {swap.player.number || swap.player.name.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold">
-                        Move {swap.player.name} to {swap.toPosition}
-                      </div>
-                      <div className="text-sm text-muted-foreground mt-0.5">
-                        {swap.player.number ? `#${swap.player.number} ` : ''}
-                        shifts from {swap.fromPosition}
+                      <div className="font-semibold text-sm">{swap.player.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {swap.fromPosition} → {swap.toPosition}
                       </div>
                     </div>
-                    {toColors && (
-                      <span className={cn("text-sm font-bold flex-shrink-0 mt-1", toColors.text)}>
-                        {swap.toPosition}
-                      </span>
-                    )}
+                    <span className={cn("text-sm font-bold flex-shrink-0", toColors.text)}>
+                      {swap.toPosition}
+                    </span>
                   </div>
                 );
               })}
