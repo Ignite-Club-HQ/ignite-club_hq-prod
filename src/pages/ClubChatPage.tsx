@@ -1003,7 +1003,8 @@ export default function ClubChatPage() {
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden overscroll-none" style={{ paddingBottom: `calc(5rem + ${bottomInset})` }}>
       {/* Header - Fixed at top */}
-      <div className="fixed left-0 right-0 flex items-center gap-3 px-4 py-3 border-b bg-background z-40" style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
+      <div className="fixed left-0 right-0 flex items-center gap-3 px-4 py-3 border-b bg-background z-40 relative" style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
+        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -1016,8 +1017,7 @@ export default function ClubChatPage() {
         <div className="flex-1 min-w-0">
           <h1 className="font-semibold truncate">{club?.name || "Club"}</h1>
         </div>
-        <div className="flex items-center shrink-0 relative">
-          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+        <div className="flex items-center shrink-0">
           <ChatHeaderMenu
             chatType="club"
             chatId={clubId!}

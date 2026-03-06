@@ -780,6 +780,7 @@ export default function BroadcastChatPage() {
     <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] overflow-hidden overscroll-none">
       {/* Header */}
       <div className="flex items-center gap-3 py-4 border-b bg-background sticky top-0 z-10 shrink-0 relative">
+        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -790,8 +791,7 @@ export default function BroadcastChatPage() {
           <h1 className="font-semibold truncate">Announcements</h1>
           <p className="text-sm text-muted-foreground truncate">Official updates & news</p>
         </div>
-        <div className="flex items-center shrink-0 relative">
-          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+        <div className="flex items-center shrink-0">
           <ChatHeaderMenu
             chatType="club"
             chatId="broadcast"
