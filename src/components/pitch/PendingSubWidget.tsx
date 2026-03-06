@@ -494,22 +494,38 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           return s;
         });
         
-        // Regenerate remaining subs
-        const remainingSubs = updatedPlan.filter(s => !s.executed);
+        // Only redistribute FUTURE subs (not other subs due at the same time)
+        const halfDurationSeconds = minutesPerHalf * 60;
+        const skippedSubTotal = sub.half === 1 ? sub.time : halfDurationSeconds + sub.time;
         
-        if (remainingSubs.length > 0) {
+        const remainingSubs = updatedPlan.filter(s => !s.executed);
+        const stillDueSubs = remainingSubs.filter(s => {
+          const subTotal = s.half === 1 ? s.time : halfDurationSeconds + s.time;
+          return subTotal <= currentTotalSeconds;
+        });
+        const futureSubs = remainingSubs.filter(s => {
+          const subTotal = s.half === 1 ? s.time : halfDurationSeconds + s.time;
+          return subTotal > currentTotalSeconds;
+        });
+        
+        // Only redistribute future subs if there are any
+        if (futureSubs.length > 0) {
           const totalGameSeconds = minutesPerHalf * 2 * 60;
           const remainingGameSeconds = totalGameSeconds - currentTotalSeconds;
-          const numRemainingSubs = remainingSubs.length;
-          const intervalBetweenSubs = Math.floor(remainingGameSeconds / (numRemainingSubs + 1));
+          const numFutureSubs = futureSubs.length;
+          const intervalBetweenSubs = Math.floor(remainingGameSeconds / (numFutureSubs + 1));
           const actualInterval = Math.max(intervalBetweenSubs, 60);
           
           let nextSubTime = currentTotalSeconds + actualInterval;
           
+          // Build a set of future sub keys for matching
+          const futureSubKeys = new Set(futureSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`));
+          
           updatedPlan = updatedPlan.map(s => {
             if (s.executed) return s;
+            const subKey = `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`;
+            if (!futureSubKeys.has(subKey)) return s; // Keep due subs unchanged
             
-            const halfDurationSeconds = minutesPerHalf * 60;
             const newHalf: 1 | 2 = nextSubTime < halfDurationSeconds ? 1 : 2;
             const newTime = newHalf === 1 ? nextSubTime : nextSubTime - halfDurationSeconds;
             
@@ -518,7 +534,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
             return { ...s, half: newHalf, time: Math.floor(newTime) };
           });
           
-          console.log(`[PendingSubWidget] Skipped sub, redistributed ${numRemainingSubs} remaining subs`);
+          console.log(`[PendingSubWidget] Skipped sub, redistributed ${numFutureSubs} future subs, kept ${stillDueSubs.length} due subs`);
         }
         
         const updatedState = { ...pitchState, autoSubPlan: updatedPlan };
