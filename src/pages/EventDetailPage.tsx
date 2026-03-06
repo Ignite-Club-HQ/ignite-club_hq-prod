@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense, useRef } from "react";
 import { Share } from "@capacitor/share";
 import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
 import { Capacitor } from "@capacitor/core";
@@ -220,6 +220,7 @@ export default function EventDetailPage() {
   
   // Mini league player overrides for match generation
   const [playerOverrides, setPlayerOverrides] = useState<Record<string, boolean>>({});
+  const isSharingEventRef = useRef(false);
 
   // Track when user views this event
   useEventViewTracking(id, user?.id);
@@ -1670,6 +1671,9 @@ export default function EventDetailPage() {
           size="icon"
           className="shrink-0"
           onClick={async () => {
+            if (isSharingEventRef.current) return;
+            isSharingEventRef.current = true;
+
             const shareUrl = `https://igniteclubhq.app/events/${id}`;
             const clubName = event.clubs?.name || "";
             const teamName = event.teams?.name || "";
@@ -1679,30 +1683,31 @@ export default function EventDetailPage() {
             const shareText = context
               ? `${event.title} (${context})`
               : event.title;
-            try {
-              const combinedShareText = `${shareText}\n${shareUrl}`;
+            const fallbackShareText = `${shareText}\n${shareUrl}`;
 
+            try {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
-                  // Messenger duplicates content when title/url are separate fields.
-                  // Keep everything in one text payload.
-                  text: combinedShareText,
+                  // URL-only prevents Messenger from duplicating the shared body.
+                  url: shareUrl,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
                 await navigator.share({
-                  // Keep one combined field to avoid Messenger duplication.
-                  text: combinedShareText,
+                  // Keep payload URL-only for consistent Messenger behavior.
+                  url: shareUrl,
                 });
               } else {
-                await navigator.clipboard.writeText(shareUrl);
+                await navigator.clipboard.writeText(fallbackShareText);
                 toast({ title: "Link copied to clipboard!" });
               }
             } catch (err) {
               if ((err as Error).name !== 'AbortError') {
-                await navigator.clipboard.writeText(shareUrl);
+                await navigator.clipboard.writeText(fallbackShareText);
                 toast({ title: "Link copied to clipboard!" });
               }
+            } finally {
+              isSharingEventRef.current = false;
             }
           }}
         >
