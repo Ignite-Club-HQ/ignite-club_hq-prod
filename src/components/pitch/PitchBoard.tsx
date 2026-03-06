@@ -4011,7 +4011,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Compute ball visual offset to avoid overlapping with tactically-shifted players
   // Don't apply offset while actively dragging the ball
   const ballOffset = useMemo(() =>
-    isDraggingBall ? { dx: 0, dy: 0 } : computeBallOffset(ballPosition, players, tacticalOffsets, tacticalMode),
+    (isDraggingBall || recentlyDraggedBallRef.current) ? { dx: 0, dy: 0 } : computeBallOffset(ballPosition, players, tacticalOffsets, tacticalMode),
     [ballPosition, players, tacticalOffsets, tacticalMode, isDraggingBall]
   );
 
