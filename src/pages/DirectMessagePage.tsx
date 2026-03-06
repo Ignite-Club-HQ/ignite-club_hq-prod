@@ -73,6 +73,7 @@ export default function DirectMessagePage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const profileRef = useRef(profile);
   profileRef.current = profile;

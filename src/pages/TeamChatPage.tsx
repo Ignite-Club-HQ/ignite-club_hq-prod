@@ -974,17 +974,24 @@ export default function TeamChatPage() {
           <h1 className="font-semibold truncate">{team.name}</h1>
           <p className="text-xs text-muted-foreground truncate">{team.clubs?.name}</p>
         </div>
-        <div className="flex items-center shrink-0">
-          {isNativePlatform && (
-            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
-          )}
-          <ChatMuteButton chatType="team" chatId={teamId!} />
+        <div className="flex items-center shrink-0 relative">
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+          <ChatHeaderMenu
+            chatType="team"
+            chatId={teamId!}
+            onSearchOpen={() => setSearchOpen(true)}
+            onMembersOpen={() => setMembersOpen(true)}
+            onRefresh={handleManualRefresh}
+            isRefreshing={isAnyRefreshing}
+            isNativePlatform={isNativePlatform}
+          />
           <ChatMembersSheet
             chatType="team"
             chatId={teamId!}
             chatName={team.name}
+            externalOpen={membersOpen}
+            onExternalOpenChange={setMembersOpen}
           />
-          <ChatSearch onSearch={setSearchQuery} />
         </div>
       </div>
 

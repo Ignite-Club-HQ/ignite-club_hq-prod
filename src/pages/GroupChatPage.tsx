@@ -89,6 +89,8 @@ export default function GroupChatPage() {
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<GroupMessage | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
