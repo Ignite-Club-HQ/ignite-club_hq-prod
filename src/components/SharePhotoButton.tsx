@@ -31,7 +31,6 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
     if ((window as any).Capacitor) {
       try {
         await Share.share({
-          title: shareTitle,
           text: `${shareText}\n${deepLink}`,
           dialogTitle: "Share photo",
         });
