@@ -617,32 +617,12 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm">
-                  Move {actualPlayerOut?.name} to the bench
+                  {actualPlayerOut?.name} → Bench
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {actualPlayerOut?.number && `#${actualPlayerOut.number} `}
-                  {actualPlayerOut?.currentPitchPosition && `leaves ${actualPlayerOut.currentPitchPosition}`}
-                </div>
-                {/* Edit dropdown when due */}
-                {isDue && (
-                  <Select
-                    value={editedPlayerOutId || sub.playerOut.id}
-                    onValueChange={setEditedPlayerOutId}
-                  >
-                    <SelectTrigger className="w-full h-8 mt-2 text-xs border-destructive/30">
-                      <div className="flex items-center gap-1">
-                        <Pencil className="h-3 w-3" />
-                        <span>Change player</span>
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {playersOnPitch.map(p => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.number ? `#${p.number} ` : ""}{p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                {actualPlayerOut?.currentPitchPosition && (
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Leaves {actualPlayerOut.currentPitchPosition}
+                  </div>
                 )}
               </div>
               <ArrowDown className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
@@ -655,33 +635,8 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm">
-                  Move {actualPlayerIn?.name} to {sub.positionSwap ? sub.positionSwap.fromPosition : (actualPlayerOut?.currentPitchPosition || 'the pitch')}
+                  {actualPlayerIn?.name} → {sub.positionSwap ? sub.positionSwap.fromPosition : (actualPlayerOut?.currentPitchPosition || 'Pitch')}
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {actualPlayerIn?.number && `#${actualPlayerIn.number} `}
-                  comes on from bench
-                </div>
-                {/* Edit dropdown when due */}
-                {isDue && (
-                  <Select
-                    value={editedPlayerInId || sub.playerIn.id}
-                    onValueChange={setEditedPlayerInId}
-                  >
-                    <SelectTrigger className="w-full h-8 mt-2 text-xs border-emerald-500/30">
-                      <div className="flex items-center gap-1">
-                        <Pencil className="h-3 w-3" />
-                        <span>Change player</span>
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableBenchPlayers.map(p => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.number ? `#${p.number} ` : ""}{p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
               </div>
               <ArrowUp className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
             </div>
@@ -694,11 +649,10 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm">
-                    Move {sub.positionSwap.player.name} to {sub.positionSwap.toPosition}
+                    {sub.positionSwap.player.name} → {sub.positionSwap.toPosition}
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    {sub.positionSwap.player.number && `#${sub.positionSwap.player.number} `}
-                    shifts from {sub.positionSwap.fromPosition}
+                    Shifts from {sub.positionSwap.fromPosition}
                   </div>
                 </div>
                 <ArrowRightLeft className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />

@@ -621,22 +621,11 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
               <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
                 <div className="flex items-center justify-center w-6 h-6 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex-shrink-0">1</div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm">Move {actualPlayerOut?.name} to the bench</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {actualPlayerOut?.number && `#${actualPlayerOut.number} `}
-                    {actualPlayerOut?.currentPitchPosition && `leaves ${actualPlayerOut.currentPitchPosition}`}
-                  </div>
-                  {!readOnly && isSelectedSubActionable && (
-                    <Select value={editedPlayerOutId || selectedSub.sub.playerOut.id} onValueChange={setEditedPlayerOutId}>
-                      <SelectTrigger className="w-full h-8 mt-2 text-xs border-destructive/30">
-                        <div className="flex items-center gap-1"><Pencil className="h-3 w-3" /><span>Change player</span></div>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {playersOnPitch.map(p => (
-                          <SelectItem key={p.id} value={p.id}>{p.number ? `#${p.number} ` : ""}{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="font-semibold text-sm">{actualPlayerOut?.name} → Bench</div>
+                  {actualPlayerOut?.currentPitchPosition && (
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Leaves {actualPlayerOut.currentPitchPosition}
+                    </div>
                   )}
                 </div>
                 <ArrowDown className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
@@ -647,23 +636,8 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                 <div className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white text-xs font-bold flex-shrink-0">2</div>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm">
-                    Move {actualPlayerIn?.name} to {selectedSub.sub.positionSwap ? selectedSub.sub.positionSwap.fromPosition : (actualPlayerOut?.currentPitchPosition || 'the pitch')}
+                    {actualPlayerIn?.name} → {selectedSub.sub.positionSwap ? selectedSub.sub.positionSwap.fromPosition : (actualPlayerOut?.currentPitchPosition || 'Pitch')}
                   </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {actualPlayerIn?.number && `#${actualPlayerIn.number} `}comes on from bench
-                  </div>
-                  {!readOnly && isSelectedSubActionable && (
-                    <Select value={editedPlayerInId || selectedSub.sub.playerIn.id} onValueChange={setEditedPlayerInId}>
-                      <SelectTrigger className="w-full h-8 mt-2 text-xs border-emerald-500/30">
-                        <div className="flex items-center gap-1"><Pencil className="h-3 w-3" /><span>Change player</span></div>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableBenchPlayers.map(p => (
-                          <SelectItem key={p.id} value={p.id}>{p.number ? `#${p.number} ` : ""}{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
                 </div>
                 <ArrowUp className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
               </div>
@@ -673,10 +647,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
                   <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0">3</div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm">Move {selectedSub.sub.positionSwap.player.name} to {selectedSub.sub.positionSwap.toPosition}</div>
+                    <div className="font-semibold text-sm">{selectedSub.sub.positionSwap.player.name} → {selectedSub.sub.positionSwap.toPosition}</div>
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      {selectedSub.sub.positionSwap.player.number && `#${selectedSub.sub.positionSwap.player.number} `}
-                      shifts from {selectedSub.sub.positionSwap.fromPosition}
+                      Shifts from {selectedSub.sub.positionSwap.fromPosition}
                     </div>
                   </div>
                   <ArrowRightLeft className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
