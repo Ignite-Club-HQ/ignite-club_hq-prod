@@ -48,7 +48,7 @@ export default function DeepLinkGate() {
   const tryOpenNativeApp = () => {
     setAttemptedOpen(true);
     if (isAndroid()) {
-      window.location.href = `intent://${fullPath.replace(/^\//, "")}#Intent;scheme=https;package=app.lovable.igniteteamhub;S.browser_fallback_url=${encodeURIComponent(PLAY_STORE_URL)};end`;
+      window.location.href = `intent://igniteclubhq.app${fullPath}#Intent;scheme=https;package=app.lovable.igniteteamhub;S.browser_fallback_url=${encodeURIComponent(PLAY_STORE_URL)};end`;
     } else {
       // Try custom scheme first (doesn't cause navigation error),
       // then fall back to Universal Link
