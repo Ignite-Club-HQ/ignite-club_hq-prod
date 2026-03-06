@@ -616,7 +616,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
               {isDue ? "Make This Substitution" : "Upcoming Substitution"}
             </ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
-              {isDue ? undefined : `Sub scheduled for ${sub.half === 1 ? "1st" : "2nd"} Half`}
+              {undefined}
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
           

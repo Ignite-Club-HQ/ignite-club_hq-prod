@@ -583,7 +583,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                 {selectedSub.isDue ? "Make This Substitution" : "Upcoming Substitution"}
               </ResponsiveDialogTitle>
               <ResponsiveDialogDescription>
-                {selectedSub.isDue ? undefined : `Sub scheduled for ${selectedSub.sub.half === 1 ? "1st" : "2nd"} Half`}
+                {undefined}
               </ResponsiveDialogDescription>
             </ResponsiveDialogHeader>
             
