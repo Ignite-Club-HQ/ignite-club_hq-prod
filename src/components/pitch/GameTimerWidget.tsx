@@ -386,19 +386,34 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           ? { ...s, executed: true, skipped: true } : s
       );
 
+      const halfDur = minutesPerHalf * 60;
       const remaining = updatedPlan.filter(s => !s.executed);
-      if (remaining.length > 0) {
-        const halfDur = minutesPerHalf * 60;
-        const recalculated = recalculateRemainingPlan(
-          pitchState.players,
-          parseInt(pitchState.teamSize || "7"),
-          halfDur,
-          currentElapsedSeconds,
-          currentHalf,
-          sub,
-          true
-        );
-        updatedPlan = [...updatedPlan.filter(s => s.executed), ...recalculated];
+      
+      // Separate due subs (keep them) from future subs (redistribute them)
+      const futureSubs = remaining.filter(s => {
+        const subTotal = getTotalSeconds(s.time, s.half, minutesPerHalf);
+        return subTotal > currentTotal;
+      });
+      
+      if (futureSubs.length > 0) {
+        const totalGameSeconds = minutesPerHalf * 2 * 60;
+        const remainingGameSeconds = totalGameSeconds - currentTotal;
+        const interval = Math.max(Math.floor(remainingGameSeconds / (futureSubs.length + 1)), 60);
+        
+        const futureSubKeys = new Set(futureSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`));
+        let nextSubTime = currentTotal + interval;
+        
+        updatedPlan = updatedPlan.map(s => {
+          if (s.executed) return s;
+          const subKey = `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`;
+          if (!futureSubKeys.has(subKey)) return s; // Keep due subs unchanged
+          
+          const newHalf: 1 | 2 = nextSubTime < halfDur ? 1 : 2;
+          const newTime = newHalf === 1 ? nextSubTime : nextSubTime - halfDur;
+          nextSubTime += interval;
+          
+          return { ...s, half: newHalf, time: Math.floor(newTime) };
+        });
       }
 
       localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
