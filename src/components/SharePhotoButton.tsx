@@ -25,7 +25,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
     const shareText = context
       ? `A new photo has been added to ${context}. Check it out!`
       : "Check out this photo on Ignite!";
-    const shareTitle = title || shareText;
+    const shareTitle = title || "Ignite Club HQ";
 
     // Use Capacitor Share on native platforms for proper share sheet
     if ((window as any).Capacitor) {
