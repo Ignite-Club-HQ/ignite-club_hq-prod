@@ -3438,6 +3438,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
 
   const handleBallDragEnd = () => {
+    recentlyDraggedBallRef.current = true;
+    setTimeout(() => { recentlyDraggedBallRef.current = false; }, 500);
     setIsDraggingBall(false);
   };
 
