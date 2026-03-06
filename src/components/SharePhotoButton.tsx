@@ -80,7 +80,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
         }
       }
 
-      await copyDeepLink(deepLink);
+      await copyDeepLink(sharePayloadText);
     } finally {
       isSharingRef.current = false;
     }
