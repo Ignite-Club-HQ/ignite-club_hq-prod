@@ -1257,8 +1257,6 @@ export default function GroupChatPage() {
         </div>
       </div>
 
-      {/* Spacer for fixed header */}
-      <div className="shrink-0" style={{ height: '72px' }} />
 
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" ref={pullRefreshRef}>

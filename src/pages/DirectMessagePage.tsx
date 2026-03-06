@@ -675,8 +675,6 @@ export default function DirectMessagePage() {
         </div>
       </div>
 
-      {/* Spacer for fixed header */}
-      <div className="h-16 shrink-0" />
 
       <PullToRefreshIndicator isRefreshing={isRefreshing} pullDistance={pullDistance} pullProgress={pullProgress} />
 
