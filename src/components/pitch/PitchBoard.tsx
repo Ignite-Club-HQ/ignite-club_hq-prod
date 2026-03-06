@@ -1445,6 +1445,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     };
   }, []);
 
+  // Auto-reset game 30 minutes after completion
+  const autoResetDoneRef = useRef(false);
+  const shouldAutoReset = useRef(false);
+  useEffect(() => {
+    if (autoResetDoneRef.current) return;
+    const timerState = loadTimerStateForMinutes(teamId);
+    if (timerState?.isGameFinished && timerState?.gameFinishedAt) {
+      const minutesSinceFinished = (Date.now() - timerState.gameFinishedAt) / (1000 * 60);
+      if (minutesSinceFinished >= 30) {
+        shouldAutoReset.current = true;
+        autoResetDoneRef.current = true;
+        console.log(`Game for team ${teamId} finished ${Math.round(minutesSinceFinished)} mins ago - will auto-reset`);
+      }
+    }
+  }, [teamId]);
+
   // Track if we've done initial load
   const hasLoadedRef = useRef(false);
   
@@ -3386,6 +3402,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       description: "All player minutes and settings have been reset to defaults.",
     });
   }, [players, autoPlacePlayersOnPitch, toast]);
+
+  // Execute deferred auto-reset after handleResetGame is available
+  useEffect(() => {
+    if (shouldAutoReset.current) {
+      shouldAutoReset.current = false;
+      handleResetGame();
+    }
+  }, [handleResetGame]);
 
   // Reset formation only - moves players back to formation positions and ball to center
   const handleResetFormation = useCallback(() => {
