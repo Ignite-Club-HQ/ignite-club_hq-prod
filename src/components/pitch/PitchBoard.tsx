@@ -1348,6 +1348,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [ballPosition, setBallPosition] = useState<{ x: number; y: number }>(() => savedState?.ballPosition || { x: 50, y: 50 });
   const [isDraggingBall, setIsDraggingBall] = useState(false);
   const isDraggingBallRef = useRef(false);
+  const recentlyDraggedBallRef = useRef(false);
 
   // Helper to get team color for a player in mini-league mode
   const getPlayerTeamColor = useCallback((player: Player): string | undefined => {
