@@ -973,6 +973,9 @@ export default function TeamChatPage() {
           <p className="text-xs text-muted-foreground truncate">{team.clubs?.name}</p>
         </div>
         <div className="flex items-center shrink-0">
+          {isNativePlatform && (
+            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          )}
           <ChatMuteButton chatType="team" chatId={teamId!} />
           <ChatMembersSheet
             chatType="team"

@@ -1232,6 +1232,9 @@ export default function GroupChatPage() {
           <h1 className="font-semibold truncate">{group.name}</h1>
         </div>
         <div className="flex items-center shrink-0">
+          {isNativePlatform && (
+            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          )}
           <ChatMuteButton chatType="group" chatId={groupId!} />
           <ChatMembersSheet
             chatType="group"

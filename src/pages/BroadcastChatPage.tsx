@@ -789,6 +789,9 @@ export default function BroadcastChatPage() {
           <p className="text-sm text-muted-foreground truncate">Official updates & news</p>
         </div>
         <div className="flex items-center shrink-0">
+          {isNativePlatform && (
+            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          )}
           <ChatSearch onSearch={setSearchQuery} />
         </div>
       </div>

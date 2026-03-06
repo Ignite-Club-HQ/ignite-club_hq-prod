@@ -1015,6 +1015,9 @@ export default function ClubChatPage() {
           <h1 className="font-semibold truncate">{club?.name || "Club"}</h1>
         </div>
         <div className="flex items-center shrink-0">
+          {isNativePlatform && (
+            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          )}
           <ChatMuteButton chatType="club" chatId={clubId!} />
           <ChatMembersSheet
             chatType="club"

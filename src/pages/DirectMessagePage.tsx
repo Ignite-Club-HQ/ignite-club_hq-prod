@@ -661,6 +661,9 @@ export default function DirectMessagePage() {
           )}
         </div>
         <div className="flex items-center gap-1">
+          {isNativePlatform && (
+            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          )}
           <ChatSearch onSearch={setSearchQuery} />
           {!isIgniteSupportConversation && <ChatMuteButton chatType="dm" chatId={conversationId!} />}
         </div>
