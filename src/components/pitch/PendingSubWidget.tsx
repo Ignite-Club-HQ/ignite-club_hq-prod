@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -17,7 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { UserRoundCheck, ArrowRightLeft, ChevronRight, X, Clock, ArrowDown, ArrowUp, SkipForward, Pencil } from "lucide-react";
-import { PitchPosition } from "./PositionBadge";
+import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
+import { getSpecificPositionLabel } from "./types";
 import { toast } from "@/hooks/use-toast";
 import { recalculateRemainingPlan } from "./pitchStateUtils";
 
@@ -650,55 +652,64 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           )}
           
           <div className="space-y-3 py-3">
-            {/* Step 1: Player coming off */}
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex-shrink-0">
-                1
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm">
-                  {actualPlayerOut?.name} → Bench
-                </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  From {actualPlayerOut?.currentPitchPosition || sub.playerOut.currentPitchPosition || 'Unknown'}
-                </div>
-              </div>
-              <ArrowDown className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
-            </div>
-            
-            {/* Step 2: Player coming on */}
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white text-xs font-bold flex-shrink-0">
-                2
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm">
-                  {actualPlayerIn?.name} → {sub.positionSwap ? sub.positionSwap.fromPosition : (actualPlayerOut?.currentPitchPosition || sub.playerOut.currentPitchPosition || 'Unknown')}
-                </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  From Bench
-                </div>
-              </div>
-              <ArrowUp className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-            </div>
-            
-            {/* Step 3: Position swap (if applicable) */}
-            {sub.positionSwap && (
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0">
-                  3
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm">
-                    {sub.positionSwap.player.name} → {sub.positionSwap.toPosition}
+            {(() => {
+              const outPos = actualPlayerOut?.currentPitchPosition || sub.playerOut.currentPitchPosition;
+              const specificOutPos = outPos ? getSpecificPositionLabel(actualPlayerOut?.position?.x, outPos) : 'Unknown';
+              const inTargetPos = sub.positionSwap ? sub.positionSwap.fromPosition : outPos;
+              const specificInPos = inTargetPos ? getSpecificPositionLabel(
+                sub.positionSwap ? sub.positionSwap.player.position?.x : actualPlayerOut?.position?.x,
+                inTargetPos
+              ) : 'Unknown';
+              const inPosColors = inTargetPos ? POSITION_COLORS[inTargetPos] : null;
+              return (
+                <>
+                  {/* Player coming off */}
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex-shrink-0">
+                      {actualPlayerOut?.number || actualPlayerOut?.name?.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm">{actualPlayerOut?.name}</div>
+                      <div className="text-xs text-muted-foreground">{specificOutPos} → Bench</div>
+                    </div>
+                    <span className="text-sm font-bold text-destructive flex-shrink-0">OUT</span>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    Shifts from {sub.positionSwap.fromPosition}
+                  
+                  {/* Player coming on */}
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white text-xs font-bold flex-shrink-0">
+                      {actualPlayerIn?.number || actualPlayerIn?.name?.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm">{actualPlayerIn?.name}</div>
+                      <div className="text-xs text-muted-foreground">Bench → {specificInPos}</div>
+                    </div>
+                    {inPosColors && (
+                      <span className={cn("text-xs font-bold flex-shrink-0 uppercase", inPosColors.text)}>{specificInPos}</span>
+                    )}
                   </div>
-                </div>
-                <ArrowRightLeft className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
-              </div>
-            )}
+                  
+                  {/* Position swap */}
+                  {sub.positionSwap && (() => {
+                    const swapFromSpecific = getSpecificPositionLabel(sub.positionSwap!.player.position?.x, sub.positionSwap!.fromPosition);
+                    const swapToSpecific = getSpecificPositionLabel(actualPlayerOut?.position?.x, sub.positionSwap!.toPosition);
+                    const toColors = POSITION_COLORS[sub.positionSwap!.toPosition];
+                    return (
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0">
+                          {sub.positionSwap!.player.number || sub.positionSwap!.player.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm">{sub.positionSwap!.player.name}</div>
+                          <div className="text-xs text-muted-foreground">{swapFromSpecific} → {swapToSpecific}</div>
+                        </div>
+                        <span className={cn("text-xs font-bold flex-shrink-0 uppercase", toColors.text)}>{swapToSpecific}</span>
+                      </div>
+                    );
+                  })()}
+                </>
+              );
+            })()}
           </div>
 
           <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-row">
