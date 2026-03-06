@@ -2968,52 +2968,50 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (!gameTimerRef.current?.isRunning?.()) return;
     if (Date.now() - skipCooldownRef.current < 3000) return; // 3s cooldown after skip
     
-    // Grace period: subs more than 90s overdue are auto-skipped
-    const OVERDUE_GRACE_SECONDS = 90;
     const activationTime = planActivationTimeRef.current;
     
-    // Auto-skip any overdue subs beyond the grace period
-    const overdueSubs = autoSubPlan.filter(sub => {
-      if (sub.executed) return false;
-      if (sub.half !== currentHalf) return false;
-      if (activationTime && sub.half === activationTime.half && sub.time < activationTime.seconds) return false;
-      if (activationTime && sub.half < activationTime.half) return false;
-      return elapsedSeconds > sub.time + OVERDUE_GRACE_SECONDS;
-    });
-    
-    if (overdueSubs.length > 0) {
-      setAutoSubPlan(prev => {
-        const overdueKeys = new Set(overdueSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
-        return prev.map(s => overdueKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true } : s);
-      });
-      toast({ title: `${overdueSubs.length} missed sub${overdueSubs.length > 1 ? 's' : ''} skipped`, description: "Plan adjusted for remaining time" });
-      return; // Let next tick handle remaining subs
-    }
-    
-    // Find all unexecuted subs for current half that are due (within grace period)
-    const dueSubs = autoSubPlan.filter(sub => {
+    // Find all unexecuted subs for current half that are due
+    const allDueSubs = autoSubPlan.filter(sub => {
       if (sub.executed) return false;
       if (sub.half !== currentHalf) return false;
       if (elapsedSeconds < sub.time) return false;
-      if (pendingAutoSub) return false;
-      if (lockedPlayerIds.has(sub.playerOut.id)) return false;
       // Skip subs that were already in the past when the plan was activated
       if (activationTime && sub.half === activationTime.half && sub.time < activationTime.seconds) return false;
       if (activationTime && sub.half < activationTime.half) return false;
       return true;
     });
     
-    if (dueSubs.length > 0) {
-      // Group subs by time - find the earliest time and get all subs at that time
-      const earliestTime = Math.min(...dueSubs.map(s => s.time));
-      const batchSubs = dueSubs.filter(s => s.time === earliestTime);
-      const [primarySub, ...additionalSubs] = batchSubs;
+    if (allDueSubs.length > 0) {
+      // Get distinct due times
+      const dueTimes = [...new Set(allDueSubs.map(s => s.time))].sort((a, b) => a - b);
+      
+      // If there are multiple time groups due, auto-skip all older ones — only the latest matters
+      if (dueTimes.length > 1) {
+        const latestTime = dueTimes[dueTimes.length - 1];
+        const olderSubs = allDueSubs.filter(s => s.time < latestTime);
+        
+        setAutoSubPlan(prev => {
+          const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
+          return prev.map(s => olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s);
+        });
+        toast({ title: `${olderSubs.length} missed sub${olderSubs.length > 1 ? 's' : ''} skipped`, description: "Plan adjusted for remaining time" });
+        return; // Let next tick handle the latest due sub
+      }
+      
+      if (pendingAutoSub) return;
+      
+      // Filter out locked players
+      const dueSubs = allDueSubs.filter(sub => !lockedPlayerIds.has(sub.playerOut.id));
+      if (dueSubs.length === 0) return;
+      
+      // All due subs are at the same time — present them as a batch
+      const [primarySub, ...additionalSubs] = dueSubs;
       
       // Play alert beep with notification message
       const playerOutName = primarySub.playerOut.name || `#${primarySub.playerOut.number}`;
       const playerInName = primarySub.playerIn.name || `#${primarySub.playerIn.number}`;
-      const notificationBody = batchSubs.length > 1
-        ? `Time for ${batchSubs.length} substitutions`
+      const notificationBody = dueSubs.length > 1
+        ? `Time for ${dueSubs.length} substitutions`
         : `Time to sub: ${playerOutName} ➜ ${playerInName}`;
       playSubAlertBeep(notificationBody);
       
@@ -3022,7 +3020,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       
       // Set sub-due pulsing for all players involved in the batch
       const dueIds = new Set<string>();
-      batchSubs.forEach(s => {
+      dueSubs.forEach(s => {
         dueIds.add(s.playerOut.id);
         dueIds.add(s.playerIn.id);
       });
