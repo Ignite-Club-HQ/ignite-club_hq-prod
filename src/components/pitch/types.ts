@@ -108,6 +108,18 @@ export const getPositionFromCoords = (y: number, teamSize: TeamSize): PitchPosit
   return "FWD";
 };
 
+// Get a specific position label based on x and y coordinates (e.g., "Left Mid", "Centre Def")
+export const getSpecificPositionLabel = (
+  x: number | undefined | null,
+  basePosition: PitchPosition
+): string => {
+  if (basePosition === "GK") return "Goalkeeper";
+  if (x == null) return basePosition;
+  const side = x < 35 ? "Left" : x > 65 ? "Right" : "Centre";
+  const posName = basePosition === "DEF" ? "Back" : basePosition === "MID" ? "Mid" : "Forward";
+  return `${side} ${posName}`;
+};
+
 // Local storage keys
 export const PITCH_STATE_KEY = "ignite-pitch-board-state";
 export const PITCH_BOARD_OPEN_KEY = "ignite-pitch-board-open";

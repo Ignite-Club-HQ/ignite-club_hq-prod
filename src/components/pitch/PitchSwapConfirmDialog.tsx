@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeftRight, AlertTriangle, CheckCircle, X } from "lucide-react";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
+import { getSpecificPositionLabel } from "./types";
 import { cn } from "@/lib/utils";
 import {
   ResponsiveDialog,
@@ -51,6 +52,9 @@ export default function PitchSwapConfirmDialog({
 
   const pos1 = player1.currentPitchPosition;
   const pos2 = player2.currentPitchPosition;
+
+  const specificPos1 = pos1 ? getSpecificPositionLabel(player1.position?.x, pos1) : null;
+  const specificPos2 = pos2 ? getSpecificPositionLabel(player2.position?.x, pos2) : null;
   
   const canPlayPosition = (player: Player, position: PitchPosition): boolean => {
     if (!player.assignedPositions?.length) return true;
@@ -109,7 +113,7 @@ export default function PitchSwapConfirmDialog({
             {canSwap ? "Confirm Position Swap" : "Position Swap"}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            {canSwap ? "The following players will swap positions" : "Position mismatch — choose an option below"}
+            {!canSwap ? "Position mismatch — choose an option below" : ""}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
@@ -122,7 +126,7 @@ export default function PitchSwapConfirmDialog({
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm">{player1.name}</div>
               <div className="text-xs text-muted-foreground">
-                {pos1 && <>{pos1} → </>}{pos2 || 'new position'}
+                {specificPos1 || pos1} → {specificPos2 || pos2 || 'new position'}
               </div>
             </div>
             {pos2 && pos2Colors && (
@@ -143,7 +147,7 @@ export default function PitchSwapConfirmDialog({
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm">{player2.name}</div>
               <div className="text-xs text-muted-foreground">
-                {pos2 && <>{pos2} → </>}{pos1 || 'new position'}
+                {specificPos2 || pos2} → {specificPos1 || pos1 || 'new position'}
               </div>
             </div>
             {pos1 && pos1Colors && (
