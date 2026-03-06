@@ -614,6 +614,7 @@ function DialogInner({
   currentElapsedSeconds = 0,
   currentHalf = 1,
   preferredSecondHalfGkId,
+  isSetupFlow = false,
 }: {
   players: Player[];
   teamSize: number;
@@ -629,6 +630,7 @@ function DialogInner({
   currentElapsedSeconds?: number;
   currentHalf?: 1 | 2;
   preferredSecondHalfGkId?: string;
+  isSetupFlow?: boolean;
 }) {
   const [plan, setPlan] = useState<SubstitutionEvent[] | null>(existingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -835,7 +837,7 @@ function DialogInner({
       
       <div className="flex gap-2 justify-end mt-4">
         <Button variant="outline" onClick={onClose}>
-          Cancel
+          {isSetupFlow ? "Skip — do subs manually" : "Cancel"}
         </Button>
         <Button onClick={handleStart} className="gap-2" disabled={plan.length === 0}>
           <Play className="h-4 w-4" />
@@ -925,6 +927,7 @@ export default function AutoSubPlanDialog({
                 currentElapsedSeconds={currentElapsedSeconds}
                 currentHalf={currentHalf}
                 preferredSecondHalfGkId={preferredSecondHalfGkId}
+                isSetupFlow={showStepper}
               />
             )}
           </div>
