@@ -3772,14 +3772,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (readOnly) return;
     if (!touchDragPlayer) return;
     
-    // Mark player as recently-dragged to suppress CSS transition drift
+    // Mark player as recently-dragged to suppress CSS transition AND tactical offset drift
     const draggedId = touchDragPlayer;
     recentlyDraggedRef.current.add(draggedId);
-    setTimeout(() => recentlyDraggedRef.current.delete(draggedId), 150);
+    setTimeout(() => recentlyDraggedRef.current.delete(draggedId), 500);
     
     const touch = e.changedTouches[0];
     const benchElement = document.getElementById('pitch-bench');
     
+    let droppedOnBench = false;
     if (benchElement) {
       const benchRect = benchElement.getBoundingClientRect();
       if (
@@ -3788,12 +3789,27 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         touch.clientY >= benchRect.top &&
         touch.clientY <= benchRect.bottom
       ) {
+        droppedOnBench = true;
         setPlayers(prev =>
           prev.map(p =>
             p.id === touchDragPlayer ? { ...p, position: null } : p
           )
         );
       }
+    }
+    
+    // Final position update from touchend to prevent coordinate gap with last touchmove
+    if (!droppedOnBench && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = ((touch.clientX - rect.left) / rect.width) * 100;
+      const y = ((touch.clientY - rect.top) / rect.height) * 100;
+      setPlayers(prev =>
+        prev.map(p =>
+          p.id === touchDragPlayer
+            ? { ...p, position: { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } }
+            : p
+        )
+      );
     }
     
     setTouchDragPlayer(null);
