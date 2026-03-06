@@ -1233,11 +1233,17 @@ export default function GroupChatPage() {
         <div className="flex-1 min-w-0">
           <h1 className="font-semibold truncate">{group.name}</h1>
         </div>
-        <div className="flex items-center shrink-0">
-          {isNativePlatform && (
-            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
-          )}
-          <ChatMuteButton chatType="group" chatId={groupId!} />
+        <div className="flex items-center shrink-0 relative">
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+          <ChatHeaderMenu
+            chatType="group"
+            chatId={groupId!}
+            onSearchOpen={() => setSearchOpen(true)}
+            onMembersOpen={() => setMembersOpen(true)}
+            onRefresh={handleManualRefresh}
+            isRefreshing={isAnyRefreshing}
+            isNativePlatform={isNativePlatform}
+          />
           <ChatMembersSheet
             chatType="group"
             chatId={groupId!}
@@ -1245,8 +1251,9 @@ export default function GroupChatPage() {
             teamId={group.team_id || undefined}
             clubId={group.club_id || undefined}
             groupAllowedRoles={group.allowed_roles}
+            externalOpen={membersOpen}
+            onExternalOpenChange={setMembersOpen}
           />
-          <ChatSearch onSearch={setSearchQuery} />
         </div>
       </div>
 

@@ -1016,17 +1016,24 @@ export default function ClubChatPage() {
         <div className="flex-1 min-w-0">
           <h1 className="font-semibold truncate">{club?.name || "Club"}</h1>
         </div>
-        <div className="flex items-center shrink-0">
-          {isNativePlatform && (
-            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
-          )}
-          <ChatMuteButton chatType="club" chatId={clubId!} />
+        <div className="flex items-center shrink-0 relative">
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+          <ChatHeaderMenu
+            chatType="club"
+            chatId={clubId!}
+            onSearchOpen={() => setSearchOpen(true)}
+            onMembersOpen={() => setMembersOpen(true)}
+            onRefresh={handleManualRefresh}
+            isRefreshing={isAnyRefreshing}
+            isNativePlatform={isNativePlatform}
+          />
           <ChatMembersSheet
             chatType="club"
             chatId={clubId!}
             chatName={club?.name || "Club"}
+            externalOpen={membersOpen}
+            onExternalOpenChange={setMembersOpen}
           />
-          <ChatSearch onSearch={setSearchQuery} />
         </div>
       </div>
 

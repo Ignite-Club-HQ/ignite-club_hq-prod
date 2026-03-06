@@ -790,11 +790,18 @@ export default function BroadcastChatPage() {
           <h1 className="font-semibold truncate">Announcements</h1>
           <p className="text-sm text-muted-foreground truncate">Official updates & news</p>
         </div>
-        <div className="flex items-center shrink-0">
-          {isNativePlatform && (
-            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
-          )}
-          <ChatSearch onSearch={setSearchQuery} />
+        <div className="flex items-center shrink-0 relative">
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+          <ChatHeaderMenu
+            chatType="club"
+            chatId={clubId || ""}
+            onSearchOpen={() => setSearchOpen(true)}
+            showMembers={false}
+            showMute={false}
+            onRefresh={handleManualRefresh}
+            isRefreshing={isAnyRefreshing}
+            isNativePlatform={isNativePlatform}
+          />
         </div>
       </div>
 

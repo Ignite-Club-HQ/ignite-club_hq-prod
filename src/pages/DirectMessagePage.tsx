@@ -660,12 +660,18 @@ export default function DirectMessagePage() {
             </>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          {isNativePlatform && (
-            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
-          )}
-          <ChatSearch onSearch={setSearchQuery} />
-          {!isIgniteSupportConversation && <ChatMuteButton chatType="dm" chatId={conversationId!} />}
+        <div className="flex items-center gap-1 relative">
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+          <ChatHeaderMenu
+            chatType="dm"
+            chatId={conversationId!}
+            onSearchOpen={() => setSearchOpen(true)}
+            showMembers={false}
+            showMute={!isIgniteSupportConversation}
+            onRefresh={handleManualRefresh}
+            isRefreshing={isAnyRefreshing}
+            isNativePlatform={isNativePlatform}
+          />
         </div>
       </div>
 
