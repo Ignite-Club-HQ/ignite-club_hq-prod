@@ -7,8 +7,6 @@ interface UsePullToRefreshOptions {
   scrollableRef?: RefObject<HTMLDivElement>;
 }
 
-const isNative = () => !!(window as any).Capacitor?.isNativePlatform?.();
-
 export function usePullToRefresh({
   onRefresh,
   threshold = 100,
@@ -64,9 +62,9 @@ export function usePullToRefresh({
     isPullingRef.current = false;
     
     const scrollTop = getScrollTop();
-    isAtTopRef.current = scrollTop <= 5;
+    isAtTopRef.current = scrollTop <= 2;
     
-    // When at top, prevent the browser from claiming the gesture
+    // When at top, prevent the browser/WebView from claiming the gesture
     if (isAtTopRef.current) {
       setTouchAction('none');
     }
@@ -78,13 +76,13 @@ export function usePullToRefresh({
     const scrollTop = getScrollTop();
     
     // Re-check if we've reached the top during this gesture
-    if (!isAtTopRef.current && scrollTop <= 2) {
+    if (!isAtTopRef.current && scrollTop <= 1) {
       isAtTopRef.current = true;
       startY.current = e.touches[0].clientY; // reset start from current position
       setTouchAction('none');
     }
     
-    if (scrollTop > 5) {
+    if (scrollTop > 2) {
       isAtTopRef.current = false;
       if (isPullingRef.current) {
         isPullingRef.current = false;
