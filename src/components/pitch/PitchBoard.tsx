@@ -5406,10 +5406,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Sub mode instruction banner */}
         {subMode && (
           <div className={cn(
-            "absolute top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-lg animate-fade-in",
+            "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[75] px-5 py-2.5 rounded-full shadow-lg animate-fade-in pointer-events-none",
             "bg-primary text-primary-foreground"
           )}>
-            <p className="text-sm font-medium">
+            <p className="text-sm font-medium whitespace-nowrap">
               {!selectedOnPitch 
                 ? "Tap player on pitch to sub off" 
                 : "Tap bench player to sub on"
@@ -5421,12 +5421,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         {/* Swap mode instruction banner */}
         {swapMode && (
           <div className={cn(
-            "absolute top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full shadow-lg animate-fade-in",
+            "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[75] px-5 py-2.5 rounded-full shadow-lg animate-fade-in pointer-events-none",
             swapPlayer1 && getValidSwapPlayerIds.size === 0 
               ? "bg-destructive text-destructive-foreground" 
               : "bg-primary text-primary-foreground"
           )}>
-            <p className="text-sm font-medium">
+            <p className="text-sm font-medium whitespace-nowrap">
               {!swapPlayer1 
                 ? "Tap first player to swap" 
                 : getValidSwapPlayerIds.size === 0
@@ -6364,20 +6364,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         )}
 
-        {/* Sub mode instruction banner - always anchored above bottom sheet/edge */}
+        {/* Sub mode instruction banner - centered on pitch, above FABs */}
         {subMode && (
           <div
             className={cn(
-              "absolute z-[62] px-4 py-2 rounded-full shadow-lg animate-fade-in pointer-events-none",
+              "absolute left-1/2 -translate-x-1/2 z-[75] px-5 py-2.5 rounded-full shadow-lg animate-fade-in pointer-events-none",
               "bg-primary text-primary-foreground"
             )}
             style={{
-              left: 12,
-              right: 12,
-              bottom: portraitSheetOpen ? `calc(${portraitSheetHeightPct}% + 8px)` : 12,
+              bottom: portraitSheetOpen ? `calc(${portraitSheetHeightPct}% + 8px)` : 72,
             }}
           >
-            <p className="text-sm font-medium text-center">
+            <p className="text-sm font-medium text-center whitespace-nowrap">
               {!selectedOnPitch 
                 ? "Tap player on pitch to sub off" 
                 : "Tap bench player to sub on"
@@ -6386,22 +6384,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         )}
 
-        {/* Swap mode instruction banner - always anchored above bottom sheet/edge */}
+        {/* Swap mode instruction banner - centered on pitch, above FABs */}
         {swapMode && (
           <div
             className={cn(
-              "absolute z-[62] px-4 py-2 rounded-full shadow-lg animate-fade-in pointer-events-none",
+              "absolute left-1/2 -translate-x-1/2 z-[75] px-5 py-2.5 rounded-full shadow-lg animate-fade-in pointer-events-none",
               swapPlayer1 && getValidSwapPlayerIds.size === 0 
                 ? "bg-destructive text-destructive-foreground" 
                 : "bg-primary text-primary-foreground"
             )}
             style={{
-              left: 12,
-              right: 12,
-              bottom: portraitSheetOpen ? `calc(${portraitSheetHeightPct}% + 8px)` : 12,
+              bottom: portraitSheetOpen ? `calc(${portraitSheetHeightPct}% + 8px)` : 72,
             }}
           >
-            <p className="text-sm font-medium text-center">
+            <p className="text-sm font-medium text-center whitespace-nowrap">
               {!swapPlayer1 
                 ? "Tap first player to swap" 
                 : getValidSwapPlayerIds.size === 0
