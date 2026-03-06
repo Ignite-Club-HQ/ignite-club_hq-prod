@@ -8,6 +8,7 @@ import { ArrowLeft, Send, Loader2, Crown, Lock, Flame } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
+import { ChatRefreshButton } from "@/components/chat/ChatRefreshButton";
 
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
@@ -82,6 +83,7 @@ export default function DirectMessagePage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const isNativePlatform = Capacitor.isNativePlatform();
   
   const scrollToBottom = useCallback(() => {
     if (!scrollAreaRef.current) return;
@@ -659,6 +661,9 @@ export default function DirectMessagePage() {
           )}
         </div>
         <div className="flex items-center gap-1">
+          {isNativePlatform && (
+            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          )}
           <ChatSearch onSearch={setSearchQuery} />
           {!isIgniteSupportConversation && <ChatMuteButton chatType="dm" chatId={conversationId!} />}
         </div>

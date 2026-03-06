@@ -5,6 +5,7 @@ import { ArrowLeft, Send, Loader2 } from "lucide-react";
 import { SecureAvatar } from "@/components/SecureAvatar";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
+import { ChatRefreshButton } from "@/components/chat/ChatRefreshButton";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
@@ -79,6 +80,7 @@ export default function TeamChatPage() {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const { isOnline } = useOnlineStatus();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const isNativePlatform = Capacitor.isNativePlatform();
   const bottomInset = isNativeIOS ? "1rem" : "env(safe-area-inset-bottom, 0px)";
 
   // Mark team message notifications as read when opening this thread
@@ -971,6 +973,9 @@ export default function TeamChatPage() {
           <p className="text-xs text-muted-foreground truncate">{team.clubs?.name}</p>
         </div>
         <div className="flex items-center shrink-0">
+          {isNativePlatform && (
+            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          )}
           <ChatMuteButton chatType="team" chatId={teamId!} />
           <ChatMembersSheet
             chatType="team"

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, Loader2, Building2 } from "lucide-react";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
+import { ChatRefreshButton } from "@/components/chat/ChatRefreshButton";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
@@ -72,6 +73,7 @@ export default function ClubChatPage() {
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const isNativePlatform = Capacitor.isNativePlatform();
   const bottomInset = isNativeIOS ? "1rem" : "env(safe-area-inset-bottom, 0px)";
 
   // Mark club message notifications as read when opening this thread
@@ -1013,6 +1015,9 @@ export default function ClubChatPage() {
           <h1 className="font-semibold truncate">{club?.name || "Club"}</h1>
         </div>
         <div className="flex items-center shrink-0">
+          {isNativePlatform && (
+            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          )}
           <ChatMuteButton chatType="club" chatId={clubId!} />
           <ChatMembersSheet
             chatType="club"

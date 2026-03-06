@@ -5,6 +5,7 @@ import { ArrowLeft, Send, Loader2, Flame } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
+import { ChatRefreshButton } from "@/components/chat/ChatRefreshButton";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -64,6 +65,7 @@ export default function BroadcastChatPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const isNativePlatform = Capacitor.isNativePlatform();
 
   // Mark broadcast notifications as read when opening this thread
   useEffect(() => {
@@ -787,6 +789,9 @@ export default function BroadcastChatPage() {
           <p className="text-sm text-muted-foreground truncate">Official updates & news</p>
         </div>
         <div className="flex items-center shrink-0">
+          {isNativePlatform && (
+            <ChatRefreshButton onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          )}
           <ChatSearch onSearch={setSearchQuery} />
         </div>
       </div>
