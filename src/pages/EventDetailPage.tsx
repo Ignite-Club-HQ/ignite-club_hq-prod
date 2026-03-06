@@ -1680,17 +1680,19 @@ export default function EventDetailPage() {
               ? `${event.title} (${context})`
               : event.title;
             try {
+              const combinedShareText = `${shareText}\n${shareUrl}`;
+
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
-                  title: event.title,
-                  text: `${shareText}\n${shareUrl}`,
+                  // Messenger duplicates content when title/url are separate fields.
+                  // Keep everything in one text payload.
+                  text: combinedShareText,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
                 await navigator.share({
-                  title: event.title,
-                  text: shareText,
-                  url: shareUrl,
+                  // Keep one combined field to avoid Messenger duplication.
+                  text: combinedShareText,
                 });
               } else {
                 await navigator.clipboard.writeText(shareUrl);
