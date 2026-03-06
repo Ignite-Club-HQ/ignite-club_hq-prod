@@ -151,4 +151,6 @@ export interface TimerState {
   lastUpdateTime: number;
   teamId?: string;
   teamName?: string;
+  isGameFinished?: boolean;
+  gameFinishedAt?: number;
 }
