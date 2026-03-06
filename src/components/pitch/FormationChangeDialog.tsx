@@ -10,12 +10,14 @@ import {
 import { Users, Check, X } from "lucide-react";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { cn } from "@/lib/utils";
-import { Player } from "./types";
+import { Player, getSpecificPositionLabel } from "./types";
 
 interface PositionSwap {
   player: Player;
   fromPosition: PitchPosition;
   toPosition: PitchPosition;
+  fromX?: number;
+  toX?: number;
 }
 
 interface BenchMove {
@@ -127,6 +129,8 @@ export default function FormationChangeDialog({
               {/* Position swaps */}
               {positionSwaps.map((swap) => {
                 const toColors = POSITION_COLORS[swap.toPosition];
+                const specificFrom = getSpecificPositionLabel(swap.fromX, swap.fromPosition);
+                const specificTo = getSpecificPositionLabel(swap.toX, swap.toPosition);
                 return (
                   <div
                     key={`swap-${swap.player.id}`}
@@ -138,11 +142,11 @@ export default function FormationChangeDialog({
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-sm">{swap.player.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        {swap.fromPosition} → {swap.toPosition}
+                        {specificFrom} → {specificTo}
                       </div>
                     </div>
-                    <span className={cn("text-sm font-bold flex-shrink-0", toColors.text)}>
-                      {swap.toPosition}
+                    <span className={cn("text-xs font-bold flex-shrink-0 uppercase", toColors.text)}>
+                      {specificTo}
                     </span>
                   </div>
                 );

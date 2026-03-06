@@ -262,7 +262,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [pendingFormationChange, setPendingFormationChange] = useState<{
     index: number;
     newTeamSize?: TeamSize; // Set when this is a team size change
-    positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition }[];
+    positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[];
     benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[];
   } | null>(null);
 
@@ -2032,7 +2032,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const benchPlayers = players.filter(p => p.position === null);
     const allPlayers = [...playersOnPitch, ...benchPlayers];
     
-    const positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition }[] = [];
+    const positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[] = [];
     const benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] = [];
     
     // Who will be on pitch after change
@@ -2061,7 +2061,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       if (player.currentPitchPosition && formation.positions[i] && playersOnPitch.some(p => p.id === player.id) && !willBeOnBench.some(p => p.id === player.id)) {
         const newPosition = getPositionFromCoords(formation.positions[i].y, teamSize);
         if (player.currentPitchPosition !== newPosition) {
-          positionSwaps.push({ player, fromPosition: player.currentPitchPosition, toPosition: newPosition });
+          positionSwaps.push({ player, fromPosition: player.currentPitchPosition, toPosition: newPosition, fromX: player.position?.x, toX: formation.positions[i].x });
         }
       }
     }
@@ -2118,7 +2118,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     changeType: 'formation' | 'team_size', 
     detail: string,
     changeDetails?: {
-      positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition }[];
+      positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[];
       benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[];
     }
   ) => {
@@ -2211,7 +2211,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [user?.id, teamId, teamName, readOnly, linkedEventId]);
 
-  const applyFormationChange = useCallback((index: number, changeDetails?: { positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition }[]; benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] }) => {
+  const applyFormationChange = useCallback((index: number, changeDetails?: { positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[]; benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] }) => {
     const formation = FORMATIONS[teamSize][index];
     if (!formation) return;
 
@@ -3514,7 +3514,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const benchPlayers = players.filter(p => p.position === null);
     const allPlayers = [...playersOnPitch, ...benchPlayers];
     
-    const positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition }[] = [];
+    const positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[] = [];
     const benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] = [];
     
     const willBeOnPitch = allPlayers.slice(0, numPositions);
@@ -3542,7 +3542,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       if (player.currentPitchPosition && newFormation.positions[i] && playersOnPitch.some(p => p.id === player.id) && !willBeOnBench.some(p => p.id === player.id)) {
         const newPosition = getPositionFromCoords(newFormation.positions[i].y, newSize);
         if (player.currentPitchPosition !== newPosition) {
-          positionSwaps.push({ player, fromPosition: player.currentPitchPosition, toPosition: newPosition });
+          positionSwaps.push({ player, fromPosition: player.currentPitchPosition, toPosition: newPosition, fromX: player.position?.x, toX: newFormation.positions[i].x });
         }
       }
     }
