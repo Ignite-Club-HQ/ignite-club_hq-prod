@@ -66,8 +66,8 @@ export function usePullToRefresh({
     const scrollTop = getScrollTop();
     isAtTopRef.current = scrollTop <= 5;
     
-    // On native, when at top, prevent the browser from claiming the gesture
-    if (isAtTopRef.current && isNative()) {
+    // When at top, prevent the browser from claiming the gesture
+    if (isAtTopRef.current) {
       setTouchAction('none');
     }
   }, [disabled, isRefreshing, getScrollTop, setTouchAction]);
@@ -81,9 +81,7 @@ export function usePullToRefresh({
     if (!isAtTopRef.current && scrollTop <= 2) {
       isAtTopRef.current = true;
       startY.current = e.touches[0].clientY; // reset start from current position
-      if (isNative()) {
-        setTouchAction('none');
-      }
+      setTouchAction('none');
     }
     
     if (scrollTop > 5) {
@@ -94,9 +92,7 @@ export function usePullToRefresh({
         setPullDistance(0);
       }
       // Restore normal touch-action when not at top
-      if (isNative()) {
-        setTouchAction('pan-y');
-      }
+      setTouchAction('pan-y');
       return;
     }
     
@@ -130,9 +126,7 @@ export function usePullToRefresh({
     touchActiveRef.current = false;
     
     // Restore touch-action
-    if (isNative()) {
-      setTouchAction('pan-y');
-    }
+    setTouchAction('pan-y');
     
     if (isPullingRef.current && pullDistance >= threshold && !isRefreshing) {
       setIsRefreshing(true);
@@ -180,10 +174,8 @@ export function usePullToRefresh({
       }
       
       // Ensure touch-action is restored on cleanup
-      if (isNative()) {
-        if (target) (target as HTMLElement).style.touchAction = 'pan-y';
-        if (container) container.style.touchAction = 'pan-y';
-      }
+      if (target) (target as HTMLElement).style.touchAction = '';
+      if (container) container.style.touchAction = '';
     };
   }, [handleTouchStart, handleTouchMove, handleTouchEnd, getScrollElement]);
 
