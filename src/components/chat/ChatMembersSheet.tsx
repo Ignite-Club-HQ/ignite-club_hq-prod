@@ -224,18 +224,22 @@ export function ChatMembersSheet({
     }
   }, [uniqueMembers.length, membersLoading, cacheKey, queryClient, chatType, chatId]);
 
+  const isExternallyControlled = externalOpen !== undefined;
+
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-          title="View members"
-        >
-          <Users className="h-4 w-4" />
-        </Button>
-      </SheetTrigger>
+      {!isExternallyControlled && (
+        <SheetTrigger asChild>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+            title="View members"
+          >
+            <Users className="h-4 w-4" />
+          </Button>
+        </SheetTrigger>
+      )}
       <SheetContent side="right" className="w-[300px] sm:w-[400px]">
         <SheetHeader>
           <SheetTitle>{chatName}</SheetTitle>
