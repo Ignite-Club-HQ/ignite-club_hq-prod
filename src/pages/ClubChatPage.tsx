@@ -1002,8 +1002,8 @@ export default function ClubChatPage() {
 
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden overscroll-none" style={{ paddingBottom: `calc(5rem + ${bottomInset})` }}>
-      {/* Header - Fixed at top */}
-      <div className="fixed left-0 right-0 flex items-center gap-3 px-4 py-3 border-b bg-background z-40 relative" style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
