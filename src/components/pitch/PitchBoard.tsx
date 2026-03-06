@@ -6788,10 +6788,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 isSubDue={subDuePlayerIds.has(player.id)}
                 style={{
                   position: "absolute",
-                  ...(() => {
+                    ...(() => {
                     const isDragging = draggedPlayer === player.id || touchDragPlayer === player.id;
                     const recentlyDropped = recentlyDraggedRef.current.has(player.id);
-                    const offset = !isDragging ? tacticalOffsets.get(player.id) : undefined;
+                    // Suppress both transition AND tactical offset for recently-dropped players
+                    const offset = (!isDragging && !recentlyDropped) ? tacticalOffsets.get(player.id) : undefined;
                     const tx = offset?.dx ?? 0;
                     const ty = offset?.dy ?? 0;
                     return {
