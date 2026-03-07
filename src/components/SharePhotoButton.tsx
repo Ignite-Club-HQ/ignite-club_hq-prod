@@ -51,7 +51,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
       if (Capacitor.isNativePlatform()) {
         try {
           await Share.share({
-            url: deepLink,
+            text: fallbackText,
             dialogTitle: "Share photo",
           });
         } catch (error) {
@@ -66,7 +66,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
       if (navigator.share) {
         try {
           await navigator.share({
-            url: deepLink,
+            text: fallbackText,
           });
           return;
         } catch (error) {
