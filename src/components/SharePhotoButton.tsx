@@ -71,7 +71,10 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
 
       if (navigator.share) {
         try {
-          await navigator.share({ title: "Ignite Club HQ", text: shareText, url: deepLink });
+          await navigator.share({
+            title: "Ignite Club HQ",
+            text: nativeShareText,
+          });
           return;
         } catch (error) {
           if ((error as Error).name === "AbortError") return;
