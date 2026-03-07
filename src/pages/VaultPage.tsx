@@ -957,22 +957,39 @@ export default function VaultPage() {
 
   const shareFolder = async (folderId: string) => {
     const shareUrl = `${window.location.origin}/vault/folder/${folderId}`;
+    const shareText = "Check out this folder in the vault";
     
     try {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await Share.share({
+            title: "Ignite Club HQ",
+            text: shareText,
+            url: shareUrl,
+            dialogTitle: "Share Folder",
+          });
+        } catch (error) {
+          if ((error as Error).name !== "AbortError") {
+            await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+            toast.success("Link copied to clipboard!");
+          }
+        }
+        return;
+      }
+
       if (navigator.share) {
         await navigator.share({
-          title: "Vault Folder",
-          text: "Check out this folder in the vault",
+          title: "Ignite Club HQ",
+          text: shareText,
           url: shareUrl,
         });
       } else {
-        await navigator.clipboard.writeText(shareUrl);
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
         toast.success("Link copied to clipboard!");
       }
     } catch (error) {
-      // User cancelled share or error occurred
       if ((error as Error).name !== "AbortError") {
-        await navigator.clipboard.writeText(shareUrl);
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
         toast.success("Link copied to clipboard!");
       }
     }
