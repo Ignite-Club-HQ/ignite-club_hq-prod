@@ -73,7 +73,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
         try {
           await navigator.share({
             title: "Ignite Club HQ",
-            text: nativeShareText,
+            text: deepLink,
           });
           return;
         } catch (error) {
