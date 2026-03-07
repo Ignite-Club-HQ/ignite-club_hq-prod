@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
+import { Share } from "@capacitor/share";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw, ExternalLink, Sheet, FileSpreadsheet, Link2, CloudDownload, MoreVertical } from "lucide-react";
@@ -957,22 +958,39 @@ export default function VaultPage() {
 
   const shareFolder = async (folderId: string) => {
     const shareUrl = `${window.location.origin}/vault/folder/${folderId}`;
+    const shareText = "Check out this folder in the vault";
     
     try {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await Share.share({
+            title: "Ignite Club HQ",
+            text: shareText,
+            url: shareUrl,
+            dialogTitle: "Share Folder",
+          });
+        } catch (error) {
+          if ((error as Error).name !== "AbortError") {
+            await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+            toast.success("Link copied to clipboard!");
+          }
+        }
+        return;
+      }
+
       if (navigator.share) {
         await navigator.share({
-          title: "Vault Folder",
-          text: "Check out this folder in the vault",
+          title: "Ignite Club HQ",
+          text: shareText,
           url: shareUrl,
         });
       } else {
-        await navigator.clipboard.writeText(shareUrl);
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
         toast.success("Link copied to clipboard!");
       }
     } catch (error) {
-      // User cancelled share or error occurred
       if ((error as Error).name !== "AbortError") {
-        await navigator.clipboard.writeText(shareUrl);
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
         toast.success("Link copied to clipboard!");
       }
     }
