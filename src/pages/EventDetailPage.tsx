@@ -1695,8 +1695,7 @@ export default function EventDetailPage() {
               } else if (navigator.share) {
                 await navigator.share({
                   title: 'Ignite Club HQ',
-                  text: shareText,
-                  url: shareUrl,
+                  text: fallbackShareText,
                 });
               } else {
                 await navigator.clipboard.writeText(fallbackShareText);
