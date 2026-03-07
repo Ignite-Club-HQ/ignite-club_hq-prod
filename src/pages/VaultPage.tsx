@@ -958,15 +958,16 @@ export default function VaultPage() {
 
   const shareFolder = async (folderId: string) => {
     const shareUrl = `${window.location.origin}/vault/folder/${folderId}`;
-    const shareText = "Check out this folder in the vault";
-    const fallbackShareText = `${shareText}\n${shareUrl}`;
+    const shareCaption = "You've been shared a folder on Ignite Club HQ";
+    const fallbackShareText = `${shareCaption}\n${shareUrl}`;
     
     try {
       if (Capacitor.isNativePlatform()) {
         try {
           await Share.share({
             title: "Ignite Club HQ",
-            text: fallbackShareText,
+            text: shareCaption,
+            url: shareUrl,
             dialogTitle: "Share Folder",
           });
         } catch (error) {
@@ -981,7 +982,7 @@ export default function VaultPage() {
       if (navigator.share) {
         await navigator.share({
           title: "Ignite Club HQ",
-          text: shareText,
+          text: shareCaption,
           url: shareUrl,
         });
       } else {

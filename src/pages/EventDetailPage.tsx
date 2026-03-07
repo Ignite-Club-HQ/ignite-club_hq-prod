@@ -1675,27 +1675,21 @@ export default function EventDetailPage() {
             isSharingEventRef.current = true;
 
             const shareUrl = `https://igniteclubhq.app/events/${id}`;
-            const clubName = event.clubs?.name || "";
-            const teamName = event.teams?.name || "";
-            const context = teamName && clubName
-              ? `${clubName} — ${teamName}`
-              : clubName || "";
-            const shareText = context
-              ? `${event.title} (${context})`
-              : event.title;
-            const fallbackShareText = `${shareText}\n${shareUrl}`;
+            const shareCaption = "You've been invited to an event on Ignite Club HQ";
+            const fallbackShareText = `${shareCaption}\n${shareUrl}`;
 
             try {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
                   title: 'Ignite Club HQ',
-                  text: fallbackShareText,
+                  text: shareCaption,
+                  url: shareUrl,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
                 await navigator.share({
                   title: 'Ignite Club HQ',
-                  text: shareText,
+                  text: shareCaption,
                   url: shareUrl,
                 });
               } else {
