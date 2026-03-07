@@ -965,9 +965,7 @@ export default function VaultPage() {
       if (Capacitor.isNativePlatform()) {
         try {
           await Share.share({
-            title: "Ignite Club HQ",
-            text: shareCaption,
-            url: shareUrl,
+            text: fallbackShareText,
             dialogTitle: "Share Folder",
           });
         } catch (error) {
@@ -981,9 +979,7 @@ export default function VaultPage() {
 
       if (navigator.share) {
         await navigator.share({
-          title: "Ignite Club HQ",
-          text: shareCaption,
-          url: shareUrl,
+          text: fallbackShareText,
         });
       } else {
         await navigator.clipboard.writeText(fallbackShareText);
