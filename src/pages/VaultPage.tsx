@@ -979,8 +979,6 @@ export default function VaultPage() {
 
       if (navigator.share) {
         await navigator.share({
-          title: "Ignite Club HQ",
-          text: shareCaption,
           url: shareUrl,
         });
       } else {

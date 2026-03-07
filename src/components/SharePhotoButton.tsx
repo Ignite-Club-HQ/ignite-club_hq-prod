@@ -66,8 +66,6 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
       if (navigator.share) {
         try {
           await navigator.share({
-            title: "Ignite Club HQ",
-            text: shareCaption,
             url: deepLink,
           });
           return;

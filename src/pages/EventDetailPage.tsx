@@ -1686,8 +1686,6 @@ export default function EventDetailPage() {
                 });
               } else if (navigator.share) {
                 await navigator.share({
-                  title: 'Ignite Club HQ',
-                  text: shareCaption,
                   url: shareUrl,
                 });
               } else {
