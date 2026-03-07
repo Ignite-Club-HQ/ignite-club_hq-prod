@@ -55,7 +55,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
       if (Capacitor.isNativePlatform()) {
         try {
           await Share.share({
-            title: shareText,
+            title: "Ignite Club HQ",
             text: shareText,
             url: deepLink,
             dialogTitle: "Share photo",
