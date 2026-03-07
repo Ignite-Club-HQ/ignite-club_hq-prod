@@ -1675,26 +1675,35 @@ export default function EventDetailPage() {
             isSharingEventRef.current = true;
 
             const shareUrl = `https://igniteclubhq.app/events/${id}`;
+            const clubName = event.clubs?.name || "";
+            const teamName = event.teams?.name || "";
+            const context = teamName && clubName
+              ? `${clubName} — ${teamName}`
+              : clubName || "";
+            const shareText = context
+              ? `${event.title} (${context})`
+              : event.title;
+            const fallbackShareText = `${shareText}\n${shareUrl}`;
 
             try {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
                   title: 'Ignite Club HQ',
-                  text: shareUrl,
+                  text: fallbackShareText,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
                 await navigator.share({
                   title: 'Ignite Club HQ',
-                  text: shareUrl,
+                  text: fallbackShareText,
                 });
               } else {
-                await navigator.clipboard.writeText(shareUrl);
+                await navigator.clipboard.writeText(fallbackShareText);
                 toast({ title: "Link copied to clipboard!" });
               }
             } catch (err) {
               if ((err as Error).name !== 'AbortError') {
-                await navigator.clipboard.writeText(shareUrl);
+                await navigator.clipboard.writeText(fallbackShareText);
                 toast({ title: "Link copied to clipboard!" });
               }
             } finally {
