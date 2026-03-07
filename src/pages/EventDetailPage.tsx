@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense, useRef } from "react";
 import { Share } from "@capacitor/share";
 import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
 import { Capacitor } from "@capacitor/core";
+import { getShareUrl, getDeepLink } from "@/lib/shareUtils";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
