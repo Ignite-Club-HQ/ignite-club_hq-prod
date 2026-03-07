@@ -35,23 +35,26 @@ Deno.serve(async (req) => {
   try {
     if (type === "photo") {
       const { data: photo } = await supabase
-        .from("team_photos")
-        .select("title, image_url, team_id, teams(name, club_id, clubs(name))")
+        .from("photos")
+        .select("title, image_url, file_url, team_id, club_id, teams(name), clubs(name)")
         .eq("id", id)
         .maybeSingle();
 
       if (photo) {
         const teamName = (photo as any).teams?.name;
-        const clubName = (photo as any).teams?.clubs?.name;
+        const clubName = (photo as any).clubs?.name;
         title = photo.title || "Photo shared on Ignite Club HQ";
         description = [clubName, teamName].filter(Boolean).join(" · ") || "Check out this photo on Ignite Club HQ";
-        if (photo.image_url) {
-          // Generate a signed URL for the photo (valid for 1 hour)
-          const path = photo.image_url.replace(/^.*\/storage\/v1\/object\/(?:public|sign)\//, "").split("?")[0];
+        const photoUrl = photo.file_url || photo.image_url;
+        if (photoUrl) {
+          // Try to generate a signed URL for the photo
+          const path = photoUrl.replace(/^.*\/storage\/v1\/object\/(?:public|sign)\//, "").split("?")[0];
           if (path) {
+            const bucket = path.startsWith("photos/") ? "photos" : "team-photos";
+            const filePath = path.replace(/^(photos|team-photos)\//, "");
             const { data: signedData } = await supabase.storage
-              .from("team-photos")
-              .createSignedUrl(path.replace(/^team-photos\//, ""), 3600);
+              .from(bucket)
+              .createSignedUrl(filePath, 3600);
             if (signedData?.signedUrl) {
               image = signedData.signedUrl;
             }
