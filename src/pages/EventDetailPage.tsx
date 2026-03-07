@@ -1681,8 +1681,6 @@ export default function EventDetailPage() {
             try {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
-                  title: 'Ignite Club HQ',
-                  text: shareCaption,
                   url: shareUrl,
                   dialogTitle: 'Share Event',
                 });

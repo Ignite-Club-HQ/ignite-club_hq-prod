@@ -965,8 +965,6 @@ export default function VaultPage() {
       if (Capacitor.isNativePlatform()) {
         try {
           await Share.share({
-            title: "Ignite Club HQ",
-            text: shareCaption,
             url: shareUrl,
             dialogTitle: "Share Folder",
           });
