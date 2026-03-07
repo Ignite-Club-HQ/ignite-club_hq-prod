@@ -43,14 +43,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
 
     const deepLink = `${DEEP_LINK_BASE}/media/${photoId}`;
 
-    // Build descriptive share text
-    const context = teamName && clubName
-      ? `${clubName} — ${teamName}`
-      : clubName || teamName || "";
-    const shareText = context
-      ? `A new photo has been added to ${context}. Check it out!`
-      : "Check out this photo on Ignite!";
-    const nativeShareText = `${shareText}\n${deepLink}`;
+    const shareCaption = "You've been sent a photo on Ignite Club HQ";
 
     try {
       if (Capacitor.isNativePlatform()) {
