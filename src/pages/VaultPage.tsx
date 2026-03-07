@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
+import { getShareUrl, getDeepLink } from "@/lib/shareUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw, ExternalLink, Sheet, FileSpreadsheet, Link2, CloudDownload, MoreVertical } from "lucide-react";
@@ -957,20 +958,19 @@ export default function VaultPage() {
   }, [urlFolderId, userClubs, initialLoadComplete, searchParams, setSearchParams]);
 
   const shareFolder = async (folderId: string) => {
-    const shareUrl = `${window.location.origin}/vault/folder/${folderId}`;
-    const shareCaption = "You've been shared a folder on Ignite Club HQ";
-    const fallbackShareText = `${shareCaption}\n${shareUrl}`;
+    const shareUrl = getShareUrl("folder", folderId);
+    const deepLink = getDeepLink("folder", folderId);
     
     try {
       if (Capacitor.isNativePlatform()) {
         try {
           await Share.share({
-            text: fallbackShareText,
+            url: shareUrl,
             dialogTitle: "Share Folder",
           });
         } catch (error) {
           if ((error as Error).name !== "AbortError") {
-            await navigator.clipboard.writeText(fallbackShareText);
+            await navigator.clipboard.writeText(deepLink);
             toast.success("Link copied to clipboard!");
           }
         }
@@ -979,15 +979,15 @@ export default function VaultPage() {
 
       if (navigator.share) {
         await navigator.share({
-          text: fallbackShareText,
+          url: shareUrl,
         });
       } else {
-        await navigator.clipboard.writeText(fallbackShareText);
+        await navigator.clipboard.writeText(deepLink);
         toast.success("Link copied to clipboard!");
       }
     } catch (error) {
       if ((error as Error).name !== "AbortError") {
-        await navigator.clipboard.writeText(fallbackShareText);
+        await navigator.clipboard.writeText(deepLink);
         toast.success("Link copied to clipboard!");
       }
     }

@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense, useRef } from "react";
 import { Share } from "@capacitor/share";
 import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
 import { Capacitor } from "@capacitor/core";
+import { getShareUrl, getDeepLink } from "@/lib/shareUtils";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1674,27 +1675,26 @@ export default function EventDetailPage() {
             if (isSharingEventRef.current) return;
             isSharingEventRef.current = true;
 
-            const shareUrl = `https://igniteclubhq.app/events/${id}`;
-            const shareCaption = "You've been invited to an event on Ignite Club HQ";
-            const fallbackShareText = `${shareCaption}\n${shareUrl}`;
+            const shareUrl = getShareUrl("event", id!);
+            const deepLink = getDeepLink("event", id!);
 
             try {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
-                  text: fallbackShareText,
+                  url: shareUrl,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
                 await navigator.share({
-                  text: fallbackShareText,
+                  url: shareUrl,
                 });
               } else {
-                await navigator.clipboard.writeText(fallbackShareText);
+                await navigator.clipboard.writeText(deepLink);
                 toast({ title: "Link copied to clipboard!" });
               }
             } catch (err) {
               if ((err as Error).name !== 'AbortError') {
-                await navigator.clipboard.writeText(fallbackShareText);
+                await navigator.clipboard.writeText(deepLink);
                 toast({ title: "Link copied to clipboard!" });
               }
             } finally {

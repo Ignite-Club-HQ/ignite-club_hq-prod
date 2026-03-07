@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Share } from "@capacitor/share";
 import { Capacitor } from "@capacitor/core";
+import { getShareUrl, getDeepLink } from "@/lib/shareUtils";
 
 interface SharePhotoButtonProps {
   photoId: string;
@@ -13,18 +14,16 @@ interface SharePhotoButtonProps {
   teamName?: string;
 }
 
-const DEEP_LINK_BASE = "https://igniteclubhq.app";
-
 export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName }: SharePhotoButtonProps) {
   const isSharingRef = useRef(false);
 
-  const copyDeepLink = async (deepLink: string) => {
+  const copyToClipboard = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(deepLink);
+      await navigator.clipboard.writeText(text);
       toast.success("Link copied to clipboard!");
     } catch {
       const textarea = document.createElement("textarea");
-      textarea.value = deepLink;
+      textarea.value = text;
       textarea.style.position = "fixed";
       textarea.style.opacity = "0";
       document.body.appendChild(textarea);
@@ -41,23 +40,22 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
     if (isSharingRef.current) return;
     isSharingRef.current = true;
 
-    const deepLink = `${DEEP_LINK_BASE}/media/${photoId}`;
-
-    const shareCaption = "You've been sent a photo on Ignite Club HQ";
-
-    const fallbackText = `${shareCaption}\n${deepLink}`;
+    // URL with OG tags for rich preview in Messenger/WhatsApp etc.
+    const shareUrl = getShareUrl("photo", photoId);
+    // Direct deep link for clipboard fallback
+    const deepLink = getDeepLink("photo", photoId);
 
     try {
       if (Capacitor.isNativePlatform()) {
         try {
           await Share.share({
-            text: fallbackText,
+            url: shareUrl,
             dialogTitle: "Share photo",
           });
         } catch (error) {
           if ((error as Error).name !== "AbortError") {
             console.log("Capacitor Share failed, falling back to clipboard:", error);
-            await copyDeepLink(fallbackText);
+            await copyToClipboard(deepLink);
           }
         }
         return;
@@ -66,7 +64,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
       if (navigator.share) {
         try {
           await navigator.share({
-            text: fallbackText,
+            url: shareUrl,
           });
           return;
         } catch (error) {
@@ -75,7 +73,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
         }
       }
 
-      await copyDeepLink(fallbackText);
+      await copyToClipboard(deepLink);
     } finally {
       isSharingRef.current = false;
     }
