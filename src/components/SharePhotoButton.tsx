@@ -50,20 +50,20 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
     const shareText = context
       ? `A new photo has been added to ${context}. Check it out!`
       : "Check out this photo on Ignite!";
+    const nativeShareText = `${shareText}\n${deepLink}`;
 
     try {
       if (Capacitor.isNativePlatform()) {
         try {
           await Share.share({
             title: "Ignite Club HQ",
-            text: shareText,
-            url: deepLink,
+            text: nativeShareText,
             dialogTitle: "Share photo",
           });
         } catch (error) {
           if ((error as Error).name !== "AbortError") {
             console.log("Capacitor Share failed, falling back to clipboard:", error);
-            await copyDeepLink(`${shareText}\n${deepLink}`);
+            await copyDeepLink(nativeShareText);
           }
         }
         return;
@@ -79,7 +79,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
         }
       }
 
-      await copyDeepLink(`${shareText}\n${deepLink}`);
+      await copyDeepLink(nativeShareText);
     } finally {
       isSharingRef.current = false;
     }
