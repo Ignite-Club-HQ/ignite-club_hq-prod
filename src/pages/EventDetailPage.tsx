@@ -1688,13 +1688,15 @@ export default function EventDetailPage() {
             try {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
-                  // URL-only prevents Messenger from duplicating the shared body.
+                  title: shareText,
+                  text: shareText,
                   url: shareUrl,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
                 await navigator.share({
-                  // Keep payload URL-only for consistent Messenger behavior.
+                  title: shareText,
+                  text: shareText,
                   url: shareUrl,
                 });
               } else {
