@@ -51,14 +51,13 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
       ? `A new photo has been added to ${context}. Check it out!`
       : "Check out this photo on Ignite!";
 
-    const sharePayloadText = `${shareText}\n${deepLink}`;
-
     try {
       if (Capacitor.isNativePlatform()) {
         try {
-          // Keep a single text payload so Messenger receives message + link once.
           await Share.share({
-            text: sharePayloadText,
+            title: shareText,
+            text: shareText,
+            url: deepLink,
             dialogTitle: "Share photo",
           });
         } catch (error) {
