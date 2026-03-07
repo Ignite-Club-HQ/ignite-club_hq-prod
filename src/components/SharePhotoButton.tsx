@@ -55,7 +55,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
       if (Capacitor.isNativePlatform()) {
         try {
           await Share.share({
-            title: shareText,
+            title: "Ignite Club HQ",
             text: shareText,
             url: deepLink,
             dialogTitle: "Share photo",
@@ -71,7 +71,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
 
       if (navigator.share) {
         try {
-          await navigator.share({ title: shareText, text: shareText, url: deepLink });
+          await navigator.share({ title: "Ignite Club HQ", text: shareText, url: deepLink });
           return;
         } catch (error) {
           if ((error as Error).name === "AbortError") return;

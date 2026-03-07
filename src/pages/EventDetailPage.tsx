@@ -1688,14 +1688,14 @@ export default function EventDetailPage() {
             try {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
-                  title: shareText,
+                  title: 'Ignite Club HQ',
                   text: shareText,
                   url: shareUrl,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
                 await navigator.share({
-                  title: shareText,
+                  title: 'Ignite Club HQ',
                   text: shareText,
                   url: shareUrl,
                 });
