@@ -134,9 +134,13 @@ Deno.serve(async (req) => {
   <meta name="twitter:description" content="${escapeHtml(description)}" />
   <meta name="twitter:image" content="${escapeHtml(image)}" />
   <link rel="canonical" href="${escapeHtml(redirectUrl)}" />
+  <meta http-equiv="refresh" content="0;url=${escapeHtml(redirectUrl)}" />
 </head>
 <body>
-  <p>Open <a href="${escapeHtml(redirectUrl)}">Ignite Club HQ</a>.</p>
+  <p>Redirecting to <a href="${escapeHtml(redirectUrl)}">Ignite Club HQ</a>...</p>
+  <script>
+    window.location.replace(${JSON.stringify(redirectUrl)});
+  </script>
 </body>
 </html>`;
 
