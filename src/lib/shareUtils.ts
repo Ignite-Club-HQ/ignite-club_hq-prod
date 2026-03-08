@@ -7,7 +7,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
  * then redirects to the actual app page.
  */
 export function getShareUrl(type: "photo" | "event" | "folder", id: string): string {
-  return `${SUPABASE_URL}/functions/v1/share-page?type=${type}&id=${encodeURIComponent(id)}`;
+  return `https://igniteclubhq.app/share?type=${type}&id=${encodeURIComponent(id)}`;
 }
 
 /**

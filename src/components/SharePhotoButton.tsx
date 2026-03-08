@@ -40,9 +40,8 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
     if (isSharingRef.current) return;
     isSharingRef.current = true;
 
-    // URL with OG tags for rich preview in Messenger/WhatsApp etc.
+    // Edge function URL for rich OG previews; deep link for clipboard fallback
     const shareUrl = getShareUrl("photo", photoId);
-    // Direct deep link for clipboard fallback
     const deepLink = getDeepLink("photo", photoId);
 
     try {

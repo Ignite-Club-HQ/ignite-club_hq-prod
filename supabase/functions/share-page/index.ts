@@ -104,7 +104,25 @@ Deno.serve(async (req) => {
     console.error("Error fetching share data:", err);
   }
 
-  // Serve HTML with OG tags + instant redirect
+  // Detect bots/crawlers that need OG tags while letting real in-app browsers redirect instantly
+  const ua = (req.headers.get("user-agent") || "").toLowerCase();
+  const isCrawler = /facebookexternalhit|facebot|twitterbot|whatsapp|linkedinbot|slackbot|telegrambot|discordbot|googlebot|bingbot|pinterest|crawler|spider|crawl|preview/i.test(ua);
+  const isLikelyHumanBrowser = /mozilla|android|iphone|ipad|mobile|wv|safari|chrome/i.test(ua);
+  const isBot = isCrawler && !isLikelyHumanBrowser;
+
+  // Real users get an instant 302 redirect — no supabase domain visible
+  if (!isBot) {
+    return new Response(null, {
+      status: 302,
+      headers: {
+        ...corsHeaders,
+        Location: redirectUrl,
+        "Cache-Control": "no-cache",
+      },
+    });
+  }
+
+  // Bots get HTML with OG tags
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -123,6 +141,7 @@ Deno.serve(async (req) => {
   <meta name="twitter:description" content="${escapeHtml(description)}" />
   <meta name="twitter:image" content="${escapeHtml(image)}" />
   <meta http-equiv="refresh" content="0;url=${escapeHtml(redirectUrl)}" />
+  <script>window.location.replace("${escapeHtml(redirectUrl)}");</script>
 </head>
 <body>
   <p>Redirecting to <a href="${escapeHtml(redirectUrl)}">Ignite Club HQ</a>...</p>
