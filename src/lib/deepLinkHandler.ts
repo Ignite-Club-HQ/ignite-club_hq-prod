@@ -44,9 +44,9 @@ export function initDeepLinkHandler() {
           console.log('[DeepLink] Session set successfully, user:', data.user?.id);
           
           // Navigate to the intended path or home
-          const path = url.pathname || '/';
-          if (path !== '/' && path !== '') {
-            window.location.href = path;
+          const pathWithQuery = `${url.pathname || '/'}${url.search || ''}`;
+          if (pathWithQuery !== '/' && pathWithQuery !== '') {
+            window.location.href = pathWithQuery;
           } else {
             // Force a refresh to trigger auth state change
             window.location.href = '/';
@@ -70,6 +70,7 @@ export function initDeepLinkHandler() {
         // Not an OAuth callback, handle as regular deep link navigation
         const path = url.pathname;
         const fullSearch = url.search;
+        const fullHash = url.hash;
 
         // Handle payment deep link callbacks
         if (path === '/payment-success' || url.host === 'payment-success') {
@@ -85,7 +86,7 @@ export function initDeepLinkHandler() {
           window.location.href = '/';
           return;
         }
-        
+
         // Check for Google Drive OAuth callback (code param on /vault path)
         if (path === '/vault' && searchParams.get('code')) {
           const driveCode = searchParams.get('code');
@@ -94,7 +95,7 @@ export function initDeepLinkHandler() {
           window.location.href = '/vault';
           return;
         }
-        
+
         // Check for Google Drive OAuth error
         if (path === '/vault' && searchParams.get('error')) {
           const driveError = searchParams.get('error');
@@ -103,10 +104,11 @@ export function initDeepLinkHandler() {
           window.location.href = '/vault';
           return;
         }
-        
+
         if (path && path !== '/') {
-          console.log('[DeepLink] Navigating to path:', path);
-          window.location.href = path;
+          const destination = `${path}${fullSearch || ''}${fullHash || ''}`;
+          console.log('[DeepLink] Navigating to path:', destination);
+          window.location.href = destination;
         }
       }
     } catch (err) {

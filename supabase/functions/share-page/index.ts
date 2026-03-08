@@ -104,7 +104,8 @@ Deno.serve(async (req) => {
     console.error("Error fetching share data:", err);
   }
 
-  if (!isCrawlerRequest(req)) {
+  const isLikelyUserNavigation = req.headers.get("sec-fetch-user") === "?1";
+  if (!isCrawlerRequest(req) && isLikelyUserNavigation) {
     return new Response(null, {
       status: 302,
       headers: {
@@ -133,9 +134,13 @@ Deno.serve(async (req) => {
   <meta name="twitter:description" content="${escapeHtml(description)}" />
   <meta name="twitter:image" content="${escapeHtml(image)}" />
   <link rel="canonical" href="${escapeHtml(redirectUrl)}" />
+  <meta http-equiv="refresh" content="0;url=${escapeHtml(redirectUrl)}" />
 </head>
 <body>
-  <p>Open <a href="${escapeHtml(redirectUrl)}">Ignite Club HQ</a>.</p>
+  <p>Redirecting to <a href="${escapeHtml(redirectUrl)}">Ignite Club HQ</a>...</p>
+  <script>
+    window.location.replace(${JSON.stringify(redirectUrl)});
+  </script>
 </body>
 </html>`;
 
@@ -169,15 +174,21 @@ async function resolvePreviewImageUrl(
     return source;
   }
 
-  if (/\/storage\/v1\/object\/public\//i.test(source) || /\/storage\/v1\/object\/sign\//i.test(source)) {
+  // Public object URLs are already directly accessible for crawlers.
+  if (/\/storage\/v1\/object\/public\//i.test(source)) {
     return source;
   }
 
   let bucket = "";
   let filePath = "";
 
+  const signedStorageMatch = source.match(/\/storage\/v1\/object\/sign\/([^/?#]+)\/(.+?)(?:\?.*)?$/i);
   const privateStorageMatch = source.match(/\/storage\/v1\/object\/(?:private|authenticated)\/([^/?#]+)\/(.+?)(?:\?.*)?$/i);
-  if (privateStorageMatch) {
+
+  if (signedStorageMatch) {
+    bucket = signedStorageMatch[1];
+    filePath = signedStorageMatch[2];
+  } else if (privateStorageMatch) {
     bucket = privateStorageMatch[1];
     filePath = privateStorageMatch[2];
   } else {
@@ -191,6 +202,12 @@ async function resolvePreviewImageUrl(
 
   if (!bucket || !filePath) {
     return source;
+  }
+
+  try {
+    filePath = decodeURIComponent(filePath).replace(/^\/+/, "");
+  } catch {
+    filePath = filePath.replace(/^\/+/, "");
   }
 
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(filePath, 3600);
