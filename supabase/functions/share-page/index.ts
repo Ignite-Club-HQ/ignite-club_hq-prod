@@ -94,6 +94,11 @@ Deno.serve(async (req) => {
         const candidates = [event.preview_image_url, (event as any).clubs?.logo_url].filter(Boolean);
         console.log("Event image candidates:", candidates);
         for (const candidate of candidates) {
+          // Skip SVG images — most social platforms don't render them for og:image
+          if (/\.svg(\?|$)/i.test(candidate)) {
+            console.log("Skipping SVG candidate:", candidate);
+            continue;
+          }
           const resolved = await resolvePreviewImageUrl(supabase, candidate);
           console.log("Resolved candidate:", { candidate, resolved });
           if (resolved && resolved.startsWith("http")) {
