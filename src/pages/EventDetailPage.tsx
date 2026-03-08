@@ -1694,7 +1694,7 @@ export default function EventDetailPage() {
               }
             } catch (err) {
               if ((err as Error).name !== 'AbortError') {
-                await navigator.clipboard.writeText(deepLink);
+                await navigator.clipboard.writeText(shareUrl);
                 toast({ title: "Link copied to clipboard!" });
               }
             } finally {
