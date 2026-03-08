@@ -3,23 +3,27 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 const APP_URL = "https://igniteclubhq.app";
 const DEFAULT_IMAGE = `${APP_URL}/ignite-logo.png`;
+const CRAWLER_UA_REGEX = /(facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|discordbot|whatsapp|telegrambot|skypeuripreview|googlebot|bingbot|duckduckbot|yandexbot|applebot|pinterest|redditbot|vkshare)/i;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   const url = new URL(req.url);
-  const type = url.searchParams.get("type"); // photo, event, folder
+  const type = url.searchParams.get("type");
   const id = url.searchParams.get("id");
 
   if (!type || !id) {
-    return new Response("Missing type or id", { status: 400 });
+    return new Response("Missing type or id", {
+      status: 400,
+      headers: { ...corsHeaders, "content-type": "text/plain; charset=utf-8" },
+    });
   }
 
   const supabase = createClient(
@@ -45,24 +49,12 @@ Deno.serve(async (req) => {
         const clubName = (photo as any).clubs?.name;
         title = photo.title || "Photo shared on Ignite Club HQ";
         description = [clubName, teamName].filter(Boolean).join(" · ") || "Check out this photo on Ignite Club HQ";
-        const photoUrl = photo.file_url || photo.image_url;
-        if (photoUrl) {
-          // Try to generate a signed URL for the photo
-          const path = photoUrl.replace(/^.*\/storage\/v1\/object\/(?:public|sign)\//, "").split("?")[0];
-          if (path) {
-            const bucket = path.startsWith("photos/") ? "photos" : "team-photos";
-            const filePath = path.replace(/^(photos|team-photos)\//, "");
-            const { data: signedData } = await supabase.storage
-              .from(bucket)
-              .createSignedUrl(filePath, 3600);
-            if (signedData?.signedUrl) {
-              image = signedData.signedUrl;
-            }
-          }
-        }
-      }
-      redirectUrl = `${APP_URL}/media/${id}`;
 
+        const resolvedImage = await resolvePreviewImageUrl(supabase, photo.file_url || photo.image_url);
+        if (resolvedImage) image = resolvedImage;
+      }
+
+      redirectUrl = `${APP_URL}/media/${id}`;
     } else if (type === "event") {
       const { data: event } = await supabase
         .from("events")
@@ -79,30 +71,21 @@ Deno.serve(async (req) => {
           try {
             const d = new Date(event.event_date);
             parts.push(d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" }));
-          } catch {}
+          } catch {
+            // Ignore invalid date formatting issues
+          }
         }
+
         description = parts.length > 0
           ? `You're invited! ${parts.join(" · ")}`
           : "You've been invited to an event on Ignite Club HQ";
 
-        // Use event preview image, or fall back to club logo
         const eventImage = event.preview_image_url || (event as any).clubs?.logo_url;
-        if (eventImage) {
-          const path = eventImage.replace(/^.*\/storage\/v1\/object\/(?:public|sign)\//, "").split("?")[0];
-          if (path) {
-            const bucket = path.split("/")[0];
-            const filePath = path.replace(/^[^/]+\//, "");
-            const { data: signedData } = await supabase.storage
-              .from(bucket)
-              .createSignedUrl(filePath, 3600);
-            if (signedData?.signedUrl) {
-              image = signedData.signedUrl;
-            }
-          }
-        }
+        const resolvedImage = await resolvePreviewImageUrl(supabase, eventImage);
+        if (resolvedImage) image = resolvedImage;
       }
-      redirectUrl = `${APP_URL}/events/${id}`;
 
+      redirectUrl = `${APP_URL}/events/${id}`;
     } else if (type === "folder") {
       const { data: folder } = await supabase
         .from("vault_folders")
@@ -114,14 +97,24 @@ Deno.serve(async (req) => {
         title = `${folder.name} — Ignite Club HQ`;
         description = "A folder has been shared with you on Ignite Club HQ";
       }
+
       redirectUrl = `${APP_URL}/vault/folder/${id}`;
     }
   } catch (err) {
     console.error("Error fetching share data:", err);
   }
 
-  // Serve OG HTML for all requests, then immediately redirect in the page.
-  // This avoids brittle user-agent detection that can miss social crawlers.
+  if (!isCrawlerRequest(req)) {
+    return new Response(null, {
+      status: 302,
+      headers: {
+        ...corsHeaders,
+        location: redirectUrl,
+        "cache-control": "no-store",
+      },
+    });
+  }
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -139,22 +132,75 @@ Deno.serve(async (req) => {
   <meta name="twitter:title" content="${escapeHtml(title)}" />
   <meta name="twitter:description" content="${escapeHtml(description)}" />
   <meta name="twitter:image" content="${escapeHtml(image)}" />
-  <meta http-equiv="refresh" content="0;url=${escapeHtml(redirectUrl)}" />
-  <script>window.location.replace("${escapeHtml(redirectUrl)}");</script>
+  <link rel="canonical" href="${escapeHtml(redirectUrl)}" />
 </head>
 <body>
-  <p>Redirecting to <a href="${escapeHtml(redirectUrl)}">Ignite Club HQ</a>...</p>
+  <p>Open <a href="${escapeHtml(redirectUrl)}">Ignite Club HQ</a>.</p>
 </body>
 </html>`;
 
   return new Response(html, {
     headers: {
       ...corsHeaders,
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "public, max-age=300",
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "x-content-type-options": "nosniff",
     },
   });
 });
+
+function isCrawlerRequest(req: Request): boolean {
+  const userAgent = req.headers.get("user-agent") || "";
+  const purpose = req.headers.get("purpose") || req.headers.get("sec-purpose") || "";
+
+  return CRAWLER_UA_REGEX.test(userAgent) || /(prefetch|preview|crawler|spider|bot)/i.test(purpose);
+}
+
+async function resolvePreviewImageUrl(
+  supabase: ReturnType<typeof createClient>,
+  rawUrl: string | null | undefined,
+): Promise<string | null> {
+  if (!rawUrl) return null;
+
+  const source = rawUrl.trim();
+  if (!source) return null;
+
+  if (/^https?:\/\//i.test(source) && !source.includes("/storage/v1/object/")) {
+    return source;
+  }
+
+  if (/\/storage\/v1\/object\/public\//i.test(source) || /\/storage\/v1\/object\/sign\//i.test(source)) {
+    return source;
+  }
+
+  let bucket = "";
+  let filePath = "";
+
+  const privateStorageMatch = source.match(/\/storage\/v1\/object\/(?:private|authenticated)\/([^/?#]+)\/(.+?)(?:\?.*)?$/i);
+  if (privateStorageMatch) {
+    bucket = privateStorageMatch[1];
+    filePath = privateStorageMatch[2];
+  } else {
+    const normalizedSource = source.replace(/^\/+/, "");
+    const rawPathMatch = normalizedSource.match(/^([^/]+)\/(.+)$/);
+    if (rawPathMatch) {
+      bucket = rawPathMatch[1];
+      filePath = rawPathMatch[2];
+    }
+  }
+
+  if (!bucket || !filePath) {
+    return source;
+  }
+
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(filePath, 3600);
+  if (error || !data?.signedUrl) {
+    console.warn("Failed to create signed image URL", { source, bucket, filePath, error: error?.message });
+    return source;
+  }
+
+  return data.signedUrl;
+}
 
 function escapeHtml(str: string): string {
   return str
