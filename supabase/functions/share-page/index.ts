@@ -104,14 +104,13 @@ Deno.serve(async (req) => {
     console.error("Error fetching share data:", err);
   }
 
-  // Detect bots/crawlers that need OG tags while letting real in-app browsers redirect instantly
+  // Detect bots/crawlers that need OG tags while letting real browsers redirect
   const ua = (req.headers.get("user-agent") || "").toLowerCase();
-  const isCrawler = /facebookexternalhit|facebot|twitterbot|whatsapp|linkedinbot|slackbot|telegrambot|discordbot|googlebot|bingbot|pinterest|crawler|spider|crawl|preview/i.test(ua);
-  const isLikelyHumanBrowser = /mozilla|android|iphone|ipad|mobile|wv|safari|chrome/i.test(ua);
-  const isBot = isCrawler && !isLikelyHumanBrowser;
+  // Crawler check — these bots need the OG HTML page, not a redirect
+  const isCrawler = /facebookexternalhit|facebot|twitterbot|whatsapp|linkedinbot|slackbot|telegrambot|discordbot|googlebot|bingbot|pinterest|crawler|spider|crawl|preview|bot/i.test(ua);
 
-  // Real users get an instant 302 redirect — no supabase domain visible
-  if (!isBot) {
+  // If it's a crawler, serve OG tags. Otherwise redirect.
+  if (!isCrawler) {
     return new Response(null, {
       status: 302,
       headers: {
