@@ -104,24 +104,8 @@ Deno.serve(async (req) => {
     console.error("Error fetching share data:", err);
   }
 
-  // Detect bots/crawlers that need OG tags while letting real browsers redirect
-  const ua = (req.headers.get("user-agent") || "").toLowerCase();
-  // Crawler check — these bots need the OG HTML page, not a redirect
-  const isCrawler = /facebookexternalhit|facebot|twitterbot|whatsapp|linkedinbot|slackbot|telegrambot|discordbot|googlebot|bingbot|pinterest|crawler|spider|crawl|preview|bot/i.test(ua);
-
-  // If it's a crawler, serve OG tags. Otherwise redirect.
-  if (!isCrawler) {
-    return new Response(null, {
-      status: 302,
-      headers: {
-        ...corsHeaders,
-        Location: redirectUrl,
-        "Cache-Control": "no-cache",
-      },
-    });
-  }
-
-  // Bots get HTML with OG tags
+  // Serve OG HTML for all requests, then immediately redirect in the page.
+  // This avoids brittle user-agent detection that can miss social crawlers.
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
