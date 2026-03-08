@@ -254,6 +254,24 @@ async function resolvePreviewImageUrl(
   return data.signedUrl;
 }
 
+function isSvgLikeImage(rawUrl: string): boolean {
+  const source = rawUrl.trim().toLowerCase();
+  if (!source) return false;
+
+  if (/\.svg(\?|$)/i.test(source) || /\/svg(\?|$)/i.test(source) || source.includes("/svg?")) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(source);
+    const path = parsed.pathname.toLowerCase();
+    const format = parsed.searchParams.get("format")?.toLowerCase();
+    return path.endsWith(".svg") || path.endsWith("/svg") || format === "svg";
+  } catch {
+    return false;
+  }
+}
+
 function esc(str: string): string {
   return str
     .replace(/&/g, "&amp;")
