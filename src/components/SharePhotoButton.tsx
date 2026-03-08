@@ -40,14 +40,15 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
     if (isSharingRef.current) return;
     isSharingRef.current = true;
 
-    // Use clean app-domain link so shared message never shows Supabase URL
+    // Edge function URL for rich OG previews; deep link for clipboard fallback
+    const shareUrl = getShareUrl("photo", photoId);
     const deepLink = getDeepLink("photo", photoId);
 
     try {
       if (Capacitor.isNativePlatform()) {
         try {
           await Share.share({
-            url: deepLink,
+            url: shareUrl,
             dialogTitle: "Share photo",
           });
         } catch (error) {
