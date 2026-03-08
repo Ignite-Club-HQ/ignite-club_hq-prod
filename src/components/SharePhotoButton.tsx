@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Share } from "@capacitor/share";
 import { Capacitor } from "@capacitor/core";
-import { getShareUrl, getDeepLink } from "@/lib/shareUtils";
+import { getShareUrl } from "@/lib/shareUtils";
 
 interface SharePhotoButtonProps {
   photoId: string;
@@ -40,9 +40,8 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
     if (isSharingRef.current) return;
     isSharingRef.current = true;
 
-    // Edge function URL for rich OG previews; deep link for clipboard fallback
+    // Always share the /share URL so recipients get rich previews + proper redirects
     const shareUrl = getShareUrl("photo", photoId);
-    const deepLink = getDeepLink("photo", photoId);
 
     try {
       if (Capacitor.isNativePlatform()) {
@@ -54,7 +53,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
         } catch (error) {
           if ((error as Error).name !== "AbortError") {
             console.log("Capacitor Share failed, falling back to clipboard:", error);
-            await copyToClipboard(deepLink);
+            await copyToClipboard(shareUrl);
           }
         }
         return;
@@ -72,7 +71,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
         }
       }
 
-      await copyToClipboard(deepLink);
+      await copyToClipboard(shareUrl);
     } finally {
       isSharingRef.current = false;
     }

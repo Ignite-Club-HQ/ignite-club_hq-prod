@@ -1,3 +1,10 @@
+[[headers]]
+  for = "/share"
+  [headers.values]
+    Content-Type = "text/html; charset=utf-8"
+    Content-Security-Policy = "default-src 'self' https:; script-src 'unsafe-inline'; style-src 'unsafe-inline'"
+    X-Content-Type-Options = "nosniff"
+
 [[redirects]]
   from = "/share"
   to = "https://yabcfiuntwqjwvschnji.supabase.co/functions/v1/share-page"

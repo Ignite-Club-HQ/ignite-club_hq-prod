@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -105,6 +105,25 @@ const MediaPhotoRedirect = () => {
   return <Navigate to={`/media?photo=${photoId}`} replace />;
 };
 
+const ShareLinkRedirect = () => {
+  const [searchParams] = useSearchParams();
+  const type = searchParams.get("type");
+  const id = searchParams.get("id");
+
+  if (!type || !id) return <Navigate to="/" replace />;
+
+  switch (type) {
+    case "photo":
+      return <Navigate to={`/media?photo=${id}`} replace />;
+    case "event":
+      return <Navigate to={`/events/${id}`} replace />;
+    case "folder":
+      return <Navigate to={`/vault/folder/${id}`} replace />;
+    default:
+      return <Navigate to="/" replace />;
+  }
+};
+
 const DeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
 
 /**
@@ -177,6 +196,7 @@ const App = () => {
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />
                 <Route path="/cancellation" element={<CancellationPolicyPage />} />
                 <Route path="/video-guide" element={<VideoGuideDownloadPage />} />
+                <Route path="/share" element={<ShareLinkRedirect />} />
 
 
                 {/* Protected routes */}
