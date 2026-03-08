@@ -469,6 +469,7 @@ export type Database = {
           latitude: number | null
           logo_url: string | null
           longitude: number | null
+          notify_renewals: boolean
           preferred_benefits: string[]
           preferred_tiers: string[]
           state: string | null
@@ -488,6 +489,7 @@ export type Database = {
           latitude?: number | null
           logo_url?: string | null
           longitude?: number | null
+          notify_renewals?: boolean
           preferred_benefits?: string[]
           preferred_tiers?: string[]
           state?: string | null
@@ -507,6 +509,7 @@ export type Database = {
           latitude?: number | null
           logo_url?: string | null
           longitude?: number | null
+          notify_renewals?: boolean
           preferred_benefits?: string[]
           preferred_tiers?: string[]
           state?: string | null
