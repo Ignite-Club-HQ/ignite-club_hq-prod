@@ -959,7 +959,6 @@ export default function VaultPage() {
 
   const shareFolder = async (folderId: string) => {
     const shareUrl = getShareUrl("folder", folderId);
-    const deepLink = getDeepLink("folder", folderId);
     
     try {
       if (Capacitor.isNativePlatform()) {
@@ -970,7 +969,7 @@ export default function VaultPage() {
           });
         } catch (error) {
           if ((error as Error).name !== "AbortError") {
-            await navigator.clipboard.writeText(deepLink);
+            await navigator.clipboard.writeText(shareUrl);
             toast.success("Link copied to clipboard!");
           }
         }
@@ -982,12 +981,12 @@ export default function VaultPage() {
           url: shareUrl,
         });
       } else {
-        await navigator.clipboard.writeText(deepLink);
+        await navigator.clipboard.writeText(shareUrl);
         toast.success("Link copied to clipboard!");
       }
     } catch (error) {
       if ((error as Error).name !== "AbortError") {
-        await navigator.clipboard.writeText(deepLink);
+        await navigator.clipboard.writeText(shareUrl);
         toast.success("Link copied to clipboard!");
       }
     }
