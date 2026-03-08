@@ -94,13 +94,16 @@ Deno.serve(async (req) => {
         const candidates = [event.preview_image_url, (event as any).clubs?.logo_url].filter(Boolean);
         console.log("Event image candidates:", candidates);
         for (const candidate of candidates) {
-          // Skip SVG images — most social platforms don't render them for og:image
-          if (/\.svg(\?|$)/i.test(candidate)) {
-            console.log("Skipping SVG candidate:", candidate);
+          const socialCandidate = getSocialPreviewImageCandidate(candidate);
+          if (!socialCandidate) {
+            console.log("Skipping unsupported OG image candidate:", candidate);
             continue;
           }
-          const resolved = await resolvePreviewImageUrl(supabase, candidate);
-          console.log("Resolved candidate:", { candidate, resolved });
+          if (socialCandidate !== candidate) {
+            console.log("Converted OG image candidate:", { from: candidate, to: socialCandidate });
+          }
+          const resolved = await resolvePreviewImageUrl(supabase, socialCandidate);
+          console.log("Resolved candidate:", { candidate: socialCandidate, resolved });
           if (resolved && resolved.startsWith("http")) {
             image = resolved;
             break;
@@ -252,6 +255,52 @@ async function resolvePreviewImageUrl(
   }
 
   return data.signedUrl;
+}
+
+function isSvgLikeImage(rawUrl: string): boolean {
+  const source = rawUrl.trim().toLowerCase();
+  if (!source) return false;
+
+  if (/\.svg(\?|$)/i.test(source) || /\/svg(\?|$)/i.test(source) || source.includes("/svg?")) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(source);
+    const path = parsed.pathname.toLowerCase();
+    const format = parsed.searchParams.get("format")?.toLowerCase();
+    return path.endsWith(".svg") || path.endsWith("/svg") || format === "svg";
+  } catch {
+    return false;
+  }
+}
+
+function getSocialPreviewImageCandidate(rawUrl: string): string | null {
+  const source = rawUrl.trim();
+  if (!source) return null;
+
+  if (!isSvgLikeImage(source)) {
+    return source;
+  }
+
+  try {
+    const parsed = new URL(source);
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase();
+
+    // Convert Dicebear SVG endpoints to PNG so OG crawlers can render them
+    if (host.includes("dicebear.com") && path.endsWith("/svg")) {
+      parsed.pathname = parsed.pathname.replace(/\/svg$/i, "/png");
+      if (!parsed.searchParams.has("size")) {
+        parsed.searchParams.set("size", "1200");
+      }
+      return parsed.toString();
+    }
+  } catch {
+    // Fall through for non-URL strings
+  }
+
+  return null;
 }
 
 function esc(str: string): string {
