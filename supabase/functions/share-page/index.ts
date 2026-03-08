@@ -53,9 +53,9 @@ Deno.serve(async (req) => {
         if (resolvedImage) {
           image = resolvedImage;
         } else {
-          // Fall back to club logo
+          // Fall back to club logo (skip SVGs — not supported by social platforms)
           const clubLogo = (photo as any).clubs?.logo_url;
-          if (clubLogo) {
+          if (clubLogo && !/\.svg(\?|$)/i.test(clubLogo)) {
             const resolvedLogo = await resolvePreviewImageUrl(supabase, clubLogo);
             if (resolvedLogo) image = resolvedLogo;
           }
