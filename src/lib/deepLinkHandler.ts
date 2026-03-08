@@ -44,9 +44,9 @@ export function initDeepLinkHandler() {
           console.log('[DeepLink] Session set successfully, user:', data.user?.id);
           
           // Navigate to the intended path or home
-          const path = url.pathname || '/';
-          if (path !== '/' && path !== '') {
-            window.location.href = path;
+          const pathWithQuery = `${url.pathname || '/'}${url.search || ''}`;
+          if (pathWithQuery !== '/' && pathWithQuery !== '') {
+            window.location.href = pathWithQuery;
           } else {
             // Force a refresh to trigger auth state change
             window.location.href = '/';

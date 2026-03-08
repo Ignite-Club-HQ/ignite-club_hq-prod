@@ -104,7 +104,8 @@ Deno.serve(async (req) => {
     console.error("Error fetching share data:", err);
   }
 
-  if (!isCrawlerRequest(req)) {
+  const isLikelyUserNavigation = req.headers.get("sec-fetch-user") === "?1";
+  if (!isCrawlerRequest(req) && isLikelyUserNavigation) {
     return new Response(null, {
       status: 302,
       headers: {
