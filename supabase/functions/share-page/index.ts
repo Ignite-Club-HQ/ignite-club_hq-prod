@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
         console.log("Event image candidates:", candidates);
         for (const candidate of candidates) {
           // Skip SVG images — most social platforms don't render them for og:image
-          if (/\.svg(\?|$)/i.test(candidate)) {
+          if (isSvgLikeImage(candidate)) {
             console.log("Skipping SVG candidate:", candidate);
             continue;
           }
