@@ -1689,7 +1689,7 @@ export default function EventDetailPage() {
                   url: shareUrl,
                 });
               } else {
-                await navigator.clipboard.writeText(deepLink);
+                await navigator.clipboard.writeText(shareUrl);
                 toast({ title: "Link copied to clipboard!" });
               }
             } catch (err) {
