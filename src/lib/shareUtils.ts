@@ -14,7 +14,8 @@ export function getShareUrl(type: "photo" | "event" | "folder", id: string): str
       ? `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/share-page`
       : `${APP_URL}/share`;
 
-  return `${shareBaseUrl}?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+  const cacheBust = Date.now().toString(36);
+  return `${shareBaseUrl}?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}&cb=${cacheBust}`;
 }
 
 /**
