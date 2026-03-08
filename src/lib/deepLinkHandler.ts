@@ -68,7 +68,15 @@ export function initDeepLinkHandler() {
         }
       } else {
         // Not an OAuth callback, handle as regular deep link navigation
-        const path = url.pathname;
+        const rawPath = url.pathname || '/';
+        const isHttpLike = url.protocol === 'http:' || url.protocol === 'https:';
+        let path = rawPath;
+
+        // Custom scheme links like igniteclubhq://events/123 have host="events", pathname="/123"
+        if (!isHttpLike && url.host && !url.host.includes('.')) {
+          path = `/${url.host}${rawPath === '/' ? '' : rawPath}`;
+        }
+
         const fullSearch = url.search;
         const fullHash = url.hash;
 

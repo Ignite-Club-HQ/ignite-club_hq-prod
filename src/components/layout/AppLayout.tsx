@@ -150,11 +150,12 @@ export function AppLayout() {
     );
   }
 
-  // Don't redirect to auth if:
-  // 1. We have a pending OAuth callback (Google Drive)
-  // 2. There are OAuth tokens in the URL (Google login in progress)
-  // The user is authenticated or about to be - just waiting for session to initialize
+  // Preserve deep-link destination for post-auth return
   if (!user && !hasPendingOAuth && !hasOAuthTokensInUrl) {
+    if (isDeepLinkRoute && typeof window !== 'undefined') {
+      const redirectPath = `${location.pathname}${location.search}${location.hash}`;
+      sessionStorage.setItem("redirectAfterAuth", redirectPath);
+    }
     return <Navigate to="/auth" replace />;
   }
 
