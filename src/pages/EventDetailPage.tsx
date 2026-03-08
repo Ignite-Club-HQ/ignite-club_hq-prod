@@ -1676,7 +1676,7 @@ export default function EventDetailPage() {
             isSharingEventRef.current = true;
 
             const shareUrl = getShareUrl("event", id!);
-            const deepLink = getDeepLink("event", id!);
+            
 
             try {
               if (Capacitor.isNativePlatform()) {
