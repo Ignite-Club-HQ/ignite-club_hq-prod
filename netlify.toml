@@ -1,0 +1,5 @@
+[[redirects]]
+  from = "/share"
+  to = "https://yabcfiuntwqjwvschnji.supabase.co/functions/v1/share-page"
+  status = 200
+  force = true
