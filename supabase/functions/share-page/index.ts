@@ -88,9 +88,15 @@ Deno.serve(async (req) => {
           ? `You're invited! ${parts.join(" · ")}`
           : "You've been invited to an event on Ignite Club HQ";
 
-        const eventImage = event.preview_image_url || (event as any).clubs?.logo_url;
-        const resolvedImage = await resolvePreviewImageUrl(supabase, eventImage);
-        if (resolvedImage) image = resolvedImage;
+        // Try preview image first, then club logo, then keep default
+        const candidates = [event.preview_image_url, (event as any).clubs?.logo_url].filter(Boolean);
+        for (const candidate of candidates) {
+          const resolved = await resolvePreviewImageUrl(supabase, candidate);
+          if (resolved && resolved.startsWith("http")) {
+            image = resolved;
+            break;
+          }
+        }
       }
 
       redirectUrl = `${APP_URL}/events/${id}`;
