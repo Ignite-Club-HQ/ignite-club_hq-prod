@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     } else if (type === "event") {
       const { data: event } = await supabase
         .from("events")
-        .select("title, event_date, type, teams(name), clubs(name)")
+        .select("title, event_date, type, preview_image_url, teams(name), clubs(name, logo_url)")
         .eq("id", id)
         .maybeSingle();
 
@@ -84,6 +84,22 @@ Deno.serve(async (req) => {
         description = parts.length > 0
           ? `You're invited! ${parts.join(" · ")}`
           : "You've been invited to an event on Ignite Club HQ";
+
+        // Use event preview image, or fall back to club logo
+        const eventImage = event.preview_image_url || (event as any).clubs?.logo_url;
+        if (eventImage) {
+          const path = eventImage.replace(/^.*\/storage\/v1\/object\/(?:public|sign)\//, "").split("?")[0];
+          if (path) {
+            const bucket = path.split("/")[0];
+            const filePath = path.replace(/^[^/]+\//, "");
+            const { data: signedData } = await supabase.storage
+              .from(bucket)
+              .createSignedUrl(filePath, 3600);
+            if (signedData?.signedUrl) {
+              image = signedData.signedUrl;
+            }
+          }
+        }
       }
       redirectUrl = `${APP_URL}/events/${id}`;
 
@@ -104,24 +120,8 @@ Deno.serve(async (req) => {
     console.error("Error fetching share data:", err);
   }
 
-  // Detect bots/crawlers that need OG tags while letting real browsers redirect
-  const ua = (req.headers.get("user-agent") || "").toLowerCase();
-  // Crawler check — these bots need the OG HTML page, not a redirect
-  const isCrawler = /facebookexternalhit|facebot|twitterbot|whatsapp|linkedinbot|slackbot|telegrambot|discordbot|googlebot|bingbot|pinterest|crawler|spider|crawl|preview|bot/i.test(ua);
-
-  // If it's a crawler, serve OG tags. Otherwise redirect.
-  if (!isCrawler) {
-    return new Response(null, {
-      status: 302,
-      headers: {
-        ...corsHeaders,
-        Location: redirectUrl,
-        "Cache-Control": "no-cache",
-      },
-    });
-  }
-
-  // Bots get HTML with OG tags
+  // Serve OG HTML for all requests, then immediately redirect in the page.
+  // This avoids brittle user-agent detection that can miss social crawlers.
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>

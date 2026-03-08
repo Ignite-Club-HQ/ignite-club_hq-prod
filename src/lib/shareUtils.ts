@@ -1,13 +1,21 @@
-import { supabase } from "@/integrations/supabase/client";
-
+const APP_URL = "https://igniteclubhq.app";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 
 /**
  * Generates a share URL that serves OG meta tags for rich previews,
  * then redirects to the actual app page.
  */
 export function getShareUrl(type: "photo" | "event" | "folder", id: string): string {
-  return `https://igniteclubhq.app/share?type=${type}&id=${encodeURIComponent(id)}`;
+  const normalizedSupabaseUrl = SUPABASE_URL?.replace(/\/$/, "");
+  const shareBaseUrl = normalizedSupabaseUrl
+    ? `${normalizedSupabaseUrl}/functions/v1/share-page`
+    : SUPABASE_PROJECT_ID
+      ? `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/share-page`
+      : `${APP_URL}/share`;
+
+  const cacheBust = Date.now().toString(36);
+  return `${shareBaseUrl}?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}&cb=${cacheBust}`;
 }
 
 /**
@@ -15,10 +23,9 @@ export function getShareUrl(type: "photo" | "event" | "folder", id: string): str
  * Used for clipboard fallback where we want the direct link.
  */
 export function getDeepLink(type: "photo" | "event" | "folder", id: string): string {
-  const BASE = "https://igniteclubhq.app";
   switch (type) {
-    case "photo": return `${BASE}/media/${id}`;
-    case "event": return `${BASE}/events/${id}`;
-    case "folder": return `${BASE}/vault/folder/${id}`;
+    case "photo": return `${APP_URL}/media/${id}`;
+    case "event": return `${APP_URL}/events/${id}`;
+    case "folder": return `${APP_URL}/vault/folder/${id}`;
   }
 }
