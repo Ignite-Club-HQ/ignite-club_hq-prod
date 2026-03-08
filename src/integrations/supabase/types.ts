@@ -1297,6 +1297,7 @@ export type Database = {
           proposed_tier: string | null
           recognition_gold_threshold: number
           recognition_silver_threshold: number
+          seeking_advertiser: boolean
           show_logo_in_header: boolean
           show_name_in_header: boolean | null
           sponsorship_pitch: string | null
@@ -1356,6 +1357,7 @@ export type Database = {
           proposed_tier?: string | null
           recognition_gold_threshold?: number
           recognition_silver_threshold?: number
+          seeking_advertiser?: boolean
           show_logo_in_header?: boolean
           show_name_in_header?: boolean | null
           sponsorship_pitch?: string | null
@@ -1415,6 +1417,7 @@ export type Database = {
           proposed_tier?: string | null
           recognition_gold_threshold?: number
           recognition_silver_threshold?: number
+          seeking_advertiser?: boolean
           show_logo_in_header?: boolean
           show_name_in_header?: boolean | null
           sponsorship_pitch?: string | null
