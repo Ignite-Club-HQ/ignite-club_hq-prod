@@ -133,7 +133,7 @@ export function AppLayout() {
   // DEEP LINK GATE: Before redirecting unauthenticated users to /auth,
   // check if this is an in-app browser (Messenger, WhatsApp, etc.) on a deep-linkable route.
   // Show the DeepLinkGate interstitial so they can bounce to the native app.
-  const isDeepLinkRoute = /^\/(events\/[^/]+|media\/[^/]+|share)$/.test(location.pathname);
+  const isDeepLinkRoute = /^\/(events\/[^/]+|media\/[^/]+|vault\/folder\/[^/]+|share)$/.test(location.pathname);
   const isNativePlatform = Capacitor.isNativePlatform();
   const userAgent = navigator.userAgent || "";
   const isInApp = !isNativePlatform && /FBAN|FBAV|Instagram|Line\/|Twitter|Snapchat|WhatsApp|LinkedInApp|Messenger/i.test(userAgent);
