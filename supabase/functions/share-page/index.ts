@@ -174,15 +174,21 @@ async function resolvePreviewImageUrl(
     return source;
   }
 
-  if (/\/storage\/v1\/object\/public\//i.test(source) || /\/storage\/v1\/object\/sign\//i.test(source)) {
+  // Public object URLs are already directly accessible for crawlers.
+  if (/\/storage\/v1\/object\/public\//i.test(source)) {
     return source;
   }
 
   let bucket = "";
   let filePath = "";
 
+  const signedStorageMatch = source.match(/\/storage\/v1\/object\/sign\/([^/?#]+)\/(.+?)(?:\?.*)?$/i);
   const privateStorageMatch = source.match(/\/storage\/v1\/object\/(?:private|authenticated)\/([^/?#]+)\/(.+?)(?:\?.*)?$/i);
-  if (privateStorageMatch) {
+
+  if (signedStorageMatch) {
+    bucket = signedStorageMatch[1];
+    filePath = signedStorageMatch[2];
+  } else if (privateStorageMatch) {
     bucket = privateStorageMatch[1];
     filePath = privateStorageMatch[2];
   } else {
@@ -196,6 +202,12 @@ async function resolvePreviewImageUrl(
 
   if (!bucket || !filePath) {
     return source;
+  }
+
+  try {
+    filePath = decodeURIComponent(filePath).replace(/^\/+/, "");
+  } catch {
+    filePath = filePath.replace(/^\/+/, "");
   }
 
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(filePath, 3600);
