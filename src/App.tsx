@@ -196,6 +196,7 @@ const App = () => {
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />
                 <Route path="/cancellation" element={<CancellationPolicyPage />} />
                 <Route path="/video-guide" element={<VideoGuideDownloadPage />} />
+                <Route path="/share" element={<ShareLinkRedirect />} />
 
 
                 {/* Protected routes */}
