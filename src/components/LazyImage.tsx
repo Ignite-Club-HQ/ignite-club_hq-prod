@@ -53,6 +53,9 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
       return;
     }
 
+    // Wait until the img element is actually mounted (not hidden by isLoadingSignedUrl)
+    if (isLoadingSignedUrl) return;
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -76,7 +79,7 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
     }
 
     return () => observer.disconnect();
-  }, [priority, src]); // Re-run when src changes to handle new images
+  }, [priority, src, isLoadingSignedUrl]); // Re-run when signed URL resolves so we can observe the now-mounted img
 
   return (
     <>
