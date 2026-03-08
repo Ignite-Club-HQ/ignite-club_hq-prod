@@ -40,16 +40,14 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
     if (isSharingRef.current) return;
     isSharingRef.current = true;
 
-    // URL with OG tags for rich preview in Messenger/WhatsApp etc.
-    const shareUrl = getShareUrl("photo", photoId);
-    // Direct deep link for clipboard fallback
+    // Use clean app-domain link so shared message never shows Supabase URL
     const deepLink = getDeepLink("photo", photoId);
 
     try {
       if (Capacitor.isNativePlatform()) {
         try {
           await Share.share({
-            url: shareUrl,
+            url: deepLink,
             dialogTitle: "Share photo",
           });
         } catch (error) {
@@ -64,7 +62,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
       if (navigator.share) {
         try {
           await navigator.share({
-            url: shareUrl,
+            url: deepLink,
           });
           return;
         } catch (error) {

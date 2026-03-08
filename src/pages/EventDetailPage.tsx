@@ -1675,18 +1675,17 @@ export default function EventDetailPage() {
             if (isSharingEventRef.current) return;
             isSharingEventRef.current = true;
 
-            const shareUrl = getShareUrl("event", id!);
             const deepLink = getDeepLink("event", id!);
 
             try {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
-                  url: shareUrl,
+                  url: deepLink,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
                 await navigator.share({
-                  url: shareUrl,
+                  url: deepLink,
                 });
               } else {
                 await navigator.clipboard.writeText(deepLink);

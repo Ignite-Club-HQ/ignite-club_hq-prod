@@ -958,14 +958,13 @@ export default function VaultPage() {
   }, [urlFolderId, userClubs, initialLoadComplete, searchParams, setSearchParams]);
 
   const shareFolder = async (folderId: string) => {
-    const shareUrl = getShareUrl("folder", folderId);
     const deepLink = getDeepLink("folder", folderId);
     
     try {
       if (Capacitor.isNativePlatform()) {
         try {
           await Share.share({
-            url: shareUrl,
+            url: deepLink,
             dialogTitle: "Share Folder",
           });
         } catch (error) {
@@ -979,7 +978,7 @@ export default function VaultPage() {
 
       if (navigator.share) {
         await navigator.share({
-          url: shareUrl,
+          url: deepLink,
         });
       } else {
         await navigator.clipboard.writeText(deepLink);
