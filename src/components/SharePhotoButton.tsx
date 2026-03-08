@@ -63,7 +63,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
       if (navigator.share) {
         try {
           await navigator.share({
-            url: deepLink,
+            url: shareUrl,
           });
           return;
         } catch (error) {
