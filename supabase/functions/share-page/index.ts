@@ -65,11 +65,13 @@ Deno.serve(async (req) => {
       redirectUrl = `${APP_URL}/media/${id}`;
 
     } else if (type === "event") {
-      const { data: event } = await supabase
+      const { data: event, error: eventError } = await supabase
         .from("events")
-        .select("title, event_date, type, preview_image_url, teams(name), clubs(name, logo_url)")
+        .select("title, event_date, type, preview_image_url, club_id, team_id, teams(name), clubs!events_club_id_fkey(name, logo_url)")
         .eq("id", id)
         .maybeSingle();
+
+      console.log("Event lookup:", { id, event, eventError: eventError?.message });
 
       if (event) {
         title = event.title || "Event on Ignite Club HQ";
@@ -90,13 +92,16 @@ Deno.serve(async (req) => {
 
         // Try preview image first, then club logo, then keep default
         const candidates = [event.preview_image_url, (event as any).clubs?.logo_url].filter(Boolean);
+        console.log("Event image candidates:", candidates);
         for (const candidate of candidates) {
           const resolved = await resolvePreviewImageUrl(supabase, candidate);
+          console.log("Resolved candidate:", { candidate, resolved });
           if (resolved && resolved.startsWith("http")) {
             image = resolved;
             break;
           }
         }
+        console.log("Final image for event:", image);
       }
 
       redirectUrl = `${APP_URL}/events/${id}`;
