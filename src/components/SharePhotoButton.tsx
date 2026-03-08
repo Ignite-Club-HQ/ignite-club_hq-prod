@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Share } from "@capacitor/share";
 import { Capacitor } from "@capacitor/core";
-import { getShareUrl, getDeepLink } from "@/lib/shareUtils";
+import { getDeepLink } from "@/lib/shareUtils";
 
 interface SharePhotoButtonProps {
   photoId: string;
