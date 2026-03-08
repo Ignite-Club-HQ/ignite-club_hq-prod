@@ -1,14 +1,18 @@
 const APP_URL = "https://igniteclubhq.app";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 
 /**
  * Generates a share URL that serves OG meta tags for rich previews,
  * then redirects to the actual app page.
  */
 export function getShareUrl(type: "photo" | "event" | "folder", id: string): string {
-  const shareBaseUrl = SUPABASE_URL
-    ? `${SUPABASE_URL}/functions/v1/share-page`
-    : `${APP_URL}/share`;
+  const normalizedSupabaseUrl = SUPABASE_URL?.replace(/\/$/, "");
+  const shareBaseUrl = normalizedSupabaseUrl
+    ? `${normalizedSupabaseUrl}/functions/v1/share-page`
+    : SUPABASE_PROJECT_ID
+      ? `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/share-page`
+      : `${APP_URL}/share`;
 
   return `${shareBaseUrl}?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
 }
