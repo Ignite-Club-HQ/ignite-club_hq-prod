@@ -2,7 +2,7 @@ import { useState, useEffect, lazy, Suspense, useRef } from "react";
 import { Share } from "@capacitor/share";
 import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
 import { Capacitor } from "@capacitor/core";
-import { getShareUrl, getDeepLink } from "@/lib/shareUtils";
+import { getDeepLink } from "@/lib/shareUtils";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1675,18 +1675,17 @@ export default function EventDetailPage() {
             if (isSharingEventRef.current) return;
             isSharingEventRef.current = true;
 
-            const shareUrl = getShareUrl("event", id!);
             const deepLink = getDeepLink("event", id!);
 
             try {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
-                  url: shareUrl,
+                  url: deepLink,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
                 await navigator.share({
-                  url: shareUrl,
+                  url: deepLink,
                 });
               } else {
                 await navigator.clipboard.writeText(deepLink);
