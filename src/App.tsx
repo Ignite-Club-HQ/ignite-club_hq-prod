@@ -105,6 +105,25 @@ const MediaPhotoRedirect = () => {
   return <Navigate to={`/media?photo=${photoId}`} replace />;
 };
 
+const ShareLinkRedirect = () => {
+  const [searchParams] = useSearchParams();
+  const type = searchParams.get("type");
+  const id = searchParams.get("id");
+
+  if (!type || !id) return <Navigate to="/" replace />;
+
+  switch (type) {
+    case "photo":
+      return <Navigate to={`/media?photo=${id}`} replace />;
+    case "event":
+      return <Navigate to={`/events/${id}`} replace />;
+    case "folder":
+      return <Navigate to={`/vault/folder/${id}`} replace />;
+    default:
+      return <Navigate to="/" replace />;
+  }
+};
+
 const DeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
 
 /**
