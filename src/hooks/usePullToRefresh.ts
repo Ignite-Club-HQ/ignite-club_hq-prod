@@ -10,9 +10,11 @@ interface UsePullToRefreshOptions {
 export function usePullToRefresh({
   onRefresh,
   threshold = 100,
-  disabled = false,
+  disabled: _disabled = false,
   scrollableRef,
 }: UsePullToRefreshOptions) {
+  // Pull-to-refresh is globally disabled due to scroll interference on native iOS
+  const disabled = true;
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
