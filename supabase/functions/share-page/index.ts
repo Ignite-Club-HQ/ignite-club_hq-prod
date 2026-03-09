@@ -38,6 +38,7 @@ Deno.serve(async (req) => {
 
   try {
     if (type === "photo") {
+      contentDefaultImage = PHOTO_DEFAULT_IMAGE;
       const { data: photo } = await supabase
         .from("photos")
         .select("title, image_url, file_url, team_id, club_id, teams(name), clubs(name, logo_url)")
