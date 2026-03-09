@@ -659,19 +659,36 @@ export default function ManageUsersPage() {
     const roleName = role.role.replace('_', ' ');
     if (role.role === 'app_admin' || role.role === 'basic_user') return roleName;
     
-    // For team-level roles, show both club and team if available
-    if (role.teams?.name && role.clubs?.name) {
-      return `${roleName} @ ${role.clubs.name} / ${role.teams.name}`;
-    }
-    // For team roles with team but no club name fetched
+    // For team-level roles, show team name
     if (role.teams?.name) {
-      return `${roleName} @ ${role.teams.name}`;
+      return `${roleName} • ${role.teams.name}`;
     }
     // For club admin, show club
     if (role.clubs?.name) {
-      return `${roleName} @ ${role.clubs.name}`;
+      return `${roleName} • ${role.clubs.name}`;
     }
     return roleName;
+  };
+
+  const getRoleBadgeClasses = (roleName: string) => {
+    switch (roleName) {
+      case 'app_admin':
+        return 'bg-destructive/10 text-destructive border-destructive/20';
+      case 'club_admin':
+        return 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20';
+      case 'team_admin':
+        return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20';
+      case 'coach':
+        return 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20';
+      case 'committee_member':
+        return 'bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/20';
+      case 'player':
+        return 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20';
+      case 'parent':
+        return 'bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-500/20';
+      default:
+        return 'bg-muted text-muted-foreground border-border';
+    }
   };
 
   // Club admin only needs club selection
