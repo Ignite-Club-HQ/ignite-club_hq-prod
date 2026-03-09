@@ -1216,7 +1216,7 @@ export default function ClubDetailPage() {
                                             className="h-8 w-8 shrink-0"
                                             onClick={(e) => e.stopPropagation()}
                                           >
-                                            <FolderInput className="h-4 w-4" />
+                                            <MoreVertical className="h-4 w-4" />
                                           </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
@@ -1249,6 +1249,9 @@ export default function ClubDetailPage() {
                                         </DropdownMenuContent>
                                       </DropdownMenu>
                                     )}
+                                    <Link to={`/teams/${team.id}`} onClick={(e) => e.stopPropagation()}>
+                                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                    </Link>
                                   </CardContent>
                                 </Card>
                               );
