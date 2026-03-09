@@ -34,6 +34,7 @@ export default function AwardPointsDialog({
   clubId,
   clubName,
   clubLogoUrl,
+  triggerId,
 }: AwardPointsDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
