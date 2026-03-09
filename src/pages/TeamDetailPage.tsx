@@ -534,51 +534,58 @@ export default function TeamDetailPage() {
         </Button>
         <h1 className="text-2xl font-bold flex-1 truncate">{team.name}</h1>
           {isAdmin && (
-          <>
-            <Link to={`/teams/${id}/edit`}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
-                <Pencil className="h-5 w-5" />
+                <MoreVertical className="h-5 w-5" />
               </Button>
-            </Link>
-            <ArchiveTeamDialog
-              teamId={id!}
-              teamName={team?.name || ""}
-              clubId={team?.club_id || ""}
-              isArchived={(team as any)?.is_archived || false}
-              currentSeasonLabel={(team as any)?.season_label}
-              onSuccess={() => navigate(`/clubs/${team?.club_id}`)}
-              trigger={
-                <Button variant="ghost" size="icon" className="text-amber-600">
-                  {(team as any)?.is_archived ? (
-                    <ArchiveRestore className="h-5 w-5" />
-                  ) : (
-                    <Archive className="h-5 w-5" />
-                  )}
-                </Button>
-              }
-            />
-            <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-destructive">
-                <Trash2 className="h-5 w-5" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Team?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete the team and all its events. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          </>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit Team
+              </DropdownMenuItem>
+              <ArchiveTeamDialog
+                teamId={id!}
+                teamName={team?.name || ""}
+                clubId={team?.club_id || ""}
+                isArchived={(team as any)?.is_archived || false}
+                currentSeasonLabel={(team as any)?.season_label}
+                onSuccess={() => navigate(`/clubs/${team?.club_id}`)}
+                trigger={
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-amber-600">
+                    {(team as any)?.is_archived ? (
+                      <><ArchiveRestore className="h-4 w-4 mr-2" />Reinstate Team</>
+                    ) : (
+                      <><Archive className="h-4 w-4 mr-2" />Archive Team</>
+                    )}
+                  </DropdownMenuItem>
+                }
+              />
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Team
+                  </DropdownMenuItem>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Team?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete the team and all its events. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
 
