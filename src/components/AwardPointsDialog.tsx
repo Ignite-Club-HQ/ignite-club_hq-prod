@@ -24,6 +24,7 @@ interface AwardPointsDialogProps {
   clubId: string;
   clubName: string;
   clubLogoUrl?: string;
+  triggerId?: string;
 }
 
 export default function AwardPointsDialog({
