@@ -1557,57 +1557,82 @@ export default function ClubDetailPage() {
                           })}
                         </div>
                         {userId !== user?.id && isAdmin && (
-                          <div className="flex items-center gap-1">
+                          <>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={(e) => {
+                                e.preventDefault();
+                                // Find and click the hidden award points trigger
+                                const trigger = document.getElementById(`award-points-${userId}`);
+                                trigger?.click();
+                              }}>
+                                <Flame className="h-4 w-4 mr-2 text-amber-500" />
+                                Award Points
+                              </DropdownMenuItem>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onSelect={(e) => e.preventDefault()}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Remove Member
+                                  </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Remove Member?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will remove {member.profile?.display_name} from the club. They can request to join again.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={async () => {
+                                        const { error } = await supabase
+                                          .from("user_roles")
+                                          .delete()
+                                          .eq("user_id", userId)
+                                          .eq("club_id", id!);
+                                        if (error) {
+                                          toast({ title: "Failed to remove member", variant: "destructive" });
+                                        } else {
+                                          await supabase.from("notifications").insert({
+                                            user_id: userId,
+                                            type: "membership",
+                                            message: `You have been removed from ${club?.name || "the club"}`,
+                                            related_id: id,
+                                          });
+                                          queryClient.invalidateQueries({ queryKey: ["club-members-roles", id] });
+                                          toast({ title: "Member removed" });
+                                        }
+                                      }}
+                                      className="bg-destructive text-destructive-foreground"
+                                    >
+                                      Remove
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          <div className="hidden">
                             <AwardPointsDialog
                               memberId={userId}
                               memberName={member.profile?.display_name || "Member"}
                               currentPoints={member.profile?.ignite_points || 0}
                               clubId={id!}
                               clubName={club?.name || "Club"}
+                              triggerId={`award-points-${userId}`}
                             />
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Remove Member?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This will remove {member.profile?.display_name} from the club. They can request to join again.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={async () => {
-                                      const { error } = await supabase
-                                        .from("user_roles")
-                                        .delete()
-                                        .eq("user_id", userId)
-                                        .eq("club_id", id!);
-                                      if (error) {
-                                        toast({ title: "Failed to remove member", variant: "destructive" });
-                                      } else {
-                                        await supabase.from("notifications").insert({
-                                          user_id: userId,
-                                          type: "membership",
-                                          message: `You have been removed from ${club?.name || "the club"}`,
-                                          related_id: id,
-                                        });
-                                        queryClient.invalidateQueries({ queryKey: ["club-members-roles", id] });
-                                        toast({ title: "Member removed" });
-                                      }
-                                    }}
-                                  className="bg-destructive text-destructive-foreground"
-                                >
-                                  Remove
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
                           </div>
+                          </>
                         )}
                       </CardContent>
                     </Card>
