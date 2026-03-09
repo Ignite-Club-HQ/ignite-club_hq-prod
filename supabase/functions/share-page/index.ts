@@ -2,6 +2,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const APP_URL = "https://igniteclubhq.app";
 const DEFAULT_IMAGE = `${APP_URL}/ignite-logo.png`;
+const EVENT_DEFAULT_IMAGE = `${APP_URL}/ignite-event-preview.png`;
+const PHOTO_DEFAULT_IMAGE = `${APP_URL}/ignite-photo-preview.png`;
 const CRAWLER_UA_REGEX = /(facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|discordbot|whatsapp|telegrambot|skypeuripreview|googlebot|bingbot|duckduckbot|yandexbot|applebot|pinterest|redditbot|vkshare|embedly|quora|outbrain|W3C_Validator)/i;
 
 Deno.serve(async (req) => {
