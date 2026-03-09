@@ -168,7 +168,39 @@ export default function TeamDetailPage() {
     enabled: !!user && !!team?.club_id,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
-  
+
+  // Fetch team folders for move-to-folder functionality
+  const { data: teamFolders = [] } = useQuery({
+    queryKey: ["team-folders", team?.club_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("team_folders")
+        .select("*")
+        .eq("club_id", team!.club_id)
+        .order("sort_order");
+      return data || [];
+    },
+    enabled: !!team?.club_id,
+  });
+
+  const moveTeamToFolderMutation = useMutation({
+    mutationFn: async ({ teamId, folderId }: { teamId: string; folderId: string | null }) => {
+      const { error } = await supabase
+        .from("teams")
+        .update({ folder_id: folderId })
+        .eq("id", teamId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["team", id] });
+      queryClient.invalidateQueries({ queryKey: ["club-teams", team?.club_id] });
+      toast({ title: "Team moved successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to move team", variant: "destructive" });
+    },
+  });
+
   // Track if subscription data is still loading - don't show Pro lock while loading OR refetching
   // Must wait for:
   // 1. Team to load (so we know if it has a club_id)
