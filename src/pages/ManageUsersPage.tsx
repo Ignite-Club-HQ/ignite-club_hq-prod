@@ -1270,20 +1270,19 @@ export default function ManageUsersPage() {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium">{profile.display_name || "Unknown User"}</p>
                         {profile.roles && profile.roles.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5 mt-1">
+                          <div className="flex flex-wrap gap-1 mt-1">
                             {profile.roles.slice(0, 3).map((role: any, idx: number) => (
-                              <Badge 
+                              <span 
                                 key={idx} 
-                                variant="outline" 
-                                className={`text-[10px] leading-tight capitalize font-medium px-2 py-0.5 ${getRoleBadgeClasses(role.role)}`}
+                                className={`inline-flex items-center rounded-md border text-[10px] leading-none capitalize font-medium px-1.5 py-1 ${getRoleBadgeClasses(role.role)}`}
                               >
                                 {getRoleLabel(role)}
-                              </Badge>
+                              </span>
                             ))}
                             {profile.roles.length > 3 && (
-                              <Badge variant="outline" className="text-xs">
-                                +{profile.roles.length - 3} more
-                              </Badge>
+                              <span className="inline-flex items-center rounded-md border border-border bg-muted text-muted-foreground text-[10px] leading-none font-medium px-1.5 py-1">
+                                +{profile.roles.length - 3}
+                              </span>
                             )}
                           </div>
                         ) : (
