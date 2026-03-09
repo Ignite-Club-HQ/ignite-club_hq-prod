@@ -1253,9 +1253,6 @@ export default function ClubDetailPage() {
                                     <Badge className="bg-yellow-500 text-yellow-950 text-xs">PRO</Badge>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-sm">{getSportEmoji(club?.sport)}</span>
-                                </div>
                               </div>
                             </Link>
                             <Link to={`/teams/${team.id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 p-1">
