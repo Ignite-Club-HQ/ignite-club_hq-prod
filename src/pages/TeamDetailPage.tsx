@@ -588,6 +588,37 @@ export default function TeamDetailPage() {
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit Team
               </DropdownMenuItem>
+              {teamFolders.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <FolderOpen className="h-4 w-4 mr-2" />
+                      Move to Folder
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem
+                        onClick={() => moveTeamToFolderMutation.mutate({ teamId: id!, folderId: null })}
+                        disabled={(team as any)?.folder_id === null}
+                      >
+                        <FolderOpen className="h-4 w-4 mr-2 text-muted-foreground" />
+                        Uncategorized
+                      </DropdownMenuItem>
+                      {teamFolders.map((folder: any) => (
+                        <DropdownMenuItem
+                          key={folder.id}
+                          onClick={() => moveTeamToFolderMutation.mutate({ teamId: id!, folderId: folder.id })}
+                          disabled={(team as any)?.folder_id === folder.id}
+                        >
+                          <Folder className={`h-4 w-4 mr-2 ${getFolderColorClass(folder.color || 'default').className}`} />
+                          {folder.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <ArchiveTeamDialog
                 teamId={id!}
                 teamName={team?.name || ""}
