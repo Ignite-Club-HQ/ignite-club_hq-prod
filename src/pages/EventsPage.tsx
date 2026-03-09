@@ -264,7 +264,7 @@ export default function EventsPage() {
     enabled: !!user,
   });
 
-  const { data: events, isLoading } = useQuery({
+  const { data: events, isLoading, isFetching } = useQuery({
     queryKey: ["events", user?.id, filter, teamFilter, clubFilter, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
     queryFn: async () => {
       if (!userMemberships) return [];
