@@ -1207,13 +1207,16 @@ export default function ClubDetailPage() {
                                         </div>
                                       </div>
                                     </Link>
+                                    <Link to={`/teams/${team.id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 p-1">
+                                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                    </Link>
                                     {isAdmin && teamFolders.length > 0 && (
                                       <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
                                           <Button 
                                             variant="ghost" 
                                             size="icon" 
-                                            className="h-8 w-8 shrink-0"
+                                            className="h-8 w-8 shrink-0 ml-1"
                                             onClick={(e) => e.stopPropagation()}
                                           >
                                             <MoreVertical className="h-4 w-4" />
@@ -1249,9 +1252,6 @@ export default function ClubDetailPage() {
                                         </DropdownMenuContent>
                                       </DropdownMenu>
                                     )}
-                                    <Link to={`/teams/${team.id}`} onClick={(e) => e.stopPropagation()}>
-                                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                                    </Link>
                                   </CardContent>
                                 </Card>
                               );
