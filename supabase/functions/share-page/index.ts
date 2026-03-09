@@ -90,26 +90,8 @@ Deno.serve(async (req) => {
           ? `You're invited! ${parts.join(" · ")}`
           : "You've been invited to an event on Ignite Club HQ";
 
-        // Try preview image first, then club logo, then keep default
-        const candidates = [event.preview_image_url, (event as any).clubs?.logo_url].filter(Boolean);
-        console.log("Event image candidates:", candidates);
-        for (const candidate of candidates) {
-          const socialCandidate = getSocialPreviewImageCandidate(candidate);
-          if (!socialCandidate) {
-            console.log("Skipping unsupported OG image candidate:", candidate);
-            continue;
-          }
-          if (socialCandidate !== candidate) {
-            console.log("Converted OG image candidate:", { from: candidate, to: socialCandidate });
-          }
-          const resolved = await resolvePreviewImageUrl(supabase, socialCandidate);
-          console.log("Resolved candidate:", { candidate: socialCandidate, resolved });
-          if (resolved && resolved.startsWith("http")) {
-            image = resolved;
-            break;
-          }
-        }
-        console.log("Final image for event:", image);
+        // Use the default Ignite logo for all event share previews
+        image = DEFAULT_IMAGE;
       }
 
       redirectUrl = `${APP_URL}/events/${id}`;
