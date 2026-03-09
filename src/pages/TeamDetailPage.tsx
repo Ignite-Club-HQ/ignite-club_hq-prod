@@ -3,7 +3,7 @@ import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical } from "lucide-react";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
