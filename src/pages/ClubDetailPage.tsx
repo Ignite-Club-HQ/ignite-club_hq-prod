@@ -1632,7 +1632,7 @@ export default function ClubDetailPage() {
                               triggerId={`award-points-${userId}`}
                             />
                           </div>
-                        
+                          </>
                         )}
                       </CardContent>
                     </Card>
