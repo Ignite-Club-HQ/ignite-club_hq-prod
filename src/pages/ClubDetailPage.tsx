@@ -1210,48 +1210,6 @@ export default function ClubDetailPage() {
                                     <Link to={`/teams/${team.id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 p-1">
                                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                                     </Link>
-                                    {isAdmin && teamFolders.length > 0 && (
-                                      <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                          <Button 
-                                            variant="ghost" 
-                                            size="icon" 
-                                            className="h-8 w-8 shrink-0 ml-1"
-                                            onClick={(e) => e.stopPropagation()}
-                                          >
-                                            <MoreVertical className="h-4 w-4" />
-                                          </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                          <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-                                            Move to folder...
-                                          </DropdownMenuItem>
-                                          {teamFolders
-                                            .filter(f => f.id !== folder.id)
-                                            .map((targetFolder) => (
-                                            <DropdownMenuItem 
-                                              key={targetFolder.id}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                moveTeamToFolderMutation.mutate({ teamId: team.id, folderId: targetFolder.id });
-                                              }}
-                                            >
-                                              <Folder className={`h-4 w-4 mr-2 ${getFolderColorClass(targetFolder.color || 'default').className}`} />
-                                              {targetFolder.name}
-                                            </DropdownMenuItem>
-                                          ))}
-                                          <DropdownMenuItem 
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              moveTeamToFolderMutation.mutate({ teamId: team.id, folderId: null });
-                                            }}
-                                          >
-                                            <FolderOpen className="h-4 w-4 mr-2 text-muted-foreground" />
-                                            Uncategorized
-                                          </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                      </DropdownMenu>
-                                    )}
                                   </CardContent>
                                 </Card>
                               );
@@ -1362,37 +1320,6 @@ export default function ClubDetailPage() {
                             <Link to={`/teams/${team.id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 p-1">
                               <ChevronRight className="h-4 w-4 text-muted-foreground" />
                             </Link>
-                            {isAdmin && teamFolders.length > 0 && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-8 w-8 shrink-0 ml-1"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-                                    Move to folder...
-                                  </DropdownMenuItem>
-                                  {teamFolders.map((targetFolder) => (
-                                    <DropdownMenuItem 
-                                      key={targetFolder.id}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        moveTeamToFolderMutation.mutate({ teamId: team.id, folderId: targetFolder.id });
-                                      }}
-                                    >
-                                      <Folder className={`h-4 w-4 mr-2 ${getFolderColorClass(targetFolder.color || 'default').className}`} />
-                                      {targetFolder.name}
-                                    </DropdownMenuItem>
-                                  ))}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
                           </CardContent>
                         </Card>
                       );

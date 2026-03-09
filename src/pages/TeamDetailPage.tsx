@@ -3,7 +3,7 @@ import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder } from "lucide-react";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -69,6 +73,7 @@ import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import { TeamSponsorSelector } from "@/components/TeamSponsorSelector";
 import PendingInvitesList from "@/components/PendingInvitesList";
 import TeamRewardsManager from "@/components/TeamRewardsManager";
+import { getFolderColorClass } from "@/components/TeamFoldersManager";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -163,7 +168,39 @@ export default function TeamDetailPage() {
     enabled: !!user && !!team?.club_id,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
-  
+
+  // Fetch team folders for move-to-folder functionality
+  const { data: teamFolders = [] } = useQuery({
+    queryKey: ["team-folders", team?.club_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("team_folders")
+        .select("*")
+        .eq("club_id", team!.club_id)
+        .order("sort_order");
+      return data || [];
+    },
+    enabled: !!team?.club_id,
+  });
+
+  const moveTeamToFolderMutation = useMutation({
+    mutationFn: async ({ teamId, folderId }: { teamId: string; folderId: string | null }) => {
+      const { error } = await supabase
+        .from("teams")
+        .update({ folder_id: folderId })
+        .eq("id", teamId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["team", id] });
+      queryClient.invalidateQueries({ queryKey: ["club-teams", team?.club_id] });
+      toast({ title: "Team moved successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to move team", variant: "destructive" });
+    },
+  });
+
   // Track if subscription data is still loading - don't show Pro lock while loading OR refetching
   // Must wait for:
   // 1. Team to load (so we know if it has a club_id)
@@ -551,6 +588,37 @@ export default function TeamDetailPage() {
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit Team
               </DropdownMenuItem>
+              {teamFolders.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <FolderOpen className="h-4 w-4 mr-2" />
+                      Move to Folder
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem
+                        onClick={() => moveTeamToFolderMutation.mutate({ teamId: id!, folderId: null })}
+                        disabled={(team as any)?.folder_id === null}
+                      >
+                        <FolderOpen className="h-4 w-4 mr-2 text-muted-foreground" />
+                        Uncategorized
+                      </DropdownMenuItem>
+                      {teamFolders.map((folder: any) => (
+                        <DropdownMenuItem
+                          key={folder.id}
+                          onClick={() => moveTeamToFolderMutation.mutate({ teamId: id!, folderId: folder.id })}
+                          disabled={(team as any)?.folder_id === folder.id}
+                        >
+                          <Folder className={`h-4 w-4 mr-2 ${getFolderColorClass(folder.color || 'default').className}`} />
+                          {folder.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <ArchiveTeamDialog
                 teamId={id!}
                 teamName={team?.name || ""}
