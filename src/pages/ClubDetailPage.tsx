@@ -1537,18 +1537,20 @@ export default function ClubDetailPage() {
                         <div className="flex flex-wrap gap-1">
                           {member.roles?.map((roleItem) => {
                             const roleColors: Record<string, string> = {
-                              app_admin: "bg-red-500/20 text-red-400 border-red-500/30",
-                              club_admin: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-                              team_admin: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-                              coach: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-                              player: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-                              parent: "bg-pink-500/20 text-pink-400 border-pink-500/30",
+                              app_admin: "bg-red-500/15 text-red-600 border-red-500/30",
+                              club_admin: "bg-purple-500/15 text-purple-600 border-purple-500/30",
+                              team_admin: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
+                              coach: "bg-blue-500/15 text-blue-600 border-blue-500/30",
+                              committee_member: "bg-violet-500/15 text-violet-600 border-violet-500/30",
+                              player: "bg-amber-500/15 text-amber-600 border-amber-500/30",
+                              parent: "bg-teal-500/15 text-teal-600 border-teal-500/30",
+                              league_admin: "bg-orange-500/15 text-orange-600 border-orange-500/30",
                               basic_user: "bg-muted text-muted-foreground border-border",
                             };
                             const colorClass = roleColors[roleItem.role] || roleColors.basic_user;
                             return (
-                              <Badge key={roleItem.id} variant="outline" className={`text-xs border ${colorClass}`}>
-                                {roleItem.role?.replace("_", " ") || "Member"}
+                              <Badge key={roleItem.id} variant="outline" className={`text-[10px] rounded-md border px-1.5 py-0.5 ${colorClass}`}>
+                                {roleItem.role?.replace(/_/g, " ") || "Member"}
                                 {roleItem.scopeName && ` • ${roleItem.scopeName}`}
                               </Badge>
                             );
