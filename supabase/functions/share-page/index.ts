@@ -146,6 +146,11 @@ Deno.serve(async (req) => {
     console.error("Error fetching share data:", err);
   }
 
+  // If no specific image was resolved, use the content-type-specific default
+  if (image === DEFAULT_IMAGE && contentDefaultImage !== DEFAULT_IMAGE) {
+    image = contentDefaultImage;
+  }
+
   // Always return HTML with OG tags + meta-refresh redirect.
   // Crawlers parse the OG tags; humans get redirected instantly.
   const html = `<!DOCTYPE html>
