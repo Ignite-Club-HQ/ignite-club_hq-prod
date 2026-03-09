@@ -487,8 +487,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
         setSelectedTeamId("all");
       }
     }}>
-      <ResponsiveDialogContent fullScreen className="sm:max-w-md sm:max-h-[85vh] flex flex-col p-0">
-        <ResponsiveDialogHeader className="p-4 pb-2 border-b sm:border-b-0">
+      <ResponsiveDialogContent className="sm:max-w-md">
+        <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
             Start a Conversation
             {!hasProAccess && (
@@ -503,7 +503,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
-        <div className="flex-1 flex flex-col min-h-0 px-4 pb-4">
+        <div className="space-y-4 py-4">
           {checkingPro || checkingCanSend || loadingUsers ? (
             <div className="flex justify-center py-8 flex-1 items-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
