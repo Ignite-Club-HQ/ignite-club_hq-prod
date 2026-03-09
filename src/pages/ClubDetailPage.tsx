@@ -768,34 +768,44 @@ export default function ClubDetailPage() {
         </Button>
         <h1 className="text-2xl font-bold flex-1 truncate">{club.name}</h1>
         {isAdmin && (
-          <>
-            <Link to={`/clubs/${id}/edit`}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
-                <Pencil className="h-5 w-5" />
+                <MoreVertical className="h-5 w-5" />
               </Button>
-            </Link>
-            <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-destructive">
-                <Trash2 className="h-5 w-5" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Club?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete the club, all teams, and events. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          </>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => navigate(`/clubs/${id}/edit`)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit Club
+              </DropdownMenuItem>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Club
+                  </DropdownMenuItem>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Club?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete the club, all teams, and events. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
 
