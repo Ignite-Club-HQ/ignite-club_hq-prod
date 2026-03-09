@@ -69,6 +69,7 @@ Deno.serve(async (req) => {
       redirectUrl = `${APP_URL}/media/${id}`;
 
     } else if (type === "event") {
+      contentDefaultImage = EVENT_DEFAULT_IMAGE;
       const { data: event, error: eventError } = await supabase
         .from("events")
         .select("title, event_date, type, preview_image_url, club_id, team_id, teams(name), clubs!events_club_id_fkey(name, logo_url)")
