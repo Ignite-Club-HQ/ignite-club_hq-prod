@@ -1176,34 +1176,6 @@ export default function ClubDetailPage() {
                                         </div>
                                         <div className="flex items-center gap-2 mt-1">
                                           <span className="text-sm">{getSportEmoji(club?.sport)}</span>
-                                          {(() => {
-                                            const teamSponsor = getTeamSponsor(team.id);
-                                            return teamSponsor?.logo_url ? (
-                                              <div className="flex items-center gap-1.5">
-                                                <span className="text-xs text-muted-foreground">Sponsored by</span>
-                                                {teamSponsor.website_url ? (
-                                                  <button
-                                                    onClick={(e) => { e.stopPropagation(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(teamSponsor.website_url!)); }}
-                                                    className="hover:opacity-80 transition-opacity"
-                                                  >
-                                                    <img
-                                                      src={teamSponsor.logo_url}
-                                                      alt={teamSponsor.name}
-                                                      className="h-10 w-auto max-w-[100px] object-contain rounded-sm"
-                                                      title={teamSponsor.name}
-                                                    />
-                                                  </button>
-                                                ) : (
-                                                  <img
-                                                    src={teamSponsor.logo_url}
-                                                    alt={teamSponsor.name}
-                                                    className="h-10 w-auto max-w-[100px] object-contain rounded-sm"
-                                                    title={teamSponsor.name}
-                                                  />
-                                                )}
-                                              </div>
-                                            ) : null;
-                                          })()}
                                         </div>
                                       </div>
                                     </Link>
@@ -1286,34 +1258,6 @@ export default function ClubDetailPage() {
                                 </div>
                                 <div className="flex items-center gap-2 mt-1">
                                   <span className="text-sm">{getSportEmoji(club?.sport)}</span>
-                                  {(() => {
-                                    const teamSponsor = getTeamSponsor(team.id);
-                                    return teamSponsor?.logo_url ? (
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-xs text-muted-foreground">Sponsored by</span>
-                                        {teamSponsor.website_url ? (
-                                          <button
-                                            onClick={(e) => { e.stopPropagation(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(teamSponsor.website_url!)); }}
-                                            className="hover:opacity-80 transition-opacity"
-                                          >
-                                            <img
-                                              src={teamSponsor.logo_url}
-                                              alt={teamSponsor.name}
-                                              className="h-10 w-auto max-w-[100px] object-contain rounded-sm"
-                                              title={teamSponsor.name}
-                                            />
-                                          </button>
-                                        ) : (
-                                          <img
-                                            src={teamSponsor.logo_url}
-                                            alt={teamSponsor.name}
-                                            className="h-10 w-auto max-w-[100px] object-contain rounded-sm"
-                                            title={teamSponsor.name}
-                                          />
-                                        )}
-                                      </div>
-                                    ) : null;
-                                  })()}
                                 </div>
                               </div>
                             </Link>
