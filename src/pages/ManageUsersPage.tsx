@@ -673,19 +673,19 @@ export default function ManageUsersPage() {
   const getRoleBadgeClasses = (roleName: string) => {
     switch (roleName) {
       case 'app_admin':
-        return 'bg-destructive/10 text-destructive border-destructive/20';
+        return 'bg-destructive/10 text-destructive border-destructive/30';
       case 'club_admin':
-        return 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20';
+        return 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30';
       case 'team_admin':
-        return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20';
+        return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30';
       case 'coach':
-        return 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20';
+        return 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30';
       case 'committee_member':
-        return 'bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/20';
+        return 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30';
       case 'player':
-        return 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20';
+        return 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30';
       case 'parent':
-        return 'bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-500/20';
+        return 'bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/30';
       default:
         return 'bg-muted text-muted-foreground border-border';
     }
