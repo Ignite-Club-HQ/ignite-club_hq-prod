@@ -33,6 +33,7 @@ Deno.serve(async (req) => {
   let title = "Ignite Club HQ";
   let description = "Manage your sports club with ease — events, teams, chat, and more.";
   let image = DEFAULT_IMAGE;
+  let contentDefaultImage = DEFAULT_IMAGE;
   let redirectUrl = APP_URL;
 
   try {
