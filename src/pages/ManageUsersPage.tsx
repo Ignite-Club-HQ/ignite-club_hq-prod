@@ -1270,12 +1270,12 @@ export default function ManageUsersPage() {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium">{profile.display_name || "Unknown User"}</p>
                         {profile.roles && profile.roles.length > 0 ? (
-                          <div className="flex flex-wrap gap-1 mt-1">
+                          <div className="flex flex-wrap gap-1.5 mt-1">
                             {profile.roles.slice(0, 3).map((role: any, idx: number) => (
                               <Badge 
                                 key={idx} 
-                                variant="secondary" 
-                                className="text-xs capitalize"
+                                variant="outline" 
+                                className={`text-[10px] leading-tight capitalize font-medium px-2 py-0.5 ${getRoleBadgeClasses(role.role)}`}
                               >
                                 {getRoleLabel(role)}
                               </Badge>
