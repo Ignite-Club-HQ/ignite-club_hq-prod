@@ -1123,7 +1123,7 @@ export default function ManageUsersPage() {
                                           setBulkTeamId(role.team_id || "");
                                         }}
                                       >
-                                        <Badge variant="secondary" className="capitalize">
+                                        <Badge variant="outline" className={`capitalize font-medium ${getRoleBadgeClasses(role.role)}`}>
                                           {getRoleLabel(role)}
                                         </Badge>
                                       </div>
