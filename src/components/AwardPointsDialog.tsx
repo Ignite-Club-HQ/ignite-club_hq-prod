@@ -133,7 +133,7 @@ export default function AwardPointsDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8" title="Award Points">
+        <Button variant="ghost" size="icon" className="h-8 w-8" title="Award Points" id={triggerId}>
           <Flame className="h-4 w-4 text-amber-500" />
         </Button>
       </DialogTrigger>
