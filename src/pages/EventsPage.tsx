@@ -419,7 +419,8 @@ export default function EventsPage() {
   // Get dates that have events for calendar highlighting
   const eventDates = events?.map((e) => parseISO(e.event_date)) || [];
 
-  if (isLoading) {
+  // Only show full-page loading on first ever load (no cached data)
+  if (isLoading && !events) {
     return <PageLoading message="Loading events..." />;
   }
 
