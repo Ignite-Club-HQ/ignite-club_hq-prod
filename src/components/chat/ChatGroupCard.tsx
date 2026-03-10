@@ -62,35 +62,15 @@ export default function ChatGroupCard({
   MessagePreviewComponent,
 }: ChatGroupCardProps) {
   const navigate = useNavigate();
-  const [showActions, setShowActions] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const hasUnread = unreadCount > 0;
 
   const contextName = group.teams?.name || group.clubs?.name || "";
 
-  const handleTouchStart = useCallback(() => {
-    if (!canManage) return;
-    longPressTimer.current = setTimeout(() => {
-      setShowActions(true);
-    }, 500);
-  }, [canManage]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  }, []);
-
   const handleClick = useCallback(() => {
-    if (showActions) {
-      setShowActions(false);
-      return;
-    }
     navigate(`/groups/${group.id}`);
-  }, [showActions, navigate, group.id]);
+  }, [navigate, group.id]);
 
   return (
     <>
