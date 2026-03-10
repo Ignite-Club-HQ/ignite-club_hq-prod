@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, BellOff, ChevronRight, Trash2, Pencil } from "lucide-react";
+import { Users, BellOff, ChevronRight, Trash2, Pencil, MoreVertical } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import EditGroupDialog from "./EditGroupDialog";
 import { formatDistanceToNow } from "date-fns";
 
