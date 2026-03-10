@@ -79,10 +79,6 @@ export default function ChatGroupCard({
         onClick={handleClick}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); } }}
         tabIndex={0}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
-        onMouseLeave={() => setShowActions(false)}
         role="link"
         aria-label={`${group.name} chat group${hasUnread ? `, ${unreadCount} unread messages` : ''}${isMuted ? ', muted' : ''}`}
       >
@@ -113,33 +109,6 @@ export default function ChatGroupCard({
             </p>
           </div>
           
-          {/* Long-press action buttons */}
-          {showActions && canManage && (
-            <div 
-              className="flex items-center gap-1 animate-in fade-in slide-in-from-right-2 duration-200" 
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8"
-                aria-label={`Edit ${group.name}`}
-                onClick={() => setShowEditDialog(true)}
-              >
-                <Pencil className="h-4 w-4" aria-hidden="true" />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8 text-destructive hover:text-destructive"
-                aria-label={`Delete ${group.name}`}
-                onClick={() => setShowDeleteDialog(true)}
-              >
-                <Trash2 className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </div>
-          )}
-          
           <div className="flex flex-col items-end gap-1 shrink-0">
             {lastMessage?.created_at && (
               <span className="text-xs text-muted-foreground">
@@ -151,6 +120,34 @@ export default function ChatGroupCard({
                 <span className="h-5 min-w-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-xs font-medium flex items-center justify-center">
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
+              )}
+              {canManage && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label="Group actions"
+                    >
+                      <MoreVertical className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit Group
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => setShowDeleteDialog(true)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Group
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
               <ChevronRight className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
             </div>
