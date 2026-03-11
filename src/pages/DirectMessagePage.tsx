@@ -672,7 +672,7 @@ export default function DirectMessagePage() {
       {/* Messages area */}
       <div
         ref={scrollAreaRef}
-        className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-contain scrollbar-hide"
+        className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
         style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
       >
         <div className="py-4 space-y-4 pb-20">
