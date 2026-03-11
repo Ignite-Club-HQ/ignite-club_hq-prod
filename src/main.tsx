@@ -55,28 +55,15 @@ declare global {
 }
 
 const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
-const isIOS = isNative && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-// iOS detection is now handled by inline script in index.html (runs before CSS parse)
-// This is a belt-and-suspenders backup in case the inline script didn't fire
-if (isIOS && !document.documentElement.classList.contains('ios-native')) {
-  document.documentElement.classList.add('ios-native');
-}
-if (isNative && !document.documentElement.classList.contains('capacitor-native')) {
-  document.documentElement.classList.add('capacitor-native');
-}
-
-// Initialize Crashlytics on native — delay slightly to ensure FirebaseApp.configure()
-// in AppDelegate has completed before the JS layer calls into the native SDK.
+// Initialize Crashlytics FIRST on native (dynamic import, no React dependency)
 if (isNative) {
-  setTimeout(() => {
-    import('@capacitor-firebase/crashlytics').then(({ FirebaseCrashlytics }) => {
-      FirebaseCrashlytics.setEnabled({ enabled: true }).then(() => {
-        console.log('[Main] Crashlytics enabled');
-        FirebaseCrashlytics.log({ message: 'App boot started' });
-      });
-    }).catch(e => console.warn('[Main] Crashlytics unavailable:', e));
-  }, 500);
+  import('@capacitor-firebase/crashlytics').then(({ FirebaseCrashlytics }) => {
+    FirebaseCrashlytics.setEnabled({ enabled: true }).then(() => {
+      console.log('[Main] Crashlytics enabled');
+      FirebaseCrashlytics.log({ message: 'App boot started' });
+    });
+  }).catch(e => console.warn('[Main] Crashlytics unavailable:', e));
 }
 
 // Initialize native handlers (wrapped to prevent crashes)

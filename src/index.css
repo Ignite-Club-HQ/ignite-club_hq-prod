@@ -8,23 +8,9 @@
 html, body {
   overflow: hidden;
   overscroll-behavior: none;
+  position: fixed;
   width: 100%;
   height: 100%;
-  margin: 0;
-  padding: 0;
-}
-
-/* Android needs position:fixed for scroll containment.
-   iOS must NOT use it (WKWebView collapses viewport to 0px).
-   Default to static (safe), only apply fixed on Android native. */
-html.capacitor-native:not(.ios-native),
-html.capacitor-native:not(.ios-native) body {
-  position: fixed;
-}
-
-/* Belt-and-suspenders: explicitly force static on iOS native */
-html.ios-native, html.ios-native body {
-  position: static !important;
 }
 
 #root {

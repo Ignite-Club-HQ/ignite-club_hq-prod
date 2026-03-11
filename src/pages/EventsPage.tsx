@@ -264,7 +264,7 @@ export default function EventsPage() {
     enabled: !!user,
   });
 
-  const { data: events, isLoading, isFetching } = useQuery({
+  const { data: events, isLoading } = useQuery({
     queryKey: ["events", user?.id, filter, teamFilter, clubFilter, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
     queryFn: async () => {
       if (!userMemberships) return [];
@@ -419,8 +419,7 @@ export default function EventsPage() {
   // Get dates that have events for calendar highlighting
   const eventDates = events?.map((e) => parseISO(e.event_date)) || [];
 
-  // Only show full-page loading on first ever load (no cached data)
-  if (isLoading && !events) {
+  if (isLoading) {
     return <PageLoading message="Loading events..." />;
   }
 

@@ -10,7 +10,6 @@ import {
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
   ResponsiveDialogDescription,
-  ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -488,8 +487,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
         setSelectedTeamId("all");
       }
     }}>
-      <ResponsiveDialogContent className="sm:max-w-md">
-        <ResponsiveDialogHeader>
+      <ResponsiveDialogContent fullScreen className="sm:max-w-md sm:max-h-[85vh] flex flex-col p-0">
+        <ResponsiveDialogHeader className="p-4 pb-2 border-b sm:border-b-0">
           <ResponsiveDialogTitle className="flex items-center gap-2">
             Start a Conversation
             {!hasProAccess && (
@@ -504,7 +503,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="flex-1 flex flex-col min-h-0 px-4 pb-4">
           {checkingPro || checkingCanSend || loadingUsers ? (
             <div className="flex justify-center py-8 flex-1 items-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -537,7 +536,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
             <>
               {/* Selected users chips */}
               {selectedUsers.length > 0 && (
-                <div className="flex flex-wrap gap-2 p-2 bg-muted/50 rounded-lg">
+                <div className="flex flex-wrap gap-2 mb-3 p-2 bg-muted/50 rounded-lg">
                   {selectedUsers.map(u => (
                     <Badge key={u.id} variant="secondary" className="gap-1 pr-1">
                       {u.display_name?.split(" ")[0] || "User"}
@@ -553,7 +552,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
               )}
 
               {/* Filters */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 mb-3">
                 <Select value={selectedClubId} onValueChange={handleClubChange} disabled={isClubFilterLocked}>
                   <SelectTrigger className="flex-1">
                     <SelectValue placeholder="All Clubs" />
@@ -579,7 +578,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                 </Select>
               </div>
 
-              <div className="relative">
+              <div className="relative mb-3">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search members..."
@@ -589,7 +588,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                 />
               </div>
 
-              <ScrollArea className="max-h-[40vh]">
+              <ScrollArea className="flex-1 -mx-4 px-4">
                 <div className="space-y-1">
                   {filteredUsers.length === 0 ? (
                     <div className="py-8 text-center text-muted-foreground">
@@ -636,35 +635,30 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                   )}
                 </div>
               </ScrollArea>
+
+              {/* Start conversation button */}
+              {selectedUsers.length > 0 && (
+                <Button
+                  onClick={handleStartConversation}
+                  disabled={isPending}
+                  className="mt-3 gap-2"
+                >
+                  {isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : selectedUsers.length > 1 ? (
+                    <Users className="h-4 w-4" />
+                  ) : (
+                    <MessageCircle className="h-4 w-4" />
+                  )}
+                  {selectedUsers.length === 1 
+                    ? "Start Chat" 
+                    : `Create Group (${selectedUsers.length} people)`
+                  }
+                </Button>
+              )}
             </>
           )}
         </div>
-
-        {/* Footer with action button - matches CreateGroupDialog pattern */}
-        {selectedUsers.length > 0 && (
-          <ResponsiveDialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)} className="flex-1 sm:flex-none">
-              Cancel
-            </Button>
-            <Button
-              onClick={handleStartConversation}
-              disabled={isPending}
-              className="flex-1 sm:flex-none gap-2"
-            >
-              {isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : selectedUsers.length > 1 ? (
-                <Users className="h-4 w-4" />
-              ) : (
-                <MessageCircle className="h-4 w-4" />
-              )}
-              {selectedUsers.length === 1 
-                ? "Start Chat" 
-                : `Create Group (${selectedUsers.length} people)`
-              }
-            </Button>
-          </ResponsiveDialogFooter>
-        )}
       </ResponsiveDialogContent>
     </ResponsiveDialog>
   );

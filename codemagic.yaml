@@ -32,7 +32,7 @@ workflows:
           else
             echo "AdMob App ID already present"
           fi
-      - name: Add Crashlytics Gradle plugin and update Firebase BOM
+      - name: Add Crashlytics Gradle plugin
         script: |
           cd android
           # Add crashlytics classpath to project build.gradle (macOS sed doesn't support \n)
@@ -48,14 +48,8 @@ workflows:
             echo "" >> app/build.gradle
             echo "apply plugin: 'com.google.firebase.crashlytics'" >> app/build.gradle
           fi
-          # Force latest Firebase BOM to fix CannotDeliverBroadcastException on Android 12+
-          if ! grep -q "firebase-bom" app/build.gradle 2>/dev/null; then
-            sed -i '' '/dependencies {/a\
-                implementation platform("com.google.firebase:firebase-bom:33.7.0")
-            ' app/build.gradle
-          fi
           echo "=== app/build.gradle tail ==="
-          tail -10 app/build.gradle
+          tail -5 app/build.gradle
       - name: Copy app icons
         script: |
           # Remove ALL Capacitor default icons first (including vector drawables and all density folders)
@@ -120,17 +114,11 @@ workflows:
           else
             echo "=== App Links intent-filter for igniteclubhq.app already present ==="
           fi
-      - name: Configure notification icon and Firebase Messaging service
+      - name: Configure notification icon
         script: |
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-          # Add meta-data for default notification icon and color
-          sed -i '' 's|</application>|<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification"/><meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/ignite_green"/></application>|' "$MANIFEST"
-          # Ensure all receivers have android:exported set to prevent CannotDeliverBroadcastException
-          # This is needed for Android 12+ broadcast delivery
-          if ! grep -q 'com.google.firebase.iid.FirebaseInstanceIdReceiver' "$MANIFEST"; then
-            sed -i '' 's|</application>|<receiver android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver" android:exported="true" android:permission="com.google.android.c2dm.permission.SEND"><intent-filter><action android:name="com.google.android.c2dm.intent.RECEIVE"/></intent-filter></receiver></application>|' "$MANIFEST"
-            echo "=== Added FirebaseInstanceIdReceiver with exported=true ==="
-          fi
+          # Add meta-data for default notification icon and color to AndroidManifest.xml
+          # macOS sed requires '' after -i for in-place editing without backup
+          sed -i '' 's|</application>|<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification"/><meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/ignite_green"/></application>|' android/app/src/main/AndroidManifest.xml
       - name: Disable lint abort for release
         script: |
           cd android/app
@@ -212,31 +200,7 @@ workflows:
       - name: Add iOS platform
         script: npx cap add ios || true
       - name: Sync Capacitor
-        script: |
-          npx cap sync ios
-          echo "=== Verifying web assets in iOS bundle ==="
-          ls -la ios/App/App/public/ | head -20
-          if [ ! -f "ios/App/App/public/index.html" ]; then
-            echo "ERROR: index.html not found in iOS public folder!"
-            exit 1
-          fi
-          echo "=== Web assets verified ==="
-      - name: Force light mode in Info.plist
-        script: |
-          PLIST="ios/App/App/Info.plist"
-          echo "=== Forcing UIUserInterfaceStyle to Light ==="
-          if ! /usr/libexec/PlistBuddy -c "Print :UIUserInterfaceStyle" "$PLIST" 2>/dev/null; then
-            /usr/libexec/PlistBuddy -c "Add :UIUserInterfaceStyle string Light" "$PLIST"
-          else
-            /usr/libexec/PlistBuddy -c "Set :UIUserInterfaceStyle Light" "$PLIST"
-          fi
-          echo "=== UIUserInterfaceStyle set to Light ==="
-      - name: Ensure NSPhotoLibraryAddUsageDescription in Info.plist
-        script: |
-          PLIST="ios/App/App/Info.plist"
-          if ! /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryAddUsageDescription" "$PLIST" 2>/dev/null; then
-            /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Save photos to your library'" "$PLIST"
-          fi
+        script: npx cap sync ios
       - name: Ensure GADApplicationIdentifier in Info.plist
         script: |
           PLIST="ios/App/App/Info.plist"
@@ -247,72 +211,41 @@ workflows:
             echo "=== GADApplicationIdentifier already present ==="
           fi
           /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST"
-      - name: Patch AppDelegate with Firebase init
+      - name: Patch AppDelegate for Firebase & Crashlytics
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
-          echo "=== Writing AppDelegate.swift with guarded Firebase init ==="
-          printf '%s\n' \
-            'import UIKit' \
-            'import Capacitor' \
-            'import FirebaseCore' \
-            'import FirebaseCrashlytics' \
-            '' \
-            '@UIApplicationMain' \
-            'class AppDelegate: UIResponder, UIApplicationDelegate {' \
-            '' \
-            '    var window: UIWindow?' \
-            '' \
-            '    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {' \
-            '        if FirebaseApp.app() == nil {' \
-            '            FirebaseApp.configure()' \
-            '        }' \
-            '        Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)' \
-            '        return true' \
-            '    }' \
-            '' \
-            '    func applicationWillResignActive(_ application: UIApplication) {}' \
-            '    func applicationDidEnterBackground(_ application: UIApplication) {}' \
-            '    func applicationWillEnterForeground(_ application: UIApplication) {}' \
-            '    func applicationDidBecomeActive(_ application: UIApplication) {}' \
-            '    func applicationWillTerminate(_ application: UIApplication) {}' \
-            '' \
-            '    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {' \
-            '        return ApplicationDelegateProxy.shared.application(app, open: url, options: options)' \
-            '    }' \
-            '' \
-            '    func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {' \
-            '        return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)' \
-            '    }' \
-            '}' > "$DELEGATE"
-          echo "=== Patched AppDelegate.swift ==="
-          cat "$DELEGATE"
-      - name: Patch ViewController with white background and bounce fixes
-        script: |
-          VC="ios/App/App/ViewController.swift"
-          echo "=== Writing ViewController.swift with white background ==="
-          printf '%s\n' \
-            'import UIKit' \
-            'import Capacitor' \
-            '' \
-            'class ViewController: CAPBridgeViewController {' \
-            '    override func viewDidLoad() {' \
-            '        super.viewDidLoad()' \
-            '        view.backgroundColor = .white' \
-            '        webView?.backgroundColor = .white' \
-            '        webView?.isOpaque = true' \
-            '        webView?.scrollView.backgroundColor = .white' \
-            '        webView?.scrollView.bounces = false' \
-            '        webView?.scrollView.alwaysBounceVertical = false' \
-            '        webView?.scrollView.alwaysBounceHorizontal = false' \
-            '    }' \
-            '' \
-            '    override func viewDidAppear(_ animated: Bool) {' \
-            '        super.viewDidAppear(animated)' \
-            '        view.window?.backgroundColor = .white' \
-            '    }' \
-            '}' > "$VC"
-          echo "=== Patched ViewController.swift ==="
-          cat "$VC"
+          cat > "$DELEGATE" << 'SWIFT'
+          import UIKit
+          import Capacitor
+          import FirebaseCore
+          import FirebaseCrashlytics
+
+          @UIApplicationMain
+          class AppDelegate: UIResponder, UIApplicationDelegate {
+
+              var window: UIWindow?
+
+              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  FirebaseApp.configure()
+                  Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+                  return true
+              }
+
+              func applicationWillResignActive(_ application: UIApplication) {}
+              func applicationDidEnterBackground(_ application: UIApplication) {}
+              func applicationWillEnterForeground(_ application: UIApplication) {}
+              func applicationDidBecomeActive(_ application: UIApplication) {}
+              func applicationWillTerminate(_ application: UIApplication) {}
+
+              func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+              }
+
+              func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+              }
+          }
+          SWIFT
       - name: Ensure FirebaseCrashlytics in SPM Package.swift
         script: |
           PACKAGE="ios/App/CapApp-SPM/Package.swift"
@@ -356,17 +289,6 @@ workflows:
       - name: Copy app icons
         script: |
           cp android-assets/mipmap-xxxhdpi/ic_launcher.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
-      - name: Verify all critical iOS files
-        script: |
-          echo "=== Verifying ViewController.swift has white background ==="
-          grep -c "backgroundColor = .white" ios/App/App/ViewController.swift || { echo "ERROR: ViewController missing white bg!"; exit 1; }
-          echo "=== Verifying AppDelegate.swift has Firebase init ==="
-          grep -c "FirebaseApp.configure" ios/App/App/AppDelegate.swift || { echo "ERROR: AppDelegate missing Firebase!"; exit 1; }
-          echo "=== Verifying index.html in bundle ==="
-          grep -c "app-loading-fallback" ios/App/App/public/index.html || { echo "ERROR: index.html missing loading fallback!"; exit 1; }
-          echo "=== Verifying Info.plist UIUserInterfaceStyle ==="
-          /usr/libexec/PlistBuddy -c "Print :UIUserInterfaceStyle" ios/App/App/Info.plist
-          echo "=== All critical files verified ==="
       - name: Build iOS Debug
         script: |
           cd ios/App
@@ -409,43 +331,47 @@ workflows:
           echo "=== Checking ios folder structure ==="
           ls -la ios/ || echo "ERROR: ios folder not created!"
           ls -la ios/App/ || echo "ERROR: ios/App folder not found!"
-      - name: Sync Capacitor
-        script: |
-          npx cap sync ios
-          echo "=== Verifying SPM Package.swift exists ==="
-          cat ios/App/CapApp-SPM/Package.swift | head -20
-          echo "=== Verifying web assets in iOS bundle ==="
-          ls -la ios/App/App/public/ | head -20
-          if [ ! -f "ios/App/App/public/index.html" ]; then
-            echo "ERROR: index.html not found in iOS public folder!"
-            exit 1
-          fi
-          echo "=== Web assets verified ==="
       - name: Copy Firebase config and add to Xcode project
         script: |
-          # Copy AFTER cap sync so the Xcode project reference isn't overwritten
+          # Copy GoogleService-Info.plist to iOS app directory
           cp firebase/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
           echo "=== Copied Firebase config to iOS ==="
           
+          # Add GoogleService-Info.plist to Xcode project using Ruby script
+          # This is necessary because just copying the file doesn't add it to the bundle
           ruby << 'RUBY_SCRIPT'
           require 'xcodeproj'
           
           project_path = 'ios/App/App.xcodeproj'
           project = Xcodeproj::Project.open(project_path)
           
+          # Find the App target
           target = project.targets.find { |t| t.name == 'App' }
+          
+          # Find the App group
           app_group = project.main_group.find_subpath('App', false)
+          
+          # Check if GoogleService-Info.plist already exists in project
           existing_ref = app_group.files.find { |f| f.path == 'GoogleService-Info.plist' }
           
           if existing_ref.nil?
+            # Add file reference
             file_ref = app_group.new_file('GoogleService-Info.plist')
+            
+            # Add to resources build phase
             target.resources_build_phase.add_file_reference(file_ref)
+            
             project.save
             puts "=== Added GoogleService-Info.plist to Xcode project ==="
           else
             puts "=== GoogleService-Info.plist already in project ==="
           end
           RUBY_SCRIPT
+      - name: Sync Capacitor
+        script: |
+          npx cap sync ios
+          echo "=== Verifying SPM Package.swift exists ==="
+          cat ios/App/CapApp-SPM/Package.swift | head -20
       - name: Ensure GADApplicationIdentifier in Info.plist
         script: |
           PLIST="ios/App/App/Info.plist"
@@ -456,91 +382,44 @@ workflows:
             echo "=== GADApplicationIdentifier already present ==="
           fi
           /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST"
-      - name: Patch AppDelegate with Firebase init
+      - name: Patch AppDelegate for Firebase & Crashlytics
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
-          echo "=== Writing AppDelegate.swift with guarded Firebase init ==="
-          printf '%s\n' \
-            'import UIKit' \
-            'import Capacitor' \
-            'import FirebaseCore' \
-            'import FirebaseCrashlytics' \
-            '' \
-            '@UIApplicationMain' \
-            'class AppDelegate: UIResponder, UIApplicationDelegate {' \
-            '' \
-            '    var window: UIWindow?' \
-            '' \
-            '    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {' \
-            '        if FirebaseApp.app() == nil {' \
-            '            FirebaseApp.configure()' \
-            '        }' \
-            '        Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)' \
-            '        return true' \
-            '    }' \
-            '' \
-            '    func applicationWillResignActive(_ application: UIApplication) {}' \
-            '    func applicationDidEnterBackground(_ application: UIApplication) {}' \
-            '    func applicationWillEnterForeground(_ application: UIApplication) {}' \
-            '    func applicationDidBecomeActive(_ application: UIApplication) {}' \
-            '    func applicationWillTerminate(_ application: UIApplication) {}' \
-            '' \
-            '    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {' \
-            '        return ApplicationDelegateProxy.shared.application(app, open: url, options: options)' \
-            '    }' \
-            '' \
-            '    func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {' \
-            '        return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)' \
-            '    }' \
-            '}' > "$DELEGATE"
+          echo "=== Patching AppDelegate.swift for Firebase + Crashlytics ==="
+          cat > "$DELEGATE" << 'SWIFT'
+          import UIKit
+          import Capacitor
+          import FirebaseCore
+          import FirebaseCrashlytics
+
+          @UIApplicationMain
+          class AppDelegate: UIResponder, UIApplicationDelegate {
+
+              var window: UIWindow?
+
+              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  FirebaseApp.configure()
+                  Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+                  return true
+              }
+
+              func applicationWillResignActive(_ application: UIApplication) {}
+              func applicationDidEnterBackground(_ application: UIApplication) {}
+              func applicationWillEnterForeground(_ application: UIApplication) {}
+              func applicationDidBecomeActive(_ application: UIApplication) {}
+              func applicationWillTerminate(_ application: UIApplication) {}
+
+              func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+              }
+
+              func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+              }
+          }
+          SWIFT
           echo "=== Patched AppDelegate.swift ==="
           cat "$DELEGATE"
-      - name: Patch ViewController with white background and bounce fixes
-        script: |
-          VC="ios/App/App/ViewController.swift"
-          echo "=== Writing ViewController.swift with white background ==="
-          printf '%s\n' \
-            'import UIKit' \
-            'import Capacitor' \
-            '' \
-            'class ViewController: CAPBridgeViewController {' \
-            '    override func viewDidLoad() {' \
-            '        super.viewDidLoad()' \
-            '        view.backgroundColor = .white' \
-            '        webView?.backgroundColor = .white' \
-            '        webView?.isOpaque = true' \
-            '        webView?.scrollView.backgroundColor = .white' \
-            '        webView?.scrollView.bounces = false' \
-            '        webView?.scrollView.alwaysBounceVertical = false' \
-            '        webView?.scrollView.alwaysBounceHorizontal = false' \
-            '    }' \
-            '' \
-            '    override func viewDidAppear(_ animated: Bool) {' \
-            '        super.viewDidAppear(animated)' \
-            '        view.window?.backgroundColor = .white' \
-            '    }' \
-            '}' > "$VC"
-          echo "=== Patched ViewController.swift ==="
-          cat "$VC"
-      - name: Ensure NSPhotoLibraryAddUsageDescription in Info.plist
-        script: |
-          PLIST="ios/App/App/Info.plist"
-          if ! /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryAddUsageDescription" "$PLIST" 2>/dev/null; then
-            /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Ignite needs permission to add photos when sharing and uploading images in chat.'" "$PLIST"
-            echo "=== Added NSPhotoLibraryAddUsageDescription ==="
-          else
-            echo "=== NSPhotoLibraryAddUsageDescription already present ==="
-          fi
-      - name: Force light mode in Info.plist
-        script: |
-          PLIST="ios/App/App/Info.plist"
-          echo "=== Forcing UIUserInterfaceStyle to Light ==="
-          if ! /usr/libexec/PlistBuddy -c "Print :UIUserInterfaceStyle" "$PLIST" 2>/dev/null; then
-            /usr/libexec/PlistBuddy -c "Add :UIUserInterfaceStyle string Light" "$PLIST"
-          else
-            /usr/libexec/PlistBuddy -c "Set :UIUserInterfaceStyle Light" "$PLIST"
-          fi
-          echo "=== UIUserInterfaceStyle set to Light ==="
       - name: Ensure FirebaseCrashlytics in SPM Package.swift
         script: |
           PACKAGE="ios/App/CapApp-SPM/Package.swift"
@@ -562,17 +441,6 @@ workflows:
             echo "=== FirebaseCrashlytics already in Package.swift ==="
           fi
           cat "$PACKAGE"
-      - name: Verify all critical iOS files
-        script: |
-          echo "=== Verifying ViewController.swift has white background ==="
-          grep -c "backgroundColor = .white" ios/App/App/ViewController.swift || { echo "ERROR: ViewController missing white bg!"; exit 1; }
-          echo "=== Verifying AppDelegate.swift has Firebase init ==="
-          grep -c "FirebaseApp.configure" ios/App/App/AppDelegate.swift || { echo "ERROR: AppDelegate missing Firebase!"; exit 1; }
-          echo "=== Verifying index.html in bundle ==="
-          grep -c "app-loading-fallback" ios/App/App/public/index.html || { echo "ERROR: index.html missing loading fallback!"; exit 1; }
-          echo "=== Verifying Info.plist UIUserInterfaceStyle ==="
-          /usr/libexec/PlistBuddy -c "Print :UIUserInterfaceStyle" ios/App/App/Info.plist
-          echo "=== All critical files verified ==="
       - name: Copy app icons
         script: |
           # Copy Ignite icon to iOS app icon (use the highest resolution Android icon)

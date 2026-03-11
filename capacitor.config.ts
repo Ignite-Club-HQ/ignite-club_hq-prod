@@ -31,10 +31,9 @@ const config: CapacitorConfig = {
   },
   // Server configuration - keep navigation in app
   server: {
+    // Use standard Capacitor schemes
     androidScheme: 'https',
-    iosScheme: 'https',
-    // If the WebView crashes and reloads, navigate to root instead of 404
-    errorPath: '/',
+    iosScheme: 'capacitor',
   },
 };
 

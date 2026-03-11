@@ -659,36 +659,19 @@ export default function ManageUsersPage() {
     const roleName = role.role.replace('_', ' ');
     if (role.role === 'app_admin' || role.role === 'basic_user') return roleName;
     
-    // For team-level roles, show team name
+    // For team-level roles, show both club and team if available
+    if (role.teams?.name && role.clubs?.name) {
+      return `${roleName} @ ${role.clubs.name} / ${role.teams.name}`;
+    }
+    // For team roles with team but no club name fetched
     if (role.teams?.name) {
-      return `${roleName} • ${role.teams.name}`;
+      return `${roleName} @ ${role.teams.name}`;
     }
     // For club admin, show club
     if (role.clubs?.name) {
-      return `${roleName} • ${role.clubs.name}`;
+      return `${roleName} @ ${role.clubs.name}`;
     }
     return roleName;
-  };
-
-  const getRoleBadgeClasses = (roleName: string) => {
-    switch (roleName) {
-      case 'app_admin':
-        return 'bg-destructive/10 text-destructive border-destructive/30';
-      case 'club_admin':
-        return 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30';
-      case 'team_admin':
-        return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30';
-      case 'coach':
-        return 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30';
-      case 'committee_member':
-        return 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30';
-      case 'player':
-        return 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30';
-      case 'parent':
-        return 'bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/30';
-      default:
-        return 'bg-muted text-muted-foreground border-border';
-    }
   };
 
   // Club admin only needs club selection
@@ -1123,7 +1106,7 @@ export default function ManageUsersPage() {
                                           setBulkTeamId(role.team_id || "");
                                         }}
                                       >
-                                        <Badge variant="outline" className={`capitalize font-medium ${getRoleBadgeClasses(role.role)}`}>
+                                        <Badge variant="secondary" className="capitalize">
                                           {getRoleLabel(role)}
                                         </Badge>
                                       </div>
@@ -1272,17 +1255,18 @@ export default function ManageUsersPage() {
                         {profile.roles && profile.roles.length > 0 ? (
                           <div className="flex flex-wrap gap-1 mt-1">
                             {profile.roles.slice(0, 3).map((role: any, idx: number) => (
-                              <span 
+                              <Badge 
                                 key={idx} 
-                                className={`inline-flex items-center rounded-md border text-[10px] leading-none capitalize font-medium px-1.5 py-1 ${getRoleBadgeClasses(role.role)}`}
+                                variant="secondary" 
+                                className="text-xs capitalize"
                               >
                                 {getRoleLabel(role)}
-                              </span>
+                              </Badge>
                             ))}
                             {profile.roles.length > 3 && (
-                              <span className="inline-flex items-center rounded-md border border-border bg-muted text-muted-foreground text-[10px] leading-none font-medium px-1.5 py-1">
-                                +{profile.roles.length - 3}
-                              </span>
+                              <Badge variant="outline" className="text-xs">
+                                +{profile.roles.length - 3} more
+                              </Badge>
                             )}
                           </div>
                         ) : (

@@ -53,9 +53,9 @@ Deno.serve(async (req) => {
         if (resolvedImage) {
           image = resolvedImage;
         } else {
-          // Fall back to club logo (skip SVGs — not supported by social platforms)
+          // Fall back to club logo
           const clubLogo = (photo as any).clubs?.logo_url;
-          if (clubLogo && !/\.svg(\?|$)/i.test(clubLogo)) {
+          if (clubLogo) {
             const resolvedLogo = await resolvePreviewImageUrl(supabase, clubLogo);
             if (resolvedLogo) image = resolvedLogo;
           }
@@ -65,13 +65,11 @@ Deno.serve(async (req) => {
       redirectUrl = `${APP_URL}/media/${id}`;
 
     } else if (type === "event") {
-      const { data: event, error: eventError } = await supabase
+      const { data: event } = await supabase
         .from("events")
-        .select("title, event_date, type, preview_image_url, club_id, team_id, teams(name), clubs!events_club_id_fkey(name, logo_url)")
+        .select("title, event_date, type, preview_image_url, teams(name), clubs(name, logo_url)")
         .eq("id", id)
         .maybeSingle();
-
-      console.log("Event lookup:", { id, event, eventError: eventError?.message });
 
       if (event) {
         title = event.title || "Event on Ignite Club HQ";
@@ -90,8 +88,15 @@ Deno.serve(async (req) => {
           ? `You're invited! ${parts.join(" · ")}`
           : "You've been invited to an event on Ignite Club HQ";
 
-        // Use the default Ignite logo for all event share previews
-        image = DEFAULT_IMAGE;
+        // Try preview image first, then club logo, then keep default
+        const candidates = [event.preview_image_url, (event as any).clubs?.logo_url].filter(Boolean);
+        for (const candidate of candidates) {
+          const resolved = await resolvePreviewImageUrl(supabase, candidate);
+          if (resolved && resolved.startsWith("http")) {
+            image = resolved;
+            break;
+          }
+        }
       }
 
       redirectUrl = `${APP_URL}/events/${id}`;
@@ -237,52 +242,6 @@ async function resolvePreviewImageUrl(
   }
 
   return data.signedUrl;
-}
-
-function isSvgLikeImage(rawUrl: string): boolean {
-  const source = rawUrl.trim().toLowerCase();
-  if (!source) return false;
-
-  if (/\.svg(\?|$)/i.test(source) || /\/svg(\?|$)/i.test(source) || source.includes("/svg?")) {
-    return true;
-  }
-
-  try {
-    const parsed = new URL(source);
-    const path = parsed.pathname.toLowerCase();
-    const format = parsed.searchParams.get("format")?.toLowerCase();
-    return path.endsWith(".svg") || path.endsWith("/svg") || format === "svg";
-  } catch {
-    return false;
-  }
-}
-
-function getSocialPreviewImageCandidate(rawUrl: string): string | null {
-  const source = rawUrl.trim();
-  if (!source) return null;
-
-  if (!isSvgLikeImage(source)) {
-    return source;
-  }
-
-  try {
-    const parsed = new URL(source);
-    const host = parsed.hostname.toLowerCase();
-    const path = parsed.pathname.toLowerCase();
-
-    // Convert Dicebear SVG endpoints to PNG so OG crawlers can render them
-    if (host.includes("dicebear.com") && path.endsWith("/svg")) {
-      parsed.pathname = parsed.pathname.replace(/\/svg$/i, "/png");
-      if (!parsed.searchParams.has("size")) {
-        parsed.searchParams.set("size", "1200");
-      }
-      return parsed.toString();
-    }
-  } catch {
-    // Fall through for non-URL strings
-  }
-
-  return null;
 }
 
 function esc(str: string): string {
