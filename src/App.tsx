@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -105,6 +105,25 @@ const MediaPhotoRedirect = () => {
   return <Navigate to={`/media?photo=${photoId}`} replace />;
 };
 
+const ShareLinkRedirect = () => {
+  const [searchParams] = useSearchParams();
+  const type = searchParams.get("type");
+  const id = searchParams.get("id");
+
+  if (!type || !id) return <Navigate to="/" replace />;
+
+  switch (type) {
+    case "photo":
+      return <Navigate to={`/media?photo=${id}`} replace />;
+    case "event":
+      return <Navigate to={`/events/${id}`} replace />;
+    case "folder":
+      return <Navigate to={`/vault/folder/${id}`} replace />;
+    default:
+      return <Navigate to="/" replace />;
+  }
+};
+
 const DeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
 
 /**
@@ -123,6 +142,7 @@ const WithDeepLinkGate = ({ children }: { children: React.ReactNode }) => {
     </Suspense>
   );
 };
+
 
 // Read stored theme synchronously to match index.html bootstrap
 const getInitialTheme = (): 'light' | 'dark' => {
@@ -176,14 +196,15 @@ const App = () => {
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />
                 <Route path="/cancellation" element={<CancellationPolicyPage />} />
                 <Route path="/video-guide" element={<VideoGuideDownloadPage />} />
-                
+                <Route path="/share" element={<ShareLinkRedirect />} />
+
 
                 {/* Protected routes */}
                 <Route element={<AppLayout />}>
                   <Route path="/" element={<HomePage />} />
                   <Route path="/events" element={<EventsPage />} />
                   <Route path="/events/new" element={<CreateEventPage />} />
-                  <Route path="/events/:id" element={<WithDeepLinkGate><EventDetailPage /></WithDeepLinkGate>} />
+                  <Route path="/events/:id" element={<EventDetailPage />} />
                   <Route path="/events/import" element={<ImportFixturesPage />} />
                   <Route path="/events/:id/edit" element={<EditEventPage />} />
                   <Route path="/events/:id/groups/:groupId/pitch" element={<EventGroupPitchPage />} />
@@ -212,7 +233,7 @@ const App = () => {
                   <Route path="/messages/:teamId" element={<TeamChatPage />} />
                   <Route path="/groups/:groupId" element={<GroupChatPage />} />
                   <Route path="/media" element={<MediaPage />} />
-                  <Route path="/media/:photoId" element={<WithDeepLinkGate><MediaPhotoRedirect /></WithDeepLinkGate>} />
+                  <Route path="/media/:photoId" element={<MediaPhotoRedirect />} />
                   <Route path="/vault" element={<VaultPage />} />
                   <Route path="/vault/folder/:folderId" element={<VaultPage />} />
                   <Route path="/profile" element={<ProfilePage />} />

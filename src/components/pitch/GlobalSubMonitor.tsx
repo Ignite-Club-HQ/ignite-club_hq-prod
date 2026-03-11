@@ -614,9 +614,23 @@ export default function GlobalSubMonitor() {
     );
 
     if (dueSubs.length > 0) {
-      // Group by time - get the earliest and all subs at that time
-      const earliestTime = Math.min(...dueSubs.map(s => s.time));
-      const batchSubs = dueSubs.filter(s => s.time === earliestTime);
+      // Check for multiple time groups — auto-skip older ones
+      const dueTimes = [...new Set(dueSubs.map(s => s.time))].sort((a, b) => a - b);
+      
+      if (dueTimes.length > 1) {
+        // Skip all but the latest time group
+        const latestTime = dueTimes[dueTimes.length - 1];
+        const olderSubs = dueSubs.filter(s => s.time < latestTime);
+        const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
+        const updatedPlan = pitchState.autoSubPlan.map(s =>
+          olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
+        );
+        savePitchState({ ...pitchState, autoSubPlan: updatedPlan });
+        return; // Next tick will handle the latest due sub
+      }
+      
+      // All due subs are at the same time
+      const batchSubs = dueSubs;
       const [primarySub, ...additionalSubs] = batchSubs;
       
       // Create unique key to avoid duplicate alerts
@@ -628,7 +642,7 @@ export default function GlobalSubMonitor() {
         // Play alert beep (dialog itself is the in-app alert)
         const notificationBody = batchSubs.length > 1
           ? `Time for ${batchSubs.length} substitutions`
-          : `${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} → Bench. ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`} → ${primarySub.playerOut.currentPitchPosition || 'Pitch'}`;
+          : `${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} → Bench. ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`} → ${primarySub.playerOut.currentPitchPosition || 'Unknown'}`;
 
         if (timerState.soundEnabled) {
           try {

@@ -3,13 +3,23 @@ import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder } from "lucide-react";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -63,6 +73,7 @@ import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import { TeamSponsorSelector } from "@/components/TeamSponsorSelector";
 import PendingInvitesList from "@/components/PendingInvitesList";
 import TeamRewardsManager from "@/components/TeamRewardsManager";
+import { getFolderColorClass } from "@/components/TeamFoldersManager";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -157,7 +168,39 @@ export default function TeamDetailPage() {
     enabled: !!user && !!team?.club_id,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
-  
+
+  // Fetch team folders for move-to-folder functionality
+  const { data: teamFolders = [] } = useQuery({
+    queryKey: ["team-folders", team?.club_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("team_folders")
+        .select("*")
+        .eq("club_id", team!.club_id)
+        .order("sort_order");
+      return data || [];
+    },
+    enabled: !!team?.club_id,
+  });
+
+  const moveTeamToFolderMutation = useMutation({
+    mutationFn: async ({ teamId, folderId }: { teamId: string; folderId: string | null }) => {
+      const { error } = await supabase
+        .from("teams")
+        .update({ folder_id: folderId })
+        .eq("id", teamId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["team", id] });
+      queryClient.invalidateQueries({ queryKey: ["club-teams", team?.club_id] });
+      toast({ title: "Team moved successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to move team", variant: "destructive" });
+    },
+  });
+
   // Track if subscription data is still loading - don't show Pro lock while loading OR refetching
   // Must wait for:
   // 1. Team to load (so we know if it has a club_id)
@@ -534,51 +577,89 @@ export default function TeamDetailPage() {
         </Button>
         <h1 className="text-2xl font-bold flex-1 truncate">{team.name}</h1>
           {isAdmin && (
-          <>
-            <Link to={`/teams/${id}/edit`}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
-                <Pencil className="h-5 w-5" />
+                <MoreVertical className="h-5 w-5" />
               </Button>
-            </Link>
-            <ArchiveTeamDialog
-              teamId={id!}
-              teamName={team?.name || ""}
-              clubId={team?.club_id || ""}
-              isArchived={(team as any)?.is_archived || false}
-              currentSeasonLabel={(team as any)?.season_label}
-              onSuccess={() => navigate(`/clubs/${team?.club_id}`)}
-              trigger={
-                <Button variant="ghost" size="icon" className="text-amber-600">
-                  {(team as any)?.is_archived ? (
-                    <ArchiveRestore className="h-5 w-5" />
-                  ) : (
-                    <Archive className="h-5 w-5" />
-                  )}
-                </Button>
-              }
-            />
-            <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-destructive">
-                <Trash2 className="h-5 w-5" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Team?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete the team and all its events. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          </>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit Team
+              </DropdownMenuItem>
+              {teamFolders.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <FolderOpen className="h-4 w-4 mr-2" />
+                      Move to Folder
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem
+                        onClick={() => moveTeamToFolderMutation.mutate({ teamId: id!, folderId: null })}
+                        disabled={(team as any)?.folder_id === null}
+                      >
+                        <FolderOpen className="h-4 w-4 mr-2 text-muted-foreground" />
+                        Uncategorized
+                      </DropdownMenuItem>
+                      {teamFolders.map((folder: any) => (
+                        <DropdownMenuItem
+                          key={folder.id}
+                          onClick={() => moveTeamToFolderMutation.mutate({ teamId: id!, folderId: folder.id })}
+                          disabled={(team as any)?.folder_id === folder.id}
+                        >
+                          <Folder className={`h-4 w-4 mr-2 ${getFolderColorClass(folder.color || 'default').className}`} />
+                          {folder.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              <ArchiveTeamDialog
+                teamId={id!}
+                teamName={team?.name || ""}
+                clubId={team?.club_id || ""}
+                isArchived={(team as any)?.is_archived || false}
+                currentSeasonLabel={(team as any)?.season_label}
+                onSuccess={() => navigate(`/clubs/${team?.club_id}`)}
+                trigger={
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-amber-600">
+                    {(team as any)?.is_archived ? (
+                      <><ArchiveRestore className="h-4 w-4 mr-2" />Reinstate Team</>
+                    ) : (
+                      <><Archive className="h-4 w-4 mr-2" />Archive Team</>
+                    )}
+                  </DropdownMenuItem>
+                }
+              />
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Team
+                  </DropdownMenuItem>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Team?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete the team and all its events. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
 

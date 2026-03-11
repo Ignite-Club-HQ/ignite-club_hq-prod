@@ -24,6 +24,7 @@ interface AwardPointsDialogProps {
   clubId: string;
   clubName: string;
   clubLogoUrl?: string;
+  triggerId?: string;
 }
 
 export default function AwardPointsDialog({
@@ -33,6 +34,7 @@ export default function AwardPointsDialog({
   clubId,
   clubName,
   clubLogoUrl,
+  triggerId,
 }: AwardPointsDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -131,7 +133,7 @@ export default function AwardPointsDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8" title="Award Points">
+        <Button variant="ghost" size="icon" className="h-8 w-8" title="Award Points" id={triggerId}>
           <Flame className="h-4 w-4 text-amber-500" />
         </Button>
       </DialogTrigger>
