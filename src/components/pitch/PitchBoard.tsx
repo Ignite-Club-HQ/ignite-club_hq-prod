@@ -1336,6 +1336,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
   const [touchDragPlayer, setTouchDragPlayer] = useState<string | null>(null);
   const [touchOffset, setTouchOffset] = useState<{ x: number; y: number } | null>(null);
+  
+  // Track recently-released players to suppress CSS transition "drift" on drop
+  const recentlyDraggedRef = useRef<Set<string>>(new Set());
 
   // Zoom state
   const [zoom, setZoom] = useState(1);
@@ -1345,6 +1348,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [ballPosition, setBallPosition] = useState<{ x: number; y: number }>(() => savedState?.ballPosition || { x: 50, y: 50 });
   const [isDraggingBall, setIsDraggingBall] = useState(false);
   const isDraggingBallRef = useRef(false);
+  const recentlyDraggedBallRef = useRef(false);
 
   // Helper to get team color for a player in mini-league mode
   const getPlayerTeamColor = useCallback((player: Player): string | undefined => {
@@ -3434,6 +3438,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
 
   const handleBallDragEnd = () => {
+    recentlyDraggedBallRef.current = true;
+    setTimeout(() => { recentlyDraggedBallRef.current = false; }, 500);
     setIsDraggingBall(false);
   };
 
@@ -3455,6 +3461,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const handleBallTouchMove = (e: React.TouchEvent) => {
     if (!isDraggingBallRef.current || !containerRef.current) return;
     e.preventDefault();
+    e.stopPropagation();
     const touch = e.touches[0];
     const rect = containerRef.current.getBoundingClientRect();
     const x = ((touch.clientX - rect.left) / rect.width) * 100;
@@ -3464,6 +3471,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   const handleBallTouchEnd = () => {
     isDraggingBallRef.current = false;
+    recentlyDraggedBallRef.current = true;
+    setTimeout(() => { recentlyDraggedBallRef.current = false; }, 500);
     setIsDraggingBall(false);
   };
 
@@ -3768,9 +3777,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (readOnly) return;
     if (!touchDragPlayer) return;
     
+    // Mark player as recently-dragged to suppress CSS transition AND tactical offset drift
+    const draggedId = touchDragPlayer;
+    recentlyDraggedRef.current.add(draggedId);
+    setTimeout(() => recentlyDraggedRef.current.delete(draggedId), 500);
+    
     const touch = e.changedTouches[0];
     const benchElement = document.getElementById('pitch-bench');
     
+    let droppedOnBench = false;
     if (benchElement) {
       const benchRect = benchElement.getBoundingClientRect();
       if (
@@ -3779,12 +3794,27 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         touch.clientY >= benchRect.top &&
         touch.clientY <= benchRect.bottom
       ) {
+        droppedOnBench = true;
         setPlayers(prev =>
           prev.map(p =>
             p.id === touchDragPlayer ? { ...p, position: null } : p
           )
         );
       }
+    }
+    
+    // Final position update from touchend to prevent coordinate gap with last touchmove
+    if (!droppedOnBench && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = ((touch.clientX - rect.left) / rect.width) * 100;
+      const y = ((touch.clientY - rect.top) / rect.height) * 100;
+      setPlayers(prev =>
+        prev.map(p =>
+          p.id === touchDragPlayer
+            ? { ...p, position: { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } }
+            : p
+        )
+      );
     }
     
     setTouchDragPlayer(null);
@@ -3979,9 +4009,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   );
 
   // Compute ball visual offset to avoid overlapping with tactically-shifted players
+  // Don't apply offset while actively dragging the ball
   const ballOffset = useMemo(() =>
-    computeBallOffset(ballPosition, players, tacticalOffsets, tacticalMode),
-    [ballPosition, players, tacticalOffsets, tacticalMode]
+    (isDraggingBall || recentlyDraggedBallRef.current) ? { dx: 0, dy: 0 } : computeBallOffset(ballPosition, players, tacticalOffsets, tacticalMode),
+    [ballPosition, players, tacticalOffsets, tacticalMode, isDraggingBall]
   );
 
   // Calculate which bench players can come on for the selected pitch player
@@ -4969,7 +5000,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   top: `${ballPosition.y + ballOffset.dy}%`,
                   transform: "translate(-50%, -50%)",
                   zIndex: 40,
-                  transition: tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined,
+                  transition: isDraggingBall ? "none" : (tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined),
                   pointerEvents: drawingEnabled ? "none" : "auto",
                 }}
               />
@@ -5021,14 +5052,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     position: "absolute",
                     ...(() => {
                       const isDragging = draggedPlayer === player.id || touchDragPlayer === player.id;
-                      const offset = !isDragging ? tacticalOffsets.get(player.id) : undefined;
+                      const recentlyDropped = recentlyDraggedRef.current.has(player.id);
+                      // Suppress both transition AND tactical offset for recently-dropped players
+                      const offset = (!isDragging && !recentlyDropped) ? tacticalOffsets.get(player.id) : undefined;
                       const tx = offset?.dx ?? 0;
                       const ty = offset?.dy ?? 0;
                       return {
                         left: `${player.position!.x + tx}%`,
                         top: `${player.position!.y + ty}%`,
                         transform: "translate(-50%, -50%)",
-                        transition: isDragging ? "none" : "left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+                        transition: (isDragging || recentlyDropped) ? "none" : "left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
                       };
                     })(),
                     zIndex: (subAnimationPlayers.in === player.id || subAnimationPlayers.swap === player.id) ? 40 : previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
@@ -6711,7 +6744,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 top: `${ballPosition.y + ballOffset.dy}%`,
                 transform: "translate(-50%, -50%)",
                 zIndex: 40,
-                transition: tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined,
+                transition: isDraggingBall ? "none" : (tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined),
                 pointerEvents: drawingEnabled ? "none" : "auto",
               }}
             />
@@ -6760,16 +6793,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 isSubDue={subDuePlayerIds.has(player.id)}
                 style={{
                   position: "absolute",
-                  ...(() => {
+                    ...(() => {
                     const isDragging = draggedPlayer === player.id || touchDragPlayer === player.id;
-                    const offset = !isDragging ? tacticalOffsets.get(player.id) : undefined;
+                    const recentlyDropped = recentlyDraggedRef.current.has(player.id);
+                    // Suppress both transition AND tactical offset for recently-dropped players
+                    const offset = (!isDragging && !recentlyDropped) ? tacticalOffsets.get(player.id) : undefined;
                     const tx = offset?.dx ?? 0;
                     const ty = offset?.dy ?? 0;
                     return {
                       left: `${player.position!.x + tx}%`,
                       top: `${player.position!.y + ty}%`,
                       transform: "translate(-50%, -50%)",
-                      transition: isDragging ? "none" : "left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+                      transition: (isDragging || recentlyDropped) ? "none" : "left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
                     };
                   })(),
                   zIndex: (subAnimationPlayers.in === player.id || subAnimationPlayers.swap === player.id) ? 40 : previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),

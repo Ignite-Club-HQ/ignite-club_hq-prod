@@ -133,7 +133,7 @@ export function AppLayout() {
   // DEEP LINK GATE: Before redirecting unauthenticated users to /auth,
   // check if this is an in-app browser (Messenger, WhatsApp, etc.) on a deep-linkable route.
   // Show the DeepLinkGate interstitial so they can bounce to the native app.
-  const isDeepLinkRoute = /^\/(events\/[^/]+|media\/[^/]+)$/.test(location.pathname);
+  const isDeepLinkRoute = /^\/(events\/[^/]+|media\/[^/]+|vault\/folder\/[^/]+|share)$/.test(location.pathname);
   const isNativePlatform = Capacitor.isNativePlatform();
   const userAgent = navigator.userAgent || "";
   const isInApp = !isNativePlatform && /FBAN|FBAV|Instagram|Line\/|Twitter|Snapchat|WhatsApp|LinkedInApp|Messenger/i.test(userAgent);
@@ -150,11 +150,12 @@ export function AppLayout() {
     );
   }
 
-  // Don't redirect to auth if:
-  // 1. We have a pending OAuth callback (Google Drive)
-  // 2. There are OAuth tokens in the URL (Google login in progress)
-  // The user is authenticated or about to be - just waiting for session to initialize
+  // Preserve deep-link destination for post-auth return
   if (!user && !hasPendingOAuth && !hasOAuthTokensInUrl) {
+    if (isDeepLinkRoute && typeof window !== 'undefined') {
+      const redirectPath = `${location.pathname}${location.search}${location.hash}`;
+      sessionStorage.setItem("redirectAfterAuth", redirectPath);
+    }
     return <Navigate to="/auth" replace />;
   }
 

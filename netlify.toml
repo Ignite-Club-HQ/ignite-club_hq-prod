@@ -1,0 +1,8 @@
+[[edge_functions]]
+  function = "share"
+  path = "/share"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -264,7 +264,7 @@ export default function EventsPage() {
     enabled: !!user,
   });
 
-  const { data: events, isLoading } = useQuery({
+  const { data: events, isLoading, isFetching } = useQuery({
     queryKey: ["events", user?.id, filter, teamFilter, clubFilter, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
     queryFn: async () => {
       if (!userMemberships) return [];
@@ -419,7 +419,8 @@ export default function EventsPage() {
   // Get dates that have events for calendar highlighting
   const eventDates = events?.map((e) => parseISO(e.event_date)) || [];
 
-  if (isLoading) {
+  // Only show full-page loading on first ever load (no cached data)
+  if (isLoading && !events) {
     return <PageLoading message="Loading events..." />;
   }
 
@@ -796,20 +797,8 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
         }
       }
 
-      // Send push notifications if enabled
-      if (sendPushNotification) {
-        const notificationMessage = customMessage 
-          ? `"${event.title}" has been cancelled. ${customMessage}`
-          : `"${event.title}" has been cancelled.`;
-        
-        const notifications = uniqueMembers.map(userId => ({
-          user_id: userId,
-          type: "event_cancelled",
-          message: notificationMessage,
-          related_id: event.id,
-        }));
-        await supabase.from("notifications").insert(notifications);
-      }
+      // Notifications are created automatically by the on_event_cancelled DB trigger
+      // No need to manually insert them here - that was causing duplicates
 
       return uniqueMembers.length;
     },

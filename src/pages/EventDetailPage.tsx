@@ -1,7 +1,8 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense, useRef } from "react";
 import { Share } from "@capacitor/share";
 import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
 import { Capacitor } from "@capacitor/core";
+import { getShareUrl } from "@/lib/shareUtils";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -220,6 +221,7 @@ export default function EventDetailPage() {
   
   // Mini league player overrides for match generation
   const [playerOverrides, setPlayerOverrides] = useState<Record<string, boolean>>({});
+  const isSharingEventRef = useRef(false);
 
   // Track when user views this event
   useEventViewTracking(id, user?.id);
@@ -1485,20 +1487,8 @@ export default function EventDetailPage() {
         }
       }
 
-      // Send push notifications if enabled
-      if (sendPushNotification !== false) {
-        const notificationMessage = customMessage 
-          ? `"${event?.title}" has been cancelled. ${customMessage}`
-          : `"${event?.title}" has been cancelled.`;
-        
-        const notifications = uniqueMembers.map(userId => ({
-          user_id: userId,
-          type: "event_cancelled",
-          message: notificationMessage,
-          related_id: event?.id,
-        }));
-        await supabase.from("notifications").insert(notifications);
-      }
+      // Notifications are created automatically by the on_event_cancelled DB trigger
+      // No need to manually insert them here - that was causing duplicates
 
       return uniqueMembers.length;
     },
@@ -1682,26 +1672,20 @@ export default function EventDetailPage() {
           size="icon"
           className="shrink-0"
           onClick={async () => {
-            const shareUrl = `https://igniteclubhq.app/events/${id}`;
-            const clubName = event.clubs?.name || "";
-            const teamName = event.teams?.name || "";
-            const context = teamName && clubName
-              ? `${clubName} — ${teamName}`
-              : clubName || "";
-            const shareText = context
-              ? `${event.title} (${context})`
-              : event.title;
+            if (isSharingEventRef.current) return;
+            isSharingEventRef.current = true;
+
+            const shareUrl = getShareUrl("event", id!);
+            
+
             try {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
-                  title: event.title,
-                  text: `${shareText}\n${shareUrl}`,
+                  url: shareUrl,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
                 await navigator.share({
-                  title: event.title,
-                  text: shareText,
                   url: shareUrl,
                 });
               } else {
@@ -1713,6 +1697,8 @@ export default function EventDetailPage() {
                 await navigator.clipboard.writeText(shareUrl);
                 toast({ title: "Link copied to clipboard!" });
               }
+            } finally {
+              isSharingEventRef.current = false;
             }
           }}
         >

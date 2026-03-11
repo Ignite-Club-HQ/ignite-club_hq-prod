@@ -47,6 +47,7 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
   const handleEmojiClick = (type: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setIsPickerOpen(false);
+    if (!currentUserId) return;
     if (userReaction?.reaction_type === type) {
       onRemove();
     } else {
@@ -78,12 +79,10 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
               variant="ghost"
               size="sm"
               onClick={(e) => handleEmojiClick(type, e)}
-              onContextMenu={(e) => handleViewReactors(type, e)}
-              onDoubleClick={(e) => handleViewReactors(type, e)}
               className={`h-7 px-2 gap-1 text-sm ${
                 isUserReaction ? "bg-primary/20 hover:bg-primary/30" : "hover:bg-accent"
               }`}
-              title="Tap to react, double-tap to see who reacted"
+              title={isUserReaction ? "Tap to remove your reaction" : "Tap to react"}
             >
               <span>{emojiData.emoji}</span>
               <span className="text-xs">{count}</span>
@@ -139,7 +138,7 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <span className="text-xl">{viewingEmoji}</span>
-              <span>Reactions ({viewingReactors.length})</span>
+              <span>Reactions</span>
             </DialogTitle>
           </DialogHeader>
           
@@ -165,19 +164,26 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
 
           <ScrollArea className="max-h-[300px]">
             <div className="space-y-2">
-              {viewingReactors.map((reactor) => (
-                <div key={reactor.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={reactor.profiles?.avatar_url || undefined} />
-                    <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                      {reactor.profiles?.display_name?.charAt(0)?.toUpperCase() || "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm font-medium">
-                    {reactor.profiles?.display_name || "Unknown User"}
-                  </span>
-                </div>
-              ))}
+              {viewingReactors.map((reactor) => {
+                const isCurrentUser = reactor.user_id === currentUserId;
+                return (
+                  <div key={reactor.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={reactor.profiles?.avatar_url || undefined} />
+                      <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                        {reactor.profiles?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-medium">
+                      {reactor.profiles?.display_name || "Unknown User"}
+                      {isCurrentUser && <span className="text-muted-foreground font-normal"> (you)</span>}
+                    </span>
+                  </div>
+                );
+              })}
+              {viewingReactors.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-2">No reactions</p>
+              )}
             </div>
           </ScrollArea>
         </DialogContent>
