@@ -5,8 +5,6 @@ import { ArrowLeft, Send, Loader2, Flame } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
-import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
-import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,7 +16,7 @@ import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
-
+import { ChatSearch } from "@/components/chat/ChatSearch";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
@@ -59,7 +57,6 @@ export default function BroadcastChatPage() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -67,7 +64,6 @@ export default function BroadcastChatPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
-  const isNativePlatform = Capacitor.isNativePlatform();
 
   // Mark broadcast notifications as read when opening this thread
   useEffect(() => {
@@ -780,7 +776,6 @@ export default function BroadcastChatPage() {
     <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] overflow-hidden overscroll-none">
       {/* Header */}
       <div className="flex items-center gap-3 py-4 border-b bg-background sticky top-0 z-10 shrink-0 relative">
-        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -792,16 +787,7 @@ export default function BroadcastChatPage() {
           <p className="text-sm text-muted-foreground truncate">Official updates & news</p>
         </div>
         <div className="flex items-center shrink-0">
-          <ChatHeaderMenu
-            chatType="club"
-            chatId="broadcast"
-            onSearchOpen={() => setSearchOpen(true)}
-            showMembers={false}
-            showMute={false}
-            onRefresh={handleManualRefresh}
-            isRefreshing={isAnyRefreshing}
-            isNativePlatform={isNativePlatform}
-          />
+          <ChatSearch onSearch={setSearchQuery} />
         </div>
       </div>
 
@@ -819,7 +805,7 @@ export default function BroadcastChatPage() {
           />
         ) : (
           <div
-            className="flex-1 h-full overflow-y-auto overscroll-contain scrollbar-hide"
+            className="flex-1 h-full overflow-y-auto overscroll-none scrollbar-hide"
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
           >

@@ -1336,9 +1336,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
   const [touchDragPlayer, setTouchDragPlayer] = useState<string | null>(null);
   const [touchOffset, setTouchOffset] = useState<{ x: number; y: number } | null>(null);
-  
-  // Track recently-released players to suppress CSS transition "drift" on drop
-  const recentlyDraggedRef = useRef<Set<string>>(new Set());
 
   // Zoom state
   const [zoom, setZoom] = useState(1);
@@ -1348,7 +1345,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [ballPosition, setBallPosition] = useState<{ x: number; y: number }>(() => savedState?.ballPosition || { x: 50, y: 50 });
   const [isDraggingBall, setIsDraggingBall] = useState(false);
   const isDraggingBallRef = useRef(false);
-  const recentlyDraggedBallRef = useRef(false);
 
   // Helper to get team color for a player in mini-league mode
   const getPlayerTeamColor = useCallback((player: Player): string | undefined => {
@@ -2062,88 +2058,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     
     // Position changes for players staying on pitch
-    // Use optimal matching to minimize position changes instead of naive index assignment
     const minorAdjustments: { player: Player; fromLabel: string; toLabel: string }[] = [];
-    const stayingOnPitch = willBeOnPitch.filter(
-      p => p.currentPitchPosition && playersOnPitch.some(pp => pp.id === p.id) && !willBeOnBench.some(bp => bp.id === p.id)
-    );
-    
-    // Build new formation slot info
-    const formationSlots = formation.positions.map((pos, i) => ({
-      index: i,
-      position: getPositionFromCoords(pos.y, teamSize),
-      x: pos.x,
-      y: pos.y,
-      taken: false,
-    }));
-    
-    // Mark slots taken by bench-to-pitch players
     for (let i = 0; i < willBeOnPitch.length; i++) {
       const player = willBeOnPitch[i];
-      if (benchPlayers.some(p => p.id === player.id)) {
-        formationSlots[i].taken = true;
-      }
-    }
-    
-    // Greedy matching: first pass - exact position+side matches, second - same position, third - remaining
-    const playerSlotMap = new Map<string, number>(); // player.id -> slot index
-    const availableSlots = () => formationSlots.filter(s => !s.taken);
-    
-    // Pass 1: exact specific label match (e.g. "Left Mid" → "Left Mid")
-    for (const player of stayingOnPitch) {
-      if (playerSlotMap.has(player.id)) continue;
-      const fromLabel = getSpecificPositionLabel(player.position?.x, player.currentPitchPosition!);
-      const slot = availableSlots().find(s => {
-        const toLabel = getSpecificPositionLabel(s.x, s.position);
-        return toLabel === fromLabel;
-      });
-      if (slot) {
-        slot.taken = true;
-        playerSlotMap.set(player.id, slot.index);
-      }
-    }
-    
-    // Pass 2: same position category (e.g. MID → MID, any side)
-    for (const player of stayingOnPitch) {
-      if (playerSlotMap.has(player.id)) continue;
-      const slot = availableSlots().find(s => s.position === player.currentPitchPosition);
-      if (slot) {
-        slot.taken = true;
-        playerSlotMap.set(player.id, slot.index);
-      }
-    }
-    
-    // Pass 3: assign remaining players to closest available slots
-    for (const player of stayingOnPitch) {
-      if (playerSlotMap.has(player.id)) continue;
-      const remaining = availableSlots();
-      if (remaining.length > 0) {
-        // Pick slot closest to player's current position
-        const px = player.position?.x ?? 50;
-        const py = player.position?.y ?? 50;
-        remaining.sort((a, b) => {
-          const distA = Math.abs(a.x - px) + Math.abs(a.y - py);
-          const distB = Math.abs(b.x - px) + Math.abs(b.y - py);
-          return distA - distB;
-        });
-        remaining[0].taken = true;
-        playerSlotMap.set(player.id, remaining[0].index);
-      }
-    }
-    
-    // Now compute swaps and adjustments from the optimal mapping
-    for (const player of stayingOnPitch) {
-      const slotIdx = playerSlotMap.get(player.id);
-      if (slotIdx == null) continue;
-      const slot = formationSlots[slotIdx];
-      const newPosition = slot.position;
-      if (player.currentPitchPosition !== newPosition) {
-        positionSwaps.push({ player, fromPosition: player.currentPitchPosition!, toPosition: newPosition, fromX: player.position?.x, toX: slot.x });
-      } else {
-        const fromLabel = getSpecificPositionLabel(player.position?.x, player.currentPitchPosition!);
-        const toLabel = getSpecificPositionLabel(slot.x, newPosition);
-        if (fromLabel !== toLabel) {
-          minorAdjustments.push({ player, fromLabel, toLabel });
+      if (player.currentPitchPosition && formation.positions[i] && playersOnPitch.some(p => p.id === player.id) && !willBeOnBench.some(p => p.id === player.id)) {
+        const newPosition = getPositionFromCoords(formation.positions[i].y, teamSize);
+        if (player.currentPitchPosition !== newPosition) {
+          positionSwaps.push({ player, fromPosition: player.currentPitchPosition, toPosition: newPosition, fromX: player.position?.x, toX: formation.positions[i].x });
+        } else {
+          // Same category but different specific position (e.g. Left Mid → Centre Mid)
+          const fromLabel = getSpecificPositionLabel(player.position?.x, player.currentPitchPosition);
+          const toLabel = getSpecificPositionLabel(formation.positions[i].x, newPosition);
+          if (fromLabel !== toLabel) {
+            minorAdjustments.push({ player, fromLabel, toLabel });
+          }
         }
       }
     }
@@ -2331,73 +2259,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       
       const updated = prev.map(p => ({ ...p, position: null as { x: number; y: number } | null, currentPitchPosition: undefined as PitchPosition | undefined }));
       
-      // Determine who goes on pitch
-      const willBeOnPitch = allPlayers.slice(0, numPositions);
-      const stayingOnPitch = willBeOnPitch.filter(p => playersOnPitch.some(pp => pp.id === p.id));
-      const comingFromBench = willBeOnPitch.filter(p => benchPlayers.some(bp => bp.id === p.id));
-      
-      // Build formation slots
-      const slots = formation.positions.map((pos, i) => ({
-        index: i,
-        position: getPositionFromCoords(pos.y, teamSize),
-        x: pos.x,
-        y: pos.y,
-        taken: false,
-      }));
-      
-      // Optimal matching for staying players
-      const playerSlotMap = new Map<string, number>();
-      const availSlots = () => slots.filter(s => !s.taken);
-      
-      // Pass 1: exact specific label match
-      for (const player of stayingOnPitch) {
-        if (playerSlotMap.has(player.id)) continue;
-        const fromLabel = getSpecificPositionLabel(player.position?.x, player.currentPitchPosition!);
-        const slot = availSlots().find(s => getSpecificPositionLabel(s.x, s.position) === fromLabel);
-        if (slot) { slot.taken = true; playerSlotMap.set(player.id, slot.index); }
-      }
-      // Pass 2: same category
-      for (const player of stayingOnPitch) {
-        if (playerSlotMap.has(player.id)) continue;
-        const slot = availSlots().find(s => s.position === player.currentPitchPosition);
-        if (slot) { slot.taken = true; playerSlotMap.set(player.id, slot.index); }
-      }
-      // Pass 3: closest remaining
-      for (const player of stayingOnPitch) {
-        if (playerSlotMap.has(player.id)) continue;
-        const remaining = availSlots();
-        if (remaining.length > 0) {
-          const px = player.position?.x ?? 50;
-          const py = player.position?.y ?? 50;
-          remaining.sort((a, b) => (Math.abs(a.x - px) + Math.abs(a.y - py)) - (Math.abs(b.x - px) + Math.abs(b.y - py)));
-          remaining[0].taken = true;
-          playerSlotMap.set(player.id, remaining[0].index);
-        }
-      }
-      
-      // Place staying players at their matched slots
-      for (const player of stayingOnPitch) {
-        const slotIdx = playerSlotMap.get(player.id);
-        if (slotIdx == null) continue;
-        const playerIndex = updated.findIndex(p => p.id === player.id);
-        if (playerIndex !== -1) {
-          const pos = { ...formation.positions[slotIdx] };
+      // Assign positions to first N players
+      for (let i = 0; i < Math.min(numPositions, allPlayers.length); i++) {
+        const playerIndex = updated.findIndex(p => p.id === allPlayers[i].id);
+        if (playerIndex !== -1 && formation.positions[i]) {
+          const pos = { ...formation.positions[i] };
           updated[playerIndex].position = pos;
           updated[playerIndex].currentPitchPosition = getPositionFromCoords(pos.y, teamSize);
         }
       }
-      
-      // Place bench-to-pitch players in remaining slots
-      const remainingSlots = slots.filter(s => !s.taken);
-      for (let i = 0; i < comingFromBench.length && i < remainingSlots.length; i++) {
-        const playerIndex = updated.findIndex(p => p.id === comingFromBench[i].id);
-        if (playerIndex !== -1) {
-          const pos = { ...formation.positions[remainingSlots[i].index] };
-          updated[playerIndex].position = pos;
-          updated[playerIndex].currentPitchPosition = getPositionFromCoords(pos.y, teamSize);
-        }
-      }
-      
       return updated;
     });
 
@@ -3438,8 +3308,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
 
   const handleBallDragEnd = () => {
-    recentlyDraggedBallRef.current = true;
-    setTimeout(() => { recentlyDraggedBallRef.current = false; }, 500);
     setIsDraggingBall(false);
   };
 
@@ -3461,7 +3329,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const handleBallTouchMove = (e: React.TouchEvent) => {
     if (!isDraggingBallRef.current || !containerRef.current) return;
     e.preventDefault();
-    e.stopPropagation();
     const touch = e.touches[0];
     const rect = containerRef.current.getBoundingClientRect();
     const x = ((touch.clientX - rect.left) / rect.width) * 100;
@@ -3471,8 +3338,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   const handleBallTouchEnd = () => {
     isDraggingBallRef.current = false;
-    recentlyDraggedBallRef.current = true;
-    setTimeout(() => { recentlyDraggedBallRef.current = false; }, 500);
     setIsDraggingBall(false);
   };
 
@@ -3777,15 +3642,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (readOnly) return;
     if (!touchDragPlayer) return;
     
-    // Mark player as recently-dragged to suppress CSS transition AND tactical offset drift
-    const draggedId = touchDragPlayer;
-    recentlyDraggedRef.current.add(draggedId);
-    setTimeout(() => recentlyDraggedRef.current.delete(draggedId), 500);
-    
     const touch = e.changedTouches[0];
     const benchElement = document.getElementById('pitch-bench');
     
-    let droppedOnBench = false;
     if (benchElement) {
       const benchRect = benchElement.getBoundingClientRect();
       if (
@@ -3794,27 +3653,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         touch.clientY >= benchRect.top &&
         touch.clientY <= benchRect.bottom
       ) {
-        droppedOnBench = true;
         setPlayers(prev =>
           prev.map(p =>
             p.id === touchDragPlayer ? { ...p, position: null } : p
           )
         );
       }
-    }
-    
-    // Final position update from touchend to prevent coordinate gap with last touchmove
-    if (!droppedOnBench && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = ((touch.clientX - rect.left) / rect.width) * 100;
-      const y = ((touch.clientY - rect.top) / rect.height) * 100;
-      setPlayers(prev =>
-        prev.map(p =>
-          p.id === touchDragPlayer
-            ? { ...p, position: { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } }
-            : p
-        )
-      );
     }
     
     setTouchDragPlayer(null);
@@ -4009,10 +3853,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   );
 
   // Compute ball visual offset to avoid overlapping with tactically-shifted players
-  // Don't apply offset while actively dragging the ball
   const ballOffset = useMemo(() =>
-    (isDraggingBall || recentlyDraggedBallRef.current) ? { dx: 0, dy: 0 } : computeBallOffset(ballPosition, players, tacticalOffsets, tacticalMode),
-    [ballPosition, players, tacticalOffsets, tacticalMode, isDraggingBall]
+    computeBallOffset(ballPosition, players, tacticalOffsets, tacticalMode),
+    [ballPosition, players, tacticalOffsets, tacticalMode]
   );
 
   // Calculate which bench players can come on for the selected pitch player
@@ -5000,7 +4843,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   top: `${ballPosition.y + ballOffset.dy}%`,
                   transform: "translate(-50%, -50%)",
                   zIndex: 40,
-                  transition: isDraggingBall ? "none" : (tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined),
+                  transition: tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined,
                   pointerEvents: drawingEnabled ? "none" : "auto",
                 }}
               />
@@ -5052,16 +4895,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     position: "absolute",
                     ...(() => {
                       const isDragging = draggedPlayer === player.id || touchDragPlayer === player.id;
-                      const recentlyDropped = recentlyDraggedRef.current.has(player.id);
-                      // Suppress both transition AND tactical offset for recently-dropped players
-                      const offset = (!isDragging && !recentlyDropped) ? tacticalOffsets.get(player.id) : undefined;
+                      const offset = !isDragging ? tacticalOffsets.get(player.id) : undefined;
                       const tx = offset?.dx ?? 0;
                       const ty = offset?.dy ?? 0;
                       return {
                         left: `${player.position!.x + tx}%`,
                         top: `${player.position!.y + ty}%`,
                         transform: "translate(-50%, -50%)",
-                        transition: (isDragging || recentlyDropped) ? "none" : "left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+                        transition: isDragging ? "none" : "left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
                       };
                     })(),
                     zIndex: (subAnimationPlayers.in === player.id || subAnimationPlayers.swap === player.id) ? 40 : previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
@@ -6744,7 +6585,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 top: `${ballPosition.y + ballOffset.dy}%`,
                 transform: "translate(-50%, -50%)",
                 zIndex: 40,
-                transition: isDraggingBall ? "none" : (tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined),
+                transition: tacticalMode !== "neutral" ? "left 0.4s ease, top 0.4s ease" : undefined,
                 pointerEvents: drawingEnabled ? "none" : "auto",
               }}
             />
@@ -6793,18 +6634,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 isSubDue={subDuePlayerIds.has(player.id)}
                 style={{
                   position: "absolute",
-                    ...(() => {
+                  ...(() => {
                     const isDragging = draggedPlayer === player.id || touchDragPlayer === player.id;
-                    const recentlyDropped = recentlyDraggedRef.current.has(player.id);
-                    // Suppress both transition AND tactical offset for recently-dropped players
-                    const offset = (!isDragging && !recentlyDropped) ? tacticalOffsets.get(player.id) : undefined;
+                    const offset = !isDragging ? tacticalOffsets.get(player.id) : undefined;
                     const tx = offset?.dx ?? 0;
                     const ty = offset?.dy ?? 0;
                     return {
                       left: `${player.position!.x + tx}%`,
                       top: `${player.position!.y + ty}%`,
                       transform: "translate(-50%, -50%)",
-                      transition: (isDragging || recentlyDropped) ? "none" : "left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+                      transition: isDragging ? "none" : "left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
                     };
                   })(),
                   zIndex: (subAnimationPlayers.in === player.id || subAnimationPlayers.swap === player.id) ? 40 : previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),

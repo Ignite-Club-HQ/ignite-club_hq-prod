@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, useRef } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Share } from "@capacitor/share";
 import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
 import { Capacitor } from "@capacitor/core";
@@ -220,7 +220,6 @@ export default function EventDetailPage() {
   
   // Mini league player overrides for match generation
   const [playerOverrides, setPlayerOverrides] = useState<Record<string, boolean>>({});
-  const isSharingEventRef = useRef(false);
 
   // Track when user views this event
   useEventViewTracking(id, user?.id);
@@ -1486,8 +1485,20 @@ export default function EventDetailPage() {
         }
       }
 
-      // Notifications are created automatically by the on_event_cancelled DB trigger
-      // No need to manually insert them here - that was causing duplicates
+      // Send push notifications if enabled
+      if (sendPushNotification !== false) {
+        const notificationMessage = customMessage 
+          ? `"${event?.title}" has been cancelled. ${customMessage}`
+          : `"${event?.title}" has been cancelled.`;
+        
+        const notifications = uniqueMembers.map(userId => ({
+          user_id: userId,
+          type: "event_cancelled",
+          message: notificationMessage,
+          related_id: event?.id,
+        }));
+        await supabase.from("notifications").insert(notifications);
+      }
 
       return uniqueMembers.length;
     },
@@ -1671,38 +1682,37 @@ export default function EventDetailPage() {
           size="icon"
           className="shrink-0"
           onClick={async () => {
-            if (isSharingEventRef.current) return;
-            isSharingEventRef.current = true;
-
             const shareUrl = `https://igniteclubhq.app/events/${id}`;
-            const shareCaption = "You've been invited to an event on Ignite Club HQ";
-            const fallbackShareText = `${shareCaption}\n${shareUrl}`;
-
+            const clubName = event.clubs?.name || "";
+            const teamName = event.teams?.name || "";
+            const context = teamName && clubName
+              ? `${clubName} — ${teamName}`
+              : clubName || "";
+            const shareText = context
+              ? `${event.title} (${context})`
+              : event.title;
             try {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
-                  title: 'Ignite Club HQ',
-                  text: shareCaption,
-                  url: shareUrl,
+                  title: event.title,
+                  text: `${shareText}\n${shareUrl}`,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
                 await navigator.share({
-                  title: 'Ignite Club HQ',
-                  text: shareCaption,
+                  title: event.title,
+                  text: shareText,
                   url: shareUrl,
                 });
               } else {
-                await navigator.clipboard.writeText(fallbackShareText);
+                await navigator.clipboard.writeText(shareUrl);
                 toast({ title: "Link copied to clipboard!" });
               }
             } catch (err) {
               if ((err as Error).name !== 'AbortError') {
-                await navigator.clipboard.writeText(fallbackShareText);
+                await navigator.clipboard.writeText(shareUrl);
                 toast({ title: "Link copied to clipboard!" });
               }
-            } finally {
-              isSharingEventRef.current = false;
             }
           }}
         >

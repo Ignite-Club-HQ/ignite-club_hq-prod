@@ -1,9 +1,7 @@
-import { useRef } from "react";
 import { Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Share } from "@capacitor/share";
-import { Capacitor } from "@capacitor/core";
 
 interface SharePhotoButtonProps {
   photoId: string;
@@ -16,9 +14,49 @@ interface SharePhotoButtonProps {
 const DEEP_LINK_BASE = "https://igniteclubhq.app";
 
 export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName }: SharePhotoButtonProps) {
-  const isSharingRef = useRef(false);
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const deepLink = `${DEEP_LINK_BASE}/media/${photoId}`;
 
-  const copyDeepLink = async (deepLink: string) => {
+    // Build descriptive share text
+    const context = teamName && clubName
+      ? `${clubName} — ${teamName}`
+      : clubName || teamName || "";
+    const shareText = context
+      ? `A new photo has been added to ${context}. Check it out!`
+      : "Check out this photo on Ignite!";
+    const shareTitle = title || shareText;
+
+    // Use Capacitor Share on native platforms for proper share sheet
+    if ((window as any).Capacitor) {
+      try {
+        await Share.share({
+          title: shareTitle,
+          text: `${shareText}\n${deepLink}`,
+          dialogTitle: "Share photo",
+        });
+        return;
+      } catch (error) {
+        console.log("Capacitor Share failed, falling back:", error);
+      }
+    }
+
+    // Use Web Share API for browsers that support it
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: deepLink,
+        });
+        return;
+      } catch (error) {
+        if ((error as Error).name === "AbortError") return;
+        console.log("Web Share failed, falling back to clipboard:", error);
+      }
+    }
+
+    // Fallback: copy deep link to clipboard
     try {
       await navigator.clipboard.writeText(deepLink);
       toast.success("Link copied to clipboard!");
@@ -32,56 +70,6 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
       document.execCommand("copy");
       document.body.removeChild(textarea);
       toast.success("Link copied to clipboard!");
-    }
-  };
-
-  const handleShare = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-
-    if (isSharingRef.current) return;
-    isSharingRef.current = true;
-
-    const deepLink = `${DEEP_LINK_BASE}/media/${photoId}`;
-
-    const shareCaption = "You've been sent a photo on Ignite Club HQ";
-
-    const fallbackText = `${shareCaption}\n${deepLink}`;
-
-    try {
-      if (Capacitor.isNativePlatform()) {
-        try {
-          await Share.share({
-            title: "Ignite Club HQ",
-            text: shareCaption,
-            url: deepLink,
-            dialogTitle: "Share photo",
-          });
-        } catch (error) {
-          if ((error as Error).name !== "AbortError") {
-            console.log("Capacitor Share failed, falling back to clipboard:", error);
-            await copyDeepLink(fallbackText);
-          }
-        }
-        return;
-      }
-
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: "Ignite Club HQ",
-            text: shareCaption,
-            url: deepLink,
-          });
-          return;
-        } catch (error) {
-          if ((error as Error).name === "AbortError") return;
-          console.log("Web Share failed, falling back to clipboard:", error);
-        }
-      }
-
-      await copyDeepLink(fallbackText);
-    } finally {
-      isSharingRef.current = false;
     }
   };
 
