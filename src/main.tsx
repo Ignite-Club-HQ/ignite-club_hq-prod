@@ -55,13 +55,6 @@ declare global {
 }
 
 const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
-const isIOS = isNative && /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-// CRITICAL: iOS WKWebView can collapse viewport when html/body use position:fixed
-// Add class so CSS can override it for iOS only (Android needs it for scroll containment)
-if (isIOS) {
-  document.documentElement.classList.add('ios-native');
-}
 
 // Initialize Crashlytics FIRST on native (dynamic import, no React dependency)
 if (isNative) {
