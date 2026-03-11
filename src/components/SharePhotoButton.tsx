@@ -1,56 +1,30 @@
+import { useRef } from "react";
 import { Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Share } from "@capacitor/share";
+import { Capacitor } from "@capacitor/core";
 
 interface SharePhotoButtonProps {
+  photoId: string;
   imageUrl: string;
   title?: string;
+  clubName?: string;
+  teamName?: string;
 }
 
-export function SharePhotoButton({ imageUrl, title }: SharePhotoButtonProps) {
-  const handleShare = async () => {
-    const shareTitle = title || "Check out this photo!";
+const DEEP_LINK_BASE = "https://igniteclubhq.app";
 
-    // Try sharing as a file (avoids exposing raw Supabase URL)
-    if (navigator.share && navigator.canShare) {
-      try {
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
-        const extension = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
-        const file = new File([blob], `${shareTitle.replace(/[^a-zA-Z0-9 ]/g, "").trim() || "photo"}.${extension}`, {
-          type: blob.type || "image/jpeg",
-        });
+export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName }: SharePhotoButtonProps) {
+  const isSharingRef = useRef(false);
 
-        const shareData = { files: [file], title: shareTitle };
-
-        if (navigator.canShare(shareData)) {
-          await navigator.share(shareData);
-          return;
-        }
-      } catch (error) {
-        if ((error as Error).name === "AbortError") return;
-        console.log("File share failed, trying URL share:", error);
-      }
-    }
-
-    // Fallback: share as URL (web browsers without file share support)
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: shareTitle, url: imageUrl });
-        return;
-      } catch (error) {
-        if ((error as Error).name === "AbortError") return;
-        console.log("Web Share failed, falling back to clipboard:", error);
-      }
-    }
-
-    // Final fallback: copy link to clipboard
+  const copyDeepLink = async (deepLink: string) => {
     try {
-      await navigator.clipboard.writeText(imageUrl);
+      await navigator.clipboard.writeText(deepLink);
       toast.success("Link copied to clipboard!");
     } catch {
       const textarea = document.createElement("textarea");
-      textarea.value = imageUrl;
+      textarea.value = deepLink;
       textarea.style.position = "fixed";
       textarea.style.opacity = "0";
       document.body.appendChild(textarea);
@@ -61,15 +35,65 @@ export function SharePhotoButton({ imageUrl, title }: SharePhotoButtonProps) {
     }
   };
 
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (isSharingRef.current) return;
+    isSharingRef.current = true;
+
+    const deepLink = `${DEEP_LINK_BASE}/media/${photoId}`;
+
+    const shareCaption = "You've been sent a photo on Ignite Club HQ";
+
+    const fallbackText = `${shareCaption}\n${deepLink}`;
+
+    try {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await Share.share({
+            title: "Ignite Club HQ",
+            text: shareCaption,
+            url: deepLink,
+            dialogTitle: "Share photo",
+          });
+        } catch (error) {
+          if ((error as Error).name !== "AbortError") {
+            console.log("Capacitor Share failed, falling back to clipboard:", error);
+            await copyDeepLink(fallbackText);
+          }
+        }
+        return;
+      }
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: "Ignite Club HQ",
+            text: shareCaption,
+            url: deepLink,
+          });
+          return;
+        } catch (error) {
+          if ((error as Error).name === "AbortError") return;
+          console.log("Web Share failed, falling back to clipboard:", error);
+        }
+      }
+
+      await copyDeepLink(fallbackText);
+    } finally {
+      isSharingRef.current = false;
+    }
+  };
+
   return (
     <Button
       variant="ghost"
       size="icon"
-      className="h-8 w-8 text-muted-foreground hover:text-primary"
+      className="h-11 w-11 text-muted-foreground hover:text-primary"
       onClick={handleShare}
       title="Share photo"
     >
-      <Share2 className="h-4 w-4" />
+      <Share2 className="h-6 w-6" />
     </Button>
   );
 }

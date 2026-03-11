@@ -1,10 +1,18 @@
 import { useState } from "react";
+import { MoreVertical, Search, Users, Bell, BellOff, RefreshCw, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import { BellOff, Bell, Loader2, Clock, BellRing } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -12,10 +20,18 @@ import {
   ResponsiveDialogTitle,
   ResponsiveDialogDescription,
 } from "@/components/ui/responsive-dialog";
+import { BellRing } from "lucide-react";
 
-interface ChatMuteButtonProps {
+interface ChatHeaderMenuProps {
   chatType: "team" | "club" | "group" | "dm";
   chatId: string;
+  onSearchOpen: () => void;
+  onMembersOpen?: () => void;
+  onRefresh?: () => Promise<void>;
+  isRefreshing?: boolean;
+  showMembers?: boolean;
+  showMute?: boolean;
+  isNativePlatform?: boolean;
 }
 
 type MuteData = {
@@ -23,13 +39,23 @@ type MuteData = {
   muted_until: string | null;
 } | null;
 
-export function ChatMuteButton({ chatType, chatId }: ChatMuteButtonProps) {
+export function ChatHeaderMenu({
+  chatType,
+  chatId,
+  onSearchOpen,
+  onMembersOpen,
+  onRefresh,
+  isRefreshing = false,
+  showMembers = true,
+  showMute = true,
+  isNativePlatform = false,
+}: ChatHeaderMenuProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showMuteDialog, setShowMuteDialog] = useState(false);
 
-  // Check if chat is muted and when it expires
-  const { data: muteData, isLoading: isMutedLoading } = useQuery({
+  // Mute query
+  const { data: muteData } = useQuery({
     queryKey: ["chat-mute", chatType, chatId, user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -41,22 +67,17 @@ export function ChatMuteButton({ chatType, chatId }: ChatMuteButtonProps) {
         .maybeSingle();
       return data as MuteData;
     },
-    enabled: !!user,
+    enabled: !!user && showMute,
   });
 
-  // Check if currently muted (muted_until is null = indefinite, or in the future)
   const isMuted = muteData && (
-    muteData.muted_until === null || 
+    muteData.muted_until === null ||
     new Date(muteData.muted_until) > new Date()
   );
-
-  // Check if it's a timed mute
   const isTimedMute = muteData?.muted_until !== null && muteData?.muted_until !== undefined;
 
-  // Mute mutation
   const muteMutation = useMutation({
     mutationFn: async (duration: "1hour" | "indefinite") => {
-      // Delete any existing mute first
       await supabase
         .from("chat_mute_preferences")
         .delete()
@@ -64,9 +85,8 @@ export function ChatMuteButton({ chatType, chatId }: ChatMuteButtonProps) {
         .eq("chat_type", chatType)
         .eq("chat_id", chatId);
 
-      // Insert new mute with duration
-      const muted_until = duration === "1hour" 
-        ? new Date(Date.now() + 60 * 60 * 1000).toISOString() 
+      const muted_until = duration === "1hour"
+        ? new Date(Date.now() + 60 * 60 * 1000).toISOString()
         : null;
 
       await supabase
@@ -83,12 +103,9 @@ export function ChatMuteButton({ chatType, chatId }: ChatMuteButtonProps) {
       setShowMuteDialog(false);
       toast.success(duration === "1hour" ? "Muted for 1 hour" : "Muted until turned off");
     },
-    onError: () => {
-      toast.error("Failed to mute notifications");
-    },
+    onError: () => toast.error("Failed to mute notifications"),
   });
 
-  // Unmute mutation
   const unmuteMutation = useMutation({
     mutationFn: async () => {
       await supabase
@@ -102,12 +119,10 @@ export function ChatMuteButton({ chatType, chatId }: ChatMuteButtonProps) {
       queryClient.invalidateQueries({ queryKey: ["chat-mute", chatType, chatId, user?.id] });
       toast.success("Notifications unmuted");
     },
-    onError: () => {
-      toast.error("Failed to unmute notifications");
-    },
+    onError: () => toast.error("Failed to unmute notifications"),
   });
 
-  const handleClick = () => {
+  const handleMuteClick = () => {
     if (isMuted) {
       unmuteMutation.mutate();
     } else {
@@ -115,32 +130,68 @@ export function ChatMuteButton({ chatType, chatId }: ChatMuteButtonProps) {
     }
   };
 
-  const isPending = muteMutation.isPending || unmuteMutation.isPending;
-
   return (
     <>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={handleClick}
-        disabled={isPending || isMutedLoading}
-        className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-        title={isMuted ? "Unmute notifications" : "Mute notifications"}
-      >
-        {isPending ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : isMuted ? (
-          <div className="relative">
-            <BellOff className="h-4 w-4 text-muted-foreground" />
-            {isTimedMute && (
-              <Clock className="h-2.5 w-2.5 absolute -bottom-0.5 -right-0.5 text-muted-foreground" />
-            )}
-          </div>
-        ) : (
-          <Bell className="h-4 w-4" />
-        )}
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            aria-label="More options"
+          >
+            <MoreVertical className="h-5 w-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="bg-popover min-w-[180px]">
+          <DropdownMenuItem onClick={onSearchOpen}>
+            <Search className="h-4 w-4 mr-2" />
+            Search messages
+          </DropdownMenuItem>
 
+          {showMembers && onMembersOpen && (
+            <DropdownMenuItem onClick={onMembersOpen}>
+              <Users className="h-4 w-4 mr-2" />
+              View members
+            </DropdownMenuItem>
+          )}
+
+          {showMute && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleMuteClick}>
+                {isMuted ? (
+                  <>
+                    <Bell className="h-4 w-4 mr-2" />
+                    Unmute notifications
+                    {isTimedMute && <Clock className="h-3 w-3 ml-auto text-muted-foreground" />}
+                  </>
+                ) : (
+                  <>
+                    <BellOff className="h-4 w-4 mr-2" />
+                    Mute notifications
+                  </>
+                )}
+              </DropdownMenuItem>
+            </>
+          )}
+
+          {isNativePlatform && onRefresh && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => void onRefresh()}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
+                Refresh messages
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Mute duration dialog */}
       <ResponsiveDialog open={showMuteDialog} onOpenChange={setShowMuteDialog}>
         <ResponsiveDialogContent className="sm:max-w-sm">
           <ResponsiveDialogHeader>

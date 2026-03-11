@@ -84,12 +84,22 @@ export default {
           from: { transform: "translateY(10px)", opacity: "0" },
           to: { transform: "translateY(0)", opacity: "1" },
         },
+        "bell-ring": {
+          "0%": { transform: "rotate(0deg) scale(1)" },
+          "15%": { transform: "rotate(12deg) scale(1.1)" },
+          "30%": { transform: "rotate(-10deg) scale(1.1)" },
+          "45%": { transform: "rotate(8deg) scale(1.05)" },
+          "60%": { transform: "rotate(-6deg) scale(1.05)" },
+          "75%": { transform: "rotate(3deg) scale(1)" },
+          "100%": { transform: "rotate(0deg) scale(1)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
         "slide-up": "slide-up 0.3s ease-out",
+        "bell-ring": "bell-ring 0.4s ease-in-out",
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "-apple-system", "sans-serif"],

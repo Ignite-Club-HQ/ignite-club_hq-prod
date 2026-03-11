@@ -2,14 +2,14 @@ import { useState, useRef, useCallback, useEffect, RefObject } from 'react';
 
 interface UsePullToRefreshOptions {
   onRefresh: () => Promise<void>;
-  threshold?: number; // Distance in pixels to trigger refresh
+  threshold?: number;
   disabled?: boolean;
-  scrollableRef?: RefObject<HTMLDivElement>; // Optional ref to the actual scrollable element
+  scrollableRef?: RefObject<HTMLDivElement>;
 }
 
 export function usePullToRefresh({
   onRefresh,
-  threshold = 100, // Increased threshold to require more intentional pull
+  threshold = 100,
   disabled = false,
   scrollableRef,
 }: UsePullToRefreshOptions) {
@@ -21,45 +21,76 @@ export function usePullToRefresh({
   const currentY = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const isAtTopRef = useRef(false);
-  const initialScrollTopRef = useRef(0);
+  const isPullingRef = useRef(false);
+  const touchActiveRef = useRef(false);
 
   const getScrollTop = useCallback(() => {
     if (scrollableRef?.current) {
-      // For ScrollArea, find the viewport element
       const viewport = scrollableRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      return viewport?.scrollTop ?? scrollableRef.current.scrollTop ?? 0;
-    } else {
-      const container = containerRef.current;
-      return container?.scrollTop ?? 0;
+      if (viewport) return viewport.scrollTop ?? 0;
+      return scrollableRef.current.scrollTop ?? 0;
     }
+    const container = containerRef.current;
+    return container?.scrollTop ?? 0;
   }, [scrollableRef]);
+
+  const getScrollElement = useCallback((): HTMLElement | null => {
+    if (scrollableRef?.current) {
+      const viewport = scrollableRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (viewport) return viewport as HTMLElement;
+      return scrollableRef.current;
+    }
+    return containerRef.current;
+  }, [scrollableRef]);
+
+  // Dynamically toggle touch-action on scroll element to prevent native
+  // overscroll from claiming the gesture when we're at the top
+  const setTouchAction = useCallback((value: string) => {
+    const el = getScrollElement();
+    if (el) {
+      el.style.touchAction = value;
+    }
+  }, [getScrollElement]);
 
   const handleTouchStart = useCallback((e: TouchEvent) => {
     if (disabled || isRefreshing) return;
     
-    const scrollTop = getScrollTop();
-    initialScrollTopRef.current = scrollTop;
-    
-    // Only allow pull-to-refresh if scrolled to the very top (within 5px tolerance)
-    isAtTopRef.current = scrollTop <= 5;
-    
-    if (!isAtTopRef.current) return;
-    
+    // Always record start position — we decide in touchmove whether to pull
     startY.current = e.touches[0].clientY;
     currentY.current = e.touches[0].clientY;
-  }, [disabled, isRefreshing, getScrollTop]);
+    touchActiveRef.current = true;
+    isPullingRef.current = false;
+    
+    const scrollTop = getScrollTop();
+    isAtTopRef.current = scrollTop <= 2;
+    
+    // When at top, prevent the browser/WebView from claiming the gesture
+    if (isAtTopRef.current) {
+      setTouchAction('none');
+    }
+  }, [disabled, isRefreshing, getScrollTop, setTouchAction]);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (disabled || isRefreshing) return;
+    if (disabled || isRefreshing || !touchActiveRef.current) return;
     
-    // Re-check scroll position - user might have scrolled since touch start
     const scrollTop = getScrollTop();
     
-    // If not at top anymore, reset and allow normal scrolling
-    if (scrollTop > 5) {
+    // Re-check if we've reached the top during this gesture
+    if (!isAtTopRef.current && scrollTop <= 1) {
+      isAtTopRef.current = true;
+      startY.current = e.touches[0].clientY; // reset start from current position
+      setTouchAction('none');
+    }
+    
+    if (scrollTop > 2) {
       isAtTopRef.current = false;
-      setIsPulling(false);
-      setPullDistance(0);
+      if (isPullingRef.current) {
+        isPullingRef.current = false;
+        setIsPulling(false);
+        setPullDistance(0);
+      }
+      // Restore normal touch-action when not at top
+      setTouchAction('pan-y');
       return;
     }
     
@@ -68,29 +99,34 @@ export function usePullToRefresh({
     currentY.current = e.touches[0].clientY;
     const distance = currentY.current - startY.current;
     
-    // Only trigger pull-to-refresh for significant downward pulls (> 30px)
-    // This prevents accidental triggers during normal scroll attempts
+    // Prevent default as soon as we detect downward gesture from top.
+    // On native WebViews, this must happen IMMEDIATELY or the browser
+    // claims the gesture for native overscroll.
+    if (distance > 0 && e.cancelable) {
+      e.preventDefault();
+    }
+
     if (distance > 30) {
-      // Now we're definitely pulling down - prevent default scroll only if we can
-      if (e.cancelable) {
-        e.preventDefault();
-      }
+      isPullingRef.current = true;
       setIsPulling(true);
-      
-      // Apply strong resistance as user pulls further
       const resistedDistance = Math.min((distance - 30) * 0.4, threshold * 1.2);
       setPullDistance(resistedDistance);
-    } else {
-      // Not a significant pull - allow normal behavior
+    } else if (isPullingRef.current) {
+      isPullingRef.current = false;
       setIsPulling(false);
       setPullDistance(0);
     }
-  }, [disabled, isRefreshing, threshold, getScrollTop]);
+  }, [disabled, isRefreshing, threshold, getScrollTop, setTouchAction]);
 
   const handleTouchEnd = useCallback(async () => {
     if (disabled) return;
     
-    if (isPulling && pullDistance >= threshold && !isRefreshing) {
+    touchActiveRef.current = false;
+    
+    // Restore touch-action
+    setTouchAction('pan-y');
+    
+    if (isPullingRef.current && pullDistance >= threshold && !isRefreshing) {
       setIsRefreshing(true);
       try {
         await onRefresh();
@@ -101,25 +137,45 @@ export function usePullToRefresh({
       }
     }
     
+    isPullingRef.current = false;
     setIsPulling(false);
     setPullDistance(0);
     isAtTopRef.current = false;
-  }, [isPulling, pullDistance, threshold, isRefreshing, onRefresh, disabled]);
+  }, [pullDistance, threshold, isRefreshing, onRefresh, disabled, setTouchAction]);
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    const scrollEl = getScrollElement();
+    
+    const target = scrollEl && scrollEl !== container ? scrollEl : container;
+    if (!target) return;
 
-    container.addEventListener('touchstart', handleTouchStart, { passive: true });
-    container.addEventListener('touchmove', handleTouchMove, { passive: false });
-    container.addEventListener('touchend', handleTouchEnd);
+    target.addEventListener('touchstart', handleTouchStart, { passive: true });
+    target.addEventListener('touchmove', handleTouchMove, { passive: false });
+    target.addEventListener('touchend', handleTouchEnd);
+
+    if (container && container !== target) {
+      container.addEventListener('touchstart', handleTouchStart, { passive: true });
+      container.addEventListener('touchmove', handleTouchMove, { passive: false });
+      container.addEventListener('touchend', handleTouchEnd);
+    }
 
     return () => {
-      container.removeEventListener('touchstart', handleTouchStart);
-      container.removeEventListener('touchmove', handleTouchMove);
-      container.removeEventListener('touchend', handleTouchEnd);
+      target.removeEventListener('touchstart', handleTouchStart);
+      target.removeEventListener('touchmove', handleTouchMove);
+      target.removeEventListener('touchend', handleTouchEnd);
+      
+      if (container && container !== target) {
+        container.removeEventListener('touchstart', handleTouchStart);
+        container.removeEventListener('touchmove', handleTouchMove);
+        container.removeEventListener('touchend', handleTouchEnd);
+      }
+      
+      // Ensure touch-action is restored on cleanup
+      if (target) (target as HTMLElement).style.touchAction = '';
+      if (container) container.style.touchAction = '';
     };
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd, getScrollElement]);
 
   const pullProgress = Math.min(pullDistance / threshold, 1);
 

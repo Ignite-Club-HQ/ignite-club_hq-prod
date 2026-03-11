@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Calendar as CalendarIcon, MapPin, Clock, Plus, List, CalendarDays, Pencil, Trash2, XCircle, Bell, Repeat, Upload, Eye, Filter } from "lucide-react";
+import { Calendar as CalendarIcon, MapPin, Clock, Plus, List, CalendarDays, Pencil, Trash2, XCircle, Bell, Repeat, FileSpreadsheet, Eye, Filter } from "lucide-react";
+import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -63,6 +65,7 @@ const eventTypeColors: Record<EventType, string> = {
 
 export default function EventsPage() {
   const { user, profile, refreshProfile } = useAuth();
+  usePageTitle("Schedule");
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeClubFilter } = useClubTheme();
   const teamFilter = searchParams.get("team");
@@ -423,7 +426,7 @@ export default function EventsPage() {
   return (
     <div className="py-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Events</h1>
+        <h1 className="text-2xl font-bold">Schedule</h1>
         <div className="flex items-center gap-6">
           {/* Filter button - only show if there are filters to display */}
           {((userClubs?.length || 0) > 1 || (userTeams?.length || 0) > 0) && (
@@ -444,7 +447,7 @@ export default function EventsPage() {
               <TooltipTrigger asChild>
                 <Link to="/events/import">
                   <Button size="icon" variant="outline">
-                    <Upload className="h-4 w-4" />
+                    <FileSpreadsheet className="h-4 w-4" />
                   </Button>
                 </Link>
               </TooltipTrigger>
@@ -483,42 +486,51 @@ export default function EventsPage() {
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Filter Pills with View Toggle */}
-      <div className="flex items-center justify-between gap-2 -mx-4 px-4">
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {(["all", "game", "training", "social"] as const).map((type) => (
-            <Button
-              key={type}
-              variant={filter === type ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter(type)}
-              className="shrink-0"
-            >
-              {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
-            </Button>
-          ))}
-        </div>
-        <ToggleGroup 
-          type="single" 
-          value={viewMode} 
-          onValueChange={(value) => value && handleViewModeChange(value as "list" | "calendar")}
-          className="bg-muted p-1 rounded-lg shrink-0"
+      {/* View Toggle - Full width tabs */}
+      <div className="flex rounded-lg bg-muted p-1 gap-1">
+        <button
+          onClick={() => handleViewModeChange("list")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
+            viewMode === "list"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          aria-label="List view"
+          aria-pressed={viewMode === "list"}
         >
-          <ToggleGroupItem 
-            value="list" 
-            aria-label="List view" 
-            className="h-8 w-8 p-0 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
+          <List className="h-4 w-4" />
+          List
+        </button>
+        <button
+          onClick={() => handleViewModeChange("calendar")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
+            viewMode === "calendar"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+          aria-label="Calendar view"
+          aria-pressed={viewMode === "calendar"}
+        >
+          <CalendarDays className="h-4 w-4" />
+          Calendar
+        </button>
+      </div>
+
+      {/* Filter Pills */}
+      <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
+        {(["all", "game", "training", "social"] as const).map((type) => (
+          <Button
+            key={type}
+            variant={filter === type ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilter(type)}
+            className="shrink-0"
+            aria-label={`Filter by ${type === "all" ? "all events" : type}`}
+            aria-pressed={filter === type}
           >
-            <List className="h-4 w-4" />
-          </ToggleGroupItem>
-          <ToggleGroupItem 
-            value="calendar" 
-            aria-label="Calendar view" 
-            className="h-8 w-8 p-0 data-[state=on]:bg-background data-[state=on]:shadow-sm rounded-md"
-          >
-            <CalendarDays className="h-4 w-4" />
-          </ToggleGroupItem>
-        </ToggleGroup>
+            {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
+          </Button>
+        ))}
       </div>
 
       {viewMode === "calendar" ? (
@@ -784,20 +796,8 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
         }
       }
 
-      // Send push notifications if enabled
-      if (sendPushNotification) {
-        const notificationMessage = customMessage 
-          ? `"${event.title}" has been cancelled. ${customMessage}`
-          : `"${event.title}" has been cancelled.`;
-        
-        const notifications = uniqueMembers.map(userId => ({
-          user_id: userId,
-          type: "event_cancelled",
-          message: notificationMessage,
-          related_id: event.id,
-        }));
-        await supabase.from("notifications").insert(notifications);
-      }
+      // Notifications are created automatically by the on_event_cancelled DB trigger
+      // No need to manually insert them here - that was causing duplicates
 
       return uniqueMembers.length;
     },
@@ -874,131 +874,132 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
     },
   });
 
+  const typeBorderMap: Record<string, string> = {
+    game: 'border-l-destructive',
+    training: 'border-l-primary',
+    social: 'border-l-warning',
+  };
+  const typeBorderClass = typeBorderMap[event.type] || 'border-l-primary';
+
   return (
     <Card 
-      className={`hover:border-primary/50 transition-colors cursor-pointer ${event.is_cancelled ? "opacity-60" : ""}`}
+      className={`hover:border-primary/50 transition-colors cursor-pointer border-l-[3px] ${typeBorderClass} ${event.is_cancelled ? "opacity-60" : ""}`}
       onClick={() => navigate(`/events/${event.id}`)}
     >
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 mb-1">
-          <div className="flex items-center gap-2 min-w-0 flex-wrap">
-            <Badge className={eventTypeColors[event.type]} variant="secondary">
-              {event.type}
+      <CardContent className="p-3 pl-3.5">
+        {/* Row 1: Title + status badges */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <h3 className={`font-semibold text-[15px] leading-snug truncate ${event.is_cancelled ? "line-through" : ""}`}>
+              {event.title}
+            </h3>
+            <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0 font-normal text-muted-foreground">
+              {event.teams?.name || event.clubs?.name}
             </Badge>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
             {hasPro && isAdmin && !hasViewed && !event.is_cancelled && (
-              <Badge variant="default" className="gap-1 bg-primary text-primary-foreground">
+              <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[11px] h-5">
                 <Eye className="h-3 w-3" />
                 New
               </Badge>
             )}
             {event.is_cancelled && (
-              <Badge variant="destructive">Cancelled</Badge>
-            )}
-            {event.teams?.name ? (
-              <span className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                <span>{getSportEmoji(event.clubs.sport)}</span>
-                {event.teams.name}
-              </span>
-            ) : (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <span>{getSportEmoji(event.clubs.sport)}</span>
-                {event.clubs.name}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-3 shrink-0 ml-auto">
-            {isAdmin && (
-              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                {!event.is_cancelled && (
-                  <>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        navigate(`/events/${event.id}/edit`);
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    {canSendReminders && (
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-primary"
-                        disabled={remindMutation.isPending}
-                        onClick={async (e) => {
-                          e.preventDefault();
-                          const { data: rsvps } = await supabase
-                            .from("rsvps")
-                            .select("user_id")
-                            .eq("event_id", event.id);
-                          
-                          const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
-                          
-                          let memberQuery = supabase.from("user_roles").select("user_id");
-                          if (event.team_id) {
-                            memberQuery = memberQuery.eq("team_id", event.team_id);
-                          } else {
-                            memberQuery = memberQuery.eq("club_id", event.club_id);
-                          }
-                          
-                          const { data: members } = await memberQuery;
-                          const allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
-                          const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
-                          
-                          setNonRsvpCount(count);
-                          setRemindDialogOpen(true);
-                        }}
-                      >
-                        <Bell className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      className="h-8 w-8 text-warning"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setCancelDialogOpen(true);
-                      }}
-                    >
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                  </>
-                )}
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-8 w-8 text-destructive"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setDeleteDialogOpen(true);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
+              <Badge variant="destructive" className="text-[11px] h-5">Cancelled</Badge>
             )}
           </div>
         </div>
-        <h3 className={`font-semibold ${event.is_cancelled ? "line-through" : ""}`}>
-          {event.title}
-          {event.type === "game" && event.opponent && (
-            <span className="font-normal text-muted-foreground"> vs {event.opponent}</span>
-          )}
-        </h3>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground mt-0.5 flex-wrap">
-          <span className="flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5" />
-            {format(parseISO(event.event_date), "EEE, MMM d 'at' h:mm a")}
-          </span>
-          {event.suburb && (
+        {/* Row 2: Date + location + admin actions */}
+        <div className="flex items-center justify-between mt-0.5">
+          <div className="flex items-center gap-3 text-[13px] text-muted-foreground flex-wrap min-w-0">
             <span className="flex items-center gap-1">
-              <MapPin className="h-3.5 w-3.5" />
-              {event.suburb}
+              <Clock className="h-3 w-3 shrink-0" />
+              {format(parseISO(event.event_date), "EEE, MMM d 'at' h:mm a")}
             </span>
+            {event.suburb && (
+              <span className="flex items-center gap-1">
+                <MapPin className="h-3 w-3 shrink-0" />
+                {event.suburb}
+              </span>
+            )}
+          </div>
+          {isAdmin && (
+            <div className="flex items-center shrink-0 -mr-1" onClick={(e) => e.stopPropagation()}>
+              {!event.is_cancelled && (
+                <>
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground"
+                    aria-label={`Edit ${getEventTypeLabel(event.type).toLowerCase()}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate(`/events/${event.id}/edit`);
+                    }}
+                  >
+                    <Pencil className="h-3 w-3" aria-hidden="true" />
+                  </Button>
+                  {canSendReminders && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      className="h-7 w-7 text-primary"
+                      aria-label="Send reminders"
+                      disabled={remindMutation.isPending}
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        const { data: rsvps } = await supabase
+                          .from("rsvps")
+                          .select("user_id")
+                          .eq("event_id", event.id);
+                        
+                        const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
+                        
+                        let memberQuery = supabase.from("user_roles").select("user_id");
+                        if (event.team_id) {
+                          memberQuery = memberQuery.eq("team_id", event.team_id);
+                        } else {
+                          memberQuery = memberQuery.eq("club_id", event.club_id);
+                        }
+                        
+                        const { data: members } = await memberQuery;
+                        const allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
+                        const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
+                        
+                        setNonRsvpCount(count);
+                        setRemindDialogOpen(true);
+                      }}
+                    >
+                      <Bell className="h-3 w-3" aria-hidden="true" />
+                    </Button>
+                  )}
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    className="h-7 w-7 text-warning"
+                    aria-label={`Cancel ${getEventTypeLabel(event.type).toLowerCase()}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setCancelDialogOpen(true);
+                    }}
+                  >
+                    <XCircle className="h-3 w-3" aria-hidden="true" />
+                  </Button>
+                </>
+              )}
+              <Button 
+                variant="ghost" 
+                size="icon"
+                className="h-7 w-7 text-destructive"
+                aria-label={`Delete ${getEventTypeLabel(event.type).toLowerCase()}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setDeleteDialogOpen(true);
+                }}
+              >
+                <Trash2 className="h-3 w-3" aria-hidden="true" />
+              </Button>
+            </div>
           )}
         </div>
 
@@ -1012,6 +1013,7 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
               teamId={event.team_id}
               clubId={event.club_id}
               miniLeagueId={event.mini_league_id}
+              eventType={event.type}
               onSingleAction={(customMessage, sendPushNotification) => cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })}
               onSeriesAction={(customMessage, sendPushNotification) => cancelEventMutation.mutate({ cancelType: 'series', customMessage, sendPushNotification })}
               isPending={cancelEventMutation.isPending}
@@ -1025,6 +1027,7 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
               teamId={event.team_id}
               clubId={event.club_id}
               miniLeagueId={event.mini_league_id}
+              eventType={event.type}
               onConfirm={(customMessage, sendPushNotification) => cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })}
               isPending={cancelEventMutation.isPending}
             />
@@ -1035,8 +1038,8 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
             <RecurringEventActionDialog
               open={deleteDialogOpen}
               onOpenChange={setDeleteDialogOpen}
-              title="Delete Event?"
-              description="This will permanently delete the event(s). This action cannot be undone."
+              title={`Delete ${getEventTypeLabel(event.type)}?`}
+              description={`This will permanently delete the ${getEventTypeLabel(event.type).toLowerCase()}(s). This action cannot be undone.`}
               actionLabel="Delete"
               actionVariant="destructive"
               onSingleAction={() => deleteEventMutation.mutate('single')}
@@ -1047,9 +1050,9 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Event?</AlertDialogTitle>
+                  <AlertDialogTitle>Delete {getEventTypeLabel(event.type)}?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will permanently delete this event. This action cannot be undone.
+                    This will permanently delete this {getEventTypeLabel(event.type).toLowerCase()}. This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

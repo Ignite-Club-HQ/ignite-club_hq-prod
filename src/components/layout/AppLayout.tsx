@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
-import { Outlet, Navigate } from "react-router-dom";
+import { useEffect, useState, useMemo, lazy, Suspense } from "react";
+import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { AppHeader } from "./AppHeader";
 import { BottomNav } from "./BottomNav";
 import { useAuth } from "@/hooks/useAuth";
@@ -7,6 +7,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { SkipToContent } from "@/components/SkipToContent";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
 import { PendingInviteWelcomeDialog } from "@/components/PendingInviteWelcomeDialog";
 import { useAdMobInit } from "@/hooks/useAdMob";
@@ -14,10 +15,13 @@ import igniteIconLight from "@/assets/ignite-icon-light.png";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { Capacitor } from "@capacitor/core";
 
+const LazyDeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
+
 export function AppLayout() {
   const { user, profile, loading, profileLoading, profileError, refreshProfile, initialized } = useAuth();
   useAdMobInit();
   const { isThemeReady } = useClubTheme();
+  const location = useLocation();
   const [retrying, setRetrying] = useState(false);
   const [themeTimeout, setThemeTimeout] = useState(false);
   
@@ -97,9 +101,9 @@ export function AppLayout() {
         : "Loading your profile...";
     
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4" role="status" aria-live="polite">
         <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
         <p className="text-sm text-muted-foreground">{loadingMessage}</p>
       </div>
     );
@@ -126,6 +130,26 @@ export function AppLayout() {
     return <Navigate to="/vault" replace />;
   }
 
+  // DEEP LINK GATE: Before redirecting unauthenticated users to /auth,
+  // check if this is an in-app browser (Messenger, WhatsApp, etc.) on a deep-linkable route.
+  // Show the DeepLinkGate interstitial so they can bounce to the native app.
+  const isDeepLinkRoute = /^\/(events\/[^/]+|media\/[^/]+)$/.test(location.pathname);
+  const isNativePlatform = Capacitor.isNativePlatform();
+  const userAgent = navigator.userAgent || "";
+  const isInApp = !isNativePlatform && /FBAN|FBAV|Instagram|Line\/|Twitter|Snapchat|WhatsApp|LinkedInApp|Messenger/i.test(userAgent);
+
+  if (!user && isDeepLinkRoute && isInApp && !hasPendingOAuth && !hasOAuthTokensInUrl) {
+    return (
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      }>
+        <LazyDeepLinkGate />
+      </Suspense>
+    );
+  }
+
   // Don't redirect to auth if:
   // 1. We have a pending OAuth callback (Google Drive)
   // 2. There are OAuth tokens in the URL (Google login in progress)
@@ -137,11 +161,11 @@ export function AppLayout() {
   // Show retry screen if profile fetch failed (don't redirect to complete-profile)
   if (profileError && !profile) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4" role="alert" aria-live="assertive">
         <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
         {retrying ? (
           <>
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
             <p className="text-sm text-muted-foreground text-center px-4">
               Reconnecting to server...
             </p>
@@ -198,8 +222,9 @@ export function AppLayout() {
   
   return (
     <div className={`min-h-screen bg-background flex flex-col overscroll-none ${isNative ? '' : 'pt-safe'}`}>
+      <SkipToContent />
       <AppHeader />
-      <main className="flex-1 pb-20 px-4 max-w-lg mx-auto w-full">
+      <main id="main-content" aria-label="Main content" className="flex-1 pb-20 px-4 max-w-lg mx-auto w-full">
         <Outlet />
       </main>
       <BottomNav />
