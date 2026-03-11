@@ -2058,20 +2058,88 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     
     // Position changes for players staying on pitch
+    // Use optimal matching to minimize position changes instead of naive index assignment
     const minorAdjustments: { player: Player; fromLabel: string; toLabel: string }[] = [];
+    const stayingOnPitch = willBeOnPitch.filter(
+      p => p.currentPitchPosition && playersOnPitch.some(pp => pp.id === p.id) && !willBeOnBench.some(bp => bp.id === p.id)
+    );
+    
+    // Build new formation slot info
+    const formationSlots = formation.positions.map((pos, i) => ({
+      index: i,
+      position: getPositionFromCoords(pos.y, teamSize),
+      x: pos.x,
+      y: pos.y,
+      taken: false,
+    }));
+    
+    // Mark slots taken by bench-to-pitch players
     for (let i = 0; i < willBeOnPitch.length; i++) {
       const player = willBeOnPitch[i];
-      if (player.currentPitchPosition && formation.positions[i] && playersOnPitch.some(p => p.id === player.id) && !willBeOnBench.some(p => p.id === player.id)) {
-        const newPosition = getPositionFromCoords(formation.positions[i].y, teamSize);
-        if (player.currentPitchPosition !== newPosition) {
-          positionSwaps.push({ player, fromPosition: player.currentPitchPosition, toPosition: newPosition, fromX: player.position?.x, toX: formation.positions[i].x });
-        } else {
-          // Same category but different specific position (e.g. Left Mid → Centre Mid)
-          const fromLabel = getSpecificPositionLabel(player.position?.x, player.currentPitchPosition);
-          const toLabel = getSpecificPositionLabel(formation.positions[i].x, newPosition);
-          if (fromLabel !== toLabel) {
-            minorAdjustments.push({ player, fromLabel, toLabel });
-          }
+      if (benchPlayers.some(p => p.id === player.id)) {
+        formationSlots[i].taken = true;
+      }
+    }
+    
+    // Greedy matching: first pass - exact position+side matches, second - same position, third - remaining
+    const playerSlotMap = new Map<string, number>(); // player.id -> slot index
+    const availableSlots = () => formationSlots.filter(s => !s.taken);
+    
+    // Pass 1: exact specific label match (e.g. "Left Mid" → "Left Mid")
+    for (const player of stayingOnPitch) {
+      if (playerSlotMap.has(player.id)) continue;
+      const fromLabel = getSpecificPositionLabel(player.position?.x, player.currentPitchPosition!);
+      const slot = availableSlots().find(s => {
+        const toLabel = getSpecificPositionLabel(s.x, s.position);
+        return toLabel === fromLabel;
+      });
+      if (slot) {
+        slot.taken = true;
+        playerSlotMap.set(player.id, slot.index);
+      }
+    }
+    
+    // Pass 2: same position category (e.g. MID → MID, any side)
+    for (const player of stayingOnPitch) {
+      if (playerSlotMap.has(player.id)) continue;
+      const slot = availableSlots().find(s => s.position === player.currentPitchPosition);
+      if (slot) {
+        slot.taken = true;
+        playerSlotMap.set(player.id, slot.index);
+      }
+    }
+    
+    // Pass 3: assign remaining players to closest available slots
+    for (const player of stayingOnPitch) {
+      if (playerSlotMap.has(player.id)) continue;
+      const remaining = availableSlots();
+      if (remaining.length > 0) {
+        // Pick slot closest to player's current position
+        const px = player.position?.x ?? 50;
+        const py = player.position?.y ?? 50;
+        remaining.sort((a, b) => {
+          const distA = Math.abs(a.x - px) + Math.abs(a.y - py);
+          const distB = Math.abs(b.x - px) + Math.abs(b.y - py);
+          return distA - distB;
+        });
+        remaining[0].taken = true;
+        playerSlotMap.set(player.id, remaining[0].index);
+      }
+    }
+    
+    // Now compute swaps and adjustments from the optimal mapping
+    for (const player of stayingOnPitch) {
+      const slotIdx = playerSlotMap.get(player.id);
+      if (slotIdx == null) continue;
+      const slot = formationSlots[slotIdx];
+      const newPosition = slot.position;
+      if (player.currentPitchPosition !== newPosition) {
+        positionSwaps.push({ player, fromPosition: player.currentPitchPosition!, toPosition: newPosition, fromX: player.position?.x, toX: slot.x });
+      } else {
+        const fromLabel = getSpecificPositionLabel(player.position?.x, player.currentPitchPosition!);
+        const toLabel = getSpecificPositionLabel(slot.x, newPosition);
+        if (fromLabel !== toLabel) {
+          minorAdjustments.push({ player, fromLabel, toLabel });
         }
       }
     }
@@ -2259,15 +2327,73 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       
       const updated = prev.map(p => ({ ...p, position: null as { x: number; y: number } | null, currentPitchPosition: undefined as PitchPosition | undefined }));
       
-      // Assign positions to first N players
-      for (let i = 0; i < Math.min(numPositions, allPlayers.length); i++) {
-        const playerIndex = updated.findIndex(p => p.id === allPlayers[i].id);
-        if (playerIndex !== -1 && formation.positions[i]) {
-          const pos = { ...formation.positions[i] };
+      // Determine who goes on pitch
+      const willBeOnPitch = allPlayers.slice(0, numPositions);
+      const stayingOnPitch = willBeOnPitch.filter(p => playersOnPitch.some(pp => pp.id === p.id));
+      const comingFromBench = willBeOnPitch.filter(p => benchPlayers.some(bp => bp.id === p.id));
+      
+      // Build formation slots
+      const slots = formation.positions.map((pos, i) => ({
+        index: i,
+        position: getPositionFromCoords(pos.y, teamSize),
+        x: pos.x,
+        y: pos.y,
+        taken: false,
+      }));
+      
+      // Optimal matching for staying players
+      const playerSlotMap = new Map<string, number>();
+      const availSlots = () => slots.filter(s => !s.taken);
+      
+      // Pass 1: exact specific label match
+      for (const player of stayingOnPitch) {
+        if (playerSlotMap.has(player.id)) continue;
+        const fromLabel = getSpecificPositionLabel(player.position?.x, player.currentPitchPosition!);
+        const slot = availSlots().find(s => getSpecificPositionLabel(s.x, s.position) === fromLabel);
+        if (slot) { slot.taken = true; playerSlotMap.set(player.id, slot.index); }
+      }
+      // Pass 2: same category
+      for (const player of stayingOnPitch) {
+        if (playerSlotMap.has(player.id)) continue;
+        const slot = availSlots().find(s => s.position === player.currentPitchPosition);
+        if (slot) { slot.taken = true; playerSlotMap.set(player.id, slot.index); }
+      }
+      // Pass 3: closest remaining
+      for (const player of stayingOnPitch) {
+        if (playerSlotMap.has(player.id)) continue;
+        const remaining = availSlots();
+        if (remaining.length > 0) {
+          const px = player.position?.x ?? 50;
+          const py = player.position?.y ?? 50;
+          remaining.sort((a, b) => (Math.abs(a.x - px) + Math.abs(a.y - py)) - (Math.abs(b.x - px) + Math.abs(b.y - py)));
+          remaining[0].taken = true;
+          playerSlotMap.set(player.id, remaining[0].index);
+        }
+      }
+      
+      // Place staying players at their matched slots
+      for (const player of stayingOnPitch) {
+        const slotIdx = playerSlotMap.get(player.id);
+        if (slotIdx == null) continue;
+        const playerIndex = updated.findIndex(p => p.id === player.id);
+        if (playerIndex !== -1) {
+          const pos = { ...formation.positions[slotIdx] };
           updated[playerIndex].position = pos;
           updated[playerIndex].currentPitchPosition = getPositionFromCoords(pos.y, teamSize);
         }
       }
+      
+      // Place bench-to-pitch players in remaining slots
+      const remainingSlots = slots.filter(s => !s.taken);
+      for (let i = 0; i < comingFromBench.length && i < remainingSlots.length; i++) {
+        const playerIndex = updated.findIndex(p => p.id === comingFromBench[i].id);
+        if (playerIndex !== -1) {
+          const pos = { ...formation.positions[remainingSlots[i].index] };
+          updated[playerIndex].position = pos;
+          updated[playerIndex].currentPitchPosition = getPositionFromCoords(pos.y, teamSize);
+        }
+      }
+      
       return updated;
     });
 
