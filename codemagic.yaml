@@ -250,11 +250,17 @@ workflows:
       - name: Patch AppDelegate for Firebase & Crashlytics
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
-          python3 -c "
-          content = '''import UIKit
+          cat > "$DELEGATE" << 'SWIFT_EOF'
+          import UIKit
           import Capacitor
+
+          // Firebase imports are optional - if SPM resolution fails, app still launches
+          #if canImport(FirebaseCore)
           import FirebaseCore
+          #endif
+          #if canImport(FirebaseCrashlytics)
           import FirebaseCrashlytics
+          #endif
 
           @UIApplicationMain
           class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -262,8 +268,15 @@ workflows:
               var window: UIWindow?
 
               func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-                  FirebaseApp.configure()
+                  #if canImport(FirebaseCore)
+                  // Guard against double-init (Capacitor Firebase plugin may also init)
+                  if FirebaseApp.app() == nil {
+                      FirebaseApp.configure()
+                  }
+                  #endif
+                  #if canImport(FirebaseCrashlytics)
                   Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+                  #endif
                   return true
               }
 
@@ -281,11 +294,9 @@ workflows:
                   return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
               }
           }
-          '''
-          import textwrap
-          with open('$DELEGATE', 'w') as f:
-              f.write(textwrap.dedent(content).strip() + '\n')
-          "
+          SWIFT_EOF
+          echo "=== Patched AppDelegate.swift ==="
+          cat "$DELEGATE"
       - name: Ensure FirebaseCrashlytics in SPM Package.swift
         script: |
           PACKAGE="ios/App/CapApp-SPM/Package.swift"
@@ -371,42 +382,6 @@ workflows:
           echo "=== Checking ios folder structure ==="
           ls -la ios/ || echo "ERROR: ios folder not created!"
           ls -la ios/App/ || echo "ERROR: ios/App folder not found!"
-      - name: Copy Firebase config and add to Xcode project
-        script: |
-          # Copy GoogleService-Info.plist to iOS app directory
-          cp firebase/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
-          echo "=== Copied Firebase config to iOS ==="
-          
-          # Add GoogleService-Info.plist to Xcode project using Ruby script
-          # This is necessary because just copying the file doesn't add it to the bundle
-          ruby << 'RUBY_SCRIPT'
-          require 'xcodeproj'
-          
-          project_path = 'ios/App/App.xcodeproj'
-          project = Xcodeproj::Project.open(project_path)
-          
-          # Find the App target
-          target = project.targets.find { |t| t.name == 'App' }
-          
-          # Find the App group
-          app_group = project.main_group.find_subpath('App', false)
-          
-          # Check if GoogleService-Info.plist already exists in project
-          existing_ref = app_group.files.find { |f| f.path == 'GoogleService-Info.plist' }
-          
-          if existing_ref.nil?
-            # Add file reference
-            file_ref = app_group.new_file('GoogleService-Info.plist')
-            
-            # Add to resources build phase
-            target.resources_build_phase.add_file_reference(file_ref)
-            
-            project.save
-            puts "=== Added GoogleService-Info.plist to Xcode project ==="
-          else
-            puts "=== GoogleService-Info.plist already in project ==="
-          end
-          RUBY_SCRIPT
       - name: Sync Capacitor
         script: |
           npx cap sync ios
@@ -419,6 +394,31 @@ workflows:
             exit 1
           fi
           echo "=== Web assets verified ==="
+      - name: Copy Firebase config and add to Xcode project
+        script: |
+          # Copy AFTER cap sync so the Xcode project reference isn't overwritten
+          cp firebase/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
+          echo "=== Copied Firebase config to iOS ==="
+          
+          ruby << 'RUBY_SCRIPT'
+          require 'xcodeproj'
+          
+          project_path = 'ios/App/App.xcodeproj'
+          project = Xcodeproj::Project.open(project_path)
+          
+          target = project.targets.find { |t| t.name == 'App' }
+          app_group = project.main_group.find_subpath('App', false)
+          existing_ref = app_group.files.find { |f| f.path == 'GoogleService-Info.plist' }
+          
+          if existing_ref.nil?
+            file_ref = app_group.new_file('GoogleService-Info.plist')
+            target.resources_build_phase.add_file_reference(file_ref)
+            project.save
+            puts "=== Added GoogleService-Info.plist to Xcode project ==="
+          else
+            puts "=== GoogleService-Info.plist already in project ==="
+          end
+          RUBY_SCRIPT
       - name: Ensure GADApplicationIdentifier in Info.plist
         script: |
           PLIST="ios/App/App/Info.plist"
@@ -433,11 +433,16 @@ workflows:
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
           echo "=== Patching AppDelegate.swift for Firebase + Crashlytics ==="
-          python3 -c "
-          content = '''import UIKit
+          cat > "$DELEGATE" << 'SWIFT_EOF'
+          import UIKit
           import Capacitor
+
+          #if canImport(FirebaseCore)
           import FirebaseCore
+          #endif
+          #if canImport(FirebaseCrashlytics)
           import FirebaseCrashlytics
+          #endif
 
           @UIApplicationMain
           class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -445,8 +450,14 @@ workflows:
               var window: UIWindow?
 
               func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-                  FirebaseApp.configure()
+                  #if canImport(FirebaseCore)
+                  if FirebaseApp.app() == nil {
+                      FirebaseApp.configure()
+                  }
+                  #endif
+                  #if canImport(FirebaseCrashlytics)
                   Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+                  #endif
                   return true
               }
 
@@ -464,11 +475,7 @@ workflows:
                   return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
               }
           }
-          '''
-          import textwrap
-          with open('$DELEGATE', 'w') as f:
-              f.write(textwrap.dedent(content).strip() + '\n')
-          "
+          SWIFT_EOF
           echo "=== Patched AppDelegate.swift ==="
           cat "$DELEGATE"
       - name: Force light mode in Info.plist
