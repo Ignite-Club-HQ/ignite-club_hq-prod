@@ -251,15 +251,22 @@ workflows:
         script: |
           STORYBOARD="ios/App/App/Base.lproj/LaunchScreen.storyboard"
           if [ -f "$STORYBOARD" ]; then
-            # Replace any background color in LaunchScreen with white
-            sed -i '' 's/systemBackgroundColor/whiteColor/g' "$STORYBOARD"
-            # Also ensure the view has a white background explicitly
-            if ! grep -q "whiteColor" "$STORYBOARD"; then
-              sed -i '' 's/<view /<view backgroundColor="whiteColor" /g' "$STORYBOARD"
-            fi
-            echo "=== Patched LaunchScreen.storyboard ==="
+            python3 - "$STORYBOARD" << 'PYEOF'
+          import sys, re
+          path = sys.argv[1]
+          with open(path, 'r') as f:
+              content = f.read()
+          # Replace systemColor block with a simple white color
+          content = re.sub(
+              r'<systemColor name="systemBackgroundColor">.*?</systemColor>',
+              '<color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>',
+              content, flags=re.DOTALL)
+          with open(path, 'w') as f:
+              f.write(content)
+          print("Patched LaunchScreen.storyboard successfully")
+          PYEOF
           else
-            echo "=== LaunchScreen.storyboard not found at expected path ==="
+            echo "=== LaunchScreen.storyboard not found ==="
             find ios -name "LaunchScreen*" 2>/dev/null
           fi
       - name: Ensure GADApplicationIdentifier in Info.plist
