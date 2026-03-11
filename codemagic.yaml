@@ -506,64 +506,76 @@ workflows:
           SWIFT
           echo "=== Patched AppDelegate.swift ==="
           cat "$DELEGATE"
+      - name: Force light mode in Info.plist
+        script: |
+          PLIST="ios/App/App/Info.plist"
+          echo "=== Forcing UIUserInterfaceStyle to Light ==="
+          if ! /usr/libexec/PlistBuddy -c "Print :UIUserInterfaceStyle" "$PLIST" 2>/dev/null; then
+            /usr/libexec/PlistBuddy -c "Add :UIUserInterfaceStyle string Light" "$PLIST"
+          else
+            /usr/libexec/PlistBuddy -c "Set :UIUserInterfaceStyle Light" "$PLIST"
+          fi
+          echo "=== UIUserInterfaceStyle set to Light ==="
       - name: Patch ViewController for white background
         script: |
           VIEWCONTROLLER="ios/App/App/ViewController.swift"
           echo "=== Patching ViewController.swift to prevent black screen ==="
           cat > "$VIEWCONTROLLER" << 'SWIFT'
-          import UIKit
-          import Capacitor
+import UIKit
+import Capacitor
 
-          class ViewController: CAPBridgeViewController {
-              override func viewDidLoad() {
-                  super.viewDidLoad()
-                  view.backgroundColor = .white
-                  webView?.backgroundColor = .white
-                  webView?.isOpaque = true
-                  webView?.scrollView.backgroundColor = .white
-                  webView?.scrollView.bounces = false
-                  webView?.scrollView.alwaysBounceVertical = false
-                  webView?.scrollView.alwaysBounceHorizontal = false
-              }
-              override func viewDidAppear(_ animated: Bool) {
-                  super.viewDidAppear(animated)
-                  view.window?.backgroundColor = .white
-              }
-          }
-          SWIFT
+class ViewController: CAPBridgeViewController {
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        overrideUserInterfaceStyle = .light
+        view.backgroundColor = .white
+        webView?.backgroundColor = .white
+        webView?.isOpaque = true
+        webView?.scrollView.backgroundColor = .white
+        webView?.scrollView.bounces = false
+        webView?.scrollView.alwaysBounceVertical = false
+        webView?.scrollView.alwaysBounceHorizontal = false
+    }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        view.window?.backgroundColor = .white
+        view.window?.overrideUserInterfaceStyle = .light
+    }
+}
+SWIFT
           echo "=== Patched ViewController.swift ==="
       - name: Patch LaunchScreen for white background
         script: |
           STORYBOARD="ios/App/App/Base.lproj/LaunchScreen.storyboard"
           cat > "$STORYBOARD" << 'XMLEOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="17132" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
-              <device id="retina4_7" orientation="portrait" appearance="light"/>
-              <dependencies>
-                  <deployment identifier="iOS"/>
-                  <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="17105"/>
-                  <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
-              </dependencies>
-              <scenes>
-                  <scene sceneID="EHf-IW-A2E">
-                      <objects>
-                          <viewController id="01J-lp-oVM" sceneMemberID="viewController">
-                              <imageView key="view" userInteractionEnabled="NO" contentMode="scaleAspectFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="Splash" id="snD-IY-ifK">
-                                  <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
-                                  <autoresizingMask key="autoresizingMask"/>
-                                  <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
-                              </imageView>
-                          </viewController>
-                          <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
-                      </objects>
-                      <point key="canvasLocation" x="53" y="375"/>
-                  </scene>
-              </scenes>
-              <resources>
-                  <image name="Splash" width="1366" height="1366"/>
-              </resources>
-          </document>
-          XMLEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="17132" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
+    <device id="retina4_7" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="17105"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <scene sceneID="EHf-IW-A2E">
+            <objects>
+                <viewController id="01J-lp-oVM" sceneMemberID="viewController">
+                    <imageView key="view" userInteractionEnabled="NO" contentMode="scaleAspectFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="Splash" id="snD-IY-ifK">
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                        <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                    </imageView>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="53" y="375"/>
+        </scene>
+    </scenes>
+    <resources>
+        <image name="Splash" width="1366" height="1366"/>
+    </resources>
+</document>
+XMLEOF
           echo "=== Wrote clean LaunchScreen.storyboard ==="
       - name: Ensure FirebaseCrashlytics in SPM Package.swift
         script: |
