@@ -11,6 +11,14 @@ html, body {
   position: fixed;
   width: 100%;
   height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* iOS Capacitor fix: position:fixed on html/body can collapse
+   WKWebView viewport to 0px. JS in main.tsx adds this class. */
+html.ios-native, html.ios-native body {
+  position: static !important;
 }
 
 #root {

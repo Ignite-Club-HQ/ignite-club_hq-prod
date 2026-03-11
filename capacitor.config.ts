@@ -31,9 +31,9 @@ const config: CapacitorConfig = {
   },
   // Server configuration - keep navigation in app
   server: {
-    // Use standard Capacitor schemes
+    // Use https for both platforms - capacitor:// scheme can cause CORS/resource loading issues on iOS
     androidScheme: 'https',
-    iosScheme: 'capacitor',
+    iosScheme: 'https',
   },
 };
 
