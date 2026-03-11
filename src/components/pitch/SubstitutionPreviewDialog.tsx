@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, ArrowLeftRight, Check, AlertCircle } from "lucide-react";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { cn } from "@/lib/utils";
-import { MiniLeagueTeams, getSpecificPositionLabel } from "./types";
+import { MiniLeagueTeams } from "./types";
 
 interface Player {
   id: string;
@@ -54,7 +54,6 @@ export default function SubstitutionPreviewDialog({
   }
 
   const requiredPos = pitchPlayer.currentPitchPosition;
-  const specificPos = getSpecificPositionLabel(pitchPlayer.position?.x, requiredPos);
   const posColors = POSITION_COLORS[requiredPos];
 
   // In mini-league mode, filter to only show players from the same team
@@ -138,7 +137,7 @@ export default function SubstitutionPreviewDialog({
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
             Move <span className="font-medium text-foreground">{pitchPlayer.name}</span> (
-            <span className={cn("font-bold", posColors.text)}>{specificPos}</span>) to Bench
+            <span className={cn("font-bold", posColors.text)}>{requiredPos}</span>) to Bench
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
@@ -166,7 +165,7 @@ export default function SubstitutionPreviewDialog({
                     <div className="flex-1 min-w-0 text-left">
                       <p className="font-medium truncate">{option.benchPlayer.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        Takes <span className={cn("font-bold", posColors.text)}>{specificPos}</span>
+                        Takes <span className={cn("font-bold", posColors.text)}>{requiredPos}</span>
                       </p>
                     </div>
                     <Check className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -186,9 +185,6 @@ export default function SubstitutionPreviewDialog({
                 const swapPosColors = option.swapPlayer?.currentPitchPosition 
                   ? POSITION_COLORS[option.swapPlayer.currentPitchPosition] 
                   : null;
-                const specificSwapPos = option.swapPlayer?.currentPitchPosition
-                  ? getSpecificPositionLabel(option.swapPlayer.position?.x, option.swapPlayer.currentPitchPosition)
-                  : null;
                 return (
                   <Button
                     key={`swap-${idx}`}
@@ -207,7 +203,7 @@ export default function SubstitutionPreviewDialog({
                         <span className="font-medium text-sm">{option.benchPlayer.name}</span>
                         <ArrowRight className="h-3 w-3 text-muted-foreground" />
                         <span className={cn("text-xs font-bold", swapPosColors?.text)}>
-                          {specificSwapPos || option.swapPlayer?.currentPitchPosition}
+                          {option.swapPlayer?.currentPitchPosition}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground pl-1">
@@ -215,9 +211,9 @@ export default function SubstitutionPreviewDialog({
                         <span>
                           <span className="font-medium text-foreground">{option.swapPlayer?.name}</span>
                           {" "}moves{" "}
-                          <span className={cn("font-bold", swapPosColors?.text)}>{specificSwapPos || option.swapPlayer?.currentPitchPosition}</span>
+                          <span className={cn("font-bold", swapPosColors?.text)}>{option.swapPlayer?.currentPitchPosition}</span>
                           {" → "}
-                          <span className={cn("font-bold", posColors.text)}>{specificPos}</span>
+                          <span className={cn("font-bold", posColors.text)}>{requiredPos}</span>
                         </span>
                       </div>
                     </div>
@@ -234,7 +230,7 @@ export default function SubstitutionPreviewDialog({
               <p className="text-sm">No substitution options available.</p>
               <p className="text-xs mt-1">
                 No bench players can cover{" "}
-                <span className={cn("font-bold", posColors.text)}>{specificPos}</span>.
+                <span className={cn("font-bold", posColors.text)}>{requiredPos}</span>.
               </p>
               <p className="text-xs mt-1">Add players to the bench or assign positions.</p>
             </div>

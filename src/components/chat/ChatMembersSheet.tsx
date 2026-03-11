@@ -15,8 +15,6 @@ interface ChatMembersSheetProps {
   teamId?: string;
   clubId?: string;
   groupAllowedRoles?: string[];
-  externalOpen?: boolean;
-  onExternalOpenChange?: (open: boolean) => void;
 }
 
 interface Member {
@@ -32,13 +30,9 @@ export function ChatMembersSheet({
   chatName,
   teamId,
   clubId,
-  groupAllowedRoles,
-  externalOpen,
-  onExternalOpenChange,
+  groupAllowedRoles 
 }: ChatMembersSheetProps) {
-  const [internalOpen, setInternalOpen] = useState(false);
-  const open = externalOpen !== undefined ? externalOpen : internalOpen;
-  const setOpen = onExternalOpenChange || setInternalOpen;
+  const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
   const previousCountRef = useRef<number | null>(null);
   const cacheKey = `chat-members-count-${chatType}-${chatId}`;
@@ -224,22 +218,18 @@ export function ChatMembersSheet({
     }
   }, [uniqueMembers.length, membersLoading, cacheKey, queryClient, chatType, chatId]);
 
-  const isExternallyControlled = externalOpen !== undefined;
-
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      {!isExternallyControlled && (
-        <SheetTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-            title="View members"
-          >
-            <Users className="h-4 w-4" />
-          </Button>
-        </SheetTrigger>
-      )}
+      <SheetTrigger asChild>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+          title="View members"
+        >
+          <Users className="h-4 w-4" />
+        </Button>
+      </SheetTrigger>
       <SheetContent side="right" className="w-[300px] sm:w-[400px]">
         <SheetHeader>
           <SheetTitle>{chatName}</SheetTitle>

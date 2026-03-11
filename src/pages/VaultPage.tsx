@@ -1,7 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
-import { Share } from "@capacitor/share";
-import { getShareUrl } from "@/lib/shareUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw, ExternalLink, Sheet, FileSpreadsheet, Link2, CloudDownload, MoreVertical } from "lucide-react";
@@ -958,26 +956,13 @@ export default function VaultPage() {
   }, [urlFolderId, userClubs, initialLoadComplete, searchParams, setSearchParams]);
 
   const shareFolder = async (folderId: string) => {
-    const shareUrl = getShareUrl("folder", folderId);
+    const shareUrl = `${window.location.origin}/vault/folder/${folderId}`;
     
     try {
-      if (Capacitor.isNativePlatform()) {
-        try {
-          await Share.share({
-            url: shareUrl,
-            dialogTitle: "Share Folder",
-          });
-        } catch (error) {
-          if ((error as Error).name !== "AbortError") {
-            await navigator.clipboard.writeText(shareUrl);
-            toast.success("Link copied to clipboard!");
-          }
-        }
-        return;
-      }
-
       if (navigator.share) {
         await navigator.share({
+          title: "Vault Folder",
+          text: "Check out this folder in the vault",
           url: shareUrl,
         });
       } else {
@@ -985,6 +970,7 @@ export default function VaultPage() {
         toast.success("Link copied to clipboard!");
       }
     } catch (error) {
+      // User cancelled share or error occurred
       if ((error as Error).name !== "AbortError") {
         await navigator.clipboard.writeText(shareUrl);
         toast.success("Link copied to clipboard!");

@@ -1,8 +1,7 @@
-import { useState, useEffect, lazy, Suspense, useRef } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Share } from "@capacitor/share";
 import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
 import { Capacitor } from "@capacitor/core";
-import { getShareUrl } from "@/lib/shareUtils";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -221,7 +220,6 @@ export default function EventDetailPage() {
   
   // Mini league player overrides for match generation
   const [playerOverrides, setPlayerOverrides] = useState<Record<string, boolean>>({});
-  const isSharingEventRef = useRef(false);
 
   // Track when user views this event
   useEventViewTracking(id, user?.id);
@@ -1487,8 +1485,20 @@ export default function EventDetailPage() {
         }
       }
 
-      // Notifications are created automatically by the on_event_cancelled DB trigger
-      // No need to manually insert them here - that was causing duplicates
+      // Send push notifications if enabled
+      if (sendPushNotification !== false) {
+        const notificationMessage = customMessage 
+          ? `"${event?.title}" has been cancelled. ${customMessage}`
+          : `"${event?.title}" has been cancelled.`;
+        
+        const notifications = uniqueMembers.map(userId => ({
+          user_id: userId,
+          type: "event_cancelled",
+          message: notificationMessage,
+          related_id: event?.id,
+        }));
+        await supabase.from("notifications").insert(notifications);
+      }
 
       return uniqueMembers.length;
     },
@@ -1672,20 +1682,18 @@ export default function EventDetailPage() {
           size="icon"
           className="shrink-0"
           onClick={async () => {
-            if (isSharingEventRef.current) return;
-            isSharingEventRef.current = true;
-
-            const shareUrl = getShareUrl("event", id!);
-            
-
+            const shareUrl = `https://igniteclubhq.app/events/${id}`;
             try {
               if (Capacitor.isNativePlatform()) {
                 await Share.share({
-                  url: shareUrl,
+                  title: event.title,
+                  text: shareUrl,
                   dialogTitle: 'Share Event',
                 });
               } else if (navigator.share) {
                 await navigator.share({
+                  title: event.title,
+                  text: `Check out this event: ${event.title}`,
                   url: shareUrl,
                 });
               } else {
@@ -1697,8 +1705,6 @@ export default function EventDetailPage() {
                 await navigator.clipboard.writeText(shareUrl);
                 toast({ title: "Link copied to clipboard!" });
               }
-            } finally {
-              isSharingEventRef.current = false;
             }
           }}
         >
@@ -1904,35 +1910,17 @@ export default function EventDetailPage() {
               <span>${Number(eventPrice).toFixed(2)} per person</span>
             </div>
           )}
-          {/* Pitch Board / Start Game button for game events */}
-          {canAccessPitchBoard && teamMembers && (() => {
-            const eventTime = parseISO(event.event_date);
-            const now = new Date();
-            const minutesUntilKickoff = (eventTime.getTime() - now.getTime()) / (1000 * 60);
-            const isWithin60Min = minutesUntilKickoff <= 60;
-            const hasStarted = minutesUntilKickoff <= 0;
-            
-            return isWithin60Min ? (
-              <Button
-                variant="default"
-                size="lg"
-                className="w-full mt-2 h-14 text-lg font-bold gap-3"
-                onClick={() => setShowPitchBoard(true)}
-              >
-                <Play className="h-5 w-5" />
-                {hasStarted ? "Open Match" : "Start Game"}
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                className="w-full mt-2"
-                onClick={() => setShowPitchBoard(true)}
-              >
-                <Play className="h-4 w-4 mr-2" />
-                Open Pitch Board
-              </Button>
-            );
-          })()}
+          {/* Pitch Board button for game events */}
+          {canAccessPitchBoard && teamMembers && (
+            <Button
+              variant="default"
+              className="w-full mt-2"
+              onClick={() => setShowPitchBoard(true)}
+            >
+              <Play className="h-4 w-4 mr-2" />
+              Open Pitch Board
+            </Button>
+          )}
         </CardContent>
       </Card>
 

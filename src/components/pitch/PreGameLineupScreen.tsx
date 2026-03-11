@@ -55,11 +55,9 @@ interface DragState {
   startX: number;
   startY: number;
   hasMoved: boolean;
-  directionLocked: 'drag' | 'scroll' | null; // null = undecided
 }
 
-const DRAG_THRESHOLD = 12; // px movement cancels pending long-press
-const LONG_PRESS_MS = 300; // ms hold before drag activates
+const DRAG_THRESHOLD = 8; // px before drag is committed (prevents accidental drags)
 
 export default function PreGameLineupScreen({
   players,
@@ -249,123 +247,20 @@ export default function PreGameLineupScreen({
     return null;
   }, []);
 
-  // Long-press timer refs
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingDragRef = useRef<{ playerId: string; startX: number; startY: number } | null>(null);
-  const pendingDragCleanupRef = useRef<(() => void) | null>(null);
-  const suppressClickRef = useRef(false);
-  const suppressClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const suppressNextClick = useCallback(() => {
-    suppressClickRef.current = true;
-    if (suppressClickTimerRef.current) {
-      clearTimeout(suppressClickTimerRef.current);
-    }
-    suppressClickTimerRef.current = setTimeout(() => {
-      suppressClickRef.current = false;
-      suppressClickTimerRef.current = null;
-    }, 350);
-  }, []);
-
-  const cancelLongPress = useCallback(() => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-    if (pendingDragCleanupRef.current) {
-      pendingDragCleanupRef.current();
-      pendingDragCleanupRef.current = null;
-    }
-    pendingDragRef.current = null;
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      cancelLongPress();
-      if (suppressClickTimerRef.current) {
-        clearTimeout(suppressClickTimerRef.current);
-      }
-    };
-  }, [cancelLongPress]);
-
   const handleDragStart = useCallback((playerId: string, clientX: number, clientY: number) => {
-    cancelLongPress();
-    pendingDragRef.current = { playerId, startX: clientX, startY: clientY };
-
-    const onPendingMove = (e: TouchEvent | PointerEvent) => {
-      const point = "touches" in e ? e.touches[0] : e;
-      if (!point || !pendingDragRef.current) return;
-
-      const dx = Math.abs(point.clientX - pendingDragRef.current.startX);
-      const dy = Math.abs(point.clientY - pendingDragRef.current.startY);
-      if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
-        suppressNextClick();
-        cancelLongPress();
-      }
+    const newState: DragState = {
+      playerId,
+      ghostX: clientX,
+      ghostY: clientY,
+      startX: clientX,
+      startY: clientY,
+      hasMoved: false,
     };
-
-    const onPendingEnd = () => cancelLongPress();
-    const onPendingScroll = () => {
-      suppressNextClick();
-      cancelLongPress();
-    };
-
-    window.addEventListener("touchmove", onPendingMove, { passive: true });
-    window.addEventListener("pointermove", onPendingMove, { passive: true });
-    window.addEventListener("pointerup", onPendingEnd);
-    window.addEventListener("pointercancel", onPendingEnd);
-    window.addEventListener("touchend", onPendingEnd);
-    window.addEventListener("touchcancel", onPendingEnd);
-    window.addEventListener("scroll", onPendingScroll, { passive: true, capture: true });
-
-    pendingDragCleanupRef.current = () => {
-      window.removeEventListener("touchmove", onPendingMove);
-      window.removeEventListener("pointermove", onPendingMove);
-      window.removeEventListener("pointerup", onPendingEnd);
-      window.removeEventListener("pointercancel", onPendingEnd);
-      window.removeEventListener("touchend", onPendingEnd);
-      window.removeEventListener("touchcancel", onPendingEnd);
-      window.removeEventListener("scroll", onPendingScroll, true);
-    };
-
-    longPressTimerRef.current = setTimeout(() => {
-      const pending = pendingDragRef.current;
-      if (!pending) return;
-
-      if (pendingDragCleanupRef.current) {
-        pendingDragCleanupRef.current();
-        pendingDragCleanupRef.current = null;
-      }
-      pendingDragRef.current = null;
-      longPressTimerRef.current = null;
-
-      const newState: DragState = {
-        playerId: pending.playerId,
-        ghostX: pending.startX,
-        ghostY: pending.startY,
-        startX: pending.startX,
-        startY: pending.startY,
-        hasMoved: false,
-        directionLocked: "drag",
-      };
-      setDragState(newState);
-      setSelectedSlotIndex(null);
-      suppressClickRef.current = true;
-    }, LONG_PRESS_MS);
-  }, [cancelLongPress, suppressNextClick]);
+    setDragState(newState);
+    setSelectedSlotIndex(null);
+  }, []);
 
   const handleDragMove = useCallback((clientX: number, clientY: number) => {
-    // If drag not yet activated, check if user moved too much (scrolling)
-    if (pendingDragRef.current && !dragRef.current) {
-      const dx = Math.abs(clientX - pendingDragRef.current.startX);
-      const dy = Math.abs(clientY - pendingDragRef.current.startY);
-      if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
-        suppressNextClick();
-        cancelLongPress();
-      }
-      return;
-    }
-
     const current = dragRef.current;
     if (!current) return;
 
@@ -379,22 +274,18 @@ export default function PreGameLineupScreen({
       const slotIdx = findSlotUnderPoint(clientX, clientY);
       setHoveredSlotIndex(slotIdx);
     }
-  }, [findSlotUnderPoint, cancelLongPress, suppressNextClick]);
+  }, [findSlotUnderPoint]);
 
   const handleDragEnd = useCallback(() => {
-    cancelLongPress();
     const current = dragRef.current;
-    if (current?.hasMoved) {
-      suppressNextClick();
-      if (hoveredSlotIndex !== null) {
-        assignPlayerToSlot(current.playerId, hoveredSlotIndex);
-      }
+    if (current?.hasMoved && hoveredSlotIndex !== null) {
+      assignPlayerToSlot(current.playerId, hoveredSlotIndex);
     }
     setDragState(null);
     setHoveredSlotIndex(null);
-  }, [hoveredSlotIndex, assignPlayerToSlot, cancelLongPress, suppressNextClick]);
+  }, [hoveredSlotIndex, assignPlayerToSlot]);
 
-  // Global pointer/touch move & end listeners during active drag
+  // Global pointer/touch move & end listeners during drag
   useEffect(() => {
     if (!dragState) return;
 
@@ -741,17 +632,17 @@ export default function PreGameLineupScreen({
                             ? "border-primary/30 bg-primary/5 hover:bg-primary/10 active:bg-primary/20"
                             : "border-border bg-muted/30 opacity-50"
                     )}
-                    style={{ touchAction: 'auto' }}
+                    style={{ touchAction: 'none' }}
                     role="button"
                     tabIndex={0}
                     aria-label={`${player.name}, number ${player.number || 'unassigned'}${player.assignedPositions?.length ? `, plays ${player.assignedPositions.join(', ')}` : ', any position'}${!isEligible && selectedSlotIndex !== null ? ', not eligible for this position' : ''}. Drag to a position or tap to assign.`}
                     onClick={() => {
-                      if (suppressClickRef.current || dragState) return;
-                      handlePickPlayer(player.id);
+                      if (!dragState) handlePickPlayer(player.id);
                     }}
                     onPointerDown={(e) => {
+                      // Only handle primary button / touch
                       if (e.button !== 0) return;
-                      // Don't capture pointer - let scroll happen until direction is determined
+                      e.currentTarget.setPointerCapture(e.pointerId);
                       handleDragStart(player.id, e.clientX, e.clientY);
                     }}
                     onKeyDown={(e) => {
@@ -805,7 +696,7 @@ export default function PreGameLineupScreen({
         <Button
           className="flex-1"
           onClick={handleConfirm}
-          disabled={filledSlots < totalSlots}
+          disabled={filledSlots === 0}
         >
           <Check className="h-4 w-4 mr-1.5" />
           Confirm Lineup ({filledSlots}/{totalSlots})

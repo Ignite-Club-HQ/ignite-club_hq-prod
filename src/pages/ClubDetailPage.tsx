@@ -768,44 +768,34 @@ export default function ClubDetailPage() {
         </Button>
         <h1 className="text-2xl font-bold flex-1 truncate">{club.name}</h1>
         {isAdmin && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <>
+            <Link to={`/clubs/${id}/edit`}>
               <Button variant="ghost" size="icon">
-                <MoreVertical className="h-5 w-5" />
+                <Pencil className="h-5 w-5" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => navigate(`/clubs/${id}/edit`)}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Edit Club
-              </DropdownMenuItem>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Club
-                  </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Club?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently delete the club, all teams, and events. This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </Link>
+            <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-destructive">
+                <Trash2 className="h-5 w-5" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Club?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete the club, all teams, and events. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          </>
         )}
       </div>
 
@@ -1072,70 +1062,70 @@ export default function ClubDetailPage() {
                           onDrop={(e) => handleFolderDrop(e, folder.id)}
                           className={`rounded-lg transition-all ${dragOverFolderId === folder.id ? "ring-2 ring-primary ring-offset-2" : ""}`}
                         >
-                          <CollapsibleTrigger asChild>
-                            <Card className={`cursor-pointer hover:border-primary/30 active:scale-[0.99] transition-all ${getFolderColorClass(folder.color || 'default').bgClassName}`}>
-                              <CardContent className="p-3 flex items-center gap-3">
+                          <Card className={`hover:border-primary/30 transition-colors ${getFolderColorClass(folder.color || 'default').bgClassName}`}>
+                            <CardContent className="p-3 flex items-center gap-3">
+                              <CollapsibleTrigger className="flex items-center gap-3 flex-1 cursor-pointer">
                                 {isExpanded ? (
-                                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 transition-transform" />
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
                                 ) : (
-                                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 transition-transform" />
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
                                 )}
-                                <Folder className={`h-5 w-5 shrink-0 ${getFolderColorClass(folder.color || 'default').className}`} />
-                                <span className="font-medium flex-1 text-left truncate">{folder.name}</span>
-                                <Badge variant="secondary" className="text-xs shrink-0">
-                                  {folderTeams.length} team{folderTeams.length !== 1 ? "s" : ""}
-                                </Badge>
-                                {isAdmin && (
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button 
-                                        variant="ghost" 
-                                        size="icon" 
-                                        className="h-8 w-8 shrink-0"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <MoreVertical className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      <DropdownMenuItem onClick={() => handleOpenEditFolder(folder)}>
-                                        <Pencil className="h-4 w-4 mr-2" />
-                                        Edit Folder
-                                      </DropdownMenuItem>
-                                      <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                          <DropdownMenuItem 
-                                            className="text-destructive focus:text-destructive"
-                                            onSelect={(e) => e.preventDefault()}
+                                <Folder className={`h-5 w-5 ${getFolderColorClass(folder.color || 'default').className}`} />
+                                <span className="font-medium flex-1 text-left">{folder.name}</span>
+                              </CollapsibleTrigger>
+                              <Badge variant="secondary" className="text-xs">
+                                {folderTeams.length} team{folderTeams.length !== 1 ? "s" : ""}
+                              </Badge>
+                              {isAdmin && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-8 w-8"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleOpenEditFolder(folder)}>
+                                      <Pencil className="h-4 w-4 mr-2" />
+                                      Edit Folder
+                                    </DropdownMenuItem>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem 
+                                          className="text-destructive focus:text-destructive"
+                                          onSelect={(e) => e.preventDefault()}
+                                        >
+                                          <Trash2 className="h-4 w-4 mr-2" />
+                                          Delete Folder
+                                        </DropdownMenuItem>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Delete Folder?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            This will delete the folder "{folder.name}". Teams in this folder will become uncategorized.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                          <AlertDialogAction
+                                            onClick={() => deleteFolderMutation.mutate(folder.id)}
+                                            className="bg-destructive text-destructive-foreground"
                                           >
-                                            <Trash2 className="h-4 w-4 mr-2" />
-                                            Delete Folder
-                                          </DropdownMenuItem>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                          <AlertDialogHeader>
-                                            <AlertDialogTitle>Delete Folder?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                              This will delete the folder "{folder.name}". Teams in this folder will become uncategorized.
-                                            </AlertDialogDescription>
-                                          </AlertDialogHeader>
-                                          <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction
-                                              onClick={() => deleteFolderMutation.mutate(folder.id)}
-                                              className="bg-destructive text-destructive-foreground"
-                                            >
-                                              Delete
-                                            </AlertDialogAction>
-                                          </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                      </AlertDialog>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                )}
-                              </CardContent>
-                            </Card>
-                          </CollapsibleTrigger>
+                                            Delete
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
+                            </CardContent>
+                          </Card>
                         </div>
                         <CollapsibleContent className="pl-4 space-y-2 mt-2">
                           {filteredFolderTeams.length === 0 ? (
@@ -1174,11 +1164,81 @@ export default function ClubDetailPage() {
                                             <Badge className="bg-yellow-500 text-yellow-950 text-xs">PRO</Badge>
                                           )}
                                         </div>
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <span className="text-sm">{getSportEmoji(club?.sport)}</span>
+                                          {(() => {
+                                            const teamSponsor = getTeamSponsor(team.id);
+                                            return teamSponsor?.logo_url ? (
+                                              <div className="flex items-center gap-1.5">
+                                                <span className="text-xs text-muted-foreground">Sponsored by</span>
+                                                {teamSponsor.website_url ? (
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(teamSponsor.website_url!)); }}
+                                                    className="hover:opacity-80 transition-opacity"
+                                                  >
+                                                    <img
+                                                      src={teamSponsor.logo_url}
+                                                      alt={teamSponsor.name}
+                                                      className="h-10 w-auto max-w-[100px] object-contain rounded-sm"
+                                                      title={teamSponsor.name}
+                                                    />
+                                                  </button>
+                                                ) : (
+                                                  <img
+                                                    src={teamSponsor.logo_url}
+                                                    alt={teamSponsor.name}
+                                                    className="h-10 w-auto max-w-[100px] object-contain rounded-sm"
+                                                    title={teamSponsor.name}
+                                                  />
+                                                )}
+                                              </div>
+                                            ) : null;
+                                          })()}
+                                        </div>
                                       </div>
                                     </Link>
-                                    <Link to={`/teams/${team.id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 p-1">
-                                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                                    </Link>
+                                    {isAdmin && teamFolders.length > 0 && (
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button 
+                                            variant="ghost" 
+                                            size="icon" 
+                                            className="h-8 w-8 shrink-0"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <FolderInput className="h-4 w-4" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                          <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                                            Move to folder...
+                                          </DropdownMenuItem>
+                                          {teamFolders
+                                            .filter(f => f.id !== folder.id)
+                                            .map((targetFolder) => (
+                                            <DropdownMenuItem 
+                                              key={targetFolder.id}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                moveTeamToFolderMutation.mutate({ teamId: team.id, folderId: targetFolder.id });
+                                              }}
+                                            >
+                                              <Folder className={`h-4 w-4 mr-2 ${getFolderColorClass(targetFolder.color || 'default').className}`} />
+                                              {targetFolder.name}
+                                            </DropdownMenuItem>
+                                          ))}
+                                          <DropdownMenuItem 
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              moveTeamToFolderMutation.mutate({ teamId: team.id, folderId: null });
+                                            }}
+                                          >
+                                            <FolderOpen className="h-4 w-4 mr-2 text-muted-foreground" />
+                                            Uncategorized
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    )}
                                   </CardContent>
                                 </Card>
                               );
@@ -1253,11 +1313,70 @@ export default function ClubDetailPage() {
                                     <Badge className="bg-yellow-500 text-yellow-950 text-xs">PRO</Badge>
                                   )}
                                 </div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-sm">{getSportEmoji(club?.sport)}</span>
+                                  {(() => {
+                                    const teamSponsor = getTeamSponsor(team.id);
+                                    return teamSponsor?.logo_url ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-xs text-muted-foreground">Sponsored by</span>
+                                        {teamSponsor.website_url ? (
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(teamSponsor.website_url!)); }}
+                                            className="hover:opacity-80 transition-opacity"
+                                          >
+                                            <img
+                                              src={teamSponsor.logo_url}
+                                              alt={teamSponsor.name}
+                                              className="h-10 w-auto max-w-[100px] object-contain rounded-sm"
+                                              title={teamSponsor.name}
+                                            />
+                                          </button>
+                                        ) : (
+                                          <img
+                                            src={teamSponsor.logo_url}
+                                            alt={teamSponsor.name}
+                                            className="h-10 w-auto max-w-[100px] object-contain rounded-sm"
+                                            title={teamSponsor.name}
+                                          />
+                                        )}
+                                      </div>
+                                    ) : null;
+                                  })()}
+                                </div>
                               </div>
                             </Link>
-                            <Link to={`/teams/${team.id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 p-1">
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            </Link>
+                            {isAdmin && teamFolders.length > 0 && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8 shrink-0"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <FolderInput className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                                    Move to folder...
+                                  </DropdownMenuItem>
+                                  {teamFolders.map((targetFolder) => (
+                                    <DropdownMenuItem 
+                                      key={targetFolder.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        moveTeamToFolderMutation.mutate({ teamId: team.id, folderId: targetFolder.id });
+                                      }}
+                                    >
+                                      <Folder className={`h-4 w-4 mr-2 ${getFolderColorClass(targetFolder.color || 'default').className}`} />
+                                      {targetFolder.name}
+                                    </DropdownMenuItem>
+                                  ))}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
                           </CardContent>
                         </Card>
                       );
@@ -1537,102 +1656,75 @@ export default function ClubDetailPage() {
                         <div className="flex flex-wrap gap-1">
                           {member.roles?.map((roleItem) => {
                             const roleColors: Record<string, string> = {
-                              app_admin: "bg-red-500/15 text-red-600 border-red-500/30",
-                              club_admin: "bg-purple-500/15 text-purple-600 border-purple-500/30",
-                              team_admin: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
-                              coach: "bg-blue-500/15 text-blue-600 border-blue-500/30",
-                              committee_member: "bg-violet-500/15 text-violet-600 border-violet-500/30",
-                              player: "bg-amber-500/15 text-amber-600 border-amber-500/30",
-                              parent: "bg-teal-500/15 text-teal-600 border-teal-500/30",
-                              league_admin: "bg-orange-500/15 text-orange-600 border-orange-500/30",
+                              app_admin: "bg-red-500/20 text-red-400 border-red-500/30",
+                              club_admin: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+                              team_admin: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+                              coach: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+                              player: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+                              parent: "bg-pink-500/20 text-pink-400 border-pink-500/30",
                               basic_user: "bg-muted text-muted-foreground border-border",
                             };
                             const colorClass = roleColors[roleItem.role] || roleColors.basic_user;
                             return (
-                              <Badge key={roleItem.id} variant="outline" className={`text-[10px] rounded-md border px-1.5 py-0.5 ${colorClass}`}>
-                                {roleItem.role?.replace(/_/g, " ") || "Member"}
+                              <Badge key={roleItem.id} variant="outline" className={`text-xs border ${colorClass}`}>
+                                {roleItem.role?.replace("_", " ") || "Member"}
                                 {roleItem.scopeName && ` • ${roleItem.scopeName}`}
                               </Badge>
                             );
                           })}
                         </div>
                         {userId !== user?.id && isAdmin && (
-                          <>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onSelect={(e) => {
-                                e.preventDefault();
-                                // Find and click the hidden award points trigger
-                                const trigger = document.getElementById(`award-points-${userId}`);
-                                trigger?.click();
-                              }}>
-                                <Flame className="h-4 w-4 mr-2 text-amber-500" />
-                                Award Points
-                              </DropdownMenuItem>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <DropdownMenuItem
-                                    className="text-destructive focus:text-destructive"
-                                    onSelect={(e) => e.preventDefault()}
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Remove Member
-                                  </DropdownMenuItem>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Remove Member?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      This will remove {member.profile?.display_name} from the club. They can request to join again.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={async () => {
-                                        const { error } = await supabase
-                                          .from("user_roles")
-                                          .delete()
-                                          .eq("user_id", userId)
-                                          .eq("club_id", id!);
-                                        if (error) {
-                                          toast({ title: "Failed to remove member", variant: "destructive" });
-                                        } else {
-                                          await supabase.from("notifications").insert({
-                                            user_id: userId,
-                                            type: "membership",
-                                            message: `You have been removed from ${club?.name || "the club"}`,
-                                            related_id: id,
-                                          });
-                                          queryClient.invalidateQueries({ queryKey: ["club-members-roles", id] });
-                                          toast({ title: "Member removed" });
-                                        }
-                                      }}
-                                      className="bg-destructive text-destructive-foreground"
-                                    >
-                                      Remove
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                          <div className="hidden">
+                          <div className="flex items-center gap-1">
                             <AwardPointsDialog
                               memberId={userId}
                               memberName={member.profile?.display_name || "Member"}
                               currentPoints={member.profile?.ignite_points || 0}
                               clubId={id!}
                               clubName={club?.name || "Club"}
-                              triggerId={`award-points-${userId}`}
                             />
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remove Member?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will remove {member.profile?.display_name} from the club. They can request to join again.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={async () => {
+                                      const { error } = await supabase
+                                        .from("user_roles")
+                                        .delete()
+                                        .eq("user_id", userId)
+                                        .eq("club_id", id!);
+                                      if (error) {
+                                        toast({ title: "Failed to remove member", variant: "destructive" });
+                                      } else {
+                                        await supabase.from("notifications").insert({
+                                          user_id: userId,
+                                          type: "membership",
+                                          message: `You have been removed from ${club?.name || "the club"}`,
+                                          related_id: id,
+                                        });
+                                        queryClient.invalidateQueries({ queryKey: ["club-members-roles", id] });
+                                        toast({ title: "Member removed" });
+                                      }
+                                    }}
+                                  className="bg-destructive text-destructive-foreground"
+                                >
+                                  Remove
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                           </div>
-                          </>
                         )}
                       </CardContent>
                     </Card>

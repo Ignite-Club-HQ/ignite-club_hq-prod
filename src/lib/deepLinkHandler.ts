@@ -44,9 +44,9 @@ export function initDeepLinkHandler() {
           console.log('[DeepLink] Session set successfully, user:', data.user?.id);
           
           // Navigate to the intended path or home
-          const pathWithQuery = `${url.pathname || '/'}${url.search || ''}`;
-          if (pathWithQuery !== '/' && pathWithQuery !== '') {
-            window.location.href = pathWithQuery;
+          const path = url.pathname || '/';
+          if (path !== '/' && path !== '') {
+            window.location.href = path;
           } else {
             // Force a refresh to trigger auth state change
             window.location.href = '/';
@@ -68,17 +68,8 @@ export function initDeepLinkHandler() {
         }
       } else {
         // Not an OAuth callback, handle as regular deep link navigation
-        const rawPath = url.pathname || '/';
-        const isHttpLike = url.protocol === 'http:' || url.protocol === 'https:';
-        let path = rawPath;
-
-        // Custom scheme links like igniteclubhq://events/123 have host="events", pathname="/123"
-        if (!isHttpLike && url.host && !url.host.includes('.')) {
-          path = `/${url.host}${rawPath === '/' ? '' : rawPath}`;
-        }
-
+        const path = url.pathname;
         const fullSearch = url.search;
-        const fullHash = url.hash;
 
         // Handle payment deep link callbacks
         if (path === '/payment-success' || url.host === 'payment-success') {
@@ -94,7 +85,7 @@ export function initDeepLinkHandler() {
           window.location.href = '/';
           return;
         }
-
+        
         // Check for Google Drive OAuth callback (code param on /vault path)
         if (path === '/vault' && searchParams.get('code')) {
           const driveCode = searchParams.get('code');
@@ -103,7 +94,7 @@ export function initDeepLinkHandler() {
           window.location.href = '/vault';
           return;
         }
-
+        
         // Check for Google Drive OAuth error
         if (path === '/vault' && searchParams.get('error')) {
           const driveError = searchParams.get('error');
@@ -112,11 +103,10 @@ export function initDeepLinkHandler() {
           window.location.href = '/vault';
           return;
         }
-
+        
         if (path && path !== '/') {
-          const destination = `${path}${fullSearch || ''}${fullHash || ''}`;
-          console.log('[DeepLink] Navigating to path:', destination);
-          window.location.href = destination;
+          console.log('[DeepLink] Navigating to path:', path);
+          window.location.href = path;
         }
       }
     } catch (err) {
