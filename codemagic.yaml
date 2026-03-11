@@ -356,6 +356,17 @@ workflows:
       - name: Copy app icons
         script: |
           cp android-assets/mipmap-xxxhdpi/ic_launcher.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+      - name: Verify all critical iOS files
+        script: |
+          echo "=== Verifying ViewController.swift has white background ==="
+          grep -c "backgroundColor = .white" ios/App/App/ViewController.swift || { echo "ERROR: ViewController missing white bg!"; exit 1; }
+          echo "=== Verifying AppDelegate.swift has Firebase init ==="
+          grep -c "FirebaseApp.configure" ios/App/App/AppDelegate.swift || { echo "ERROR: AppDelegate missing Firebase!"; exit 1; }
+          echo "=== Verifying index.html in bundle ==="
+          grep -c "app-loading-fallback" ios/App/App/public/index.html || { echo "ERROR: index.html missing loading fallback!"; exit 1; }
+          echo "=== Verifying Info.plist UIUserInterfaceStyle ==="
+          /usr/libexec/PlistBuddy -c "Print :UIUserInterfaceStyle" ios/App/App/Info.plist
+          echo "=== All critical files verified ==="
       - name: Build iOS Debug
         script: |
           cd ios/App
