@@ -8,13 +8,17 @@
 html, body {
   overflow: hidden;
   overscroll-behavior: none;
+  position: fixed;
   width: 100%;
   height: 100%;
-  /* CRITICAL: Do NOT use position:fixed on html/body
-     iOS WKWebView can collapse the viewport to 0px height
-     causing a permanent black/blank screen */
   margin: 0;
   padding: 0;
+}
+
+/* iOS Capacitor fix: position:fixed on html/body can collapse
+   WKWebView viewport to 0px. JS in main.tsx adds this class. */
+html.ios-native, html.ios-native body {
+  position: static !important;
 }
 
 #root {
