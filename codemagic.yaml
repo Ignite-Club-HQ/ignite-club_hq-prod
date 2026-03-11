@@ -250,11 +250,17 @@ workflows:
       - name: Patch AppDelegate for Firebase & Crashlytics
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
-          python3 -c "
-          content = '''import UIKit
+          cat > "$DELEGATE" << 'SWIFT_EOF'
+          import UIKit
           import Capacitor
+
+          // Firebase imports are optional - if SPM resolution fails, app still launches
+          #if canImport(FirebaseCore)
           import FirebaseCore
+          #endif
+          #if canImport(FirebaseCrashlytics)
           import FirebaseCrashlytics
+          #endif
 
           @UIApplicationMain
           class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -262,8 +268,15 @@ workflows:
               var window: UIWindow?
 
               func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-                  FirebaseApp.configure()
+                  #if canImport(FirebaseCore)
+                  // Guard against double-init (Capacitor Firebase plugin may also init)
+                  if FirebaseApp.app() == nil {
+                      FirebaseApp.configure()
+                  }
+                  #endif
+                  #if canImport(FirebaseCrashlytics)
                   Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+                  #endif
                   return true
               }
 
@@ -281,11 +294,9 @@ workflows:
                   return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
               }
           }
-          '''
-          import textwrap
-          with open('$DELEGATE', 'w') as f:
-              f.write(textwrap.dedent(content).strip() + '\n')
-          "
+          SWIFT_EOF
+          echo "=== Patched AppDelegate.swift ==="
+          cat "$DELEGATE"
       - name: Ensure FirebaseCrashlytics in SPM Package.swift
         script: |
           PACKAGE="ios/App/CapApp-SPM/Package.swift"
