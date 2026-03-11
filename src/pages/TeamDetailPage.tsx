@@ -227,14 +227,8 @@ export default function TeamDetailPage() {
   // During loading, assume Pro access to avoid flashing Pro locks
   const hasProFootball = isSubscriptionLoading ? true : (clubHasProFootball || (!clubHasProFootball && teamHasIndividualProFootball));
 
-  // Force refresh member list when navigating to this page
-  useEffect(() => {
-    if (id) {
-      // Invalidate the team-roles query to force a fresh fetch
-      queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
-      queryClient.invalidateQueries({ queryKey: ["team-children", id] });
-    }
-  }, [id, queryClient]);
+  // Note: refetchOnMount: 'always' on the queries ensures fresh data
+  // without clearing the cache (which would cause a flash of empty state)
 
   // Fetch children assigned to the team
   const { data: teamChildren = [], isLoading: isChildrenLoading, isFetching: isChildrenFetching, refetch: refetchChildren } = useQuery({
