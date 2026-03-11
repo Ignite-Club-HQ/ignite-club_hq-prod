@@ -286,6 +286,33 @@ workflows:
             '}' > "$DELEGATE"
           echo "=== Patched AppDelegate.swift ==="
           cat "$DELEGATE"
+      - name: Patch ViewController with white background and bounce fixes
+        script: |
+          VC="ios/App/App/ViewController.swift"
+          echo "=== Writing ViewController.swift with white background ==="
+          printf '%s\n' \
+            'import UIKit' \
+            'import Capacitor' \
+            '' \
+            'class ViewController: CAPBridgeViewController {' \
+            '    override func viewDidLoad() {' \
+            '        super.viewDidLoad()' \
+            '        view.backgroundColor = .white' \
+            '        webView?.backgroundColor = .white' \
+            '        webView?.isOpaque = true' \
+            '        webView?.scrollView.backgroundColor = .white' \
+            '        webView?.scrollView.bounces = false' \
+            '        webView?.scrollView.alwaysBounceVertical = false' \
+            '        webView?.scrollView.alwaysBounceHorizontal = false' \
+            '    }' \
+            '' \
+            '    override func viewDidAppear(_ animated: Bool) {' \
+            '        super.viewDidAppear(animated)' \
+            '        view.window?.backgroundColor = .white' \
+            '    }' \
+            '}' > "$VC"
+          echo "=== Patched ViewController.swift ==="
+          cat "$VC"
       - name: Ensure FirebaseCrashlytics in SPM Package.swift
         script: |
           PACKAGE="ios/App/CapApp-SPM/Package.swift"
