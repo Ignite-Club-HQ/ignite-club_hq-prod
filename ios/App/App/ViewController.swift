@@ -7,7 +7,9 @@ class ViewController: CAPBridgeViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // Set a white background to prevent black flash before web content loads
+        // Set white background at EVERY level to prevent black flash
+        // This covers the gap between launch screen dismissal and web content rendering
+        view.window?.backgroundColor = .white
         view.backgroundColor = .white
         webView?.backgroundColor = .white
         webView?.isOpaque = false
@@ -18,5 +20,11 @@ class ViewController: CAPBridgeViewController {
         webView?.scrollView.bounces = false
         webView?.scrollView.alwaysBounceVertical = false
         webView?.scrollView.alwaysBounceHorizontal = false
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        // Window is guaranteed to be set by viewDidAppear
+        view.window?.backgroundColor = .white
     }
 }
