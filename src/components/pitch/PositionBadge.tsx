@@ -7,7 +7,7 @@ export const POSITION_COLORS: Record<PitchPosition, { bg: string; text: string; 
   GK: { bg: "bg-yellow-500/30 dark:bg-yellow-500/30", text: "text-yellow-700 dark:text-yellow-300", border: "border-yellow-500 dark:border-yellow-400" },
   DEF: { bg: "bg-blue-500/30 dark:bg-blue-500/30", text: "text-blue-700 dark:text-blue-300", border: "border-blue-500 dark:border-blue-400" },
   MID: { bg: "bg-emerald-500/30 dark:bg-emerald-500/30", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-500 dark:border-emerald-400" },
-  FWD: { bg: "bg-red-500/40 dark:bg-red-500/40", text: "text-red-700 dark:text-red-300", border: "border-red-600 dark:border-red-400" },
+  FWD: { bg: "bg-red-500/30 dark:bg-red-500/30", text: "text-red-700 dark:text-red-300", border: "border-red-500 dark:border-red-400" },
 };
 
 export const POSITION_LABELS: Record<PitchPosition, string> = {

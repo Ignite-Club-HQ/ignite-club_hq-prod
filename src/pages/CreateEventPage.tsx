@@ -1108,7 +1108,7 @@ export default function CreateEventPage() {
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Quick add:</Label>
                   <div className="flex flex-wrap gap-2">
-                    {["BBQ", "Scorer", "First Aid", "Oranges", "Snacks", "Subs Manager", "Water Duty", "Set Up", "Pack Up"].map((suggestion) => (
+                    {["BBQ", "Scorer", "First Aid", "Line Judge", "Water Duty", "Set Up", "Pack Up"].map((suggestion) => (
                       <Button
                         key={suggestion}
                         type="button"

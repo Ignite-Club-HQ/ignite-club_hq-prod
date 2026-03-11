@@ -17,21 +17,15 @@ export function PageLoading({ message = "Loading..." }: PageLoadingProps) {
     setMounted(true);
   }, []);
 
-  // Reliably detect theme from multiple sources
-  const getThemeIsDark = () => {
-    if (typeof window === 'undefined') return true;
-    // Check DOM class first (most reliable, always in sync)
-    if (document.documentElement.classList.contains('dark')) return true;
-    if (document.documentElement.classList.contains('light')) return false;
-    // Fall back to localStorage
-    const stored = localStorage.getItem('app-theme');
-    if (stored) return stored === 'dark';
-    // Fall back to resolvedTheme
-    if (resolvedTheme) return resolvedTheme === 'dark';
-    return true;
+  // Before mount, check localStorage directly for theme to avoid flash
+  const getInitialTheme = () => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('app-theme') || 'dark';
+    }
+    return 'dark';
   };
 
-  const isDark = getThemeIsDark();
+  const isDark = mounted ? resolvedTheme === "dark" : getInitialTheme() === "dark";
   const logo = isDark ? igniteIcon : igniteIconLight;
 
   return (

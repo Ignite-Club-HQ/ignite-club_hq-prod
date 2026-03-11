@@ -29,10 +29,6 @@ export default function SoccerBall({
   onTouchMove,
   onTouchEnd,
 }: SoccerBallProps) {
-  // Enlarge touch target to 48px minimum while keeping visual ball at `size`
-  const touchTarget = Math.max(size, 48);
-  const padding = (touchTarget - size) / 2;
-
   return (
     <div
       draggable={readOnly ? false : draggable}
@@ -50,10 +46,8 @@ export default function SoccerBall({
         className
       )}
       style={{
-        width: touchTarget,
-        height: touchTarget,
-        padding,
-        touchAction: "none",
+        width: size,
+        height: size,
         ...style,
       }}
     >

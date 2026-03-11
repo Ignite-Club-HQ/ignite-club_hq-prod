@@ -1,11 +1,10 @@
 import { Suspense, lazy, useEffect } from "react";
-import { Capacitor } from "@capacitor/core";
 // Force publish - Firebase upgraded to v12.7.0 for Capacitor 8 compatibility
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -100,30 +99,6 @@ const PageLoader = () => (
   </div>
 );
 
-const MediaPhotoRedirect = () => {
-  const { photoId } = useParams();
-  return <Navigate to={`/media?photo=${photoId}`} replace />;
-};
-
-const DeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
-
-/**
- * Wrapper that shows a deep-link interstitial for in-app browsers (Messenger,
- * WhatsApp, etc.) and otherwise renders the normal child component.
- */
-const WithDeepLinkGate = ({ children }: { children: React.ReactNode }) => {
-  // Quick sync check — avoid lazy-loading DeepLinkGate when not needed
-  const isNative = Capacitor.isNativePlatform();
-  const ua = navigator.userAgent || "";
-  const inApp = !isNative && /FBAN|FBAV|Instagram|Line\/|Twitter|Snapchat|WhatsApp|LinkedInApp|Messenger/i.test(ua);
-  if (!inApp) return <>{children}</>;
-  return (
-    <Suspense fallback={<PageLoader />}>
-      <DeepLinkGate />
-    </Suspense>
-  );
-};
-
 // Read stored theme synchronously to match index.html bootstrap
 const getInitialTheme = (): 'light' | 'dark' => {
   if (typeof window !== 'undefined') {
@@ -177,14 +152,13 @@ const App = () => {
                 <Route path="/cancellation" element={<CancellationPolicyPage />} />
                 <Route path="/video-guide" element={<VideoGuideDownloadPage />} />
                 
-
                 {/* Protected routes */}
                 <Route element={<AppLayout />}>
                   <Route path="/" element={<HomePage />} />
                   <Route path="/events" element={<EventsPage />} />
                   <Route path="/events/new" element={<CreateEventPage />} />
-                  <Route path="/events/:id" element={<WithDeepLinkGate><EventDetailPage /></WithDeepLinkGate>} />
                   <Route path="/events/import" element={<ImportFixturesPage />} />
+                  <Route path="/events/:id" element={<EventDetailPage />} />
                   <Route path="/events/:id/edit" element={<EditEventPage />} />
                   <Route path="/events/:id/groups/:groupId/pitch" element={<EventGroupPitchPage />} />
                   <Route path="/events/:id/groups/:groupId/duties" element={<EventGroupPitchPage />} />
@@ -212,7 +186,6 @@ const App = () => {
                   <Route path="/messages/:teamId" element={<TeamChatPage />} />
                   <Route path="/groups/:groupId" element={<GroupChatPage />} />
                   <Route path="/media" element={<MediaPage />} />
-                  <Route path="/media/:photoId" element={<WithDeepLinkGate><MediaPhotoRedirect /></WithDeepLinkGate>} />
                   <Route path="/vault" element={<VaultPage />} />
                   <Route path="/vault/folder/:folderId" element={<VaultPage />} />
                   <Route path="/profile" element={<ProfilePage />} />

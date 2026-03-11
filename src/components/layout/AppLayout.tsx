@@ -7,7 +7,6 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
-import { SkipToContent } from "@/components/SkipToContent";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
 import { PendingInviteWelcomeDialog } from "@/components/PendingInviteWelcomeDialog";
 import { useAdMobInit } from "@/hooks/useAdMob";
@@ -98,9 +97,9 @@ export function AppLayout() {
         : "Loading your profile...";
     
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4" role="status" aria-live="polite">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
-        <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">{loadingMessage}</p>
       </div>
     );
@@ -138,11 +137,11 @@ export function AppLayout() {
   // Show retry screen if profile fetch failed (don't redirect to complete-profile)
   if (profileError && !profile) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4" role="alert" aria-live="assertive">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
         {retrying ? (
           <>
-            <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
             <p className="text-sm text-muted-foreground text-center px-4">
               Reconnecting to server...
             </p>
@@ -199,9 +198,8 @@ export function AppLayout() {
   
   return (
     <div className={`min-h-screen bg-background flex flex-col overscroll-none ${isNative ? '' : 'pt-safe'}`}>
-      <SkipToContent />
       <AppHeader />
-      <main id="main-content" aria-label="Main content" className="flex-1 pb-20 px-4 max-w-lg mx-auto w-full">
+      <main className="flex-1 pb-20 px-4 max-w-lg mx-auto w-full">
         <Outlet />
       </main>
       <BottomNav />

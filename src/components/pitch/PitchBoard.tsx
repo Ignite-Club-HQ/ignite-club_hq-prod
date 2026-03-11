@@ -771,9 +771,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Portrait timer touch handlers (drag + pinch)
   const handlePortraitTimerTouchStart = useCallback((e: React.TouchEvent) => {
-    // Don't initiate drag if the touch target is inside an open dropdown
+    // Don't initiate drag if the touch target is inside a dropdown or interactive element
     const target = e.target as HTMLElement;
-    if (target.closest('[data-timer-dropdown]')) return;
+    if (target.closest('[data-timer-dropdown]') || target.closest('button')) return;
 
     const container = (e.currentTarget as HTMLElement).parentElement;
     // 2-finger pinch
@@ -804,42 +804,28 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       return;
     }
     
-    // 1-finger drag with threshold to distinguish from taps
+    // 1-finger drag
     if (e.touches.length !== 1) return;
     const touch = e.touches[0];
     const rect = container?.getBoundingClientRect();
     const currentX = portraitTimerPosition?.x ?? (rect ? rect.width - (e.currentTarget as HTMLElement).offsetWidth - 8 : 8);
     const currentY = portraitTimerPosition?.y ?? 8;
-    const startX = touch.clientX;
-    const startY = touch.clientY;
-    let isDragging = false;
-    const DRAG_THRESHOLD = 8;
+    portraitTimerDragRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      startPosX: currentX,
+      startPosY: currentY,
+    };
     
     const handleTouchMove = (moveEvent: TouchEvent) => {
-      if (moveEvent.touches.length !== 1) return;
-      const t = moveEvent.touches[0];
-      const deltaX = t.clientX - startX;
-      const deltaY = t.clientY - startY;
-      
-      if (!isDragging) {
-        // Check if movement exceeds threshold to start dragging
-        if (Math.abs(deltaX) > DRAG_THRESHOLD || Math.abs(deltaY) > DRAG_THRESHOLD) {
-          isDragging = true;
-          portraitTimerDragRef.current = {
-            startX,
-            startY,
-            startPosX: currentX,
-            startPosY: currentY,
-          };
-        } else {
-          return;
-        }
-      }
-      
+      if (!portraitTimerDragRef.current || moveEvent.touches.length !== 1) return;
       moveEvent.preventDefault();
+      const t = moveEvent.touches[0];
+      const deltaX = t.clientX - portraitTimerDragRef.current.startX;
+      const deltaY = t.clientY - portraitTimerDragRef.current.startY;
       setPortraitTimerPosition({
-        x: Math.max(-200, currentX + deltaX),
-        y: Math.max(-220, currentY + deltaY),
+        x: Math.max(-200, portraitTimerDragRef.current.startPosX + deltaX),
+        y: Math.max(-220, portraitTimerDragRef.current.startPosY + deltaY),
       });
     };
     
@@ -1493,12 +1479,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       setPlayers(autoPlacePlayersOnPitch(players, teamSize, selectedFormation));
     }
     setShowLineupPicker(false);
-    // Proceed to step 2: auto-sub setup (same as confirm flow)
-    setTimeout(() => {
-      setAutoSubPlanEditMode(false);
-      setAutoSubFromPreGame(true);
-      setAutoSubPlanDialogOpen(true);
-    }, 300);
   }, [players, teamSize, selectedFormation, autoPlacePlayersOnPitch, miniLeagueTeams]);
 
   // Save pitch state to localStorage whenever it changes (only after initialization)
@@ -2181,14 +2161,26 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         ? `${baseSummary} — ${changeParts.join(" • ")}`
         : baseSummary;
 
-      for (const recipientId of recipientIds) {
-        // In-app notification (DB trigger handles push delivery automatically)
+      for (const userId of recipientIds) {
+        // In-app notification
         supabase.from("notifications").insert({
-          user_id: recipientId,
+          user_id: userId,
           type: "formation_change",
           message: notificationMessage,
           related_id: teamId,
         }).then(() => {});
+
+        // Push notification
+        supabase.functions.invoke("send-push-notification", {
+          body: {
+            userId,
+            title,
+            body,
+            url: `/teams/${teamId}`,
+            tag: `pitch-change-${teamId}`,
+            notificationType: "pitch_board",
+          },
+        }).catch(() => {});
       }
     } catch (e) {
       console.error("Failed to send formation change notification:", e);
@@ -5011,7 +5003,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     ? "bg-accent text-accent-foreground border-accent"
                     : "bg-background/95 border-border text-foreground"
               )}
-              style={{ right: 76 }}
+              style={{ right: 68 }}
               onTouchStart={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -5912,16 +5904,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 )}
               </div>
               {/* Bottom row: Formation • Tactical */}
-              <div className="flex items-center gap-2 mt-0.5 relative">
+              <div className="flex items-center gap-1.5 mt-0.5 relative">
                 <button
-                   className="text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2.5 py-1.5 rounded hover:bg-white/10 active:bg-white/20 min-h-[44px] flex items-center"
+                  className="text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px] flex items-center"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerFormationDropdownOpen(prev => !prev); }}
                 >
                   {FORMATIONS[teamSize][selectedFormation]?.name} ▾
                 </button>
                 <span className="text-white/30 text-sm">•</span>
                 <button
-                  className="flex items-center gap-1.5 text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2.5 py-1.5 rounded hover:bg-white/10 active:bg-white/20 min-h-[44px]"
+                  className="flex items-center gap-1.5 text-sm text-white/70 font-medium hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10 active:bg-white/20 min-h-[32px]"
                   onClick={(e) => { e.stopPropagation(); if (!readOnly) setTimerTacticalDropdownOpen(prev => !prev); }}
                 >
                   {tacticalMode === "defend" && <Shield className="h-4 w-4 text-blue-400" />}
@@ -6033,7 +6025,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         ? "bg-accent text-accent-foreground border-accent"
                         : "bg-background/95 border-border text-foreground"
                   )}
-                  style={{ right: 76 }}
+                  style={{ right: 68 }}
                   onPointerDown={(e) => { e.stopPropagation(); }}
                   onClick={() => setShowFloatingDrawToolbar(prev => !prev)}
                 >
@@ -6766,20 +6758,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         document.body
       )}
 
-      {/* Formation Change Dialog - portrait */}
-      <FormationChangeDialog
-        open={formationChangeDialogOpen}
-        onOpenChange={setFormationChangeDialogOpen}
-        currentFormation={FORMATIONS[teamSize][selectedFormation]?.name || ""}
-        newFormation={pendingFormationChange ? FORMATIONS[pendingFormationChange.newTeamSize || teamSize][pendingFormationChange.index]?.name || "" : ""}
-        positionSwaps={pendingFormationChange?.positionSwaps || []}
-        benchMoves={pendingFormationChange?.benchMoves || []}
-        onConfirm={handleFormationChangeConfirm}
-        onCancel={handleFormationChangeCancel}
-        isTeamSizeChange={!!pendingFormationChange?.newTeamSize}
-        currentTeamSize={teamSize}
-        newTeamSize={pendingFormationChange?.newTeamSize}
-      />
+      {/* FormationChangeDialog rendered once in landscape section above */}
 
       {/* Auto-Sub Plan Dialog */}
       <AutoSubPlanDialog

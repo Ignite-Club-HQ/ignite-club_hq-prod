@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Send, Loader2, Crown, Lock, Flame } from "lucide-react";
+import { ArrowLeft, Send, Loader2, RefreshCw, Crown, Lock, Flame } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
@@ -661,6 +661,9 @@ export default function DirectMessagePage() {
         <div className="flex items-center gap-1">
           <ChatSearch onSearch={setSearchQuery} />
           {!isIgniteSupportConversation && <ChatMuteButton chatType="dm" chatId={conversationId!} />}
+          <Button variant="ghost" size="icon" onClick={handleManualRefresh} disabled={isAnyRefreshing}>
+            <RefreshCw className={`h-4 w-4 ${isAnyRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
       </div>
 

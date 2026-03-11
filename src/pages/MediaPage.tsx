@@ -1,5 +1,4 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { usePageTitle } from "@/hooks/usePageTitle";
 import { cn } from "@/lib/utils";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Image, Lock, Crown, Plus, MessageCircle, Send, Trash2, Loader2, Filter, X, Calendar, MoreVertical, Flag, ShieldAlert } from "lucide-react";
@@ -25,7 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { format, formatDistanceToNow, startOfDay, endOfDay, isWithinInterval } from "date-fns";
+import { format, startOfDay, endOfDay, isWithinInterval } from "date-fns";
 import { Link } from "react-router-dom";
 import { EmojiReactions } from "@/components/EmojiReactions";
 import { PhotoComment } from "@/components/PhotoComment";
@@ -72,7 +71,6 @@ function PhotoSkeleton() {
 
 export default function MediaPage() {
   const { user } = useAuth();
-  usePageTitle("Media");
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const highlightedPhotoId = searchParams.get("photo");
@@ -721,7 +719,7 @@ export default function MediaPage() {
     onSuccess: (_, { photoId, deleteFromVault }) => {
       // Remove from local storage cache
       removePhotoFromCache(photoId);
-      // Silent success - no toast
+      toast.success(deleteFromVault ? "Photo moved to trash" : "Photo removed from feed");
     },
     onError: (error: any, _, context) => {
       // Rollback on error
@@ -997,30 +995,36 @@ export default function MediaPage() {
                           : photo.clubs?.name}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <p className="text-xs text-muted-foreground mr-1">
+                      {format(new Date(photo.created_at), "MMM d")}
+                    </p>
                     {canSharePhoto(photo) && (
                       <SharePhotoButton 
-                        photoId={photo.id}
                         imageUrl={photo.file_url || photo.image_url} 
                         title={photo.title} 
                       />
                     )}
+                    {canDeletePhoto(photo) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletePhotoId(photo.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-11 w-11 text-muted-foreground">
-                          <MoreVertical className="h-6 w-6" />
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                          <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {canDeletePhoto(photo) && (
-                          <DropdownMenuItem
-                            onClick={() => setDeletePhotoId(photo.id)}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete Photo
-                          </DropdownMenuItem>
-                        )}
                         <DropdownMenuItem onClick={() => setReportPhotoId(photo.id)}>
                           <Flag className="h-4 w-4 mr-2" />
                           Report Photo
@@ -1082,10 +1086,6 @@ export default function MediaPage() {
                       {photo.title}
                     </p>
                   )}
-
-                  <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(photo.created_at), { addSuffix: true })}
-                  </p>
 
                   {comments.length > 0 && !isExpanded && (
                     <button 
