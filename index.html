@@ -33,35 +33,47 @@
     <meta name="twitter:title" content="Ignite Club HQ" />
     <meta name="twitter:description" content="Manage your sports club with ease — events, teams, chat, and more." />
     <meta name="twitter:image" content="https://igniteclubhq.app/ignite-logo.png" />
+    <!-- CRITICAL: iOS native detection - MUST run before any CSS/JS to prevent viewport collapse -->
+    <script>
+      (function() {
+        try {
+          // Detect Capacitor native platform early
+          // On native, window.Capacitor is injected by the native bridge before page load
+          var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+          var isIOS = isNative && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+          
+          // iOS WKWebView collapses to 0px height when html/body use position:fixed
+          // This class MUST be added before CSS is parsed to prevent black screen
+          if (isIOS) {
+            document.documentElement.classList.add('ios-native');
+          }
+          if (isNative) {
+            document.documentElement.classList.add('capacitor-native');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <!-- Theme initialization script - prevents flash of wrong theme -->
     <script>
       (function() {
         try {
-          // CRITICAL: Check if this is an OAuth callback (Google login)
-          // If so, localStorage may contain stale theme from previous user
-          // Default to LIGHT mode and let React apply the correct theme after profile fetch
           var hash = window.location.hash;
           var search = window.location.search;
           var isOAuthCallback = (hash && (hash.includes('access_token') || hash.includes('refresh_token'))) ||
                                 (search && search.includes('code='));
           
           if (isOAuthCallback) {
-            // OAuth callback - default to light mode, don't trust localStorage
-            // The useAuth hook will apply the correct theme after fetching the profile
             console.log('[Theme] OAuth callback detected - defaulting to light mode');
             document.documentElement.classList.remove('dark');
             document.documentElement.classList.add('light');
             document.documentElement.style.colorScheme = 'light';
-            // Clear localStorage to ensure useAuth can apply the correct theme
             localStorage.removeItem('app-theme');
           } else {
-            // Normal page load - use localStorage
             var theme = localStorage.getItem('app-theme');
             if (theme === 'dark') {
               document.documentElement.classList.add('dark');
               document.documentElement.style.colorScheme = 'dark';
             } else {
-              // Default to light theme if not set or if set to light
               document.documentElement.classList.remove('dark');
               document.documentElement.style.colorScheme = 'light';
             }
