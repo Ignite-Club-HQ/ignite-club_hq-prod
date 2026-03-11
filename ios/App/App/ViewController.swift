@@ -7,6 +7,12 @@ class ViewController: CAPBridgeViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
+        // Set a white background to prevent black flash before web content loads
+        view.backgroundColor = .white
+        webView?.backgroundColor = .white
+        webView?.isOpaque = false
+        webView?.scrollView.backgroundColor = .white
+
         // Disable the native rubber-band bounce so our JS pull-to-refresh
         // can intercept touch events at the top of scrollable containers.
         webView?.scrollView.bounces = false
