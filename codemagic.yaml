@@ -418,14 +418,15 @@ workflows:
             echo "=== GADApplicationIdentifier already present ==="
           fi
           /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST"
-      - name: Patch AppDelegate - minimal (no Firebase in AppDelegate)
+      - name: Patch AppDelegate with Firebase init
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
-          echo "=== Writing minimal AppDelegate.swift (Firebase handled by Capacitor plugins) ==="
-          # Use printf to avoid heredoc indentation issues in YAML
+          echo "=== Writing AppDelegate.swift with guarded Firebase init ==="
           printf '%s\n' \
             'import UIKit' \
             'import Capacitor' \
+            'import FirebaseCore' \
+            'import FirebaseCrashlytics' \
             '' \
             '@UIApplicationMain' \
             'class AppDelegate: UIResponder, UIApplicationDelegate {' \
@@ -433,6 +434,10 @@ workflows:
             '    var window: UIWindow?' \
             '' \
             '    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {' \
+            '        if FirebaseApp.app() == nil {' \
+            '            FirebaseApp.configure()' \
+            '        }' \
+            '        Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)' \
             '        return true' \
             '    }' \
             '' \
@@ -452,6 +457,15 @@ workflows:
             '}' > "$DELEGATE"
           echo "=== Patched AppDelegate.swift ==="
           cat "$DELEGATE"
+      - name: Ensure NSPhotoLibraryAddUsageDescription in Info.plist
+        script: |
+          PLIST="ios/App/App/Info.plist"
+          if ! /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryAddUsageDescription" "$PLIST" 2>/dev/null; then
+            /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Ignite needs permission to add photos when sharing and uploading images in chat.'" "$PLIST"
+            echo "=== Added NSPhotoLibraryAddUsageDescription ==="
+          else
+            echo "=== NSPhotoLibraryAddUsageDescription already present ==="
+          fi
       - name: Force light mode in Info.plist
         script: |
           PLIST="ios/App/App/Info.plist"
