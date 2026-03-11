@@ -796,20 +796,8 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
         }
       }
 
-      // Send push notifications if enabled
-      if (sendPushNotification) {
-        const notificationMessage = customMessage 
-          ? `"${event.title}" has been cancelled. ${customMessage}`
-          : `"${event.title}" has been cancelled.`;
-        
-        const notifications = uniqueMembers.map(userId => ({
-          user_id: userId,
-          type: "event_cancelled",
-          message: notificationMessage,
-          related_id: event.id,
-        }));
-        await supabase.from("notifications").insert(notifications);
-      }
+      // Notifications are created automatically by the on_event_cancelled DB trigger
+      // No need to manually insert them here - that was causing duplicates
 
       return uniqueMembers.length;
     },

@@ -2,6 +2,7 @@ import { Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Share } from "@capacitor/share";
+import { Capacitor } from "@capacitor/core";
 
 interface SharePhotoButtonProps {
   photoId: string;
@@ -25,12 +26,13 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
     const shareText = context
       ? `A new photo has been added to ${context}. Check it out!`
       : "Check out this photo on Ignite!";
-    const shareTitle = title || "Ignite Club HQ";
 
     // Use Capacitor Share on native platforms for proper share sheet
-    if ((window as any).Capacitor) {
+    if (Capacitor.isNativePlatform()) {
       try {
         await Share.share({
+          // Messenger duplicates content when title/url are separate fields.
+          // Keep everything in a single text payload.
           text: `${shareText}\n${deepLink}`,
           dialogTitle: "Share photo",
         });
@@ -44,9 +46,8 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: shareTitle,
-          text: shareText,
-          url: deepLink,
+          // Keep one combined field to avoid Messenger duplication.
+          text: `${shareText}\n${deepLink}`,
         });
         return;
       } catch (error) {
