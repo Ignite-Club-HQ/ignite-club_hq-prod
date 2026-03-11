@@ -114,11 +114,17 @@ workflows:
           else
             echo "=== App Links intent-filter for igniteclubhq.app already present ==="
           fi
-      - name: Configure notification icon
+      - name: Configure notification icon and Firebase Messaging service
         script: |
-          # Add meta-data for default notification icon and color to AndroidManifest.xml
-          # macOS sed requires '' after -i for in-place editing without backup
-          sed -i '' 's|</application>|<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification"/><meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/ignite_green"/></application>|' android/app/src/main/AndroidManifest.xml
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          # Add meta-data for default notification icon and color
+          sed -i '' 's|</application>|<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification"/><meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/ignite_green"/></application>|' "$MANIFEST"
+          # Ensure all receivers have android:exported set to prevent CannotDeliverBroadcastException
+          # This is needed for Android 12+ broadcast delivery
+          if ! grep -q 'com.google.firebase.iid.FirebaseInstanceIdReceiver' "$MANIFEST"; then
+            sed -i '' 's|</application>|<receiver android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver" android:exported="true" android:permission="com.google.android.c2dm.permission.SEND"><intent-filter><action android:name="com.google.android.c2dm.intent.RECEIVE"/></intent-filter></receiver></application>|' "$MANIFEST"
+            echo "=== Added FirebaseInstanceIdReceiver with exported=true ==="
+          fi
       - name: Disable lint abort for release
         script: |
           cd android/app
