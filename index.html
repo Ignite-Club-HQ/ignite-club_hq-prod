@@ -80,20 +80,31 @@
   </head>
 
   <body style="background-color: #ffffff;">
-    <div id="root"></div>
+    <div id="root">
+      <!-- Fallback content visible until React mounts - prevents black screen on native -->
+      <div id="app-loading-fallback" style="display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;background:#fff;font-family:system-ui,sans-serif;">
+        <div style="text-align:center;">
+          <div style="width:48px;height:48px;border:3px solid #e5e7eb;border-top-color:#10b981;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div>
+          <p style="margin-top:16px;color:#6b7280;font-size:14px;">Loading...</p>
+        </div>
+      </div>
+      <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    </div>
     
     <!-- Global error catcher for native app debugging -->
     <script>
       window.onerror = function(msg, url, line, col, err) {
-        var el = document.getElementById('root');
-        if (el && !el.children.length) {
-          el.innerHTML = '<pre style="padding:20px;font-size:12px;word-wrap:break-word;white-space:pre-wrap;">CRASH: ' + msg + '\nFile: ' + url + '\nLine: ' + line + ':' + col + '\n' + (err && err.stack ? err.stack : '') + '</pre>';
+        var el = document.getElementById('app-loading-fallback');
+        var root = document.getElementById('root');
+        // Show error regardless of children state
+        if (root) {
+          root.innerHTML = '<pre style="padding:20px;font-size:12px;word-wrap:break-word;white-space:pre-wrap;background:#fff;color:#000;min-height:100vh;">CRASH: ' + msg + '\nFile: ' + url + '\nLine: ' + line + ':' + col + '\n' + (err && err.stack ? err.stack : '') + '</pre>';
         }
       };
       window.addEventListener('unhandledrejection', function(e) {
-        var el = document.getElementById('root');
-        if (el && !el.children.length) {
-          el.innerHTML = '<pre style="padding:20px;font-size:12px;word-wrap:break-word;white-space:pre-wrap;">UNHANDLED REJECTION:\n' + (e.reason && e.reason.stack ? e.reason.stack : e.reason) + '</pre>';
+        var root = document.getElementById('root');
+        if (root) {
+          root.innerHTML = '<pre style="padding:20px;font-size:12px;word-wrap:break-word;white-space:pre-wrap;background:#fff;color:#000;min-height:100vh;">UNHANDLED REJECTION:\n' + (e.reason && e.reason.stack ? e.reason.stack : e.reason) + '</pre>';
         }
       });
     </script>
