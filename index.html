@@ -103,20 +103,28 @@
       <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
     </div>
     
+    <!-- Boot diagnostics - updates loading status for native debugging -->
+    <script>
+      try {
+        var status = document.getElementById('app-boot-status');
+        if (status) status.textContent = 'Scripts loaded...';
+      } catch(e) {}
+    </script>
+    
     <!-- Global error catcher for native app debugging -->
     <script>
       window.onerror = function(msg, url, line, col, err) {
-        var el = document.getElementById('app-loading-fallback');
         var root = document.getElementById('root');
-        // Show error regardless of children state
         if (root) {
-          root.innerHTML = '<pre style="padding:20px;font-size:12px;word-wrap:break-word;white-space:pre-wrap;background:#fff;color:#000;min-height:100vh;">CRASH: ' + msg + '\nFile: ' + url + '\nLine: ' + line + ':' + col + '\n' + (err && err.stack ? err.stack : '') + '</pre>';
+          root.style.background = '#ffffff';
+          root.innerHTML = '<pre style="padding:20px;font-size:12px;word-wrap:break-word;white-space:pre-wrap;background:#fff;color:#000;min-height:100vh;position:relative;z-index:999999;">CRASH: ' + msg + '\nFile: ' + url + '\nLine: ' + line + ':' + col + '\n' + (err && err.stack ? err.stack : '') + '</pre>';
         }
       };
       window.addEventListener('unhandledrejection', function(e) {
         var root = document.getElementById('root');
         if (root) {
-          root.innerHTML = '<pre style="padding:20px;font-size:12px;word-wrap:break-word;white-space:pre-wrap;background:#fff;color:#000;min-height:100vh;">UNHANDLED REJECTION:\n' + (e.reason && e.reason.stack ? e.reason.stack : e.reason) + '</pre>';
+          root.style.background = '#ffffff';
+          root.innerHTML = '<pre style="padding:20px;font-size:12px;word-wrap:break-word;white-space:pre-wrap;background:#fff;color:#000;min-height:100vh;position:relative;z-index:999999;">UNHANDLED REJECTION:\n' + (e.reason && e.reason.stack ? e.reason.stack : e.reason) + '</pre>';
         }
       });
     </script>
