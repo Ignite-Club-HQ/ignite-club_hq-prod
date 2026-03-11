@@ -57,10 +57,13 @@ declare global {
 const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
 const isIOS = isNative && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-// CRITICAL: iOS WKWebView can collapse viewport when html/body use position:fixed
-// Add class so CSS can override it for iOS only (Android needs it for scroll containment)
-if (isIOS) {
+// iOS detection is now handled by inline script in index.html (runs before CSS parse)
+// This is a belt-and-suspenders backup in case the inline script didn't fire
+if (isIOS && !document.documentElement.classList.contains('ios-native')) {
   document.documentElement.classList.add('ios-native');
+}
+if (isNative && !document.documentElement.classList.contains('capacitor-native')) {
+  document.documentElement.classList.add('capacitor-native');
 }
 
 // Initialize Crashlytics on native — delay slightly to ensure FirebaseApp.configure()
