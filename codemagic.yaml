@@ -380,6 +380,13 @@ workflows:
           npx cap sync ios
           echo "=== Verifying SPM Package.swift exists ==="
           cat ios/App/CapApp-SPM/Package.swift | head -20
+          echo "=== Verifying web assets in iOS bundle ==="
+          ls -la ios/App/App/public/ | head -20
+          if [ ! -f "ios/App/App/public/index.html" ]; then
+            echo "ERROR: index.html not found in iOS public folder!"
+            exit 1
+          fi
+          echo "=== Web assets verified ==="
       - name: Ensure GADApplicationIdentifier in Info.plist
         script: |
           PLIST="ios/App/App/Info.plist"
