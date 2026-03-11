@@ -63,14 +63,17 @@ if (isIOS) {
   document.documentElement.classList.add('ios-native');
 }
 
-// Initialize Crashlytics FIRST on native (dynamic import, no React dependency)
+// Initialize Crashlytics on native — delay slightly to ensure FirebaseApp.configure()
+// in AppDelegate has completed before the JS layer calls into the native SDK.
 if (isNative) {
-  import('@capacitor-firebase/crashlytics').then(({ FirebaseCrashlytics }) => {
-    FirebaseCrashlytics.setEnabled({ enabled: true }).then(() => {
-      console.log('[Main] Crashlytics enabled');
-      FirebaseCrashlytics.log({ message: 'App boot started' });
-    });
-  }).catch(e => console.warn('[Main] Crashlytics unavailable:', e));
+  setTimeout(() => {
+    import('@capacitor-firebase/crashlytics').then(({ FirebaseCrashlytics }) => {
+      FirebaseCrashlytics.setEnabled({ enabled: true }).then(() => {
+        console.log('[Main] Crashlytics enabled');
+        FirebaseCrashlytics.log({ message: 'App boot started' });
+      });
+    }).catch(e => console.warn('[Main] Crashlytics unavailable:', e));
+  }, 500);
 }
 
 // Initialize native handlers (wrapped to prevent crashes)

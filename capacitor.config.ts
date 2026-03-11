@@ -31,9 +31,10 @@ const config: CapacitorConfig = {
   },
   // Server configuration - keep navigation in app
   server: {
-    // Use https for both platforms - capacitor:// scheme can cause CORS/resource loading issues on iOS
     androidScheme: 'https',
     iosScheme: 'https',
+    // If the WebView crashes and reloads, navigate to root instead of 404
+    errorPath: '/',
   },
 };
 
