@@ -221,6 +221,47 @@ workflows:
             exit 1
           fi
           echo "=== Web assets verified ==="
+      - name: Patch ViewController for white background
+        script: |
+          VIEWCONTROLLER="ios/App/App/ViewController.swift"
+          echo "=== Patching ViewController.swift to prevent black screen ==="
+          cat > "$VIEWCONTROLLER" << 'SWIFT'
+          import UIKit
+          import Capacitor
+
+          class ViewController: CAPBridgeViewController {
+              override func viewDidLoad() {
+                  super.viewDidLoad()
+                  view.backgroundColor = .white
+                  webView?.backgroundColor = .white
+                  webView?.isOpaque = true
+                  webView?.scrollView.backgroundColor = .white
+                  webView?.scrollView.bounces = false
+                  webView?.scrollView.alwaysBounceVertical = false
+                  webView?.scrollView.alwaysBounceHorizontal = false
+              }
+              override func viewDidAppear(_ animated: Bool) {
+                  super.viewDidAppear(animated)
+                  view.window?.backgroundColor = .white
+              }
+          }
+          SWIFT
+          echo "=== Patched ViewController.swift ==="
+      - name: Patch LaunchScreen for white background
+        script: |
+          STORYBOARD="ios/App/App/Base.lproj/LaunchScreen.storyboard"
+          if [ -f "$STORYBOARD" ]; then
+            # Replace any background color in LaunchScreen with white
+            sed -i '' 's/systemBackgroundColor/whiteColor/g' "$STORYBOARD"
+            # Also ensure the view has a white background explicitly
+            if ! grep -q "whiteColor" "$STORYBOARD"; then
+              sed -i '' 's/<view /<view backgroundColor="whiteColor" /g' "$STORYBOARD"
+            fi
+            echo "=== Patched LaunchScreen.storyboard ==="
+          else
+            echo "=== LaunchScreen.storyboard not found at expected path ==="
+            find ios -name "LaunchScreen*" 2>/dev/null
+          fi
       - name: Ensure GADApplicationIdentifier in Info.plist
         script: |
           PLIST="ios/App/App/Info.plist"
