@@ -332,11 +332,10 @@ export const recalculateRemainingPlan = (
         }
       }
       
-      const outPosition = currentOnPitch.get(playerOut.id);
       const sub: SubstitutionEvent = {
         time,
         half,
-        playerOut: { ...playerOut, currentPitchPosition: outPosition || playerOut.currentPitchPosition },
+        playerOut,
         playerIn,
         positionSwap,
         executed: false,

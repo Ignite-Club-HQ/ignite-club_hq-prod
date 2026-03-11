@@ -124,7 +124,6 @@ const WithDeepLinkGate = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-
 // Read stored theme synchronously to match index.html bootstrap
 const getInitialTheme = (): 'light' | 'dark' => {
   if (typeof window !== 'undefined') {
@@ -177,14 +176,14 @@ const App = () => {
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />
                 <Route path="/cancellation" element={<CancellationPolicyPage />} />
                 <Route path="/video-guide" element={<VideoGuideDownloadPage />} />
-
+                
 
                 {/* Protected routes */}
                 <Route element={<AppLayout />}>
                   <Route path="/" element={<HomePage />} />
                   <Route path="/events" element={<EventsPage />} />
                   <Route path="/events/new" element={<CreateEventPage />} />
-                  <Route path="/events/:id" element={<EventDetailPage />} />
+                  <Route path="/events/:id" element={<WithDeepLinkGate><EventDetailPage /></WithDeepLinkGate>} />
                   <Route path="/events/import" element={<ImportFixturesPage />} />
                   <Route path="/events/:id/edit" element={<EditEventPage />} />
                   <Route path="/events/:id/groups/:groupId/pitch" element={<EventGroupPitchPage />} />
@@ -213,7 +212,7 @@ const App = () => {
                   <Route path="/messages/:teamId" element={<TeamChatPage />} />
                   <Route path="/groups/:groupId" element={<GroupChatPage />} />
                   <Route path="/media" element={<MediaPage />} />
-                  <Route path="/media/:photoId" element={<MediaPhotoRedirect />} />
+                  <Route path="/media/:photoId" element={<WithDeepLinkGate><MediaPhotoRedirect /></WithDeepLinkGate>} />
                   <Route path="/vault" element={<VaultPage />} />
                   <Route path="/vault/folder/:folderId" element={<VaultPage />} />
                   <Route path="/profile" element={<ProfilePage />} />

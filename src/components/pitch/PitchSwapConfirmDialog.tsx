@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeftRight, AlertTriangle, CheckCircle, X } from "lucide-react";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
-import { getSpecificPositionLabel } from "./types";
 import { cn } from "@/lib/utils";
 import {
   ResponsiveDialog,
@@ -52,9 +51,6 @@ export default function PitchSwapConfirmDialog({
 
   const pos1 = player1.currentPitchPosition;
   const pos2 = player2.currentPitchPosition;
-
-  const specificPos1 = pos1 ? getSpecificPositionLabel(player1.position?.x, pos1) : null;
-  const specificPos2 = pos2 ? getSpecificPositionLabel(player2.position?.x, pos2) : null;
   
   const canPlayPosition = (player: Player, position: PitchPosition): boolean => {
     if (!player.assignedPositions?.length) return true;
@@ -110,48 +106,49 @@ export default function PitchSwapConfirmDialog({
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2 text-lg">
             <ArrowLeftRight className="h-5 w-5" />
-            {canSwap ? "Confirm Position Swap" : "Position Swap"}
+            {canSwap ? "Make This Position Swap" : "Position Swap"}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            {!canSwap ? "Position mismatch — choose an option below" : ""}
+            {canSwap ? "Follow these steps on the pitch" : "Position mismatch — choose an option below"}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-3 py-2">
-          {/* Player 1 swap */}
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+          {/* Step 1: Move player 1 */}
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
             <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-500 text-white text-sm font-bold flex-shrink-0">
-              {player1.number || player1.name.slice(0, 2).toUpperCase()}
+              1
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-sm">{player1.name}</div>
-              <div className="text-xs text-muted-foreground">
-                {specificPos1 || pos1} → {specificPos2 || pos2 || 'new position'}
+              <div className="font-semibold">
+                Move {player1.name} to {pos2 || 'new position'}
+              </div>
+              <div className="text-sm text-muted-foreground mt-0.5">
+                {player1.number && `#${player1.number} `}
+                {pos1 && `moves from ${pos1}`}
               </div>
             </div>
             {pos2 && pos2Colors && (
-              <span className={cn("text-xs font-bold flex-shrink-0 uppercase", pos2Colors.text)}>{specificPos2 || pos2}</span>
+              <span className={cn("text-sm font-bold flex-shrink-0", pos2Colors.text)}>{pos2}</span>
             )}
           </div>
           
-          {/* Swap arrow */}
-          <div className="flex justify-center">
-            <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
-          </div>
-
-          {/* Player 2 swap */}
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+          {/* Step 2: Move player 2 */}
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
             <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-500 text-white text-sm font-bold flex-shrink-0">
-              {player2.number || player2.name.slice(0, 2).toUpperCase()}
+              2
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-sm">{player2.name}</div>
-              <div className="text-xs text-muted-foreground">
-                {specificPos2 || pos2} → {specificPos1 || pos1 || 'new position'}
+              <div className="font-semibold">
+                Move {player2.name} to {pos1 || 'new position'}
+              </div>
+              <div className="text-sm text-muted-foreground mt-0.5">
+                {player2.number && `#${player2.number} `}
+                {pos2 && `moves from ${pos2}`}
               </div>
             </div>
             {pos1 && pos1Colors && (
-              <span className={cn("text-xs font-bold flex-shrink-0 uppercase", pos1Colors.text)}>{specificPos1 || pos1}</span>
+              <span className={cn("text-sm font-bold flex-shrink-0", pos1Colors.text)}>{pos1}</span>
             )}
           </div>
 

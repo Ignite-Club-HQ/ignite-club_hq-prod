@@ -168,7 +168,7 @@ workflows:
           GRADLE_FILE="android/app/build.gradle"
           # Try CM_BUILD_NUMBER first (Codemagic), fallback to BUILD_NUMBER, then default 1
           BN="${CM_BUILD_NUMBER:-${BUILD_NUMBER:-1}}"
-          FLOOR=164
+          FLOOR=163
           NEW_VC=$((FLOOR + BN))
           echo "=== Target versionCode: $NEW_VC (CM_BUILD_NUMBER=${CM_BUILD_NUMBER:-unset}, BUILD_NUMBER=${BUILD_NUMBER:-unset}, BN=$BN) ==="
           echo "=== Before replacement ==="

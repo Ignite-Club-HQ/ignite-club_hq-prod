@@ -7,32 +7,22 @@ interface SharePhotoButtonProps {
   photoId: string;
   imageUrl: string;
   title?: string;
-  clubName?: string;
-  teamName?: string;
 }
 
 const DEEP_LINK_BASE = "https://igniteclubhq.app";
 
-export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName }: SharePhotoButtonProps) {
+export function SharePhotoButton({ photoId, imageUrl, title }: SharePhotoButtonProps) {
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    const shareTitle = title || "Check out this photo on Ignite!";
     const deepLink = `${DEEP_LINK_BASE}/media/${photoId}`;
-
-    // Build descriptive share text
-    const context = teamName && clubName
-      ? `${clubName} — ${teamName}`
-      : clubName || teamName || "";
-    const shareText = context
-      ? `A new photo has been added to ${context}. Check it out!`
-      : "Check out this photo on Ignite!";
-    const shareTitle = title || shareText;
 
     // Use Capacitor Share on native platforms for proper share sheet
     if ((window as any).Capacitor) {
       try {
         await Share.share({
           title: shareTitle,
-          text: `${shareText}\n${deepLink}`,
+          text: `${shareTitle}\n${deepLink}`,
           dialogTitle: "Share photo",
         });
         return;
@@ -46,7 +36,7 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
       try {
         await navigator.share({
           title: shareTitle,
-          text: shareText,
+          text: shareTitle,
           url: deepLink,
         });
         return;

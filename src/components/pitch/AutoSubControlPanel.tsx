@@ -143,19 +143,14 @@ export default function AutoSubControlPanel({
                         Sub {idx + 1}
                       </div>
                     )}
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-1.5 text-base">
-                        <span className="text-[10px] uppercase font-bold text-destructive w-7 shrink-0">OUT</span>
-                        <span className="text-destructive font-semibold truncate">
-                          {sub.playerOut.number ? `#${sub.playerOut.number} ` : ""}{sub.playerOut.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-base">
-                        <span className="text-[10px] uppercase font-bold text-green-600 dark:text-green-400 w-7 shrink-0">IN</span>
-                        <span className="text-green-600 dark:text-green-400 font-semibold truncate">
-                          {sub.playerIn.number ? `#${sub.playerIn.number} ` : ""}{sub.playerIn.name}
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-2 text-base">
+                      <span className="text-destructive font-semibold truncate">
+                        ↓ {sub.playerOut.number ? `#${sub.playerOut.number} ` : ""}{sub.playerOut.name}
+                      </span>
+                      <span className="text-muted-foreground text-sm">→</span>
+                      <span className="text-green-600 dark:text-green-400 font-semibold truncate">
+                        ↑ {sub.playerIn.number ? `#${sub.playerIn.number} ` : ""}{sub.playerIn.name}
+                      </span>
                     </div>
                     {sub.positionSwap && (
                       <p className="text-xs text-muted-foreground mt-0.5">
@@ -336,11 +331,11 @@ export default function AutoSubControlPanel({
                                     )}
                                   >
                                     <span className="text-destructive truncate">
-                                      {sub.playerOut.name}
+                                      ↓{sub.playerOut.name}
                                     </span>
                                     <span className="text-muted-foreground text-xs">→</span>
                                     <span className="text-green-600 dark:text-green-400 truncate">
-                                      {sub.playerIn.name}
+                                      ↑{sub.playerIn.name}
                                     </span>
                                     {!sub.executed && lockedPlayerIds.has(sub.playerOut.id) && (
                                       <Lock className="h-3 w-3 text-amber-500 shrink-0" />
