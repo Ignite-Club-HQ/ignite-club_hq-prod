@@ -74,8 +74,10 @@
     </script>
     <!-- Initial background color based on theme - prevents flash during load -->
     <style>
-      :root { background-color: hsl(0 0% 100%); }
+      :root { background-color: #ffffff !important; }
       .dark { background-color: hsl(160 15% 6%); }
+      /* Ensure body is never black during load */
+      body { background-color: #ffffff !important; }
     </style>
   </head>
 
