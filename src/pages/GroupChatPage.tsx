@@ -1275,7 +1275,7 @@ export default function GroupChatPage() {
           />
         ) : (
           <div
-            className="flex-1 h-full overflow-y-auto overscroll-contain scrollbar-hide"
+            className="flex-1 h-full overflow-y-auto overscroll-none scrollbar-hide"
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
           >
