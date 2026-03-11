@@ -944,8 +944,8 @@ export default function TeamDetailPage() {
                 <Users className="h-5 w-5 text-primary" />
                 <span className="text-lg font-semibold">Members</span>
                 <Badge variant="secondary" className="ml-2">
-                  {(isMembersLoading && rawMembers.length === 0) || (isChildrenLoading && teamChildren.length === 0) 
-                    ? "..." 
+                  {((isMembersLoading || isMembersFetching) && Object.keys(members).length === 0) || ((isChildrenLoading || isChildrenFetching) && teamChildren.length === 0)
+                    ? "..."
                     : Object.keys(members).length + teamChildren.length}
                 </Badge>
                 <Button
@@ -976,10 +976,15 @@ export default function TeamDetailPage() {
                     />
                   </div>
                 )}
-{Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading ? (
+{Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
                   <p className="text-muted-foreground text-sm">No members yet</p>
                 ) : (
                   <div className="space-y-2">
+                    {Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && (isMembersFetching || isChildrenFetching) && (
+                      <div className="flex justify-center py-4">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    )}
                     {/* Pending Invites Section */}
                     {pendingInvites.length > 0 && (
                       <PendingInvitesList
