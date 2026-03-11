@@ -32,7 +32,7 @@ workflows:
           else
             echo "AdMob App ID already present"
           fi
-      - name: Add Crashlytics Gradle plugin
+      - name: Add Crashlytics Gradle plugin and update Firebase BOM
         script: |
           cd android
           # Add crashlytics classpath to project build.gradle (macOS sed doesn't support \n)
@@ -48,8 +48,14 @@ workflows:
             echo "" >> app/build.gradle
             echo "apply plugin: 'com.google.firebase.crashlytics'" >> app/build.gradle
           fi
+          # Force latest Firebase BOM to fix CannotDeliverBroadcastException on Android 12+
+          if ! grep -q "firebase-bom" app/build.gradle 2>/dev/null; then
+            sed -i '' '/dependencies {/a\
+                implementation platform("com.google.firebase:firebase-bom:33.7.0")
+            ' app/build.gradle
+          fi
           echo "=== app/build.gradle tail ==="
-          tail -5 app/build.gradle
+          tail -10 app/build.gradle
       - name: Copy app icons
         script: |
           # Remove ALL Capacitor default icons first (including vector drawables and all density folders)
