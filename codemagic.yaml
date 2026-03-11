@@ -231,75 +231,12 @@ workflows:
             /usr/libexec/PlistBuddy -c "Set :UIUserInterfaceStyle Light" "$PLIST"
           fi
           echo "=== UIUserInterfaceStyle set to Light ==="
-      - name: Patch ViewController for white background
+      - name: Ensure NSPhotoLibraryAddUsageDescription in Info.plist
         script: |
-          VIEWCONTROLLER="ios/App/App/ViewController.swift"
-          echo "=== Patching ViewController.swift to prevent black screen ==="
-          python3 -c "
-          content = '''import UIKit
-          import Capacitor
-
-          class ViewController: CAPBridgeViewController {
-              override func viewDidLoad() {
-                  super.viewDidLoad()
-                  overrideUserInterfaceStyle = .light
-                  view.backgroundColor = .white
-                  webView?.backgroundColor = .white
-                  webView?.isOpaque = true
-                  webView?.scrollView.backgroundColor = .white
-                  webView?.scrollView.bounces = false
-                  webView?.scrollView.alwaysBounceVertical = false
-                  webView?.scrollView.alwaysBounceHorizontal = false
-              }
-              override func viewDidAppear(_ animated: Bool) {
-                  super.viewDidAppear(animated)
-                  view.window?.backgroundColor = .white
-                  view.window?.overrideUserInterfaceStyle = .light
-              }
-          }
-          '''
-          import textwrap
-          with open('$VIEWCONTROLLER', 'w') as f:
-              f.write(textwrap.dedent(content).strip() + '\n')
-          "
-          echo "=== Patched ViewController.swift ==="
-      - name: Patch LaunchScreen for white background
-        script: |
-          STORYBOARD="ios/App/App/Base.lproj/LaunchScreen.storyboard"
-          python3 -c "
-          content = '''<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-          <document type=\"com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB\" version=\"3.0\" toolsVersion=\"17132\" targetRuntime=\"iOS.CocoaTouch\" propertyAccessControl=\"none\" useAutolayout=\"YES\" launchScreen=\"YES\" useTraitCollections=\"YES\" useSafeAreas=\"YES\" colorMatched=\"YES\" initialViewController=\"01J-lp-oVM\">
-              <device id=\"retina4_7\" orientation=\"portrait\" appearance=\"light\"/>
-              <dependencies>
-                  <deployment identifier=\"iOS\"/>
-                  <plugIn identifier=\"com.apple.InterfaceBuilder.IBCocoaTouchPlugin\" version=\"17105\"/>
-                  <capability name=\"documents saved in the Xcode 8 format\" minToolsVersion=\"8.0\"/>
-              </dependencies>
-              <scenes>
-                  <scene sceneID=\"EHf-IW-A2E\">
-                      <objects>
-                          <viewController id=\"01J-lp-oVM\" sceneMemberID=\"viewController\">
-                              <imageView key=\"view\" userInteractionEnabled=\"NO\" contentMode=\"scaleAspectFill\" horizontalHuggingPriority=\"251\" verticalHuggingPriority=\"251\" image=\"Splash\" id=\"snD-IY-ifK\">
-                                  <rect key=\"frame\" x=\"0.0\" y=\"0.0\" width=\"375\" height=\"667\"/>
-                                  <autoresizingMask key=\"autoresizingMask\"/>
-                                  <color key=\"backgroundColor\" white=\"1\" alpha=\"1\" colorSpace=\"custom\" customColorSpace=\"genericGamma22GrayColorSpace\"/>
-                              </imageView>
-                          </viewController>
-                          <placeholder placeholderIdentifier=\"IBFirstResponder\" id=\"iYj-Kq-Ea1\" userLabel=\"First Responder\" sceneMemberID=\"firstResponder\"/>
-                      </objects>
-                      <point key=\"canvasLocation\" x=\"53\" y=\"375\"/>
-                  </scene>
-              </scenes>
-              <resources>
-                  <image name=\"Splash\" width=\"1366\" height=\"1366\"/>
-              </resources>
-          </document>
-          '''
-          import textwrap
-          with open('$STORYBOARD', 'w') as f:
-              f.write(textwrap.dedent(content).strip() + '\n')
-          "
-          echo "=== Wrote clean LaunchScreen.storyboard ==="
+          PLIST="ios/App/App/Info.plist"
+          if ! /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryAddUsageDescription" "$PLIST" 2>/dev/null; then
+            /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Save photos to your library'" "$PLIST"
+          fi
       - name: Ensure GADApplicationIdentifier in Info.plist
         script: |
           PLIST="ios/App/App/Info.plist"
