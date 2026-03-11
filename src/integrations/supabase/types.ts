@@ -469,6 +469,7 @@ export type Database = {
           latitude: number | null
           logo_url: string | null
           longitude: number | null
+          notify_renewals: boolean
           preferred_benefits: string[]
           preferred_tiers: string[]
           state: string | null
@@ -488,6 +489,7 @@ export type Database = {
           latitude?: number | null
           logo_url?: string | null
           longitude?: number | null
+          notify_renewals?: boolean
           preferred_benefits?: string[]
           preferred_tiers?: string[]
           state?: string | null
@@ -507,6 +509,7 @@ export type Database = {
           latitude?: number | null
           logo_url?: string | null
           longitude?: number | null
+          notify_renewals?: boolean
           preferred_benefits?: string[]
           preferred_tiers?: string[]
           state?: string | null
@@ -1297,6 +1300,7 @@ export type Database = {
           proposed_tier: string | null
           recognition_gold_threshold: number
           recognition_silver_threshold: number
+          seeking_advertiser: boolean
           show_logo_in_header: boolean
           show_name_in_header: boolean | null
           sponsorship_pitch: string | null
@@ -1356,6 +1360,7 @@ export type Database = {
           proposed_tier?: string | null
           recognition_gold_threshold?: number
           recognition_silver_threshold?: number
+          seeking_advertiser?: boolean
           show_logo_in_header?: boolean
           show_name_in_header?: boolean | null
           sponsorship_pitch?: string | null
@@ -1415,6 +1420,7 @@ export type Database = {
           proposed_tier?: string | null
           recognition_gold_threshold?: number
           recognition_silver_threshold?: number
+          seeking_advertiser?: boolean
           show_logo_in_header?: boolean
           show_name_in_header?: boolean | null
           sponsorship_pitch?: string | null
