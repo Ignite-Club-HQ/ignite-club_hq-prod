@@ -200,7 +200,15 @@ workflows:
       - name: Add iOS platform
         script: npx cap add ios || true
       - name: Sync Capacitor
-        script: npx cap sync ios
+        script: |
+          npx cap sync ios
+          echo "=== Verifying web assets in iOS bundle ==="
+          ls -la ios/App/App/public/ | head -20
+          if [ ! -f "ios/App/App/public/index.html" ]; then
+            echo "ERROR: index.html not found in iOS public folder!"
+            exit 1
+          fi
+          echo "=== Web assets verified ==="
       - name: Ensure GADApplicationIdentifier in Info.plist
         script: |
           PLIST="ios/App/App/Info.plist"
