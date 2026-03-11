@@ -8,11 +8,12 @@ class ViewController: CAPBridgeViewController {
         super.viewDidLoad()
 
         // Set white background at EVERY level to prevent black flash
-        // This covers the gap between launch screen dismissal and web content rendering
-        view.window?.backgroundColor = .white
         view.backgroundColor = .white
         webView?.backgroundColor = .white
-        webView?.isOpaque = false
+        // CRITICAL: Keep isOpaque=true on iOS. When false, the WebView is transparent
+        // and if the window background isn't ready yet, users see black (the default).
+        // We rely on CSS/HTML for the white background instead.
+        webView?.isOpaque = true
         webView?.scrollView.backgroundColor = .white
 
         // Disable the native rubber-band bounce so our JS pull-to-refresh
