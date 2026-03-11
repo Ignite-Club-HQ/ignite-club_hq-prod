@@ -1,29 +1,56 @@
-import { useRef } from "react";
 import { Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Share } from "@capacitor/share";
-import { Capacitor } from "@capacitor/core";
-import { getShareUrl } from "@/lib/shareUtils";
 
 interface SharePhotoButtonProps {
-  photoId: string;
   imageUrl: string;
   title?: string;
-  clubName?: string;
-  teamName?: string;
 }
 
-export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName }: SharePhotoButtonProps) {
-  const isSharingRef = useRef(false);
+export function SharePhotoButton({ imageUrl, title }: SharePhotoButtonProps) {
+  const handleShare = async () => {
+    const shareTitle = title || "Check out this photo!";
 
-  const copyToClipboard = async (text: string) => {
+    // Try sharing as a file (avoids exposing raw Supabase URL)
+    if (navigator.share && navigator.canShare) {
+      try {
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const extension = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
+        const file = new File([blob], `${shareTitle.replace(/[^a-zA-Z0-9 ]/g, "").trim() || "photo"}.${extension}`, {
+          type: blob.type || "image/jpeg",
+        });
+
+        const shareData = { files: [file], title: shareTitle };
+
+        if (navigator.canShare(shareData)) {
+          await navigator.share(shareData);
+          return;
+        }
+      } catch (error) {
+        if ((error as Error).name === "AbortError") return;
+        console.log("File share failed, trying URL share:", error);
+      }
+    }
+
+    // Fallback: share as URL (web browsers without file share support)
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: shareTitle, url: imageUrl });
+        return;
+      } catch (error) {
+        if ((error as Error).name === "AbortError") return;
+        console.log("Web Share failed, falling back to clipboard:", error);
+      }
+    }
+
+    // Final fallback: copy link to clipboard
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(imageUrl);
       toast.success("Link copied to clipboard!");
     } catch {
       const textarea = document.createElement("textarea");
-      textarea.value = text;
+      textarea.value = imageUrl;
       textarea.style.position = "fixed";
       textarea.style.opacity = "0";
       document.body.appendChild(textarea);
@@ -34,58 +61,15 @@ export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName 
     }
   };
 
-  const handleShare = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-
-    if (isSharingRef.current) return;
-    isSharingRef.current = true;
-
-    // Always share the /share URL so recipients get rich previews + proper redirects
-    const shareUrl = getShareUrl("photo", photoId);
-
-    try {
-      if (Capacitor.isNativePlatform()) {
-        try {
-          await Share.share({
-            url: shareUrl,
-            dialogTitle: "Share photo",
-          });
-        } catch (error) {
-          if ((error as Error).name !== "AbortError") {
-            console.log("Capacitor Share failed, falling back to clipboard:", error);
-            await copyToClipboard(shareUrl);
-          }
-        }
-        return;
-      }
-
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            url: shareUrl,
-          });
-          return;
-        } catch (error) {
-          if ((error as Error).name === "AbortError") return;
-          console.log("Web Share failed, falling back to clipboard:", error);
-        }
-      }
-
-      await copyToClipboard(shareUrl);
-    } finally {
-      isSharingRef.current = false;
-    }
-  };
-
   return (
     <Button
       variant="ghost"
       size="icon"
-      className="h-11 w-11 text-muted-foreground hover:text-primary"
+      className="h-8 w-8 text-muted-foreground hover:text-primary"
       onClick={handleShare}
       title="Share photo"
     >
-      <Share2 className="h-6 w-6" />
+      <Share2 className="h-4 w-4" />
     </Button>
   );
 }

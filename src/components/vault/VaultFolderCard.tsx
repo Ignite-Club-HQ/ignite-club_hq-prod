@@ -33,13 +33,11 @@ export function VaultFolderCard({
     <Card
       className="cursor-pointer hover:bg-accent/50 transition-colors group"
       onClick={onNavigate}
-      role="link"
-      aria-label={`Open folder ${folder.name}`}
     >
       <CardContent className="p-4 flex items-center gap-3">
         <div className="flex items-center gap-3 flex-1">
           <div className="p-2 rounded-lg bg-primary/10">
-            <FolderOpen className="h-5 w-5 text-primary" aria-hidden="true" />
+            <FolderOpen className="h-5 w-5 text-primary" />
           </div>
           <p className="font-medium">{folder.name}</p>
         </div>
@@ -101,7 +99,7 @@ export function VaultFolderCard({
           </DropdownMenu>
         )}
         
-        <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        <ChevronRight className="h-4 w-4 text-muted-foreground" />
       </CardContent>
     </Card>
   );

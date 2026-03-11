@@ -12,35 +12,26 @@ export function PageLoading({ message = "Loading..." }: PageLoadingProps) {
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
+  // Avoid hydration mismatch - only render theme-specific content after mount
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Reliably detect theme from multiple sources
-  const getThemeIsDark = () => {
-    if (typeof window === 'undefined') return true;
-    if (document.documentElement.classList.contains('dark')) return true;
-    if (document.documentElement.classList.contains('light')) return false;
-    const stored = localStorage.getItem('app-theme');
-    if (stored) return stored === 'dark';
-    if (resolvedTheme) return resolvedTheme === 'dark';
-    return true;
+  // Before mount, check localStorage directly for theme to avoid flash
+  const getInitialTheme = () => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('app-theme') || 'dark';
+    }
+    return 'dark';
   };
 
-  const isDark = getThemeIsDark();
+  const isDark = mounted ? resolvedTheme === "dark" : getInitialTheme() === "dark";
   const logo = isDark ? igniteIcon : igniteIconLight;
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center py-12 bg-background">
       <div className="relative flex flex-col items-center">
-        {/* Hide logo until mounted to prevent wrong-theme flash during transitions */}
-        <img
-          src={logo}
-          alt="Ignite"
-          className={`h-32 w-32 animate-pulse rounded-[2rem] transition-opacity duration-200 ${
-            mounted ? "opacity-100" : "opacity-0"
-          }`}
-        />
+        <img src={logo} alt="Ignite" className="h-32 w-32 animate-pulse rounded-[2rem]" />
         <div className="absolute -bottom-1 left-1/2 -translate-x-1/2">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
         </div>

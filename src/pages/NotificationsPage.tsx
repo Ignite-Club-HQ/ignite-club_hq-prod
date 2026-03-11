@@ -1,5 +1,4 @@
 import { useEffect, useCallback, useState, useRef } from "react";
-import { usePageTitle } from "@/hooks/usePageTitle";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -47,7 +46,6 @@ const NOTIFICATIONS_PER_PAGE = 30;
 
 export default function NotificationsPage() {
   const { user, refreshUnreadCount, clearUnreadCount } = useAuth();
-  usePageTitle("Notifications");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
@@ -740,7 +738,7 @@ export default function NotificationsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3" role="list" aria-label={`${displayedNotifications.length} notification${displayedNotifications.length === 1 ? '' : 's'}`}>
+        <div className="space-y-3">
           {displayedNotifications.map((notification) => (
             <SwipeableNotificationCard
               key={notification.id}

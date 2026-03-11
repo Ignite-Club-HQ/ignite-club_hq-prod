@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -17,9 +15,9 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { Play, Pause, Timer, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundCheck, ChevronDown, ChevronUp, ArrowDown, ArrowUp, SkipForward, Pencil, Eye } from "lucide-react";
-import { Goal, getSpecificPositionLabel } from "./types";
-import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
+import { Play, Pause, Timer, ExternalLink, X, ArrowRightLeft, Clock, UserRoundCheck, ChevronDown, ChevronUp, ArrowDown, ArrowUp, SkipForward, Pencil, Eye } from "lucide-react";
+import { Goal } from "./types";
+import { PitchPosition } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
 import { recalculateRemainingPlan } from "./pitchStateUtils";
 
@@ -189,22 +187,39 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         if (pitchState.autoSubActive && unexecuted.length > 0 && !isGameFinished) {
           const currentTotal = getTotalSeconds(currentElapsed, saved.currentHalf, mph);
           
-          // Auto-skip older due subs when a newer sub is also due
-          const dueSubs = unexecuted.filter(sub => {
+          // Auto-skip subs that are more than 90s overdue (mirrors PitchBoard logic)
+          const OVERDUE_GRACE_SECONDS = 90;
+          const overdueSubs = unexecuted.filter(sub => {
             const subTotal = getTotalSeconds(sub.time, sub.half, mph);
-            return currentTotal >= subTotal;
+            return currentTotal > subTotal + OVERDUE_GRACE_SECONDS;
           });
-          const dueTimes = [...new Set(dueSubs.map(s => `${s.half}-${s.time}`))].sort();
           
-          if (dueTimes.length > 1) {
-            // Multiple time groups are due — skip all but the latest
-            const latestKey = dueTimes[dueTimes.length - 1];
-            const olderSubs = dueSubs.filter(s => `${s.half}-${s.time}` !== latestKey);
-            const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
+          if (overdueSubs.length > 0) {
+            // Mark overdue subs as executed and reschedule remaining
+            const overdueKeys = new Set(overdueSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
             const updatedPlan = (pitchState.autoSubPlan || []).map(s =>
-              olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
+              overdueKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true } : s
             );
-            localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
+            
+            // Reschedule remaining unexecuted subs evenly across remaining time
+            const stillRemaining = updatedPlan.filter(s => !s.executed);
+            if (stillRemaining.length > 0) {
+              const totalGameSeconds = mph * 2 * 60;
+              const remainingGame = totalGameSeconds - currentTotal;
+              const interval = Math.max(Math.floor(remainingGame / (stillRemaining.length + 1)), 60);
+              let nextTime = currentTotal + interval;
+              const rescheduledPlan = updatedPlan.map(s => {
+                if (s.executed) return s;
+                const halfDur = mph * 60;
+                const newHalf: 1 | 2 = nextTime < halfDur ? 1 : 2;
+                const newTime = newHalf === 1 ? nextTime : nextTime - halfDur;
+                nextTime += interval;
+                return { ...s, half: newHalf, time: Math.floor(newTime) };
+              });
+              localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: rescheduledPlan }));
+            } else {
+              localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
+            }
             window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
             return; // Will pick up updated state on next poll tick
           }
@@ -387,34 +402,19 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           ? { ...s, executed: true, skipped: true } : s
       );
 
-      const halfDur = minutesPerHalf * 60;
       const remaining = updatedPlan.filter(s => !s.executed);
-      
-      // Separate due subs (keep them) from future subs (redistribute them)
-      const futureSubs = remaining.filter(s => {
-        const subTotal = getTotalSeconds(s.time, s.half, minutesPerHalf);
-        return subTotal > currentTotal;
-      });
-      
-      if (futureSubs.length > 0) {
-        const totalGameSeconds = minutesPerHalf * 2 * 60;
-        const remainingGameSeconds = totalGameSeconds - currentTotal;
-        const interval = Math.max(Math.floor(remainingGameSeconds / (futureSubs.length + 1)), 60);
-        
-        const futureSubKeys = new Set(futureSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`));
-        let nextSubTime = currentTotal + interval;
-        
-        updatedPlan = updatedPlan.map(s => {
-          if (s.executed) return s;
-          const subKey = `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`;
-          if (!futureSubKeys.has(subKey)) return s; // Keep due subs unchanged
-          
-          const newHalf: 1 | 2 = nextSubTime < halfDur ? 1 : 2;
-          const newTime = newHalf === 1 ? nextSubTime : nextSubTime - halfDur;
-          nextSubTime += interval;
-          
-          return { ...s, half: newHalf, time: Math.floor(newTime) };
-        });
+      if (remaining.length > 0) {
+        const halfDur = minutesPerHalf * 60;
+        const recalculated = recalculateRemainingPlan(
+          pitchState.players,
+          parseInt(pitchState.teamSize || "7"),
+          halfDur,
+          currentElapsedSeconds,
+          currentHalf,
+          sub,
+          true
+        );
+        updatedPlan = [...updatedPlan.filter(s => s.executed), ...recalculated];
       }
 
       localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
@@ -448,7 +448,17 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   return (
     <>
       <Card className={`relative ${firstSub?.isDue ? "border-warning/50 bg-warning/5" : "border-primary/30 bg-primary/5"}`}>
-        <CardContent className="p-3">
+        {!readOnly && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-1 right-1 h-6 w-6 text-muted-foreground hover:text-foreground z-10"
+            onClick={handleDismiss}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+        <CardContent className="p-3 pr-8">
           {/* Main row: Timer + Score + Controls */}
           <div className="flex items-center gap-3">
             <div className={`p-2.5 rounded-full shrink-0 ${firstSub?.isDue ? "bg-warning/20" : "bg-primary/10"}`}>
@@ -460,11 +470,8 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                 <span className="font-mono text-xl font-bold text-primary">
                   {formatTime(displaySeconds, timerState.currentHalf, timerState.minutesPerHalf)}
                 </span>
-               {timerState.isRunning && (
-                  <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-destructive/50 text-destructive gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />
-                    LIVE
-                  </Badge>
+                {timerState.isRunning && (
+                  <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
                 )}
                 {hasScore && (
                   <span className="text-sm font-semibold text-muted-foreground ml-1">
@@ -485,6 +492,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             
             <div className="flex items-center gap-1.5 shrink-0">
               {!readOnly && (() => {
+                // At half time boundary, the widget may read isRunning=true from localStorage
+                // before the GameTimer component processes the half-time pause.
+                // Detect this and show Play instead of Pause.
                 const isEffectivelyPaused = !timerState.isRunning || 
                   (timerState.isRunning && displaySeconds >= timerState.minutesPerHalf * 60);
                 return (
@@ -495,18 +505,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
               })()}
               {timerState.teamId && timerState.teamName && onOpenPitchBoard && (
                 <Button variant="default" size="icon" className="h-10 w-10" onClick={handleOpenPitchBoard}>
-                  <LayoutGrid className="h-5 w-5" />
-                </Button>
-              )}
-              {!readOnly && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-10 w-10 text-muted-foreground hover:text-foreground"
-                  onClick={handleDismiss}
-                  title="Dismiss"
-                >
-                  <X className="h-4 w-4" />
+                  <ExternalLink className="h-5 w-5" />
                 </Button>
               )}
             </div>
@@ -526,7 +525,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                 <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
               )}
               <span className={`text-xs font-medium flex-1 truncate ${firstSub.isDue ? "text-warning" : "text-muted-foreground"}`}>
-                {firstSub.isDue ? "SUB TIME" : formatSubCountdown(firstSub)} — OUT {firstSub.sub.playerOut.name} · IN {firstSub.sub.playerIn.name}
+                {formatSubCountdown(firstSub)} — {firstSub.sub.playerOut.name} → {firstSub.sub.playerIn.name}
               </span>
               {allSubs.length > 1 && (
                 <span className="text-[10px] text-muted-foreground shrink-0">+{allSubs.length - 1} more</span>
@@ -541,7 +540,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
           {/* Expanded sub list */}
           {subsExpanded && allSubs.length > 0 && (
-            <div className="mt-1.5 space-y-0.5">
+            <div className="mt-1.5 space-y-1">
               {allSubs.map((subInfo, idx) => (
                 <div
                   key={`${subInfo.sub.playerOut.id}-${subInfo.sub.playerIn.id}-${subInfo.sub.time}`}
@@ -554,7 +553,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                       {formatSubCountdown(subInfo)}
                     </p>
                     <p className="text-[11px] text-muted-foreground truncate">
-                      OUT {subInfo.sub.playerOut.name} · IN {subInfo.sub.playerIn.name}
+                      {subInfo.sub.playerOut.name} → {subInfo.sub.playerIn.name}
                     </p>
                   </div>
                   {!readOnly && (
@@ -570,9 +569,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                           Accept
                         </>
                       ) : idx === 0 || allSubs.slice(0, idx).every(s => s.isDue) ? (
-                      <>
+                        <>
                           <ArrowRightLeft className="h-3.5 w-3.5" />
-                          Sub Now
+                          Make Early
                         </>
                       ) : (
                         <>
@@ -599,7 +598,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                 {selectedSub.isDue ? "Make This Substitution" : "Upcoming Substitution"}
               </ResponsiveDialogTitle>
               <ResponsiveDialogDescription>
-                {undefined}
+                {selectedSub.isDue ? "Follow these steps on the pitch" : `Sub scheduled for ${selectedSub.sub.half === 1 ? "1st" : "2nd"} Half`}
               </ResponsiveDialogDescription>
             </ResponsiveDialogHeader>
             
@@ -616,65 +615,71 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             )}
             
             <div className="space-y-3 py-3">
-              {(() => {
-                const sub = selectedSub.sub;
-                const outPos = actualPlayerOut?.currentPitchPosition || sub.playerOut.currentPitchPosition;
-                const specificOutPos = outPos ? getSpecificPositionLabel(actualPlayerOut?.position?.x, outPos) : 'Unknown';
-                const inTargetPos = sub.positionSwap ? sub.positionSwap.fromPosition : outPos;
-                const specificInPos = inTargetPos ? getSpecificPositionLabel(
-                  sub.positionSwap ? sub.positionSwap.player.position?.x : actualPlayerOut?.position?.x,
-                  inTargetPos
-                ) : 'Unknown';
-                const inPosColors = inTargetPos ? POSITION_COLORS[inTargetPos] : null;
-                return (
-                  <>
-                    {/* Player coming off */}
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex-shrink-0">
-                        {actualPlayerOut?.number || actualPlayerOut?.name.slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm">{actualPlayerOut?.name}</div>
-                        <div className="text-xs text-muted-foreground">{specificOutPos} → Bench</div>
-                      </div>
-                      <span className="text-sm font-bold text-destructive flex-shrink-0">OUT</span>
+              {/* Step 1: Player coming off */}
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex-shrink-0">1</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-sm">Move {actualPlayerOut?.name} to the bench</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {actualPlayerOut?.number && `#${actualPlayerOut.number} `}
+                    {actualPlayerOut?.currentPitchPosition && `leaves ${actualPlayerOut.currentPitchPosition}`}
+                  </div>
+                  {!readOnly && isSelectedSubActionable && (
+                    <Select value={editedPlayerOutId || selectedSub.sub.playerOut.id} onValueChange={setEditedPlayerOutId}>
+                      <SelectTrigger className="w-full h-8 mt-2 text-xs border-destructive/30">
+                        <div className="flex items-center gap-1"><Pencil className="h-3 w-3" /><span>Change player</span></div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {playersOnPitch.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.number ? `#${p.number} ` : ""}{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <ArrowDown className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
+              </div>
+              
+              {/* Step 2: Player coming on */}
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white text-xs font-bold flex-shrink-0">2</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-sm">
+                    Move {actualPlayerIn?.name} to {selectedSub.sub.positionSwap ? selectedSub.sub.positionSwap.fromPosition : (actualPlayerOut?.currentPitchPosition || 'the pitch')}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {actualPlayerIn?.number && `#${actualPlayerIn.number} `}comes on from bench
+                  </div>
+                  {!readOnly && isSelectedSubActionable && (
+                    <Select value={editedPlayerInId || selectedSub.sub.playerIn.id} onValueChange={setEditedPlayerInId}>
+                      <SelectTrigger className="w-full h-8 mt-2 text-xs border-emerald-500/30">
+                        <div className="flex items-center gap-1"><Pencil className="h-3 w-3" /><span>Change player</span></div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableBenchPlayers.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.number ? `#${p.number} ` : ""}{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <ArrowUp className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+              </div>
+              
+              {/* Step 3: Position swap */}
+              {selectedSub.sub.positionSwap && (
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0">3</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm">Move {selectedSub.sub.positionSwap.player.name} to {selectedSub.sub.positionSwap.toPosition}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {selectedSub.sub.positionSwap.player.number && `#${selectedSub.sub.positionSwap.player.number} `}
+                      shifts from {selectedSub.sub.positionSwap.fromPosition}
                     </div>
-                    
-                    {/* Player coming on */}
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white text-xs font-bold flex-shrink-0">
-                        {actualPlayerIn?.number || actualPlayerIn?.name.slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm">{actualPlayerIn?.name}</div>
-                        <div className="text-xs text-muted-foreground">Bench → {specificInPos}</div>
-                      </div>
-                      {inPosColors && (
-                        <span className={cn("text-xs font-bold flex-shrink-0 uppercase", inPosColors.text)}>{specificInPos}</span>
-                      )}
-                    </div>
-                    
-                    {/* Position swap */}
-                    {sub.positionSwap && (() => {
-                      const swapFromSpecific = getSpecificPositionLabel(sub.positionSwap!.player.position?.x, sub.positionSwap!.fromPosition);
-                      const swapToSpecific = getSpecificPositionLabel(actualPlayerOut?.position?.x, sub.positionSwap!.toPosition);
-                      const toColors = POSITION_COLORS[sub.positionSwap!.toPosition];
-                      return (
-                        <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold flex-shrink-0">
-                            {sub.positionSwap!.player.number || sub.positionSwap!.player.name.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-sm">{sub.positionSwap!.player.name}</div>
-                            <div className="text-xs text-muted-foreground">{swapFromSpecific} → {swapToSpecific}</div>
-                          </div>
-                          <span className={cn("text-xs font-bold flex-shrink-0 uppercase", toColors.text)}>{swapToSpecific}</span>
-                        </div>
-                      );
-                    })()}
-                  </>
-                );
-              })()}
+                  </div>
+                  <ArrowRightLeft className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                </div>
+              )}
             </div>
 
             <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-row">
@@ -688,7 +693,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                   </Button>
                   <Button onClick={executeSubstitution} className="h-12 text-base sm:order-3">
                     <UserRoundCheck className="h-4 w-4 mr-2" />
-                    {selectedSub.isDue ? "Confirm Sub" : "Sub Now"}
+                    {selectedSub.isDue ? "Confirm Sub" : "Make Early"}
                   </Button>
                 </>
               )}

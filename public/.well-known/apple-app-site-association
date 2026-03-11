@@ -6,7 +6,6 @@
         "appID": "98QT3K43B9.app.lovable.igniteteamhub",
         "paths": [
           "/events/*",
-          "/media/*",
           "/join/*",
           "/join-club/*"
         ]

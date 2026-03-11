@@ -96,19 +96,14 @@ export default function AutoSubManager({
                 : `${nextSub.half === 2 ? "2H " : ""}${formatTime(nextSub.time)}`}
             </Badge>
           </div>
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-1.5 text-base">
-              <span className="text-[10px] uppercase font-bold text-destructive w-7 shrink-0">OUT</span>
-              <span className="text-destructive font-medium truncate">
-                {nextSub.playerOut.number ? `#${nextSub.playerOut.number} ` : ""}{nextSub.playerOut.name}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 text-base">
-              <span className="text-[10px] uppercase font-bold text-green-600 dark:text-green-400 w-7 shrink-0">IN</span>
-              <span className="text-green-600 dark:text-green-400 font-medium truncate">
-                {nextSub.playerIn.number ? `#${nextSub.playerIn.number} ` : ""}{nextSub.playerIn.name}
-              </span>
-            </div>
+          <div className="flex items-center gap-2 text-base">
+            <span className="text-destructive font-medium truncate">
+              ↓ {nextSub.playerOut.number ? `#${nextSub.playerOut.number} ` : ""}{nextSub.playerOut.name}
+            </span>
+            <span className="text-muted-foreground text-sm">→</span>
+            <span className="text-green-600 dark:text-green-400 font-medium truncate">
+              ↑ {nextSub.playerIn.number ? `#${nextSub.playerIn.number} ` : ""}{nextSub.playerIn.name}
+            </span>
           </div>
           {nextSub.positionSwap && (
             <p className="text-xs text-muted-foreground mt-1.5">
@@ -295,13 +290,13 @@ export default function AutoSubManager({
                                     sub.executed && "line-through text-muted-foreground"
                                   )}
                                 >
-                                    <span className="text-destructive truncate">
-                                      {sub.playerOut.name}
-                                    </span>
-                                    <span className="text-muted-foreground">→</span>
-                                    <span className="text-green-600 dark:text-green-400 truncate">
-                                      {sub.playerIn.name}
-                                    </span>
+                                  <span className="text-destructive truncate">
+                                    ↓{sub.playerOut.name}
+                                  </span>
+                                  <span className="text-muted-foreground">→</span>
+                                  <span className="text-green-600 dark:text-green-400 truncate">
+                                    ↑{sub.playerIn.name}
+                                  </span>
                                   {!sub.executed && lockedPlayerIds.has(sub.playerOut.id) && (
                                     <Lock className="h-3 w-3 text-amber-500 shrink-0" />
                                   )}

@@ -278,11 +278,11 @@ const PlayerToken = memo(function PlayerToken({
         )}
       </div>
       <div className="flex flex-col items-center">
-        <span className="text-[11px] font-medium bg-background/80 px-1 rounded mt-0.5 truncate max-w-16 text-foreground shadow-sm">
+        <span className="text-[10px] font-medium bg-background/80 px-1 rounded mt-0.5 truncate max-w-16 text-foreground shadow-sm">
           {player.name.split(" ")[0]}
         </span>
         {minutesDisplay !== null && (
-          <span className="text-[10px] font-semibold text-primary bg-background/90 px-1.5 rounded-full border border-primary/30">
+          <span className="text-[9px] font-medium text-primary bg-background/90 px-1.5 rounded-full border border-primary/30">
             {minutesDisplay}
           </span>
         )}

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, ArrowLeftRight, Check, AlertCircle } from "lucide-react";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { cn } from "@/lib/utils";
-import { MiniLeagueTeams, getSpecificPositionLabel } from "./types";
+import { MiniLeagueTeams } from "./types";
 
 interface Player {
   id: string;
@@ -113,7 +113,6 @@ export default function BenchToSubDialog({
               {directOptions.map((option, idx) => {
                 const pos = option.pitchPlayer.currentPitchPosition!;
                 const posColors = POSITION_COLORS[pos];
-                const specificPos = getSpecificPositionLabel(option.pitchPlayer.position?.x, pos);
                 return (
                   <Button
                     key={`direct-${idx}`}
@@ -131,8 +130,8 @@ export default function BenchToSubDialog({
                       <div className="flex-1 min-w-0 text-left">
                         <p className="font-medium truncate">{option.pitchPlayer.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          Plays <span className={cn("font-bold", posColors.text)}>{specificPos}</span>
-                          {" → "}{benchPlayer.name} takes <span className={cn("font-bold", posColors.text)}>{specificPos}</span>
+                          Plays <span className={cn("font-bold", posColors.text)}>{pos}</span>
+                          {" → "}{benchPlayer.name} takes <span className={cn("font-bold", posColors.text)}>{pos}</span>
                         </p>
                       </div>
                       <Check className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -151,10 +150,8 @@ export default function BenchToSubDialog({
               {swapOptions.map((option, idx) => {
                 const pos = option.pitchPlayer.currentPitchPosition!;
                 const posColors = POSITION_COLORS[pos];
-                const specificPos = getSpecificPositionLabel(option.pitchPlayer.position?.x, pos);
                 const swapPos = option.swapPlayer!.currentPitchPosition!;
                 const swapPosColors = POSITION_COLORS[swapPos];
-                const specificSwapPos = getSpecificPositionLabel(option.swapPlayer!.position?.x, swapPos);
                 return (
                   <Button
                     key={`swap-${idx}`}
@@ -171,7 +168,7 @@ export default function BenchToSubDialog({
                           {option.pitchPlayer.number || option.pitchPlayer.name.slice(0, 2).toUpperCase()}
                         </div>
                         <span className="font-medium text-sm">{option.pitchPlayer.name}</span>
-                        <span className={cn("text-xs font-bold", posColors.text)}>{specificPos}</span>
+                        <span className={cn("text-xs font-bold", posColors.text)}>{pos}</span>
                         <ArrowRight className="h-3 w-3 text-muted-foreground" />
                         <span className="text-xs">Off</span>
                       </div>
@@ -180,12 +177,12 @@ export default function BenchToSubDialog({
                         <span>
                           <span className="font-medium text-foreground">{option.swapPlayer?.name}</span>
                           {" "}
-                          <span className={cn("font-bold", swapPosColors.text)}>{specificSwapPos}</span>
+                          <span className={cn("font-bold", swapPosColors.text)}>{swapPos}</span>
                           {" → "}
-                          <span className={cn("font-bold", posColors.text)}>{specificPos}</span>
+                          <span className={cn("font-bold", posColors.text)}>{pos}</span>
                           {", "}
                           {benchPlayer.name} takes{" "}
-                          <span className={cn("font-bold", swapPosColors.text)}>{specificSwapPos}</span>
+                          <span className={cn("font-bold", swapPosColors.text)}>{swapPos}</span>
                         </span>
                       </div>
                     </div>

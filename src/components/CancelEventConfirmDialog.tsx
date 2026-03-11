@@ -13,7 +13,6 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 
 interface CancelEventConfirmDialogProps {
   open: boolean;
@@ -23,7 +22,6 @@ interface CancelEventConfirmDialogProps {
   teamId: string | null;
   clubId: string;
   miniLeagueId?: string | null;
-  eventType?: string | null;
   onConfirm: (customMessage?: string, sendPushNotification?: boolean) => void;
   isPending?: boolean;
 }
@@ -36,7 +34,6 @@ export function CancelEventConfirmDialog({
   teamId,
   clubId,
   miniLeagueId,
-  eventType,
   onConfirm,
   isPending,
 }: CancelEventConfirmDialogProps) {
@@ -127,13 +124,11 @@ export function CancelEventConfirmDialog({
 
   const chatType = miniLeagueId ? "league" : (teamId ? "team" : "club");
 
-  const typeLabel = getEventTypeLabel(eventType);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Cancel {typeLabel}?</DialogTitle>
+          <DialogTitle>Cancel Event?</DialogTitle>
           <DialogDescription className="space-y-2">
             <span className="block">
               You are about to cancel "{eventTitle}".
@@ -195,10 +190,17 @@ export function CancelEventConfirmDialog({
           </div>
         </div>
 
-        <DialogFooter className="flex-col gap-2 sm:flex-row sm:gap-2 pt-2">
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isPending}
+          >
+            Keep Event
+          </Button>
           <Button
             variant="default"
-            className="w-full sm:w-auto bg-warning text-warning-foreground hover:bg-warning/90 min-h-[44px]"
+            className="bg-warning text-warning-foreground hover:bg-warning/90"
             onClick={handleConfirm}
             disabled={isPending || isLoading}
           >
@@ -208,16 +210,8 @@ export function CancelEventConfirmDialog({
                 Cancelling...
               </>
             ) : (
-              `Cancel ${typeLabel}`
+              "Cancel Event"
             )}
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full sm:w-auto min-h-[44px]"
-            onClick={() => onOpenChange(false)}
-            disabled={isPending}
-          >
-            Keep {typeLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

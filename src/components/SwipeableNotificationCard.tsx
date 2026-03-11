@@ -67,16 +67,6 @@ export function SwipeableNotificationCard({
     }
   }, [swipeX, onClick]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Delete' || e.key === 'Backspace') {
-      e.preventDefault();
-      onDelete();
-    } else if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onClick();
-    }
-  }, [onDelete, onClick]);
-
   return (
     <div className="relative overflow-hidden rounded-lg">
       {/* Delete background */}
@@ -86,7 +76,6 @@ export function SwipeableNotificationCard({
           width: Math.abs(Math.min(swipeX, 0)) + 60,
           opacity: Math.min(Math.abs(swipeX) / Math.abs(DELETE_THRESHOLD), 1)
         }}
-        aria-hidden="true"
       >
         <Trash2 className="h-5 w-5 text-destructive-foreground" />
       </div>
@@ -103,10 +92,6 @@ export function SwipeableNotificationCard({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onClick={handleClick}
-        onKeyDown={handleKeyDown}
-        tabIndex={0}
-        role="button"
-        aria-label="Notification. Press Enter to view, Delete to remove."
       >
         <CardContent className="p-4">
           {children}

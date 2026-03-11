@@ -5,10 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { MentionInput } from "@/components/chat/MentionInput";
-import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users } from "lucide-react";
+import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, RefreshCw, Users } from "lucide-react";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
-import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
-import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
@@ -18,7 +17,7 @@ import { toast } from "sonner";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 // EmojiPicker is built into MentionInput
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
-
+import { ChatSearch } from "@/components/chat/ChatSearch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { MessageContent } from "@/components/chat/MessageContent";
@@ -89,13 +88,10 @@ export default function GroupChatPage() {
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<GroupMessage | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [membersOpen, setMembersOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
-  const isNativePlatform = Capacitor.isNativePlatform();
   const bottomInset = isNativeIOS ? "1rem" : "env(safe-area-inset-bottom, 0px)";
 
   // Mark group message notifications as read when opening this thread
@@ -943,7 +939,7 @@ export default function GroupChatPage() {
       } catch {}
       // Invalidate the messages page query so latest message preview updates
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
-      // Silent success - no toast
+      toast.success("Message deleted");
     },
     onError: (err, variables, context) => {
       if (context?.previousData) {
@@ -1225,41 +1221,40 @@ export default function GroupChatPage() {
 
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden overscroll-none" style={{ paddingBottom: `calc(5rem + ${bottomInset})` }}>
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
-        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+      {/* Header - Fixed at top */}
+      <div className="fixed left-0 right-0 flex items-center gap-3 p-4 border-b bg-background z-40" style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1 min-w-0">
-          <h1 className="font-semibold truncate">{group.name}</h1>
+        <div className="flex-1">
+          <h1 className="font-semibold">{group.name}</h1>
         </div>
-        <div className="flex items-center shrink-0">
-          <ChatHeaderMenu
-            chatType="group"
-            chatId={groupId!}
-            onSearchOpen={() => setSearchOpen(true)}
-            onMembersOpen={() => setMembersOpen(true)}
-            onRefresh={handleManualRefresh}
-            isRefreshing={isAnyRefreshing}
-            isNativePlatform={isNativePlatform}
-          />
-          <ChatMembersSheet
-            chatType="group"
-            chatId={groupId!}
-            chatName={group.name}
-            teamId={group.team_id || undefined}
-            clubId={group.club_id || undefined}
-            groupAllowedRoles={group.allowed_roles}
-            externalOpen={membersOpen}
-            onExternalOpenChange={setMembersOpen}
-          />
-        </div>
+        <ChatMuteButton chatType="group" chatId={groupId!} />
+        <ChatMembersSheet
+          chatType="group"
+          chatId={groupId!}
+          chatName={group.name}
+          teamId={group.team_id || undefined}
+          clubId={group.club_id || undefined}
+          groupAllowedRoles={group.allowed_roles}
+        />
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={handleManualRefresh}
+          disabled={isAnyRefreshing}
+          className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent hover:bg-transparent"
+        >
+          <RefreshCw className={`h-4 w-4 text-foreground ${isAnyRefreshing ? 'animate-spin' : ''}`} />
+        </Button>
+        <ChatSearch onSearch={setSearchQuery} />
       </div>
 
+      {/* Spacer for fixed header */}
+      <div className="shrink-0" style={{ height: '72px' }} />
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" ref={pullRefreshRef}>
+      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
         <PullToRefreshIndicator
           pullDistance={pullDistance}
           pullProgress={pullProgress}
@@ -1275,7 +1270,7 @@ export default function GroupChatPage() {
           />
         ) : (
           <div
-            className="flex-1 h-full overflow-y-auto overscroll-contain scrollbar-hide"
+            className="flex-1 h-full overflow-y-auto overscroll-none scrollbar-hide"
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
           >

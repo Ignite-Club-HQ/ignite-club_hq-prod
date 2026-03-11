@@ -529,7 +529,7 @@ export default function AttendanceStatsPage() {
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-bold text-primary">{overallStats.totalEvents}</p>
-            <p className="text-sm text-muted-foreground">Sessions</p>
+            <p className="text-sm text-muted-foreground">Events</p>
           </CardContent>
         </Card>
         <Card>

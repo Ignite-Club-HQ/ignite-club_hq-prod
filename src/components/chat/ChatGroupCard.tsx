@@ -91,19 +91,15 @@ export default function ChatGroupCard({
       <Card
         className={`hover:border-primary/50 transition-colors cursor-pointer ${hasUnread ? 'border-primary/30' : ''}`}
         onClick={handleClick}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); } }}
-        tabIndex={0}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
         onMouseLeave={() => setShowActions(false)}
-        role="link"
-        aria-label={`${group.name} chat group${hasUnread ? `, ${unreadCount} unread messages` : ''}${isMuted ? ', muted' : ''}`}
       >
         <CardContent className="p-4 flex items-center gap-4">
           <div className="relative">
             <div className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center">
-              <Users className="h-6 w-6 text-secondary-foreground" aria-hidden="true" />
+              <Users className="h-6 w-6 text-secondary-foreground" />
             </div>
             {hasUnread && (
               <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
@@ -113,7 +109,7 @@ export default function ChatGroupCard({
             <div className="flex items-center gap-2">
               <h3 className={`truncate ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{group.name}</h3>
               {isMuted && (
-                <BellOff className="h-3.5 w-3.5 text-muted-foreground" aria-label="Muted" />
+                <BellOff className="h-3.5 w-3.5 text-muted-foreground" />
               )}
             </div>
             <p className={`text-sm ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
@@ -137,19 +133,17 @@ export default function ChatGroupCard({
                 variant="ghost" 
                 size="icon" 
                 className="h-8 w-8"
-                aria-label={`Edit ${group.name}`}
                 onClick={() => setShowEditDialog(true)}
               >
-                <Pencil className="h-4 w-4" aria-hidden="true" />
+                <Pencil className="h-4 w-4" />
               </Button>
               <Button 
                 variant="ghost" 
                 size="icon" 
                 className="h-8 w-8 text-destructive hover:text-destructive"
-                aria-label={`Delete ${group.name}`}
                 onClick={() => setShowDeleteDialog(true)}
               >
-                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           )}
@@ -166,7 +160,7 @@ export default function ChatGroupCard({
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
-              <ChevronRight className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
             </div>
           </div>
         </CardContent>

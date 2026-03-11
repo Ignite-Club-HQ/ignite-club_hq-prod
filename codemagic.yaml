@@ -166,14 +166,14 @@ workflows:
       - name: Increment version code
         script: |
           GRADLE_FILE="android/app/build.gradle"
-          # Use epoch-based versionCode to guarantee uniqueness across all builds
-          # Format: minutes since 2024-01-01 — gives ~4 years of unique codes
-          EPOCH_BASE=1704067200  # 2024-01-01 00:00:00 UTC
-          NOW=$(date +%s)
-          NEW_VC=$(( (NOW - EPOCH_BASE) / 60 ))
-          echo "=== Target versionCode: $NEW_VC (epoch-based, timestamp: $NOW) ==="
+          # Try CM_BUILD_NUMBER first (Codemagic), fallback to BUILD_NUMBER, then default 1
+          BN="${CM_BUILD_NUMBER:-${BUILD_NUMBER:-1}}"
+          FLOOR=163
+          NEW_VC=$((FLOOR + BN))
+          echo "=== Target versionCode: $NEW_VC (CM_BUILD_NUMBER=${CM_BUILD_NUMBER:-unset}, BUILD_NUMBER=${BUILD_NUMBER:-unset}, BN=$BN) ==="
           echo "=== Before replacement ==="
           grep -n "versionCode" "$GRADLE_FILE" || echo "WARNING: no versionCode found!"
+          cat "$GRADLE_FILE" | head -30
           # Use a broad regex to replace any versionCode value (handles both Groovy and Kotlin DSL)
           sed -i '' -E "s/versionCode[ =]+[0-9]+/versionCode = $NEW_VC/" "$GRADLE_FILE"
           echo "=== After replacement ==="

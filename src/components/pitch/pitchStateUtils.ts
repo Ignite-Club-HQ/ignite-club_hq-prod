@@ -103,23 +103,6 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
       return null;
     }
     
-    // Auto-expire stale auto-sub plans after 2 hours of inactivity
-    const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
-    if (state.autoSubActive && state.lastUpdateTime) {
-      const timeSinceLastUpdate = Date.now() - state.lastUpdateTime;
-      const timerState = loadTimerStateForMinutes(teamId);
-      const isGameRunning = timerState?.isRunning === true;
-      
-      if (!isGameRunning && timeSinceLastUpdate > TWO_HOURS_MS) {
-        console.log("[PitchState] Auto-sub plan expired after 2 hours of inactivity, clearing");
-        state.autoSubPlan = [];
-        state.autoSubActive = false;
-        state.autoSubPaused = false;
-        // Persist the cleanup
-        localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...state, lastUpdateTime: Date.now() }));
-      }
-    }
-    
     const timerState = loadTimerStateForMinutes(teamId);
     if (timerState && state.lastTimerSeconds !== undefined) {
       let currentTimerSeconds = 0;
@@ -349,11 +332,10 @@ export const recalculateRemainingPlan = (
         }
       }
       
-      const outPosition = currentOnPitch.get(playerOut.id);
       const sub: SubstitutionEvent = {
         time,
         half,
-        playerOut: { ...playerOut, currentPitchPosition: outPosition || playerOut.currentPitchPosition },
+        playerOut,
         playerIn,
         positionSwap,
         executed: false,

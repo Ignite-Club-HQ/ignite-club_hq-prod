@@ -1,13 +1,10 @@
-import { useState, useEffect, lazy, Suspense, useRef } from "react";
-import { Share } from "@capacitor/share";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
 import { Capacitor } from "@capacitor/core";
-import { getShareUrl } from "@/lib/shareUtils";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical } from "lucide-react";
-import { getEventTypeLabel } from "@/lib/eventTypeLabel";
+import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame } from "lucide-react";
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
@@ -49,13 +46,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -216,12 +206,10 @@ export default function EventDetailPage() {
   const [rsvpNotes, setRsvpNotes] = useState("");
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
   const [showPitchBoard, setShowPitchBoard] = useState(false);
   
   // Mini league player overrides for match generation
   const [playerOverrides, setPlayerOverrides] = useState<Record<string, boolean>>({});
-  const isSharingEventRef = useRef(false);
 
   // Track when user views this event
   useEventViewTracking(id, user?.id);
@@ -1487,8 +1475,20 @@ export default function EventDetailPage() {
         }
       }
 
-      // Notifications are created automatically by the on_event_cancelled DB trigger
-      // No need to manually insert them here - that was causing duplicates
+      // Send push notifications if enabled
+      if (sendPushNotification !== false) {
+        const notificationMessage = customMessage 
+          ? `"${event?.title}" has been cancelled. ${customMessage}`
+          : `"${event?.title}" has been cancelled.`;
+        
+        const notifications = uniqueMembers.map(userId => ({
+          user_id: userId,
+          type: "event_cancelled",
+          message: notificationMessage,
+          related_id: event?.id,
+        }));
+        await supabase.from("notifications").insert(notifications);
+      }
 
       return uniqueMembers.length;
     },
@@ -1655,8 +1655,8 @@ export default function EventDetailPage() {
   return (
     <div className="py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => {
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => {
           navigate('/events');
         }}>
           <ArrowLeft className="h-5 w-5" />
@@ -1664,28 +1664,17 @@ export default function EventDetailPage() {
         <Badge className={eventTypeColors[event.type as EventType]} variant="secondary">
           {event.type}
         </Badge>
-        
-        <div className="flex-1" />
-
         <Button
           variant="ghost"
           size="icon"
-          className="shrink-0"
           onClick={async () => {
-            if (isSharingEventRef.current) return;
-            isSharingEventRef.current = true;
-
-            const shareUrl = getShareUrl("event", id!);
+            const shareUrl = `${window.location.origin}/events/${id}`;
             
-
             try {
-              if (Capacitor.isNativePlatform()) {
-                await Share.share({
-                  url: shareUrl,
-                  dialogTitle: 'Share Event',
-                });
-              } else if (navigator.share) {
+              if (navigator.share) {
                 await navigator.share({
+                  title: event.title,
+                  text: `Check out this event: ${event.title}`,
                   url: shareUrl,
                 });
               } else {
@@ -1697,92 +1686,88 @@ export default function EventDetailPage() {
                 await navigator.clipboard.writeText(shareUrl);
                 toast({ title: "Link copied to clipboard!" });
               }
-            } finally {
-              isSharingEventRef.current = false;
             }
           }}
         >
           <Share2 className="h-5 w-5" />
         </Button>
-
-        {/* Admin actions dropdown */}
-        {(isAdmin || isAppAdmin) && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0">
-                <MoreVertical className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-popover">
-              {!event.is_cancelled && (
-                <>
-                  <DropdownMenuItem onClick={() => navigate(`/events/${id}/edit`)}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Edit {getEventTypeLabel(event.type)}
-                  </DropdownMenuItem>
-                  {canSendReminders ? (
-                    <DropdownMenuItem onClick={() => {
-                      // Open reminder confirmation
-                      setReminderDialogOpen(true);
-                    }}>
-                      <Bell className="h-4 w-4 mr-2 text-primary" />
-                      Send Reminders
-                    </DropdownMenuItem>
-                  ) : !isLoadingHasTeamPro && (
-                    <DropdownMenuItem disabled>
-                      <Bell className="h-4 w-4 mr-2" />
-                      Send Reminders
-                      <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1">Pro</Badge>
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => setCancelDialogOpen(true)}
-                    className="text-warning focus:text-warning"
+        <div className="flex-1" />
+        {(isAdmin || isAppAdmin) && !event.is_cancelled && (
+          <>
+            <Button variant="ghost" size="icon" onClick={() => navigate(`/events/${id}/edit`)}>
+              <Pencil className="h-5 w-5" />
+            </Button>
+            {canSendReminders ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-primary"
+                    disabled={remindMutation.isPending}
                   >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Cancel {getEventTypeLabel(event.type)}
-                  </DropdownMenuItem>
-                </>
-              )}
-              <DropdownMenuItem 
-                onClick={() => setDeleteDialogOpen(true)}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete {getEventTypeLabel(event.type)}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                    <Bell className="h-5 w-5" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Send RSVP Reminders?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will send a notification to all team members who haven't responded to this event yet.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => remindMutation.mutate()}
+                      disabled={remindMutation.isPending}
+                    >
+                      {remindMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        "Send Reminders"
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : !isLoadingHasTeamPro && (
+              <div className="flex items-center gap-1 px-2">
+                <Bell className="h-5 w-5 text-muted-foreground" />
+                <span className="text-xs font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">Pro</span>
+              </div>
+            )}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-warning"
+              onClick={() => setCancelDialogOpen(true)}
+            >
+              <XCircle className="h-5 w-5" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-destructive"
+              onClick={() => setDeleteDialogOpen(true)}
+            >
+              <Trash2 className="h-5 w-5" />
+            </Button>
+          </>
         )}
-
-        {/* Reminder Dialog */}
-        <AlertDialog open={reminderDialogOpen} onOpenChange={setReminderDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Send RSVP Reminders?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will send a notification to all team members who haven't responded to this event yet.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={() => remindMutation.mutate()}
-                disabled={remindMutation.isPending}
-              >
-                {remindMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  "Send Reminders"
-                )}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {(isAdmin || isAppAdmin) && event.is_cancelled && (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="text-destructive"
+            onClick={() => setDeleteDialogOpen(true)}
+          >
+            <Trash2 className="h-5 w-5" />
+          </Button>
+        )}
 
         {/* Cancel Dialog - handles both single and recurring */}
         {(event.is_recurring || event.parent_event_id) ? (
@@ -1793,7 +1778,6 @@ export default function EventDetailPage() {
             teamId={event.team_id}
             clubId={event.club_id}
             miniLeagueId={event.mini_league_id}
-            eventType={event.type}
             onSingleAction={(customMessage, sendPushNotification) => 
               cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
             }
@@ -1811,7 +1795,6 @@ export default function EventDetailPage() {
             teamId={event.team_id}
             clubId={event.club_id}
             miniLeagueId={event.mini_league_id}
-            eventType={event.type}
             onConfirm={(customMessage, sendPushNotification) => 
               cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
             }
@@ -1824,8 +1807,8 @@ export default function EventDetailPage() {
           <RecurringEventActionDialog
             open={deleteDialogOpen}
             onOpenChange={setDeleteDialogOpen}
-            title={`Delete ${getEventTypeLabel(event.type)}?`}
-            description={`This will permanently delete the ${getEventTypeLabel(event.type).toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
+            title="Delete Event?"
+            description="This will permanently delete the event(s) and all RSVPs. This action cannot be undone."
             actionLabel="Delete"
             actionVariant="destructive"
             onSingleAction={() => deleteEventMutation.mutate('single')}
@@ -1836,9 +1819,9 @@ export default function EventDetailPage() {
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete {getEventTypeLabel(event.type)}?</AlertDialogTitle>
+                <AlertDialogTitle>Delete Event?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will permanently delete this {getEventTypeLabel(event.type).toLowerCase()} and all RSVPs. This action cannot be undone.
+                  This will permanently delete this event and all RSVPs. This action cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -1904,35 +1887,17 @@ export default function EventDetailPage() {
               <span>${Number(eventPrice).toFixed(2)} per person</span>
             </div>
           )}
-          {/* Pitch Board / Start Game button for game events */}
-          {canAccessPitchBoard && teamMembers && (() => {
-            const eventTime = parseISO(event.event_date);
-            const now = new Date();
-            const minutesUntilKickoff = (eventTime.getTime() - now.getTime()) / (1000 * 60);
-            const isWithin60Min = minutesUntilKickoff <= 60;
-            const hasStarted = minutesUntilKickoff <= 0;
-            
-            return isWithin60Min ? (
-              <Button
-                variant="default"
-                size="lg"
-                className="w-full mt-2 h-14 text-lg font-bold gap-3"
-                onClick={() => setShowPitchBoard(true)}
-              >
-                <Play className="h-5 w-5" />
-                {hasStarted ? "Open Match" : "Start Game"}
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                className="w-full mt-2"
-                onClick={() => setShowPitchBoard(true)}
-              >
-                <Play className="h-4 w-4 mr-2" />
-                Open Pitch Board
-              </Button>
-            );
-          })()}
+          {/* Pitch Board button for game events */}
+          {canAccessPitchBoard && teamMembers && (
+            <Button
+              variant="default"
+              className="w-full mt-2"
+              onClick={() => setShowPitchBoard(true)}
+            >
+              <Play className="h-4 w-4 mr-2" />
+              Open Pitch Board
+            </Button>
+          )}
         </CardContent>
       </Card>
 

@@ -96,7 +96,6 @@ interface TimerState {
   teamId?: string;
   teamName?: string;
   isGameFinished?: boolean; // Track if game has reached full time
-  gameFinishedAt?: number; // Timestamp when game finished (for auto-reset)
 }
 
 const getTeamTimerStorageKey = (teamId: string) => {
@@ -328,19 +327,6 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
               // End of match - mark game as finished
               setIsRunning(false);
               setIsGameFinished(true);
-              // Save gameFinishedAt timestamp for auto-reset
-              const finishedState: TimerState = {
-                minutesPerHalf,
-                currentHalf: 2,
-                elapsedSeconds: halfDurationSeconds,
-                isRunning: false,
-                lastUpdateTime: Date.now(),
-                teamId,
-                teamName,
-                isGameFinished: true,
-                gameFinishedAt: Date.now(),
-              };
-              saveTimerState(finishedState, teamId);
               playTimerBeep("Full Time! Match complete.");
               return halfDurationSeconds;
             }

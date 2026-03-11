@@ -4,11 +4,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Send, Loader2, Crown, Lock, Flame } from "lucide-react";
+import { ArrowLeft, Send, Loader2, RefreshCw, Crown, Lock, Flame } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
-import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
@@ -23,7 +22,8 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage } from "@/lib/messageCache";
-import { ChatSearchBar, highlightText } from "@/components/chat/ChatSearch";
+import { ChatSearch, highlightText } from "@/components/chat/ChatSearch";
+import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
 import { IGNITE_SUPPORT_USER_ID, isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessageReads } from "@/hooks/useMessageReads";
 import { Capacitor } from "@capacitor/core";
@@ -73,7 +73,6 @@ export default function DirectMessagePage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
@@ -83,7 +82,6 @@ export default function DirectMessagePage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
-  const isNativePlatform = Capacitor.isNativePlatform();
   
   const scrollToBottom = useCallback(() => {
     if (!scrollAreaRef.current) return;
@@ -632,9 +630,8 @@ export default function DirectMessagePage() {
 
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] overflow-hidden overscroll-none" ref={pullRefreshRef as any}>
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
-        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+      {/* Header - Fixed at top */}
+      <div className="fixed left-0 right-0 flex items-center justify-between gap-3 px-4 py-3 border-b bg-background z-40" style={{ top: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
             <ArrowLeft className="h-5 w-5" />
@@ -662,26 +659,23 @@ export default function DirectMessagePage() {
           )}
         </div>
         <div className="flex items-center gap-1">
-          <ChatHeaderMenu
-            chatType="dm"
-            chatId={conversationId!}
-            onSearchOpen={() => setSearchOpen(true)}
-            showMembers={false}
-            showMute={!isIgniteSupportConversation}
-            onRefresh={handleManualRefresh}
-            isRefreshing={isAnyRefreshing}
-            isNativePlatform={isNativePlatform}
-          />
+          <ChatSearch onSearch={setSearchQuery} />
+          {!isIgniteSupportConversation && <ChatMuteButton chatType="dm" chatId={conversationId!} />}
+          <Button variant="ghost" size="icon" onClick={handleManualRefresh} disabled={isAnyRefreshing}>
+            <RefreshCw className={`h-4 w-4 ${isAnyRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
       </div>
 
+      {/* Spacer for fixed header */}
+      <div className="h-16 shrink-0" />
 
       <PullToRefreshIndicator isRefreshing={isRefreshing} pullDistance={pullDistance} pullProgress={pullProgress} />
 
       {/* Messages area */}
       <div
         ref={scrollAreaRef}
-        className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-contain scrollbar-hide"
+        className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
         style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
       >
         <div className="py-4 space-y-4 pb-20">

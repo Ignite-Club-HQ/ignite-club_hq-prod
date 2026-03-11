@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from "react";
-import { usePageTitle } from "@/hooks/usePageTitle";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Crown, Lock, RefreshCw, Flame, Plus } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -136,7 +135,6 @@ interface Club {
 
 export default function MessagesPage() {
   const { user, refreshUnreadCount } = useAuth();
-  usePageTitle("Messages");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
