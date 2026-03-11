@@ -247,54 +247,37 @@ workflows:
             echo "=== GADApplicationIdentifier already present ==="
           fi
           /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST"
-      - name: Patch AppDelegate for Firebase & Crashlytics
+      - name: Patch AppDelegate - minimal (no Firebase in AppDelegate)
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
-          cat > "$DELEGATE" << 'SWIFT_EOF'
-          import UIKit
-          import Capacitor
-
-          // Firebase imports are optional - if SPM resolution fails, app still launches
-          #if canImport(FirebaseCore)
-          import FirebaseCore
-          #endif
-          #if canImport(FirebaseCrashlytics)
-          import FirebaseCrashlytics
-          #endif
-
-          @UIApplicationMain
-          class AppDelegate: UIResponder, UIApplicationDelegate {
-
-              var window: UIWindow?
-
-              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-                  #if canImport(FirebaseCore)
-                  // Guard against double-init (Capacitor Firebase plugin may also init)
-                  if FirebaseApp.app() == nil {
-                      FirebaseApp.configure()
-                  }
-                  #endif
-                  #if canImport(FirebaseCrashlytics)
-                  Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
-                  #endif
-                  return true
-              }
-
-              func applicationWillResignActive(_ application: UIApplication) {}
-              func applicationDidEnterBackground(_ application: UIApplication) {}
-              func applicationWillEnterForeground(_ application: UIApplication) {}
-              func applicationDidBecomeActive(_ application: UIApplication) {}
-              func applicationWillTerminate(_ application: UIApplication) {}
-
-              func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
-                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
-              }
-
-              func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
-                  return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
-              }
-          }
-          SWIFT_EOF
+          echo "=== Writing minimal AppDelegate.swift (Firebase handled by Capacitor plugins) ==="
+          printf '%s\n' \
+            'import UIKit' \
+            'import Capacitor' \
+            '' \
+            '@UIApplicationMain' \
+            'class AppDelegate: UIResponder, UIApplicationDelegate {' \
+            '' \
+            '    var window: UIWindow?' \
+            '' \
+            '    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {' \
+            '        return true' \
+            '    }' \
+            '' \
+            '    func applicationWillResignActive(_ application: UIApplication) {}' \
+            '    func applicationDidEnterBackground(_ application: UIApplication) {}' \
+            '    func applicationWillEnterForeground(_ application: UIApplication) {}' \
+            '    func applicationDidBecomeActive(_ application: UIApplication) {}' \
+            '    func applicationWillTerminate(_ application: UIApplication) {}' \
+            '' \
+            '    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {' \
+            '        return ApplicationDelegateProxy.shared.application(app, open: url, options: options)' \
+            '    }' \
+            '' \
+            '    func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {' \
+            '        return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)' \
+            '    }' \
+            '}' > "$DELEGATE"
           echo "=== Patched AppDelegate.swift ==="
           cat "$DELEGATE"
       - name: Ensure FirebaseCrashlytics in SPM Package.swift
@@ -429,53 +412,38 @@ workflows:
             echo "=== GADApplicationIdentifier already present ==="
           fi
           /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST"
-      - name: Patch AppDelegate for Firebase & Crashlytics
+      - name: Patch AppDelegate - minimal (no Firebase in AppDelegate)
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
-          echo "=== Patching AppDelegate.swift for Firebase + Crashlytics ==="
-          cat > "$DELEGATE" << 'SWIFT_EOF'
-          import UIKit
-          import Capacitor
-
-          #if canImport(FirebaseCore)
-          import FirebaseCore
-          #endif
-          #if canImport(FirebaseCrashlytics)
-          import FirebaseCrashlytics
-          #endif
-
-          @UIApplicationMain
-          class AppDelegate: UIResponder, UIApplicationDelegate {
-
-              var window: UIWindow?
-
-              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-                  #if canImport(FirebaseCore)
-                  if FirebaseApp.app() == nil {
-                      FirebaseApp.configure()
-                  }
-                  #endif
-                  #if canImport(FirebaseCrashlytics)
-                  Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
-                  #endif
-                  return true
-              }
-
-              func applicationWillResignActive(_ application: UIApplication) {}
-              func applicationDidEnterBackground(_ application: UIApplication) {}
-              func applicationWillEnterForeground(_ application: UIApplication) {}
-              func applicationDidBecomeActive(_ application: UIApplication) {}
-              func applicationWillTerminate(_ application: UIApplication) {}
-
-              func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
-                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
-              }
-
-              func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
-                  return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
-              }
-          }
-          SWIFT_EOF
+          echo "=== Writing minimal AppDelegate.swift (Firebase handled by Capacitor plugins) ==="
+          # Use printf to avoid heredoc indentation issues in YAML
+          printf '%s\n' \
+            'import UIKit' \
+            'import Capacitor' \
+            '' \
+            '@UIApplicationMain' \
+            'class AppDelegate: UIResponder, UIApplicationDelegate {' \
+            '' \
+            '    var window: UIWindow?' \
+            '' \
+            '    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {' \
+            '        return true' \
+            '    }' \
+            '' \
+            '    func applicationWillResignActive(_ application: UIApplication) {}' \
+            '    func applicationDidEnterBackground(_ application: UIApplication) {}' \
+            '    func applicationWillEnterForeground(_ application: UIApplication) {}' \
+            '    func applicationDidBecomeActive(_ application: UIApplication) {}' \
+            '    func applicationWillTerminate(_ application: UIApplication) {}' \
+            '' \
+            '    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {' \
+            '        return ApplicationDelegateProxy.shared.application(app, open: url, options: options)' \
+            '    }' \
+            '' \
+            '    func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {' \
+            '        return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)' \
+            '    }' \
+            '}' > "$DELEGATE"
           echo "=== Patched AppDelegate.swift ==="
           cat "$DELEGATE"
       - name: Force light mode in Info.plist
