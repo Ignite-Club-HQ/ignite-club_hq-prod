@@ -444,11 +444,16 @@ workflows:
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
           echo "=== Patching AppDelegate.swift for Firebase + Crashlytics ==="
-          python3 -c "
-          content = '''import UIKit
+          cat > "$DELEGATE" << 'SWIFT_EOF'
+          import UIKit
           import Capacitor
+
+          #if canImport(FirebaseCore)
           import FirebaseCore
+          #endif
+          #if canImport(FirebaseCrashlytics)
           import FirebaseCrashlytics
+          #endif
 
           @UIApplicationMain
           class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -456,8 +461,14 @@ workflows:
               var window: UIWindow?
 
               func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-                  FirebaseApp.configure()
+                  #if canImport(FirebaseCore)
+                  if FirebaseApp.app() == nil {
+                      FirebaseApp.configure()
+                  }
+                  #endif
+                  #if canImport(FirebaseCrashlytics)
                   Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+                  #endif
                   return true
               }
 
@@ -475,11 +486,7 @@ workflows:
                   return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
               }
           }
-          '''
-          import textwrap
-          with open('$DELEGATE', 'w') as f:
-              f.write(textwrap.dedent(content).strip() + '\n')
-          "
+          SWIFT_EOF
           echo "=== Patched AppDelegate.swift ==="
           cat "$DELEGATE"
       - name: Force light mode in Info.plist
