@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -614,6 +614,7 @@ function DialogInner({
   currentElapsedSeconds = 0,
   currentHalf = 1,
   preferredSecondHalfGkId,
+  isSetupFlow = false,
 }: {
   players: Player[];
   teamSize: number;
@@ -629,10 +630,34 @@ function DialogInner({
   currentElapsedSeconds?: number;
   currentHalf?: 1 | 2;
   preferredSecondHalfGkId?: string;
+  isSetupFlow?: boolean;
 }) {
   const [plan, setPlan] = useState<SubstitutionEvent[] | null>(existingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'forecast' | 'edit'>(editMode ? 'edit' : 'forecast');
+  
+  // Auto-generate plan on mount if no existing plan
+  useEffect(() => {
+    if (plan === null && !isGenerating && !editMode) {
+      const playersOnP = players.filter(p => p.position !== null);
+      const benchP = players.filter(p => p.position === null);
+      if (playersOnP.length >= teamSize && benchP.length > 0) {
+        setIsGenerating(true);
+        setTimeout(() => {
+          try {
+            const halfDurationSeconds = minutesPerHalf * 60;
+            const generatedPlan = createSubPlan(players, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId);
+            setPlan(generatedPlan);
+          } catch (error) {
+            console.error("Error auto-generating plan:", error);
+            setPlan([]);
+          } finally {
+            setIsGenerating(false);
+          }
+        }, 10);
+      }
+    }
+  }, []); // Run once on mount
   
   const playersOnPitch = players.filter(p => p.position !== null);
   const benchPlayers = players.filter(p => p.position === null);
@@ -812,7 +837,7 @@ function DialogInner({
       
       <div className="flex gap-2 justify-end mt-4">
         <Button variant="outline" onClick={onClose}>
-          Cancel
+          {isSetupFlow ? "Skip — do subs manually" : "Cancel"}
         </Button>
         <Button onClick={handleStart} className="gap-2" disabled={plan.length === 0}>
           <Play className="h-4 w-4" />
@@ -902,6 +927,7 @@ export default function AutoSubPlanDialog({
                 currentElapsedSeconds={currentElapsedSeconds}
                 currentHalf={currentHalf}
                 preferredSecondHalfGkId={preferredSecondHalfGkId}
+                isSetupFlow={showStepper}
               />
             )}
           </div>

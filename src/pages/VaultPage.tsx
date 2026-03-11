@@ -1599,7 +1599,7 @@ export default function VaultPage() {
     onSuccess: (photoId) => {
       // Remove from local storage cache
       removePhotoFromCache(photoId);
-      toast.success("Photo moved to trash");
+      // Silent success - no toast
     },
     onError: (error: any, _, context) => {
       // Rollback on error
@@ -1626,7 +1626,7 @@ export default function VaultPage() {
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
       setDeleteFileId(null);
-      toast.success("File moved to trash");
+      // Silent success - no toast
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to delete file");

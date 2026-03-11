@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { MentionInput } from "@/components/chat/MentionInput";
-import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, RefreshCw, Users } from "lucide-react";
+import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users } from "lucide-react";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
 import { PageLoading } from "@/components/ui/page-loading";
@@ -939,7 +939,7 @@ export default function GroupChatPage() {
       } catch {}
       // Invalidate the messages page query so latest message preview updates
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
-      toast.success("Message deleted");
+      // Silent success - no toast
     },
     onError: (err, variables, context) => {
       if (context?.previousData) {
@@ -1226,35 +1226,28 @@ export default function GroupChatPage() {
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1">
-          <h1 className="font-semibold">{group.name}</h1>
+        <div className="flex-1 min-w-0">
+          <h1 className="font-semibold truncate">{group.name}</h1>
         </div>
-        <ChatMuteButton chatType="group" chatId={groupId!} />
-        <ChatMembersSheet
-          chatType="group"
-          chatId={groupId!}
-          chatName={group.name}
-          teamId={group.team_id || undefined}
-          clubId={group.club_id || undefined}
-          groupAllowedRoles={group.allowed_roles}
-        />
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={handleManualRefresh}
-          disabled={isAnyRefreshing}
-          className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 active:bg-transparent hover:bg-transparent"
-        >
-          <RefreshCw className={`h-4 w-4 text-foreground ${isAnyRefreshing ? 'animate-spin' : ''}`} />
-        </Button>
-        <ChatSearch onSearch={setSearchQuery} />
+        <div className="flex items-center shrink-0">
+          <ChatMuteButton chatType="group" chatId={groupId!} />
+          <ChatMembersSheet
+            chatType="group"
+            chatId={groupId!}
+            chatName={group.name}
+            teamId={group.team_id || undefined}
+            clubId={group.club_id || undefined}
+            groupAllowedRoles={group.allowed_roles}
+          />
+          <ChatSearch onSearch={setSearchQuery} />
+        </div>
       </div>
 
       {/* Spacer for fixed header */}
       <div className="shrink-0" style={{ height: '72px' }} />
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" style={{ touchAction: 'pan-y' }} ref={pullRefreshRef}>
+      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" ref={pullRefreshRef}>
         <PullToRefreshIndicator
           pullDistance={pullDistance}
           pullProgress={pullProgress}

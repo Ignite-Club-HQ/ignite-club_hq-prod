@@ -1,42 +1,54 @@
 import { Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Share } from "@capacitor/share";
 
 interface SharePhotoButtonProps {
+  photoId: string;
   imageUrl: string;
   title?: string;
+  clubName?: string;
+  teamName?: string;
 }
 
-export function SharePhotoButton({ imageUrl, title }: SharePhotoButtonProps) {
-  const handleShare = async () => {
-    const shareTitle = title || "Check out this photo!";
+const DEEP_LINK_BASE = "https://igniteclubhq.app";
 
-    // Try sharing as a file (avoids exposing raw Supabase URL)
-    if (navigator.share && navigator.canShare) {
+export function SharePhotoButton({ photoId, imageUrl, title, clubName, teamName }: SharePhotoButtonProps) {
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const deepLink = `${DEEP_LINK_BASE}/media/${photoId}`;
+
+    // Build descriptive share text
+    const context = teamName && clubName
+      ? `${clubName} — ${teamName}`
+      : clubName || teamName || "";
+    const shareText = context
+      ? `A new photo has been added to ${context}. Check it out!`
+      : "Check out this photo on Ignite!";
+    const shareTitle = title || shareText;
+
+    // Use Capacitor Share on native platforms for proper share sheet
+    if ((window as any).Capacitor) {
       try {
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
-        const extension = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
-        const file = new File([blob], `${shareTitle.replace(/[^a-zA-Z0-9 ]/g, "").trim() || "photo"}.${extension}`, {
-          type: blob.type || "image/jpeg",
+        await Share.share({
+          title: shareTitle,
+          text: `${shareText}\n${deepLink}`,
+          dialogTitle: "Share photo",
         });
-
-        const shareData = { files: [file], title: shareTitle };
-
-        if (navigator.canShare(shareData)) {
-          await navigator.share(shareData);
-          return;
-        }
+        return;
       } catch (error) {
-        if ((error as Error).name === "AbortError") return;
-        console.log("File share failed, trying URL share:", error);
+        console.log("Capacitor Share failed, falling back:", error);
       }
     }
 
-    // Fallback: share as URL (web browsers without file share support)
+    // Use Web Share API for browsers that support it
     if (navigator.share) {
       try {
-        await navigator.share({ title: shareTitle, url: imageUrl });
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: deepLink,
+        });
         return;
       } catch (error) {
         if ((error as Error).name === "AbortError") return;
@@ -44,13 +56,13 @@ export function SharePhotoButton({ imageUrl, title }: SharePhotoButtonProps) {
       }
     }
 
-    // Final fallback: copy link to clipboard
+    // Fallback: copy deep link to clipboard
     try {
-      await navigator.clipboard.writeText(imageUrl);
+      await navigator.clipboard.writeText(deepLink);
       toast.success("Link copied to clipboard!");
     } catch {
       const textarea = document.createElement("textarea");
-      textarea.value = imageUrl;
+      textarea.value = deepLink;
       textarea.style.position = "fixed";
       textarea.style.opacity = "0";
       document.body.appendChild(textarea);
@@ -65,11 +77,11 @@ export function SharePhotoButton({ imageUrl, title }: SharePhotoButtonProps) {
     <Button
       variant="ghost"
       size="icon"
-      className="h-8 w-8 text-muted-foreground hover:text-primary"
+      className="h-11 w-11 text-muted-foreground hover:text-primary"
       onClick={handleShare}
       title="Share photo"
     >
-      <Share2 className="h-4 w-4" />
+      <Share2 className="h-6 w-6" />
     </Button>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from "react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2, User, Bell, Moon, Sun, Smartphone, Download, Send, MessageSquare, Calendar, Image, Users, LayoutGrid, Mail, Gift, Trophy, Settings, Fingerprint, ChevronRight } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -55,6 +56,7 @@ interface EmailPreferences {
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  usePageTitle("Settings");
   const navigate = useNavigate();
   const { toast } = useToast();
   const { canPrompt, isInstalled, isIOS, installApp } = usePWAInstall();

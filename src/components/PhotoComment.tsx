@@ -1,6 +1,6 @@
-import { useState, memo } from "react";
+import { useState, useRef, useCallback, useEffect, memo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreVertical, Pencil, Trash2, Check, X, Smile, Reply, ShieldAlert, Flag } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, Check, X, Reply, ShieldAlert, Flag } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -11,16 +11,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { ReportCommentDialog } from "@/components/ReportCommentDialog";
+import { CommentReactionPicker } from "@/components/CommentReactionPicker";
+import { CommentReactionsDisplay } from "@/components/CommentReactionsDisplay";
 
 const REACTION_EMOJIS = [
   { type: "like", emoji: "❤️" },
@@ -36,72 +33,6 @@ interface CommentReaction {
   user_id: string;
   reaction_type: string;
 }
-
-interface CommentReactionUsersPopoverProps {
-  userIds: string[];
-  emoji: string;
-  count: number;
-  isUserReaction: boolean;
-  onClick: () => void;
-}
-
-const CommentReactionUsersPopover = memo(function CommentReactionUsersPopover({
-  userIds,
-  emoji,
-  count,
-  isUserReaction,
-  onClick,
-}: CommentReactionUsersPopoverProps) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  const { data: users = [] } = useQuery({
-    queryKey: ["comment-reaction-users", userIds],
-    queryFn: async () => {
-      if (userIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", userIds);
-      if (error) throw error;
-      return data;
-    },
-    enabled: isOpen && userIds.length > 0,
-  });
-
-  return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onClick();
-          }}
-          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs ${
-            isUserReaction
-              ? "bg-primary/20 border border-primary/40"
-              : "bg-muted/50 hover:bg-muted"
-          }`}
-        >
-          <span>{emoji}</span>
-          <span className="text-muted-foreground">{count}</span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-2 bg-popover border" align="start" side="top">
-        <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
-          <p className="text-xs font-medium text-muted-foreground mb-1">{emoji} Reactions</p>
-          {users.map((user) => (
-            <p key={user.id} className="text-sm">
-              {user.display_name || "Unknown"}
-            </p>
-          ))}
-          {users.length === 0 && (
-            <p className="text-sm text-muted-foreground">Loading...</p>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-});
 
 interface PhotoCommentProps {
   id: string;
@@ -131,9 +62,13 @@ export const PhotoComment = memo(function PhotoComment({
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(text);
   const [displayText, setDisplayText] = useState(text);
-  const [reactionPopoverOpen, setReactionPopoverOpen] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+  const commentRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const isOwn = userId === currentUserId;
   const { isBlocked } = useBlockedUsers();
@@ -151,22 +86,13 @@ export const PhotoComment = memo(function PhotoComment({
     },
   });
 
-  const userReaction = reactions.find((r) => r.user_id === currentUserId);
-
-  const reactionCounts = reactions.reduce((acc, r) => {
-    acc[r.reaction_type] = (acc[r.reaction_type] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
   const addReactionMutation = useMutation({
     mutationFn: async (reactionType: string) => {
-      // First remove any existing reaction
       await supabase
         .from("photo_comment_reactions")
         .delete()
         .eq("comment_id", id)
         .eq("user_id", currentUserId!);
-      // Then add the new one
       const { error } = await supabase.from("photo_comment_reactions").insert({
         comment_id: id,
         user_id: currentUserId!,
@@ -177,14 +103,11 @@ export const PhotoComment = memo(function PhotoComment({
     onMutate: async (reactionType: string) => {
       await queryClient.cancelQueries({ queryKey: ["comment-reactions", id] });
       const previousReactions = queryClient.getQueryData(["comment-reactions", id]);
-      
       queryClient.setQueryData(["comment-reactions", id], (old: CommentReaction[] | undefined) => {
         if (!old) return [{ id: `temp-${Date.now()}`, user_id: currentUserId!, reaction_type: reactionType }];
-        // Remove any existing reaction from this user first
         const filtered = old.filter(r => r.user_id !== currentUserId);
         return [...filtered, { id: `temp-${Date.now()}`, user_id: currentUserId!, reaction_type: reactionType }];
       });
-      
       return { previousReactions };
     },
     onError: (err, variables, context) => {
@@ -193,12 +116,11 @@ export const PhotoComment = memo(function PhotoComment({
       }
       toast.error("Failed to add reaction");
     },
-    // No onSettled - optimistic update handles UI
   });
 
   const removeReactionMutation = useMutation({
     mutationFn: async () => {
-      // Skip delete for temporary IDs - optimistic update handles UI
+      const userReaction = reactions.find((r) => r.user_id === currentUserId);
       if (userReaction?.id?.startsWith("temp-")) return;
       const { error } = await supabase
         .from("photo_comment_reactions")
@@ -210,12 +132,10 @@ export const PhotoComment = memo(function PhotoComment({
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ["comment-reactions", id] });
       const previousReactions = queryClient.getQueryData(["comment-reactions", id]);
-      
       queryClient.setQueryData(["comment-reactions", id], (old: CommentReaction[] | undefined) => {
         if (!old) return [];
         return old.filter(r => r.user_id !== currentUserId);
       });
-      
       return { previousReactions };
     },
     onError: (err, variables, context) => {
@@ -224,18 +144,17 @@ export const PhotoComment = memo(function PhotoComment({
       }
       toast.error("Failed to remove reaction");
     },
-    // No onSettled - optimistic update handles UI
   });
 
-  const handleEmojiClick = (type: string) => {
+  const handleEmojiClick = useCallback((type: string) => {
+    const userReaction = reactions.find((r) => r.user_id === currentUserId);
     if (userReaction?.reaction_type === type) {
       removeReactionMutation.mutate();
     } else {
-      // addReactionMutation handles both adding new and switching reactions
       addReactionMutation.mutate(type);
     }
-    setReactionPopoverOpen(false);
-  };
+    setShowReactionPicker(false);
+  }, [reactions, currentUserId, removeReactionMutation, addReactionMutation]);
 
   const editMutation = useMutation({
     mutationFn: async (newText: string) => {
@@ -282,6 +201,79 @@ export const PhotoComment = memo(function PhotoComment({
     }
   };
 
+  // Long press handlers
+  const handleLongPressStart = useCallback((e: React.TouchEvent) => {
+    touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    longPressTimer.current = setTimeout(() => {
+      setShowMenu(true);
+      if (currentUserId) {
+        setShowReactionPicker(true);
+      }
+    }, 600);
+  }, [currentUserId]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (longPressTimer.current && touchStartPos.current) {
+      const dx = e.touches[0].clientX - touchStartPos.current.x;
+      const dy = e.touches[0].clientY - touchStartPos.current.y;
+      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+        touchStartPos.current = null;
+      }
+    }
+  }, []);
+
+  const handleLongPressEnd = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    touchStartPos.current = null;
+  }, []);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setShowMenu(true);
+  }, []);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+      }
+    };
+  }, []);
+
+  // Close reaction picker when clicking/touching outside (with delay to avoid touchend dismissal)
+  useEffect(() => {
+    if (!showReactionPicker) return;
+    const handleClickOutside = () => setShowReactionPicker(false);
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+      document.addEventListener('touchend', handleClickOutside);
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('touchend', handleClickOutside);
+    };
+  }, [showReactionPicker]);
+
+  // Close menu when tapping outside
+  useEffect(() => {
+    if (!showMenu) return;
+    const handleClickOutside = () => setShowMenu(false);
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showMenu]);
+
   if (isEditing) {
     return (
       <div className={`flex gap-2 items-center ${isReply ? "ml-8" : ""}`}>
@@ -327,7 +319,7 @@ export const PhotoComment = memo(function PhotoComment({
 
   return (
     <div className={`flex flex-col gap-1 ${isReply ? "ml-8" : ""}`}>
-      <div className="flex gap-2 group">
+      <div className="flex gap-2">
         <Avatar className="h-6 w-6">
           <AvatarImage src={avatarUrl || undefined} />
           <AvatarFallback className="text-xs">
@@ -335,134 +327,91 @@ export const PhotoComment = memo(function PhotoComment({
           </AvatarFallback>
         </Avatar>
         <div className="flex-1">
-          {replyToName && (
-            <p className="text-xs text-muted-foreground mb-0.5">
-              ↳ Replying to {replyToName}
-            </p>
-          )}
-          <p className="text-sm">
-            <span className="font-medium">{displayName}</span>{" "}
-            {displayText}
-            {createdAt && (
-              <span className="text-xs text-muted-foreground ml-2">
-                · {formatDistanceToNow(new Date(createdAt), { addSuffix: true })}
-              </span>
+          <div
+            ref={commentRef}
+            className="select-none"
+            onTouchStart={handleLongPressStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleLongPressEnd}
+            onContextMenu={handleContextMenu}
+          >
+            {replyToName && (
+              <p className="text-xs text-muted-foreground mb-0.5">
+                ↳ Replying to {replyToName}
+              </p>
             )}
-          </p>
+            <p className="text-sm">
+              <span className="font-medium">{displayName}</span>{" "}
+              {displayText}
+              {createdAt && (
+                <span className="text-xs text-muted-foreground ml-2">
+                  · {formatDistanceToNow(new Date(createdAt), { addSuffix: true })}
+                </span>
+              )}
+            </p>
+          </div>
+          {/* Reaction picker - floating above comment on long press */}
+          <CommentReactionPicker
+            isOpen={showReactionPicker}
+            reactions={reactions}
+            currentUserId={currentUserId}
+            onEmojiClick={handleEmojiClick}
+            onClose={() => setShowReactionPicker(false)}
+            anchorRef={commentRef}
+          />
           {/* Reaction display */}
-          {Object.keys(reactionCounts).length > 0 && (
-            <div className="flex gap-1 mt-1 flex-wrap">
-              {Object.entries(reactionCounts).map(([type, count]) => {
-                const emoji = REACTION_EMOJIS.find((e) => e.type === type)?.emoji || "❤️";
-                const isUserReaction = userReaction?.reaction_type === type;
-                const usersWithReaction = reactions
-                  .filter((r) => r.reaction_type === type)
-                  .map((r) => r.user_id);
-                return (
-                  <CommentReactionUsersPopover
-                    key={type}
-                    userIds={usersWithReaction}
-                    emoji={emoji}
-                    count={count}
-                    isUserReaction={isUserReaction}
-                    onClick={() => handleEmojiClick(type)}
-                  />
-                );
-              })}
-            </div>
-          )}
+          <CommentReactionsDisplay
+            reactions={reactions}
+            currentUserId={currentUserId}
+            onReactionClick={handleEmojiClick}
+          />
         </div>
         <div className="flex items-center gap-0.5">
-          {/* Reply button */}
-          {currentUserId && onReply && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={() => onReply(id, displayName || "Unknown")}
-            >
-              <Reply className="h-3 w-3" />
-            </Button>
-          )}
-          {/* Add reaction button */}
-          {currentUserId && (
-            <Popover open={reactionPopoverOpen} onOpenChange={setReactionPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <Smile className="h-3 w-3" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-2" align="end">
-                <div className="flex gap-1">
-                  {REACTION_EMOJIS.map(({ type, emoji }) => (
-                    <button
-                      key={type}
-                      onClick={() => handleEmojiClick(type)}
-                      className={`p-1.5 rounded hover:bg-muted text-lg ${
-                        userReaction?.reaction_type === type ? "bg-primary/20" : ""
-                      }`}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
-          {isOwn && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <MoreVertical className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-popover border">
-                <DropdownMenuItem onClick={() => setIsEditing(true)}>
-                  <Pencil className="h-3 w-3 mr-2" /> Edit
+          {/* Three-dot menu - visible on long press */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`h-6 w-6 transition-opacity ${showMenu ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+              >
+                <MoreVertical className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="top" collisionPadding={16} className="bg-popover border" onCloseAutoFocus={() => setShowMenu(false)}>
+              {currentUserId && onReply && (
+                <DropdownMenuItem onClick={() => onReply(id, displayName || "Unknown")}>
+                  <Reply className="h-3 w-3 mr-2" /> Reply
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => deleteMutation.mutate()}
-                  className="text-destructive"
-                >
-                  <Trash2 className="h-3 w-3 mr-2" /> Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          {!isOwn && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground"
-                >
-                  <MoreVertical className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-popover border">
-                <DropdownMenuItem
-                  onClick={() => setShowReportDialog(true)}
-                >
-                  <Flag className="h-3 w-3 mr-2" /> Report Comment
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setShowBlockDialog(true)}
-                  className="text-destructive"
-                >
-                  <ShieldAlert className="h-3 w-3 mr-2" /> Block User
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+              )}
+              {isOwn && (
+                <>
+                  <DropdownMenuItem onClick={() => setIsEditing(true)}>
+                    <Pencil className="h-3 w-3 mr-2" /> Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => deleteMutation.mutate()}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="h-3 w-3 mr-2" /> Delete
+                  </DropdownMenuItem>
+                </>
+              )}
+              {!isOwn && (
+                <>
+                  <DropdownMenuItem onClick={() => setShowReportDialog(true)}>
+                    <Flag className="h-3 w-3 mr-2" /> Report Comment
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setShowBlockDialog(true)}
+                    className="text-destructive"
+                  >
+                    <ShieldAlert className="h-3 w-3 mr-2" /> Block User
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       {showBlockDialog && (
@@ -483,3 +432,6 @@ export const PhotoComment = memo(function PhotoComment({
     </div>
   );
 });
+
+export { REACTION_EMOJIS };
+export type { CommentReaction };

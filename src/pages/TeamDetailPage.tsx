@@ -761,28 +761,28 @@ export default function TeamDetailPage() {
       {/* Quick Actions - Team Chat only for team members, not club admins who aren't members */}
       {isMember && (
         <div className="grid grid-cols-2 gap-3">
-          <Link to={`/messages/${team.id}`}>
-            <Card className="hover:border-primary/50 transition-colors">
+          <Link to={`/messages/${team.id}`} aria-label="Open team chat">
+            <Card className="hover:border-primary/50 transition-colors" role="button">
               <CardContent className="p-4 flex flex-col items-center gap-2">
-                <MessageCircle className="h-6 w-6 text-primary" />
+                <MessageCircle className="h-6 w-6 text-primary" aria-hidden="true" />
                 <span className="text-sm font-medium">Team Chat</span>
               </CardContent>
             </Card>
           </Link>
-          <Link to={`/events?team=${team.id}`}>
-            <Card className="hover:border-primary/50 transition-colors">
+          <Link to={`/events?team=${team.id}`} aria-label="View team schedule">
+            <Card className="hover:border-primary/50 transition-colors" role="button">
               <CardContent className="p-4 flex flex-col items-center gap-2">
-                <Calendar className="h-6 w-6 text-primary" />
-                <span className="text-sm font-medium">Events</span>
+                <Calendar className="h-6 w-6 text-primary" aria-hidden="true" />
+                <span className="text-sm font-medium">Schedule</span>
               </CardContent>
             </Card>
           </Link>
           {/* Vault - show as accessible during loading (optimistic) or when Pro */}
           {(isSubscriptionLoading || isTeamPro) ? (
-            <Link to={`/vault?team=${team.id}`}>
-              <Card className="hover:border-primary/50 transition-colors">
+            <Link to={`/vault?team=${team.id}`} aria-label="Open file vault">
+              <Card className="hover:border-primary/50 transition-colors" role="button">
                 <CardContent className="p-4 flex flex-col items-center gap-2">
-                  <FolderOpen className="h-6 w-6 text-primary" />
+                  <FolderOpen className="h-6 w-6 text-primary" aria-hidden="true" />
                   <span className="text-sm font-medium">Vault</span>
                 </CardContent>
               </Card>

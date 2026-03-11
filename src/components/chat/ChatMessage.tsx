@@ -297,7 +297,7 @@ export const ChatMessage = memo(function ChatMessage({
       try {
         localStorage.removeItem('messages-page-cache');
       } catch {}
-      toast.success("Message deleted");
+      // Silent success - no toast
     },
     onError: (err, variables, context) => {
       if (context?.previousMessages) {
@@ -521,7 +521,7 @@ export const ChatMessage = memo(function ChatMessage({
                   <MoreVertical className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" collisionPadding={16} className="bg-popover border" onCloseAutoFocus={() => setShowMenu(false)}>
+              <DropdownMenuContent align="end" side="top" collisionPadding={16} className="bg-popover border" onCloseAutoFocus={() => setShowMenu(false)}>
                 {canReply && (
                   <DropdownMenuItem onClick={handleReply}>
                     <Reply className="h-4 w-4 mr-2" /> Reply
@@ -587,7 +587,7 @@ export const ChatMessage = memo(function ChatMessage({
                   <MoreVertical className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" collisionPadding={16} className="bg-popover border" onCloseAutoFocus={() => setShowMenu(false)}>
+              <DropdownMenuContent align="start" side="top" collisionPadding={16} className="bg-popover border" onCloseAutoFocus={() => setShowMenu(false)}>
                 {canReply && (
                   <DropdownMenuItem onClick={handleReply}>
                     <Reply className="h-4 w-4 mr-2" /> Reply
