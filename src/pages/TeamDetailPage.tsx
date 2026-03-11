@@ -282,6 +282,7 @@ export default function TeamDetailPage() {
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
     refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
   });
 
   // Fetch roles data with profiles - with caching for faster loads
@@ -314,6 +315,7 @@ export default function TeamDetailPage() {
     staleTime: 0, // Always fetch fresh data
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
     refetchOnMount: 'always', // Always refetch when component mounts
+    refetchOnWindowFocus: false,
   });
 
   // Group roles by user - use user_id directly since it's always present
