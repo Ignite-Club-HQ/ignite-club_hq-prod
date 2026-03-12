@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { FixturePreviewEditor } from "@/components/FixturePreviewEditor";
 import { DriblImportMapper, isDriblFormat, parseDriblRows } from "@/components/DriblImportMapper";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 interface Team {
   id: string;
