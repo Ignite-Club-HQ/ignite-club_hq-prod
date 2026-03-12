@@ -458,6 +458,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     setSelectedPhotos([]);
     setUploading(false);
     setUploadProgress(0);
+    restoreNativeLayout();
     onOpenChange(false);
   };
 
