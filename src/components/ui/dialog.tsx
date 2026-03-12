@@ -5,7 +5,38 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
 
-const Dialog = DialogPrimitive.Root;
+type DialogProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Root>;
+
+const DialogOpenContext = React.createContext(false);
+
+const Dialog = ({ open, defaultOpen, onOpenChange, children, ...props }: DialogProps) => {
+  const isControlled = open !== undefined;
+  const [internalOpen, setInternalOpen] = React.useState(defaultOpen ?? false);
+  const isOpen = isControlled ? Boolean(open) : internalOpen;
+
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      if (!isControlled) {
+        setInternalOpen(nextOpen);
+      }
+      onOpenChange?.(nextOpen);
+    },
+    [isControlled, onOpenChange]
+  );
+
+  return (
+    <DialogOpenContext.Provider value={isOpen}>
+      <DialogPrimitive.Root
+        open={open}
+        defaultOpen={defaultOpen}
+        onOpenChange={handleOpenChange}
+        {...props}
+      >
+        {children}
+      </DialogPrimitive.Root>
+    </DialogOpenContext.Provider>
+  );
+};
 
 const DialogTrigger = DialogPrimitive.Trigger;
 
@@ -32,12 +63,8 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
-  useIOSScrollLock(mounted);
+  const isDialogOpen = React.useContext(DialogOpenContext);
+  useIOSScrollLock(isDialogOpen);
 
   return (
     <DialogPortal>
