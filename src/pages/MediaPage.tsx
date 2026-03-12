@@ -796,7 +796,7 @@ export default function MediaPage() {
   // Don't block on loading if we have cached data to show
   if (showSkeletons) {
     return (
-      <div className="py-6 pb-32 space-y-6 h-full overflow-y-auto">
+      <div className="py-6 pb-32 space-y-6">
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-2xl font-bold">Media</h1>
         </div>
