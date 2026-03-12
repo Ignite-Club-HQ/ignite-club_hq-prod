@@ -77,7 +77,7 @@ const isFixtureValid = (fixture: ParsedFixture): boolean => {
          isValidTime(fixture.time);
 };
 
-const ACCEPTED_FILE_TYPES = ".csv,.xlsx,.xls";
+const ACCEPTED_FILE_TYPES = ".csv,.xlsx";
 
 export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], onImportComplete, isClubAdmin = false, isProFootball = false }: FixturesCSVImportProps) {
   const { user } = useAuth();
