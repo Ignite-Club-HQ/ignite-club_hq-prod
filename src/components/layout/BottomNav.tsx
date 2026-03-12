@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Home, Calendar, MessageCircle, Image, Lock } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -6,6 +6,21 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Capacitor } from "@capacitor/core";
+
+const IOS_LAYOUT_RESET_EVENT = "ignite:ios-layout-reset";
+const NON_TEXT_INPUT_TYPES = new Set([
+  "button",
+  "submit",
+  "reset",
+  "checkbox",
+  "radio",
+  "file",
+  "image",
+  "range",
+  "color",
+  "hidden",
+]);
+
 const navItems = [
   { to: "/", icon: Home, label: "Home", requiresPro: false },
   { to: "/messages", icon: MessageCircle, label: "Messages", requiresPro: false },
