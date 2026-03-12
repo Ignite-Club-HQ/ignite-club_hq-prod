@@ -35,9 +35,8 @@ export function PageLoading({ message = "Loading..." }: PageLoadingProps) {
   const logo = isDark ? igniteIcon : igniteIconLight;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center py-12 bg-background">
+    <div className={`flex-1 flex flex-col items-center justify-center py-12 bg-background transition-opacity duration-200 ${showLoader ? 'opacity-100' : 'opacity-0'}`}>
       <div className="relative flex flex-col items-center">
-        {/* Hide logo until mounted to prevent wrong-theme flash during transitions */}
         <img
           src={logo}
           alt="Ignite"
