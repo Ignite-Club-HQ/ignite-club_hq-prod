@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { FixturePreviewEditor } from "@/components/FixturePreviewEditor";
 import { DriblImportMapper, isDriblFormat, parseDriblRows } from "@/components/DriblImportMapper";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 interface Team {
   id: string;
@@ -53,6 +53,9 @@ interface ValidationError {
   message: string;
 }
 
+type ParsedCell = string | number | boolean | Date | null | undefined;
+type ParsedRow = ParsedCell[];
+
 // Validation helpers
 const isValidDate = (date: string): boolean => {
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
@@ -74,7 +77,7 @@ const isFixtureValid = (fixture: ParsedFixture): boolean => {
          isValidTime(fixture.time);
 };
 
-const ACCEPTED_FILE_TYPES = ".csv,.xlsx,.xls";
+const ACCEPTED_FILE_TYPES = ".csv,.xlsx";
 
 export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], onImportComplete, isClubAdmin = false, isProFootball = false }: FixturesCSVImportProps) {
   const { user } = useAuth();
@@ -94,7 +97,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
   const [driblMode, setDriblMode] = useState(false);
   const [driblRawData, setDriblRawData] = useState<{ headers: string[]; rows: string[][] } | null>(null);
 
-  const validateAndParseRows = (rows: string[][]): { fixtures: ParsedFixture[]; errors: ValidationError[] } => {
+  const validateAndParseRows = (rows: ParsedRow[]): { fixtures: ParsedFixture[]; errors: ValidationError[] } => {
     const fixtures: ParsedFixture[] = [];
     const errors: ValidationError[] = [];
 
@@ -137,21 +140,21 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
       let time = values[timeIdx]?.toString().trim() || '';
 
       // Try to parse Excel date format
-      if (typeof values[dateIdx] === 'number') {
-        const excelDate = XLSX.SSF.parse_date_code(values[dateIdx]);
-        date = `${excelDate.y}-${String(excelDate.m).padStart(2, '0')}-${String(excelDate.d).padStart(2, '0')}`;
-      }
-
-      // Try to normalize date format
-      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        const parsedDate = new Date(date);
-        if (!isNaN(parsedDate.getTime())) {
-          date = parsedDate.toISOString().split('T')[0];
+      if (values[dateIdx] instanceof Date) {
+        const excelDate = values[dateIdx] as Date;
+        date = `${excelDate.getFullYear()}-${String(excelDate.getMonth() + 1).padStart(2, '0')}-${String(excelDate.getDate()).padStart(2, '0')}`;
+      } else if (typeof values[dateIdx] === 'number') {
+        const excelDate = new Date(Date.UTC(1899, 11, 30) + values[dateIdx] * 24 * 60 * 60 * 1000);
+        if (!isNaN(excelDate.getTime())) {
+          date = `${excelDate.getUTCFullYear()}-${String(excelDate.getUTCMonth() + 1).padStart(2, '0')}-${String(excelDate.getUTCDate()).padStart(2, '0')}`;
         }
       }
 
       // Try to parse Excel time format
-      if (typeof values[timeIdx] === 'number') {
+      if (values[timeIdx] instanceof Date) {
+        const excelTime = values[timeIdx] as Date;
+        time = `${String(excelTime.getHours()).padStart(2, '0')}:${String(excelTime.getMinutes()).padStart(2, '0')}`;
+      } else if (typeof values[timeIdx] === 'number') {
         const totalMinutes = Math.round(values[timeIdx] * 24 * 60);
         const hours = Math.floor(totalMinutes / 60);
         const minutes = totalMinutes % 60;
@@ -261,15 +264,54 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
     return values;
   };
 
-  const parseExcel = (data: ArrayBuffer): string[][] => {
-    const workbook = XLSX.read(data, { type: 'array', cellDates: false });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<(string | number | boolean)[]>(firstSheet, { 
-      header: 1,
-      raw: true,
-      defval: ''
+  const parseExcel = async (data: ArrayBuffer): Promise<ParsedRow[]> => {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(data);
+
+    const firstSheet = workbook.worksheets[0];
+    if (!firstSheet) return [];
+
+    const rows: ParsedRow[] = [];
+
+    firstSheet.eachRow({ includeEmpty: true }, (row) => {
+      const rowValues = (row.values as unknown[]).slice(1).map((cell): ParsedCell => {
+        if (cell === null || cell === undefined) return '';
+        if (typeof cell === 'string' || typeof cell === 'number' || typeof cell === 'boolean' || cell instanceof Date) {
+          return cell;
+        }
+
+        const cellObject = cell as {
+          result?: unknown;
+          text?: string;
+          richText?: Array<{ text: string }>;
+        };
+
+        if (cellObject.result !== undefined) {
+          if (
+            typeof cellObject.result === 'string' ||
+            typeof cellObject.result === 'number' ||
+            typeof cellObject.result === 'boolean' ||
+            cellObject.result instanceof Date
+          ) {
+            return cellObject.result;
+          }
+        }
+
+        if (typeof cellObject.text === 'string') {
+          return cellObject.text;
+        }
+
+        if (Array.isArray(cellObject.richText)) {
+          return cellObject.richText.map((part) => part.text).join('');
+        }
+
+        return String(cell);
+      });
+
+      rows.push(rowValues);
     });
-    return rows.map(row => row.map(cell => cell?.toString() || ''));
+
+    return rows;
   };
 
   const processFixtures = async (fixtures: ParsedFixture[], parseErrors: ValidationError[], selectedFile: File) => {
@@ -325,19 +367,19 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
   const processFile = useCallback(async (selectedFile: File) => {
     const fileName = selectedFile.name.toLowerCase();
     const isCSV = fileName.endsWith('.csv');
-    const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+    const isExcel = fileName.endsWith('.xlsx');
 
     if (!isCSV && !isExcel) {
       toast({
         title: "Invalid file",
-        description: "Please select a CSV or Excel file",
+        description: "Please select a CSV or XLSX file",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      const parseAndCheck = async (rows: string[][]) => {
+      const parseAndCheck = async (rows: ParsedRow[]) => {
         if (rows.length < 2) {
           setErrors([{ row: 0, message: "File must have a header row and at least one data row" }]);
           setFile(selectedFile);
@@ -360,7 +402,10 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
           
           setFile(selectedFile);
           setDriblMode(true);
-          setDriblRawData({ headers, rows: rows.slice(1) });
+          setDriblRawData({
+            headers,
+            rows: rows.slice(1).map((row) => row.map((cell) => cell?.toString() || '')),
+          });
           return;
         }
         
@@ -381,7 +426,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         const reader = new FileReader();
         reader.onload = async (event) => {
           const data = event.target?.result as ArrayBuffer;
-          const rows = parseExcel(data);
+          const rows = await parseExcel(data);
           await parseAndCheck(rows);
         };
         reader.readAsArrayBuffer(selectedFile);
@@ -605,7 +650,7 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
     URL.revokeObjectURL(url);
   };
 
-  const downloadExcelTemplate = () => {
+  const downloadExcelTemplate = async () => {
     // Generate future dates for template
     const today = new Date();
     const nextSaturday = new Date(today);
@@ -614,9 +659,7 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
     followingSaturday.setDate(nextSaturday.getDate() + 7);
     
     const formatDate = (d: Date) => d.toISOString().split('T')[0];
-    
-    const wb = XLSX.utils.book_new();
-    // Include team column for club admins doing multi-team imports
+
     const wsData = isClubAdmin && !teamId
       ? [
           ['title', 'date', 'time', 'team', 'opponent', 'address', 'description', 'reminder_hours'],
@@ -628,9 +671,21 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
           ['Round 1 vs Eagles', formatDate(nextSaturday), '10:00', 'Eagles FC', '123 Sports Ground Rd', 'Home game', 24],
           ['Round 2 vs Tigers', formatDate(followingSaturday), '14:30', 'Tigers United', '456 Stadium Ave', 'Away game', 48],
         ];
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    XLSX.utils.book_append_sheet(wb, ws, 'Fixtures');
-    XLSX.writeFile(wb, isClubAdmin && !teamId ? 'fixtures_multi_team_template.xlsx' : 'fixtures_template.xlsx');
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Fixtures');
+    wsData.forEach((row) => worksheet.addRow(row));
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = isClubAdmin && !teamId ? 'fixtures_multi_team_template.xlsx' : 'fixtures_template.xlsx';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const totalToImport = parsedFixtures.length + (updateDuplicates ? duplicateFixtures.length : 0);
@@ -735,7 +790,7 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
       <input
         ref={fileInputRef}
         type="file"
-        accept="text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.csv,.xlsx,.xls"
+        accept="text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.csv,.xlsx"
         onChange={handleFileSelect}
         className="hidden"
       />
@@ -771,7 +826,6 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               <div className="flex gap-2">
                 <Badge variant="secondary">.csv</Badge>
                 <Badge variant="secondary">.xlsx</Badge>
-                <Badge variant="secondary">.xls</Badge>
               </div>
             </div>
           </CardContent>
