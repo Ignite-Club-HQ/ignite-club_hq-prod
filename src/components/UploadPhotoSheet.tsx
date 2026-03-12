@@ -515,6 +515,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     if (!shouldUseNativePhotoPicker || uploading || isPickingNativePhoto) return;
 
     setIsPickingNativePhoto(true);
+    dismissIOSKeyboardAccessory();
     console.log("[UploadPhotoSheet] handleNativePhotoPick START");
     try {
       // Let Camera.getPhoto handle permissions natively on iOS to preserve
@@ -567,6 +568,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       });
 
       await addPhotosToSelection([file]);
+      restoreNativeLayout();
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
         const errMsg = getReadableUploadError(error);
@@ -577,6 +579,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       }
     } finally {
       await restoreNativeStatusBarOverlay();
+      restoreNativeLayout();
       setIsPickingNativePhoto(false);
     }
   };
