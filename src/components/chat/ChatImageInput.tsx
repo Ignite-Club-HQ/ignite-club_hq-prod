@@ -26,24 +26,41 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const IOS_LAYOUT_RESET_EVENT = "ignite:ios-layout-reset";
 
   const dismissIOSKeyboardAccessory = () => {
     if (!isNativeIOS) return;
     (document.activeElement as HTMLElement | null)?.blur();
   };
 
+  const emitIOSLayoutReset = () => {
+    if (!isNativeIOS || typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent(IOS_LAYOUT_RESET_EVENT));
+  };
+
   const restoreNativeLayout = () => {
     if (!isNativeIOS) return;
+
     dismissIOSKeyboardAccessory();
     void Keyboard.hide().catch(() => undefined);
+    emitIOSLayoutReset();
+
     // Force viewport back to stable position after iOS picker/keyboard changes
     requestAnimationFrame(() => {
       window.scrollTo(0, 0);
+      emitIOSLayoutReset();
+
       // Second pass after iOS settles
       setTimeout(() => {
         dismissIOSKeyboardAccessory();
         void Keyboard.hide().catch(() => undefined);
         window.scrollTo(0, 0);
+        emitIOSLayoutReset();
+
+        // Final settle pass for delayed viewport updates in WKWebView
+        setTimeout(() => {
+          emitIOSLayoutReset();
+        }, 220);
       }, 150);
     });
   };
