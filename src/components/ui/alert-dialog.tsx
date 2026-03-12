@@ -5,7 +5,38 @@ import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
 
-const AlertDialog = AlertDialogPrimitive.Root;
+type AlertDialogProps = React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Root>;
+
+const AlertDialogOpenContext = React.createContext(false);
+
+const AlertDialog = ({ open, defaultOpen, onOpenChange, children, ...props }: AlertDialogProps) => {
+  const isControlled = open !== undefined;
+  const [internalOpen, setInternalOpen] = React.useState(defaultOpen ?? false);
+  const isOpen = isControlled ? Boolean(open) : internalOpen;
+
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      if (!isControlled) {
+        setInternalOpen(nextOpen);
+      }
+      onOpenChange?.(nextOpen);
+    },
+    [isControlled, onOpenChange]
+  );
+
+  return (
+    <AlertDialogOpenContext.Provider value={isOpen}>
+      <AlertDialogPrimitive.Root
+        open={open}
+        defaultOpen={defaultOpen}
+        onOpenChange={handleOpenChange}
+        {...props}
+      >
+        {children}
+      </AlertDialogPrimitive.Root>
+    </AlertDialogOpenContext.Provider>
+  );
+};
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 
@@ -29,9 +60,9 @@ AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName;
 const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
->(({ className, onOpenAutoFocus, onCloseAutoFocus, ...props }, ref) => {
-  const [isOpen, setIsOpen] = React.useState(false);
-  useIOSScrollLock(isOpen);
+>(({ className, ...props }, ref) => {
+  const isAlertDialogOpen = React.useContext(AlertDialogOpenContext);
+  useIOSScrollLock(isAlertDialogOpen);
 
   return (
     <AlertDialogPortal>
@@ -42,14 +73,6 @@ const AlertDialogContent = React.forwardRef<
           "fixed left-[50%] top-[50%] z-[61] grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] rounded-lg",
           className,
         )}
-        onOpenAutoFocus={(event) => {
-          setIsOpen(true);
-          onOpenAutoFocus?.(event);
-        }}
-        onCloseAutoFocus={(event) => {
-          setIsOpen(false);
-          onCloseAutoFocus?.(event);
-        }}
         {...props}
       />
     </AlertDialogPortal>
