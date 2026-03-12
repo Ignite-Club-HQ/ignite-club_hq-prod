@@ -36,11 +36,16 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     if (!isNativeIOS) return;
     dismissIOSKeyboardAccessory();
     void Keyboard.hide().catch(() => undefined);
-    // Small delay to let iOS settle after picker closes
-    setTimeout(() => {
-      dismissIOSKeyboardAccessory();
-      void Keyboard.hide().catch(() => undefined);
-    }, 120);
+    // Force viewport back to stable position after iOS picker/keyboard changes
+    requestAnimationFrame(() => {
+      window.scrollTo(0, 0);
+      // Second pass after iOS settles
+      setTimeout(() => {
+        dismissIOSKeyboardAccessory();
+        void Keyboard.hide().catch(() => undefined);
+        window.scrollTo(0, 0);
+      }, 150);
+    });
   };
 
   const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
