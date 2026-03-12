@@ -680,6 +680,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     setSelectedPhotos([]);
     setUploading(false);
     setUploadProgress(0);
+    restoreNativeLayout();
     
     if (successCount > 0 && errorCount === 0) {
       // No toast for successful photo uploads
