@@ -96,9 +96,82 @@ export function BottomNav() {
 
   // Lock native bottom inset to fixed values so iOS photo picker viewport changes can't shift nav
   const isNativePlatform = Capacitor.isNativePlatform();
-  const isAndroidNative = isNativePlatform && Capacitor.getPlatform() === "android";
-  const isNativeIOS = isNativePlatform && Capacitor.getPlatform() === "ios";
-  const navBottomInset = isAndroidNative || isNativeIOS ? "1rem" : "env(safe-area-inset-bottom, 0px)";
+  const platform = Capacitor.getPlatform();
+  const isAndroidNative = isNativePlatform && platform === "android";
+
+  const isIOSEnvironment = useMemo(() => {
+    if (typeof navigator === "undefined") return platform === "ios";
+    const userAgent = navigator.userAgent;
+    const iOSDevice = /iPad|iPhone|iPod/.test(userAgent);
+    const iPadOSDesktopMode = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+    return iOSDevice || iPadOSDesktopMode || platform === "ios";
+  }, [platform]);
+
+  const [iosViewportCompensation, setIosViewportCompensation] = useState(0);
+
+  useEffect(() => {
+    if (!isIOSEnvironment || typeof window === "undefined") {
+      setIosViewportCompensation(0);
+      return;
+    }
+
+    const visualViewport = window.visualViewport;
+    if (!visualViewport) return;
+
+    let rafId = 0;
+
+    const updateCompensation = () => {
+      const activeElement = document.activeElement as HTMLElement | null;
+      const tagName = activeElement?.tagName;
+      const isEditingField = Boolean(
+        activeElement &&
+          (activeElement.isContentEditable ||
+            tagName === "INPUT" ||
+            tagName === "TEXTAREA" ||
+            tagName === "SELECT")
+      );
+
+      // Keep default behavior while keyboard is intentionally visible
+      if (isEditingField) {
+        setIosViewportCompensation(0);
+        return;
+      }
+
+      const viewportGap = Math.max(
+        0,
+        window.innerHeight - visualViewport.height - visualViewport.offsetTop
+      );
+      const nextCompensation = viewportGap > 0 ? -viewportGap : 0;
+
+      setIosViewportCompensation((prev) =>
+        Math.abs(prev - nextCompensation) < 1 ? prev : nextCompensation
+      );
+    };
+
+    const scheduleUpdate = () => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(updateCompensation);
+    };
+
+    visualViewport.addEventListener("resize", scheduleUpdate);
+    visualViewport.addEventListener("scroll", scheduleUpdate);
+    window.addEventListener("orientationchange", scheduleUpdate);
+    window.addEventListener("focus", scheduleUpdate, true);
+    document.addEventListener("visibilitychange", scheduleUpdate);
+
+    scheduleUpdate();
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      visualViewport.removeEventListener("resize", scheduleUpdate);
+      visualViewport.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("orientationchange", scheduleUpdate);
+      window.removeEventListener("focus", scheduleUpdate, true);
+      document.removeEventListener("visibilitychange", scheduleUpdate);
+    };
+  }, [isIOSEnvironment]);
+
+  const navBottomInset = isAndroidNative || isIOSEnvironment ? "1rem" : "env(safe-area-inset-bottom, 0px)";
 
   return (
     <>
