@@ -176,12 +176,10 @@ export function BottomNav() {
       );
 
       const visualViewportBottom = visualViewport.height + visualViewport.offsetTop;
-      const rawViewportGap = currentHeight - visualViewportBottom;
-      const viewportDisplacement = Number.isFinite(rawViewportGap)
-        ? Math.abs(rawViewportGap) > 1
-          ? Math.abs(rawViewportGap)
-          : 0
+      const rawViewportGap = Number.isFinite(currentHeight - visualViewportBottom)
+        ? currentHeight - visualViewportBottom
         : 0;
+      const viewportDisplacement = rawViewportGap > 1 ? rawViewportGap : 0;
       const stableLayoutGap = Math.max(
         0,
         (baselineViewportRef.current?.height ?? currentHeight) - currentHeight
@@ -192,6 +190,13 @@ export function BottomNav() {
         currentHeight - visualViewport.height > 180
       );
       const keyboardLikelyVisible = keyboardVisibleRef.current || viewportSuggestsKeyboard;
+
+      // If iOS reports the visual viewport shifted downward, avoid applying a downward compensation
+      // because that pushes the nav too low and can desync hit targets after native picker flows.
+      if (rawViewportGap < -1) {
+        setIosViewportCompensation(0);
+        return;
+      }
 
       // Keep default behavior only while keyboard is truly visible
       if (keyboardLikelyVisible) {
@@ -226,6 +231,11 @@ export function BottomNav() {
 
     const handleLayoutReset: EventListener = () => {
       keyboardVisibleRef.current = false;
+      baselineViewportRef.current = {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      };
+      setIosViewportCompensation(0);
       scheduleUpdate();
     };
 
@@ -312,7 +322,7 @@ export function BottomNav() {
       {/* Solid background filler to prevent content showing through safe area below nav */}
       {isNativePlatform && (
           <div
-            className="fixed bottom-0 left-0 right-0 z-[49] bg-card"
+            className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
             style={{
               bottom: `${iosViewportCompensation}px`,
               height: `calc(4rem + ${navBottomInset} + 1rem)`,
