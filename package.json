@@ -86,7 +86,6 @@
     "vaul": "^0.9.9",
     "vite-plugin-pwa": "0.19.8",
     "workbox-precaching": "^7.4.0",
-    "xlsx": "^0.18.5",
     "zod": "^3.25.76"
   },
   "devDependencies": {
