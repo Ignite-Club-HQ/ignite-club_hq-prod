@@ -606,6 +606,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     
     // Close sheet immediately so user can see skeletons
     onOpenChange(false);
+    restoreNativeLayout();
     
     // Show persistent loading toast
     const uploadToastId = toast.loading(
