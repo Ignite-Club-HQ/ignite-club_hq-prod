@@ -7,19 +7,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Capacitor } from "@capacitor/core";
 
-const IOS_LAYOUT_RESET_EVENT = "ignite:ios-layout-reset";
-const NON_TEXT_INPUT_TYPES = new Set([
-  "button",
-  "submit",
-  "reset",
-  "checkbox",
-  "radio",
-  "file",
-  "image",
-  "range",
-  "color",
-  "hidden",
-]);
 
 const navItems = [
   { to: "/", icon: Home, label: "Home", requiresPro: false },
