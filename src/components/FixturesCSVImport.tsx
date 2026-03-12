@@ -264,15 +264,54 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
     return values;
   };
 
-  const parseExcel = (data: ArrayBuffer): string[][] => {
-    const workbook = XLSX.read(data, { type: 'array', cellDates: false });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<(string | number | boolean)[]>(firstSheet, { 
-      header: 1,
-      raw: true,
-      defval: ''
+  const parseExcel = async (data: ArrayBuffer): Promise<ParsedRow[]> => {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(data);
+
+    const firstSheet = workbook.worksheets[0];
+    if (!firstSheet) return [];
+
+    const rows: ParsedRow[] = [];
+
+    firstSheet.eachRow({ includeEmpty: true }, (row) => {
+      const rowValues = (row.values as unknown[]).slice(1).map((cell): ParsedCell => {
+        if (cell === null || cell === undefined) return '';
+        if (typeof cell === 'string' || typeof cell === 'number' || typeof cell === 'boolean' || cell instanceof Date) {
+          return cell;
+        }
+
+        const cellObject = cell as {
+          result?: unknown;
+          text?: string;
+          richText?: Array<{ text: string }>;
+        };
+
+        if (cellObject.result !== undefined) {
+          if (
+            typeof cellObject.result === 'string' ||
+            typeof cellObject.result === 'number' ||
+            typeof cellObject.result === 'boolean' ||
+            cellObject.result instanceof Date
+          ) {
+            return cellObject.result;
+          }
+        }
+
+        if (typeof cellObject.text === 'string') {
+          return cellObject.text;
+        }
+
+        if (Array.isArray(cellObject.richText)) {
+          return cellObject.richText.map((part) => part.text).join('');
+        }
+
+        return String(cell);
+      });
+
+      rows.push(rowValues);
     });
-    return rows.map(row => row.map(cell => cell?.toString() || ''));
+
+    return rows;
   };
 
   const processFixtures = async (fixtures: ParsedFixture[], parseErrors: ValidationError[], selectedFile: File) => {
