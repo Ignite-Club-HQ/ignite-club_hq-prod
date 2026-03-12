@@ -191,6 +191,13 @@ export function BottomNav() {
       );
       const keyboardLikelyVisible = keyboardVisibleRef.current || viewportSuggestsKeyboard;
 
+      // If iOS reports the visual viewport shifted downward, avoid applying a downward compensation
+      // because that pushes the nav too low and can desync hit targets after native picker flows.
+      if (rawViewportGap < -1) {
+        setIosViewportCompensation(0);
+        return;
+      }
+
       // Keep default behavior only while keyboard is truly visible
       if (keyboardLikelyVisible) {
         setIosViewportCompensation(0);
@@ -224,6 +231,11 @@ export function BottomNav() {
 
     const handleLayoutReset: EventListener = () => {
       keyboardVisibleRef.current = false;
+      baselineViewportRef.current = {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      };
+      setIosViewportCompensation(0);
       scheduleUpdate();
     };
 
