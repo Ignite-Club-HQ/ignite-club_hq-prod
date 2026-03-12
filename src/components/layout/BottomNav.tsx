@@ -115,10 +115,6 @@ export function BottomNav() {
   const navBottomInset = isAndroidNative || isIOSEnvironment
     ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
     : "env(safe-area-inset-bottom, 0px)";
-  const navCompensationTransform = iosViewportCompensation === 0
-    ? undefined
-    : `translate3d(0, ${iosViewportCompensation}px, 0)`;
-
   return (
     <>
       {/* Solid background filler to prevent content showing through safe area below nav */}
@@ -126,9 +122,6 @@ export function BottomNav() {
           <div
             className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
             style={{
-              bottom: 0,
-              transform: navCompensationTransform,
-              willChange: navCompensationTransform ? "transform" : undefined,
               height: `calc(4rem + ${navBottomInset} + 1rem)`,
             }}
           />
@@ -136,9 +129,6 @@ export function BottomNav() {
         <nav
           className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg"
           style={{
-            bottom: 0,
-            transform: navCompensationTransform,
-            willChange: navCompensationTransform ? "transform" : undefined,
             paddingBottom: navBottomInset,
           }}
         aria-label="Main navigation"
