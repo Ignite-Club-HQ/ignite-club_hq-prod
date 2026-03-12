@@ -52,6 +52,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const restoreNativeLayout = () => {
     if (!isNativeIOS) return;
 
+    void restoreNativeStatusBarOverlay();
     dismissIOSKeyboardAccessory();
     void Keyboard.hide().catch(() => undefined);
     emitIOSLayoutReset();
@@ -63,6 +64,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
       // Second pass after iOS settles
       setTimeout(() => {
+        void restoreNativeStatusBarOverlay();
         dismissIOSKeyboardAccessory();
         void Keyboard.hide().catch(() => undefined);
         window.scrollTo(0, 0);
@@ -70,6 +72,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
         // Final settle pass for delayed viewport updates in WKWebView
         setTimeout(() => {
+          void restoreNativeStatusBarOverlay();
           emitIOSLayoutReset();
         }, 220);
       }, 150);
