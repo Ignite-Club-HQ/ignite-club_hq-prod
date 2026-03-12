@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { Keyboard } from "@capacitor/keyboard";
+import { StatusBar } from "@capacitor/status-bar";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { cameraPhotoToBlob, hasCameraPhotoSource, mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
@@ -33,6 +34,16 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     (document.activeElement as HTMLElement | null)?.blur();
   };
 
+  const restoreNativeStatusBarOverlay = async () => {
+    if (!isNativeIOS) return;
+
+    try {
+      await StatusBar.setOverlaysWebView({ overlay: false });
+    } catch (error) {
+      console.warn("[ChatImageInput] Failed to restore status bar overlay:", error);
+    }
+  };
+
   const emitIOSLayoutReset = () => {
     if (!isNativeIOS || typeof window === "undefined") return;
     window.dispatchEvent(new CustomEvent(IOS_LAYOUT_RESET_EVENT));
@@ -41,6 +52,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const restoreNativeLayout = () => {
     if (!isNativeIOS) return;
 
+    void restoreNativeStatusBarOverlay();
     dismissIOSKeyboardAccessory();
     void Keyboard.hide().catch(() => undefined);
     emitIOSLayoutReset();
@@ -52,6 +64,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
       // Second pass after iOS settles
       setTimeout(() => {
+        void restoreNativeStatusBarOverlay();
         dismissIOSKeyboardAccessory();
         void Keyboard.hide().catch(() => undefined);
         window.scrollTo(0, 0);
@@ -59,6 +72,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
         // Final settle pass for delayed viewport updates in WKWebView
         setTimeout(() => {
+          void restoreNativeStatusBarOverlay();
           emitIOSLayoutReset();
         }, 220);
       }, 150);
@@ -208,6 +222,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       }
       setLocalPreview(null);
     } finally {
+      await restoreNativeStatusBarOverlay();
       restoreNativeLayout();
       setUploading(false);
     }

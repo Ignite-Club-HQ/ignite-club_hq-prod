@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Capacitor } from "@capacitor/core";
+import { Keyboard } from "@capacitor/keyboard";
 
 const IOS_LAYOUT_RESET_EVENT = "ignite:ios-layout-reset";
 const NON_TEXT_INPUT_TYPES = new Set([
@@ -124,6 +125,7 @@ export function BottomNav() {
 
   const [iosViewportCompensation, setIosViewportCompensation] = useState(0);
   const baselineViewportRef = useRef<{ width: number; height: number } | null>(null);
+  const keyboardVisibleRef = useRef(false);
 
   useEffect(() => {
     if (!isIOSEnvironment || typeof window === "undefined") {
@@ -173,12 +175,6 @@ export function BottomNav() {
             isTextInput)
       );
 
-      // Keep default behavior while keyboard is intentionally visible
-      if (isEditingField) {
-        setIosViewportCompensation(0);
-        return;
-      }
-
       const visualViewportBottom = visualViewport.height + visualViewport.offsetTop;
       const rawViewportGap = currentHeight - visualViewportBottom;
       const viewportDisplacement = Number.isFinite(rawViewportGap)
@@ -190,6 +186,19 @@ export function BottomNav() {
         0,
         (baselineViewportRef.current?.height ?? currentHeight) - currentHeight
       );
+
+      const viewportSuggestsKeyboard = isEditingField && (
+        stableLayoutGap > 180 ||
+        currentHeight - visualViewport.height > 180
+      );
+      const keyboardLikelyVisible = keyboardVisibleRef.current || viewportSuggestsKeyboard;
+
+      // Keep default behavior only while keyboard is truly visible
+      if (keyboardLikelyVisible) {
+        setIosViewportCompensation(0);
+        return;
+      }
+
       const compensationGap = Math.min(160, Math.max(viewportDisplacement, stableLayoutGap));
       const nextCompensation = compensationGap > 0 ? -compensationGap : 0;
 
@@ -216,7 +225,44 @@ export function BottomNav() {
     };
 
     const handleLayoutReset: EventListener = () => {
+      keyboardVisibleRef.current = false;
       scheduleUpdate();
+    };
+
+    const nativeKeyboardListenerHandles: Array<{ remove: () => Promise<void> | void }> = [];
+
+    const attachNativeKeyboardListeners = async () => {
+      if (!isNativePlatform) return;
+
+      try {
+        const [willShowHandle, didShowHandle, willHideHandle, didHideHandle] = await Promise.all([
+          Keyboard.addListener("keyboardWillShow", () => {
+            keyboardVisibleRef.current = true;
+            scheduleUpdate();
+          }),
+          Keyboard.addListener("keyboardDidShow", () => {
+            keyboardVisibleRef.current = true;
+            scheduleUpdate();
+          }),
+          Keyboard.addListener("keyboardWillHide", () => {
+            keyboardVisibleRef.current = false;
+            scheduleUpdate();
+          }),
+          Keyboard.addListener("keyboardDidHide", () => {
+            keyboardVisibleRef.current = false;
+            scheduleUpdate();
+          }),
+        ]);
+
+        nativeKeyboardListenerHandles.push(
+          willShowHandle,
+          didShowHandle,
+          willHideHandle,
+          didHideHandle
+        );
+      } catch {
+        // Plugin listeners are best-effort; visualViewport heuristics remain as fallback.
+      }
     };
 
     visualViewport.addEventListener("resize", scheduleUpdate);
@@ -225,28 +271,37 @@ export function BottomNav() {
     window.addEventListener("orientationchange", scheduleUpdate);
     window.addEventListener("focus", scheduleUpdate, true);
     window.addEventListener("pageshow", scheduleUpdate);
+    window.addEventListener("keyboardWillShow", scheduleUpdate);
+    window.addEventListener("keyboardDidShow", scheduleUpdate);
     window.addEventListener("keyboardWillHide", scheduleUpdate);
     window.addEventListener("keyboardDidHide", scheduleUpdate);
     window.addEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
     document.addEventListener("visibilitychange", scheduleUpdate);
 
+    void attachNativeKeyboardListeners();
     scheduleUpdate();
 
     return () => {
+      keyboardVisibleRef.current = false;
       cancelAnimationFrame(rafId);
       clearSettleTimeouts();
+      nativeKeyboardListenerHandles.forEach((handle) => {
+        void handle.remove();
+      });
       visualViewport.removeEventListener("resize", scheduleUpdate);
       visualViewport.removeEventListener("scroll", scheduleUpdate);
       window.removeEventListener("resize", scheduleUpdate);
       window.removeEventListener("orientationchange", scheduleUpdate);
       window.removeEventListener("focus", scheduleUpdate, true);
       window.removeEventListener("pageshow", scheduleUpdate);
+      window.removeEventListener("keyboardWillShow", scheduleUpdate);
+      window.removeEventListener("keyboardDidShow", scheduleUpdate);
       window.removeEventListener("keyboardWillHide", scheduleUpdate);
       window.removeEventListener("keyboardDidHide", scheduleUpdate);
       window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
       document.removeEventListener("visibilitychange", scheduleUpdate);
     };
-  }, [isIOSEnvironment]);
+  }, [isIOSEnvironment, isNativePlatform]);
 
   const navBottomInset = isAndroidNative || isIOSEnvironment
     ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
