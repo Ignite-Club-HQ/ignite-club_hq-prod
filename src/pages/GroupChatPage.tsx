@@ -96,7 +96,9 @@ export default function GroupChatPage() {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
-  const bottomInset = isNativeIOS ? "1rem" : "env(safe-area-inset-bottom, 0px)";
+  const bottomInset = isNativePlatform
+    ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
+    : "env(safe-area-inset-bottom, 0px)";
 
   // Mark group message notifications as read when opening this thread
   useEffect(() => {

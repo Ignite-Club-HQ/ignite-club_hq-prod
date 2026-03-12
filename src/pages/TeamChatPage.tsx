@@ -83,7 +83,9 @@ export default function TeamChatPage() {
   const { isOnline } = useOnlineStatus();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
-  const bottomInset = isNativeIOS ? "1rem" : "env(safe-area-inset-bottom, 0px)";
+  const bottomInset = isNativePlatform
+    ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
+    : "env(safe-area-inset-bottom, 0px)";
 
   // Mark team message notifications as read when opening this thread
   useEffect(() => {
