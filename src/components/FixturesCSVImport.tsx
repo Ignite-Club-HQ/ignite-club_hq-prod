@@ -53,6 +53,9 @@ interface ValidationError {
   message: string;
 }
 
+type ParsedCell = string | number | boolean | Date | null | undefined;
+type ParsedRow = ParsedCell[];
+
 // Validation helpers
 const isValidDate = (date: string): boolean => {
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
