@@ -319,6 +319,9 @@ export function BottomNav() {
   const navBottomInset = isAndroidNative || isIOSEnvironment
     ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
     : "env(safe-area-inset-bottom, 0px)";
+  const navCompensationTransform = iosViewportCompensation === 0
+    ? undefined
+    : `translate3d(0, ${iosViewportCompensation}px, 0)`;
 
   return (
     <>
