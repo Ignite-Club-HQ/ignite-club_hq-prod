@@ -369,7 +369,11 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     }
   }, [activeClubFilter, availableClubs, selectedClubId]);
 
-  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string): Promise<string> => {
+  useEffect(() => {
+    if (!open) {
+      restoreNativeLayout();
+    }
+  }, [open, restoreNativeLayout]);
     const fileExt = file.name.split(".").pop();
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(7);
