@@ -204,8 +204,11 @@ export function BottomNav() {
         return;
       }
 
-      const compensationGap = Math.min(160, Math.max(viewportDisplacement, stableLayoutGap));
-      const nextCompensation = compensationGap > 0 ? -compensationGap : 0;
+      // Only compensate for actual visual viewport displacement.
+      // Using baseline layout gap here can over-correct after native picker transitions
+      // and push the nav below the visible viewport while leaving stale hit targets.
+      const compensationGap = Math.min(120, viewportDisplacement);
+      const nextCompensation = compensationGap > 1 ? -compensationGap : 0;
 
       setIosViewportCompensation((prev) =>
         Math.abs(prev - nextCompensation) < 1 ? prev : nextCompensation

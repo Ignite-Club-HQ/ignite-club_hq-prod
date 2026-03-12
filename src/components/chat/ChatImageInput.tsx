@@ -50,32 +50,23 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const restoreNativeLayout = () => {
-    if (!isNativeIOS) return;
+    if (!isNativeIOS || typeof window === "undefined") return;
 
     void restoreNativeStatusBarOverlay();
     dismissIOSKeyboardAccessory();
     void Keyboard.hide().catch(() => undefined);
     emitIOSLayoutReset();
 
-    // Force viewport back to stable position after iOS picker/keyboard changes
+    // iOS can settle viewport metrics over several frames after picker dismissal.
     requestAnimationFrame(() => {
-      window.scrollTo(0, 0);
       emitIOSLayoutReset();
+    });
 
-      // Second pass after iOS settles
-      setTimeout(() => {
+    [100, 260, 520].forEach((delay) => {
+      window.setTimeout(() => {
         void restoreNativeStatusBarOverlay();
-        dismissIOSKeyboardAccessory();
-        void Keyboard.hide().catch(() => undefined);
-        window.scrollTo(0, 0);
         emitIOSLayoutReset();
-
-        // Final settle pass for delayed viewport updates in WKWebView
-        setTimeout(() => {
-          void restoreNativeStatusBarOverlay();
-          emitIOSLayoutReset();
-        }, 220);
-      }, 150);
+      }, delay);
     });
   };
 
