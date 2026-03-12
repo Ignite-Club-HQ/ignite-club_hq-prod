@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X, Download, Flag, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
+import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
 
 interface FullscreenImageViewerProps {
   src: string;
@@ -14,6 +15,9 @@ interface FullscreenImageViewerProps {
 
 export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, onBlockUser, showActions = false }: FullscreenImageViewerProps) {
   const [loaded, setLoaded] = useState(false);
+
+  // Lock body scroll to prevent iOS viewport shift
+  useIOSScrollLock(true);
 
   return (
     <div
