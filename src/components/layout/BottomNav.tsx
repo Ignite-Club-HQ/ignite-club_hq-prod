@@ -322,7 +322,7 @@ export function BottomNav() {
       {/* Solid background filler to prevent content showing through safe area below nav */}
       {isNativePlatform && (
           <div
-            className="fixed bottom-0 left-0 right-0 z-[49] bg-card"
+            className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
             style={{
               bottom: `${iosViewportCompensation}px`,
               height: `calc(4rem + ${navBottomInset} + 1rem)`,
