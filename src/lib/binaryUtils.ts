@@ -1,15 +1,16 @@
 import { Capacitor } from "@capacitor/core";
 
 /**
- * Chunked base64-to-Blob conversion.
- * Processes data in 8 KB slices so large iOS photos (HEIC, 10 MB+)
- * never hit the ~65 K call-stack limit that String.fromCharCode(...spread)
- * or a single massive atob() → Uint8Array loop can trigger.
+ * Base64-to-Blob conversion.
+ * Uses fetch(data:URI) which is handled natively by the browser/WebView,
+ * avoiding the memory pressure that atob() + manual Uint8Array creation
+ * causes on iOS WebView for large photos (HEIC, 10 MB+).
+ * Falls back to chunked atob() approach if fetch fails.
  */
 
-const SLICE_SIZE = 8192; // 8 KB per chunk
+const SLICE_SIZE = 8192; // 8 KB per chunk – used by fallback
 
-export function base64ToBlob(base64String: string, mimeType: string): Blob {
+function base64ToBlobFallback(base64String: string, mimeType: string): Blob {
   const binaryString = atob(base64String);
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
@@ -22,6 +23,28 @@ export function base64ToBlob(base64String: string, mimeType: string): Blob {
   }
 
   return new Blob([bytes], { type: mimeType });
+}
+
+export async function base64ToBlobAsync(base64String: string, mimeType: string): Promise<Blob> {
+  try {
+    // fetch(data:URI) lets the browser handle the conversion natively,
+    // which is significantly more memory-efficient on iOS WebView.
+    const dataUrl = `data:${mimeType};base64,${base64String}`;
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    if (blob.size === 0) {
+      throw new Error("fetch(data:URI) returned empty blob");
+    }
+    return blob;
+  } catch (fetchError) {
+    console.warn("[base64ToBlobAsync] fetch(data:URI) failed, using fallback:", fetchError);
+    return base64ToBlobFallback(base64String, mimeType);
+  }
+}
+
+/** @deprecated Use base64ToBlobAsync instead – kept for non-async call sites */
+export function base64ToBlob(base64String: string, mimeType: string): Blob {
+  return base64ToBlobFallback(base64String, mimeType);
 }
 
 /** Common native photo format → MIME mapping */
@@ -181,14 +204,14 @@ export async function cameraPhotoToBlob(photo: CameraPhotoLike): Promise<{
     try {
       console.log("[cameraPhotoToBlob] trying base64 path, length:", photo.base64String.length);
       const normalizedBase64 = normalizeBase64String(photo.base64String);
-      const blob = base64ToBlob(normalizedBase64, fallbackMimeType);
+      const blob = await base64ToBlobAsync(normalizedBase64, fallbackMimeType);
       console.log("[cameraPhotoToBlob] base64 → blob OK, size:", blob.size);
 
       return {
         blob,
         mimeType: fallbackMimeType,
         extension: mimeToExtension(fallbackMimeType),
-        previewUrl: `data:${fallbackMimeType};base64,${normalizedBase64}`,
+        previewUrl: URL.createObjectURL(blob),
       };
     } catch (error) {
       console.error("[cameraPhotoToBlob] base64 conversion FAILED:", getErrorMessage(error));

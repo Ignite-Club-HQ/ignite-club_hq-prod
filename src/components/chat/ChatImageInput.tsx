@@ -265,7 +265,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       />
 
       {displayUrl ? (
-        <div className="relative">
+        <div className="relative inline-block">
           {previewFailed ? (
             <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
               <ImagePlus className="h-5 w-5 text-muted-foreground" />
@@ -283,15 +283,15 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
             </div>
           )}
-          <Button
-            size="icon"
-            variant="destructive"
-            className="absolute -top-2 -right-2 h-5 w-5"
+          <button
+            type="button"
+            className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm"
             onClick={handleRemoveImage}
             disabled={disabled}
+            aria-label="Remove image"
           >
-            <X className="h-3 w-3" />
-          </Button>
+            <X className="h-2.5 w-2.5" />
+          </button>
         </div>
       ) : (
         <Button
