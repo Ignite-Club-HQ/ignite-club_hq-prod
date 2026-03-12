@@ -181,12 +181,16 @@ export function BottomNav() {
 
       const visualViewportBottom = visualViewport.height + visualViewport.offsetTop;
       const rawViewportGap = currentHeight - visualViewportBottom;
-      const viewportGap = Number.isFinite(rawViewportGap) ? Math.max(0, rawViewportGap) : 0;
+      const viewportDisplacement = Number.isFinite(rawViewportGap)
+        ? Math.abs(rawViewportGap) > 1
+          ? Math.abs(rawViewportGap)
+          : 0
+        : 0;
       const stableLayoutGap = Math.max(
         0,
         (baselineViewportRef.current?.height ?? currentHeight) - currentHeight
       );
-      const compensationGap = Math.max(viewportGap, stableLayoutGap);
+      const compensationGap = Math.min(160, Math.max(viewportDisplacement, stableLayoutGap));
       const nextCompensation = compensationGap > 0 ? -compensationGap : 0;
 
       setIosViewportCompensation((prev) =>
@@ -221,6 +225,8 @@ export function BottomNav() {
     window.addEventListener("orientationchange", scheduleUpdate);
     window.addEventListener("focus", scheduleUpdate, true);
     window.addEventListener("pageshow", scheduleUpdate);
+    window.addEventListener("keyboardWillHide", scheduleUpdate);
+    window.addEventListener("keyboardDidHide", scheduleUpdate);
     window.addEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
     document.addEventListener("visibilitychange", scheduleUpdate);
 
@@ -235,12 +241,16 @@ export function BottomNav() {
       window.removeEventListener("orientationchange", scheduleUpdate);
       window.removeEventListener("focus", scheduleUpdate, true);
       window.removeEventListener("pageshow", scheduleUpdate);
+      window.removeEventListener("keyboardWillHide", scheduleUpdate);
+      window.removeEventListener("keyboardDidHide", scheduleUpdate);
       window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
       document.removeEventListener("visibilitychange", scheduleUpdate);
     };
   }, [isIOSEnvironment]);
 
-  const navBottomInset = isAndroidNative || isIOSEnvironment ? "1rem" : "env(safe-area-inset-bottom, 0px)";
+  const navBottomInset = isAndroidNative || isIOSEnvironment
+    ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
+    : "env(safe-area-inset-bottom, 0px)";
 
   return (
     <>
