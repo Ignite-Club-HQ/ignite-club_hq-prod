@@ -301,7 +301,7 @@ export function BottomNav() {
       window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
       document.removeEventListener("visibilitychange", scheduleUpdate);
     };
-  }, [isIOSEnvironment]);
+  }, [isIOSEnvironment, isNativePlatform]);
 
   const navBottomInset = isAndroidNative || isIOSEnvironment
     ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
