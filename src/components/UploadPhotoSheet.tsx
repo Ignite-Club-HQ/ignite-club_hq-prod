@@ -88,22 +88,34 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     (document.activeElement as HTMLElement | null)?.blur();
   }, [isNativeIOS]);
 
+  const emitIOSLayoutReset = useCallback(() => {
+    if (!isNativeIOS || typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("ignite:ios-layout-reset"));
+  }, [isNativeIOS]);
+
   const restoreNativeLayout = useCallback(() => {
     if (!isNativeIOS) return;
 
     dismissIOSKeyboardAccessory();
     void Keyboard.hide().catch(() => undefined);
+    emitIOSLayoutReset();
 
     requestAnimationFrame(() => {
       window.scrollTo(0, 0);
+      emitIOSLayoutReset();
 
       setTimeout(() => {
         dismissIOSKeyboardAccessory();
         void Keyboard.hide().catch(() => undefined);
         window.scrollTo(0, 0);
+        emitIOSLayoutReset();
+
+        setTimeout(() => {
+          emitIOSLayoutReset();
+        }, 220);
       }, 150);
     });
-  }, [dismissIOSKeyboardAccessory, isNativeIOS]);
+  }, [dismissIOSKeyboardAccessory, emitIOSLayoutReset, isNativeIOS]);
 
   // Get user roles
   const { data: userRoles } = useQuery({
