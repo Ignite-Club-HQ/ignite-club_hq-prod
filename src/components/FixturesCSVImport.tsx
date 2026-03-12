@@ -379,7 +379,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
     }
 
     try {
-      const parseAndCheck = async (rows: string[][]) => {
+      const parseAndCheck = async (rows: ParsedRow[]) => {
         if (rows.length < 2) {
           setErrors([{ row: 0, message: "File must have a header row and at least one data row" }]);
           setFile(selectedFile);
