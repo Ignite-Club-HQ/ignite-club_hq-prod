@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Home, Calendar, MessageCircle, Image, Lock } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -6,6 +6,21 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Capacitor } from "@capacitor/core";
+
+const IOS_LAYOUT_RESET_EVENT = "ignite:ios-layout-reset";
+const NON_TEXT_INPUT_TYPES = new Set([
+  "button",
+  "submit",
+  "reset",
+  "checkbox",
+  "radio",
+  "file",
+  "image",
+  "range",
+  "color",
+  "hidden",
+]);
+
 const navItems = [
   { to: "/", icon: Home, label: "Home", requiresPro: false },
   { to: "/messages", icon: MessageCircle, label: "Messages", requiresPro: false },
@@ -108,27 +123,54 @@ export function BottomNav() {
   }, [platform]);
 
   const [iosViewportCompensation, setIosViewportCompensation] = useState(0);
+  const baselineViewportRef = useRef<{ width: number; height: number } | null>(null);
 
   useEffect(() => {
     if (!isIOSEnvironment || typeof window === "undefined") {
+      baselineViewportRef.current = null;
       setIosViewportCompensation(0);
       return;
     }
 
     const visualViewport = window.visualViewport;
-    if (!visualViewport) return;
+    if (!visualViewport) {
+      baselineViewportRef.current = null;
+      return;
+    }
 
     let rafId = 0;
+    const settleTimeouts: number[] = [];
+
+    const clearSettleTimeouts = () => {
+      settleTimeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      settleTimeouts.length = 0;
+    };
 
     const updateCompensation = () => {
+      const currentWidth = window.innerWidth;
+      const currentHeight = window.innerHeight;
+      const baseline = baselineViewportRef.current;
+
+      if (!baseline || Math.abs(baseline.width - currentWidth) > 48) {
+        baselineViewportRef.current = { width: currentWidth, height: currentHeight };
+      } else if (currentHeight > baseline.height) {
+        baseline.height = currentHeight;
+        baseline.width = currentWidth;
+      } else {
+        baseline.width = currentWidth;
+      }
+
       const activeElement = document.activeElement as HTMLElement | null;
-      const tagName = activeElement?.tagName;
+      const inputType = activeElement instanceof HTMLInputElement
+        ? activeElement.type.toLowerCase()
+        : "";
+      const isTextInput = activeElement instanceof HTMLInputElement && !NON_TEXT_INPUT_TYPES.has(inputType);
       const isEditingField = Boolean(
         activeElement &&
           (activeElement.isContentEditable ||
-            tagName === "INPUT" ||
-            tagName === "TEXTAREA" ||
-            tagName === "SELECT")
+            activeElement instanceof HTMLTextAreaElement ||
+            activeElement instanceof HTMLSelectElement ||
+            isTextInput)
       );
 
       // Keep default behavior while keyboard is intentionally visible
@@ -137,11 +179,19 @@ export function BottomNav() {
         return;
       }
 
-      const viewportGap = Math.max(
+      const visualViewportBottom = visualViewport.height + visualViewport.offsetTop;
+      const rawViewportGap = currentHeight - visualViewportBottom;
+      const viewportDisplacement = Number.isFinite(rawViewportGap)
+        ? Math.abs(rawViewportGap) > 1
+          ? Math.abs(rawViewportGap)
+          : 0
+        : 0;
+      const stableLayoutGap = Math.max(
         0,
-        window.innerHeight - visualViewport.height - visualViewport.offsetTop
+        (baselineViewportRef.current?.height ?? currentHeight) - currentHeight
       );
-      const nextCompensation = viewportGap > 0 ? -viewportGap : 0;
+      const compensationGap = Math.min(160, Math.max(viewportDisplacement, stableLayoutGap));
+      const nextCompensation = compensationGap > 0 ? -compensationGap : 0;
 
       setIosViewportCompensation((prev) =>
         Math.abs(prev - nextCompensation) < 1 ? prev : nextCompensation
@@ -150,28 +200,57 @@ export function BottomNav() {
 
     const scheduleUpdate = () => {
       cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(updateCompensation);
+      clearSettleTimeouts();
+
+      rafId = requestAnimationFrame(() => {
+        updateCompensation();
+
+        [120, 280, 520].forEach((delay) => {
+          const timeoutId = window.setTimeout(() => {
+            cancelAnimationFrame(rafId);
+            rafId = requestAnimationFrame(updateCompensation);
+          }, delay);
+          settleTimeouts.push(timeoutId);
+        });
+      });
+    };
+
+    const handleLayoutReset: EventListener = () => {
+      scheduleUpdate();
     };
 
     visualViewport.addEventListener("resize", scheduleUpdate);
     visualViewport.addEventListener("scroll", scheduleUpdate);
+    window.addEventListener("resize", scheduleUpdate);
     window.addEventListener("orientationchange", scheduleUpdate);
     window.addEventListener("focus", scheduleUpdate, true);
+    window.addEventListener("pageshow", scheduleUpdate);
+    window.addEventListener("keyboardWillHide", scheduleUpdate);
+    window.addEventListener("keyboardDidHide", scheduleUpdate);
+    window.addEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
     document.addEventListener("visibilitychange", scheduleUpdate);
 
     scheduleUpdate();
 
     return () => {
       cancelAnimationFrame(rafId);
+      clearSettleTimeouts();
       visualViewport.removeEventListener("resize", scheduleUpdate);
       visualViewport.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
       window.removeEventListener("orientationchange", scheduleUpdate);
       window.removeEventListener("focus", scheduleUpdate, true);
+      window.removeEventListener("pageshow", scheduleUpdate);
+      window.removeEventListener("keyboardWillHide", scheduleUpdate);
+      window.removeEventListener("keyboardDidHide", scheduleUpdate);
+      window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
       document.removeEventListener("visibilitychange", scheduleUpdate);
     };
   }, [isIOSEnvironment]);
 
-  const navBottomInset = isAndroidNative || isIOSEnvironment ? "1rem" : "env(safe-area-inset-bottom, 0px)";
+  const navBottomInset = isAndroidNative || isIOSEnvironment
+    ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
+    : "env(safe-area-inset-bottom, 0px)";
 
   return (
     <>
