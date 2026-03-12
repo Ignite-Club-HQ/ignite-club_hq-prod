@@ -185,7 +185,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       setLocalPreview(stablePreviewUrl);
 
       // Stabilize viewport immediately when the thumbnail appears (before upload completes)
-      restoreNativeLayout();
+      requestAnimationFrame(restoreNativeLayout);
 
       const skipCompression = !IOS_SAFE_COMPRESSION_MIME_TYPES.has(mimeType);
       let storageUrl: string;

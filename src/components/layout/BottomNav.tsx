@@ -340,7 +340,9 @@ export function BottomNav() {
         <nav
           className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg"
           style={{
-            bottom: `${iosViewportCompensation}px`,
+            bottom: 0,
+            transform: navCompensationTransform,
+            willChange: navCompensationTransform ? "transform" : undefined,
             paddingBottom: navBottomInset,
           }}
         aria-label="Main navigation"
