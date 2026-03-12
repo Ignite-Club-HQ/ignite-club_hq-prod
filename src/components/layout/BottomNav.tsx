@@ -125,6 +125,7 @@ export function BottomNav() {
 
   const [iosViewportCompensation, setIosViewportCompensation] = useState(0);
   const baselineViewportRef = useRef<{ width: number; height: number } | null>(null);
+  const keyboardVisibleRef = useRef(false);
 
   useEffect(() => {
     if (!isIOSEnvironment || typeof window === "undefined") {
