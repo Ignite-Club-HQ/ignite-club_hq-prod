@@ -140,21 +140,21 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
       let time = values[timeIdx]?.toString().trim() || '';
 
       // Try to parse Excel date format
-      if (typeof values[dateIdx] === 'number') {
-        const excelDate = XLSX.SSF.parse_date_code(values[dateIdx]);
-        date = `${excelDate.y}-${String(excelDate.m).padStart(2, '0')}-${String(excelDate.d).padStart(2, '0')}`;
-      }
-
-      // Try to normalize date format
-      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        const parsedDate = new Date(date);
-        if (!isNaN(parsedDate.getTime())) {
-          date = parsedDate.toISOString().split('T')[0];
+      if (values[dateIdx] instanceof Date) {
+        const excelDate = values[dateIdx] as Date;
+        date = `${excelDate.getFullYear()}-${String(excelDate.getMonth() + 1).padStart(2, '0')}-${String(excelDate.getDate()).padStart(2, '0')}`;
+      } else if (typeof values[dateIdx] === 'number') {
+        const excelDate = new Date(Date.UTC(1899, 11, 30) + values[dateIdx] * 24 * 60 * 60 * 1000);
+        if (!isNaN(excelDate.getTime())) {
+          date = `${excelDate.getUTCFullYear()}-${String(excelDate.getUTCMonth() + 1).padStart(2, '0')}-${String(excelDate.getUTCDate()).padStart(2, '0')}`;
         }
       }
 
       // Try to parse Excel time format
-      if (typeof values[timeIdx] === 'number') {
+      if (values[timeIdx] instanceof Date) {
+        const excelTime = values[timeIdx] as Date;
+        time = `${String(excelTime.getHours()).padStart(2, '0')}:${String(excelTime.getMinutes()).padStart(2, '0')}`;
+      } else if (typeof values[timeIdx] === 'number') {
         const totalMinutes = Math.round(values[timeIdx] * 24 * 60);
         const hours = Math.floor(totalMinutes / 60);
         const minutes = totalMinutes % 60;
