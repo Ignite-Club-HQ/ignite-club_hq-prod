@@ -187,10 +187,11 @@ export function BottomNav() {
         (baselineViewportRef.current?.height ?? currentHeight) - currentHeight
       );
 
-      const keyboardLikelyVisible = isEditingField && (
-        stableLayoutGap > 120 ||
-        currentHeight - visualViewport.height > 120
+      const viewportSuggestsKeyboard = isEditingField && (
+        stableLayoutGap > 180 ||
+        currentHeight - visualViewport.height > 180
       );
+      const keyboardLikelyVisible = keyboardVisibleRef.current || viewportSuggestsKeyboard;
 
       // Keep default behavior only while keyboard is truly visible
       if (keyboardLikelyVisible) {
