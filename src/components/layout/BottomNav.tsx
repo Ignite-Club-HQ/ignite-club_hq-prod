@@ -6,7 +6,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Capacitor } from "@capacitor/core";
-import { Keyboard } from "@capacitor/keyboard";
 
 const IOS_LAYOUT_RESET_EVENT = "ignite:ios-layout-reset";
 const NON_TEXT_INPUT_TYPES = new Set([
