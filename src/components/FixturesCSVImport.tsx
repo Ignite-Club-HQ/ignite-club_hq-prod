@@ -97,7 +97,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
   const [driblMode, setDriblMode] = useState(false);
   const [driblRawData, setDriblRawData] = useState<{ headers: string[]; rows: string[][] } | null>(null);
 
-  const validateAndParseRows = (rows: string[][]): { fixtures: ParsedFixture[]; errors: ValidationError[] } => {
+  const validateAndParseRows = (rows: ParsedRow[]): { fixtures: ParsedFixture[]; errors: ValidationError[] } => {
     const fixtures: ParsedFixture[] = [];
     const errors: ValidationError[] = [];
 
