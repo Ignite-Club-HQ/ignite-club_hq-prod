@@ -176,12 +176,10 @@ export function BottomNav() {
       );
 
       const visualViewportBottom = visualViewport.height + visualViewport.offsetTop;
-      const rawViewportGap = currentHeight - visualViewportBottom;
-      const viewportDisplacement = Number.isFinite(rawViewportGap)
-        ? Math.abs(rawViewportGap) > 1
-          ? Math.abs(rawViewportGap)
-          : 0
+      const rawViewportGap = Number.isFinite(currentHeight - visualViewportBottom)
+        ? currentHeight - visualViewportBottom
         : 0;
+      const viewportDisplacement = rawViewportGap > 1 ? rawViewportGap : 0;
       const stableLayoutGap = Math.max(
         0,
         (baselineViewportRef.current?.height ?? currentHeight) - currentHeight
