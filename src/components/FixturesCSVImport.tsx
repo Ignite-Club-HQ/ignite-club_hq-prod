@@ -423,7 +423,7 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         const reader = new FileReader();
         reader.onload = async (event) => {
           const data = event.target?.result as ArrayBuffer;
-          const rows = parseExcel(data);
+          const rows = await parseExcel(data);
           await parseAndCheck(rows);
         };
         reader.readAsArrayBuffer(selectedFile);
