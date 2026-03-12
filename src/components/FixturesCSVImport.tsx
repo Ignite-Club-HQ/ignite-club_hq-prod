@@ -650,7 +650,7 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
     URL.revokeObjectURL(url);
   };
 
-  const downloadExcelTemplate = () => {
+  const downloadExcelTemplate = async () => {
     // Generate future dates for template
     const today = new Date();
     const nextSaturday = new Date(today);
@@ -659,9 +659,7 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
     followingSaturday.setDate(nextSaturday.getDate() + 7);
     
     const formatDate = (d: Date) => d.toISOString().split('T')[0];
-    
-    const wb = XLSX.utils.book_new();
-    // Include team column for club admins doing multi-team imports
+
     const wsData = isClubAdmin && !teamId
       ? [
           ['title', 'date', 'time', 'team', 'opponent', 'address', 'description', 'reminder_hours'],
@@ -673,9 +671,21 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
           ['Round 1 vs Eagles', formatDate(nextSaturday), '10:00', 'Eagles FC', '123 Sports Ground Rd', 'Home game', 24],
           ['Round 2 vs Tigers', formatDate(followingSaturday), '14:30', 'Tigers United', '456 Stadium Ave', 'Away game', 48],
         ];
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    XLSX.utils.book_append_sheet(wb, ws, 'Fixtures');
-    XLSX.writeFile(wb, isClubAdmin && !teamId ? 'fixtures_multi_team_template.xlsx' : 'fixtures_template.xlsx');
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Fixtures');
+    wsData.forEach((row) => worksheet.addRow(row));
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = isClubAdmin && !teamId ? 'fixtures_multi_team_template.xlsx' : 'fixtures_template.xlsx';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const totalToImport = parsedFixtures.length + (updateDuplicates ? duplicateFixtures.length : 0);
