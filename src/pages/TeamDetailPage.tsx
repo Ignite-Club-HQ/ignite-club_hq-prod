@@ -227,14 +227,8 @@ export default function TeamDetailPage() {
   // During loading, assume Pro access to avoid flashing Pro locks
   const hasProFootball = isSubscriptionLoading ? true : (clubHasProFootball || (!clubHasProFootball && teamHasIndividualProFootball));
 
-  // Force refresh member list when navigating to this page
-  useEffect(() => {
-    if (id) {
-      // Invalidate the team-roles query to force a fresh fetch
-      queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
-      queryClient.invalidateQueries({ queryKey: ["team-children", id] });
-    }
-  }, [id, queryClient]);
+  // Note: refetchOnMount: 'always' on the queries ensures fresh data
+  // without clearing the cache (which would cause a flash of empty state)
 
   // Fetch children assigned to the team
   const { data: teamChildren = [], isLoading: isChildrenLoading, isFetching: isChildrenFetching, refetch: refetchChildren } = useQuery({
@@ -288,6 +282,7 @@ export default function TeamDetailPage() {
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
     refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
   });
 
   // Fetch roles data with profiles - with caching for faster loads
@@ -320,6 +315,7 @@ export default function TeamDetailPage() {
     staleTime: 0, // Always fetch fresh data
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
     refetchOnMount: 'always', // Always refetch when component mounts
+    refetchOnWindowFocus: false,
   });
 
   // Group roles by user - use user_id directly since it's always present
@@ -948,8 +944,8 @@ export default function TeamDetailPage() {
                 <Users className="h-5 w-5 text-primary" />
                 <span className="text-lg font-semibold">Members</span>
                 <Badge variant="secondary" className="ml-2">
-                  {(isMembersLoading && rawMembers.length === 0) || (isChildrenLoading && teamChildren.length === 0) 
-                    ? "..." 
+                  {((isMembersLoading || isMembersFetching) && Object.keys(members).length === 0) || ((isChildrenLoading || isChildrenFetching) && teamChildren.length === 0)
+                    ? "..."
                     : Object.keys(members).length + teamChildren.length}
                 </Badge>
                 <Button
@@ -980,10 +976,15 @@ export default function TeamDetailPage() {
                     />
                   </div>
                 )}
-{Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading ? (
+{Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
                   <p className="text-muted-foreground text-sm">No members yet</p>
                 ) : (
                   <div className="space-y-2">
+                    {Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && (isMembersFetching || isChildrenFetching) && (
+                      <div className="flex justify-center py-4">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    )}
                     {/* Pending Invites Section */}
                     {pendingInvites.length > 0 && (
                       <PendingInvitesList

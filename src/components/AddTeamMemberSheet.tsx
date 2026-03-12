@@ -102,9 +102,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
-  // Fetch existing members
+  // Fetch existing members (separate key from TeamDetail members query to avoid cache shape collisions)
   const { data: existingMembers } = useQuery({
-    queryKey: ["team-roles", teamId],
+    queryKey: ["team-member-ids", teamId],
     queryFn: async () => {
       const { data } = await supabase
         .from("user_roles")
@@ -112,7 +112,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         .eq("team_id", teamId);
       return data?.map(m => m.user_id) || [];
     },
-    enabled: !!teamId,
+    enabled: open && !!teamId,
   });
 
   // Fetch club branding data for emails
