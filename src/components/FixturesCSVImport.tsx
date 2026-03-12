@@ -790,7 +790,7 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
       <input
         ref={fileInputRef}
         type="file"
-        accept="text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.csv,.xlsx,.xls"
+        accept="text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.csv,.xlsx"
         onChange={handleFileSelect}
         className="hidden"
       />
