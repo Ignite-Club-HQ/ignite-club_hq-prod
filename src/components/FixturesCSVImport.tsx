@@ -367,12 +367,12 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
   const processFile = useCallback(async (selectedFile: File) => {
     const fileName = selectedFile.name.toLowerCase();
     const isCSV = fileName.endsWith('.csv');
-    const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+    const isExcel = fileName.endsWith('.xlsx');
 
     if (!isCSV && !isExcel) {
       toast({
         title: "Invalid file",
-        description: "Please select a CSV or Excel file",
+        description: "Please select a CSV or XLSX file",
         variant: "destructive",
       });
       return;
