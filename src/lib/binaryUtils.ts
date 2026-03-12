@@ -204,14 +204,14 @@ export async function cameraPhotoToBlob(photo: CameraPhotoLike): Promise<{
     try {
       console.log("[cameraPhotoToBlob] trying base64 path, length:", photo.base64String.length);
       const normalizedBase64 = normalizeBase64String(photo.base64String);
-      const blob = base64ToBlob(normalizedBase64, fallbackMimeType);
+      const blob = await base64ToBlobAsync(normalizedBase64, fallbackMimeType);
       console.log("[cameraPhotoToBlob] base64 → blob OK, size:", blob.size);
 
       return {
         blob,
         mimeType: fallbackMimeType,
         extension: mimeToExtension(fallbackMimeType),
-        previewUrl: `data:${fallbackMimeType};base64,${normalizedBase64}`,
+        previewUrl: URL.createObjectURL(blob),
       };
     } catch (error) {
       console.error("[cameraPhotoToBlob] base64 conversion FAILED:", getErrorMessage(error));
