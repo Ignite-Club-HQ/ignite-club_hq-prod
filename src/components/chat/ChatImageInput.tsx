@@ -34,6 +34,16 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     (document.activeElement as HTMLElement | null)?.blur();
   };
 
+  const restoreNativeStatusBarOverlay = async () => {
+    if (!isNativeIOS) return;
+
+    try {
+      await StatusBar.setOverlaysWebView({ overlay: false });
+    } catch (error) {
+      console.warn("[ChatImageInput] Failed to restore status bar overlay:", error);
+    }
+  };
+
   const emitIOSLayoutReset = () => {
     if (!isNativeIOS || typeof window === "undefined") return;
     window.dispatchEvent(new CustomEvent(IOS_LAYOUT_RESET_EVENT));
