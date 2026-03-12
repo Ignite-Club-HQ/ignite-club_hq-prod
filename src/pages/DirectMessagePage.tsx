@@ -757,7 +757,7 @@ export default function DirectMessagePage() {
       {/* Input area - Fixed at bottom above nav bar */}
       {isIgniteSupportConversation ? (
         <>
-          <div className="fixed left-0 right-0 bg-background z-[49]" style={{ bottom: 0, height: `calc(4rem + ${bottomInset} + 3rem)` }} />
+          <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: `calc(4rem + ${bottomInset} + 3rem)` }} />
           <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: `calc(4rem + ${bottomInset})` }}>
             <div className="text-center text-sm text-muted-foreground py-3 bg-muted/50 rounded-lg">
               This is a welcome message from Ignite Support. Replies are not available.
@@ -766,7 +766,7 @@ export default function DirectMessagePage() {
         </>
       ) : (
         <>
-          <div className="fixed left-0 right-0 bg-background z-[49]" style={{ bottom: 0, height: `calc(4rem + ${bottomInset} + 3rem)` }} />
+          <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: `calc(4rem + ${bottomInset} + 3rem)` }} />
           <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: `calc(4rem + ${bottomInset})` }}>
             <div className="flex gap-2 items-end">
               <MentionInput
