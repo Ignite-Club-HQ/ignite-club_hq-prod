@@ -402,7 +402,10 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
           
           setFile(selectedFile);
           setDriblMode(true);
-          setDriblRawData({ headers, rows: rows.slice(1) });
+          setDriblRawData({
+            headers,
+            rows: rows.slice(1).map((row) => row.map((cell) => cell?.toString() || '')),
+          });
           return;
         }
         
