@@ -64,7 +64,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
-    "fabric": "^6.5.0",
+    "fabric": "7.2.0",
     "firebase": "^12.7.0",
     "input-otp": "^1.4.2",
     "jspdf": "4.2.0",
@@ -83,7 +83,7 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
-    "vite-plugin-pwa": "^1.2.0",
+    "vite-plugin-pwa": "0.19.8",
     "workbox-precaching": "^7.4.0",
     "xlsx": "^0.18.5",
     "zod": "^3.25.76"
