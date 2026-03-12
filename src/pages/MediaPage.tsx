@@ -810,7 +810,7 @@ export default function MediaPage() {
   }
 
   return (
-    <div className="py-6 pb-32 space-y-6 h-full overflow-y-auto">
+    <div className="py-6 pb-32 space-y-6">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold">Media</h1>
