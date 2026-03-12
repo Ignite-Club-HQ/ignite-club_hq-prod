@@ -14,10 +14,52 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log("Starting scheduled backup job...");
-    
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    // Authentication: require either service role key or app_admin user
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing authorization" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const isServiceRole = token === serviceRoleKey;
+
+    if (!isServiceRole) {
+      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } },
+        auth: { persistSession: false },
+      });
+
+      const { data: { user }, error: authError } = await userClient.auth.getUser(token);
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: "Invalid authentication" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: adminRole } = await userClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "app_admin")
+        .maybeSingle();
+
+      if (!adminRole) {
+        return new Response(JSON.stringify({ error: "Forbidden - app_admin role required" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    console.log("Starting scheduled backup job...");
     
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false }
