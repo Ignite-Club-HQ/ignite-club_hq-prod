@@ -5,7 +5,38 @@ import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
 
-const AlertDialog = AlertDialogPrimitive.Root;
+type AlertDialogProps = React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Root>;
+
+const AlertDialogOpenContext = React.createContext(false);
+
+const AlertDialog = ({ open, defaultOpen, onOpenChange, children, ...props }: AlertDialogProps) => {
+  const isControlled = open !== undefined;
+  const [internalOpen, setInternalOpen] = React.useState(defaultOpen ?? false);
+  const isOpen = isControlled ? Boolean(open) : internalOpen;
+
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      if (!isControlled) {
+        setInternalOpen(nextOpen);
+      }
+      onOpenChange?.(nextOpen);
+    },
+    [isControlled, onOpenChange]
+  );
+
+  return (
+    <AlertDialogOpenContext.Provider value={isOpen}>
+      <AlertDialogPrimitive.Root
+        open={open}
+        defaultOpen={defaultOpen}
+        onOpenChange={handleOpenChange}
+        {...props}
+      >
+        {children}
+      </AlertDialogPrimitive.Root>
+    </AlertDialogOpenContext.Provider>
+  );
+};
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 
@@ -30,12 +61,8 @@ const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
 >(({ className, ...props }, ref) => {
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
-  useIOSScrollLock(mounted);
+  const isAlertDialogOpen = React.useContext(AlertDialogOpenContext);
+  useIOSScrollLock(isAlertDialogOpen);
 
   return (
     <AlertDialogPortal>
