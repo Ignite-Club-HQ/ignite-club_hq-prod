@@ -11,9 +11,13 @@ interface PageLoadingProps {
 export function PageLoading({ message = "Loading..." }: PageLoadingProps) {
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [showLoader, setShowLoader] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    // Delay showing the loader to prevent flash on fast loads
+    const timer = setTimeout(() => setShowLoader(true), 150);
+    return () => clearTimeout(timer);
   }, []);
 
   // Reliably detect theme from multiple sources
