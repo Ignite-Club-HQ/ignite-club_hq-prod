@@ -225,7 +225,44 @@ export function BottomNav() {
     };
 
     const handleLayoutReset: EventListener = () => {
+      keyboardVisibleRef.current = false;
       scheduleUpdate();
+    };
+
+    const nativeKeyboardListenerHandles: Array<{ remove: () => Promise<void> | void }> = [];
+
+    const attachNativeKeyboardListeners = async () => {
+      if (!isNativePlatform) return;
+
+      try {
+        const [willShowHandle, didShowHandle, willHideHandle, didHideHandle] = await Promise.all([
+          Keyboard.addListener("keyboardWillShow", () => {
+            keyboardVisibleRef.current = true;
+            scheduleUpdate();
+          }),
+          Keyboard.addListener("keyboardDidShow", () => {
+            keyboardVisibleRef.current = true;
+            scheduleUpdate();
+          }),
+          Keyboard.addListener("keyboardWillHide", () => {
+            keyboardVisibleRef.current = false;
+            scheduleUpdate();
+          }),
+          Keyboard.addListener("keyboardDidHide", () => {
+            keyboardVisibleRef.current = false;
+            scheduleUpdate();
+          }),
+        ]);
+
+        nativeKeyboardListenerHandles.push(
+          willShowHandle,
+          didShowHandle,
+          willHideHandle,
+          didHideHandle
+        );
+      } catch {
+        // Plugin listeners are best-effort; visualViewport heuristics remain as fallback.
+      }
     };
 
     visualViewport.addEventListener("resize", scheduleUpdate);
@@ -234,11 +271,14 @@ export function BottomNav() {
     window.addEventListener("orientationchange", scheduleUpdate);
     window.addEventListener("focus", scheduleUpdate, true);
     window.addEventListener("pageshow", scheduleUpdate);
+    window.addEventListener("keyboardWillShow", scheduleUpdate);
+    window.addEventListener("keyboardDidShow", scheduleUpdate);
     window.addEventListener("keyboardWillHide", scheduleUpdate);
     window.addEventListener("keyboardDidHide", scheduleUpdate);
     window.addEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
     document.addEventListener("visibilitychange", scheduleUpdate);
 
+    void attachNativeKeyboardListeners();
     scheduleUpdate();
 
     return () => {
