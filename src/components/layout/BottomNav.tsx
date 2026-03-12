@@ -173,12 +173,6 @@ export function BottomNav() {
             isTextInput)
       );
 
-      // Keep default behavior while keyboard is intentionally visible
-      if (isEditingField) {
-        setIosViewportCompensation(0);
-        return;
-      }
-
       const visualViewportBottom = visualViewport.height + visualViewport.offsetTop;
       const rawViewportGap = currentHeight - visualViewportBottom;
       const viewportDisplacement = Number.isFinite(rawViewportGap)
@@ -190,6 +184,18 @@ export function BottomNav() {
         0,
         (baselineViewportRef.current?.height ?? currentHeight) - currentHeight
       );
+
+      const keyboardLikelyVisible = isEditingField && (
+        stableLayoutGap > 120 ||
+        currentHeight - visualViewport.height > 120
+      );
+
+      // Keep default behavior only while keyboard is truly visible
+      if (keyboardLikelyVisible) {
+        setIosViewportCompensation(0);
+        return;
+      }
+
       const compensationGap = Math.min(160, Math.max(viewportDisplacement, stableLayoutGap));
       const nextCompensation = compensationGap > 0 ? -compensationGap : 0;
 
