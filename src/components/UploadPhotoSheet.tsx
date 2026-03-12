@@ -15,6 +15,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { StatusBar } from "@capacitor/status-bar";
+import { Keyboard } from "@capacitor/keyboard";
 import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 
@@ -67,12 +68,13 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPickingNativePhoto, setIsPickingNativePhoto] = useState(false);
-  const shouldUseNativePhotoPicker = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const shouldUseNativePhotoPicker = isNativeIOS;
   const primaryFileInputRef = useRef<HTMLInputElement>(null);
   const addMoreFileInputRef = useRef<HTMLInputElement>(null);
 
   const restoreNativeStatusBarOverlay = async () => {
-    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "ios") return;
+    if (!isNativeIOS) return;
 
     try {
       await StatusBar.setOverlaysWebView({ overlay: false });
@@ -80,6 +82,28 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       console.warn("[UploadPhotoSheet] Failed to restore status bar overlay:", error);
     }
   };
+
+  const dismissIOSKeyboardAccessory = useCallback(() => {
+    if (!isNativeIOS) return;
+    (document.activeElement as HTMLElement | null)?.blur();
+  }, [isNativeIOS]);
+
+  const restoreNativeLayout = useCallback(() => {
+    if (!isNativeIOS) return;
+
+    dismissIOSKeyboardAccessory();
+    void Keyboard.hide().catch(() => undefined);
+
+    requestAnimationFrame(() => {
+      window.scrollTo(0, 0);
+
+      setTimeout(() => {
+        dismissIOSKeyboardAccessory();
+        void Keyboard.hide().catch(() => undefined);
+        window.scrollTo(0, 0);
+      }, 150);
+    });
+  }, [dismissIOSKeyboardAccessory, isNativeIOS]);
 
   // Get user roles
   const { data: userRoles } = useQuery({
