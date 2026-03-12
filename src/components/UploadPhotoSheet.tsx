@@ -73,7 +73,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const primaryFileInputRef = useRef<HTMLInputElement>(null);
   const addMoreFileInputRef = useRef<HTMLInputElement>(null);
 
-  const restoreNativeStatusBarOverlay = async () => {
+  const restoreNativeStatusBarOverlay = useCallback(async () => {
     if (!isNativeIOS) return;
 
     try {
@@ -81,7 +81,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     } catch (error) {
       console.warn("[UploadPhotoSheet] Failed to restore status bar overlay:", error);
     }
-  };
+  }, [isNativeIOS]);
 
   const dismissIOSKeyboardAccessory = useCallback(() => {
     if (!isNativeIOS) return;
@@ -94,28 +94,24 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   }, [isNativeIOS]);
 
   const restoreNativeLayout = useCallback(() => {
-    if (!isNativeIOS) return;
+    if (!isNativeIOS || typeof window === "undefined") return;
 
+    void restoreNativeStatusBarOverlay();
     dismissIOSKeyboardAccessory();
     void Keyboard.hide().catch(() => undefined);
     emitIOSLayoutReset();
 
     requestAnimationFrame(() => {
-      window.scrollTo(0, 0);
       emitIOSLayoutReset();
-
-      setTimeout(() => {
-        dismissIOSKeyboardAccessory();
-        void Keyboard.hide().catch(() => undefined);
-        window.scrollTo(0, 0);
-        emitIOSLayoutReset();
-
-        setTimeout(() => {
-          emitIOSLayoutReset();
-        }, 220);
-      }, 150);
     });
-  }, [dismissIOSKeyboardAccessory, emitIOSLayoutReset, isNativeIOS]);
+
+    [100, 260, 520].forEach((delay) => {
+      window.setTimeout(() => {
+        void restoreNativeStatusBarOverlay();
+        emitIOSLayoutReset();
+      }, delay);
+    });
+  }, [dismissIOSKeyboardAccessory, emitIOSLayoutReset, isNativeIOS, restoreNativeStatusBarOverlay]);
 
   // Get user roles
   const { data: userRoles } = useQuery({
