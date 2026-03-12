@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import { Home, Calendar, MessageCircle, Image, Lock } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -6,21 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Capacitor } from "@capacitor/core";
-import { Keyboard } from "@capacitor/keyboard";
 
-const IOS_LAYOUT_RESET_EVENT = "ignite:ios-layout-reset";
-const NON_TEXT_INPUT_TYPES = new Set([
-  "button",
-  "submit",
-  "reset",
-  "checkbox",
-  "radio",
-  "file",
-  "image",
-  "range",
-  "color",
-  "hidden",
-]);
 
 const navItems = [
   { to: "/", icon: Home, label: "Home", requiresPro: false },
@@ -123,206 +109,12 @@ export function BottomNav() {
     return iOSDevice || iPadOSDesktopMode || platform === "ios";
   }, [platform]);
 
-  const [iosViewportCompensation, setIosViewportCompensation] = useState(0);
-  const baselineViewportRef = useRef<{ width: number; height: number } | null>(null);
-  const keyboardVisibleRef = useRef(false);
-
-  useEffect(() => {
-    if (!isIOSEnvironment || typeof window === "undefined") {
-      baselineViewportRef.current = null;
-      setIosViewportCompensation(0);
-      return;
-    }
-
-    const visualViewport = window.visualViewport;
-    if (!visualViewport) {
-      baselineViewportRef.current = null;
-      return;
-    }
-
-    let rafId = 0;
-    const settleTimeouts: number[] = [];
-
-    const clearSettleTimeouts = () => {
-      settleTimeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
-      settleTimeouts.length = 0;
-    };
-
-    const updateCompensation = () => {
-      const currentWidth = window.innerWidth;
-      const currentHeight = window.innerHeight;
-      const baseline = baselineViewportRef.current;
-
-      if (!baseline || Math.abs(baseline.width - currentWidth) > 48) {
-        baselineViewportRef.current = { width: currentWidth, height: currentHeight };
-      } else if (currentHeight > baseline.height) {
-        baseline.height = currentHeight;
-        baseline.width = currentWidth;
-      } else {
-        baseline.width = currentWidth;
-      }
-
-      const activeElement = document.activeElement as HTMLElement | null;
-      const inputType = activeElement instanceof HTMLInputElement
-        ? activeElement.type.toLowerCase()
-        : "";
-      const isTextInput = activeElement instanceof HTMLInputElement && !NON_TEXT_INPUT_TYPES.has(inputType);
-      const isEditingField = Boolean(
-        activeElement &&
-          (activeElement.isContentEditable ||
-            activeElement instanceof HTMLTextAreaElement ||
-            activeElement instanceof HTMLSelectElement ||
-            isTextInput)
-      );
-
-      const visualViewportBottom = visualViewport.height + visualViewport.offsetTop;
-      const rawViewportGap = Number.isFinite(currentHeight - visualViewportBottom)
-        ? currentHeight - visualViewportBottom
-        : 0;
-      const viewportDisplacement = rawViewportGap > 1 ? rawViewportGap : 0;
-      const stableLayoutGap = Math.max(
-        0,
-        (baselineViewportRef.current?.height ?? currentHeight) - currentHeight
-      );
-
-      const viewportSuggestsKeyboard = isEditingField && (
-        stableLayoutGap > 180 ||
-        currentHeight - visualViewport.height > 180
-      );
-      const keyboardLikelyVisible = keyboardVisibleRef.current || viewportSuggestsKeyboard;
-
-      // If iOS reports the visual viewport shifted downward, avoid applying a downward compensation
-      // because that pushes the nav too low and can desync hit targets after native picker flows.
-      if (rawViewportGap < -1) {
-        setIosViewportCompensation(0);
-        return;
-      }
-
-      // Keep default behavior only while keyboard is truly visible
-      if (keyboardLikelyVisible) {
-        setIosViewportCompensation(0);
-        return;
-      }
-
-      // Only compensate for actual visual viewport displacement.
-      // Using baseline layout gap here can over-correct after native picker transitions
-      // and push the nav below the visible viewport while leaving stale hit targets.
-      const compensationGap = Math.min(120, viewportDisplacement);
-      const nextCompensation = compensationGap > 1 ? -compensationGap : 0;
-
-      setIosViewportCompensation((prev) =>
-        Math.abs(prev - nextCompensation) < 1 ? prev : nextCompensation
-      );
-    };
-
-    const scheduleUpdate = () => {
-      cancelAnimationFrame(rafId);
-      clearSettleTimeouts();
-
-      rafId = requestAnimationFrame(() => {
-        updateCompensation();
-
-        [120, 280, 520].forEach((delay) => {
-          const timeoutId = window.setTimeout(() => {
-            cancelAnimationFrame(rafId);
-            rafId = requestAnimationFrame(updateCompensation);
-          }, delay);
-          settleTimeouts.push(timeoutId);
-        });
-      });
-    };
-
-    const handleLayoutReset: EventListener = () => {
-      keyboardVisibleRef.current = false;
-      baselineViewportRef.current = {
-        width: window.innerWidth,
-        height: window.innerHeight,
-      };
-      setIosViewportCompensation(0);
-      scheduleUpdate();
-    };
-
-    const nativeKeyboardListenerHandles: Array<{ remove: () => Promise<void> | void }> = [];
-
-    const attachNativeKeyboardListeners = async () => {
-      if (!isNativePlatform) return;
-
-      try {
-        const [willShowHandle, didShowHandle, willHideHandle, didHideHandle] = await Promise.all([
-          Keyboard.addListener("keyboardWillShow", () => {
-            keyboardVisibleRef.current = true;
-            scheduleUpdate();
-          }),
-          Keyboard.addListener("keyboardDidShow", () => {
-            keyboardVisibleRef.current = true;
-            scheduleUpdate();
-          }),
-          Keyboard.addListener("keyboardWillHide", () => {
-            keyboardVisibleRef.current = false;
-            scheduleUpdate();
-          }),
-          Keyboard.addListener("keyboardDidHide", () => {
-            keyboardVisibleRef.current = false;
-            scheduleUpdate();
-          }),
-        ]);
-
-        nativeKeyboardListenerHandles.push(
-          willShowHandle,
-          didShowHandle,
-          willHideHandle,
-          didHideHandle
-        );
-      } catch {
-        // Plugin listeners are best-effort; visualViewport heuristics remain as fallback.
-      }
-    };
-
-    visualViewport.addEventListener("resize", scheduleUpdate);
-    visualViewport.addEventListener("scroll", scheduleUpdate);
-    window.addEventListener("resize", scheduleUpdate);
-    window.addEventListener("orientationchange", scheduleUpdate);
-    window.addEventListener("focus", scheduleUpdate, true);
-    window.addEventListener("pageshow", scheduleUpdate);
-    window.addEventListener("keyboardWillShow", scheduleUpdate);
-    window.addEventListener("keyboardDidShow", scheduleUpdate);
-    window.addEventListener("keyboardWillHide", scheduleUpdate);
-    window.addEventListener("keyboardDidHide", scheduleUpdate);
-    window.addEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
-    document.addEventListener("visibilitychange", scheduleUpdate);
-
-    void attachNativeKeyboardListeners();
-    scheduleUpdate();
-
-    return () => {
-      keyboardVisibleRef.current = false;
-      cancelAnimationFrame(rafId);
-      clearSettleTimeouts();
-      nativeKeyboardListenerHandles.forEach((handle) => {
-        void handle.remove();
-      });
-      visualViewport.removeEventListener("resize", scheduleUpdate);
-      visualViewport.removeEventListener("scroll", scheduleUpdate);
-      window.removeEventListener("resize", scheduleUpdate);
-      window.removeEventListener("orientationchange", scheduleUpdate);
-      window.removeEventListener("focus", scheduleUpdate, true);
-      window.removeEventListener("pageshow", scheduleUpdate);
-      window.removeEventListener("keyboardWillShow", scheduleUpdate);
-      window.removeEventListener("keyboardDidShow", scheduleUpdate);
-      window.removeEventListener("keyboardWillHide", scheduleUpdate);
-      window.removeEventListener("keyboardDidHide", scheduleUpdate);
-      window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
-      document.removeEventListener("visibilitychange", scheduleUpdate);
-    };
-  }, [isIOSEnvironment, isNativePlatform]);
+  // Removed viewport compensation logic - it caused more issues than it solved.
+  // The nav stays fixed at bottom:0 and iOS viewport shifts settle naturally.
 
   const navBottomInset = isAndroidNative || isIOSEnvironment
     ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
     : "env(safe-area-inset-bottom, 0px)";
-  const navCompensationTransform = iosViewportCompensation === 0
-    ? undefined
-    : `translate3d(0, ${iosViewportCompensation}px, 0)`;
-
   return (
     <>
       {/* Solid background filler to prevent content showing through safe area below nav */}
@@ -330,9 +122,6 @@ export function BottomNav() {
           <div
             className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
             style={{
-              bottom: 0,
-              transform: navCompensationTransform,
-              willChange: navCompensationTransform ? "transform" : undefined,
               height: `calc(4rem + ${navBottomInset} + 1rem)`,
             }}
           />
@@ -340,9 +129,6 @@ export function BottomNav() {
         <nav
           className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg"
           style={{
-            bottom: 0,
-            transform: navCompensationTransform,
-            willChange: navCompensationTransform ? "transform" : undefined,
             paddingBottom: navBottomInset,
           }}
         aria-label="Main navigation"
