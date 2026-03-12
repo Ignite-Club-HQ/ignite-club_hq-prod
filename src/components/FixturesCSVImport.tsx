@@ -826,7 +826,6 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               <div className="flex gap-2">
                 <Badge variant="secondary">.csv</Badge>
                 <Badge variant="secondary">.xlsx</Badge>
-                <Badge variant="secondary">.xls</Badge>
               </div>
             </div>
           </CardContent>
