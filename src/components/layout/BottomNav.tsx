@@ -282,14 +282,20 @@ export function BottomNav() {
     scheduleUpdate();
 
     return () => {
+      keyboardVisibleRef.current = false;
       cancelAnimationFrame(rafId);
       clearSettleTimeouts();
+      nativeKeyboardListenerHandles.forEach((handle) => {
+        void handle.remove();
+      });
       visualViewport.removeEventListener("resize", scheduleUpdate);
       visualViewport.removeEventListener("scroll", scheduleUpdate);
       window.removeEventListener("resize", scheduleUpdate);
       window.removeEventListener("orientationchange", scheduleUpdate);
       window.removeEventListener("focus", scheduleUpdate, true);
       window.removeEventListener("pageshow", scheduleUpdate);
+      window.removeEventListener("keyboardWillShow", scheduleUpdate);
+      window.removeEventListener("keyboardDidShow", scheduleUpdate);
       window.removeEventListener("keyboardWillHide", scheduleUpdate);
       window.removeEventListener("keyboardDidHide", scheduleUpdate);
       window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
