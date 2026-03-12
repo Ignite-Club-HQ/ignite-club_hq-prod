@@ -177,14 +177,20 @@ export function BottomNav() {
     <>
       {/* Solid background filler to prevent content showing through safe area below nav */}
       {isNativePlatform && (
-        <div
-          className="fixed bottom-0 left-0 right-0 z-[49] bg-card"
-          style={{ height: `calc(4rem + ${navBottomInset} + 1rem)` }}
-        />
-      )}
-      <nav
-        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg"
-        style={{ paddingBottom: navBottomInset }}
+          <div
+            className="fixed bottom-0 left-0 right-0 z-[49] bg-card"
+            style={{
+              bottom: `${iosViewportCompensation}px`,
+              height: `calc(4rem + ${navBottomInset} + 1rem)`,
+            }}
+          />
+        )}
+        <nav
+          className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg"
+          style={{
+            bottom: `${iosViewportCompensation}px`,
+            paddingBottom: navBottomInset,
+          }}
         aria-label="Main navigation"
       >
         <div className="flex items-center justify-around min-h-[4rem] max-w-lg mx-auto px-2">
