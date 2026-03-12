@@ -4,8 +4,40 @@ import { X } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
 
-const Sheet = SheetPrimitive.Root;
+type SheetProps = React.ComponentPropsWithoutRef<typeof SheetPrimitive.Root>;
+
+const SheetOpenContext = React.createContext(false);
+
+const Sheet = ({ open, defaultOpen, onOpenChange, children, ...props }: SheetProps) => {
+  const isControlled = open !== undefined;
+  const [internalOpen, setInternalOpen] = React.useState(defaultOpen ?? false);
+  const isOpen = isControlled ? Boolean(open) : internalOpen;
+
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      if (!isControlled) {
+        setInternalOpen(nextOpen);
+      }
+      onOpenChange?.(nextOpen);
+    },
+    [isControlled, onOpenChange]
+  );
+
+  return (
+    <SheetOpenContext.Provider value={isOpen}>
+      <SheetPrimitive.Root
+        open={open}
+        defaultOpen={defaultOpen}
+        onOpenChange={handleOpenChange}
+        {...props}
+      >
+        {children}
+      </SheetPrimitive.Root>
+    </SheetOpenContext.Provider>
+  );
+};
 
 const SheetTrigger = SheetPrimitive.Trigger;
 
@@ -55,6 +87,9 @@ interface SheetContentProps
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
   ({ side = "right", className, children, hideCloseButton, style, ...props }, ref) => {
+    const isSheetOpen = React.useContext(SheetOpenContext);
+    useIOSScrollLock(isSheetOpen);
+
     // Apply safe area positioning via inline styles for better cross-platform support
     const safeAreaStyle = React.useMemo(() => {
       const baseStyle = style || {};
