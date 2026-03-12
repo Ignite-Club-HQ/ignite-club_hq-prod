@@ -374,6 +374,8 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       restoreNativeLayout();
     }
   }, [open, restoreNativeLayout]);
+
+  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string): Promise<string> => {
     const fileExt = file.name.split(".").pop();
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(7);
