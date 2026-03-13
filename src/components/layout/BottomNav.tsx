@@ -308,9 +308,9 @@ export function BottomNav() {
   }, [clearInsetSyncTimeouts, clearNavGuardSettleTimeout]);
 
   const nativeInsetFloor = `${nativeSafeInsetPx}px`;
-  const navBottomInset = isNativeIOS
+  const navBottomInset = shouldStabilizeIOSLayout
     ? `${nativeSafeInsetPx}px`
-    : isAndroidNative || isIOSEnvironment
+    : isAndroidNative
       ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
       : "env(safe-area-inset-bottom, 0px)";
 
