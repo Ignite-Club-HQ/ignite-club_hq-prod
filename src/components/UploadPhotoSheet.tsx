@@ -803,9 +803,17 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                     (uploading || isPickingNativePhoto) && "pointer-events-none opacity-70"
                   )}
                   onClick={(e) => {
-                    if (!shouldUseNativePhotoPicker) return;
-                    e.preventDefault();
-                    void handleNativePhotoPick();
+                    if (shouldUseNativePhotoPicker) {
+                      e.preventDefault();
+                      void handleNativePhotoPick();
+                      return;
+                    }
+
+                    if (shouldStabilizeIOSLayout) {
+                      requestAnimationFrame(() => {
+                        restoreNativeLayout();
+                      });
+                    }
                   }}
                 >
                   <div className="aspect-[4/3] rounded-2xl border-2 border-dashed border-muted-foreground/25 bg-muted/50 flex flex-col items-center justify-center gap-4 transition-colors hover:border-muted-foreground/50 hover:bg-muted">
@@ -902,9 +910,17 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                           isPickingNativePhoto && "pointer-events-none opacity-70"
                         )}
                         onClick={(e) => {
-                          if (!shouldUseNativePhotoPicker) return;
-                          e.preventDefault();
-                          void handleNativePhotoPick();
+                          if (shouldUseNativePhotoPicker) {
+                            e.preventDefault();
+                            void handleNativePhotoPick();
+                            return;
+                          }
+
+                          if (shouldStabilizeIOSLayout) {
+                            requestAnimationFrame(() => {
+                              restoreNativeLayout();
+                            });
+                          }
                         }}
                       >
                         {isPickingNativePhoto ? (
