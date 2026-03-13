@@ -26,7 +26,7 @@ import {
 interface UploadFilesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onUpload: (file: File, type: "photo" | "file", fileName?: string) => void;
+  onUpload: (file: File, type: "photo" | "file", fileName?: string) => void | Promise<void>;
   isUploading?: boolean;
   targetName: string;
 }
@@ -73,9 +73,9 @@ export function UploadFilesDialog({
   }, [isNativeIOS]);
 
   const emitIOSLayoutReset = useCallback(() => {
-    if (!isNativeIOS) return;
+    if (!shouldStabilizeIOSLayout) return;
     dispatchIOSLayoutReset();
-  }, [isNativeIOS]);
+  }, [shouldStabilizeIOSLayout]);
 
   const emitIOSNavGuard = useCallback((durationMs = 900) => {
     if (!shouldStabilizeIOSLayout) return;
@@ -93,6 +93,7 @@ export function UploadFilesDialog({
   const restoreNativeLayout = useCallback(() => {
     if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
+    emitIOSLayoutReset();
     emitIOSNavGuard(900);
     clearNavGuardRetryTimeout();
 
@@ -104,7 +105,7 @@ export function UploadFilesDialog({
         navGuardRetryTimeoutRef.current = null;
       }, 1200);
     }, 320);
-  }, [clearNavGuardRetryTimeout, emitIOSNavGuard, shouldStabilizeIOSLayout]);
+  }, [clearNavGuardRetryTimeout, emitIOSLayoutReset, emitIOSNavGuard, shouldStabilizeIOSLayout]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -139,6 +140,7 @@ export function UploadFilesDialog({
     const file = e.target.files?.[0];
     if (file) {
       handleFileSelect(file);
+      requestAnimationFrame(restoreNativeLayout);
     }
   };
 
@@ -287,12 +289,19 @@ export function UploadFilesDialog({
         setUploadType("file");
       }
       handleFileSelect(file);
+      requestAnimationFrame(restoreNativeLayout);
     }
   };
 
-  const handleUpload = () => {
-    if (selectedFile) {
-      onUpload(selectedFile, uploadType, uploadType === "file" ? fileName : undefined);
+  const handleUpload = async () => {
+    if (!selectedFile) return;
+
+    restoreNativeLayout();
+
+    try {
+      await onUpload(selectedFile, uploadType, uploadType === "file" ? fileName : undefined);
+    } finally {
+      restoreNativeLayout();
     }
   };
 
