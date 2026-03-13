@@ -332,14 +332,16 @@ export function UploadFilesDialog({
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) return;
+    if (!selectedFile || isUploading || isSubmittingUpload) return;
 
+    setIsSubmittingUpload(true);
     restoreNativeLayout();
 
     try {
       await onUpload(selectedFile, uploadType, uploadType === "file" ? fileName : undefined);
       clearSelection();
     } finally {
+      setIsSubmittingUpload(false);
       restoreNativeLayout();
     }
   };
@@ -348,6 +350,7 @@ export function UploadFilesDialog({
     if (!newOpen) {
       clearSelection();
       setUploadType("photo");
+      setIsSubmittingUpload(false);
       restoreNativeLayout();
     }
     onOpenChange(newOpen);
