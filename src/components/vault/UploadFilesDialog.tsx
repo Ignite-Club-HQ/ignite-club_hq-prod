@@ -46,8 +46,16 @@ export function UploadFilesDialog({
   const [isPickingNativePhoto, setIsPickingNativePhoto] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const platform = Capacitor.getPlatform();
+  const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
+  const isIOSEnvironment =
+    isNativeIOS ||
+    (typeof navigator !== "undefined" &&
+      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)));
+  const shouldStabilizeIOSLayout = isIOSEnvironment;
   const shouldUseNativePhotoPicker = uploadType === "photo" && isNativeIOS;
+  const navGuardRetryTimeoutRef = useRef<number | null>(null);
 
   const dismissIOSKeyboardAccessory = useCallback(() => {
     if (!isNativeIOS) return;
@@ -70,19 +78,40 @@ export function UploadFilesDialog({
   }, [isNativeIOS]);
 
   const emitIOSNavGuard = useCallback((durationMs = 900) => {
-    if (!isNativeIOS) return;
+    if (!shouldStabilizeIOSLayout) return;
     dispatchIOSNavGuard(durationMs);
-  }, [isNativeIOS]);
+  }, [shouldStabilizeIOSLayout]);
+
+  const clearNavGuardRetryTimeout = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (navGuardRetryTimeoutRef.current !== null) {
+      window.clearTimeout(navGuardRetryTimeoutRef.current);
+      navGuardRetryTimeoutRef.current = null;
+    }
+  }, []);
 
   const restoreNativeLayout = useCallback(() => {
-    if (!isNativeIOS || typeof window === "undefined") return;
+    if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
-    // Guard nav interactions briefly while iOS settles viewport after picker dismissal.
-    // Do NOT call StatusBar.setOverlaysWebView, Keyboard.hide, or dispatch layout
-    // reset events here — those actively disrupt the viewport during the settling
-    // period and cause the intermittent BottomNav drop.
-    emitIOSNavGuard(600);
-  }, [emitIOSNavGuard, isNativeIOS]);
+    emitIOSNavGuard(900);
+    clearNavGuardRetryTimeout();
+
+    navGuardRetryTimeoutRef.current = window.setTimeout(() => {
+      emitIOSNavGuard(1500);
+
+      navGuardRetryTimeoutRef.current = window.setTimeout(() => {
+        emitIOSNavGuard(1800);
+        navGuardRetryTimeoutRef.current = null;
+      }, 1200);
+    }, 320);
+  }, [clearNavGuardRetryTimeout, emitIOSNavGuard, shouldStabilizeIOSLayout]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      clearNavGuardRetryTimeout();
+    };
+  }, [clearNavGuardRetryTimeout]);
 
   const handleFileSelect = (file: File) => {
     if (previewUrl) {
