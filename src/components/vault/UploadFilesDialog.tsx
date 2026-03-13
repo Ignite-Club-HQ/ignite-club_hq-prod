@@ -318,11 +318,13 @@ export function UploadFilesDialog({
     }
   };
 
-  const handleUploadAreaClick = (e: React.MouseEvent<HTMLLabelElement>) => {
-    if (!shouldUseNativePhotoPicker) return;
-
-    e.preventDefault();
-    void handleNativePhotoPick();
+  const handleUploadAreaClick = () => {
+    if (shouldUseNativePhotoPicker) {
+      void handleNativePhotoPick();
+    } else {
+      // For non-native: trigger the hidden file input manually
+      fileInputRef.current?.click();
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
