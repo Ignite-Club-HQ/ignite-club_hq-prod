@@ -1045,18 +1045,20 @@ export default function VaultPage() {
       // Default estimated size for photos without file_size (500KB per photo)
       const DEFAULT_PHOTO_SIZE = 500 * 1024;
       
-      // Get photos storage with team and mini-league info
+      // Get photos storage with team and mini-league info (exclude soft-deleted)
       const { data: photosData } = await supabase
         .from("photos")
         .select("file_size, team_id, mini_league_id")
-        .eq("club_id", currentClub.id);
+        .eq("club_id", currentClub.id)
+        .is("deleted_at", null);
       
-      // Get documents storage with team info and name to check file type
+      // Get documents storage with team info and name to check file type (exclude soft-deleted)
       // Note: mini_league_id may not be in types yet, cast to handle this
       const { data: rawFilesData } = await supabase
         .from("vault_files")
         .select("*")
-        .eq("club_id", currentClub.id);
+        .eq("club_id", currentClub.id)
+        .is("deleted_at", null);
       const filesData = (rawFilesData || []) as { file_size: number | null; team_id: string | null; mini_league_id?: string | null; name: string | null }[];
       
       // Get all teams for the club
