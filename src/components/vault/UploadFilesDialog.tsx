@@ -56,6 +56,7 @@ export function UploadFilesDialog({
   const shouldStabilizeIOSLayout = isIOSEnvironment;
   const shouldUseNativePhotoPicker = uploadType === "photo" && isNativeIOS;
   const navGuardRetryTimeoutRef = useRef<number | null>(null);
+  const wasOpenRef = useRef(open);
 
   const dismissIOSKeyboardAccessory = useCallback(() => {
     if (!isNativeIOS) return;
