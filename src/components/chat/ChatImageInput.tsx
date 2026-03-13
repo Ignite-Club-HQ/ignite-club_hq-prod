@@ -30,7 +30,14 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hadAttachmentRef = useRef(false);
   const navGuardRetryTimeoutRef = useRef<number | null>(null);
-  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const platform = Capacitor.getPlatform();
+  const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
+  const isIOSEnvironment =
+    isNativeIOS ||
+    (typeof navigator !== "undefined" &&
+      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)));
+  const shouldStabilizeIOSLayout = isIOSEnvironment;
 
   const dismissIOSKeyboardAccessory = () => {
     if (!isNativeIOS) return;
