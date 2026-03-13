@@ -155,11 +155,15 @@ export function UploadFilesDialog({
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const input = e.currentTarget;
+    const file = input.files?.[0];
     if (file) {
       handleFileSelect(file);
       requestAnimationFrame(restoreNativeLayout);
     }
+
+    // Allow selecting the same file again in the same dialog session.
+    input.value = "";
   };
 
   useEffect(() => {
