@@ -378,6 +378,11 @@ export function BottomNav() {
     root.style.setProperty("--bottom-nav-offset", `calc(4rem + ${navBottomInset})`);
   }, [navBottomInset, nativeInsetFloor]);
 
+  const navViewportCompensationTransform =
+    isNativeIOS && visualViewportOffsetTopPx > 0
+      ? `translateY(-${visualViewportOffsetTopPx}px)`
+      : undefined;
+
   return (
     <>
       {/* Solid background filler to prevent content showing through safe area below nav */}
@@ -386,6 +391,7 @@ export function BottomNav() {
           className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
           style={{
             height: `calc(4rem + ${navBottomInset} + 1rem)`,
+            transform: navViewportCompensationTransform,
           }}
         />
       )}
