@@ -252,7 +252,7 @@ export function BottomNav() {
       window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
       window.removeEventListener(IOS_NAV_GUARD_EVENT, handleNavGuard as EventListener);
     };
-  }, [isNativeIOS, lockNavInteractions]);
+  }, [isNativeIOS, lockNavInteractions, scheduleInsetSync]);
 
   // Route change → lock interactions briefly
   useEffect(() => {
