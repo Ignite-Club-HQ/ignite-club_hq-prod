@@ -312,6 +312,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       void handleNativePhotoPick();
     } else {
       fileInputRef.current?.click();
+      if (shouldStabilizeIOSLayout) {
+        requestAnimationFrame(() => {
+          restoreNativeLayout();
+        });
+      }
     }
   };
 
