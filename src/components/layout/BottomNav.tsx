@@ -214,17 +214,29 @@ export function BottomNav() {
     }, Math.max(250, durationMs));
   }, []);
 
-  // Measure safe area inset on mount + orientation changes only.
-  // Never bind this to resize/visualViewport resize (too volatile on iOS pickers/keyboards).
+  // Measure safe area inset ONCE on mount + orientation changes only.
+  // After initial measurement, the inset is frozen — no picker/keyboard/route event can alter it.
+  const insetFrozenRef = useRef(false);
+
   useEffect(() => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
-    measureNativeSafeInset();
-    scheduleInsetSync([350]);
+    if (!insetFrozenRef.current) {
+      measureNativeSafeInset();
+      // Freeze after a short delay to allow the initial measurement to settle
+      const freezeTimeout = window.setTimeout(() => {
+        insetFrozenRef.current = true;
+      }, 500);
+
+      return () => window.clearTimeout(freezeTimeout);
+    }
 
     const handleOrientationChange = () => {
+      // Only orientation changes can unfreeze and re-measure
+      insetFrozenRef.current = false;
       measureNativeSafeInset({ allowDecrease: true });
       scheduleInsetSync([240, 560], { allowDecrease: true });
+      window.setTimeout(() => { insetFrozenRef.current = true; }, 700);
     };
 
     window.addEventListener("orientationchange", handleOrientationChange);
