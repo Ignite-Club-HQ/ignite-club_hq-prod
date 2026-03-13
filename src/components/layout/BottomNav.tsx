@@ -279,7 +279,7 @@ export function BottomNav() {
 
   const nativeInsetFloor = `${nativeSafeInsetPx}px`;
   const navBottomInset = isNativeIOS
-    ? `max(env(safe-area-inset-bottom, 0px), ${nativeInsetFloor})`
+    ? `${nativeSafeInsetPx}px`
     : isAndroidNative || isIOSEnvironment
       ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
       : "env(safe-area-inset-bottom, 0px)";
