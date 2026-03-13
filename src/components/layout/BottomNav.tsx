@@ -128,13 +128,16 @@ export function BottomNav() {
   const [nativeSafeInsetPx, setNativeSafeInsetPx] = useState(() => {
     if (typeof document === "undefined") return MIN_NATIVE_BOTTOM_INSET_PX;
 
-    const existingInset = Number.parseFloat(
-      document.documentElement.style.getPropertyValue("--bottom-nav-safe-inset") || "",
+    const existingInsetPx = Number.parseFloat(
+      document.documentElement.style.getPropertyValue("--bottom-nav-safe-inset-px") ||
+        document.documentElement.style.getPropertyValue("--bottom-nav-safe-inset") ||
+        "",
     );
 
-    return Number.isFinite(existingInset)
-      ? clampNativeInsetPx(existingInset)
-      : MIN_NATIVE_BOTTOM_INSET_PX;
+    const measuredInsetPx = readSafeAreaInsetBottomPx();
+    const bootstrapInsetPx = Math.max(Number.isFinite(existingInsetPx) ? existingInsetPx : 0, measuredInsetPx);
+
+    return clampNativeInsetPx(bootstrapInsetPx || MIN_NATIVE_BOTTOM_INSET_PX);
   });
 
   const [navInteractionLocked, setNavInteractionLocked] = useState(false);
