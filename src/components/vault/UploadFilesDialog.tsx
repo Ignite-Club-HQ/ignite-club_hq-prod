@@ -445,7 +445,7 @@ export function UploadFilesDialog({
                 }
                 className="hidden"
                 onChange={handleInputChange}
-                disabled={isUploading || isPickingNativePhoto}
+                disabled={isUploading || isPickingNativePhoto || isSubmittingUpload}
               />
             </label>
           ) : (
