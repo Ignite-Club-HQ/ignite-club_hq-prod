@@ -83,9 +83,6 @@ export default function TeamChatPage() {
   const { isOnline } = useOnlineStatus();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
-  const bottomInset = isNativePlatform
-    ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
-    : "env(safe-area-inset-bottom, 0px)";
 
   // Mark team message notifications as read when opening this thread
   useEffect(() => {
@@ -960,7 +957,7 @@ export default function TeamChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden overscroll-none" style={{ paddingBottom: `calc(5rem + ${bottomInset})` }}>
+    <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden overscroll-none" style={{ paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }}>
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
@@ -1083,8 +1080,8 @@ export default function TeamChatPage() {
        </div>
 
       {/* Input - Fixed at bottom above nav bar */}
-      <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: `calc(4rem + ${bottomInset} + 3rem)` }} />
-      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: `calc(4rem + ${bottomInset})` }}>
+      <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 5rem) + 3rem)" }} />
+      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 5rem)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         <div className="flex gap-2 items-end">
