@@ -30,7 +30,14 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hadAttachmentRef = useRef(false);
   const navGuardRetryTimeoutRef = useRef<number | null>(null);
-  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const platform = Capacitor.getPlatform();
+  const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
+  const isIOSEnvironment =
+    isNativeIOS ||
+    (typeof navigator !== "undefined" &&
+      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)));
+  const shouldStabilizeIOSLayout = isIOSEnvironment;
 
   const dismissIOSKeyboardAccessory = () => {
     if (!isNativeIOS) return;
@@ -38,7 +45,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const emitIOSNavGuard = (durationMs = 900) => {
-    if (!isNativeIOS) return;
+    if (!shouldStabilizeIOSLayout) return;
     dispatchIOSNavGuard(durationMs);
   };
 
@@ -51,7 +58,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const restoreNativeLayout = () => {
-    if (!isNativeIOS || typeof window === "undefined") return;
+    if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
     // Guard nav interactions while iOS settles viewport after picker dismissal.
     // First guard catches immediate close; second guard catches delayed first-run
@@ -267,6 +274,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       return;
     }
 
+    if (shouldStabilizeIOSLayout) {
+      requestAnimationFrame(() => {
+        restoreNativeLayout();
+      });
+    }
+
     const localUrl = URL.createObjectURL(file);
     setLocalPreview(localUrl);
     setUploading(true);
@@ -283,6 +296,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       setLocalPreview(null);
     } finally {
       setUploading(false);
+      if (shouldStabilizeIOSLayout) {
+        restoreNativeLayout();
+      }
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -296,6 +312,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       void handleNativePhotoPick();
     } else {
       fileInputRef.current?.click();
+      if (shouldStabilizeIOSLayout) {
+        requestAnimationFrame(() => {
+          restoreNativeLayout();
+        });
+      }
     }
   };
 
@@ -328,14 +349,14 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   useEffect(() => {
     const hasAttachment = Boolean(localPreview || imageUrl);
 
-    if (isNativeIOS && hadAttachmentRef.current && !hasAttachment && !uploading) {
+    if (shouldStabilizeIOSLayout && hadAttachmentRef.current && !hasAttachment && !uploading) {
       requestAnimationFrame(() => {
         restoreNativeLayout();
       });
     }
 
     hadAttachmentRef.current = hasAttachment;
-  }, [imageUrl, isNativeIOS, localPreview, uploading]);
+  }, [imageUrl, localPreview, shouldStabilizeIOSLayout, uploading]);
 
   const displayUrl = localPreview || imageUrl;
 

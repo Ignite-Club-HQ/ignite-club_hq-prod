@@ -21,6 +21,7 @@ const navItems = [
 
 const MIN_NATIVE_BOTTOM_INSET_PX = 20;
 const IOS_PHONE_BOTTOM_INSET_PX = 34;
+const IOS_WEB_BOTTOM_INSET_PX = 16;
 const MAX_NATIVE_BOTTOM_INSET_PX = 40;
 const DEFAULT_NAV_GUARD_MS = 900;
 
@@ -120,8 +121,11 @@ export function BottomNav() {
     return iOSDevice || iPadOSDesktopMode || platform === "ios";
   }, [platform]);
 
+  const shouldStabilizeIOSLayout = isIOSEnvironment;
+
   const nativeInsetFloorPx = useMemo(() => {
-    if (!isNativeIOS) return MIN_NATIVE_BOTTOM_INSET_PX;
+    if (!shouldStabilizeIOSLayout) return MIN_NATIVE_BOTTOM_INSET_PX;
+    if (!isNativeIOS) return IOS_WEB_BOTTOM_INSET_PX;
     if (typeof window === "undefined") return IOS_PHONE_BOTTOM_INSET_PX;
 
     const shortestScreenEdgePx = Math.min(
@@ -130,7 +134,7 @@ export function BottomNav() {
     );
 
     return shortestScreenEdgePx <= 430 ? IOS_PHONE_BOTTOM_INSET_PX : MIN_NATIVE_BOTTOM_INSET_PX;
-  }, [isNativeIOS]);
+  }, [isNativeIOS, shouldStabilizeIOSLayout]);
 
   const clampNativeInsetPx = useCallback(
     (insetPx: number) => Math.min(MAX_NATIVE_BOTTOM_INSET_PX, Math.max(nativeInsetFloorPx, insetPx)),
@@ -184,10 +188,10 @@ export function BottomNav() {
 
   const measureNativeSafeInset = useCallback(
     (options: { allowDecrease?: boolean } = {}) => {
-      if (!isNativeIOS) return;
+      if (!shouldStabilizeIOSLayout) return;
       applyMeasuredInset(readSafeAreaInsetBottomPx(), options);
     },
-    [applyMeasuredInset, isNativeIOS],
+    [applyMeasuredInset, shouldStabilizeIOSLayout],
   );
 
   const settleInflatedInset = useCallback(() => {
@@ -225,7 +229,7 @@ export function BottomNav() {
   const insetFrozenRef = useRef(false);
 
   useEffect(() => {
-    if (!isNativeIOS || typeof window === "undefined") return;
+    if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
     const handleOrientationChange = () => {
       insetFrozenRef.current = false;
@@ -247,11 +251,11 @@ export function BottomNav() {
       if (freezeTimeout !== null) window.clearTimeout(freezeTimeout);
       window.removeEventListener("orientationchange", handleOrientationChange);
     };
-  }, [isNativeIOS, lockNavInteractions, measureNativeSafeInset, scheduleInsetSync]);
+  }, [shouldStabilizeIOSLayout, lockNavInteractions, measureNativeSafeInset, scheduleInsetSync]);
 
   // Layout reset / nav guard events → only lock interactions
   useEffect(() => {
-    if (!isNativeIOS || typeof window === "undefined") return;
+    if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
     const handleLayoutReset = () => lockNavInteractions(1200);
     const handleNavGuard = (event: Event) => {
@@ -279,7 +283,7 @@ export function BottomNav() {
       clearNavGuardSettleTimeout();
     };
   }, [
-    isNativeIOS,
+    shouldStabilizeIOSLayout,
     clearNavGuardSettleTimeout,
     lockNavInteractions,
     scheduleInsetSync,
@@ -288,9 +292,9 @@ export function BottomNav() {
 
   // Route change → lock interactions briefly
   useEffect(() => {
-    if (!isNativeIOS) return;
+    if (!shouldStabilizeIOSLayout) return;
     lockNavInteractions(700);
-  }, [isNativeIOS, location.pathname, lockNavInteractions]);
+  }, [shouldStabilizeIOSLayout, location.pathname, lockNavInteractions]);
 
   useEffect(() => {
     return () => {
@@ -304,9 +308,9 @@ export function BottomNav() {
   }, [clearInsetSyncTimeouts, clearNavGuardSettleTimeout]);
 
   const nativeInsetFloor = `${nativeSafeInsetPx}px`;
-  const navBottomInset = isNativeIOS
+  const navBottomInset = shouldStabilizeIOSLayout
     ? `${nativeSafeInsetPx}px`
-    : isAndroidNative || isIOSEnvironment
+    : isAndroidNative
       ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
       : "env(safe-area-inset-bottom, 0px)";
 
@@ -320,7 +324,7 @@ export function BottomNav() {
 
   // GPU layer promotion style — forces iOS to keep the nav on a dedicated
   // compositing layer so WKWebView viewport mutations can't "unstick" it.
-  const gpuLayerStyle: React.CSSProperties = isNativeIOS
+  const gpuLayerStyle: React.CSSProperties = shouldStabilizeIOSLayout
     ? { transform: "translate3d(0,0,0)", willChange: "transform", backfaceVisibility: "hidden" }
     : {};
 
