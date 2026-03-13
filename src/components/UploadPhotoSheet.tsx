@@ -14,14 +14,9 @@ import { compressImage, formatFileSize } from "@/lib/imageCompression";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from "@capacitor/camera";
-import { StatusBar } from "@capacitor/status-bar";
-import { Keyboard } from "@capacitor/keyboard";
 import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
-import {
-  emitIOSLayoutReset as dispatchIOSLayoutReset,
-  emitIOSNavGuard as dispatchIOSNavGuard,
-} from "@/lib/iosLayoutStability";
+import { emitIOSNavGuard as dispatchIOSNavGuard } from "@/lib/iosLayoutStability";
 
 interface UploadPhotoSheetProps {
   open: boolean;
@@ -72,46 +67,45 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPickingNativePhoto, setIsPickingNativePhoto] = useState(false);
-  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const navGuardRetryTimeoutRef = useRef<number | null>(null);
+  const platform = Capacitor.getPlatform();
+  const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
+  const isIOSEnvironment =
+    isNativeIOS ||
+    (typeof navigator !== "undefined" &&
+      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)));
+  const shouldStabilizeIOSLayout = isIOSEnvironment;
   const shouldUseNativePhotoPicker = isNativeIOS;
   const primaryFileInputRef = useRef<HTMLInputElement>(null);
   const addMoreFileInputRef = useRef<HTMLInputElement>(null);
 
-  const restoreNativeStatusBarOverlay = useCallback(async () => {
-    if (!isNativeIOS) return;
-
-    try {
-      await StatusBar.setOverlaysWebView({ overlay: false });
-    } catch (error) {
-      console.warn("[UploadPhotoSheet] Failed to restore status bar overlay:", error);
-    }
-  }, [isNativeIOS]);
-
-  const dismissIOSKeyboardAccessory = useCallback(() => {
-    if (!isNativeIOS) return;
-    (document.activeElement as HTMLElement | null)?.blur();
-  }, [isNativeIOS]);
-
-  const emitIOSLayoutReset = useCallback(() => {
-    if (!isNativeIOS) return;
-    dispatchIOSLayoutReset();
-  }, [isNativeIOS]);
-
   const emitIOSNavGuard = useCallback((durationMs = 900) => {
-    if (!isNativeIOS) return;
+    if (!shouldStabilizeIOSLayout) return;
     dispatchIOSNavGuard(durationMs);
-  }, [isNativeIOS]);
+  }, [shouldStabilizeIOSLayout]);
+
+  const clearNavGuardRetryTimeout = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (navGuardRetryTimeoutRef.current !== null) {
+      window.clearTimeout(navGuardRetryTimeoutRef.current);
+      navGuardRetryTimeoutRef.current = null;
+    }
+  }, []);
 
   const restoreNativeLayout = useCallback(() => {
-    if (!isNativeIOS || typeof window === "undefined") return;
+    if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
-    // Guard nav interactions briefly while iOS settles viewport after picker dismissal.
-    // Do NOT call StatusBar.setOverlaysWebView, Keyboard.hide, or dispatch layout
-    // reset events here — those actively disrupt the viewport during the settling
-    // period and cause the intermittent BottomNav drop. The GPU layer promotion on
-    // BottomNav keeps it anchored without manual intervention.
-    emitIOSNavGuard(600);
-  }, [emitIOSNavGuard, isNativeIOS]);
+    // Guard nav interactions while iOS settles viewport after picker dismissal.
+    // First guard catches immediate close; second guard catches delayed first-run
+    // permission animation settling that can otherwise leave nav inset inflated.
+    emitIOSNavGuard(900);
+    clearNavGuardRetryTimeout();
+    navGuardRetryTimeoutRef.current = window.setTimeout(() => {
+      emitIOSNavGuard(1200);
+      navGuardRetryTimeoutRef.current = null;
+    }, 320);
+  }, [clearNavGuardRetryTimeout, emitIOSNavGuard, shouldStabilizeIOSLayout]);
 
   // Get user roles
   const { data: userRoles } = useQuery({
@@ -383,6 +377,12 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     }
   }, [open, restoreNativeLayout]);
 
+  useEffect(() => {
+    return () => {
+      clearNavGuardRetryTimeout();
+    };
+  }, [clearNavGuardRetryTimeout]);
+
   const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string): Promise<string> => {
     const fileExt = file.name.split(".").pop();
     const timestamp = Date.now();
@@ -513,7 +513,17 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    if (shouldStabilizeIOSLayout) {
+      requestAnimationFrame(() => {
+        restoreNativeLayout();
+      });
+    }
+
     await addPhotosToSelection(Array.from(files));
+
+    if (shouldStabilizeIOSLayout) {
+      restoreNativeLayout();
+    }
 
     // Reset the input so the same files can be selected again
     e.target.value = '';
@@ -595,7 +605,6 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       requestAnimationFrame(() => {
         restoreNativeLayout();
       });
-      dismissIOSKeyboardAccessory();
 
       if (!hasCameraPhotoSource(photo)) {
         throw new Error("No photo selected (missing base64String/webPath/path)");
@@ -626,7 +635,6 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         console.log("[UploadPhotoSheet] user cancelled");
       }
     } finally {
-      await restoreNativeStatusBarOverlay();
       restoreNativeLayout();
       setIsPickingNativePhoto(false);
     }
@@ -795,9 +803,17 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                     (uploading || isPickingNativePhoto) && "pointer-events-none opacity-70"
                   )}
                   onClick={(e) => {
-                    if (!shouldUseNativePhotoPicker) return;
-                    e.preventDefault();
-                    void handleNativePhotoPick();
+                    if (shouldUseNativePhotoPicker) {
+                      e.preventDefault();
+                      void handleNativePhotoPick();
+                      return;
+                    }
+
+                    if (shouldStabilizeIOSLayout) {
+                      requestAnimationFrame(() => {
+                        restoreNativeLayout();
+                      });
+                    }
                   }}
                 >
                   <div className="aspect-[4/3] rounded-2xl border-2 border-dashed border-muted-foreground/25 bg-muted/50 flex flex-col items-center justify-center gap-4 transition-colors hover:border-muted-foreground/50 hover:bg-muted">
@@ -894,9 +910,17 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                           isPickingNativePhoto && "pointer-events-none opacity-70"
                         )}
                         onClick={(e) => {
-                          if (!shouldUseNativePhotoPicker) return;
-                          e.preventDefault();
-                          void handleNativePhotoPick();
+                          if (shouldUseNativePhotoPicker) {
+                            e.preventDefault();
+                            void handleNativePhotoPick();
+                            return;
+                          }
+
+                          if (shouldStabilizeIOSLayout) {
+                            requestAnimationFrame(() => {
+                              restoreNativeLayout();
+                            });
+                          }
                         }}
                       >
                         {isPickingNativePhoto ? (
