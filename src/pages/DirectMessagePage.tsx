@@ -6,7 +6,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2, Crown, Lock, Flame } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 
 import { toast } from "sonner";
