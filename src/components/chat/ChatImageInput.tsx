@@ -315,6 +315,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     setPreviewFailed(false);
   }, [localPreview, imageUrl]);
 
+  useEffect(() => {
+    return () => {
+      clearNavGuardRetryTimeout();
+    };
+  }, []);
+
   // When the parent clears an attached image after send, force a final iOS viewport settle
   useEffect(() => {
     const hasAttachment = Boolean(localPreview || imageUrl);
