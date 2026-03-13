@@ -402,6 +402,7 @@ export function BottomNav() {
         )}
         style={{
           paddingBottom: navBottomInset,
+          transform: navViewportCompensationTransform,
         }}
         aria-label="Main navigation"
       >
