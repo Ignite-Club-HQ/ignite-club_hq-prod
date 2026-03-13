@@ -261,17 +261,21 @@ export function BottomNav() {
           className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
           style={{
             height: `calc(4rem + ${navBottomInset} + 1rem)`,
+            transform: `translate3d(0, ${navShiftCorrectionPx}px, 0)`,
+            willChange: "transform",
           }}
         />
       )}
       <nav
+        ref={navRef}
         className={cn(
           "fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg",
           navInteractionLocked && "pointer-events-none",
         )}
         style={{
           paddingBottom: navBottomInset,
-          transform: "translateZ(0)",
+          transform: `translate3d(0, ${navShiftCorrectionPx}px, 0)`,
+          willChange: "transform",
         }}
         aria-label="Main navigation"
       >
