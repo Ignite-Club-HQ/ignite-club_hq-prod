@@ -199,6 +199,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         hasBase64: !!photo.base64String,
       });
 
+      // NOW it's safe to set uploading state — the native picker has closed
+      setUploading(true);
+
       if (!hasCameraPhotoSource(photo)) {
         throw new Error("No photo selected (missing base64String/webPath/path)");
       }
