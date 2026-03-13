@@ -5,13 +5,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
-import { Keyboard } from "@capacitor/keyboard";
-import { StatusBar } from "@capacitor/status-bar";
+
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { cameraPhotoToBlob, hasCameraPhotoSource, mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 import {
-  emitIOSLayoutReset as dispatchIOSLayoutReset,
   emitIOSNavGuard as dispatchIOSNavGuard,
 } from "@/lib/iosLayoutStability";
 
@@ -38,20 +36,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     (document.activeElement as HTMLElement | null)?.blur();
   };
 
-  const restoreNativeStatusBarOverlay = async () => {
-    if (!isNativeIOS) return;
-
-    try {
-      await StatusBar.setOverlaysWebView({ overlay: false });
-    } catch (error) {
-      console.warn("[ChatImageInput] Failed to restore status bar overlay:", error);
-    }
-  };
-
-  const emitIOSLayoutReset = () => {
-    if (!isNativeIOS) return;
-    dispatchIOSLayoutReset();
-  };
 
   const emitIOSNavGuard = (durationMs = 900) => {
     if (!isNativeIOS) return;
@@ -61,23 +45,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const restoreNativeLayout = () => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
-    emitIOSNavGuard();
-    void restoreNativeStatusBarOverlay();
-    dismissIOSKeyboardAccessory();
-    void Keyboard.hide().catch(() => undefined);
-    emitIOSLayoutReset();
-
-    // iOS can settle viewport metrics over several frames after picker dismissal.
-    requestAnimationFrame(() => {
-      emitIOSLayoutReset();
-    });
-
-    [100, 260, 520].forEach((delay) => {
-      window.setTimeout(() => {
-        void restoreNativeStatusBarOverlay();
-        emitIOSLayoutReset();
-      }, delay);
-    });
+    // Guard nav interactions briefly while iOS settles viewport after picker dismissal.
+    // Do NOT call StatusBar.setOverlaysWebView, Keyboard.hide, or dispatch layout
+    // reset events here — those actively disrupt the viewport during the settling
+    // period and cause the intermittent BottomNav drop. The GPU layer promotion on
+    // BottomNav keeps it anchored without manual intervention.
+    emitIOSNavGuard(600);
   };
 
   const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
@@ -264,7 +237,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       }
       setLocalPreview(null);
     } finally {
-      await restoreNativeStatusBarOverlay();
       restoreNativeLayout();
       setUploading(false);
     }
