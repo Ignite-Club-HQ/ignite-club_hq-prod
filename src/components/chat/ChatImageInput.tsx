@@ -61,13 +61,20 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
     // Guard nav interactions while iOS settles viewport after picker dismissal.
-    // First guard catches immediate close; second guard catches delayed first-run
-    // permission animation settling that can otherwise leave nav inset inflated.
+    // The first-run Apple permission prompt can leave safe-area inflated for
+    // up to ~3s. We emit staggered guards to catch each settling phase.
     emitIOSNavGuard(900);
     clearNavGuardRetryTimeout();
+
+    // Second guard at 320ms catches immediate permission-dismiss animation
     navGuardRetryTimeoutRef.current = window.setTimeout(() => {
-      emitIOSNavGuard(1200);
-      navGuardRetryTimeoutRef.current = null;
+      emitIOSNavGuard(1500);
+
+      // Third guard at ~1.5s catches the long tail of first-run permission flows
+      navGuardRetryTimeoutRef.current = window.setTimeout(() => {
+        emitIOSNavGuard(1800);
+        navGuardRetryTimeoutRef.current = null;
+      }, 1200);
     }, 320);
   };
 
