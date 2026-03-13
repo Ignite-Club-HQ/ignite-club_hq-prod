@@ -76,9 +76,6 @@ export default function ClubChatPage() {
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
-  const bottomInset = isNativePlatform
-    ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
-    : "env(safe-area-inset-bottom, 0px)";
 
   // Mark club message notifications as read when opening this thread
   useEffect(() => {
