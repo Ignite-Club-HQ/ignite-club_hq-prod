@@ -511,10 +511,10 @@ export function UploadFilesDialog({
           </Button>
           <Button
             onClick={handleUpload}
-            disabled={!selectedFile || isUploading || isPickingNativePhoto}
+            disabled={!selectedFile || isUploading || isPickingNativePhoto || isSubmittingUpload}
             className="flex-1 sm:flex-none"
           >
-            {isUploading ? (
+            {(isUploading || isSubmittingUpload) ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Uploading...
