@@ -631,7 +631,7 @@ export default function DirectMessagePage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] overflow-hidden overscroll-none" ref={pullRefreshRef as any}>
+    <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden overscroll-none" style={{ paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }} ref={pullRefreshRef as any}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
