@@ -264,6 +264,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     } finally {
       restoreNativeLayout();
       setUploading(false);
+      // Clear lingering focus/active state on the image button after picker closes
+      (document.activeElement as HTMLElement | null)?.blur();
     }
   };
 
