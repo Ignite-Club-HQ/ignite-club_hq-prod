@@ -377,6 +377,12 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     }
   }, [open, restoreNativeLayout]);
 
+  useEffect(() => {
+    return () => {
+      clearNavGuardRetryTimeout();
+    };
+  }, [clearNavGuardRetryTimeout]);
+
   const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string): Promise<string> => {
     const fileExt = file.name.split(".").pop();
     const timestamp = Date.now();
@@ -507,7 +513,17 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    if (shouldStabilizeIOSLayout) {
+      requestAnimationFrame(() => {
+        restoreNativeLayout();
+      });
+    }
+
     await addPhotosToSelection(Array.from(files));
+
+    if (shouldStabilizeIOSLayout) {
+      restoreNativeLayout();
+    }
 
     // Reset the input so the same files can be selected again
     e.target.value = '';
@@ -589,7 +605,6 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       requestAnimationFrame(() => {
         restoreNativeLayout();
       });
-      dismissIOSKeyboardAccessory();
 
       if (!hasCameraPhotoSource(photo)) {
         throw new Error("No photo selected (missing base64String/webPath/path)");
@@ -620,7 +635,6 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         console.log("[UploadPhotoSheet] user cancelled");
       }
     } finally {
-      await restoreNativeStatusBarOverlay();
       restoreNativeLayout();
       setIsPickingNativePhoto(false);
     }
