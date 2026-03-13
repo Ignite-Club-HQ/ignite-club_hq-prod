@@ -292,9 +292,9 @@ export function BottomNav() {
 
   // Route change → lock interactions briefly
   useEffect(() => {
-    if (!isNativeIOS) return;
+    if (!shouldStabilizeIOSLayout) return;
     lockNavInteractions(700);
-  }, [isNativeIOS, location.pathname, lockNavInteractions]);
+  }, [shouldStabilizeIOSLayout, location.pathname, lockNavInteractions]);
 
   useEffect(() => {
     return () => {
