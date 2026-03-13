@@ -19,10 +19,10 @@ const navItems = [
   { to: "/media", icon: Image, label: "Media", requiresPro: true },
 ];
 
-const MIN_NATIVE_BOTTOM_INSET_PX = 16;
+const MIN_NATIVE_BOTTOM_INSET_PX = 20;
 const MAX_NATIVE_BOTTOM_INSET_PX = 40;
 const DEFAULT_NAV_GUARD_MS = 900;
-const ROUTE_REMEASURE_DELAYS_MS = [120, 320, 620] as const;
+const ROUTE_REMEASURE_DELAYS_MS = [90, 240, 460, 760, 1160] as const;
 
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
