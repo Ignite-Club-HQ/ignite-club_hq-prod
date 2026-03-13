@@ -10,7 +10,6 @@ import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { cameraPhotoToBlob, hasCameraPhotoSource, mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 import {
-  emitIOSLayoutReset as dispatchIOSLayoutReset,
   emitIOSNavGuard as dispatchIOSNavGuard,
 } from "@/lib/iosLayoutStability";
 
