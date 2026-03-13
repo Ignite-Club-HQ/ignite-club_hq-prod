@@ -419,12 +419,14 @@ export function UploadFilesDialog({
 
           {/* Upload Area */}
           {!selectedFile ? (
-            <label
+            <div
               className={cn("block cursor-pointer", (isUploading || isPickingNativePhoto || isSubmittingUpload) && "pointer-events-none opacity-70")}
               onClick={handleUploadAreaClick}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
+              role="button"
+              tabIndex={0}
             >
               <div
                 className={cn(
@@ -454,23 +456,26 @@ export function UploadFilesDialog({
                   </p>
                 </div>
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={
-                  uploadType === "photo"
-                    ? "image/png,image/jpeg,image/jpg,image/gif,image/webp,image/heic,image/heif,image/svg+xml,image/bmp,image/tiff"
-                    : Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios"
-                      ? "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,application/zip,application/x-rar-compressed,application/json,application/xml,text/xml,text/yaml,application/x-yaml,text/markdown"
-                      : Capacitor.isNativePlatform()
-                        ? ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.mp4,.mp3,.wav,.mov,.json,.xml,.yaml,.md"
-                        : "*"
-                }
-                className="hidden"
-                onChange={handleInputChange}
-                disabled={isUploading || isPickingNativePhoto || isSubmittingUpload}
-              />
-            </label>
+              {/* Hidden file input – only used on non-native paths */}
+              {!shouldUseNativePhotoPicker && (
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={
+                    uploadType === "photo"
+                      ? "image/png,image/jpeg,image/jpg,image/gif,image/webp,image/heic,image/heif,image/svg+xml,image/bmp,image/tiff"
+                      : Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios"
+                        ? "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,application/zip,application/x-rar-compressed,application/json,application/xml,text/xml,text/yaml,application/x-yaml,text/markdown"
+                        : Capacitor.isNativePlatform()
+                          ? ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.mp4,.mp3,.wav,.mov,.json,.xml,.yaml,.md"
+                          : "*"
+                  }
+                  className="hidden"
+                  onChange={handleInputChange}
+                  disabled={isUploading || isPickingNativePhoto || isSubmittingUpload}
+                />
+              )}
+            </div>
           ) : (
             <div className="space-y-4">
               {/* Preview */}
