@@ -165,7 +165,7 @@ export function UploadFilesDialog({
     const file = input.files?.[0];
     if (file) {
       handleFileSelect(file);
-      requestAnimationFrame(restoreNativeLayout);
+      queueNativeLayoutRecovery();
     }
 
     // Allow selecting the same file again in the same dialog session.
@@ -177,11 +177,32 @@ export function UploadFilesDialog({
       clearSelection();
       setUploadType("photo");
       setIsSubmittingUpload(false);
-      restoreNativeLayout();
+      queueNativeLayoutRecovery();
     }
 
     wasOpenRef.current = open;
-  }, [clearSelection, open, restoreNativeLayout]);
+  }, [clearSelection, open, queueNativeLayoutRecovery]);
+
+  useEffect(() => {
+    if (!open || !shouldStabilizeIOSLayout || typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+
+    const handleLayoutResume = () => {
+      if (document.visibilityState === "hidden") return;
+      queueNativeLayoutRecovery([0, 320, 1200]);
+    };
+
+    window.addEventListener("focus", handleLayoutResume);
+    window.addEventListener("pageshow", handleLayoutResume);
+    document.addEventListener("visibilitychange", handleLayoutResume);
+
+    return () => {
+      window.removeEventListener("focus", handleLayoutResume);
+      window.removeEventListener("pageshow", handleLayoutResume);
+      document.removeEventListener("visibilitychange", handleLayoutResume);
+    };
+  }, [open, queueNativeLayoutRecovery, shouldStabilizeIOSLayout]);
 
   const handleNativePhotoPick = async () => {
     if (

@@ -22,6 +22,7 @@ interface ResponsiveDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
+  forceDesktopDialog?: boolean;
 }
 
 interface ResponsiveDialogContentProps {
@@ -58,10 +59,12 @@ export function ResponsiveDialog({
   open,
   onOpenChange,
   children,
+  forceDesktopDialog = false,
 }: ResponsiveDialogProps) {
   const isMobile = useIsMobile();
+  const useDrawer = isMobile && !forceDesktopDialog;
 
-  if (isMobile) {
+  if (useDrawer) {
     return (
       <ResponsiveDialogContext.Provider value={{ isMobile: true }}>
         <Drawer open={open} onOpenChange={onOpenChange}>
