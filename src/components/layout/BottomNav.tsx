@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Home, Calendar, MessageCircle, Image, Lock } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -6,7 +6,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Capacitor } from "@capacitor/core";
-
+import {
+  IOS_LAYOUT_RESET_EVENT,
+  IOS_NAV_GUARD_EVENT,
+  readSafeAreaInsetBottomPx,
+} from "@/lib/iosLayoutStability";
 
 const navItems = [
   { to: "/", icon: Home, label: "Home", requiresPro: false },
@@ -14,6 +18,10 @@ const navItems = [
   { to: "/events", icon: Calendar, label: "Schedule", requiresPro: false },
   { to: "/media", icon: Image, label: "Media", requiresPro: true },
 ];
+
+const MIN_NATIVE_BOTTOM_INSET_PX = 16;
+const MAX_NATIVE_BOTTOM_INSET_PX = 40;
+const DEFAULT_NAV_GUARD_MS = 900;
 
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
@@ -40,14 +48,14 @@ export function BottomNav() {
       // Get user's club IDs through their roles
       const clubIds = userRoles?.filter(r => r.club_id).map(r => r.club_id) as string[] || [];
       const teamIds = userRoles?.filter(r => r.team_id).map(r => r.team_id) as string[] || [];
-      
+
       // Get club IDs from team memberships
       if (teamIds.length > 0) {
         const { data: teamsData } = await supabase
           .from("teams")
           .select("club_id")
           .in("id", teamIds);
-        
+
         teamsData?.forEach(t => {
           if (t.club_id && !clubIds.includes(t.club_id)) {
             clubIds.push(t.club_id);
@@ -58,7 +66,7 @@ export function BottomNav() {
       if (clubIds.length === 0 && teamIds.length === 0) return false;
 
       // Pro Access Logic: Club Pro → all teams inherit; Free club → check team subscription
-      
+
       // First check club subscriptions
       if (clubIds.length > 0) {
         const { data: clubSubs } = await supabase
@@ -66,24 +74,24 @@ export function BottomNav() {
           .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
           .in("club_id", clubIds);
 
-        const hasClubPro = clubSubs?.some(s => 
+        const hasClubPro = clubSubs?.some(s =>
           s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override
         );
-        
+
         if (hasClubPro) return true;
       }
-      
+
       // If no club Pro, check team-level subscriptions (for teams in free clubs)
       if (teamIds.length > 0) {
         const { data: teamSubs } = await supabase
           .from("team_subscriptions")
           .select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
           .in("team_id", teamIds);
-        
-        const hasTeamPro = teamSubs?.some(s => 
+
+        const hasTeamPro = teamSubs?.some(s =>
           s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override
         );
-        
+
         if (hasTeamPro) return true;
       }
 
@@ -99,6 +107,7 @@ export function BottomNav() {
   // Lock native bottom inset to fixed values so iOS photo picker viewport changes can't shift nav
   const isNativePlatform = Capacitor.isNativePlatform();
   const platform = Capacitor.getPlatform();
+  const isNativeIOS = isNativePlatform && platform === "ios";
   const isAndroidNative = isNativePlatform && platform === "android";
 
   const isIOSEnvironment = useMemo(() => {
@@ -109,45 +118,113 @@ export function BottomNav() {
     return iOSDevice || iPadOSDesktopMode || platform === "ios";
   }, [platform]);
 
-  // Listen for iOS layout reset events (fired after photo picker closes) and
-  // force a re-render so the fixed nav recalculates its position.
+  const [nativeSafeInsetPx, setNativeSafeInsetPx] = useState(MIN_NATIVE_BOTTOM_INSET_PX);
+  const [navInteractionLocked, setNavInteractionLocked] = useState(false);
   const [, setResetTick] = useState(0);
-  useEffect(() => {
-    if (!isIOSEnvironment) return;
+  const navGuardTimeoutRef = useRef<number | null>(null);
 
-    const handler = () => {
-      // Force a layout recalc by nudging the scroll position
-      window.scrollTo(0, window.scrollY);
-      // Trigger re-render to recompute styles
-      setResetTick(t => t + 1);
+  const lockNavInteractions = useCallback((durationMs = DEFAULT_NAV_GUARD_MS) => {
+    if (typeof window === "undefined") return;
+
+    if (navGuardTimeoutRef.current !== null) {
+      window.clearTimeout(navGuardTimeoutRef.current);
+    }
+
+    setNavInteractionLocked(true);
+    navGuardTimeoutRef.current = window.setTimeout(() => {
+      setNavInteractionLocked(false);
+      navGuardTimeoutRef.current = null;
+    }, Math.max(250, durationMs));
+  }, []);
+
+  useEffect(() => {
+    if (!isNativeIOS || typeof window === "undefined") return;
+
+    const measureInset = () => {
+      const measuredInset = readSafeAreaInsetBottomPx();
+      const stabilizedInset = Math.min(
+        MAX_NATIVE_BOTTOM_INSET_PX,
+        Math.max(MIN_NATIVE_BOTTOM_INSET_PX, measuredInset),
+      );
+      setNativeSafeInsetPx(stabilizedInset);
     };
 
-    window.addEventListener("ignite:ios-layout-reset", handler);
-    return () => window.removeEventListener("ignite:ios-layout-reset", handler);
-  }, [isIOSEnvironment]);
+    measureInset();
+    const delayedMeasure = window.setTimeout(measureInset, 350);
 
-  // Removed viewport compensation logic - it caused more issues than it solved.
-  // The nav stays fixed at bottom:0 and iOS viewport shifts settle naturally.
+    window.addEventListener("orientationchange", measureInset);
+    return () => {
+      window.clearTimeout(delayedMeasure);
+      window.removeEventListener("orientationchange", measureInset);
+    };
+  }, [isNativeIOS]);
 
-  const navBottomInset = isAndroidNative || isIOSEnvironment
-    ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
-    : "env(safe-area-inset-bottom, 0px)";
+  // Listen for iOS layout reset events (fired after photo picker closes) and
+  // force a re-render so the fixed nav recalculates its position.
+  useEffect(() => {
+    if (!isNativeIOS || typeof window === "undefined") return;
+
+    const handleLayoutReset = () => {
+      lockNavInteractions();
+
+      // Force layout recalc by nudging scroll twice across frames.
+      window.scrollTo(0, window.scrollY);
+      setResetTick(t => t + 1);
+
+      requestAnimationFrame(() => {
+        window.scrollTo(0, window.scrollY);
+        setResetTick(t => t + 1);
+      });
+    };
+
+    const handleNavGuard = (event: Event) => {
+      const customEvent = event as CustomEvent<{ durationMs?: number }>;
+      lockNavInteractions(customEvent.detail?.durationMs ?? DEFAULT_NAV_GUARD_MS);
+    };
+
+    window.addEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
+    window.addEventListener(IOS_NAV_GUARD_EVENT, handleNavGuard as EventListener);
+
+    return () => {
+      window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
+      window.removeEventListener(IOS_NAV_GUARD_EVENT, handleNavGuard as EventListener);
+    };
+  }, [isNativeIOS, lockNavInteractions]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && navGuardTimeoutRef.current !== null) {
+        window.clearTimeout(navGuardTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const navBottomInset = isNativeIOS
+    ? `${nativeSafeInsetPx}px`
+    : isAndroidNative || isIOSEnvironment
+      ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
+      : "env(safe-area-inset-bottom, 0px)";
+
   return (
     <>
       {/* Solid background filler to prevent content showing through safe area below nav */}
       {isNativePlatform && (
-          <div
-            className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
-            style={{
-              height: `calc(4rem + ${navBottomInset} + 1rem)`,
-            }}
-          />
-        )}
-        <nav
-          className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg"
+        <div
+          className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
           style={{
-            paddingBottom: navBottomInset,
+            height: `calc(4rem + ${navBottomInset} + 1rem)`,
           }}
+        />
+      )}
+      <nav
+        className={cn(
+          "fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg",
+          navInteractionLocked && "pointer-events-none",
+        )}
+        style={{
+          paddingBottom: navBottomInset,
+          transform: "translateZ(0)",
+        }}
         aria-label="Main navigation"
       >
         <div className="flex items-center justify-around min-h-[4rem] max-w-lg mx-auto px-2">
