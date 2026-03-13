@@ -2544,20 +2544,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     if (!pitchPlayer?.position || !benchPlayer || !selectedOnPitch) return;
     
+    const capturedPitchPlayerId = selectedOnPitch;
+    
+    // Close dialog and clear selectedOnPitch to prevent useEffect from reopening it
+    setSubPreviewOpen(false);
+    setSelectedOnPitch(null);
+    
     if (swapPlayerId) {
       // Swap-based substitution - show combined confirmation dialog with all steps
-      setSubPreviewOpen(false);
-      // Delay opening confirmation dialog to ensure SubstitutionPreviewDialog closes first
       setTimeout(() => {
-        setPendingManualSub({ pitchPlayerId: selectedOnPitch, benchPlayerId, swapPlayerId });
+        setPendingManualSub({ pitchPlayerId: capturedPitchPlayerId, benchPlayerId, swapPlayerId });
         setManualSubConfirmOpen(true);
       }, 150);
     } else {
       // Direct substitution - show confirmation dialog with step-by-step instructions
-      setSubPreviewOpen(false);
-      // Delay opening confirmation dialog to ensure SubstitutionPreviewDialog closes first
       setTimeout(() => {
-        setPendingManualSub({ pitchPlayerId: selectedOnPitch, benchPlayerId });
+        setPendingManualSub({ pitchPlayerId: capturedPitchPlayerId, benchPlayerId });
         setManualSubConfirmOpen(true);
       }, 150);
     }
