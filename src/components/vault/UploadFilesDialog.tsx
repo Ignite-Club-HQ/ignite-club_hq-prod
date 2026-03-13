@@ -289,12 +289,19 @@ export function UploadFilesDialog({
         setUploadType("file");
       }
       handleFileSelect(file);
+      requestAnimationFrame(restoreNativeLayout);
     }
   };
 
-  const handleUpload = () => {
-    if (selectedFile) {
-      onUpload(selectedFile, uploadType, uploadType === "file" ? fileName : undefined);
+  const handleUpload = async () => {
+    if (!selectedFile) return;
+
+    restoreNativeLayout();
+
+    try {
+      await onUpload(selectedFile, uploadType, uploadType === "file" ? fileName : undefined);
+    } finally {
+      restoreNativeLayout();
     }
   };
 
