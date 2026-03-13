@@ -56,6 +56,7 @@ export function UploadFilesDialog({
   const shouldStabilizeIOSLayout = isIOSEnvironment;
   const shouldUseNativePhotoPicker = uploadType === "photo" && isNativeIOS;
   const navGuardRetryTimeoutRef = useRef<number | null>(null);
+  const wasOpenRef = useRef(open);
 
   const dismissIOSKeyboardAccessory = useCallback(() => {
     if (!isNativeIOS) return;
@@ -114,20 +115,35 @@ export function UploadFilesDialog({
     };
   }, [clearNavGuardRetryTimeout]);
 
-  const handleFileSelect = (file: File) => {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
+  const clearSelection = useCallback(() => {
+    setSelectedFile(null);
+    setPreviewUrl((currentPreviewUrl) => {
+      if (currentPreviewUrl) {
+        URL.revokeObjectURL(currentPreviewUrl);
+      }
+      return null;
+    });
+    setFileName("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
+  }, []);
 
+  const handleFileSelect = (file: File) => {
     setSelectedFile(file);
 
     // Create preview for images
-    if (file.type.startsWith("image/")) {
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-    } else {
-      setPreviewUrl(null);
-    }
+    setPreviewUrl((currentPreviewUrl) => {
+      if (currentPreviewUrl) {
+        URL.revokeObjectURL(currentPreviewUrl);
+      }
+
+      if (file.type.startsWith("image/")) {
+        return URL.createObjectURL(file);
+      }
+
+      return null;
+    });
 
     // Set default filename for files
     if (uploadType === "file" && !fileName) {
@@ -145,10 +161,14 @@ export function UploadFilesDialog({
   };
 
   useEffect(() => {
-    if (!open) {
+    if (wasOpenRef.current && !open) {
+      clearSelection();
+      setUploadType("photo");
       restoreNativeLayout();
     }
-  }, [open, restoreNativeLayout]);
+
+    wasOpenRef.current = open;
+  }, [clearSelection, open, restoreNativeLayout]);
 
   const handleNativePhotoPick = async () => {
     if (!shouldUseNativePhotoPicker || isUploading || isPickingNativePhoto) return;
@@ -300,6 +320,7 @@ export function UploadFilesDialog({
 
     try {
       await onUpload(selectedFile, uploadType, uploadType === "file" ? fileName : undefined);
+      clearSelection();
     } finally {
       restoreNativeLayout();
     }
@@ -307,29 +328,11 @@ export function UploadFilesDialog({
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
-      // Cleanup
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-      setSelectedFile(null);
-      setPreviewUrl(null);
-      setFileName("");
+      clearSelection();
       setUploadType("photo");
       restoreNativeLayout();
     }
     onOpenChange(newOpen);
-  };
-
-  const clearSelection = () => {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-    }
-    setSelectedFile(null);
-    setPreviewUrl(null);
-    setFileName("");
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
   };
 
   const formatFileSize = (bytes: number) => {
