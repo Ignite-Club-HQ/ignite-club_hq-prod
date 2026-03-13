@@ -140,6 +140,7 @@ export function UploadFilesDialog({
     const file = e.target.files?.[0];
     if (file) {
       handleFileSelect(file);
+      requestAnimationFrame(restoreNativeLayout);
     }
   };
 
