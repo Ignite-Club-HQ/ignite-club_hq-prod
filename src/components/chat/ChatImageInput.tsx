@@ -199,6 +199,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         hasBase64: !!photo.base64String,
       });
 
+      // Stabilize BottomNav immediately once picker returns, before blob/compression work.
+      requestAnimationFrame(() => {
+        restoreNativeLayout();
+      });
+
       // NOW it's safe to set uploading state — the native picker has closed
       setUploading(true);
 

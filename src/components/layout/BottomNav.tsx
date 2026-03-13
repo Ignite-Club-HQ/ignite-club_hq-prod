@@ -214,17 +214,29 @@ export function BottomNav() {
     }, Math.max(250, durationMs));
   }, []);
 
-  // Measure safe area inset on mount + orientation changes only.
-  // Never bind this to resize/visualViewport resize (too volatile on iOS pickers/keyboards).
+  // Measure safe area inset ONCE on mount + orientation changes only.
+  // After initial measurement, the inset is frozen — no picker/keyboard/route event can alter it.
+  const insetFrozenRef = useRef(false);
+
   useEffect(() => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
-    measureNativeSafeInset();
-    scheduleInsetSync([350]);
+    if (!insetFrozenRef.current) {
+      measureNativeSafeInset();
+      // Freeze after a short delay to allow the initial measurement to settle
+      const freezeTimeout = window.setTimeout(() => {
+        insetFrozenRef.current = true;
+      }, 500);
+
+      return () => window.clearTimeout(freezeTimeout);
+    }
 
     const handleOrientationChange = () => {
+      // Only orientation changes can unfreeze and re-measure
+      insetFrozenRef.current = false;
       measureNativeSafeInset({ allowDecrease: true });
       scheduleInsetSync([240, 560], { allowDecrease: true });
+      window.setTimeout(() => { insetFrozenRef.current = true; }, 700);
     };
 
     window.addEventListener("orientationchange", handleOrientationChange);
@@ -234,15 +246,14 @@ export function BottomNav() {
     };
   }, [isNativeIOS, measureNativeSafeInset, scheduleInsetSync]);
 
-  // Listen for iOS layout reset events (photo picker / keyboard settle)
-  // and self-heal inset after route transitions.
+  // Listen for iOS nav guard events only (interaction locking).
+  // Layout reset events NO LONGER trigger re-measurement — inset is frozen.
   useEffect(() => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
     const handleLayoutReset = () => {
+      // Only lock interactions, do NOT re-measure inset
       lockNavInteractions(1200);
-      measureNativeSafeInset();
-      scheduleInsetSync(ROUTE_REMEASURE_DELAYS_MS);
     };
 
     const handleNavGuard = (event: Event) => {
@@ -257,16 +268,13 @@ export function BottomNav() {
       window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
       window.removeEventListener(IOS_NAV_GUARD_EVENT, handleNavGuard as EventListener);
     };
-  }, [isNativeIOS, lockNavInteractions, measureNativeSafeInset, scheduleInsetSync]);
+  }, [isNativeIOS, lockNavInteractions]);
 
-  // On every route change, re-sync with delayed checks to recover from WKWebView settle glitches.
+  // On route change, only lock interactions briefly — do NOT re-measure inset.
   useEffect(() => {
     if (!isNativeIOS) return;
-
     lockNavInteractions(700);
-    measureNativeSafeInset();
-    scheduleInsetSync(ROUTE_REMEASURE_DELAYS_MS);
-  }, [isNativeIOS, location.pathname, lockNavInteractions, measureNativeSafeInset, scheduleInsetSync]);
+  }, [isNativeIOS, location.pathname, lockNavInteractions]);
 
   useEffect(() => {
     return () => {
