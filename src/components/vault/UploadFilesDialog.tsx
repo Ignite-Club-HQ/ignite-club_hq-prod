@@ -178,9 +178,17 @@ export function UploadFilesDialog({
   }, [clearSelection, open, restoreNativeLayout]);
 
   const handleNativePhotoPick = async () => {
-    if (!shouldUseNativePhotoPicker || isUploading || isPickingNativePhoto) return;
+    if (
+      !shouldUseNativePhotoPicker ||
+      isUploading ||
+      isPickingNativePhoto ||
+      isSubmittingUpload ||
+      nativePickerInFlightRef.current
+    ) {
+      return;
+    }
 
-    setIsPickingNativePhoto(true);
+    nativePickerInFlightRef.current = true;
     console.log("[UploadFilesDialog] handleNativePhotoPick START");
     try {
       // Let Camera.getPhoto handle permissions natively on iOS to preserve
@@ -194,12 +202,14 @@ export function UploadFilesDialog({
 
       try {
         console.log("[UploadFilesDialog] calling getPhoto (Base64 mode, attempt 1)...");
-        photo = await Camera.getPhoto({
+        const initialPhotoPromise = Camera.getPhoto({
           resultType: CameraResultType.Base64,
           source: CameraSource.Photos,
           allowEditing: false,
           quality: 80,
         });
+        setIsPickingNativePhoto(true);
+        photo = await initialPhotoPromise;
       } catch (firstAttemptError: unknown) {
         if (isCancelledSelectionError(firstAttemptError)) {
           throw firstAttemptError;
@@ -282,6 +292,7 @@ export function UploadFilesDialog({
     } finally {
       await restoreNativeStatusBarOverlay();
       restoreNativeLayout();
+      nativePickerInFlightRef.current = false;
       setIsPickingNativePhoto(false);
     }
   };
