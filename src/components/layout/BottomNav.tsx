@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Home, Calendar, MessageCircle, Image, Lock } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
@@ -22,6 +22,7 @@ const navItems = [
 const MIN_NATIVE_BOTTOM_INSET_PX = 16;
 const MAX_NATIVE_BOTTOM_INSET_PX = 40;
 const DEFAULT_NAV_GUARD_MS = 900;
+const ROUTE_REMEASURE_DELAYS_MS = [120, 320, 620] as const;
 
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
