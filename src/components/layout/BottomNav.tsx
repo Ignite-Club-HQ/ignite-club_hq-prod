@@ -121,8 +121,11 @@ export function BottomNav() {
     return iOSDevice || iPadOSDesktopMode || platform === "ios";
   }, [platform]);
 
+  const shouldStabilizeIOSLayout = isIOSEnvironment;
+
   const nativeInsetFloorPx = useMemo(() => {
-    if (!isNativeIOS) return MIN_NATIVE_BOTTOM_INSET_PX;
+    if (!shouldStabilizeIOSLayout) return MIN_NATIVE_BOTTOM_INSET_PX;
+    if (!isNativeIOS) return IOS_WEB_BOTTOM_INSET_PX;
     if (typeof window === "undefined") return IOS_PHONE_BOTTOM_INSET_PX;
 
     const shortestScreenEdgePx = Math.min(
@@ -131,7 +134,7 @@ export function BottomNav() {
     );
 
     return shortestScreenEdgePx <= 430 ? IOS_PHONE_BOTTOM_INSET_PX : MIN_NATIVE_BOTTOM_INSET_PX;
-  }, [isNativeIOS]);
+  }, [isNativeIOS, shouldStabilizeIOSLayout]);
 
   const clampNativeInsetPx = useCallback(
     (insetPx: number) => Math.min(MAX_NATIVE_BOTTOM_INSET_PX, Math.max(nativeInsetFloorPx, insetPx)),
