@@ -155,6 +155,7 @@ export function BottomNav() {
   const [navInteractionLocked, setNavInteractionLocked] = useState(false);
   const navGuardTimeoutRef = useRef<number | null>(null);
   const insetSyncTimeoutsRef = useRef<number[]>([]);
+  const navGuardSettleTimeoutRef = useRef<number | null>(null);
 
   const clearInsetSyncTimeouts = useCallback(() => {
     if (typeof window === "undefined") return;
