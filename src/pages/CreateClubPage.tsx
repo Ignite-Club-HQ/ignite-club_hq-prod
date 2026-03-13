@@ -54,7 +54,7 @@ export default function CreateClubPage() {
   });
 
   // Check if club creation is locked
-  const { data: isClubCreationLocked = true, isLoading: isLoadingSettings } = useQuery({
+  const { data: isClubCreationLocked = false, isLoading: isLoadingSettings } = useQuery({
     queryKey: ["appSettings", "club_creation_locked"],
     queryFn: async () => {
       const { data } = await supabase
