@@ -312,12 +312,15 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     }
   };
 
-  const handleImageButtonClick = () => {
+  const handleImageButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (isNativeIOS) {
       // Do NOT call dismissIOSKeyboardAccessory() before Camera.getPhoto —
       // blurring breaks the gesture chain and iOS rejects the picker.
       void handleNativePhotoPick();
     } else {
+      // Blur the button so its focus/active style doesn't persist after the
+      // file picker closes (especially visible on Android WebView).
+      (e.currentTarget as HTMLElement)?.blur();
       fileInputRef.current?.click();
       if (shouldStabilizeIOSLayout) {
         requestAnimationFrame(() => {
