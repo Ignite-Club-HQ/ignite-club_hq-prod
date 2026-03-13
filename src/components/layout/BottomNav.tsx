@@ -20,6 +20,7 @@ const navItems = [
 ];
 
 const MIN_NATIVE_BOTTOM_INSET_PX = 20;
+const IOS_PHONE_BOTTOM_INSET_PX = 34;
 const MAX_NATIVE_BOTTOM_INSET_PX = 40;
 const DEFAULT_NAV_GUARD_MS = 900;
 const ROUTE_REMEASURE_DELAYS_MS = [90, 240, 460, 760, 1160] as const;
@@ -120,13 +121,25 @@ export function BottomNav() {
     return iOSDevice || iPadOSDesktopMode || platform === "ios";
   }, [platform]);
 
+  const nativeInsetFloorPx = useMemo(() => {
+    if (!isNativeIOS) return MIN_NATIVE_BOTTOM_INSET_PX;
+    if (typeof window === "undefined") return IOS_PHONE_BOTTOM_INSET_PX;
+
+    const shortestScreenEdgePx = Math.min(
+      window.screen?.width ?? window.innerWidth,
+      window.screen?.height ?? window.innerHeight,
+    );
+
+    return shortestScreenEdgePx <= 430 ? IOS_PHONE_BOTTOM_INSET_PX : MIN_NATIVE_BOTTOM_INSET_PX;
+  }, [isNativeIOS]);
+
   const clampNativeInsetPx = useCallback(
-    (insetPx: number) => Math.min(MAX_NATIVE_BOTTOM_INSET_PX, Math.max(MIN_NATIVE_BOTTOM_INSET_PX, insetPx)),
-    [],
+    (insetPx: number) => Math.min(MAX_NATIVE_BOTTOM_INSET_PX, Math.max(nativeInsetFloorPx, insetPx)),
+    [nativeInsetFloorPx],
   );
 
   const [nativeSafeInsetPx, setNativeSafeInsetPx] = useState(() => {
-    if (typeof document === "undefined") return MIN_NATIVE_BOTTOM_INSET_PX;
+    if (typeof document === "undefined") return nativeInsetFloorPx;
 
     const existingInsetPx = Number.parseFloat(
       document.documentElement.style.getPropertyValue("--bottom-nav-safe-inset-px") ||
@@ -137,7 +150,7 @@ export function BottomNav() {
     const measuredInsetPx = readSafeAreaInsetBottomPx();
     const bootstrapInsetPx = Math.max(Number.isFinite(existingInsetPx) ? existingInsetPx : 0, measuredInsetPx);
 
-    return clampNativeInsetPx(bootstrapInsetPx || MIN_NATIVE_BOTTOM_INSET_PX);
+    return clampNativeInsetPx(bootstrapInsetPx || nativeInsetFloorPx);
   });
 
   const [navInteractionLocked, setNavInteractionLocked] = useState(false);
