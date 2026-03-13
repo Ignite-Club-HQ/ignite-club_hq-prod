@@ -109,6 +109,23 @@ export function BottomNav() {
     return iOSDevice || iPadOSDesktopMode || platform === "ios";
   }, [platform]);
 
+  // Listen for iOS layout reset events (fired after photo picker closes) and
+  // force a re-render so the fixed nav recalculates its position.
+  const [, setResetTick] = useState(0);
+  useEffect(() => {
+    if (!isIOSEnvironment) return;
+
+    const handler = () => {
+      // Force a layout recalc by nudging the scroll position
+      window.scrollTo(0, window.scrollY);
+      // Trigger re-render to recompute styles
+      setResetTick(t => t + 1);
+    };
+
+    window.addEventListener("ignite:ios-layout-reset", handler);
+    return () => window.removeEventListener("ignite:ios-layout-reset", handler);
+  }, [isIOSEnvironment]);
+
   // Removed viewport compensation logic - it caused more issues than it solved.
   // The nav stays fixed at bottom:0 and iOS viewport shifts settle naturally.
 
