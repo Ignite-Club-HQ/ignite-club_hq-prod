@@ -170,6 +170,7 @@ export function UploadFilesDialog({
     if (wasOpenRef.current && !open) {
       clearSelection();
       setUploadType("photo");
+      setIsSubmittingUpload(false);
       restoreNativeLayout();
     }
 
