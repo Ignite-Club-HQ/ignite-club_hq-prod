@@ -317,7 +317,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
   useEffect(() => {
     return () => {
-      clearNavGuardRetryTimeout();
+      if (typeof window !== "undefined" && navGuardRetryTimeoutRef.current !== null) {
+        window.clearTimeout(navGuardRetryTimeoutRef.current);
+        navGuardRetryTimeoutRef.current = null;
+      }
     };
   }, []);
 
