@@ -23,7 +23,6 @@ const MIN_NATIVE_BOTTOM_INSET_PX = 20;
 const IOS_PHONE_BOTTOM_INSET_PX = 34;
 const MAX_NATIVE_BOTTOM_INSET_PX = 40;
 const DEFAULT_NAV_GUARD_MS = 900;
-const ROUTE_REMEASURE_DELAYS_MS = [90, 240, 460, 760, 1160] as const;
 
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
@@ -159,20 +158,16 @@ export function BottomNav() {
 
   const clearInsetSyncTimeouts = useCallback(() => {
     if (typeof window === "undefined") return;
-
-    insetSyncTimeoutsRef.current.forEach((timeoutId) => {
-      window.clearTimeout(timeoutId);
-    });
+    insetSyncTimeoutsRef.current.forEach((id) => window.clearTimeout(id));
     insetSyncTimeoutsRef.current = [];
   }, []);
 
   const applyMeasuredInset = useCallback(
     (measuredInset: number, options: { allowDecrease?: boolean } = {}) => {
       const stabilizedInset = clampNativeInsetPx(measuredInset);
-
-      setNativeSafeInsetPx((previousInset) => {
+      setNativeSafeInsetPx((prev) => {
         if (options.allowDecrease) return stabilizedInset;
-        return stabilizedInset < previousInset ? previousInset : stabilizedInset;
+        return stabilizedInset < prev ? prev : stabilizedInset;
       });
     },
     [clampNativeInsetPx],
@@ -189,12 +184,9 @@ export function BottomNav() {
   const scheduleInsetSync = useCallback(
     (delaysMs: readonly number[], options: { allowDecrease?: boolean } = {}) => {
       if (typeof window === "undefined") return;
-
       clearInsetSyncTimeouts();
-      insetSyncTimeoutsRef.current = delaysMs.map((delayMs) =>
-        window.setTimeout(() => {
-          measureNativeSafeInset(options);
-        }, delayMs),
+      insetSyncTimeoutsRef.current = delaysMs.map((ms) =>
+        window.setTimeout(() => measureNativeSafeInset(options), ms),
       );
     },
     [clearInsetSyncTimeouts, measureNativeSafeInset],
@@ -202,11 +194,7 @@ export function BottomNav() {
 
   const lockNavInteractions = useCallback((durationMs = DEFAULT_NAV_GUARD_MS) => {
     if (typeof window === "undefined") return;
-
-    if (navGuardTimeoutRef.current !== null) {
-      window.clearTimeout(navGuardTimeoutRef.current);
-    }
-
+    if (navGuardTimeoutRef.current !== null) window.clearTimeout(navGuardTimeoutRef.current);
     setNavInteractionLocked(true);
     navGuardTimeoutRef.current = window.setTimeout(() => {
       setNavInteractionLocked(false);
@@ -215,62 +203,52 @@ export function BottomNav() {
   }, []);
 
   // Measure safe area inset ONCE on mount + orientation changes only.
-  // After initial measurement, the inset is frozen — no picker/keyboard/route event can alter it.
   const insetFrozenRef = useRef(false);
 
   useEffect(() => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
-    if (!insetFrozenRef.current) {
-      measureNativeSafeInset();
-      // Freeze after a short delay to allow the initial measurement to settle
-      const freezeTimeout = window.setTimeout(() => {
-        insetFrozenRef.current = true;
-      }, 500);
-
-      return () => window.clearTimeout(freezeTimeout);
-    }
-
     const handleOrientationChange = () => {
-      // Only orientation changes can unfreeze and re-measure
       insetFrozenRef.current = false;
       measureNativeSafeInset({ allowDecrease: true });
       scheduleInsetSync([240, 560], { allowDecrease: true });
+      lockNavInteractions(DEFAULT_NAV_GUARD_MS);
       window.setTimeout(() => { insetFrozenRef.current = true; }, 700);
     };
 
     window.addEventListener("orientationchange", handleOrientationChange);
 
+    let freezeTimeout: number | null = null;
+    if (!insetFrozenRef.current) {
+      measureNativeSafeInset();
+      freezeTimeout = window.setTimeout(() => { insetFrozenRef.current = true; }, 500);
+    }
+
     return () => {
+      if (freezeTimeout !== null) window.clearTimeout(freezeTimeout);
       window.removeEventListener("orientationchange", handleOrientationChange);
     };
-  }, [isNativeIOS, measureNativeSafeInset, scheduleInsetSync]);
+  }, [isNativeIOS, lockNavInteractions, measureNativeSafeInset, scheduleInsetSync]);
 
-  // Listen for iOS nav guard events only (interaction locking).
-  // Layout reset events NO LONGER trigger re-measurement — inset is frozen.
+  // Layout reset / nav guard events → only lock interactions
   useEffect(() => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
-    const handleLayoutReset = () => {
-      // Only lock interactions, do NOT re-measure inset
-      lockNavInteractions(1200);
-    };
-
+    const handleLayoutReset = () => lockNavInteractions(1200);
     const handleNavGuard = (event: Event) => {
-      const customEvent = event as CustomEvent<{ durationMs?: number }>;
-      lockNavInteractions(customEvent.detail?.durationMs ?? DEFAULT_NAV_GUARD_MS);
+      const ce = event as CustomEvent<{ durationMs?: number }>;
+      lockNavInteractions(ce.detail?.durationMs ?? DEFAULT_NAV_GUARD_MS);
     };
 
     window.addEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
     window.addEventListener(IOS_NAV_GUARD_EVENT, handleNavGuard as EventListener);
-
     return () => {
       window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
       window.removeEventListener(IOS_NAV_GUARD_EVENT, handleNavGuard as EventListener);
     };
   }, [isNativeIOS, lockNavInteractions]);
 
-  // On route change, only lock interactions briefly — do NOT re-measure inset.
+  // Route change → lock interactions briefly
   useEffect(() => {
     if (!isNativeIOS) return;
     lockNavInteractions(700);
@@ -294,21 +272,26 @@ export function BottomNav() {
 
   useEffect(() => {
     if (typeof document === "undefined") return;
-
     const root = document.documentElement;
     root.style.setProperty("--bottom-nav-safe-inset", navBottomInset);
     root.style.setProperty("--bottom-nav-safe-inset-px", nativeInsetFloor);
     root.style.setProperty("--bottom-nav-offset", `calc(4rem + ${navBottomInset})`);
   }, [navBottomInset, nativeInsetFloor]);
 
+  // GPU layer promotion style — forces iOS to keep the nav on a dedicated
+  // compositing layer so WKWebView viewport mutations can't "unstick" it.
+  const gpuLayerStyle: React.CSSProperties = isNativeIOS
+    ? { transform: "translate3d(0,0,0)", willChange: "transform", backfaceVisibility: "hidden" }
+    : {};
+
   return (
     <>
-      {/* Solid background filler to prevent content showing through safe area below nav */}
       {isNativePlatform && (
         <div
           className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
           style={{
             height: `calc(4rem + ${navBottomInset} + 1rem)`,
+            ...gpuLayerStyle,
           }}
         />
       )}
@@ -319,6 +302,7 @@ export function BottomNav() {
         )}
         style={{
           paddingBottom: navBottomInset,
+          ...gpuLayerStyle,
         }}
         aria-label="Main navigation"
       >
