@@ -44,6 +44,7 @@ export function UploadFilesDialog({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isPickingNativePhoto, setIsPickingNativePhoto] = useState(false);
+  const [isSubmittingUpload, setIsSubmittingUpload] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const platform = Capacitor.getPlatform();
@@ -56,6 +57,7 @@ export function UploadFilesDialog({
   const shouldStabilizeIOSLayout = isIOSEnvironment;
   const shouldUseNativePhotoPicker = uploadType === "photo" && isNativeIOS;
   const navGuardRetryTimeoutRef = useRef<number | null>(null);
+  const nativePickerInFlightRef = useRef(false);
   const wasOpenRef = useRef(open);
 
   const dismissIOSKeyboardAccessory = useCallback(() => {
@@ -153,17 +155,22 @@ export function UploadFilesDialog({
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const input = e.currentTarget;
+    const file = input.files?.[0];
     if (file) {
       handleFileSelect(file);
       requestAnimationFrame(restoreNativeLayout);
     }
+
+    // Allow selecting the same file again in the same dialog session.
+    input.value = "";
   };
 
   useEffect(() => {
     if (wasOpenRef.current && !open) {
       clearSelection();
       setUploadType("photo");
+      setIsSubmittingUpload(false);
       restoreNativeLayout();
     }
 
@@ -171,9 +178,17 @@ export function UploadFilesDialog({
   }, [clearSelection, open, restoreNativeLayout]);
 
   const handleNativePhotoPick = async () => {
-    if (!shouldUseNativePhotoPicker || isUploading || isPickingNativePhoto) return;
+    if (
+      !shouldUseNativePhotoPicker ||
+      isUploading ||
+      isPickingNativePhoto ||
+      isSubmittingUpload ||
+      nativePickerInFlightRef.current
+    ) {
+      return;
+    }
 
-    setIsPickingNativePhoto(true);
+    nativePickerInFlightRef.current = true;
     console.log("[UploadFilesDialog] handleNativePhotoPick START");
     try {
       // Let Camera.getPhoto handle permissions natively on iOS to preserve
@@ -187,12 +202,14 @@ export function UploadFilesDialog({
 
       try {
         console.log("[UploadFilesDialog] calling getPhoto (Base64 mode, attempt 1)...");
-        photo = await Camera.getPhoto({
+        const initialPhotoPromise = Camera.getPhoto({
           resultType: CameraResultType.Base64,
           source: CameraSource.Photos,
           allowEditing: false,
           quality: 80,
         });
+        setIsPickingNativePhoto(true);
+        photo = await initialPhotoPromise;
       } catch (firstAttemptError: unknown) {
         if (isCancelledSelectionError(firstAttemptError)) {
           throw firstAttemptError;
@@ -275,6 +292,7 @@ export function UploadFilesDialog({
     } finally {
       await restoreNativeStatusBarOverlay();
       restoreNativeLayout();
+      nativePickerInFlightRef.current = false;
       setIsPickingNativePhoto(false);
     }
   };
@@ -314,14 +332,16 @@ export function UploadFilesDialog({
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) return;
+    if (!selectedFile || isUploading || isSubmittingUpload) return;
 
+    setIsSubmittingUpload(true);
     restoreNativeLayout();
 
     try {
       await onUpload(selectedFile, uploadType, uploadType === "file" ? fileName : undefined);
       clearSelection();
     } finally {
+      setIsSubmittingUpload(false);
       restoreNativeLayout();
     }
   };
@@ -330,6 +350,7 @@ export function UploadFilesDialog({
     if (!newOpen) {
       clearSelection();
       setUploadType("photo");
+      setIsSubmittingUpload(false);
       restoreNativeLayout();
     }
     onOpenChange(newOpen);
@@ -376,7 +397,7 @@ export function UploadFilesDialog({
           {/* Upload Area */}
           {!selectedFile ? (
             <label
-              className={cn("block cursor-pointer", (isUploading || isPickingNativePhoto) && "pointer-events-none opacity-70")}
+              className={cn("block cursor-pointer", (isUploading || isPickingNativePhoto || isSubmittingUpload) && "pointer-events-none opacity-70")}
               onClick={handleUploadAreaClick}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -424,7 +445,7 @@ export function UploadFilesDialog({
                 }
                 className="hidden"
                 onChange={handleInputChange}
-                disabled={isUploading || isPickingNativePhoto}
+                disabled={isUploading || isPickingNativePhoto || isSubmittingUpload}
               />
             </label>
           ) : (
@@ -450,6 +471,7 @@ export function UploadFilesDialog({
                   size="icon"
                   className="absolute top-2 right-2 h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm"
                   onClick={clearSelection}
+                  disabled={isUploading || isPickingNativePhoto || isSubmittingUpload}
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -485,15 +507,16 @@ export function UploadFilesDialog({
             variant="outline"
             onClick={() => handleOpenChange(false)}
             className="flex-1 sm:flex-none"
+            disabled={isUploading || isPickingNativePhoto || isSubmittingUpload}
           >
             Cancel
           </Button>
           <Button
             onClick={handleUpload}
-            disabled={!selectedFile || isUploading || isPickingNativePhoto}
+            disabled={!selectedFile || isUploading || isPickingNativePhoto || isSubmittingUpload}
             className="flex-1 sm:flex-none"
           >
-            {isUploading ? (
+            {(isUploading || isSubmittingUpload) ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Uploading...
