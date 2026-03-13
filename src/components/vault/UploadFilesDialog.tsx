@@ -471,6 +471,7 @@ export function UploadFilesDialog({
                   size="icon"
                   className="absolute top-2 right-2 h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm"
                   onClick={clearSelection}
+                  disabled={isUploading || isPickingNativePhoto || isSubmittingUpload}
                 >
                   <X className="h-4 w-4" />
                 </Button>
