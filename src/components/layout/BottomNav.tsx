@@ -241,6 +241,7 @@ export function BottomNav() {
 
     const handleLayoutReset = () => {
       lockNavInteractions(1200);
+      measureNativeSafeInset();
       scheduleInsetSync(ROUTE_REMEASURE_DELAYS_MS);
     };
 
@@ -256,7 +257,7 @@ export function BottomNav() {
       window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
       window.removeEventListener(IOS_NAV_GUARD_EVENT, handleNavGuard as EventListener);
     };
-  }, [isNativeIOS, lockNavInteractions, scheduleInsetSync]);
+  }, [isNativeIOS, lockNavInteractions, measureNativeSafeInset, scheduleInsetSync]);
 
   // On every route change, re-sync with delayed checks to recover from WKWebView settle glitches.
   useEffect(() => {
