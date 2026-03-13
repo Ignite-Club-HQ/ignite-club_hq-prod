@@ -272,11 +272,6 @@ export function BottomNav() {
     const root = document.documentElement;
     root.style.setProperty("--bottom-nav-safe-inset", navBottomInset);
     root.style.setProperty("--bottom-nav-offset", `calc(4rem + ${navBottomInset})`);
-
-    return () => {
-      root.style.removeProperty("--bottom-nav-safe-inset");
-      root.style.removeProperty("--bottom-nav-offset");
-    };
   }, [navBottomInset]);
 
   return (
