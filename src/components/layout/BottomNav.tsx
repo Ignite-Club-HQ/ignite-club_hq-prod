@@ -23,9 +23,6 @@ const MIN_NATIVE_BOTTOM_INSET_PX = 20;
 const IOS_PHONE_BOTTOM_INSET_PX = 34;
 const MAX_NATIVE_BOTTOM_INSET_PX = 40;
 const DEFAULT_NAV_GUARD_MS = 900;
-const VIEWPORT_OFFSET_SYNC_DELAYS_MS = [0, 120, 320, 640, 980] as const;
-const KEYBOARD_HEIGHT_THRESHOLD_PX = 120;
-const MAX_VIEWPORT_OFFSET_COMPENSATION_PX = 120;
 
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
@@ -156,36 +153,21 @@ export function BottomNav() {
   });
 
   const [navInteractionLocked, setNavInteractionLocked] = useState(false);
-  const [visualViewportOffsetTopPx, setVisualViewportOffsetTopPx] = useState(0);
   const navGuardTimeoutRef = useRef<number | null>(null);
   const insetSyncTimeoutsRef = useRef<number[]>([]);
-  const viewportSyncTimeoutsRef = useRef<number[]>([]);
 
   const clearInsetSyncTimeouts = useCallback(() => {
     if (typeof window === "undefined") return;
-
-    insetSyncTimeoutsRef.current.forEach((timeoutId) => {
-      window.clearTimeout(timeoutId);
-    });
+    insetSyncTimeoutsRef.current.forEach((id) => window.clearTimeout(id));
     insetSyncTimeoutsRef.current = [];
-  }, []);
-
-  const clearViewportSyncTimeouts = useCallback(() => {
-    if (typeof window === "undefined") return;
-
-    viewportSyncTimeoutsRef.current.forEach((timeoutId) => {
-      window.clearTimeout(timeoutId);
-    });
-    viewportSyncTimeoutsRef.current = [];
   }, []);
 
   const applyMeasuredInset = useCallback(
     (measuredInset: number, options: { allowDecrease?: boolean } = {}) => {
       const stabilizedInset = clampNativeInsetPx(measuredInset);
-
-      setNativeSafeInsetPx((previousInset) => {
+      setNativeSafeInsetPx((prev) => {
         if (options.allowDecrease) return stabilizedInset;
-        return stabilizedInset < previousInset ? previousInset : stabilizedInset;
+        return stabilizedInset < prev ? prev : stabilizedInset;
       });
     },
     [clampNativeInsetPx],
@@ -202,62 +184,17 @@ export function BottomNav() {
   const scheduleInsetSync = useCallback(
     (delaysMs: readonly number[], options: { allowDecrease?: boolean } = {}) => {
       if (typeof window === "undefined") return;
-
       clearInsetSyncTimeouts();
-      insetSyncTimeoutsRef.current = delaysMs.map((delayMs) =>
-        window.setTimeout(() => {
-          measureNativeSafeInset(options);
-        }, delayMs),
+      insetSyncTimeoutsRef.current = delaysMs.map((ms) =>
+        window.setTimeout(() => measureNativeSafeInset(options), ms),
       );
     },
     [clearInsetSyncTimeouts, measureNativeSafeInset],
   );
 
-  const syncVisualViewportOffset = useCallback(() => {
-    if (!isNativeIOS || typeof window === "undefined") return;
-
-    const visualViewport = window.visualViewport;
-    if (!visualViewport) {
-      setVisualViewportOffsetTopPx(0);
-      return;
-    }
-
-    const keyboardLikelyOpen = visualViewport.height < window.innerHeight - KEYBOARD_HEIGHT_THRESHOLD_PX;
-    const canCompensate = !keyboardLikelyOpen && visualViewport.scale === 1;
-
-    const nextOffsetPx = canCompensate
-      ? Math.min(
-          MAX_VIEWPORT_OFFSET_COMPENSATION_PX,
-          Math.max(0, Math.round(visualViewport.offsetTop || 0)),
-        )
-      : 0;
-
-    setVisualViewportOffsetTopPx((previousOffsetPx) =>
-      Math.abs(previousOffsetPx - nextOffsetPx) <= 1 ? previousOffsetPx : nextOffsetPx,
-    );
-  }, [isNativeIOS]);
-
-  const scheduleVisualViewportSync = useCallback(
-    (delaysMs: readonly number[] = VIEWPORT_OFFSET_SYNC_DELAYS_MS) => {
-      if (typeof window === "undefined") return;
-
-      clearViewportSyncTimeouts();
-      viewportSyncTimeoutsRef.current = delaysMs.map((delayMs) =>
-        window.setTimeout(() => {
-          syncVisualViewportOffset();
-        }, delayMs),
-      );
-    },
-    [clearViewportSyncTimeouts, syncVisualViewportOffset],
-  );
-
   const lockNavInteractions = useCallback((durationMs = DEFAULT_NAV_GUARD_MS) => {
     if (typeof window === "undefined") return;
-
-    if (navGuardTimeoutRef.current !== null) {
-      window.clearTimeout(navGuardTimeoutRef.current);
-    }
-
+    if (navGuardTimeoutRef.current !== null) window.clearTimeout(navGuardTimeoutRef.current);
     setNavInteractionLocked(true);
     navGuardTimeoutRef.current = window.setTimeout(() => {
       setNavInteractionLocked(false);
@@ -266,7 +203,6 @@ export function BottomNav() {
   }, []);
 
   // Measure safe area inset ONCE on mount + orientation changes only.
-  // After initial measurement, the inset is frozen — no picker/keyboard/route event can alter it.
   const insetFrozenRef = useRef(false);
 
   useEffect(() => {
@@ -276,11 +212,8 @@ export function BottomNav() {
       insetFrozenRef.current = false;
       measureNativeSafeInset({ allowDecrease: true });
       scheduleInsetSync([240, 560], { allowDecrease: true });
-      scheduleVisualViewportSync();
       lockNavInteractions(DEFAULT_NAV_GUARD_MS);
-      window.setTimeout(() => {
-        insetFrozenRef.current = true;
-      }, 700);
+      window.setTimeout(() => { insetFrozenRef.current = true; }, 700);
     };
 
     window.addEventListener("orientationchange", handleOrientationChange);
@@ -288,69 +221,38 @@ export function BottomNav() {
     let freezeTimeout: number | null = null;
     if (!insetFrozenRef.current) {
       measureNativeSafeInset();
-      freezeTimeout = window.setTimeout(() => {
-        insetFrozenRef.current = true;
-      }, 500);
+      freezeTimeout = window.setTimeout(() => { insetFrozenRef.current = true; }, 500);
     }
 
     return () => {
-      if (freezeTimeout !== null) {
-        window.clearTimeout(freezeTimeout);
-      }
+      if (freezeTimeout !== null) window.clearTimeout(freezeTimeout);
       window.removeEventListener("orientationchange", handleOrientationChange);
     };
-  }, [isNativeIOS, lockNavInteractions, measureNativeSafeInset, scheduleInsetSync, scheduleVisualViewportSync]);
+  }, [isNativeIOS, lockNavInteractions, measureNativeSafeInset, scheduleInsetSync]);
 
+  // Layout reset / nav guard events → only lock interactions
   useEffect(() => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
-    const handleViewportMutation = () => {
-      syncVisualViewportOffset();
-    };
-
-    syncVisualViewportOffset();
-    window.visualViewport?.addEventListener("resize", handleViewportMutation);
-    window.visualViewport?.addEventListener("scroll", handleViewportMutation);
-    window.addEventListener("resize", handleViewportMutation);
-
-    return () => {
-      window.visualViewport?.removeEventListener("resize", handleViewportMutation);
-      window.visualViewport?.removeEventListener("scroll", handleViewportMutation);
-      window.removeEventListener("resize", handleViewportMutation);
-    };
-  }, [isNativeIOS, syncVisualViewportOffset]);
-
-  // Listen for iOS nav guard events only (interaction locking).
-  // Layout reset events NO LONGER trigger inset re-measurement — inset remains frozen.
-  useEffect(() => {
-    if (!isNativeIOS || typeof window === "undefined") return;
-
-    const handleLayoutReset = () => {
-      lockNavInteractions(1200);
-      scheduleVisualViewportSync();
-    };
-
+    const handleLayoutReset = () => lockNavInteractions(1200);
     const handleNavGuard = (event: Event) => {
-      const customEvent = event as CustomEvent<{ durationMs?: number }>;
-      lockNavInteractions(customEvent.detail?.durationMs ?? DEFAULT_NAV_GUARD_MS);
-      scheduleVisualViewportSync();
+      const ce = event as CustomEvent<{ durationMs?: number }>;
+      lockNavInteractions(ce.detail?.durationMs ?? DEFAULT_NAV_GUARD_MS);
     };
 
     window.addEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
     window.addEventListener(IOS_NAV_GUARD_EVENT, handleNavGuard as EventListener);
-
     return () => {
       window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
       window.removeEventListener(IOS_NAV_GUARD_EVENT, handleNavGuard as EventListener);
     };
-  }, [isNativeIOS, lockNavInteractions, scheduleVisualViewportSync]);
+  }, [isNativeIOS, lockNavInteractions]);
 
-  // On route change, only lock interactions briefly — do NOT re-measure inset.
+  // Route change → lock interactions briefly
   useEffect(() => {
     if (!isNativeIOS) return;
     lockNavInteractions(700);
-    scheduleVisualViewportSync();
-  }, [isNativeIOS, location.pathname, lockNavInteractions, scheduleVisualViewportSync]);
+  }, [isNativeIOS, location.pathname, lockNavInteractions]);
 
   useEffect(() => {
     return () => {
@@ -358,9 +260,8 @@ export function BottomNav() {
         window.clearTimeout(navGuardTimeoutRef.current);
       }
       clearInsetSyncTimeouts();
-      clearViewportSyncTimeouts();
     };
-  }, [clearInsetSyncTimeouts, clearViewportSyncTimeouts]);
+  }, [clearInsetSyncTimeouts]);
 
   const nativeInsetFloor = `${nativeSafeInsetPx}px`;
   const navBottomInset = isNativeIOS
@@ -371,27 +272,26 @@ export function BottomNav() {
 
   useEffect(() => {
     if (typeof document === "undefined") return;
-
     const root = document.documentElement;
     root.style.setProperty("--bottom-nav-safe-inset", navBottomInset);
     root.style.setProperty("--bottom-nav-safe-inset-px", nativeInsetFloor);
     root.style.setProperty("--bottom-nav-offset", `calc(4rem + ${navBottomInset})`);
   }, [navBottomInset, nativeInsetFloor]);
 
-  const navViewportCompensationTransform =
-    isNativeIOS && visualViewportOffsetTopPx > 0
-      ? `translateY(-${visualViewportOffsetTopPx}px)`
-      : undefined;
+  // GPU layer promotion style — forces iOS to keep the nav on a dedicated
+  // compositing layer so WKWebView viewport mutations can't "unstick" it.
+  const gpuLayerStyle: React.CSSProperties = isNativeIOS
+    ? { transform: "translate3d(0,0,0)", willChange: "transform", backfaceVisibility: "hidden" }
+    : {};
 
   return (
     <>
-      {/* Solid background filler to prevent content showing through safe area below nav */}
       {isNativePlatform && (
         <div
           className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
           style={{
             height: `calc(4rem + ${navBottomInset} + 1rem)`,
-            transform: navViewportCompensationTransform,
+            ...gpuLayerStyle,
           }}
         />
       )}
@@ -402,7 +302,7 @@ export function BottomNav() {
         )}
         style={{
           paddingBottom: navBottomInset,
-          transform: navViewportCompensationTransform,
+          ...gpuLayerStyle,
         }}
         aria-label="Main navigation"
       >
