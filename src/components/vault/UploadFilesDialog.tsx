@@ -44,6 +44,7 @@ export function UploadFilesDialog({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isPickingNativePhoto, setIsPickingNativePhoto] = useState(false);
+  const [isSubmittingUpload, setIsSubmittingUpload] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const platform = Capacitor.getPlatform();
@@ -56,6 +57,7 @@ export function UploadFilesDialog({
   const shouldStabilizeIOSLayout = isIOSEnvironment;
   const shouldUseNativePhotoPicker = uploadType === "photo" && isNativeIOS;
   const navGuardRetryTimeoutRef = useRef<number | null>(null);
+  const nativePickerInFlightRef = useRef(false);
   const wasOpenRef = useRef(open);
 
   const dismissIOSKeyboardAccessory = useCallback(() => {
