@@ -259,10 +259,16 @@ export function BottomNav() {
       const duration = ce.detail?.durationMs ?? DEFAULT_NAV_GUARD_MS;
       lockNavInteractions(duration);
 
-      // After the iOS permission dialog or photo picker closes, the safe-area
-      // inset may have been temporarily inflated. Re-measure with allowDecrease
-      // so the nav corrects back to the true value once the viewport settles.
-      scheduleInsetSync([400, 800, 1200], { allowDecrease: true });
+      // After iOS permission/photo-picker dismissal, safe-area values can stay
+      // inflated for longer than 1.2s on first-run permission flows.
+      const settleDelayMs = Math.max(1700, duration + 700);
+      scheduleInsetSync([400, 800, 1200, settleDelayMs], { allowDecrease: true });
+
+      clearNavGuardSettleTimeout();
+      navGuardSettleTimeoutRef.current = window.setTimeout(() => {
+        settleInflatedInset();
+        navGuardSettleTimeoutRef.current = null;
+      }, settleDelayMs + 250);
     };
 
     window.addEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
@@ -270,8 +276,15 @@ export function BottomNav() {
     return () => {
       window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
       window.removeEventListener(IOS_NAV_GUARD_EVENT, handleNavGuard as EventListener);
+      clearNavGuardSettleTimeout();
     };
-  }, [isNativeIOS, lockNavInteractions, scheduleInsetSync]);
+  }, [
+    isNativeIOS,
+    clearNavGuardSettleTimeout,
+    lockNavInteractions,
+    scheduleInsetSync,
+    settleInflatedInset,
+  ]);
 
   // Route change → lock interactions briefly
   useEffect(() => {
