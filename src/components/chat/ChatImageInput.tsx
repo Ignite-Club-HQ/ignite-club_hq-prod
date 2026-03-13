@@ -44,9 +44,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     (document.activeElement as HTMLElement | null)?.blur();
   };
 
-  const emitIOSNavGuard = (durationMs = 900) => {
+  const emitIOSNavGuard = (durationMs = 900, options?: { forceFloor?: boolean }) => {
     if (!shouldStabilizeIOSLayout) return;
-    dispatchIOSNavGuard(durationMs);
+    dispatchIOSNavGuard(durationMs, options);
   };
 
   const clearNavGuardRetryTimeout = () => {
@@ -61,18 +61,18 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
     // Guard nav interactions while iOS settles viewport after picker dismissal.
-    // The first-run Apple permission prompt can leave safe-area inflated for
-    // up to ~3s. We emit staggered guards to catch each settling phase.
-    emitIOSNavGuard(900);
+    // Use forceFloor to immediately reset the inset — the permission prompt can
+    // leave safe-area inflated for up to ~3s on first-run flows.
+    emitIOSNavGuard(900, { forceFloor: true });
     clearNavGuardRetryTimeout();
 
     // Second guard at 320ms catches immediate permission-dismiss animation
     navGuardRetryTimeoutRef.current = window.setTimeout(() => {
-      emitIOSNavGuard(1500);
+      emitIOSNavGuard(1500, { forceFloor: true });
 
       // Third guard at ~1.5s catches the long tail of first-run permission flows
       navGuardRetryTimeoutRef.current = window.setTimeout(() => {
-        emitIOSNavGuard(1800);
+        emitIOSNavGuard(1800, { forceFloor: true });
         navGuardRetryTimeoutRef.current = null;
       }, 1200);
     }, 320);

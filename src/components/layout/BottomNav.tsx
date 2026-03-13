@@ -259,9 +259,16 @@ export function BottomNav() {
 
     const handleLayoutReset = () => lockNavInteractions(1200);
     const handleNavGuard = (event: Event) => {
-      const ce = event as CustomEvent<{ durationMs?: number }>;
+      const ce = event as CustomEvent<{ durationMs?: number; forceFloor?: boolean }>;
       const duration = ce.detail?.durationMs ?? DEFAULT_NAV_GUARD_MS;
+      const forceFloor = ce.detail?.forceFloor ?? false;
       lockNavInteractions(duration);
+
+      // If the caller knows the inset is inflated (e.g. post-permission-prompt),
+      // immediately slam back to floor — don't wait for the delayed settle.
+      if (forceFloor) {
+        setNativeSafeInsetPx(nativeInsetFloorPx);
+      }
 
       // After iOS permission/photo-picker dismissal, safe-area values can stay
       // inflated for 2-4s on first-run permission flows. Schedule aggressive
