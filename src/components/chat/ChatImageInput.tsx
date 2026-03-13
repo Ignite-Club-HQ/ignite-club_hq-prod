@@ -130,7 +130,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const handleNativePhotoPick = async () => {
-    setUploading(true);
+    // CRITICAL: Do NOT set state or blur before Camera.getPhoto — doing so
+    // triggers a re-render / breaks the gesture chain and iOS rejects the picker.
     console.log("[ChatImageInput] handleNativePhotoPick START");
     try {
       // Let Camera.getPhoto handle permissions natively on iOS to preserve
