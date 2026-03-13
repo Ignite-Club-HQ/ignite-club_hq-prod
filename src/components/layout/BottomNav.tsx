@@ -120,9 +120,69 @@ export function BottomNav() {
     return iOSDevice || iPadOSDesktopMode || platform === "ios";
   }, [platform]);
 
-  const [nativeSafeInsetPx, setNativeSafeInsetPx] = useState(MIN_NATIVE_BOTTOM_INSET_PX);
+  const clampNativeInsetPx = useCallback(
+    (insetPx: number) => Math.min(MAX_NATIVE_BOTTOM_INSET_PX, Math.max(MIN_NATIVE_BOTTOM_INSET_PX, insetPx)),
+    [],
+  );
+
+  const [nativeSafeInsetPx, setNativeSafeInsetPx] = useState(() => {
+    if (typeof document === "undefined") return MIN_NATIVE_BOTTOM_INSET_PX;
+
+    const existingInset = Number.parseFloat(
+      document.documentElement.style.getPropertyValue("--bottom-nav-safe-inset") || "",
+    );
+
+    return Number.isFinite(existingInset)
+      ? clampNativeInsetPx(existingInset)
+      : MIN_NATIVE_BOTTOM_INSET_PX;
+  });
+
   const [navInteractionLocked, setNavInteractionLocked] = useState(false);
   const navGuardTimeoutRef = useRef<number | null>(null);
+  const insetSyncTimeoutsRef = useRef<number[]>([]);
+
+  const clearInsetSyncTimeouts = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    insetSyncTimeoutsRef.current.forEach((timeoutId) => {
+      window.clearTimeout(timeoutId);
+    });
+    insetSyncTimeoutsRef.current = [];
+  }, []);
+
+  const applyMeasuredInset = useCallback(
+    (measuredInset: number, options: { allowDecrease?: boolean } = {}) => {
+      const stabilizedInset = clampNativeInsetPx(measuredInset);
+
+      setNativeSafeInsetPx((previousInset) => {
+        if (options.allowDecrease) return stabilizedInset;
+        return stabilizedInset < previousInset ? previousInset : stabilizedInset;
+      });
+    },
+    [clampNativeInsetPx],
+  );
+
+  const measureNativeSafeInset = useCallback(
+    (options: { allowDecrease?: boolean } = {}) => {
+      if (!isNativeIOS) return;
+      applyMeasuredInset(readSafeAreaInsetBottomPx(), options);
+    },
+    [applyMeasuredInset, isNativeIOS],
+  );
+
+  const scheduleInsetSync = useCallback(
+    (delaysMs: readonly number[], options: { allowDecrease?: boolean } = {}) => {
+      if (typeof window === "undefined") return;
+
+      clearInsetSyncTimeouts();
+      insetSyncTimeoutsRef.current = delaysMs.map((delayMs) =>
+        window.setTimeout(() => {
+          measureNativeSafeInset(options);
+        }, delayMs),
+      );
+    },
+    [clearInsetSyncTimeouts, measureNativeSafeInset],
+  );
 
   const lockNavInteractions = useCallback((durationMs = DEFAULT_NAV_GUARD_MS) => {
     if (typeof window === "undefined") return;
@@ -138,41 +198,34 @@ export function BottomNav() {
     }, Math.max(250, durationMs));
   }, []);
 
-  // Measure safe area inset ONCE on mount and on orientation change only.
-  // Do NOT re-measure on resize/visualViewport events — those fire when the
-  // iOS photo picker opens/closes and would shift the nav.
+  // Measure safe area inset on mount + orientation changes only.
+  // Never bind this to resize/visualViewport resize (too volatile on iOS pickers/keyboards).
   useEffect(() => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
-    const measureInset = () => {
-      const measuredInset = readSafeAreaInsetBottomPx();
-      const stabilizedInset = Math.min(
-        MAX_NATIVE_BOTTOM_INSET_PX,
-        Math.max(MIN_NATIVE_BOTTOM_INSET_PX, measuredInset),
-      );
-      setNativeSafeInsetPx(stabilizedInset);
+    measureNativeSafeInset();
+    scheduleInsetSync([350]);
+
+    const handleOrientationChange = () => {
+      measureNativeSafeInset({ allowDecrease: true });
+      scheduleInsetSync([240, 560], { allowDecrease: true });
     };
 
-    measureInset();
-    const delayedMeasure = window.setTimeout(measureInset, 350);
-
-    // Only re-measure on orientation change (actual physical rotation),
-    // NOT on resize which fires during photo picker / keyboard transitions.
-    window.addEventListener("orientationchange", measureInset);
+    window.addEventListener("orientationchange", handleOrientationChange);
 
     return () => {
-      window.clearTimeout(delayedMeasure);
-      window.removeEventListener("orientationchange", measureInset);
+      window.removeEventListener("orientationchange", handleOrientationChange);
     };
-  }, [isNativeIOS]);
+  }, [isNativeIOS, measureNativeSafeInset, scheduleInsetSync]);
 
-  // Listen for iOS layout reset events (fired after photo picker closes)
-  // and keep nav interactions guarded while the viewport settles.
+  // Listen for iOS layout reset events (photo picker / keyboard settle)
+  // and self-heal inset after route transitions.
   useEffect(() => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
     const handleLayoutReset = () => {
       lockNavInteractions(1200);
+      scheduleInsetSync(ROUTE_REMEASURE_DELAYS_MS);
     };
 
     const handleNavGuard = (event: Event) => {
@@ -187,15 +240,25 @@ export function BottomNav() {
       window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
       window.removeEventListener(IOS_NAV_GUARD_EVENT, handleNavGuard as EventListener);
     };
-  }, [isNativeIOS, lockNavInteractions]);
+  }, [isNativeIOS, lockNavInteractions, scheduleInsetSync]);
+
+  // On every route change, re-sync with delayed checks to recover from WKWebView settle glitches.
+  useEffect(() => {
+    if (!isNativeIOS) return;
+
+    lockNavInteractions(700);
+    measureNativeSafeInset();
+    scheduleInsetSync(ROUTE_REMEASURE_DELAYS_MS);
+  }, [isNativeIOS, location.pathname, lockNavInteractions, measureNativeSafeInset, scheduleInsetSync]);
 
   useEffect(() => {
     return () => {
       if (typeof window !== "undefined" && navGuardTimeoutRef.current !== null) {
         window.clearTimeout(navGuardTimeoutRef.current);
       }
+      clearInsetSyncTimeouts();
     };
-  }, []);
+  }, [clearInsetSyncTimeouts]);
 
   const navBottomInset = isNativeIOS
     ? `${nativeSafeInsetPx}px`
