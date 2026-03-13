@@ -73,9 +73,9 @@ export function UploadFilesDialog({
   }, [isNativeIOS]);
 
   const emitIOSLayoutReset = useCallback(() => {
-    if (!isNativeIOS) return;
+    if (!shouldStabilizeIOSLayout) return;
     dispatchIOSLayoutReset();
-  }, [isNativeIOS]);
+  }, [shouldStabilizeIOSLayout]);
 
   const emitIOSNavGuard = useCallback((durationMs = 900) => {
     if (!shouldStabilizeIOSLayout) return;
@@ -93,6 +93,7 @@ export function UploadFilesDialog({
   const restoreNativeLayout = useCallback(() => {
     if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
+    emitIOSLayoutReset();
     emitIOSNavGuard(900);
     clearNavGuardRetryTimeout();
 
@@ -104,7 +105,7 @@ export function UploadFilesDialog({
         navGuardRetryTimeoutRef.current = null;
       }, 1200);
     }, 320);
-  }, [clearNavGuardRetryTimeout, emitIOSNavGuard, shouldStabilizeIOSLayout]);
+  }, [clearNavGuardRetryTimeout, emitIOSLayoutReset, emitIOSNavGuard, shouldStabilizeIOSLayout]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
