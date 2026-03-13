@@ -166,8 +166,10 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
 
   if (accent) {
     root.style.setProperty("--accent", `${accent.h} ${accent.s}% ${accent.l}%`);
-    const fgL = accent.l > 50 ? 30 : 60;
-    root.style.setProperty("--accent-foreground", `${accent.h} 84% ${fgL}%`);
+    // Ensure strong contrast: dark foreground on light accents, light on dark accents
+    // Use a wider threshold to handle mid-range lightness values
+    const fgL = accent.l >= 45 ? 15 : 90;
+    root.style.setProperty("--accent-foreground", `${accent.h} 50% ${fgL}%`);
   }
 };
 
