@@ -320,6 +320,7 @@ export function UploadFilesDialog({
 
     try {
       await onUpload(selectedFile, uploadType, uploadType === "file" ? fileName : undefined);
+      clearSelection();
     } finally {
       restoreNativeLayout();
     }
@@ -327,29 +328,11 @@ export function UploadFilesDialog({
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
-      // Cleanup
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-      setSelectedFile(null);
-      setPreviewUrl(null);
-      setFileName("");
+      clearSelection();
       setUploadType("photo");
       restoreNativeLayout();
     }
     onOpenChange(newOpen);
-  };
-
-  const clearSelection = () => {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-    }
-    setSelectedFile(null);
-    setPreviewUrl(null);
-    setFileName("");
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
   };
 
   const formatFileSize = (bytes: number) => {
