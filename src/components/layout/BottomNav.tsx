@@ -255,7 +255,7 @@ export function BottomNav() {
 
   // Layout reset / nav guard events → only lock interactions
   useEffect(() => {
-    if (!isNativeIOS || typeof window === "undefined") return;
+    if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
     const handleLayoutReset = () => lockNavInteractions(1200);
     const handleNavGuard = (event: Event) => {
@@ -283,7 +283,7 @@ export function BottomNav() {
       clearNavGuardSettleTimeout();
     };
   }, [
-    isNativeIOS,
+    shouldStabilizeIOSLayout,
     clearNavGuardSettleTimeout,
     lockNavInteractions,
     scheduleInsetSync,
