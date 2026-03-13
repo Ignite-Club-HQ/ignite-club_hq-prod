@@ -124,6 +124,12 @@ export function UploadFilesDialog({
     }
   };
 
+  useEffect(() => {
+    if (!open) {
+      restoreNativeLayout();
+    }
+  }, [open, restoreNativeLayout]);
+
   const handleNativePhotoPick = async () => {
     if (!shouldUseNativePhotoPicker || isUploading || isPickingNativePhoto) return;
 
