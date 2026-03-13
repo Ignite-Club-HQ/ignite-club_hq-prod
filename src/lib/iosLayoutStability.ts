@@ -3,6 +3,8 @@ export const IOS_NAV_GUARD_EVENT = "ignite:ios-nav-guard";
 
 interface IOSNavGuardDetail {
   durationMs?: number;
+  /** When true, BottomNav immediately resets inset to floor (post-permission-prompt recovery). */
+  forceFloor?: boolean;
 }
 
 const canUseDOM = () => typeof window !== "undefined" && typeof document !== "undefined";
