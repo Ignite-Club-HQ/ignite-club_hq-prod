@@ -533,7 +533,6 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     if (!shouldUseNativePhotoPicker || uploading || isPickingNativePhoto) return;
 
     setIsPickingNativePhoto(true);
-    dismissIOSKeyboardAccessory();
     console.log("[UploadPhotoSheet] handleNativePhotoPick START");
     try {
       // Let Camera.getPhoto handle permissions natively on iOS to preserve
