@@ -229,14 +229,12 @@ export function UploadFilesDialog({
 
       try {
         console.log("[UploadFilesDialog] calling getPhoto (Base64 mode, attempt 1)...");
-        const initialPhotoPromise = Camera.getPhoto({
+        photo = await Camera.getPhoto({
           resultType: CameraResultType.Base64,
           source: CameraSource.Photos,
           allowEditing: false,
           quality: 80,
         });
-        setIsPickingNativePhoto(true);
-        photo = await initialPhotoPromise;
       } catch (firstAttemptError: unknown) {
         if (isCancelledSelectionError(firstAttemptError)) {
           throw firstAttemptError;
@@ -282,9 +280,8 @@ export function UploadFilesDialog({
       });
 
       // Stabilize BottomNav immediately once picker returns, before blob work.
-      requestAnimationFrame(() => {
-        restoreNativeLayout();
-      });
+      queueNativeLayoutRecovery([0, 260, 900, 1700]);
+      setIsPickingNativePhoto(true);
 
       if (!hasCameraPhotoSource(photo)) {
         throw new Error("No photo selected (missing base64String/webPath/path)");
@@ -305,9 +302,7 @@ export function UploadFilesDialog({
       });
 
       handleFileSelect(file);
-      requestAnimationFrame(() => {
-        restoreNativeLayout();
-      });
+      queueNativeLayoutRecovery([0, 380, 1200]);
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
         const errMsg = getReadableUploadError(error);
@@ -317,8 +312,7 @@ export function UploadFilesDialog({
         console.log("[UploadFilesDialog] user cancelled");
       }
     } finally {
-      await restoreNativeStatusBarOverlay();
-      restoreNativeLayout();
+      queueNativeLayoutRecovery([0, 420, 1400, 2200]);
       nativePickerInFlightRef.current = false;
       setIsPickingNativePhoto(false);
     }
