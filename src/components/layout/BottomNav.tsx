@@ -156,8 +156,10 @@ export function BottomNav() {
   });
 
   const [navInteractionLocked, setNavInteractionLocked] = useState(false);
+  const [visualViewportOffsetTopPx, setVisualViewportOffsetTopPx] = useState(0);
   const navGuardTimeoutRef = useRef<number | null>(null);
   const insetSyncTimeoutsRef = useRef<number[]>([]);
+  const viewportSyncTimeoutsRef = useRef<number[]>([]);
 
   const clearInsetSyncTimeouts = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -166,6 +168,15 @@ export function BottomNav() {
       window.clearTimeout(timeoutId);
     });
     insetSyncTimeoutsRef.current = [];
+  }, []);
+
+  const clearViewportSyncTimeouts = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    viewportSyncTimeoutsRef.current.forEach((timeoutId) => {
+      window.clearTimeout(timeoutId);
+    });
+    viewportSyncTimeoutsRef.current = [];
   }, []);
 
   const applyMeasuredInset = useCallback(
@@ -202,6 +213,44 @@ export function BottomNav() {
     [clearInsetSyncTimeouts, measureNativeSafeInset],
   );
 
+  const syncVisualViewportOffset = useCallback(() => {
+    if (!isNativeIOS || typeof window === "undefined") return;
+
+    const visualViewport = window.visualViewport;
+    if (!visualViewport) {
+      setVisualViewportOffsetTopPx(0);
+      return;
+    }
+
+    const keyboardLikelyOpen = visualViewport.height < window.innerHeight - KEYBOARD_HEIGHT_THRESHOLD_PX;
+    const canCompensate = !keyboardLikelyOpen && visualViewport.scale === 1;
+
+    const nextOffsetPx = canCompensate
+      ? Math.min(
+          MAX_VIEWPORT_OFFSET_COMPENSATION_PX,
+          Math.max(0, Math.round(visualViewport.offsetTop || 0)),
+        )
+      : 0;
+
+    setVisualViewportOffsetTopPx((previousOffsetPx) =>
+      Math.abs(previousOffsetPx - nextOffsetPx) <= 1 ? previousOffsetPx : nextOffsetPx,
+    );
+  }, [isNativeIOS]);
+
+  const scheduleVisualViewportSync = useCallback(
+    (delaysMs: readonly number[] = VIEWPORT_OFFSET_SYNC_DELAYS_MS) => {
+      if (typeof window === "undefined") return;
+
+      clearViewportSyncTimeouts();
+      viewportSyncTimeoutsRef.current = delaysMs.map((delayMs) =>
+        window.setTimeout(() => {
+          syncVisualViewportOffset();
+        }, delayMs),
+      );
+    },
+    [clearViewportSyncTimeouts, syncVisualViewportOffset],
+  );
+
   const lockNavInteractions = useCallback((durationMs = DEFAULT_NAV_GUARD_MS) => {
     if (typeof window === "undefined") return;
 
@@ -223,44 +272,68 @@ export function BottomNav() {
   useEffect(() => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
-    if (!insetFrozenRef.current) {
-      measureNativeSafeInset();
-      // Freeze after a short delay to allow the initial measurement to settle
-      const freezeTimeout = window.setTimeout(() => {
-        insetFrozenRef.current = true;
-      }, 500);
-
-      return () => window.clearTimeout(freezeTimeout);
-    }
-
     const handleOrientationChange = () => {
-      // Only orientation changes can unfreeze and re-measure
       insetFrozenRef.current = false;
       measureNativeSafeInset({ allowDecrease: true });
       scheduleInsetSync([240, 560], { allowDecrease: true });
-      window.setTimeout(() => { insetFrozenRef.current = true; }, 700);
+      scheduleVisualViewportSync();
+      lockNavInteractions(DEFAULT_NAV_GUARD_MS);
+      window.setTimeout(() => {
+        insetFrozenRef.current = true;
+      }, 700);
     };
 
     window.addEventListener("orientationchange", handleOrientationChange);
 
+    let freezeTimeout: number | null = null;
+    if (!insetFrozenRef.current) {
+      measureNativeSafeInset();
+      freezeTimeout = window.setTimeout(() => {
+        insetFrozenRef.current = true;
+      }, 500);
+    }
+
     return () => {
+      if (freezeTimeout !== null) {
+        window.clearTimeout(freezeTimeout);
+      }
       window.removeEventListener("orientationchange", handleOrientationChange);
     };
-  }, [isNativeIOS, measureNativeSafeInset, scheduleInsetSync]);
+  }, [isNativeIOS, lockNavInteractions, measureNativeSafeInset, scheduleInsetSync, scheduleVisualViewportSync]);
+
+  useEffect(() => {
+    if (!isNativeIOS || typeof window === "undefined") return;
+
+    const handleViewportMutation = () => {
+      syncVisualViewportOffset();
+    };
+
+    syncVisualViewportOffset();
+    window.visualViewport?.addEventListener("resize", handleViewportMutation);
+    window.visualViewport?.addEventListener("scroll", handleViewportMutation);
+    window.addEventListener("resize", handleViewportMutation);
+
+    return () => {
+      window.visualViewport?.removeEventListener("resize", handleViewportMutation);
+      window.visualViewport?.removeEventListener("scroll", handleViewportMutation);
+      window.removeEventListener("resize", handleViewportMutation);
+    };
+  }, [isNativeIOS, syncVisualViewportOffset]);
 
   // Listen for iOS nav guard events only (interaction locking).
-  // Layout reset events NO LONGER trigger re-measurement — inset is frozen.
+  // Layout reset events NO LONGER trigger inset re-measurement — inset remains frozen.
   useEffect(() => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
     const handleLayoutReset = () => {
-      // Only lock interactions, do NOT re-measure inset
       lockNavInteractions(1200);
+      scheduleVisualViewportSync();
     };
 
     const handleNavGuard = (event: Event) => {
       const customEvent = event as CustomEvent<{ durationMs?: number }>;
       lockNavInteractions(customEvent.detail?.durationMs ?? DEFAULT_NAV_GUARD_MS);
+      scheduleVisualViewportSync();
     };
 
     window.addEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
@@ -270,13 +343,14 @@ export function BottomNav() {
       window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
       window.removeEventListener(IOS_NAV_GUARD_EVENT, handleNavGuard as EventListener);
     };
-  }, [isNativeIOS, lockNavInteractions]);
+  }, [isNativeIOS, lockNavInteractions, scheduleVisualViewportSync]);
 
   // On route change, only lock interactions briefly — do NOT re-measure inset.
   useEffect(() => {
     if (!isNativeIOS) return;
     lockNavInteractions(700);
-  }, [isNativeIOS, location.pathname, lockNavInteractions]);
+    scheduleVisualViewportSync();
+  }, [isNativeIOS, location.pathname, lockNavInteractions, scheduleVisualViewportSync]);
 
   useEffect(() => {
     return () => {
@@ -284,8 +358,9 @@ export function BottomNav() {
         window.clearTimeout(navGuardTimeoutRef.current);
       }
       clearInsetSyncTimeouts();
+      clearViewportSyncTimeouts();
     };
-  }, [clearInsetSyncTimeouts]);
+  }, [clearInsetSyncTimeouts, clearViewportSyncTimeouts]);
 
   const nativeInsetFloor = `${nativeSafeInsetPx}px`;
   const navBottomInset = isNativeIOS
