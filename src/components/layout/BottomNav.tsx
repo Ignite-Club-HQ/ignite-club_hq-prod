@@ -237,7 +237,13 @@ export function BottomNav() {
     const handleLayoutReset = () => lockNavInteractions(1200);
     const handleNavGuard = (event: Event) => {
       const ce = event as CustomEvent<{ durationMs?: number }>;
-      lockNavInteractions(ce.detail?.durationMs ?? DEFAULT_NAV_GUARD_MS);
+      const duration = ce.detail?.durationMs ?? DEFAULT_NAV_GUARD_MS;
+      lockNavInteractions(duration);
+
+      // After the iOS permission dialog or photo picker closes, the safe-area
+      // inset may have been temporarily inflated. Re-measure with allowDecrease
+      // so the nav corrects back to the true value once the viewport settles.
+      scheduleInsetSync([400, 800, 1200], { allowDecrease: true });
     };
 
     window.addEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
