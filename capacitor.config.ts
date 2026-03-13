@@ -22,6 +22,8 @@ const config: CapacitorConfig = {
     allowMixedContent: true,
     // Keep all navigation inside the WebView
     appendUserAgent: 'IgniteClubHQ-Android',
+    // Disable native overscroll glow/spinner
+    overScrollMode: 'never' as any,
   },
   ios: {
     contentInset: 'automatic',
