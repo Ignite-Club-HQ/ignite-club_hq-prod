@@ -44,9 +44,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     (document.activeElement as HTMLElement | null)?.blur();
   };
 
-  const emitIOSNavGuard = (durationMs = 900) => {
+  const emitIOSNavGuard = (durationMs = 900, options?: { forceFloor?: boolean }) => {
     if (!shouldStabilizeIOSLayout) return;
-    dispatchIOSNavGuard(durationMs);
+    dispatchIOSNavGuard(durationMs, options);
   };
 
   const clearNavGuardRetryTimeout = () => {
