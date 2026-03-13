@@ -130,7 +130,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const handleNativePhotoPick = async () => {
-    setUploading(true);
+    // CRITICAL: Do NOT set state or blur before Camera.getPhoto — doing so
+    // triggers a re-render / breaks the gesture chain and iOS rejects the picker.
     console.log("[ChatImageInput] handleNativePhotoPick START");
     try {
       // Let Camera.getPhoto handle permissions natively on iOS to preserve
@@ -197,6 +198,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         format: photo.format,
         hasBase64: !!photo.base64String,
       });
+
+      // NOW it's safe to set uploading state — the native picker has closed
+      setUploading(true);
 
       if (!hasCameraPhotoSource(photo)) {
         throw new Error("No photo selected (missing base64String/webPath/path)");
@@ -299,7 +303,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
   const handleImageButtonClick = () => {
     if (isNativeIOS) {
-      dismissIOSKeyboardAccessory();
+      // Do NOT call dismissIOSKeyboardAccessory() before Camera.getPhoto —
+      // blurring breaks the gesture chain and iOS rejects the picker.
       void handleNativePhotoPick();
     } else {
       fileInputRef.current?.click();

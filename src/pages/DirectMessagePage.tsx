@@ -84,9 +84,6 @@ export default function DirectMessagePage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
-  const bottomInset = isNativePlatform
-    ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
-    : "env(safe-area-inset-bottom, 0px)";
   
   const scrollToBottom = useCallback(() => {
     if (!scrollAreaRef.current) return;
@@ -634,7 +631,7 @@ export default function DirectMessagePage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))] overflow-hidden overscroll-none" ref={pullRefreshRef as any}>
+    <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden overscroll-none" style={{ paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }} ref={pullRefreshRef as any}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
@@ -757,8 +754,8 @@ export default function DirectMessagePage() {
       {/* Input area - Fixed at bottom above nav bar */}
       {isIgniteSupportConversation ? (
         <>
-          <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: `calc(4rem + ${bottomInset} + 3rem)` }} />
-          <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: `calc(4rem + ${bottomInset})` }}>
+          <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 5rem) + 3rem)" }} />
+          <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 5rem)" }}>
             <div className="text-center text-sm text-muted-foreground py-3 bg-muted/50 rounded-lg">
               This is a welcome message from Ignite Support. Replies are not available.
             </div>
@@ -766,8 +763,8 @@ export default function DirectMessagePage() {
         </>
       ) : (
         <>
-          <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: `calc(4rem + ${bottomInset} + 3rem)` }} />
-          <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: `calc(4rem + ${bottomInset})` }}>
+          <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 5rem) + 3rem)" }} />
+          <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 5rem)" }}>
             <div className="flex gap-2 items-end">
               <MentionInput
                 value={message}
