@@ -22,6 +22,7 @@ const navItems = [
 const MIN_NATIVE_BOTTOM_INSET_PX = 16;
 const MAX_NATIVE_BOTTOM_INSET_PX = 40;
 const DEFAULT_NAV_GUARD_MS = 900;
+const MAX_NAV_SHIFT_CORRECTION_PX = 160;
 
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
@@ -120,8 +121,10 @@ export function BottomNav() {
 
   const [nativeSafeInsetPx, setNativeSafeInsetPx] = useState(MIN_NATIVE_BOTTOM_INSET_PX);
   const [navInteractionLocked, setNavInteractionLocked] = useState(false);
-  const [, setResetTick] = useState(0);
+  const [navShiftCorrectionPx, setNavShiftCorrectionPx] = useState(0);
   const navGuardTimeoutRef = useRef<number | null>(null);
+  const resetCorrectionTimeoutsRef = useRef<number[]>([]);
+  const navRef = useRef<HTMLElement | null>(null);
 
   const lockNavInteractions = useCallback((durationMs = DEFAULT_NAV_GUARD_MS) => {
     if (typeof window === "undefined") return;
