@@ -29,6 +29,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hadAttachmentRef = useRef(false);
+  const navGuardRetryTimeoutRef = useRef<number | null>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
   const dismissIOSKeyboardAccessory = () => {
@@ -36,21 +37,31 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     (document.activeElement as HTMLElement | null)?.blur();
   };
 
-
   const emitIOSNavGuard = (durationMs = 900) => {
     if (!isNativeIOS) return;
     dispatchIOSNavGuard(durationMs);
   };
 
+  const clearNavGuardRetryTimeout = () => {
+    if (typeof window === "undefined") return;
+    if (navGuardRetryTimeoutRef.current !== null) {
+      window.clearTimeout(navGuardRetryTimeoutRef.current);
+      navGuardRetryTimeoutRef.current = null;
+    }
+  };
+
   const restoreNativeLayout = () => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
-    // Guard nav interactions briefly while iOS settles viewport after picker dismissal.
-    // Do NOT call StatusBar.setOverlaysWebView, Keyboard.hide, or dispatch layout
-    // reset events here — those actively disrupt the viewport during the settling
-    // period and cause the intermittent BottomNav drop. The GPU layer promotion on
-    // BottomNav keeps it anchored without manual intervention.
-    emitIOSNavGuard(600);
+    // Guard nav interactions while iOS settles viewport after picker dismissal.
+    // First guard catches immediate close; second guard catches delayed first-run
+    // permission animation settling that can otherwise leave nav inset inflated.
+    emitIOSNavGuard(900);
+    clearNavGuardRetryTimeout();
+    navGuardRetryTimeoutRef.current = window.setTimeout(() => {
+      emitIOSNavGuard(1200);
+      navGuardRetryTimeoutRef.current = null;
+    }, 320);
   };
 
   const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
@@ -303,6 +314,15 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   useEffect(() => {
     setPreviewFailed(false);
   }, [localPreview, imageUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && navGuardRetryTimeoutRef.current !== null) {
+        window.clearTimeout(navGuardRetryTimeoutRef.current);
+        navGuardRetryTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // When the parent clears an attached image after send, force a final iOS viewport settle
   useEffect(() => {
