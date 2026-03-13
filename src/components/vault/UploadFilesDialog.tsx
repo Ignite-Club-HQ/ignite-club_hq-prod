@@ -6,8 +6,6 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
-import { Keyboard } from "@capacitor/keyboard";
-import { StatusBar } from "@capacitor/status-bar";
 import { toast } from "sonner";
 import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
@@ -57,23 +55,9 @@ export function UploadFilesDialog({
   const shouldStabilizeIOSLayout = isIOSEnvironment;
   const shouldUseNativePhotoPicker = uploadType === "photo" && isNativeIOS;
   const navGuardRetryTimeoutRef = useRef<number | null>(null);
+  const layoutRecoveryTimeoutsRef = useRef<number[]>([]);
   const nativePickerInFlightRef = useRef(false);
   const wasOpenRef = useRef(open);
-
-  const dismissIOSKeyboardAccessory = useCallback(() => {
-    if (!isNativeIOS) return;
-    (document.activeElement as HTMLElement | null)?.blur();
-  }, [isNativeIOS]);
-
-  const restoreNativeStatusBarOverlay = useCallback(async () => {
-    if (!isNativeIOS) return;
-
-    try {
-      await StatusBar.setOverlaysWebView({ overlay: false });
-    } catch (error) {
-      console.warn("[UploadFilesDialog] Failed to restore status bar overlay:", error);
-    }
-  }, [isNativeIOS]);
 
   const emitIOSLayoutReset = useCallback(() => {
     if (!shouldStabilizeIOSLayout) return;
@@ -93,6 +77,12 @@ export function UploadFilesDialog({
     }
   }, []);
 
+  const clearLayoutRecoveryTimeouts = useCallback(() => {
+    if (typeof window === "undefined") return;
+    layoutRecoveryTimeoutsRef.current.forEach((id) => window.clearTimeout(id));
+    layoutRecoveryTimeoutsRef.current = [];
+  }, []);
+
   const restoreNativeLayout = useCallback(() => {
     if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
@@ -110,12 +100,28 @@ export function UploadFilesDialog({
     }, 320);
   }, [clearNavGuardRetryTimeout, emitIOSLayoutReset, emitIOSNavGuard, shouldStabilizeIOSLayout]);
 
+  const queueNativeLayoutRecovery = useCallback((delaysMs: readonly number[] = [0, 260, 1100]) => {
+    if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
+
+    clearLayoutRecoveryTimeouts();
+    layoutRecoveryTimeoutsRef.current = delaysMs.map((delayMs) =>
+      window.setTimeout(() => {
+        if (delayMs === 0) {
+          requestAnimationFrame(() => restoreNativeLayout());
+          return;
+        }
+        restoreNativeLayout();
+      }, delayMs),
+    );
+  }, [clearLayoutRecoveryTimeouts, restoreNativeLayout, shouldStabilizeIOSLayout]);
+
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       clearNavGuardRetryTimeout();
+      clearLayoutRecoveryTimeouts();
     };
-  }, [clearNavGuardRetryTimeout]);
+  }, [clearLayoutRecoveryTimeouts, clearNavGuardRetryTimeout]);
 
   const clearSelection = useCallback(() => {
     setSelectedFile(null);
