@@ -271,10 +271,17 @@ export function BottomNav() {
       }
 
       // After iOS permission/photo-picker dismissal, safe-area values can stay
-      // inflated for 2-4s on first-run permission flows. Schedule aggressive
-      // re-measurement chain with multiple settle attempts.
+      // inflated for 2-4s on first-run permission flows.
       const settleDelayMs = Math.max(2200, duration + 800);
-      scheduleInsetSync([300, 600, 1000, 1500, 2000, settleDelayMs], { allowDecrease: true });
+
+      if (forceFloor) {
+        // When forceFloor is active, do NOT re-measure early — the OS may still
+        // report inflated values for 2-4s after the permission prompt dismisses.
+        // Only schedule late settle attempts that use settleInflatedInset (which
+        // only ever decreases or clamps to floor).
+      } else {
+        scheduleInsetSync([300, 600, 1000, 1500, 2000, settleDelayMs], { allowDecrease: true });
+      }
 
       clearNavGuardSettleTimeout();
       // First settle attempt
