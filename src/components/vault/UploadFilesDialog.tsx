@@ -348,7 +348,7 @@ export function UploadFilesDialog({
         setUploadType("file");
       }
       handleFileSelect(file);
-      requestAnimationFrame(restoreNativeLayout);
+      queueNativeLayoutRecovery();
     }
   };
 
@@ -356,14 +356,14 @@ export function UploadFilesDialog({
     if (!selectedFile || isUploading || isSubmittingUpload) return;
 
     setIsSubmittingUpload(true);
-    restoreNativeLayout();
+    queueNativeLayoutRecovery([0, 260, 900]);
 
     try {
       await onUpload(selectedFile, uploadType, uploadType === "file" ? fileName : undefined);
       clearSelection();
     } finally {
       setIsSubmittingUpload(false);
-      restoreNativeLayout();
+      queueNativeLayoutRecovery([0, 420, 1400]);
     }
   };
 
@@ -372,7 +372,7 @@ export function UploadFilesDialog({
       clearSelection();
       setUploadType("photo");
       setIsSubmittingUpload(false);
-      restoreNativeLayout();
+      queueNativeLayoutRecovery([0, 320, 1200]);
     }
     onOpenChange(newOpen);
   };
