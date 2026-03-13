@@ -253,7 +253,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       }
       setLocalPreview(null);
     } finally {
-      await restoreNativeStatusBarOverlay();
       restoreNativeLayout();
       setUploading(false);
     }
