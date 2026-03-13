@@ -533,7 +533,6 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     if (!shouldUseNativePhotoPicker || uploading || isPickingNativePhoto) return;
 
     setIsPickingNativePhoto(true);
-    dismissIOSKeyboardAccessory();
     console.log("[UploadPhotoSheet] handleNativePhotoPick START");
     try {
       // Let Camera.getPhoto handle permissions natively on iOS to preserve
@@ -600,6 +599,13 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         format: photo.format,
         hasBase64: !!photo.base64String,
       });
+
+      // Trigger viewport stabilization immediately after the native picker closes,
+      // before blob conversion/compression work can delay the reset.
+      requestAnimationFrame(() => {
+        restoreNativeLayout();
+      });
+      dismissIOSKeyboardAccessory();
 
       if (!hasCameraPhotoSource(photo)) {
         throw new Error("No photo selected (missing base64String/webPath/path)");

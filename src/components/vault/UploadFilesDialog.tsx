@@ -197,6 +197,11 @@ export function UploadFilesDialog({
         hasBase64: !!photo.base64String,
       });
 
+      // Stabilize BottomNav immediately once picker returns, before blob work.
+      requestAnimationFrame(() => {
+        restoreNativeLayout();
+      });
+
       if (!hasCameraPhotoSource(photo)) {
         throw new Error("No photo selected (missing base64String/webPath/path)");
       }
