@@ -105,23 +105,13 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const restoreNativeLayout = useCallback(() => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
-    emitIOSNavGuard();
-    void restoreNativeStatusBarOverlay();
-    dismissIOSKeyboardAccessory();
-    void Keyboard.hide().catch(() => undefined);
-    emitIOSLayoutReset();
-
-    requestAnimationFrame(() => {
-      emitIOSLayoutReset();
-    });
-
-    [100, 260, 520].forEach((delay) => {
-      window.setTimeout(() => {
-        void restoreNativeStatusBarOverlay();
-        emitIOSLayoutReset();
-      }, delay);
-    });
-  }, [dismissIOSKeyboardAccessory, emitIOSLayoutReset, emitIOSNavGuard, isNativeIOS, restoreNativeStatusBarOverlay]);
+    // Guard nav interactions briefly while iOS settles viewport after picker dismissal.
+    // Do NOT call StatusBar.setOverlaysWebView, Keyboard.hide, or dispatch layout
+    // reset events here — those actively disrupt the viewport during the settling
+    // period and cause the intermittent BottomNav drop. The GPU layer promotion on
+    // BottomNav keeps it anchored without manual intervention.
+    emitIOSNavGuard(600);
+  }, [emitIOSNavGuard, isNativeIOS]);
 
   // Get user roles
   const { data: userRoles } = useQuery({
