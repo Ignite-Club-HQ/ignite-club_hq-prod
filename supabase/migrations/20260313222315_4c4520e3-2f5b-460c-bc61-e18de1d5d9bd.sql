@@ -1,0 +1,1 @@
+UPDATE clubs SET logo_url = 'https://ignite-club-launchpad.lovable.app/riverside-fc-logo.png' WHERE id = '36231b76-5313-478e-b8d5-23ac4f5e8b10';
