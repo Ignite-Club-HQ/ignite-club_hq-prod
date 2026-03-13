@@ -6,8 +6,6 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
-import { Keyboard } from "@capacitor/keyboard";
-import { StatusBar } from "@capacitor/status-bar";
 import { toast } from "sonner";
 import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
@@ -57,23 +55,9 @@ export function UploadFilesDialog({
   const shouldStabilizeIOSLayout = isIOSEnvironment;
   const shouldUseNativePhotoPicker = uploadType === "photo" && isNativeIOS;
   const navGuardRetryTimeoutRef = useRef<number | null>(null);
+  const layoutRecoveryTimeoutsRef = useRef<number[]>([]);
   const nativePickerInFlightRef = useRef(false);
   const wasOpenRef = useRef(open);
-
-  const dismissIOSKeyboardAccessory = useCallback(() => {
-    if (!isNativeIOS) return;
-    (document.activeElement as HTMLElement | null)?.blur();
-  }, [isNativeIOS]);
-
-  const restoreNativeStatusBarOverlay = useCallback(async () => {
-    if (!isNativeIOS) return;
-
-    try {
-      await StatusBar.setOverlaysWebView({ overlay: false });
-    } catch (error) {
-      console.warn("[UploadFilesDialog] Failed to restore status bar overlay:", error);
-    }
-  }, [isNativeIOS]);
 
   const emitIOSLayoutReset = useCallback(() => {
     if (!shouldStabilizeIOSLayout) return;
@@ -93,6 +77,12 @@ export function UploadFilesDialog({
     }
   }, []);
 
+  const clearLayoutRecoveryTimeouts = useCallback(() => {
+    if (typeof window === "undefined") return;
+    layoutRecoveryTimeoutsRef.current.forEach((id) => window.clearTimeout(id));
+    layoutRecoveryTimeoutsRef.current = [];
+  }, []);
+
   const restoreNativeLayout = useCallback(() => {
     if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
@@ -110,12 +100,28 @@ export function UploadFilesDialog({
     }, 320);
   }, [clearNavGuardRetryTimeout, emitIOSLayoutReset, emitIOSNavGuard, shouldStabilizeIOSLayout]);
 
+  const queueNativeLayoutRecovery = useCallback((delaysMs: readonly number[] = [0, 260, 1100]) => {
+    if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
+
+    clearLayoutRecoveryTimeouts();
+    layoutRecoveryTimeoutsRef.current = delaysMs.map((delayMs) =>
+      window.setTimeout(() => {
+        if (delayMs === 0) {
+          requestAnimationFrame(() => restoreNativeLayout());
+          return;
+        }
+        restoreNativeLayout();
+      }, delayMs),
+    );
+  }, [clearLayoutRecoveryTimeouts, restoreNativeLayout, shouldStabilizeIOSLayout]);
+
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       clearNavGuardRetryTimeout();
+      clearLayoutRecoveryTimeouts();
     };
-  }, [clearNavGuardRetryTimeout]);
+  }, [clearLayoutRecoveryTimeouts, clearNavGuardRetryTimeout]);
 
   const clearSelection = useCallback(() => {
     setSelectedFile(null);
@@ -159,7 +165,7 @@ export function UploadFilesDialog({
     const file = input.files?.[0];
     if (file) {
       handleFileSelect(file);
-      requestAnimationFrame(restoreNativeLayout);
+      queueNativeLayoutRecovery();
     }
 
     // Allow selecting the same file again in the same dialog session.
@@ -171,11 +177,32 @@ export function UploadFilesDialog({
       clearSelection();
       setUploadType("photo");
       setIsSubmittingUpload(false);
-      restoreNativeLayout();
+      queueNativeLayoutRecovery();
     }
 
     wasOpenRef.current = open;
-  }, [clearSelection, open, restoreNativeLayout]);
+  }, [clearSelection, open, queueNativeLayoutRecovery]);
+
+  useEffect(() => {
+    if (!open || !shouldStabilizeIOSLayout || typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+
+    const handleLayoutResume = () => {
+      if (document.visibilityState === "hidden") return;
+      queueNativeLayoutRecovery([0, 320, 1200]);
+    };
+
+    window.addEventListener("focus", handleLayoutResume);
+    window.addEventListener("pageshow", handleLayoutResume);
+    document.addEventListener("visibilitychange", handleLayoutResume);
+
+    return () => {
+      window.removeEventListener("focus", handleLayoutResume);
+      window.removeEventListener("pageshow", handleLayoutResume);
+      document.removeEventListener("visibilitychange", handleLayoutResume);
+    };
+  }, [open, queueNativeLayoutRecovery, shouldStabilizeIOSLayout]);
 
   const handleNativePhotoPick = async () => {
     if (
@@ -202,14 +229,12 @@ export function UploadFilesDialog({
 
       try {
         console.log("[UploadFilesDialog] calling getPhoto (Base64 mode, attempt 1)...");
-        const initialPhotoPromise = Camera.getPhoto({
+        photo = await Camera.getPhoto({
           resultType: CameraResultType.Base64,
           source: CameraSource.Photos,
           allowEditing: false,
           quality: 80,
         });
-        setIsPickingNativePhoto(true);
-        photo = await initialPhotoPromise;
       } catch (firstAttemptError: unknown) {
         if (isCancelledSelectionError(firstAttemptError)) {
           throw firstAttemptError;
@@ -255,9 +280,8 @@ export function UploadFilesDialog({
       });
 
       // Stabilize BottomNav immediately once picker returns, before blob work.
-      requestAnimationFrame(() => {
-        restoreNativeLayout();
-      });
+      queueNativeLayoutRecovery([0, 260, 900, 1700]);
+      setIsPickingNativePhoto(true);
 
       if (!hasCameraPhotoSource(photo)) {
         throw new Error("No photo selected (missing base64String/webPath/path)");
@@ -278,9 +302,7 @@ export function UploadFilesDialog({
       });
 
       handleFileSelect(file);
-      requestAnimationFrame(() => {
-        restoreNativeLayout();
-      });
+      queueNativeLayoutRecovery([0, 380, 1200]);
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
         const errMsg = getReadableUploadError(error);
@@ -290,8 +312,7 @@ export function UploadFilesDialog({
         console.log("[UploadFilesDialog] user cancelled");
       }
     } finally {
-      await restoreNativeStatusBarOverlay();
-      restoreNativeLayout();
+      queueNativeLayoutRecovery([0, 420, 1400, 2200]);
       nativePickerInFlightRef.current = false;
       setIsPickingNativePhoto(false);
     }
@@ -327,7 +348,7 @@ export function UploadFilesDialog({
         setUploadType("file");
       }
       handleFileSelect(file);
-      requestAnimationFrame(restoreNativeLayout);
+      queueNativeLayoutRecovery();
     }
   };
 
@@ -335,14 +356,14 @@ export function UploadFilesDialog({
     if (!selectedFile || isUploading || isSubmittingUpload) return;
 
     setIsSubmittingUpload(true);
-    restoreNativeLayout();
+    queueNativeLayoutRecovery([0, 260, 900]);
 
     try {
       await onUpload(selectedFile, uploadType, uploadType === "file" ? fileName : undefined);
       clearSelection();
     } finally {
       setIsSubmittingUpload(false);
-      restoreNativeLayout();
+      queueNativeLayoutRecovery([0, 420, 1400]);
     }
   };
 
@@ -351,7 +372,7 @@ export function UploadFilesDialog({
       clearSelection();
       setUploadType("photo");
       setIsSubmittingUpload(false);
-      restoreNativeLayout();
+      queueNativeLayoutRecovery([0, 320, 1200]);
     }
     onOpenChange(newOpen);
   };
@@ -363,7 +384,7 @@ export function UploadFilesDialog({
   };
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
+    <ResponsiveDialog open={open} onOpenChange={handleOpenChange} forceDesktopDialog={isNativeIOS}>
       <ResponsiveDialogContent className="sm:max-w-md">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle>Upload to {targetName}</ResponsiveDialogTitle>
