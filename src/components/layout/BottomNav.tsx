@@ -263,8 +263,9 @@ export function BottomNav() {
     };
   }, [clearInsetSyncTimeouts]);
 
+  const nativeInsetFloor = `${nativeSafeInsetPx}px`;
   const navBottomInset = isNativeIOS
-    ? `${nativeSafeInsetPx}px`
+    ? `max(env(safe-area-inset-bottom, 0px), ${nativeInsetFloor})`
     : isAndroidNative || isIOSEnvironment
       ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
       : "env(safe-area-inset-bottom, 0px)";
@@ -274,8 +275,9 @@ export function BottomNav() {
 
     const root = document.documentElement;
     root.style.setProperty("--bottom-nav-safe-inset", navBottomInset);
+    root.style.setProperty("--bottom-nav-safe-inset-px", nativeInsetFloor);
     root.style.setProperty("--bottom-nav-offset", `calc(4rem + ${navBottomInset})`);
-  }, [navBottomInset]);
+  }, [navBottomInset, nativeInsetFloor]);
 
   return (
     <>
