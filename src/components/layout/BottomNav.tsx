@@ -23,7 +23,9 @@ const MIN_NATIVE_BOTTOM_INSET_PX = 20;
 const IOS_PHONE_BOTTOM_INSET_PX = 34;
 const MAX_NATIVE_BOTTOM_INSET_PX = 40;
 const DEFAULT_NAV_GUARD_MS = 900;
-const ROUTE_REMEASURE_DELAYS_MS = [90, 240, 460, 760, 1160] as const;
+const VIEWPORT_OFFSET_SYNC_DELAYS_MS = [0, 120, 320, 640, 980] as const;
+const KEYBOARD_HEIGHT_THRESHOLD_PX = 120;
+const MAX_VIEWPORT_OFFSET_COMPENSATION_PX = 120;
 
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
