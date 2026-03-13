@@ -270,14 +270,11 @@ export function BottomNav() {
     };
   }, [isNativeIOS, lockNavInteractions]);
 
-  // On every route change, re-sync with delayed checks to recover from WKWebView settle glitches.
+  // On route change, only lock interactions briefly — do NOT re-measure inset.
   useEffect(() => {
     if (!isNativeIOS) return;
-
     lockNavInteractions(700);
-    measureNativeSafeInset();
-    scheduleInsetSync(ROUTE_REMEASURE_DELAYS_MS);
-  }, [isNativeIOS, location.pathname, lockNavInteractions, measureNativeSafeInset, scheduleInsetSync]);
+  }, [isNativeIOS, location.pathname, lockNavInteractions]);
 
   useEffect(() => {
     return () => {
