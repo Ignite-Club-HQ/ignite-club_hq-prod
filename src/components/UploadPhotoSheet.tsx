@@ -600,6 +600,13 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         hasBase64: !!photo.base64String,
       });
 
+      // Trigger viewport stabilization immediately after the native picker closes,
+      // before blob conversion/compression work can delay the reset.
+      requestAnimationFrame(() => {
+        restoreNativeLayout();
+      });
+      dismissIOSKeyboardAccessory();
+
       if (!hasCameraPhotoSource(photo)) {
         throw new Error("No photo selected (missing base64String/webPath/path)");
       }
