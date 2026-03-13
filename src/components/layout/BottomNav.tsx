@@ -163,6 +163,14 @@ export function BottomNav() {
     insetSyncTimeoutsRef.current = [];
   }, []);
 
+  const clearNavGuardSettleTimeout = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (navGuardSettleTimeoutRef.current !== null) {
+      window.clearTimeout(navGuardSettleTimeoutRef.current);
+      navGuardSettleTimeoutRef.current = null;
+    }
+  }, []);
+
   const applyMeasuredInset = useCallback(
     (measuredInset: number, options: { allowDecrease?: boolean } = {}) => {
       const stabilizedInset = clampNativeInsetPx(measuredInset);
@@ -181,6 +189,16 @@ export function BottomNav() {
     },
     [applyMeasuredInset, isNativeIOS],
   );
+
+  const settleInflatedInset = useCallback(() => {
+    const stabilizedInset = clampNativeInsetPx(readSafeAreaInsetBottomPx());
+
+    setNativeSafeInsetPx((prev) => {
+      if (stabilizedInset < prev) return stabilizedInset;
+      if (prev > nativeInsetFloorPx + 2 && stabilizedInset >= prev) return nativeInsetFloorPx;
+      return prev;
+    });
+  }, [clampNativeInsetPx, nativeInsetFloorPx]);
 
   const scheduleInsetSync = useCallback(
     (delaysMs: readonly number[], options: { allowDecrease?: boolean } = {}) => {
