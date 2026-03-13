@@ -136,6 +136,9 @@ export function BottomNav() {
     }, Math.max(250, durationMs));
   }, []);
 
+  // Measure safe area inset ONCE on mount and on orientation change only.
+  // Do NOT re-measure on resize/visualViewport events — those fire when the
+  // iOS photo picker opens/closes and would shift the nav.
   useEffect(() => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
@@ -151,17 +154,13 @@ export function BottomNav() {
     measureInset();
     const delayedMeasure = window.setTimeout(measureInset, 350);
 
+    // Only re-measure on orientation change (actual physical rotation),
+    // NOT on resize which fires during photo picker / keyboard transitions.
     window.addEventListener("orientationchange", measureInset);
-    window.addEventListener("resize", measureInset);
-
-    const visualViewport = window.visualViewport;
-    visualViewport?.addEventListener("resize", measureInset);
 
     return () => {
       window.clearTimeout(delayedMeasure);
       window.removeEventListener("orientationchange", measureInset);
-      window.removeEventListener("resize", measureInset);
-      visualViewport?.removeEventListener("resize", measureInset);
     };
   }, [isNativeIOS]);
 
