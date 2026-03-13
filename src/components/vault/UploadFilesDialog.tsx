@@ -283,6 +283,7 @@ export function UploadFilesDialog({
       setPreviewUrl(null);
       setFileName("");
       setUploadType("photo");
+      restoreNativeLayout();
     }
     onOpenChange(newOpen);
   };
