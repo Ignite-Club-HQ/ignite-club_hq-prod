@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Upload, Image, FileText, Loader2, X, File as FileIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,9 +6,15 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { Keyboard } from "@capacitor/keyboard";
+import { StatusBar } from "@capacitor/status-bar";
 import { toast } from "sonner";
 import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
+import {
+  emitIOSLayoutReset as dispatchIOSLayoutReset,
+  emitIOSNavGuard as dispatchIOSNavGuard,
+} from "@/lib/iosLayoutStability";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -40,8 +46,54 @@ export function UploadFilesDialog({
   const [isPickingNativePhoto, setIsPickingNativePhoto] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const shouldUseNativePhotoPicker =
-    uploadType === "photo" && Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const shouldUseNativePhotoPicker = uploadType === "photo" && isNativeIOS;
+
+  const dismissIOSKeyboardAccessory = useCallback(() => {
+    if (!isNativeIOS) return;
+    (document.activeElement as HTMLElement | null)?.blur();
+  }, [isNativeIOS]);
+
+  const restoreNativeStatusBarOverlay = useCallback(async () => {
+    if (!isNativeIOS) return;
+
+    try {
+      await StatusBar.setOverlaysWebView({ overlay: false });
+    } catch (error) {
+      console.warn("[UploadFilesDialog] Failed to restore status bar overlay:", error);
+    }
+  }, [isNativeIOS]);
+
+  const emitIOSLayoutReset = useCallback(() => {
+    if (!isNativeIOS) return;
+    dispatchIOSLayoutReset();
+  }, [isNativeIOS]);
+
+  const emitIOSNavGuard = useCallback((durationMs = 900) => {
+    if (!isNativeIOS) return;
+    dispatchIOSNavGuard(durationMs);
+  }, [isNativeIOS]);
+
+  const restoreNativeLayout = useCallback(() => {
+    if (!isNativeIOS || typeof window === "undefined") return;
+
+    emitIOSNavGuard();
+    void restoreNativeStatusBarOverlay();
+    dismissIOSKeyboardAccessory();
+    void Keyboard.hide().catch(() => undefined);
+    emitIOSLayoutReset();
+
+    requestAnimationFrame(() => {
+      emitIOSLayoutReset();
+    });
+
+    [100, 260, 520].forEach((delay) => {
+      window.setTimeout(() => {
+        void restoreNativeStatusBarOverlay();
+        emitIOSLayoutReset();
+      }, delay);
+    });
+  }, [dismissIOSKeyboardAccessory, emitIOSLayoutReset, emitIOSNavGuard, isNativeIOS, restoreNativeStatusBarOverlay]);
 
   const handleFileSelect = (file: File) => {
     if (previewUrl) {
@@ -71,6 +123,12 @@ export function UploadFilesDialog({
       handleFileSelect(file);
     }
   };
+
+  useEffect(() => {
+    if (!open) {
+      restoreNativeLayout();
+    }
+  }, [open, restoreNativeLayout]);
 
   const handleNativePhotoPick = async () => {
     if (!shouldUseNativePhotoPicker || isUploading || isPickingNativePhoto) return;
@@ -158,6 +216,9 @@ export function UploadFilesDialog({
       });
 
       handleFileSelect(file);
+      requestAnimationFrame(() => {
+        restoreNativeLayout();
+      });
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
         const errMsg = getReadableUploadError(error);
@@ -167,6 +228,8 @@ export function UploadFilesDialog({
         console.log("[UploadFilesDialog] user cancelled");
       }
     } finally {
+      await restoreNativeStatusBarOverlay();
+      restoreNativeLayout();
       setIsPickingNativePhoto(false);
     }
   };
@@ -220,6 +283,7 @@ export function UploadFilesDialog({
       setPreviewUrl(null);
       setFileName("");
       setUploadType("photo");
+      restoreNativeLayout();
     }
     onOpenChange(newOpen);
   };
