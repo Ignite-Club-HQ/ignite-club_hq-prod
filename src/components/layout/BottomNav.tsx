@@ -296,10 +296,12 @@ export function BottomNav() {
     return () => {
       if (typeof window !== "undefined" && navGuardTimeoutRef.current !== null) {
         window.clearTimeout(navGuardTimeoutRef.current);
+        navGuardTimeoutRef.current = null;
       }
       clearInsetSyncTimeouts();
+      clearNavGuardSettleTimeout();
     };
-  }, [clearInsetSyncTimeouts]);
+  }, [clearInsetSyncTimeouts, clearNavGuardSettleTimeout]);
 
   const nativeInsetFloor = `${nativeSafeInsetPx}px`;
   const navBottomInset = isNativeIOS
