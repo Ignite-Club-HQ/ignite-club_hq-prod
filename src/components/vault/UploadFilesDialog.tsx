@@ -397,7 +397,7 @@ export function UploadFilesDialog({
           {/* Upload Area */}
           {!selectedFile ? (
             <label
-              className={cn("block cursor-pointer", (isUploading || isPickingNativePhoto) && "pointer-events-none opacity-70")}
+              className={cn("block cursor-pointer", (isUploading || isPickingNativePhoto || isSubmittingUpload) && "pointer-events-none opacity-70")}
               onClick={handleUploadAreaClick}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
