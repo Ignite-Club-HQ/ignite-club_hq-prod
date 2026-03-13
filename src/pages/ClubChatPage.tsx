@@ -1037,12 +1037,7 @@ export default function ClubChatPage() {
       </div>
 
 
-      <div className="flex-1 min-h-0 pb-4 flex flex-col relative overflow-hidden" ref={pullRefreshRef}>
-        <PullToRefreshIndicator
-          pullDistance={pullDistance}
-          pullProgress={pullProgress}
-          isRefreshing={isRefreshing}
-        />
+      <div className="flex-1 min-h-0 pb-4 flex flex-col relative overflow-hidden overscroll-none">
         {isLoadingClubSubscription ? (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (

@@ -806,12 +806,7 @@ export default function BroadcastChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" ref={pullRefreshRef}>
-        <PullToRefreshIndicator
-          pullDistance={pullDistance}
-          pullProgress={pullProgress}
-          isRefreshing={isRefreshing}
-        />
+      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
         {filteredMessages?.length === 0 ? (
           <ChatEmptyState
             title="No announcements yet"

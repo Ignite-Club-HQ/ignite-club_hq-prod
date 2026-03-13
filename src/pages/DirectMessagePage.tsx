@@ -676,7 +676,7 @@ export default function DirectMessagePage() {
       </div>
 
 
-      <PullToRefreshIndicator isRefreshing={isRefreshing} pullDistance={pullDistance} pullProgress={pullProgress} />
+      
 
       {/* Messages area */}
       <div
