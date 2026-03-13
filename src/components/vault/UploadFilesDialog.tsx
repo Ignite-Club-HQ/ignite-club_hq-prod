@@ -216,6 +216,9 @@ export function UploadFilesDialog({
       });
 
       handleFileSelect(file);
+      requestAnimationFrame(() => {
+        restoreNativeLayout();
+      });
     } catch (error) {
       if (!isCancelledSelectionError(error)) {
         const errMsg = getReadableUploadError(error);
@@ -225,6 +228,8 @@ export function UploadFilesDialog({
         console.log("[UploadFilesDialog] user cancelled");
       }
     } finally {
+      await restoreNativeStatusBarOverlay();
+      restoreNativeLayout();
       setIsPickingNativePhoto(false);
     }
   };
