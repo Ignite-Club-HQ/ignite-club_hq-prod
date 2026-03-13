@@ -188,10 +188,10 @@ export function BottomNav() {
 
   const measureNativeSafeInset = useCallback(
     (options: { allowDecrease?: boolean } = {}) => {
-      if (!isNativeIOS) return;
+      if (!shouldStabilizeIOSLayout) return;
       applyMeasuredInset(readSafeAreaInsetBottomPx(), options);
     },
-    [applyMeasuredInset, isNativeIOS],
+    [applyMeasuredInset, shouldStabilizeIOSLayout],
   );
 
   const settleInflatedInset = useCallback(() => {
