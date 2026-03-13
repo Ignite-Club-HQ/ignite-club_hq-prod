@@ -37,11 +37,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
 
-  const emitIOSLayoutReset = () => {
-    if (!isNativeIOS) return;
-    dispatchIOSLayoutReset();
-  };
-
   const emitIOSNavGuard = (durationMs = 900) => {
     if (!isNativeIOS) return;
     dispatchIOSNavGuard(durationMs);
