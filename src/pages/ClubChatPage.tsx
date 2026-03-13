@@ -1063,11 +1063,11 @@ export default function ClubChatPage() {
           />
         ) : (
           <div
-            className="flex-1 h-full overflow-y-auto overscroll-none scrollbar-hide"
+            className="flex-1 min-h-0 overflow-y-auto overscroll-none scrollbar-hide"
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
           >
-            <div className="space-y-4 pr-4 pb-20">
+            <div className="space-y-4 pt-4 pr-4 pb-20">
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
                 <div ref={loadTriggerRef} className="flex justify-center py-2">
