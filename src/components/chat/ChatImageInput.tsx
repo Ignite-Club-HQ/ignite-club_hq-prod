@@ -296,6 +296,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       setLocalPreview(null);
     } finally {
       setUploading(false);
+      if (shouldStabilizeIOSLayout) {
+        restoreNativeLayout();
+      }
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
