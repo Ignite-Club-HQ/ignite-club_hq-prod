@@ -201,6 +201,19 @@ export function BottomNav() {
       ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
       : "env(safe-area-inset-bottom, 0px)";
 
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const root = document.documentElement;
+    root.style.setProperty("--bottom-nav-safe-inset", navBottomInset);
+    root.style.setProperty("--bottom-nav-offset", `calc(4rem + ${navBottomInset})`);
+
+    return () => {
+      root.style.removeProperty("--bottom-nav-safe-inset");
+      root.style.removeProperty("--bottom-nav-offset");
+    };
+  }, [navBottomInset]);
+
   return (
     <>
       {/* Solid background filler to prevent content showing through safe area below nav */}
