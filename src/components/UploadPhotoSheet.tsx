@@ -18,6 +18,10 @@ import { StatusBar } from "@capacitor/status-bar";
 import { Keyboard } from "@capacitor/keyboard";
 import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
+import {
+  emitIOSLayoutReset as dispatchIOSLayoutReset,
+  emitIOSNavGuard as dispatchIOSNavGuard,
+} from "@/lib/iosLayoutStability";
 
 interface UploadPhotoSheetProps {
   open: boolean;
@@ -89,13 +93,19 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   }, [isNativeIOS]);
 
   const emitIOSLayoutReset = useCallback(() => {
-    if (!isNativeIOS || typeof window === "undefined") return;
-    window.dispatchEvent(new CustomEvent("ignite:ios-layout-reset"));
+    if (!isNativeIOS) return;
+    dispatchIOSLayoutReset();
+  }, [isNativeIOS]);
+
+  const emitIOSNavGuard = useCallback((durationMs = 900) => {
+    if (!isNativeIOS) return;
+    dispatchIOSNavGuard(durationMs);
   }, [isNativeIOS]);
 
   const restoreNativeLayout = useCallback(() => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
+    emitIOSNavGuard();
     void restoreNativeStatusBarOverlay();
     dismissIOSKeyboardAccessory();
     void Keyboard.hide().catch(() => undefined);
@@ -111,7 +121,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         emitIOSLayoutReset();
       }, delay);
     });
-  }, [dismissIOSKeyboardAccessory, emitIOSLayoutReset, isNativeIOS, restoreNativeStatusBarOverlay]);
+  }, [dismissIOSKeyboardAccessory, emitIOSLayoutReset, emitIOSNavGuard, isNativeIOS, restoreNativeStatusBarOverlay]);
 
   // Get user roles
   const { data: userRoles } = useQuery({

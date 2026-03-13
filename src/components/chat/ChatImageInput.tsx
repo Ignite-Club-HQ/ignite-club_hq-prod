@@ -10,6 +10,10 @@ import { StatusBar } from "@capacitor/status-bar";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { cameraPhotoToBlob, hasCameraPhotoSource, mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
+import {
+  emitIOSLayoutReset as dispatchIOSLayoutReset,
+  emitIOSNavGuard as dispatchIOSNavGuard,
+} from "@/lib/iosLayoutStability";
 
 interface ChatImageInputProps {
   onImageUploaded: (imageUrl: string | null) => void;
@@ -26,8 +30,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hadAttachmentRef = useRef(false);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
-  const IOS_LAYOUT_RESET_EVENT = "ignite:ios-layout-reset";
 
   const dismissIOSKeyboardAccessory = () => {
     if (!isNativeIOS) return;
@@ -45,13 +49,19 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const emitIOSLayoutReset = () => {
-    if (!isNativeIOS || typeof window === "undefined") return;
-    window.dispatchEvent(new CustomEvent(IOS_LAYOUT_RESET_EVENT));
+    if (!isNativeIOS) return;
+    dispatchIOSLayoutReset();
+  };
+
+  const emitIOSNavGuard = (durationMs = 900) => {
+    if (!isNativeIOS) return;
+    dispatchIOSNavGuard(durationMs);
   };
 
   const restoreNativeLayout = () => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
+    emitIOSNavGuard();
     void restoreNativeStatusBarOverlay();
     dismissIOSKeyboardAccessory();
     void Keyboard.hide().catch(() => undefined);
@@ -270,6 +280,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     }
     setLocalPreview(null);
     onImageUploaded(null);
+    restoreNativeLayout();
   };
 
   const [previewFailed, setPreviewFailed] = useState(false);
@@ -278,6 +289,19 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   useEffect(() => {
     setPreviewFailed(false);
   }, [localPreview, imageUrl]);
+
+  // When the parent clears an attached image after send, force a final iOS viewport settle
+  useEffect(() => {
+    const hasAttachment = Boolean(localPreview || imageUrl);
+
+    if (isNativeIOS && hadAttachmentRef.current && !hasAttachment && !uploading) {
+      requestAnimationFrame(() => {
+        restoreNativeLayout();
+      });
+    }
+
+    hadAttachmentRef.current = hasAttachment;
+  }, [imageUrl, isNativeIOS, localPreview, uploading]);
 
   const displayUrl = localPreview || imageUrl;
 
