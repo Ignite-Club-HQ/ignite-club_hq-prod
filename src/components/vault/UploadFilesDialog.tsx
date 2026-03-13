@@ -26,7 +26,7 @@ import {
 interface UploadFilesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onUpload: (file: File, type: "photo" | "file", fileName?: string) => void;
+  onUpload: (file: File, type: "photo" | "file", fileName?: string) => void | Promise<void>;
   isUploading?: boolean;
   targetName: string;
 }
