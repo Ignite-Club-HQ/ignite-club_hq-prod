@@ -963,7 +963,7 @@ export default function ClubChatPage() {
   // Block access for non-Pro users - show full page blocker
   if (!isLoadingClubSubscription && !canAccessClubChat) {
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)]" style={{ paddingBottom: `calc(5rem + ${bottomInset})` }}>
+    <div className="flex flex-col h-[calc(100dvh-4rem)]" style={{ paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }}>
         <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">
           <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
             <ArrowLeft className="h-5 w-5" />
