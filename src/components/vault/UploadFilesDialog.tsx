@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Upload, Image, FileText, Loader2, X, File as FileIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,9 +6,15 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { Keyboard } from "@capacitor/keyboard";
+import { StatusBar } from "@capacitor/status-bar";
 import { toast } from "sonner";
 import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
+import {
+  emitIOSLayoutReset as dispatchIOSLayoutReset,
+  emitIOSNavGuard as dispatchIOSNavGuard,
+} from "@/lib/iosLayoutStability";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
