@@ -115,20 +115,35 @@ export function UploadFilesDialog({
     };
   }, [clearNavGuardRetryTimeout]);
 
-  const handleFileSelect = (file: File) => {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
+  const clearSelection = useCallback(() => {
+    setSelectedFile(null);
+    setPreviewUrl((currentPreviewUrl) => {
+      if (currentPreviewUrl) {
+        URL.revokeObjectURL(currentPreviewUrl);
+      }
+      return null;
+    });
+    setFileName("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
+  }, []);
 
+  const handleFileSelect = (file: File) => {
     setSelectedFile(file);
 
     // Create preview for images
-    if (file.type.startsWith("image/")) {
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-    } else {
-      setPreviewUrl(null);
-    }
+    setPreviewUrl((currentPreviewUrl) => {
+      if (currentPreviewUrl) {
+        URL.revokeObjectURL(currentPreviewUrl);
+      }
+
+      if (file.type.startsWith("image/")) {
+        return URL.createObjectURL(file);
+      }
+
+      return null;
+    });
 
     // Set default filename for files
     if (uploadType === "file" && !fileName) {
@@ -146,10 +161,14 @@ export function UploadFilesDialog({
   };
 
   useEffect(() => {
-    if (!open) {
+    if (wasOpenRef.current && !open) {
+      clearSelection();
+      setUploadType("photo");
       restoreNativeLayout();
     }
-  }, [open, restoreNativeLayout]);
+
+    wasOpenRef.current = open;
+  }, [clearSelection, open, restoreNativeLayout]);
 
   const handleNativePhotoPick = async () => {
     if (!shouldUseNativePhotoPicker || isUploading || isPickingNativePhoto) return;
