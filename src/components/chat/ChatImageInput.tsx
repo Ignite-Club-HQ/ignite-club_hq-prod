@@ -280,6 +280,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     }
     setLocalPreview(null);
     onImageUploaded(null);
+    restoreNativeLayout();
   };
 
   const [previewFailed, setPreviewFailed] = useState(false);
@@ -288,6 +289,19 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   useEffect(() => {
     setPreviewFailed(false);
   }, [localPreview, imageUrl]);
+
+  // When the parent clears an attached image after send, force a final iOS viewport settle
+  useEffect(() => {
+    const hasAttachment = Boolean(localPreview || imageUrl);
+
+    if (isNativeIOS && hadAttachmentRef.current && !hasAttachment && !uploading) {
+      requestAnimationFrame(() => {
+        restoreNativeLayout();
+      });
+    }
+
+    hadAttachmentRef.current = hasAttachment;
+  }, [imageUrl, isNativeIOS, localPreview, uploading]);
 
   const displayUrl = localPreview || imageUrl;
 
