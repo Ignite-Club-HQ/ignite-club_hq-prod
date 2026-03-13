@@ -11,7 +11,6 @@ import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
-import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
 
 const MESSAGES_PER_PAGE = 15;
 import { toast } from "sonner";
@@ -1258,12 +1257,7 @@ export default function GroupChatPage() {
 
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" ref={pullRefreshRef}>
-        <PullToRefreshIndicator
-          pullDistance={pullDistance}
-          pullProgress={pullProgress}
-          isRefreshing={isRefreshing}
-        />
+      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
           <p className="text-center text-muted-foreground">Loading messages...</p>
         ) : filteredMessages?.length === 0 ? (

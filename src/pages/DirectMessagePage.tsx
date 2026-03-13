@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2, Crown, Lock, Flame } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
-import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 
 import { toast } from "sonner";
@@ -676,7 +675,7 @@ export default function DirectMessagePage() {
       </div>
 
 
-      <PullToRefreshIndicator isRefreshing={isRefreshing} pullDistance={pullDistance} pullProgress={pullProgress} />
+      
 
       {/* Messages area */}
       <div
