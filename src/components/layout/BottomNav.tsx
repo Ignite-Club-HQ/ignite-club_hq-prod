@@ -264,15 +264,21 @@ export function BottomNav() {
       lockNavInteractions(duration);
 
       // After iOS permission/photo-picker dismissal, safe-area values can stay
-      // inflated for longer than 1.2s on first-run permission flows.
-      const settleDelayMs = Math.max(1700, duration + 700);
-      scheduleInsetSync([400, 800, 1200, settleDelayMs], { allowDecrease: true });
+      // inflated for 2-4s on first-run permission flows. Schedule aggressive
+      // re-measurement chain with multiple settle attempts.
+      const settleDelayMs = Math.max(2200, duration + 800);
+      scheduleInsetSync([300, 600, 1000, 1500, 2000, settleDelayMs], { allowDecrease: true });
 
       clearNavGuardSettleTimeout();
+      // First settle attempt
       navGuardSettleTimeoutRef.current = window.setTimeout(() => {
         settleInflatedInset();
-        navGuardSettleTimeoutRef.current = null;
-      }, settleDelayMs + 250);
+        // Second settle attempt catches very late OS corrections
+        navGuardSettleTimeoutRef.current = window.setTimeout(() => {
+          settleInflatedInset();
+          navGuardSettleTimeoutRef.current = null;
+        }, 1500);
+      }, settleDelayMs);
     };
 
     window.addEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
