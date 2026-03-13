@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { updateProfileCache } from "@/lib/profileCache";
 import { Capacitor } from "@capacitor/core";
+import { emitIOSNavGuard } from "@/lib/iosLayoutStability";
 
 export default function EditProfilePage() {
   const { user, profile, refreshProfile } = useAuth();
@@ -29,6 +30,7 @@ export default function EditProfilePage() {
   }, [profile]);
 
   const isNative = Capacitor.isNativePlatform();
+  const isNativeIOS = isNative && Capacitor.getPlatform() === "ios";
 
   const handleNativeAvatarPick = async () => {
     if (!user) return;
@@ -45,6 +47,9 @@ export default function EditProfilePage() {
 
       const result = await cameraPhotoToBlob(photo);
       const blob = result.blob;
+
+      // Stabilize BottomNav after picker closes
+      if (isNativeIOS) emitIOSNavGuard(600);
       
       if (blob.size > 2 * 1024 * 1024) {
         toast({ title: "File too large", description: "Please select an image under 2MB", variant: "destructive" });
