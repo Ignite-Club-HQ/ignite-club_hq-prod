@@ -507,6 +507,7 @@ export function UploadFilesDialog({
             variant="outline"
             onClick={() => handleOpenChange(false)}
             className="flex-1 sm:flex-none"
+            disabled={isUploading || isPickingNativePhoto || isSubmittingUpload}
           >
             Cancel
           </Button>
