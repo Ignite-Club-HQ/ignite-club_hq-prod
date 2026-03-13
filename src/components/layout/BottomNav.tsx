@@ -26,6 +26,7 @@ const ROUTE_REMEASURE_DELAYS_MS = [120, 320, 620] as const;
 
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
+  const location = useLocation();
 
   // Check if user has Pro access (via any club subscription)
   const { data: userRoles } = useQuery({
