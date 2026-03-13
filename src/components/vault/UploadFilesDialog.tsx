@@ -46,8 +46,54 @@ export function UploadFilesDialog({
   const [isPickingNativePhoto, setIsPickingNativePhoto] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const shouldUseNativePhotoPicker =
-    uploadType === "photo" && Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const shouldUseNativePhotoPicker = uploadType === "photo" && isNativeIOS;
+
+  const dismissIOSKeyboardAccessory = useCallback(() => {
+    if (!isNativeIOS) return;
+    (document.activeElement as HTMLElement | null)?.blur();
+  }, [isNativeIOS]);
+
+  const restoreNativeStatusBarOverlay = useCallback(async () => {
+    if (!isNativeIOS) return;
+
+    try {
+      await StatusBar.setOverlaysWebView({ overlay: false });
+    } catch (error) {
+      console.warn("[UploadFilesDialog] Failed to restore status bar overlay:", error);
+    }
+  }, [isNativeIOS]);
+
+  const emitIOSLayoutReset = useCallback(() => {
+    if (!isNativeIOS) return;
+    dispatchIOSLayoutReset();
+  }, [isNativeIOS]);
+
+  const emitIOSNavGuard = useCallback((durationMs = 900) => {
+    if (!isNativeIOS) return;
+    dispatchIOSNavGuard(durationMs);
+  }, [isNativeIOS]);
+
+  const restoreNativeLayout = useCallback(() => {
+    if (!isNativeIOS || typeof window === "undefined") return;
+
+    emitIOSNavGuard();
+    void restoreNativeStatusBarOverlay();
+    dismissIOSKeyboardAccessory();
+    void Keyboard.hide().catch(() => undefined);
+    emitIOSLayoutReset();
+
+    requestAnimationFrame(() => {
+      emitIOSLayoutReset();
+    });
+
+    [100, 260, 520].forEach((delay) => {
+      window.setTimeout(() => {
+        void restoreNativeStatusBarOverlay();
+        emitIOSLayoutReset();
+      }, delay);
+    });
+  }, [dismissIOSKeyboardAccessory, emitIOSLayoutReset, emitIOSNavGuard, isNativeIOS, restoreNativeStatusBarOverlay]);
 
   const handleFileSelect = (file: File) => {
     if (previewUrl) {
