@@ -84,9 +84,6 @@ export default function DirectMessagePage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
-  const bottomInset = isNativePlatform
-    ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
-    : "env(safe-area-inset-bottom, 0px)";
   
   const scrollToBottom = useCallback(() => {
     if (!scrollAreaRef.current) return;
