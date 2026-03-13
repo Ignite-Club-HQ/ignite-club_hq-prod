@@ -22,6 +22,7 @@ const navItems = [
 const MIN_NATIVE_BOTTOM_INSET_PX = 16;
 const MAX_NATIVE_BOTTOM_INSET_PX = 40;
 const DEFAULT_NAV_GUARD_MS = 900;
+const MAX_NAV_SHIFT_CORRECTION_PX = 160;
 
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
@@ -120,8 +121,10 @@ export function BottomNav() {
 
   const [nativeSafeInsetPx, setNativeSafeInsetPx] = useState(MIN_NATIVE_BOTTOM_INSET_PX);
   const [navInteractionLocked, setNavInteractionLocked] = useState(false);
-  const [, setResetTick] = useState(0);
+  const [navShiftCorrectionPx, setNavShiftCorrectionPx] = useState(0);
   const navGuardTimeoutRef = useRef<number | null>(null);
+  const resetCorrectionTimeoutsRef = useRef<number[]>([]);
+  const navRef = useRef<HTMLElement | null>(null);
 
   const lockNavInteractions = useCallback((durationMs = DEFAULT_NAV_GUARD_MS) => {
     if (typeof window === "undefined") return;
@@ -137,6 +140,42 @@ export function BottomNav() {
     }, Math.max(250, durationMs));
   }, []);
 
+  const clearCorrectionTimers = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    resetCorrectionTimeoutsRef.current.forEach((timeoutId) => {
+      window.clearTimeout(timeoutId);
+    });
+    resetCorrectionTimeoutsRef.current = [];
+  }, []);
+
+  const syncNavPosition = useCallback(() => {
+    if (!isNativeIOS || typeof window === "undefined" || !navRef.current) return;
+
+    const viewportBottom = window.innerHeight;
+    const navBottom = navRef.current.getBoundingClientRect().bottom;
+    const delta = viewportBottom - navBottom;
+
+    const correction = Math.abs(delta) <= 1
+      ? 0
+      : Math.max(-MAX_NAV_SHIFT_CORRECTION_PX, Math.min(MAX_NAV_SHIFT_CORRECTION_PX, Math.round(delta)));
+
+    setNavShiftCorrectionPx((prev) => (Math.abs(prev - correction) <= 1 ? prev : correction));
+  }, [isNativeIOS]);
+
+  const scheduleCorrectionSync = useCallback(() => {
+    if (!isNativeIOS || typeof window === "undefined") return;
+
+    clearCorrectionTimers();
+    syncNavPosition();
+    requestAnimationFrame(syncNavPosition);
+
+    [100, 260, 520, 900].forEach((delay) => {
+      const timeoutId = window.setTimeout(syncNavPosition, delay);
+      resetCorrectionTimeoutsRef.current.push(timeoutId);
+    });
+  }, [clearCorrectionTimers, isNativeIOS, syncNavPosition]);
+
   useEffect(() => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
@@ -149,37 +188,45 @@ export function BottomNav() {
       setNativeSafeInsetPx(stabilizedInset);
     };
 
-    measureInset();
-    const delayedMeasure = window.setTimeout(measureInset, 350);
+    const remeasureAndSync = () => {
+      measureInset();
+      scheduleCorrectionSync();
+    };
 
-    window.addEventListener("orientationchange", measureInset);
+    remeasureAndSync();
+    const delayedMeasure = window.setTimeout(remeasureAndSync, 350);
+
+    window.addEventListener("orientationchange", remeasureAndSync);
+    window.addEventListener("resize", remeasureAndSync);
+
+    const visualViewport = window.visualViewport;
+    visualViewport?.addEventListener("resize", scheduleCorrectionSync);
+    visualViewport?.addEventListener("scroll", scheduleCorrectionSync);
+
     return () => {
       window.clearTimeout(delayedMeasure);
-      window.removeEventListener("orientationchange", measureInset);
+      window.removeEventListener("orientationchange", remeasureAndSync);
+      window.removeEventListener("resize", remeasureAndSync);
+      visualViewport?.removeEventListener("resize", scheduleCorrectionSync);
+      visualViewport?.removeEventListener("scroll", scheduleCorrectionSync);
+      clearCorrectionTimers();
     };
-  }, [isNativeIOS]);
+  }, [clearCorrectionTimers, isNativeIOS, scheduleCorrectionSync]);
 
   // Listen for iOS layout reset events (fired after photo picker closes) and
-  // force a re-render so the fixed nav recalculates its position.
+  // re-align the fixed nav to the viewport if WebView metrics drift.
   useEffect(() => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
     const handleLayoutReset = () => {
-      lockNavInteractions();
-
-      // Force layout recalc by nudging scroll twice across frames.
-      window.scrollTo(0, window.scrollY);
-      setResetTick(t => t + 1);
-
-      requestAnimationFrame(() => {
-        window.scrollTo(0, window.scrollY);
-        setResetTick(t => t + 1);
-      });
+      lockNavInteractions(1200);
+      scheduleCorrectionSync();
     };
 
     const handleNavGuard = (event: Event) => {
       const customEvent = event as CustomEvent<{ durationMs?: number }>;
       lockNavInteractions(customEvent.detail?.durationMs ?? DEFAULT_NAV_GUARD_MS);
+      scheduleCorrectionSync();
     };
 
     window.addEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
@@ -189,15 +236,16 @@ export function BottomNav() {
       window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
       window.removeEventListener(IOS_NAV_GUARD_EVENT, handleNavGuard as EventListener);
     };
-  }, [isNativeIOS, lockNavInteractions]);
+  }, [isNativeIOS, lockNavInteractions, scheduleCorrectionSync]);
 
   useEffect(() => {
     return () => {
       if (typeof window !== "undefined" && navGuardTimeoutRef.current !== null) {
         window.clearTimeout(navGuardTimeoutRef.current);
       }
+      clearCorrectionTimers();
     };
-  }, []);
+  }, [clearCorrectionTimers]);
 
   const navBottomInset = isNativeIOS
     ? `${nativeSafeInsetPx}px`
@@ -213,17 +261,21 @@ export function BottomNav() {
           className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
           style={{
             height: `calc(4rem + ${navBottomInset} + 1rem)`,
+            transform: `translate3d(0, ${navShiftCorrectionPx}px, 0)`,
+            willChange: "transform",
           }}
         />
       )}
       <nav
+        ref={navRef}
         className={cn(
           "fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg",
           navInteractionLocked && "pointer-events-none",
         )}
         style={{
           paddingBottom: navBottomInset,
-          transform: "translateZ(0)",
+          transform: `translate3d(0, ${navShiftCorrectionPx}px, 0)`,
+          willChange: "transform",
         }}
         aria-label="Main navigation"
       >
