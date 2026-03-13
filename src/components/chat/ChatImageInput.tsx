@@ -274,6 +274,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       return;
     }
 
+    if (shouldStabilizeIOSLayout) {
+      requestAnimationFrame(() => {
+        restoreNativeLayout();
+      });
+    }
+
     const localUrl = URL.createObjectURL(file);
     setLocalPreview(localUrl);
     setUploading(true);
