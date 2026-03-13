@@ -349,14 +349,14 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   useEffect(() => {
     const hasAttachment = Boolean(localPreview || imageUrl);
 
-    if (isNativeIOS && hadAttachmentRef.current && !hasAttachment && !uploading) {
+    if (shouldStabilizeIOSLayout && hadAttachmentRef.current && !hasAttachment && !uploading) {
       requestAnimationFrame(() => {
         restoreNativeLayout();
       });
     }
 
     hadAttachmentRef.current = hasAttachment;
-  }, [imageUrl, isNativeIOS, localPreview, uploading]);
+  }, [imageUrl, localPreview, shouldStabilizeIOSLayout, uploading]);
 
   const displayUrl = localPreview || imageUrl;
 

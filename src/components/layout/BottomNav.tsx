@@ -324,7 +324,7 @@ export function BottomNav() {
 
   // GPU layer promotion style — forces iOS to keep the nav on a dedicated
   // compositing layer so WKWebView viewport mutations can't "unstick" it.
-  const gpuLayerStyle: React.CSSProperties = isNativeIOS
+  const gpuLayerStyle: React.CSSProperties = shouldStabilizeIOSLayout
     ? { transform: "translate3d(0,0,0)", willChange: "transform", backfaceVisibility: "hidden" }
     : {};
 
