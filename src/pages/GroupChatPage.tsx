@@ -357,13 +357,7 @@ export default function GroupChatPage() {
     }
   }, [handleRefresh]);
 
-  const { containerRef: pullRefreshRef, isRefreshing, pullDistance, pullProgress } = usePullToRefresh({
-    onRefresh: handleRefresh,
-    disabled: messagesLoading,
-    scrollableRef: scrollAreaRef,
-  });
-  
-  const isAnyRefreshing = isRefreshing || isManualRefreshing;
+  const isAnyRefreshing = isManualRefreshing;
 
   useEffect(() => {
     // Always sync localMessages with messages from query cache

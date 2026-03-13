@@ -326,13 +326,7 @@ export default function DirectMessagePage() {
     }
   }, [handleRefresh]);
 
-  const { containerRef: pullRefreshRef, isRefreshing, pullDistance, pullProgress } = usePullToRefresh({
-    onRefresh: handleRefresh,
-    disabled: messagesLoading,
-    scrollableRef: scrollAreaRef,
-  });
-  
-  const isAnyRefreshing = isRefreshing || isManualRefreshing;
+  const isAnyRefreshing = isManualRefreshing;
 
   // Sync localMessages with fetched messages
   // Always update when we have fresh data (even if empty) to avoid stale optimistic messages

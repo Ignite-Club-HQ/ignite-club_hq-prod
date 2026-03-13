@@ -333,13 +333,7 @@ export default function TeamChatPage() {
     }
   }, [handleRefresh]);
 
-  const { containerRef: pullRefreshRef, isRefreshing, pullDistance, pullProgress } = usePullToRefresh({
-    onRefresh: handleRefresh,
-    disabled: loadingMessages,
-    scrollableRef: scrollAreaRef,
-  });
-  
-  const isAnyRefreshing = isRefreshing || isManualRefreshing;
+  const isAnyRefreshing = isManualRefreshing;
 
   useEffect(() => {
     // Always sync localMessages with messages from query cache
