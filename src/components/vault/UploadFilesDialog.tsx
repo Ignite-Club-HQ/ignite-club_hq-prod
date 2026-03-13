@@ -82,6 +82,11 @@ export function UploadFilesDialog({
       // the gesture-chain context. Explicit checkPermissions/requestPermissions
       // before getPhoto breaks the gesture on first attempt.
       let photo: Awaited<ReturnType<typeof Camera.getPhoto>>;
+      const isLoadingError = (err: unknown) => {
+        const msg = getReadableUploadError(err).toLowerCase();
+        return msg.includes("error loading image") || msg.includes("loading image");
+      };
+
       try {
         console.log("[UploadFilesDialog] calling getPhoto (Base64 mode, attempt 1)...");
         photo = await Camera.getPhoto({
@@ -94,13 +99,38 @@ export function UploadFilesDialog({
         if (isCancelledSelectionError(firstAttemptError)) {
           throw firstAttemptError;
         }
-        console.warn("[UploadFilesDialog] getPhoto attempt 1 failed, retrying:", firstAttemptError);
-        photo = await Camera.getPhoto({
-          resultType: CameraResultType.Base64,
-          source: CameraSource.Photos,
-          allowEditing: false,
-          quality: 80,
-        });
+
+        if (isLoadingError(firstAttemptError)) {
+          console.warn("[UploadFilesDialog] Base64 mode failed with loading error, retrying with URI mode:", firstAttemptError);
+          photo = await Camera.getPhoto({
+            resultType: CameraResultType.Uri,
+            source: CameraSource.Photos,
+            allowEditing: false,
+            quality: 80,
+          });
+        } else {
+          console.warn("[UploadFilesDialog] getPhoto attempt 1 failed, retrying:", firstAttemptError);
+          try {
+            photo = await Camera.getPhoto({
+              resultType: CameraResultType.Base64,
+              source: CameraSource.Photos,
+              allowEditing: false,
+              quality: 80,
+            });
+          } catch (secondAttemptError: unknown) {
+            if (!isCancelledSelectionError(secondAttemptError) && isLoadingError(secondAttemptError)) {
+              console.warn("[UploadFilesDialog] Base64 retry also failed, falling back to URI:", secondAttemptError);
+              photo = await Camera.getPhoto({
+                resultType: CameraResultType.Uri,
+                source: CameraSource.Photos,
+                allowEditing: false,
+                quality: 80,
+              });
+            } else {
+              throw secondAttemptError;
+            }
+          }
+        }
       }
       console.log("[UploadFilesDialog] getPhoto OK", {
         webPath: photo.webPath,

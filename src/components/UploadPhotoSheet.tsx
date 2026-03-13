@@ -540,6 +540,11 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       // the gesture-chain context. Explicit checkPermissions/requestPermissions
       // before getPhoto breaks the gesture on first attempt.
       let photo: Awaited<ReturnType<typeof CapacitorCamera.getPhoto>>;
+      const isLoadingError = (err: unknown) => {
+        const msg = getReadableUploadError(err).toLowerCase();
+        return msg.includes("error loading image") || msg.includes("loading image");
+      };
+
       try {
         console.log("[UploadPhotoSheet] calling getPhoto (Base64 mode, attempt 1)...");
         photo = await CapacitorCamera.getPhoto({
@@ -552,13 +557,42 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         if (isCancelledSelectionError(firstAttemptError)) {
           throw firstAttemptError;
         }
-        console.warn("[UploadPhotoSheet] getPhoto attempt 1 failed, retrying:", firstAttemptError);
-        photo = await CapacitorCamera.getPhoto({
-          resultType: CameraResultType.Base64,
-          source: CameraSource.Photos,
-          allowEditing: false,
-          quality: 80,
-        });
+
+        // "error loading image" often means the iOS plugin couldn't encode
+        // the photo as Base64 (iCloud, large HEIC, etc). Fall back to URI mode.
+        if (isLoadingError(firstAttemptError)) {
+          console.warn("[UploadPhotoSheet] Base64 mode failed with loading error, retrying with URI mode:", firstAttemptError);
+          photo = await CapacitorCamera.getPhoto({
+            resultType: CameraResultType.Uri,
+            source: CameraSource.Photos,
+            allowEditing: false,
+            quality: 80,
+          });
+        } else {
+          // Permission dialog / gesture-chain break — retry once with same mode
+          console.warn("[UploadPhotoSheet] getPhoto attempt 1 failed, retrying:", firstAttemptError);
+          try {
+            photo = await CapacitorCamera.getPhoto({
+              resultType: CameraResultType.Base64,
+              source: CameraSource.Photos,
+              allowEditing: false,
+              quality: 80,
+            });
+          } catch (secondAttemptError: unknown) {
+            // If retry also fails with loading error, try URI mode as last resort
+            if (!isCancelledSelectionError(secondAttemptError) && isLoadingError(secondAttemptError)) {
+              console.warn("[UploadPhotoSheet] Base64 retry also failed, falling back to URI:", secondAttemptError);
+              photo = await CapacitorCamera.getPhoto({
+                resultType: CameraResultType.Uri,
+                source: CameraSource.Photos,
+                allowEditing: false,
+                quality: 80,
+              });
+            } else {
+              throw secondAttemptError;
+            }
+          }
+        }
       }
       console.log("[UploadPhotoSheet] getPhoto OK", {
         webPath: photo.webPath,
