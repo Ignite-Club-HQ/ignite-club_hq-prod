@@ -10,6 +10,10 @@ import { StatusBar } from "@capacitor/status-bar";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { cameraPhotoToBlob, hasCameraPhotoSource, mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
+import {
+  emitIOSLayoutReset as dispatchIOSLayoutReset,
+  emitIOSNavGuard as dispatchIOSNavGuard,
+} from "@/lib/iosLayoutStability";
 
 interface ChatImageInputProps {
   onImageUploaded: (imageUrl: string | null) => void;
@@ -26,8 +30,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hadAttachmentRef = useRef(false);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
-  const IOS_LAYOUT_RESET_EVENT = "ignite:ios-layout-reset";
 
   const dismissIOSKeyboardAccessory = () => {
     if (!isNativeIOS) return;
@@ -45,13 +49,19 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const emitIOSLayoutReset = () => {
-    if (!isNativeIOS || typeof window === "undefined") return;
-    window.dispatchEvent(new CustomEvent(IOS_LAYOUT_RESET_EVENT));
+    if (!isNativeIOS) return;
+    dispatchIOSLayoutReset();
+  };
+
+  const emitIOSNavGuard = (durationMs = 900) => {
+    if (!isNativeIOS) return;
+    dispatchIOSNavGuard(durationMs);
   };
 
   const restoreNativeLayout = () => {
     if (!isNativeIOS || typeof window === "undefined") return;
 
+    emitIOSNavGuard();
     void restoreNativeStatusBarOverlay();
     dismissIOSKeyboardAccessory();
     void Keyboard.hide().catch(() => undefined);
