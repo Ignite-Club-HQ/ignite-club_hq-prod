@@ -229,7 +229,7 @@ export function BottomNav() {
   const insetFrozenRef = useRef(false);
 
   useEffect(() => {
-    if (!isNativeIOS || typeof window === "undefined") return;
+    if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
     const handleOrientationChange = () => {
       insetFrozenRef.current = false;
@@ -251,7 +251,7 @@ export function BottomNav() {
       if (freezeTimeout !== null) window.clearTimeout(freezeTimeout);
       window.removeEventListener("orientationchange", handleOrientationChange);
     };
-  }, [isNativeIOS, lockNavInteractions, measureNativeSafeInset, scheduleInsetSync]);
+  }, [shouldStabilizeIOSLayout, lockNavInteractions, measureNativeSafeInset, scheduleInsetSync]);
 
   // Layout reset / nav guard events → only lock interactions
   useEffect(() => {
