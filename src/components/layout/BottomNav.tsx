@@ -19,10 +19,10 @@ const navItems = [
   { to: "/media", icon: Image, label: "Media", requiresPro: true },
 ];
 
-const MIN_NATIVE_BOTTOM_INSET_PX = 16;
+const MIN_NATIVE_BOTTOM_INSET_PX = 20;
 const MAX_NATIVE_BOTTOM_INSET_PX = 40;
 const DEFAULT_NAV_GUARD_MS = 900;
-const ROUTE_REMEASURE_DELAYS_MS = [120, 320, 620] as const;
+const ROUTE_REMEASURE_DELAYS_MS = [90, 240, 460, 760, 1160] as const;
 
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
@@ -128,13 +128,16 @@ export function BottomNav() {
   const [nativeSafeInsetPx, setNativeSafeInsetPx] = useState(() => {
     if (typeof document === "undefined") return MIN_NATIVE_BOTTOM_INSET_PX;
 
-    const existingInset = Number.parseFloat(
-      document.documentElement.style.getPropertyValue("--bottom-nav-safe-inset") || "",
+    const existingInsetPx = Number.parseFloat(
+      document.documentElement.style.getPropertyValue("--bottom-nav-safe-inset-px") ||
+        document.documentElement.style.getPropertyValue("--bottom-nav-safe-inset") ||
+        "",
     );
 
-    return Number.isFinite(existingInset)
-      ? clampNativeInsetPx(existingInset)
-      : MIN_NATIVE_BOTTOM_INSET_PX;
+    const measuredInsetPx = readSafeAreaInsetBottomPx();
+    const bootstrapInsetPx = Math.max(Number.isFinite(existingInsetPx) ? existingInsetPx : 0, measuredInsetPx);
+
+    return clampNativeInsetPx(bootstrapInsetPx || MIN_NATIVE_BOTTOM_INSET_PX);
   });
 
   const [navInteractionLocked, setNavInteractionLocked] = useState(false);
@@ -260,8 +263,9 @@ export function BottomNav() {
     };
   }, [clearInsetSyncTimeouts]);
 
+  const nativeInsetFloor = `${nativeSafeInsetPx}px`;
   const navBottomInset = isNativeIOS
-    ? `${nativeSafeInsetPx}px`
+    ? `max(env(safe-area-inset-bottom, 0px), ${nativeInsetFloor})`
     : isAndroidNative || isIOSEnvironment
       ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
       : "env(safe-area-inset-bottom, 0px)";
@@ -271,8 +275,9 @@ export function BottomNav() {
 
     const root = document.documentElement;
     root.style.setProperty("--bottom-nav-safe-inset", navBottomInset);
+    root.style.setProperty("--bottom-nav-safe-inset-px", nativeInsetFloor);
     root.style.setProperty("--bottom-nav-offset", `calc(4rem + ${navBottomInset})`);
-  }, [navBottomInset]);
+  }, [navBottomInset, nativeInsetFloor]);
 
   return (
     <>
