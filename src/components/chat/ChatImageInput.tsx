@@ -58,7 +58,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const restoreNativeLayout = () => {
-    if (!isNativeIOS || typeof window === "undefined") return;
+    if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
     // Guard nav interactions while iOS settles viewport after picker dismissal.
     // First guard catches immediate close; second guard catches delayed first-run
