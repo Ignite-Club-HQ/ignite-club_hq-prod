@@ -303,7 +303,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
   const handleImageButtonClick = () => {
     if (isNativeIOS) {
-      dismissIOSKeyboardAccessory();
+      // Do NOT call dismissIOSKeyboardAccessory() before Camera.getPhoto —
+      // blurring breaks the gesture chain and iOS rejects the picker.
       void handleNativePhotoPick();
     } else {
       fileInputRef.current?.click();
