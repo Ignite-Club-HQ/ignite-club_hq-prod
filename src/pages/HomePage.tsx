@@ -1633,7 +1633,7 @@ export default function HomePage() {
                   <CheckCircle2 className="h-4 w-4" />
                   Mark as Claimed
                 </Button>
-              ) : (profile?.ignite_points || 0) >= 20 || profile?.has_sausage_reward ? (
+              ) : (profile?.ignite_points || 0) >= minRewardThreshold || profile?.has_sausage_reward ? (
                 <Button
                   size="sm"
                   variant="secondary"
