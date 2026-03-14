@@ -25,6 +25,38 @@ export function AppLayout() {
   const [retrying, setRetrying] = useState(false);
   const [themeTimeout, setThemeTimeout] = useState(false);
   
+  const isChatThreadRoute = useMemo(() => {
+    const path = location.pathname;
+
+    if (path === "/messages/broadcast") return true;
+    if (/^\/messages\/club\/[^/]+$/.test(path)) return true;
+    if (/^\/messages\/dm\/[^/]+$/.test(path)) return true;
+    if (/^\/groups\/[^/]+$/.test(path)) return true;
+
+    // Team chat route: /messages/:teamId (exclude static routes)
+    if (/^\/messages\/[^/]+$/.test(path) && path !== "/messages" && path !== "/messages/welcome") {
+      return true;
+    }
+
+    return false;
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const root = document.getElementById("root");
+    if (!root || !isChatThreadRoute) return;
+
+    const previousOverflowY = root.style.overflowY;
+    const previousOverscrollBehaviorY = root.style.overscrollBehaviorY;
+
+    root.style.overflowY = "hidden";
+    root.style.overscrollBehaviorY = "none";
+
+    return () => {
+      root.style.overflowY = previousOverflowY;
+      root.style.overscrollBehaviorY = previousOverscrollBehaviorY;
+    };
+  }, [isChatThreadRoute]);
+
   // Read theme synchronously on first render - useMemo ensures this only runs once
   // This reads from localStorage which is available synchronously in the browser
   // The value is computed once and never changes, preventing logo flicker
