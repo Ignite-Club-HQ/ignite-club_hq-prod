@@ -599,7 +599,25 @@ export default function HomePage() {
     enabled: !!selectedRewardClubId,
   });
 
-  // Fetch user's children for reward redemption
+  // Fetch the minimum reward threshold across user's clubs
+  const { data: minRewardThreshold = 20 } = useQuery({
+    queryKey: ["min-reward-threshold", rewardClubs.map((c: any) => c.id)],
+    queryFn: async () => {
+      const proClubIds = rewardClubs.filter((c: any) => isAppAdmin || c.hasPro).map((c: any) => c.id);
+      if (proClubIds.length === 0) return 20;
+      const { data } = await supabase
+        .from("club_rewards")
+        .select("points_required")
+        .in("club_id", proClubIds)
+        .eq("is_active", true)
+        .neq("reward_type", "player_of_match")
+        .order("points_required", { ascending: true })
+        .limit(1);
+      return data?.[0]?.points_required || 20;
+    },
+    enabled: rewardClubs.length > 0,
+  });
+
   const { data: userChildren = [] } = useQuery({
     queryKey: ["user-children-home", user?.id],
     queryFn: async () => {
