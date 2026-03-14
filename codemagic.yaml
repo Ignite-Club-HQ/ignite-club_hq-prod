@@ -170,8 +170,8 @@ workflows:
           # Format: minutes since 2024-01-01 — gives ~4 years of unique codes
           EPOCH_BASE=1704067200  # 2024-01-01 00:00:00 UTC
           NOW=$(date +%s)
-          NEW_VC=$(( (NOW - EPOCH_BASE) / 60 ))
-          echo "=== Target versionCode: $NEW_VC (epoch-based, timestamp: $NOW) ==="
+          NEW_VC=$(( NOW - EPOCH_BASE ))
+          echo "=== Target versionCode: $NEW_VC (epoch-seconds, timestamp: $NOW) ==="
           echo "=== Before replacement ==="
           grep -n "versionCode" "$GRADLE_FILE" || echo "WARNING: no versionCode found!"
           # Use a broad regex to replace any versionCode value (handles both Groovy and Kotlin DSL)
