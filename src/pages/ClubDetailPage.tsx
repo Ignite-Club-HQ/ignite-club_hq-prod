@@ -1574,6 +1574,7 @@ export default function ClubDetailPage() {
                                 <Flame className="h-4 w-4 mr-2 text-amber-500" />
                                 Award Points
                               </DropdownMenuItem>
+                              {userId !== user?.id && (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <DropdownMenuItem
