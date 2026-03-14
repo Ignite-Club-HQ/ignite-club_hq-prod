@@ -673,6 +673,7 @@ export default function DirectMessagePage() {
       {/* Messages area */}
       <div
         ref={scrollAreaRef}
+        data-chat-scroll-lock="true"
         className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
         style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
       >
