@@ -1,0 +1,74 @@
+import { useEffect, useRef } from "react";
+
+const CHAT_SCROLL_SELECTOR = '[data-chat-scroll-lock="true"]';
+const INPUT_SELECTOR = "input, textarea, [contenteditable='true']";
+
+export function useChatRouteOverscrollLock(enabled: boolean) {
+  const touchStartYRef = useRef(0);
+
+  useEffect(() => {
+    const root = document.getElementById("root");
+    if (!root || !enabled) return;
+
+    const html = document.documentElement;
+    const body = document.body;
+
+    const previousRootOverflowY = root.style.overflowY;
+    const previousRootOverscrollBehaviorY = root.style.overscrollBehaviorY;
+    const previousHtmlOverscrollBehaviorY = html.style.overscrollBehaviorY;
+    const previousBodyOverscrollBehaviorY = body.style.overscrollBehaviorY;
+
+    root.style.overflowY = "hidden";
+    root.style.overscrollBehaviorY = "none";
+    html.style.overscrollBehaviorY = "none";
+    body.style.overscrollBehaviorY = "none";
+
+    const isAndroid = /Android/i.test(navigator.userAgent);
+
+    const handleTouchStart = (event: TouchEvent) => {
+      touchStartYRef.current = event.touches[0]?.clientY ?? 0;
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (!isAndroid) return;
+
+      const currentY = event.touches[0]?.clientY;
+      if (currentY == null) return;
+
+      const target = event.target as HTMLElement | null;
+      if (!target || target.closest(INPUT_SELECTOR)) return;
+
+      const deltaY = currentY - touchStartYRef.current;
+      if (deltaY === 0) return;
+
+      const scrollContainer = target.closest(CHAT_SCROLL_SELECTOR) as HTMLElement | null;
+
+      // Prevent Android pull-to-refresh when dragging down from non-scrollable chat chrome (header/composer).
+      if (!scrollContainer) {
+        if (deltaY > 0) event.preventDefault();
+        return;
+      }
+
+      const maxScrollTop = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+      const atTop = scrollContainer.scrollTop <= 0;
+      const atBottom = scrollContainer.scrollTop >= maxScrollTop - 1;
+
+      if ((deltaY > 0 && atTop) || (deltaY < 0 && atBottom)) {
+        event.preventDefault();
+      }
+    };
+
+    document.addEventListener("touchstart", handleTouchStart, { passive: true });
+    document.addEventListener("touchmove", handleTouchMove, { passive: false });
+
+    return () => {
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchmove", handleTouchMove);
+
+      root.style.overflowY = previousRootOverflowY;
+      root.style.overscrollBehaviorY = previousRootOverscrollBehaviorY;
+      html.style.overscrollBehaviorY = previousHtmlOverscrollBehaviorY;
+      body.style.overscrollBehaviorY = previousBodyOverscrollBehaviorY;
+    };
+  }, [enabled]);
+}
