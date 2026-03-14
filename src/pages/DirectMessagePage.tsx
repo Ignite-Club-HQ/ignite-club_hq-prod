@@ -6,8 +6,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2, Crown, Lock, Flame } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
-import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 
 import { toast } from "sonner";
@@ -328,13 +326,7 @@ export default function DirectMessagePage() {
     }
   }, [handleRefresh]);
 
-  const { containerRef: pullRefreshRef, isRefreshing, pullDistance, pullProgress } = usePullToRefresh({
-    onRefresh: handleRefresh,
-    disabled: messagesLoading,
-    scrollableRef: scrollAreaRef,
-  });
-  
-  const isAnyRefreshing = isRefreshing || isManualRefreshing;
+  const isAnyRefreshing = isManualRefreshing;
 
   // Sync localMessages with fetched messages
   // Always update when we have fresh data (even if empty) to avoid stale optimistic messages
@@ -631,7 +623,7 @@ export default function DirectMessagePage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden overscroll-none" style={{ paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }} ref={pullRefreshRef as any}>
+    <div className="flex flex-col h-[calc(100dvh-4rem)] overflow-hidden overscroll-none" style={{ paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
@@ -676,7 +668,7 @@ export default function DirectMessagePage() {
       </div>
 
 
-      <PullToRefreshIndicator isRefreshing={isRefreshing} pullDistance={pullDistance} pullProgress={pullProgress} />
+      
 
       {/* Messages area */}
       <div

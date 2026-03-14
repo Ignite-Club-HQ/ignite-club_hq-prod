@@ -7,8 +7,6 @@ import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { PageLoading } from "@/components/ui/page-loading";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
-import { PullToRefreshIndicator } from "@/components/chat/PullToRefreshIndicator";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
@@ -335,13 +333,7 @@ export default function TeamChatPage() {
     }
   }, [handleRefresh]);
 
-  const { containerRef: pullRefreshRef, isRefreshing, pullDistance, pullProgress } = usePullToRefresh({
-    onRefresh: handleRefresh,
-    disabled: loadingMessages,
-    scrollableRef: scrollAreaRef,
-  });
-  
-  const isAnyRefreshing = isRefreshing || isManualRefreshing;
+  const isAnyRefreshing = isManualRefreshing;
 
   useEffect(() => {
     // Always sync localMessages with messages from query cache
@@ -996,12 +988,7 @@ export default function TeamChatPage() {
 
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden" ref={pullRefreshRef}>
-        <PullToRefreshIndicator
-          pullDistance={pullDistance}
-          pullProgress={pullProgress}
-          isRefreshing={isRefreshing}
-        />
+      <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
