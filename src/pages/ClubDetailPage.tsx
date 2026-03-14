@@ -1556,7 +1556,7 @@ export default function ClubDetailPage() {
                             );
                           })}
                         </div>
-                        {userId !== user?.id && isAdmin && (
+                        {isAdmin && (
                           <>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
