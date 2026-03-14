@@ -807,6 +807,7 @@ export default function BroadcastChatPage() {
         ) : (
           <div
             className="flex-1 min-h-0 overflow-y-auto overscroll-none scrollbar-hide"
+            data-chat-scroll-lock="true"
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
           >

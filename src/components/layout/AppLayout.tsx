@@ -42,21 +42,7 @@ export function AppLayout() {
     return false;
   }, [location.pathname]);
 
-  useEffect(() => {
-    const root = document.getElementById("root");
-    if (!root || !isChatThreadRoute) return;
-
-    const previousOverflowY = root.style.overflowY;
-    const previousOverscrollBehaviorY = root.style.overscrollBehaviorY;
-
-    root.style.overflowY = "hidden";
-    root.style.overscrollBehaviorY = "none";
-
-    return () => {
-      root.style.overflowY = previousOverflowY;
-      root.style.overscrollBehaviorY = previousOverscrollBehaviorY;
-    };
-  }, [isChatThreadRoute]);
+  useChatRouteOverscrollLock(isChatThreadRoute);
 
   // Read theme synchronously on first render - useMemo ensures this only runs once
   // This reads from localStorage which is available synchronously in the browser
