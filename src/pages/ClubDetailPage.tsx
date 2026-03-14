@@ -1621,6 +1621,7 @@ export default function ClubDetailPage() {
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
                               </AlertDialog>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                           <div className="hidden">
