@@ -343,6 +343,36 @@ export function QuickRSVPDialog({
               )}
             </>
           )}
+
+          {/* Payment prompt after RSVP going */}
+          {showPaymentPrompt && (
+            <>
+              <Separator />
+              <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-warning/20">
+                    <DollarSign className="h-5 w-5 text-warning" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Payment Required</p>
+                    <p className="text-sm text-muted-foreground">
+                      ${Number(eventAmount).toFixed(2)} per person
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    onOpenChange(false);
+                    navigate(`/events/${eventId}`);
+                  }}
+                >
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  Go to Event to Pay
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </ResponsiveDialogContent>
     </ResponsiveDialog>
