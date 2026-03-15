@@ -80,6 +80,7 @@ import { ClubDMSettings } from "@/components/ClubDMSettings";
 import { Palette, CalendarDays, BookOpen } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
 import { TermsManager } from "@/components/TermsManager";
+import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
 
 type ClubRole = "club_admin";
 
@@ -1750,9 +1751,10 @@ export default function ClubDetailPage() {
               <span className="text-lg font-semibold">Terms & Classes</span>
             </div>
           </AccordionTrigger>
-          <AccordionContent>
+           <AccordionContent>
             <div className="pt-2 space-y-4">
               <TermsManager clubId={id!} />
+              <AdminEnrolmentManager clubId={id!} />
               <Link to={`/clubs/${id}/enrol`}>
                 <Card className="hover:border-primary/50 transition-colors">
                   <CardContent className="p-4 flex items-center gap-3">

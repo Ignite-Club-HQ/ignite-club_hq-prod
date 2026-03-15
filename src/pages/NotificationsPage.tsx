@@ -653,6 +653,7 @@ export default function NotificationsPage() {
         }
         break;
       case "points_awarded":
+      case "early_rsvp_points":
       case "reward_redeemed":
       case "player_of_match":
         navigate("/profile?section=points-history");

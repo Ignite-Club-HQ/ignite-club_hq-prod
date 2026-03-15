@@ -183,8 +183,8 @@ export default function PlayerOfMatchSelector({
             user_id: userId,
             type: "player_of_match",
             message: rewardName
-              ? `🏆 Congratulations! You were selected as Player of the Match and earned ${pointsToAward} Ignite points! 🎁 Reward unlocked: ${rewardName}!`
-              : `🏆 Congratulations! You were selected as Player of the Match and earned ${pointsToAward} Ignite points!`,
+              ? `🏆 Congratulations! You were selected as Player of the Match and earned ${pointsToAward} points! 🎁 Reward unlocked: ${rewardName}!`
+              : `🏆 Congratulations! You were selected as Player of the Match and earned ${pointsToAward} points!`,
             related_id: eventId,
           });
         } else if (childId) {
@@ -231,8 +231,8 @@ export default function PlayerOfMatchSelector({
               user_id: child.parent_id,
               type: "player_of_match",
               message: childRewardName
-                ? `🏆 ${child.name} was selected as Player of the Match and earned ${pointsToAward} Ignite points! 🎁 Reward unlocked: ${childRewardName}!`
-                : `🏆 ${child.name} was selected as Player of the Match and earned ${pointsToAward} Ignite points!`,
+                ? `🏆 ${child.name} was selected as Player of the Match and earned ${pointsToAward} points! 🎁 Reward unlocked: ${childRewardName}!`
+                : `🏆 ${child.name} was selected as Player of the Match and earned ${pointsToAward} points!`,
               related_id: eventId,
             });
           }
@@ -488,7 +488,7 @@ export default function PlayerOfMatchSelector({
             <div className="p-4 space-y-2">
               {activePomReward ? (
                 <p className="text-sm text-muted-foreground mb-4">
-                  The selected player will receive <strong>{activePomReward.points_required} Ignite points</strong> and the "{activePomReward.name}" reward.
+                  The selected player will receive <strong>{activePomReward.points_required} points</strong> and the "{activePomReward.name}" reward.
                 </p>
               ) : pomRewards.length > 0 ? (
                 <p className="text-sm text-muted-foreground mb-4">
@@ -569,7 +569,7 @@ export default function PlayerOfMatchSelector({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Player of the Match?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove the Player of the Match selection and deduct {playerOfMatch?.points_awarded} Ignite points from{" "}
+              This will remove the Player of the Match selection and deduct {playerOfMatch?.points_awarded} points from{" "}
               {playerOfMatch?.profiles?.display_name || playerOfMatch?.children?.name}.
             </AlertDialogDescription>
           </AlertDialogHeader>

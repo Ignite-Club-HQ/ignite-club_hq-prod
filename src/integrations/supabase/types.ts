@@ -1301,6 +1301,8 @@ export type Database = {
           name: string
           notify_committee: boolean
           notify_committee_chat: boolean
+          points_display_name: string | null
+          points_icon_url: string | null
           primary_sponsor_id: string | null
           proposed_tier: string | null
           recognition_gold_threshold: number
@@ -1363,6 +1365,8 @@ export type Database = {
           name: string
           notify_committee?: boolean
           notify_committee_chat?: boolean
+          points_display_name?: string | null
+          points_icon_url?: string | null
           primary_sponsor_id?: string | null
           proposed_tier?: string | null
           recognition_gold_threshold?: number
@@ -1425,6 +1429,8 @@ export type Database = {
           name?: string
           notify_committee?: boolean
           notify_committee_chat?: boolean
+          points_display_name?: string | null
+          points_icon_url?: string | null
           primary_sponsor_id?: string | null
           proposed_tier?: string | null
           recognition_gold_threshold?: number
@@ -3914,6 +3920,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      points_cooldowns: {
+        Row: {
+          action_type: string
+          awarded_date: string
+          club_id: string
+          created_at: string
+          id: string
+          points_awarded: number
+          scope_id: string
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          awarded_date?: string
+          club_id: string
+          created_at?: string
+          id?: string
+          points_awarded?: number
+          scope_id: string
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          awarded_date?: string
+          club_id?: string
+          created_at?: string
+          id?: string
+          points_awarded?: number
+          scope_id?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       points_history: {
         Row: {

@@ -97,11 +97,11 @@ export default function ClassEnrolmentPage() {
   });
 
   // Fetch existing enrolments for the selected term
+  const childIds = children.map((c) => c.id);
   const { data: enrolments = [] } = useQuery({
-    queryKey: ["class-enrolments", termId, user?.id],
+    queryKey: ["class-enrolments", termId, user?.id, childIds],
     queryFn: async () => {
-      if (!termId || children.length === 0) return [];
-      const childIds = children.map((c) => c.id);
+      if (!termId || childIds.length === 0) return [];
       const { data, error } = await supabase
         .from("class_enrolments")
         .select("*")
@@ -110,7 +110,7 @@ export default function ClassEnrolmentPage() {
       if (error) throw error;
       return data;
     },
-    enabled: !!termId && children.length > 0,
+    enabled: !!termId && childIds.length > 0,
   });
 
   // Fetch enrolment counts per class for capacity check

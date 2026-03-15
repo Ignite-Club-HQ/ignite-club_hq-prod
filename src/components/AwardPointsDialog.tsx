@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePointsDisplayName } from "@/hooks/usePointsDisplayName";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Flame, Loader2, Plus, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ export default function AwardPointsDialog({
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const pointsName = usePointsDisplayName(clubId);
   const [open, setOpen] = useState(false);
   const [points, setPoints] = useState(10);
   const [reason, setReason] = useState("");
@@ -81,8 +83,8 @@ export default function AwardPointsDialog({
       // Create a notification for the member
       const pointsText = points > 0 ? `+${points}` : `${points}`;
       const message = reason 
-        ? `You received ${pointsText} Ignite points from ${clubName}: "${reason}"`
-        : `You received ${pointsText} Ignite points from ${clubName}`;
+        ? `You received ${pointsText} ${pointsName} from ${clubName}: "${reason}"`
+        : `You received ${pointsText} ${pointsName} from ${clubName}`;
 
       const { error: notificationError } = await supabase
         .from("notifications")

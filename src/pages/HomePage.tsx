@@ -1,4 +1,6 @@
-import { useState, lazy, Suspense, useMemo } from "react";
+import { useState, lazy, Suspense, useMemo, useEffect } from "react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
@@ -99,6 +101,7 @@ interface Club {
   id: string;
   name: string;
   sport: string | null;
+  class_mode_enabled: boolean;
 }
 
 interface Team {
@@ -187,6 +190,7 @@ export default function HomePage() {
   const [rewardQROpen, setRewardQROpen] = useState(false);
   const [claimDialogOpen, setClaimDialogOpen] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
+  const [earnPointsOpen, setEarnPointsOpen] = useState(() => !localStorage.getItem('earnPointsHintsSeen'));
   const [selectedUpgradeClub, setSelectedUpgradeClub] = useState<string>("");
   const [remindDialogOpen, setRemindDialogOpen] = useState(false);
   const [eventToRemind, setEventToRemind] = useState<Event | null>(null);
@@ -449,7 +453,7 @@ export default function HomePage() {
       // Fetch club details
       const { data: clubs } = await supabase
         .from("clubs")
-        .select("id, name, sport")
+        .select("id, name, sport, points_display_name, points_icon_url")
         .in("id", clubIds)
         .order("name");
 
@@ -1027,7 +1031,7 @@ export default function HomePage() {
       console.log("[HomePage] Fetching all clubs...");
       const { data, error } = await supabase
         .from("clubs")
-        .select("id, name, sport")
+        .select("id, name, sport, class_mode_enabled")
         .order("name");
       if (error) {
         console.error("[HomePage] Error fetching clubs:", error);
@@ -1536,75 +1540,6 @@ export default function HomePage() {
           onRecovered={() => queryClient.invalidateQueries()}
         />
       )}
-      {/* Hide install card on native apps */}
-      {!isNativeApp && showInstallCard && (
-        <Card 
-          className="border-primary/30 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors"
-          onClick={() => setInstallDialogOpen(true)}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-full bg-secondary shrink-0">
-                <Smartphone className="h-6 w-6 text-foreground" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold">Download Ignite Club HQ</p>
-                <p className="text-sm text-muted-foreground">
-                  Get the app for the best experience
-                </p>
-              </div>
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setInstallDialogOpen(true);
-                }} 
-                className="shrink-0"
-              >
-                <Download className="h-4 w-4 mr-1" /> Download
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* App Store Download Dialog */}
-      <ResponsiveDialog open={installDialogOpen} onOpenChange={setInstallDialogOpen}>
-        <ResponsiveDialogContent>
-          <ResponsiveDialogHeader>
-            <ResponsiveDialogTitle>Download Ignite Club HQ</ResponsiveDialogTitle>
-            <ResponsiveDialogDescription>
-              Get the native app for the best experience
-            </ResponsiveDialogDescription>
-          </ResponsiveDialogHeader>
-          <div className="space-y-3 py-4">
-            <Button className="w-full h-12 text-base" asChild>
-              <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer">
-                <Smartphone className="h-5 w-5 mr-2" />
-                Download on the App Store
-              </a>
-            </Button>
-            <Button className="w-full h-12 text-base" variant="outline" asChild>
-              <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer">
-                <Smartphone className="h-5 w-5 mr-2" />
-                Get it on Google Play
-              </a>
-            </Button>
-          </div>
-          <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => {
-              setInstallDialogOpen(false);
-              dismissInstallCard();
-            }}>
-              Don't show again
-            </Button>
-            <Button onClick={() => setInstallDialogOpen(false)}>
-              Close
-            </Button>
-          </ResponsiveDialogFooter>
-        </ResponsiveDialogContent>
-      </ResponsiveDialog>
 
       {/* Points Card */}
       <Card className={`${hasClubTheme ? 'gradient-themed' : 'gradient-emerald'} border-0`}>
@@ -1612,7 +1547,10 @@ export default function HomePage() {
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-1.5">
-                <p className="text-primary-foreground/80 text-sm font-medium">Ignite Points</p>
+                {(userClubs[0] as any)?.points_icon_url && (
+                  <img src={(userClubs[0] as any).points_icon_url} alt="" className="h-5 w-5 rounded object-cover" />
+                )}
+                <p className="text-primary-foreground/80 text-sm font-medium">{(userClubs[0] as any)?.points_display_name || 'Ignite Points'}</p>
                 {!isLoadingProAccess && !isLoadingUserRoles && !hasProAccess && !isAppAdmin && (
                   <Badge variant="outline" className="text-xs bg-primary-foreground/10 border-primary-foreground/30 text-primary-foreground py-0 h-5">
                     <Lock className="h-3 w-3 mr-1" />
@@ -1673,6 +1611,48 @@ export default function HomePage() {
               🎁 You have rewards available! Tap to browse and redeem.
             </p>
           )}
+          {/* How to earn points hints - collapsible */}
+          <Collapsible
+            open={earnPointsOpen}
+            onOpenChange={(open) => {
+              setEarnPointsOpen(open);
+              if (!open) {
+                localStorage.setItem('earnPointsHintsSeen', 'true');
+              }
+            }}
+          >
+            <div className="mt-3 pt-3 border-t border-primary-foreground/15">
+              <CollapsibleTrigger className="flex items-center justify-between w-full active:scale-[0.99] transition-transform">
+                <p className="text-primary-foreground/60 text-xs font-medium uppercase tracking-wide">Earn points by</p>
+                <ChevronDown className={`h-3.5 w-3.5 text-primary-foreground/50 transition-transform duration-200 ${earnPointsOpen ? 'rotate-180' : ''}`} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-1.5">
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                    💬 Chat activity
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                    📸 Uploading photos
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                    🤝 Volunteering
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                    🎯 Early RSVPs
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                    💬 Photo comments
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                    📋 Attending events
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                    🔥 Weekly streaks
+                  </span>
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
         </CardContent>
       </Card>
 
@@ -2196,11 +2176,11 @@ export default function HomePage() {
           <Button 
             variant="outline" 
             className="w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2"
-            aria-label="Join Team"
+            aria-label={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team"}
             onClick={() => setTeamDialogOpen(true)}
           >
             <UserCheck className="h-5 w-5 text-foreground" aria-hidden="true" />
-            <span className="text-sm">Join Team</span>
+            <span className="text-sm">{activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team"}</span>
           </Button>
           {(() => {
             // Vault access requires: Pro subscription AND admin/coach role
@@ -2341,9 +2321,13 @@ export default function HomePage() {
       <ResponsiveDialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader>
-            <ResponsiveDialogTitle>Request to Join Team</ResponsiveDialogTitle>
+            <ResponsiveDialogTitle>
+              {activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Request to Join Class" : "Request to Join Team"}
+            </ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
-              Select a team and role to request membership.
+              {activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled
+                ? "Select a class and role to request membership."
+                : "Select a team and role to request membership."}
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
           <div className="space-y-4 pt-4">
@@ -2403,11 +2387,11 @@ export default function HomePage() {
                     icon: <span>⭐</span>,
                   })) || []),
               ]}
-              label="Select Team"
-              placeholder="Choose a team..."
+              label={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Select Class" : "Select Team"}
+              placeholder={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Choose a class..." : "Choose a team..."}
               searchable
-              searchPlaceholder="Search teams..."
-              emptyMessage="No teams found."
+              searchPlaceholder={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Search classes..." : "Search teams..."}
+              emptyMessage={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "No classes found." : "No teams found."}
             />
             {isLeagueSelected ? (
               <MobileCardSelect

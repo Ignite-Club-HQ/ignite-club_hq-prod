@@ -485,7 +485,7 @@ export default function ProfilePage() {
         </Button>
       </div>
 
-      {/* Ignite Points & Rewards Card */}
+      {/* Points & Rewards Card */}
       <RewardRedemptionCard />
 
       {/* My Clubs and Teams Section */}
@@ -669,7 +669,7 @@ export default function ProfilePage() {
                   <div className="text-center py-6 text-muted-foreground">
                     <ClipboardList className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p className="text-sm">No points activity yet</p>
-                    <p className="text-xs">Complete duties at events to earn Ignite points!</p>
+                    <p className="text-xs">Complete duties at events to earn points!</p>
                   </div>
                 )}
               </CardContent>

@@ -58,7 +58,7 @@ export default function MiniLeaguesPage() {
         .from("user_roles")
         .select("club_id, clubs!inner(id, name)")
         .eq("user_id", user!.id)
-        .in("role", ["club_admin", "league_admin", "app_admin"])
+        .in("role", ["club_admin", "league_admin", "coach", "app_admin"])
         .not("club_id", "is", null);
       
       if (rolesError) throw rolesError;
@@ -162,7 +162,7 @@ export default function MiniLeaguesPage() {
         (data || []).map(async (league) => {
           const [playersResult, sessionsResult] = await Promise.all([
             supabase.from("mini_league_players").select("id", { count: "exact", head: true }).eq("mini_league_id", league.id),
-            supabase.from("mini_league_sessions").select("id", { count: "exact", head: true }).eq("mini_league_id", league.id),
+            supabase.from("events").select("id", { count: "exact", head: true }).eq("mini_league_id", league.id),
           ]);
           return {
             ...league,

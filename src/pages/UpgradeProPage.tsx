@@ -30,7 +30,7 @@ import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 
 const PRO_FEATURES = [
   "Team Chat & Messaging",
-  "Ignite Points & Rewards System",
+  "Points & Rewards System",
   "Photo & Media Uploads",
   "Vault File Storage",
   "Subfolder Organization",
@@ -626,7 +626,7 @@ export default function UpgradeProPage() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Downgrade to Free Plan?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will remove all Pro features from your team including Ignite Points, club announcements, media uploads, and vault storage. This action can be reversed by upgrading again.
+                    This will remove all Pro features from your team including Points & Rewards, club announcements, media uploads, and vault storage. This action can be reversed by upgrading again.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
