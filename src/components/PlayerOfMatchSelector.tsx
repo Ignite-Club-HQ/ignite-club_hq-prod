@@ -124,7 +124,8 @@ export default function PlayerOfMatchSelector({
   const awardMutation = useMutation({
     mutationFn: async ({ userId, childId }: { userId?: string; childId?: string }) => {
       // Points to award - 0 if no reward configured
-      const pointsToAward = pomReward?.points_required || 0;
+      const rewardToUse = activePomReward;
+      const pointsToAward = rewardToUse?.points_required || 0;
 
       // Insert player of match record
       const { error: pomError } = await supabase.from("player_of_match").insert({
