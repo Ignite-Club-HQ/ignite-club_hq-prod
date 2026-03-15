@@ -3,8 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ExternalLink } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
+import { SponsorTier, TIER_CONFIG } from "@/lib/sponsorTiers";
 
 interface Sponsor {
   id: string;
@@ -12,6 +14,7 @@ interface Sponsor {
   logo_url: string | null;
   website_url: string | null;
   description: string | null;
+  tier: SponsorTier | null;
 }
 
 interface PrimarySponsorDisplayProps {
