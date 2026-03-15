@@ -213,14 +213,14 @@ export default function CreateTeamPage() {
       // Check if it's a unique constraint violation
       if (teamError.code === '23505') {
         toast({
-          title: "Team name already exists",
-          description: `A team called "${name.trim()}" already exists in this club. Please choose a different name.`,
+          title: `${entityLabel(club)} name already exists`,
+          description: `A ${entityLabelLower(club)} called "${name.trim()}" already exists in this club. Please choose a different name.`,
           variant: "destructive",
         });
       } else {
         toast({
           title: "Error",
-          description: "Failed to create team. Please try again.",
+          description: `Failed to create ${entityLabelLower(club)}. Please try again.`,
           variant: "destructive",
         });
       }
