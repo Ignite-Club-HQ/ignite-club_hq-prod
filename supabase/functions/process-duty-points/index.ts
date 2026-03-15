@@ -337,6 +337,29 @@ Deno.serve(async (req) => {
 
       await supabase.from('rsvps').update({ attendance_points_awarded: true }).eq('id', rsvp.id);
 
+      // Check reward threshold
+      let attendanceRewardUnlocked = false;
+      let attendanceRewardName: string | undefined;
+      const { data: attendanceRewards } = await supabase
+        .from('club_rewards')
+        .select('id, name, points_required')
+        .eq('club_id', club?.id)
+        .eq('is_active', true)
+        .lte('points_required', newPts)
+        .gt('points_required', previousPts)
+        .order('points_required', { ascending: false })
+        .limit(1);
+
+      if (attendanceRewards && attendanceRewards.length > 0) {
+        attendanceRewardUnlocked = true;
+        attendanceRewardName = attendanceRewards[0].name;
+        await supabase.from('notifications').insert({
+          user_id: rsvp.user_id,
+          type: 'reward_unlocked',
+          message: `🎁 Reward unlocked! You've earned: ${attendanceRewardName}!`,
+        });
+      }
+
       await supabase.from('notifications').insert({
         user_id: rsvp.user_id,
         type: 'points_awarded',
@@ -354,7 +377,8 @@ Deno.serve(async (req) => {
             totalPoints: newPts,
             clubName: club?.name || 'Your Club',
             clubLogoUrl: club?.logo_url,
-            rewardUnlocked: false,
+            rewardUnlocked: attendanceRewardUnlocked,
+            rewardName: attendanceRewardName,
           },
         });
         emailsSent++;
