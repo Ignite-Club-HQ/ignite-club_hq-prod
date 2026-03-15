@@ -44,22 +44,26 @@ Deno.serve(async (req) => {
       if (photo) {
         const teamName = (photo as any).teams?.name;
         const clubName = (photo as any).clubs?.name;
-        title = photo.title || "Photo shared on Ignite Club HQ";
-        description = [clubName, teamName].filter(Boolean).join(" · ") || "Check out this photo on Ignite Club HQ";
+        const photoTitle = photo.title || "Photo shared";
+        const context = [clubName, teamName].filter(Boolean).join(" · ");
+        title = context ? `${photoTitle} — ${context}` : `${photoTitle} on Ignite Club HQ`;
+        description = context || "Check out this photo on Ignite Club HQ";
 
-        // Try to resolve the actual photo image; fall back to club logo
+        // Try to resolve the actual photo image with a timeout
+        // Crawlers have limited patience, so fall back quickly
         const photoImageUrl = photo.file_url || photo.image_url;
-        const resolvedImage = await resolvePreviewImageUrl(supabase, photoImageUrl);
+        const resolvedImage = await resolveWithTimeout(supabase, photoImageUrl, 4000);
         if (resolvedImage) {
           image = resolvedImage;
         } else {
           // Fall back to club logo (skip SVGs — not supported by social platforms)
           const clubLogo = (photo as any).clubs?.logo_url;
           if (clubLogo && !/\.svg(\?|$)/i.test(clubLogo)) {
-            const resolvedLogo = await resolvePreviewImageUrl(supabase, clubLogo);
+            const resolvedLogo = await resolveWithTimeout(supabase, clubLogo, 3000);
             if (resolvedLogo) image = resolvedLogo;
           }
         }
+        console.log("Photo share resolved image:", { photoImageUrl, resolvedImage: image });
       }
 
       redirectUrl = `${APP_URL}/media/${id}`;
