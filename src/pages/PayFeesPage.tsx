@@ -247,7 +247,7 @@ export default function PayFeesPage() {
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="font-semibold text-lg">Pay Club Fees</h1>
+          <h1 className="font-semibold text-lg">Pay Membership Fees</h1>
         </div>
       </div>
 
