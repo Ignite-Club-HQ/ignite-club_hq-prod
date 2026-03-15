@@ -39,6 +39,8 @@ interface Sponsor {
   is_active: boolean;
   is_team_only: boolean;
   display_order: number;
+  tier: SponsorTier | null;
+  exposure_percentage: number | null;
   created_at: string;
 }
 
