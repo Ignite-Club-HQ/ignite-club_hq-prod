@@ -2683,6 +2683,7 @@ export default function HomePage() {
           opponent={quickRsvpEvent.opponent}
           clubId={quickRsvpEvent.club_id}
           clubName={quickRsvpEvent.clubs?.name || "Your club"}
+          eventAmount={quickRsvpEvent.amount}
         />
       )}
 
