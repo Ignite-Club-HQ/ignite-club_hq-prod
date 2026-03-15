@@ -320,6 +320,80 @@ serve(async (req) => {
         console.log("typing_indicators table may not exist");
       }
       
+      // 28b. Delete blocked users (both directions)
+      await deleteAndTrack('blocked_users', 'blocker_id', userId);
+      await deleteAndTrack('blocked_users', 'blocked_id', userId);
+      
+      // 28c. Delete business profiles
+      await deleteAndTrack('business_profiles', 'user_id', userId);
+      
+      // 28d. Delete event views
+      await deleteAndTrack('event_views', 'user_id', userId);
+      
+      // 28e. Delete FCM tokens
+      await deleteAndTrack('fcm_tokens', 'user_id', userId);
+      
+      // 28f. Delete group memberships
+      await deleteAndTrack('group_members', 'user_id', userId);
+      
+      // 28g. Delete hidden DM conversations
+      await deleteAndTrack('hidden_dm_conversations', 'user_id', userId);
+      
+      // 28h. Delete IAP transactions
+      await deleteAndTrack('iap_transactions', 'user_id', userId);
+      
+      // 28i. Delete match message reads
+      await deleteAndTrack('match_message_reads', 'user_id', userId);
+      
+      // 28j. Delete points history
+      await deleteAndTrack('points_history', 'user_id', userId);
+      
+      // 28k. Delete system messages
+      await deleteAndTrack('system_messages', 'user_id', userId);
+      
+      // 28l. Delete child guardians
+      await deleteAndTrack('child_guardians', 'guardian_id', userId);
+      
+      // 28m. Delete class enrolments for user's children
+      if (children && children.length > 0) {
+        const childIds = children.map(c => c.id);
+        const { data: enrolments } = await adminClient
+          .from('class_enrolments')
+          .delete()
+          .in('child_id', childIds)
+          .select('id');
+        deletionStats['class_enrolments'] = enrolments?.length || 0;
+        
+        // Delete child_mini_league_assignments
+        const { data: mlAssignments } = await adminClient
+          .from('child_mini_league_assignments')
+          .delete()
+          .in('child_id', childIds)
+          .select('id');
+        deletionStats['child_mini_league_assignments'] = mlAssignments?.length || 0;
+      }
+      
+      // 28n. Nullify event_group_duties assigned_to
+      const { data: egDuties } = await adminClient
+        .from('event_group_duties')
+        .update({ assigned_to: null })
+        .eq('assigned_to', userId)
+        .select('id');
+      deletionStats['event_group_duties_unassigned'] = egDuties?.length || 0;
+      
+      // 28o. Nullify mini_league_group_duties assigned_to
+      const { data: mlgDuties } = await adminClient
+        .from('mini_league_group_duties')
+        .update({ assigned_to: null })
+        .eq('assigned_to', userId)
+        .select('id');
+      deletionStats['mini_league_group_duties_unassigned'] = mlgDuties?.length || 0;
+      
+      // 28p. Anonymize reports (keep record for safety, remove reporter identity)
+      await adminClient.from('comment_reports').update({ reporter_id: '00000000-0000-0000-0000-000000000000' }).eq('reporter_id', userId);
+      await adminClient.from('photo_reports').update({ reporter_id: '00000000-0000-0000-0000-000000000000' }).eq('reporter_id', userId);
+      await adminClient.from('message_reports').update({ reporter_id: '00000000-0000-0000-0000-000000000000' }).eq('reporter_id', userId);
+      
       // 29. Anonymize messages instead of deleting (to preserve chat context)
       // Update team messages
       const { data: teamMsgs } = await adminClient
@@ -352,6 +426,35 @@ serve(async (req) => {
         .eq('author_id', userId)
         .select('id');
       deletionStats['broadcast_messages_anonymized'] = broadcastMsgs?.length || 0;
+      
+      // Update direct messages
+      const { data: directMsgs } = await adminClient
+        .from('direct_messages')
+        .update({ text: '[Message deleted - user data removed]', image_url: null })
+        .eq('author_id', userId)
+        .select('id');
+      deletionStats['direct_messages_anonymized'] = directMsgs?.length || 0;
+      
+      // Anonymize match messages
+      const { data: matchMsgs } = await adminClient
+        .from('match_messages')
+        .update({ message: '[Message deleted - user data removed]' })
+        .eq('sender_id', userId)
+        .select('id');
+      deletionStats['match_messages_anonymized'] = matchMsgs?.length || 0;
+      
+      // Delete direct conversations where user is a participant
+      const { data: convos1 } = await adminClient
+        .from('direct_conversations')
+        .delete()
+        .eq('participant_1', userId)
+        .select('id');
+      const { data: convos2 } = await adminClient
+        .from('direct_conversations')
+        .delete()
+        .eq('participant_2', userId)
+        .select('id');
+      deletionStats['direct_conversations_deleted'] = (convos1?.length || 0) + (convos2?.length || 0);
       
       // 30. Handle photos - delete from storage then hard delete
       let storageFilesRemoved = 0;
