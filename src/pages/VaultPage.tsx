@@ -1686,11 +1686,33 @@ export default function VaultPage() {
     },
   });
 
-  // Permanently delete photo (vault photos are in vault_files)
+  // Permanently delete photo via edge function (handles storage + DB + audit log)
   const permanentDeletePhotoMutation = useMutation({
     mutationFn: async (photoId: string) => {
-      const { error } = await supabase.from("vault_files").delete().eq("id", photoId);
-      if (error) throw error;
+      // Find the corresponding photos table record via file_url match
+      const { data: vaultFile } = await supabase
+        .from("vault_files")
+        .select("file_url")
+        .eq("id", photoId)
+        .maybeSingle();
+      
+      const photoIds: string[] = [];
+      const fileIds: string[] = [photoId];
+      
+      if (vaultFile?.file_url) {
+        const { data: photoRecord } = await supabase
+          .from("photos")
+          .select("id")
+          .eq("image_url", vaultFile.file_url)
+          .maybeSingle();
+        if (photoRecord) photoIds.push(photoRecord.id);
+      }
+      
+      const response = await supabase.functions.invoke("permanent-delete-photos", {
+        body: { photoIds, fileIds, deletionType: "permanent" },
+      });
+      
+      if (response.error) throw new Error(response.error.message);
       return photoId;
     },
     onSuccess: (photoId) => {
@@ -1698,6 +1720,7 @@ export default function VaultPage() {
       queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
       toast.success("Photo permanently deleted");
     },
     onError: (error: any) => {
@@ -1705,11 +1728,13 @@ export default function VaultPage() {
     },
   });
 
-  // Permanently delete file
+  // Permanently delete file via edge function (handles storage + DB + audit log)
   const permanentDeleteFileMutation = useMutation({
     mutationFn: async (fileId: string) => {
-      const { error } = await supabase.from("vault_files").delete().eq("id", fileId);
-      if (error) throw error;
+      const response = await supabase.functions.invoke("permanent-delete-photos", {
+        body: { fileIds: [fileId], deletionType: "permanent" },
+      });
+      if (response.error) throw new Error(response.error.message);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
