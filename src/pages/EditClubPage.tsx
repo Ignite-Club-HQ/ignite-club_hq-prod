@@ -63,6 +63,8 @@ export default function EditClubPage() {
       setLogoUrl(club.logo_url || "");
       setSport(club.sport || "");
       setClassModeEnabled(club.class_mode_enabled || false);
+      setAllowGuestsDefault(club.allow_guests_default || false);
+      setMaxGuestsDefault(club.max_guests_per_member_default || 2);
     }
   }, [club]);
 
