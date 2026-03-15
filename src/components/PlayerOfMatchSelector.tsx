@@ -486,9 +486,13 @@ export default function PlayerOfMatchSelector({
           </ResponsiveDialogHeader>
           <ScrollArea className="max-h-[60vh]">
             <div className="p-4 space-y-2">
-              {pomReward ? (
+              {activePomReward ? (
                 <p className="text-sm text-muted-foreground mb-4">
-                  The selected player will receive <strong>{pomReward.points_required} Ignite points</strong> and the "{pomReward.name}" reward.
+                  The selected player will receive <strong>{activePomReward.points_required} Ignite points</strong> and the "{activePomReward.name}" reward.
+                </p>
+              ) : pomRewards.length > 0 ? (
+                <p className="text-sm text-muted-foreground mb-4">
+                  Select the player who stood out this match. Points will be awarded based on the selected reward.
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground mb-4">
