@@ -778,7 +778,7 @@ export default function ClubDetailPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => navigate(`/clubs/${id}/edit`)}>
                 <Pencil className="h-4 w-4 mr-2" />
-                Edit Club
+                {club?.class_mode_enabled ? "Edit Organisation" : "Edit Club"}
               </DropdownMenuItem>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
