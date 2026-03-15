@@ -26,6 +26,10 @@ import type { Database } from "@/integrations/supabase/types";
 type AppRole = Database["public"]["Enums"]["app_role"];
 
 export default function CreateTeamPage() {
+  // Helper to determine entity label based on class mode
+  const isClassMode = (clubData: typeof club) => clubData?.class_mode_enabled === true;
+  const entityLabel = (clubData: typeof club) => isClassMode(clubData) ? "Class" : "Team";
+  const entityLabelLower = (clubData: typeof club) => isClassMode(clubData) ? "class" : "team";
   const { clubId } = useParams<{ clubId: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -142,10 +146,21 @@ export default function CreateTeamPage() {
 
 
   const handleSubmit = async () => {
+    const label = entityLabelLower(club);
     if (!name.trim()) {
       toast({
         title: "Missing information",
-        description: "Please enter a team name.",
+        description: `Please enter a ${label} name.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate class_day is set when in class mode
+    if (club?.class_mode_enabled && !classDay) {
+      toast({
+        title: "Missing information",
+        description: "Please select a day of the week for this class.",
         variant: "destructive",
       });
       return;
@@ -164,8 +179,8 @@ export default function CreateTeamPage() {
     if (existingTeam) {
       setSaving(false);
       toast({
-        title: "Team name already exists",
-        description: `A team called "${name.trim()}" already exists in this club. Please choose a different name.`,
+        title: `${entityLabel(club)} name already exists`,
+        description: `A ${entityLabelLower(club)} called "${name.trim()}" already exists in this club. Please choose a different name.`,
         variant: "destructive",
       });
       return;
@@ -198,14 +213,14 @@ export default function CreateTeamPage() {
       // Check if it's a unique constraint violation
       if (teamError.code === '23505') {
         toast({
-          title: "Team name already exists",
-          description: `A team called "${name.trim()}" already exists in this club. Please choose a different name.`,
+          title: `${entityLabel(club)} name already exists`,
+          description: `A ${entityLabelLower(club)} called "${name.trim()}" already exists in this club. Please choose a different name.`,
           variant: "destructive",
         });
       } else {
         toast({
           title: "Error",
-          description: "Failed to create team. Please try again.",
+          description: `Failed to create ${entityLabelLower(club)}. Please try again.`,
           variant: "destructive",
         });
       }
@@ -250,14 +265,14 @@ export default function CreateTeamPage() {
       setSaving(false);
       if (roleError) {
         toast({
-          title: "Warning",
+          title: `${entityLabel(club)} created but couldn't assign admin role.`,
           description: "Team created but couldn't assign admin role.",
           variant: "destructive",
         });
       } else {
         toast({
-          title: "Team created!",
-          description: `${adminAssignment.userDisplayName} has been assigned as Team Admin.`,
+          title: `${entityLabel(club)} created!`,
+          description: `${adminAssignment.userDisplayName} has been assigned as ${entityLabel(club)} Admin.`,
         });
       }
       navigate(`/teams/${team.id}`);
@@ -281,7 +296,7 @@ export default function CreateTeamPage() {
         setSaving(false);
         toast({
           title: "Warning",
-          description: "Team created but couldn't create invite.",
+          description: `${entityLabel(club)} created but couldn't create invite.`,
           variant: "destructive",
         });
         navigate(`/teams/${team.id}`);
@@ -321,7 +336,7 @@ export default function CreateTeamPage() {
 
       setSaving(false);
       toast({
-        title: "Team created!",
+        title: `${entityLabel(club)} created!`,
         description: `${team.name} has been created successfully.`,
       });
       navigate(`/teams/${team.id}`, { 
@@ -346,13 +361,13 @@ export default function CreateTeamPage() {
       if (roleError) {
         toast({
           title: "Warning",
-          description: "Team created but couldn't assign admin role.",
+          description: `${entityLabel(club)} created but couldn't assign admin role.`,
           variant: "destructive",
         });
       }
 
       toast({
-        title: "Team created!",
+        title: `${entityLabel(club)} created!`,
         description: `${name} has been created successfully.`,
       });
       navigate(`/teams/${team.id}`);
@@ -380,7 +395,7 @@ export default function CreateTeamPage() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-semibold">Create Team</h1>
+              <h1 className="text-lg font-semibold">Create {entityLabel(club)}</h1>
             </div>
           </div>
         </div>
@@ -388,7 +403,7 @@ export default function CreateTeamPage() {
           <Alert variant="destructive" className="max-w-md">
             <ShieldAlert className="h-4 w-4" />
             <AlertDescription>
-              Only club admins can create teams. Please contact your club administrator if you need to create a new team.
+              Only club admins can create {entityLabelLower(club)}es. Please contact your club administrator.
             </AlertDescription>
           </Alert>
         </div>
@@ -405,7 +420,7 @@ export default function CreateTeamPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-semibold">Create Team</h1>
+            <h1 className="text-lg font-semibold">Create {entityLabel(club)}</h1>
             {club && (
               <p className="text-sm text-muted-foreground truncate">{club.name}</p>
             )}
@@ -416,14 +431,14 @@ export default function CreateTeamPage() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="px-4 py-6 space-y-8 max-w-lg mx-auto">
-          {/* Team Limit Warning */}
+          {/* Team/Class Limit Warning */}
           {teamLimitExceeded && (
             <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="flex flex-col gap-3">
                 <span>
-                  Your club has reached its team limit ({clubSubscription?.team_limit} teams). 
-                  Please upgrade your club subscription to add more teams.
+                  Your club has reached its {entityLabelLower(club)} limit ({clubSubscription?.team_limit} {entityLabelLower(club)}es). 
+                  Please upgrade your club subscription to add more.
                 </span>
                 <Button asChild size="sm" className="w-fit">
                   <Link to={`/clubs/${clubId}/upgrade`}>
@@ -456,21 +471,21 @@ export default function CreateTeamPage() {
               </label>
             </div>
             <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Add your team logo</p>
+              <p className="text-sm text-muted-foreground">Add your {entityLabelLower(club)} logo</p>
               <p className="text-xs text-muted-foreground/70">Recommended: Square image, 400x400px</p>
             </div>
           </div>
 
           {/* Form Fields */}
           <div className="space-y-6">
-            {/* Team Name */}
+            {/* Name */}
             <div className="space-y-2">
               <Label htmlFor="name" className="text-sm font-medium">
-                Team Name <span className="text-destructive">*</span>
+                {entityLabel(club)} Name <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="name"
-                placeholder="e.g., U12 Dragons"
+                placeholder={club?.class_mode_enabled ? "e.g., Monday Beginners" : "e.g., U12 Dragons"}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={100}
@@ -617,7 +632,7 @@ export default function CreateTeamPage() {
           {clubId && (
             <AssignTeamAdminSection
               clubId={clubId}
-              teamName={name || "this team"}
+              teamName={name || `this ${entityLabelLower(club)}`}
               onAssignmentChange={setAdminAssignment}
             />
           )}
@@ -630,9 +645,9 @@ export default function CreateTeamPage() {
                   <Sparkles className="h-5 w-5 text-primary" />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground">You'll be the team admin</p>
+                  <p className="text-sm font-medium text-foreground">You'll be the {entityLabelLower(club)} admin</p>
                   <p className="text-xs text-muted-foreground">
-                    As the creator, you'll have full control to manage players, events, and team settings.
+                    As the creator, you'll have full control to manage members, events, and {entityLabelLower(club)} settings.
                   </p>
                 </div>
               </div>
@@ -654,7 +669,7 @@ export default function CreateTeamPage() {
             ) : teamLimitExceeded ? (
               "Upgrade Required"
             ) : (
-              "Create Team"
+              `Create ${entityLabel(club)}`
             )}
           </Button>
         </div>
