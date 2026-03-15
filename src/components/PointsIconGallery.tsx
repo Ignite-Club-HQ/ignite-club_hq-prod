@@ -3,7 +3,7 @@ import { Check, ImagePlus, X, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { compressImage } from "@/utils/imageCompression";
+import { compressImage } from "@/lib/imageCompression";
 
 // Import all gallery icons
 import wolfIcon from "@/assets/points-icons/wolf.png";
