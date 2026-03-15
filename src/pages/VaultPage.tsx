@@ -4944,6 +4944,8 @@ interface TrashSectionProps {
   onRestoreFile: (id: string) => void;
   onPermanentDeletePhoto?: (id: string) => void;
   onPermanentDeleteFile?: (id: string) => void;
+  onEmptyTrash?: () => void;
+  isEmptyingTrash?: boolean;
 }
 
 function TrashSection({
