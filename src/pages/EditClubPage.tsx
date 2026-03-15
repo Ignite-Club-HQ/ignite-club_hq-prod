@@ -35,6 +35,8 @@ export default function EditClubPage() {
   const [logoUrl, setLogoUrl] = useState("");
   const [sport, setSport] = useState("");
   const [classModeEnabled, setClassModeEnabled] = useState(false);
+  const [allowGuestsDefault, setAllowGuestsDefault] = useState(false);
+  const [maxGuestsDefault, setMaxGuestsDefault] = useState(2);
   const [saving, setSaving] = useState(false);
 
   const { data: club, isLoading } = useQuery({
