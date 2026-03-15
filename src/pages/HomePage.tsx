@@ -296,6 +296,7 @@ export default function HomePage() {
           is_cancelled,
           is_recurring,
           parent_event_id,
+          amount,
           opponent,
           teams (name),
           clubs (name, sport)
