@@ -4956,6 +4956,8 @@ function TrashSection({
   onRestoreFile,
   onPermanentDeletePhoto,
   onPermanentDeleteFile,
+  onEmptyTrash,
+  isEmptyingTrash,
 }: TrashSectionProps) {
   const hasContent = photos.length > 0 || files.length > 0;
 
