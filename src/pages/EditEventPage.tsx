@@ -1123,6 +1123,42 @@ export default function EditEventPage() {
                 </div>
               )}
 
+              {/* Guest settings - only for social events */}
+              {type === "social" && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <Label htmlFor="allow-guests-edit" className="flex items-center gap-2">
+                        <UserPlus className="h-4 w-4" />
+                        Allow Guests
+                      </Label>
+                      <span className="text-xs text-muted-foreground">
+                        Members can add non-member guests
+                      </span>
+                    </div>
+                    <Switch
+                      id="allow-guests-edit"
+                      checked={allowGuests}
+                      onCheckedChange={setAllowGuests}
+                    />
+                  </div>
+                  {allowGuests && (
+                    <div className="space-y-2 pl-6">
+                      <Label htmlFor="max-guests-edit">Max guests per member</Label>
+                      <Input
+                        id="max-guests-edit"
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={maxGuestsPerMember}
+                        onChange={(e) => setMaxGuestsPerMember(parseInt(e.target.value) || 1)}
+                        className="w-24 h-12"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Auto Reminder */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
