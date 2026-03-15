@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Camera, Loader2 } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +35,8 @@ export default function EditClubPage() {
   const [logoUrl, setLogoUrl] = useState("");
   const [sport, setSport] = useState("");
   const [classModeEnabled, setClassModeEnabled] = useState(false);
+  const [allowGuestsDefault, setAllowGuestsDefault] = useState(false);
+  const [maxGuestsDefault, setMaxGuestsDefault] = useState(2);
   const [saving, setSaving] = useState(false);
 
   const { data: club, isLoading } = useQuery({
@@ -61,6 +63,8 @@ export default function EditClubPage() {
       setLogoUrl(club.logo_url || "");
       setSport(club.sport || "");
       setClassModeEnabled(club.class_mode_enabled || false);
+      setAllowGuestsDefault(club.allow_guests_default || false);
+      setMaxGuestsDefault(club.max_guests_per_member_default || 2);
     }
   }, [club]);
 
@@ -125,6 +129,8 @@ export default function EditClubPage() {
         logo_url: logoUrl || null,
         sport: sport || null,
         class_mode_enabled: classModeEnabled,
+        allow_guests_default: allowGuestsDefault,
+        max_guests_per_member_default: maxGuestsDefault,
       })
       .eq("id", id!);
 
@@ -278,6 +284,34 @@ export default function EditClubPage() {
               rows={4}
               className="text-base resize-none"
             />
+          </div>
+
+          {/* Guest Settings */}
+          <div className="space-y-3 pt-2 border-t">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-base flex items-center gap-2">
+                  <UserPlus className="h-4 w-4" />
+                  Allow Guests at Social Events
+                </Label>
+                <p className="text-sm text-muted-foreground">Default setting for new social events</p>
+              </div>
+              <Switch checked={allowGuestsDefault} onCheckedChange={setAllowGuestsDefault} />
+            </div>
+            {allowGuestsDefault && (
+              <div className="space-y-2 pl-6">
+                <Label htmlFor="max-guests-default" className="text-sm">Default max guests per member</Label>
+                <Input
+                  id="max-guests-default"
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={maxGuestsDefault}
+                  onChange={(e) => setMaxGuestsDefault(parseInt(e.target.value) || 1)}
+                  className="w-24 h-12"
+                />
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

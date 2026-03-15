@@ -1281,6 +1281,7 @@ export type Database = {
       clubs: {
         Row: {
           admin_user_id: string | null
+          allow_guests_default: boolean
           auto_reward_threshold: number | null
           city: string | null
           class_mode_enabled: boolean
@@ -1294,6 +1295,7 @@ export type Database = {
           logo_only_mode: boolean | null
           logo_url: string | null
           longitude: number | null
+          max_guests_per_member_default: number
           member_count: number | null
           member_payments_enabled: boolean
           name: string
@@ -1341,6 +1343,7 @@ export type Database = {
         }
         Insert: {
           admin_user_id?: string | null
+          allow_guests_default?: boolean
           auto_reward_threshold?: number | null
           city?: string | null
           class_mode_enabled?: boolean
@@ -1354,6 +1357,7 @@ export type Database = {
           logo_only_mode?: boolean | null
           logo_url?: string | null
           longitude?: number | null
+          max_guests_per_member_default?: number
           member_count?: number | null
           member_payments_enabled?: boolean
           name: string
@@ -1401,6 +1405,7 @@ export type Database = {
         }
         Update: {
           admin_user_id?: string | null
+          allow_guests_default?: boolean
           auto_reward_threshold?: number | null
           city?: string | null
           class_mode_enabled?: boolean
@@ -1414,6 +1419,7 @@ export type Database = {
           logo_only_mode?: boolean | null
           logo_url?: string | null
           longitude?: number | null
+          max_guests_per_member_default?: number
           member_count?: number | null
           member_payments_enabled?: boolean
           name?: string
@@ -1810,6 +1816,38 @@ export type Database = {
           },
         ]
       }
+      event_guests: {
+        Row: {
+          added_by: string
+          created_at: string
+          event_id: string
+          guest_name: string
+          id: string
+        }
+        Insert: {
+          added_by: string
+          created_at?: string
+          event_id: string
+          guest_name: string
+          id?: string
+        }
+        Update: {
+          added_by?: string
+          created_at?: string
+          event_id?: string
+          guest_name?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_guests_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_payments: {
         Row: {
           amount: number
@@ -1925,6 +1963,7 @@ export type Database = {
       events: {
         Row: {
           address: string | null
+          allow_guests: boolean | null
           amount: number | null
           club_id: string
           created_at: string
@@ -1940,6 +1979,7 @@ export type Database = {
           is_recurring: boolean | null
           location: string | null
           location_name: string | null
+          max_guests_per_member: number | null
           meet_time: string | null
           mini_league_id: string | null
           opponent: string | null
@@ -1962,6 +2002,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          allow_guests?: boolean | null
           amount?: number | null
           club_id: string
           created_at?: string
@@ -1977,6 +2018,7 @@ export type Database = {
           is_recurring?: boolean | null
           location?: string | null
           location_name?: string | null
+          max_guests_per_member?: number | null
           meet_time?: string | null
           mini_league_id?: string | null
           opponent?: string | null
@@ -1999,6 +2041,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          allow_guests?: boolean | null
           amount?: number | null
           club_id?: string
           created_at?: string
@@ -2014,6 +2057,7 @@ export type Database = {
           is_recurring?: boolean | null
           location?: string | null
           location_name?: string | null
+          max_guests_per_member?: number | null
           meet_time?: string | null
           mini_league_id?: string | null
           opponent?: string | null

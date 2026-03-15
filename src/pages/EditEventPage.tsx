@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, MapPin, Bell, Calendar, FileText, DollarSign, ChevronDown, ClipboardList, Plus, X, Repeat, Users, Building2 } from "lucide-react";
+import { ArrowLeft, Loader2, MapPin, Bell, Calendar, FileText, DollarSign, ChevronDown, ClipboardList, Plus, X, Repeat, Users, Building2, UserPlus } from "lucide-react";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -89,6 +89,10 @@ export default function EditEventPage() {
   
   // Price for social events
   const [price, setPrice] = useState("");
+
+  // Guest settings for social events
+  const [allowGuests, setAllowGuests] = useState(false);
+  const [maxGuestsPerMember, setMaxGuestsPerMember] = useState(2);
 
   // Recurring event state (for converting single event to recurring)
   const [enableRecurring, setEnableRecurring] = useState(false);
@@ -399,6 +403,8 @@ export default function EditEventPage() {
       setSelectedClubId(event.club_id);
       setSelectedTeamId(event.team_id || "");
       setOpponent((event as any).opponent || "");
+      setAllowGuests(event.allow_guests === true);
+      setMaxGuestsPerMember(event.max_guests_per_member || 2);
       
       const parsedEventDateTime = parseISO(event.event_date);
       setEventDateTime(format(parsedEventDateTime, "yyyy-MM-dd'T'HH:mm"));
@@ -460,6 +466,8 @@ export default function EditEventPage() {
         club_id: selectedClubId,
         team_id: selectedTeamId || null,
         opponent: type === "game" ? opponent.trim() || null : null,
+        allow_guests: type === "social" && allowGuests ? true : null,
+        max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
       };
 
       // If converting single event to recurring series
@@ -1112,6 +1120,42 @@ export default function EditEventPage() {
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">Optional - leave empty for free events</p>
+                </div>
+              )}
+
+              {/* Guest settings - only for social events */}
+              {type === "social" && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <Label htmlFor="allow-guests-edit" className="flex items-center gap-2">
+                        <UserPlus className="h-4 w-4" />
+                        Allow Guests
+                      </Label>
+                      <span className="text-xs text-muted-foreground">
+                        Members can add non-member guests
+                      </span>
+                    </div>
+                    <Switch
+                      id="allow-guests-edit"
+                      checked={allowGuests}
+                      onCheckedChange={setAllowGuests}
+                    />
+                  </div>
+                  {allowGuests && (
+                    <div className="space-y-2 pl-6">
+                      <Label htmlFor="max-guests-edit">Max guests per member</Label>
+                      <Input
+                        id="max-guests-edit"
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={maxGuestsPerMember}
+                        onChange={(e) => setMaxGuestsPerMember(parseInt(e.target.value) || 1)}
+                        className="w-24 h-12"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
