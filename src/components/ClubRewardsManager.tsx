@@ -715,8 +715,21 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
                   id="points-required"
                   type="number"
                   min={1}
-                  value={pointsRequired}
-                  onChange={(e) => setPointsRequired(parseInt(e.target.value) || 1)}
+                  value={pointsRequired === 0 ? "" : pointsRequired}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "") {
+                      setPointsRequired(0);
+                    } else {
+                      const num = parseInt(val);
+                      if (!isNaN(num) && num >= 0) {
+                        setPointsRequired(num);
+                      }
+                    }
+                  }}
+                  onBlur={() => {
+                    if (pointsRequired < 1) setPointsRequired(1);
+                  }}
                   className="h-11"
                 />
               </div>
