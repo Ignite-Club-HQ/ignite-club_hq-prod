@@ -265,6 +265,8 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
       setWebsiteUrl(sponsor.website_url || "");
       setIsTeamOnly(sponsor.is_team_only);
       setIsActive(sponsor.is_active);
+      setTier(sponsor.tier || "none");
+      setExposurePercentage(sponsor.exposure_percentage != null ? String(sponsor.exposure_percentage) : "");
       setLogoPreview(sponsor.logo_url);
     } else {
       resetForm();
