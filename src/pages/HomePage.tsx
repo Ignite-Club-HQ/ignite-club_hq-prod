@@ -2176,11 +2176,11 @@ export default function HomePage() {
           <Button 
             variant="outline" 
             className="w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2"
-            aria-label="Join Team"
+            aria-label={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team"}
             onClick={() => setTeamDialogOpen(true)}
           >
             <UserCheck className="h-5 w-5 text-foreground" aria-hidden="true" />
-            <span className="text-sm">Join Team</span>
+            <span className="text-sm">{activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team"}</span>
           </Button>
           {(() => {
             // Vault access requires: Pro subscription AND admin/coach role
