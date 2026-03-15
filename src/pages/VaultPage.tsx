@@ -1851,9 +1851,9 @@ export default function VaultPage() {
             .eq("id", file.id);
           if (error) throw error;
           deletedCount++;
-        } catch {
+        } catch (e) {
+          console.error("Failed to soft-delete file", file.id, e);
           errorCount++;
-        }
       }
 
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
