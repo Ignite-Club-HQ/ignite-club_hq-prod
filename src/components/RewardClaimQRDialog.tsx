@@ -61,8 +61,8 @@ export function RewardClaimQRDialog({
 
       if (profileError) throw profileError;
 
-      // If this is a reward redemption (not sausage), mark it as fulfilled
-      if (!redemptionId.startsWith("sausage-")) {
+      // Mark redemption as fulfilled
+      if (redemptionId) {
         const { error: redemptionError } = await supabase
           .from("reward_redemptions")
           .update({

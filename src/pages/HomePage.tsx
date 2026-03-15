@@ -1675,13 +1675,13 @@ export default function HomePage() {
       </Card>
 
       {/* Reward Claim QR Dialog */}
-      {(latestPendingRedemption || profile?.has_sausage_reward) && user && (
+      {latestPendingRedemption && user && (
         <RewardClaimQRDialog
           open={rewardQROpen}
           onOpenChange={setRewardQROpen}
-          rewardName={latestPendingRedemption?.club_rewards?.name || "Free Sausage"}
-          clubName={latestPendingRedemption?.clubs?.name || "Club"}
-          redemptionId={latestPendingRedemption?.id || `sausage-${user.id}`}
+          rewardName={latestPendingRedemption.club_rewards?.name || "Reward"}
+          clubName={latestPendingRedemption.clubs?.name || "Club"}
+          redemptionId={latestPendingRedemption.id}
           qrCodeUrl={latestPendingRedemption?.club_rewards?.qr_code_url || null}
           userName={profile?.display_name || undefined}
           userId={user.id}

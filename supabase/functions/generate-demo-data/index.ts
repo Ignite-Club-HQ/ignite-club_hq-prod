@@ -1808,7 +1808,6 @@ serve(async (req) => {
               .from("profiles")
               .update({ 
                 ignite_points: assignment.points,
-                has_sausage_reward: assignment.hasSausageReward,
               })
               .eq("id", userId);
             
