@@ -251,6 +251,8 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
     setWebsiteUrl("");
     setIsTeamOnly(false);
     setIsActive(true);
+    setTier("none");
+    setExposurePercentage("");
     setLogoFile(null);
     setLogoPreview(null);
   };
