@@ -2321,9 +2321,13 @@ export default function HomePage() {
       <ResponsiveDialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader>
-            <ResponsiveDialogTitle>Request to Join Team</ResponsiveDialogTitle>
+            <ResponsiveDialogTitle>
+              {activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Request to Join Class" : "Request to Join Team"}
+            </ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
-              Select a team and role to request membership.
+              {activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled
+                ? "Select a class and role to request membership."
+                : "Select a team and role to request membership."}
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
           <div className="space-y-4 pt-4">
