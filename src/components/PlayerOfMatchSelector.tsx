@@ -231,8 +231,8 @@ export default function PlayerOfMatchSelector({
               user_id: child.parent_id,
               type: "player_of_match",
               message: childRewardName
-                ? `🏆 ${child.name} was selected as Player of the Match and earned ${pointsToAward} Ignite points! 🎁 Reward unlocked: ${childRewardName}!`
-                : `🏆 ${child.name} was selected as Player of the Match and earned ${pointsToAward} Ignite points!`,
+                ? `🏆 ${child.name} was selected as Player of the Match and earned ${pointsToAward} points! 🎁 Reward unlocked: ${childRewardName}!`
+                : `🏆 ${child.name} was selected as Player of the Match and earned ${pointsToAward} points!`,
               related_id: eventId,
             });
           }
