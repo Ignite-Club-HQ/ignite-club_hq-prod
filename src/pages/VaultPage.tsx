@@ -3685,6 +3685,11 @@ export default function VaultPage() {
                 setMoveFileDialogOpen(true);
               }}
               onDownloadPhoto={downloadFile}
+              selectionMode={selectionMode}
+              selectedPhotos={selectedPhotos}
+              selectedFiles={selectedFiles}
+              onTogglePhotoSelection={togglePhotoSelection}
+              onToggleFileSelection={toggleFileSelection}
             />
           )}
 
