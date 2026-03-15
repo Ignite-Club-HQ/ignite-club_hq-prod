@@ -32,6 +32,8 @@ interface ChatHeaderMenuProps {
   showMembers?: boolean;
   showMute?: boolean;
   isNativePlatform?: boolean;
+  onEditGroup?: () => void;
+  onDeleteGroup?: () => void;
 }
 
 type MuteData = {
