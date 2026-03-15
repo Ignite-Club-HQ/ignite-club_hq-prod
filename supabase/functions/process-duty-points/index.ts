@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
       // Get current profile
       const { data: profile } = await supabase
         .from('profiles')
-        .select('ignite_points, has_sausage_reward')
+        .select('ignite_points')
         .eq('id', duty.assigned_to)
         .single();
 
@@ -114,19 +114,32 @@ Deno.serve(async (req) => {
       const newPoints = (profile.ignite_points || 0) + 10;
       const updateData: any = { ignite_points: newPoints };
       let rewardUnlocked = false;
+      let rewardName: string | undefined;
 
-      // Check for reward unlock at 20 points
-      if (newPoints >= 20 && !profile.has_sausage_reward) {
-        updateData.has_sausage_reward = true;
-        rewardUnlocked = true;
-        
-        // Send reward notification
-        await supabase.from('notifications').insert({
-          user_id: duty.assigned_to,
-          type: 'reward_unlocked',
-          message: '🌭 Reward unlocked! You\'ve earned a free sausage sizzle!',
-        });
-        console.log(`User ${duty.assigned_to}: Sausage reward unlocked!`);
+      // Check if user has reached any club reward threshold
+      const { data: availableRewards } = await supabase
+        .from('club_rewards')
+        .select('id, name, points_required')
+        .eq('club_id', club?.id)
+        .eq('is_active', true)
+        .lte('points_required', newPoints)
+        .order('points_required', { ascending: false })
+        .limit(1);
+
+      if (availableRewards && availableRewards.length > 0) {
+        const reward = availableRewards[0];
+        // Only notify if they just crossed this threshold (old points were below)
+        if ((profile.ignite_points || 0) < reward.points_required) {
+          rewardUnlocked = true;
+          rewardName = reward.name;
+
+          await supabase.from('notifications').insert({
+            user_id: duty.assigned_to,
+            type: 'reward_unlocked',
+            message: `🎁 Reward unlocked! You've earned: ${reward.name}!`,
+          });
+          console.log(`User ${duty.assigned_to}: Reward "${reward.name}" unlocked!`);
+        }
       }
 
       // Update profile with new points
@@ -171,7 +184,7 @@ Deno.serve(async (req) => {
             clubName: club?.name || 'Your Club',
             clubLogoUrl: club?.logo_url,
             rewardUnlocked,
-            rewardName: rewardUnlocked ? 'Free Sausage Sizzle' : undefined,
+            rewardName: rewardUnlocked ? rewardName : undefined,
           },
         });
 
