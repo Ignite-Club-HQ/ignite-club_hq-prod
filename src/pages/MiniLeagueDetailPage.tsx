@@ -366,6 +366,7 @@ export default function MiniLeagueDetailPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const togglePlayerSelection = (playerId: string) => {
     const newSet = new Set(selectedPlayerIds);
     if (newSet.has(playerId)) {
       newSet.delete(playerId);
