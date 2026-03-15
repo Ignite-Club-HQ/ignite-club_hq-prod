@@ -45,9 +45,8 @@ export default function AwardPointsDialog({
 
   const awardMutation = useMutation({
     mutationFn: async () => {
-      // Update the member's ignite points
-      const currentPoints = currentPoints_prop;
-      const newPoints = Math.max(0, currentPoints + points);
+      const previousPoints = currentPoints;
+      const newPoints = Math.max(0, previousPoints + points);
       
       const { error: updateError } = await supabase
         .from("profiles")
