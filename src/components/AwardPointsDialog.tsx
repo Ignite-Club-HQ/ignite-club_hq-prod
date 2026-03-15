@@ -73,7 +73,7 @@ export default function AwardPointsDialog({
         rewardName = await checkRewardThreshold({
           userId: memberId,
           clubId,
-          previousPoints: currentPoints,
+          previousPoints,
           newPoints,
         });
       }
