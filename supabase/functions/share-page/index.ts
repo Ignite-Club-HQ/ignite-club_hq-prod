@@ -78,20 +78,26 @@ Deno.serve(async (req) => {
       console.log("Event lookup:", { id, event, eventError: eventError?.message });
 
       if (event) {
-        title = event.title || "Event on Ignite Club HQ";
-        const parts: string[] = [];
-        if ((event as any).clubs?.name) parts.push((event as any).clubs.name);
-        if ((event as any).teams?.name) parts.push((event as any).teams.name);
+        const eventTitle = event.title || "Event";
+        const clubName = (event as any).clubs?.name;
+        const teamName = (event as any).teams?.name;
+        let dateStr = "";
         if (event.event_date) {
           try {
             const d = new Date(event.event_date);
-            parts.push(d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" }));
+            dateStr = d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
           } catch {
             // ignore
           }
         }
-        description = parts.length > 0
-          ? `You're invited! ${parts.join(" · ")}`
+
+        // Build a rich title since Messenger often hides og:description
+        const contextParts = [clubName, teamName, dateStr].filter(Boolean);
+        title = contextParts.length > 0
+          ? `${eventTitle} — ${contextParts.join(" · ")}`
+          : `${eventTitle} on Ignite Club HQ`;
+        description = contextParts.length > 0
+          ? `You're invited! ${contextParts.join(" · ")}`
           : "You've been invited to an event on Ignite Club HQ";
 
         // Use the default Ignite logo for all event share previews
