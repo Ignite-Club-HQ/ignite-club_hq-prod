@@ -657,6 +657,11 @@ export default function NotificationsPage() {
       case "player_of_match":
         navigate("/profile?section=points-history");
         break;
+      case "fee_payment_request":
+        if (relatedId) {
+          navigate(`/pay-fees/${relatedId}`);
+        }
+        break;
       default:
         break;
     }
