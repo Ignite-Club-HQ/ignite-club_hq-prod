@@ -82,27 +82,27 @@ export default function PlayerOfMatchSelector({
     },
   });
 
-  // Fetch POM reward - team-specific first, then club-level fallback
-  const { data: pomReward } = useQuery({
-    queryKey: ["pom-reward", clubId, teamId],
+  // Fetch POM rewards - team-specific first, then club-level fallback
+  const { data: pomRewards = [] } = useQuery({
+    queryKey: ["pom-rewards", clubId, teamId],
     queryFn: async () => {
-      // First try team-specific reward
+      // First try team-specific rewards
       if (teamId) {
-        const { data: teamReward, error: teamError } = await supabase
+        const { data: teamRewards, error: teamError } = await supabase
           .from("club_rewards")
           .select("*")
           .eq("club_id", clubId)
           .eq("team_id", teamId)
           .eq("reward_type", "player_of_match")
           .eq("is_active", true)
-          .maybeSingle();
+          .order("created_at", { ascending: true });
         
-        if (!teamError && teamReward) {
-          return teamReward;
+        if (!teamError && teamRewards && teamRewards.length > 0) {
+          return teamRewards;
         }
       }
       
-      // Fall back to club-level reward (team_id is null)
+      // Fall back to club-level rewards (team_id is null)
       const { data, error } = await supabase
         .from("club_rewards")
         .select("*")
@@ -110,12 +110,15 @@ export default function PlayerOfMatchSelector({
         .is("team_id", null)
         .eq("reward_type", "player_of_match")
         .eq("is_active", true)
-        .maybeSingle();
+        .order("created_at", { ascending: true });
       
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
+
+  // Use selected reward or default to first available
+  const activePomReward = selectedReward || (pomRewards.length === 1 ? pomRewards[0] : null);
 
   // Award POM mutation
   const awardMutation = useMutation({
