@@ -1,0 +1,1 @@
+ALTER TABLE public.player_of_match ADD COLUMN IF NOT EXISTS awarded_by UUID REFERENCES auth.users(id);
