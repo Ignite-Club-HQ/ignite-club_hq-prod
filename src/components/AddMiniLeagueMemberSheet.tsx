@@ -635,9 +635,17 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
                     onClick={() => addBulkPlayersMutation.mutate(undefined)}
                     disabled={!bulkPlayers.some(p => p.name.trim()) || isPending}
                   >
-                    {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    <Send className="h-4 w-4 mr-2" />
-                    Add Players & Send Invites
+                    {isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Adding Players...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Add Players & Send Invites
+                      </>
+                    )}
                   </Button>
                 </>
               )}
