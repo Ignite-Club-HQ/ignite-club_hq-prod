@@ -66,7 +66,8 @@ export function EventSponsorsSection({ eventId, clubId }: EventSponsorsSectionPr
         .order("display_order", { ascending: true });
       
       if (error) throw error;
-      return data?.map(es => es.sponsors).filter(Boolean) as Sponsor[];
+      const sponsors = data?.map(es => es.sponsors).filter(Boolean) as Sponsor[];
+      return sortSponsorsByTier(sponsors);
     },
     enabled: !!hasPro,
   });
