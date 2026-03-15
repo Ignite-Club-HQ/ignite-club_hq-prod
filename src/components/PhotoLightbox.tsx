@@ -135,14 +135,14 @@ export function PhotoLightbox({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
-        className="max-w-[95vw] max-h-[95vh] p-0 bg-black/95 border-none [&>button]:hidden"
+        className="!max-w-none !max-h-none !w-screen !h-[100dvh] p-0 bg-black border-none rounded-none [&>button]:hidden !translate-x-[-50%] !translate-y-[-50%]"
         onKeyDown={handleKeyDown}
       >
         <VisuallyHidden>
           <DialogTitle>Photo viewer</DialogTitle>
         </VisuallyHidden>
         <div 
-          className="relative w-full h-[90vh] flex items-center justify-center touch-none overflow-hidden"
+          className="relative w-full h-full flex items-center justify-center touch-none overflow-hidden"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
