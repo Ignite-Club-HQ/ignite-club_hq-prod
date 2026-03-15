@@ -2475,15 +2475,19 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Club Sponsor Section - shown when a club is selected, or carousel when no filter */}
+      {/* Club Sponsor Section - shown when a club is selected (not class-mode), or carousel when no filter */}
       {activeClubFilter ? (
-        <ClubSponsorSection clubId={activeClubFilter} />
+        !clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled && (
+          <ClubSponsorSection clubId={activeClubFilter} />
+        )
       ) : (
         <MultiClubSponsorCarousel />
       )}
       
       {/* App Ads - shown when configured, may override or supplement sponsor carousel */}
-      <SponsorOrAdCarousel location="home" activeClubFilter={activeClubFilter} />
+      {!(activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled) && (
+        <SponsorOrAdCarousel location="home" activeClubFilter={activeClubFilter} />
+      )}
 
       {/* Pitch Board Loading Overlay */}
       {pitchBoardLoading && createPortal(
