@@ -485,7 +485,7 @@ export default function ProfilePage() {
         </Button>
       </div>
 
-      {/* Ignite Points & Rewards Card */}
+      {/* Points & Rewards Card */}
       <RewardRedemptionCard />
 
       {/* My Clubs and Teams Section */}

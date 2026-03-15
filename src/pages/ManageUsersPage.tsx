@@ -1818,7 +1818,7 @@ export default function ManageUsersPage() {
               Award Points
             </ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
-              Award or deduct Ignite points for {awardPointsTarget?.name}
+              Award or deduct points for {awardPointsTarget?.name}
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
 
