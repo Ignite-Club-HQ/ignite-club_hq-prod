@@ -5000,6 +5000,28 @@ function TrashSection({
 
   return (
     <div className="space-y-6">
+      {/* Auto-purge notice + Empty Trash */}
+      <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
+        <p className="text-xs text-muted-foreground">
+          Items in trash are automatically deleted after 30 days.
+        </p>
+        {onEmptyTrash && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={onEmptyTrash}
+            disabled={isEmptyingTrash}
+          >
+            {isEmptyingTrash ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4 mr-1" />
+            )}
+            Empty Trash
+          </Button>
+        )}
+      </div>
+
       {photos.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">Deleted Photos ({photos.length})</h2>
