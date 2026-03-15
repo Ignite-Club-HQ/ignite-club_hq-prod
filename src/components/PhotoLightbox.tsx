@@ -44,7 +44,7 @@ function LightboxImage({
     <img
       src={effectiveSrc}
       alt={alt}
-      className="max-w-full max-h-full object-contain transition-transform duration-100"
+      className="max-w-[100vw] max-h-[100dvh] object-contain transition-transform duration-100"
       style={{
         transform: `scale(${scale}) translate(${translateX / scale}px, ${translateY / scale}px)`,
       }}
