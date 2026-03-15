@@ -1546,6 +1546,9 @@ export default function HomePage() {
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-1.5">
+                {(userClubs[0] as any)?.points_icon_url && (
+                  <img src={(userClubs[0] as any).points_icon_url} alt="" className="h-5 w-5 rounded object-cover" />
+                )}
                 <p className="text-primary-foreground/80 text-sm font-medium">{(userClubs[0] as any)?.points_display_name || 'Ignite Points'}</p>
                 {!isLoadingProAccess && !isLoadingUserRoles && !hasProAccess && !isAppAdmin && (
                   <Badge variant="outline" className="text-xs bg-primary-foreground/10 border-primary-foreground/30 text-primary-foreground py-0 h-5">

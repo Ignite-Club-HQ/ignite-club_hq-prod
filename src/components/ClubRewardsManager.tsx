@@ -92,6 +92,8 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
   const hasCreatedDefault = useRef(false);
   const [customPointsName, setCustomPointsName] = useState("Ignite Points");
   const [savingPointsName, setSavingPointsName] = useState(false);
+  const [pointsIconUrl, setPointsIconUrl] = useState<string | null>(null);
+  const [uploadingPointsIcon, setUploadingPointsIcon] = useState(false);
 
   // Fetch club's current points display name
   useQuery({
