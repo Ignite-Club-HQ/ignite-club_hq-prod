@@ -420,7 +420,7 @@ export default function CreateTeamPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-semibold">Create Team</h1>
+            <h1 className="text-lg font-semibold">Create {entityLabel(club)}</h1>
             {club && (
               <p className="text-sm text-muted-foreground truncate">{club.name}</p>
             )}
