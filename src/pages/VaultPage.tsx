@@ -4601,6 +4601,12 @@ interface ContentSectionProps {
   onRenameFile?: (file: any) => void;
   onMoveFile?: (file: any) => void;
   onDownloadPhoto?: (url: string, filename: string) => void;
+  // Selection mode props
+  selectionMode?: boolean;
+  selectedPhotos?: Set<string>;
+  selectedFiles?: Set<string>;
+  onTogglePhotoSelection?: (id: string) => void;
+  onToggleFileSelection?: (id: string) => void;
   // Trash mode props
   isTrashView?: boolean;
   onRestorePhoto?: (id: string) => void;
@@ -4624,6 +4630,11 @@ function ContentSection({
   onRenameFile,
   onMoveFile,
   onDownloadPhoto,
+  selectionMode = false,
+  selectedPhotos,
+  selectedFiles,
+  onTogglePhotoSelection,
+  onToggleFileSelection,
   isTrashView = false,
   onRestorePhoto,
   onRestoreFile,
