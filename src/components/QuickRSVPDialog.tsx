@@ -38,6 +38,7 @@ interface QuickRSVPDialogProps {
   opponent: string | null;
   clubId: string;
   clubName: string;
+  eventAmount?: number | null;
 }
 
 function formatEventDate(dateStr: string) {
