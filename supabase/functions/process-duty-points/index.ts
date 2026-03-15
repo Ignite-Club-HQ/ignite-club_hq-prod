@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
             clubName: club?.name || 'Your Club',
             clubLogoUrl: club?.logo_url,
             rewardUnlocked,
-            rewardName: rewardUnlocked ? 'Free Sausage Sizzle' : undefined,
+            rewardName: rewardUnlocked ? rewardName : undefined,
           },
         });
 
