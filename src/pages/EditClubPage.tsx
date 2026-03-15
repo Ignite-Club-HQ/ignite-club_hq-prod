@@ -129,6 +129,8 @@ export default function EditClubPage() {
         logo_url: logoUrl || null,
         sport: sport || null,
         class_mode_enabled: classModeEnabled,
+        allow_guests_default: allowGuestsDefault,
+        max_guests_per_member_default: maxGuestsDefault,
       })
       .eq("id", id!);
 
