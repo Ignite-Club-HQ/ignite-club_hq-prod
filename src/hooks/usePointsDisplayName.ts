@@ -47,6 +47,10 @@ export function usePointsDisplay(clubId: string | null | undefined) {
 /**
  * Get the points display name synchronously when you already have the club data.
  */
-export function getPointsDisplayName(club: { points_display_name?: string | null } | null | undefined): string {
-  return (club as any)?.points_display_name || DEFAULT_POINTS_NAME;
+export function getPointsDisplayName(club: { points_display_name?: string | null; theme_enabled?: boolean; is_pro?: boolean; club_subscriptions?: any } | null | undefined): string {
+  const c = club as any;
+  const sub = Array.isArray(c?.club_subscriptions) ? c.club_subscriptions[0] : c?.club_subscriptions;
+  const isPro = c?.is_pro || sub?.is_pro || sub?.is_pro_football;
+  const canCustomise = isPro && c?.theme_enabled;
+  return (canCustomise && c?.points_display_name) || DEFAULT_POINTS_NAME;
 }
