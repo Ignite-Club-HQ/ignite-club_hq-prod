@@ -170,7 +170,7 @@ export default function RewardRedemptionCard() {
       // Fetch club details with subscription info
       const { data: clubs } = await supabase
         .from("clubs")
-        .select("id, name, logo_url")
+        .select("id, name, logo_url, points_display_name")
         .in("id", Array.from(clubIds));
 
       // Fetch subscriptions for these clubs
