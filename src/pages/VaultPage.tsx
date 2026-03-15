@@ -1747,6 +1747,50 @@ export default function VaultPage() {
     },
   });
 
+  // Empty all trash
+  const [isEmptyingTrash, setIsEmptyingTrash] = useState(false);
+  const emptyTrash = async () => {
+    if (!trashItems) return;
+    setIsEmptyingTrash(true);
+    try {
+      const allPhotoIds = (trashItems.photos || []).map((p: any) => p.id);
+      const allFileIds = (trashItems.files || []).map((f: any) => f.id);
+      
+      // Find corresponding photos table records for vault_files photos
+      const photoTableIds: string[] = [];
+      for (const photo of trashItems.photos || []) {
+        if (photo.file_url) {
+          const { data: photoRecord } = await supabase
+            .from("photos")
+            .select("id")
+            .eq("image_url", photo.file_url)
+            .maybeSingle();
+          if (photoRecord) photoTableIds.push(photoRecord.id);
+        }
+      }
+      
+      const response = await supabase.functions.invoke("permanent-delete-photos", {
+        body: {
+          photoIds: photoTableIds,
+          fileIds: [...allPhotoIds, ...allFileIds],
+          deletionType: "permanent",
+        },
+      });
+      
+      if (response.error) throw new Error(response.error.message);
+      
+      queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      toast.success("Trash emptied successfully");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to empty trash");
+    } finally {
+      setIsEmptyingTrash(false);
+    }
+  };
+
   // Move file to a different folder or team
   const moveFileMutation = useMutation({
     mutationFn: async ({ fileId, targetFolderId, targetTeamId }: { fileId: string; targetFolderId: string | null; targetTeamId?: string | null }) => {
