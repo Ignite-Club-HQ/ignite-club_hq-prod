@@ -664,8 +664,20 @@ export default function MiniLeagueDetailPage() {
         </TabsContent>
 
         <TabsContent value="players" className="space-y-3 mt-3">
+          {/* Player search */}
+          {(players?.length || 0) > 5 && (
+            <Input
+              placeholder="Search players..."
+              value={playerSearch}
+              onChange={(e) => setPlayerSearch(e.target.value)}
+              className="h-9 text-sm"
+            />
+          )}
+
           <div className="flex justify-between items-center gap-2">
-            <h2 className="text-base font-semibold">Player Pool</h2>
+            <h2 className="text-base font-semibold">
+              Player Pool{playerSearch.trim() && ` (${filteredPlayers.length}/${players?.length || 0})`}
+            </h2>
             <div className="flex items-center gap-2">
               {canManageLeague && (
                 <>
