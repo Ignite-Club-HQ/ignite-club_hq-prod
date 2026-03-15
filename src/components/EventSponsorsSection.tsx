@@ -4,8 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Building2 } from "lucide-react";
 import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
+import { SponsorTier, TIER_CONFIG, sortSponsorsByTier } from "@/lib/sponsorTiers";
 
 interface Sponsor {
   id: string;
@@ -13,6 +15,8 @@ interface Sponsor {
   logo_url: string | null;
   description: string | null;
   website_url: string | null;
+  tier: SponsorTier | null;
+  display_order: number;
 }
 
 interface EventSponsorsSectionProps {
