@@ -3816,6 +3816,7 @@ export type Database = {
       }
       player_of_match: {
         Row: {
+          awarded_by: string | null
           child_id: string | null
           created_at: string
           event_id: string
@@ -3826,6 +3827,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          awarded_by?: string | null
           child_id?: string | null
           created_at?: string
           event_id: string
@@ -3836,6 +3838,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          awarded_by?: string | null
           child_id?: string | null
           created_at?: string
           event_id?: string
