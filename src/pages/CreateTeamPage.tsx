@@ -669,7 +669,7 @@ export default function CreateTeamPage() {
             ) : teamLimitExceeded ? (
               "Upgrade Required"
             ) : (
-              "Create Team"
+              `Create ${entityLabel(club)}`
             )}
           </Button>
         </div>
