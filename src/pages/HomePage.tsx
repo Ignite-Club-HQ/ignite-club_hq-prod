@@ -101,6 +101,7 @@ interface Club {
   id: string;
   name: string;
   sport: string | null;
+  class_mode_enabled: boolean;
 }
 
 interface Team {
@@ -1030,7 +1031,7 @@ export default function HomePage() {
       console.log("[HomePage] Fetching all clubs...");
       const { data, error } = await supabase
         .from("clubs")
-        .select("id, name, sport")
+        .select("id, name, sport, class_mode_enabled")
         .order("name");
       if (error) {
         console.error("[HomePage] Error fetching clubs:", error);
@@ -2175,11 +2176,11 @@ export default function HomePage() {
           <Button 
             variant="outline" 
             className="w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2"
-            aria-label="Join Team"
+            aria-label={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team"}
             onClick={() => setTeamDialogOpen(true)}
           >
             <UserCheck className="h-5 w-5 text-foreground" aria-hidden="true" />
-            <span className="text-sm">Join Team</span>
+            <span className="text-sm">{activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team"}</span>
           </Button>
           {(() => {
             // Vault access requires: Pro subscription AND admin/coach role
@@ -2320,9 +2321,13 @@ export default function HomePage() {
       <ResponsiveDialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader>
-            <ResponsiveDialogTitle>Request to Join Team</ResponsiveDialogTitle>
+            <ResponsiveDialogTitle>
+              {activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Request to Join Class" : "Request to Join Team"}
+            </ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
-              Select a team and role to request membership.
+              {activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled
+                ? "Select a class and role to request membership."
+                : "Select a team and role to request membership."}
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
           <div className="space-y-4 pt-4">
@@ -2382,11 +2387,11 @@ export default function HomePage() {
                     icon: <span>⭐</span>,
                   })) || []),
               ]}
-              label="Select Team"
-              placeholder="Choose a team..."
+              label={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Select Class" : "Select Team"}
+              placeholder={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Choose a class..." : "Choose a team..."}
               searchable
-              searchPlaceholder="Search teams..."
-              emptyMessage="No teams found."
+              searchPlaceholder={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Search classes..." : "Search teams..."}
+              emptyMessage={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "No classes found." : "No teams found."}
             />
             {isLeagueSelected ? (
               <MobileCardSelect
