@@ -87,6 +87,10 @@ export default function CreateEventPage() {
   // Price for social events
   const [price, setPrice] = useState("");
 
+  // Guest settings for social events
+  const [allowGuests, setAllowGuests] = useState(false);
+  const [maxGuestsPerMember, setMaxGuestsPerMember] = useState(2);
+
   // Duties for game events
   const [duties, setDuties] = useState<{ name: string; assignedTo: string | null }[]>([]);
   const [newDutyName, setNewDutyName] = useState("");
