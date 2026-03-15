@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, Trash2, Gift, Loader2, Pencil, Star, ImagePlus, X, Trophy, QrCode, ClipboardList, Building2 } from "lucide-react";
+import { Plus, Trash2, Gift, Loader2, Pencil, Star, ImagePlus, X, Trophy, QrCode, ClipboardList, Building2, Flame } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -97,7 +97,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
     queryFn: async () => {
       const { data, error } = await supabase
         .from("club_subscriptions")
-        .select("disable_team_pom_rewards")
+        .select("disable_team_pom_rewards, disable_points_system")
         .eq("club_id", clubId)
         .maybeSingle();
       if (error) throw error;
@@ -121,6 +121,26 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
         title: clubSubscription?.disable_team_pom_rewards 
           ? "Team admins can now create custom rewards" 
           : "Team reward overrides disabled" 
+      });
+    },
+  });
+
+  // Toggle points system setting
+  const togglePointsSystemMutation = useMutation({
+    mutationFn: async (disabled: boolean) => {
+      const { error } = await supabase
+        .from("club_subscriptions")
+        .update({ disable_points_system: disabled })
+        .eq("club_id", clubId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["club-subscription-rewards", clubId] });
+      queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+      toast({ 
+        title: clubSubscription?.disable_points_system 
+          ? "Points system enabled" 
+          : "Points system disabled" 
       });
     },
   });
@@ -436,7 +456,26 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
         </div>
       </Card>
 
-      {/* Rewards List */}
+      {/* Points System Toggle */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <Flame className="h-4 w-4 text-orange-500" />
+              <span className="font-medium text-sm">Points System</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Automatically award points for completed duties
+            </p>
+          </div>
+          <Switch
+            checked={!clubSubscription?.disable_points_system}
+            onCheckedChange={(checked) => togglePointsSystemMutation.mutate(!checked)}
+            disabled={togglePointsSystemMutation.isPending}
+          />
+        </div>
+      </Card>
+
       <div className="space-y-3">
         {isLoading ? (
           <Card className="p-8">

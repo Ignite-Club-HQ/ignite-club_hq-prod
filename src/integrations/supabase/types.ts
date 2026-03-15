@@ -1183,6 +1183,7 @@ export type Database = {
           admin_pro_override: boolean
           club_id: string
           created_at: string
+          disable_points_system: boolean
           disable_team_pom_rewards: boolean
           expires_at: string | null
           id: string
@@ -1210,6 +1211,7 @@ export type Database = {
           admin_pro_override?: boolean
           club_id: string
           created_at?: string
+          disable_points_system?: boolean
           disable_team_pom_rewards?: boolean
           expires_at?: string | null
           id?: string
@@ -1237,6 +1239,7 @@ export type Database = {
           admin_pro_override?: boolean
           club_id?: string
           created_at?: string
+          disable_points_system?: boolean
           disable_team_pom_rewards?: boolean
           expires_at?: string | null
           id?: string

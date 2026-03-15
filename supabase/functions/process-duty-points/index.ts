@@ -88,14 +88,27 @@ Deno.serve(async (req) => {
         canAwardPoints = teamSub?.is_pro === true || teamSub?.is_pro_football === true;
       }
 
+      // Check if club has disabled the points system
+      if (canAwardPoints && club?.id) {
+        const { data: clubSub } = await supabase
+          .from('club_subscriptions')
+          .select('disable_points_system')
+          .eq('club_id', club.id)
+          .maybeSingle();
+        
+        if (clubSub?.disable_points_system) {
+          canAwardPoints = false;
+        }
+      }
+
       if (!canAwardPoints) {
-        // Mark as processed but don't award points (free tier)
+        // Mark as processed but don't award points
         await supabase
           .from('duties')
           .update({ points_awarded: true })
           .eq('id', duty.id);
         processedCount++;
-        console.log(`Duty ${duty.id}: Marked as processed (free tier, no points)`);
+        console.log(`Duty ${duty.id}: Marked as processed (points not enabled)`);
         continue;
       }
 
