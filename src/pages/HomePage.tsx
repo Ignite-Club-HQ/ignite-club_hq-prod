@@ -190,7 +190,7 @@ export default function HomePage() {
   const [rewardQROpen, setRewardQROpen] = useState(false);
   const [claimDialogOpen, setClaimDialogOpen] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
-  const [earnPointsOpen, setEarnPointsOpen] = useState(() => !localStorage.getItem('earnPointsHintsSeen'));
+  const [earnPointsOpen, setEarnPointsOpen] = useState(false);
   const [selectedUpgradeClub, setSelectedUpgradeClub] = useState<string>("");
   const [remindDialogOpen, setRemindDialogOpen] = useState(false);
   const [eventToRemind, setEventToRemind] = useState<Event | null>(null);
@@ -1783,7 +1783,7 @@ export default function HomePage() {
           }
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="z-[200]">
           <AlertDialogHeader>
             <AlertDialogTitle>Redeem Reward?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -2475,15 +2475,19 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Club Sponsor Section - shown when a club is selected, or carousel when no filter */}
+      {/* Club Sponsor Section - shown when a club is selected (not class-mode), or carousel when no filter */}
       {activeClubFilter ? (
-        <ClubSponsorSection clubId={activeClubFilter} />
+        !clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled && (
+          <ClubSponsorSection clubId={activeClubFilter} />
+        )
       ) : (
         <MultiClubSponsorCarousel />
       )}
       
       {/* App Ads - shown when configured, may override or supplement sponsor carousel */}
-      <SponsorOrAdCarousel location="home" activeClubFilter={activeClubFilter} />
+      {!(activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled) && (
+        <SponsorOrAdCarousel location="home" activeClubFilter={activeClubFilter} />
+      )}
 
       {/* Pitch Board Loading Overlay */}
       {pitchBoardLoading && createPortal(

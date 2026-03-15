@@ -778,7 +778,7 @@ export default function ClubDetailPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => navigate(`/clubs/${id}/edit`)}>
                 <Pencil className="h-4 w-4 mr-2" />
-                Edit Club
+                {club?.class_mode_enabled ? "Edit Organisation" : "Edit Club"}
               </DropdownMenuItem>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -787,14 +787,14 @@ export default function ClubDetailPage() {
                     onSelect={(e) => e.preventDefault()}
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Club
+                    {club?.class_mode_enabled ? "Delete Organisation" : "Delete Club"}
                   </DropdownMenuItem>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Club?</AlertDialogTitle>
+                    <AlertDialogTitle>{club?.class_mode_enabled ? "Delete Organisation?" : "Delete Club?"}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will permanently delete the club, all teams, and events. This action cannot be undone.
+                      This will permanently delete the {club?.class_mode_enabled ? "organisation" : "club"}, all {club?.class_mode_enabled ? "classes" : "teams"}, and events. This action cannot be undone.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -876,8 +876,8 @@ export default function ClubDetailPage() {
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {isAdmin 
-                        ? "Unlock Vault, Media, Rewards & more for your club"
-                        : "Contact your club admin to unlock Pro features"
+                        ? `Unlock Vault, Media, Rewards & more for your ${club?.class_mode_enabled ? "organisation" : "club"}`
+                        : `Contact your ${club?.class_mode_enabled ? "organisation" : "club"} admin to unlock Pro features`
                       }
                     </p>
                   </div>
@@ -911,7 +911,7 @@ export default function ClubDetailPage() {
                 <Card className="hover:border-primary/50 transition-colors">
                   <CardContent className="p-4 flex flex-col items-center gap-2">
                     <MessageCircle className="h-6 w-6 text-primary" />
-                    <span className="text-sm font-medium">Club Chat</span>
+                    <span className="text-sm font-medium">{club?.class_mode_enabled ? "Group Chat" : "Club Chat"}</span>
                   </CardContent>
                 </Card>
               </Link>
@@ -925,7 +925,7 @@ export default function ClubDetailPage() {
                     </Badge>
                   </div>
                   <MessageCircle className="h-6 w-6 text-muted-foreground" />
-                  <span className="text-sm font-medium text-muted-foreground">Club Chat</span>
+                  <span className="text-sm font-medium text-muted-foreground">{club?.class_mode_enabled ? "Group Chat" : "Club Chat"}</span>
                 </CardContent>
               </Card>
             )}
@@ -963,7 +963,7 @@ export default function ClubDetailPage() {
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" />
-              <span className="text-lg font-semibold">Teams</span>
+              <span className="text-lg font-semibold">{club?.class_mode_enabled ? "Classes" : "Teams"}</span>
               {activeTeams && <Badge variant="secondary" className="ml-2">{activeTeams.length}</Badge>}
             </div>
           </AccordionTrigger>
@@ -1352,8 +1352,8 @@ export default function ClubDetailPage() {
         </Accordion>
       )}
 
-      {/* Mini Leagues Section */}
-      {(isAdmin || miniLeagues.length > 0) && (
+      {/* Mini Leagues Section - hidden for class-mode clubs */}
+      {!club?.class_mode_enabled && (isAdmin || miniLeagues.length > 0) && (
         <Accordion type="multiple" defaultValue={[]} className="space-y-4">
           <AccordionItem value="mini-leagues" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
@@ -1481,7 +1481,7 @@ export default function ClubDetailPage() {
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-primary" />
-                <span className="text-lg font-semibold">Club Members</span>
+                <span className="text-lg font-semibold">{club?.class_mode_enabled ? "Members" : "Club Members"}</span>
                 {!isMembersLoading && <Badge variant="secondary" className="ml-2">{Object.keys(clubMembers).length}</Badge>}
               </div>
             </AccordionTrigger>
@@ -1656,8 +1656,8 @@ export default function ClubDetailPage() {
           </AccordionItem>
         )}
 
-      {/* Sponsors - Pro only, Admin only */}
-      {isAdmin && (
+      {/* Sponsors - Pro only, Admin only, hidden for class-mode clubs */}
+      {isAdmin && !club?.class_mode_enabled && (
         <AccordionItem 
           value="sponsors" 
           className="border rounded-lg px-4"
