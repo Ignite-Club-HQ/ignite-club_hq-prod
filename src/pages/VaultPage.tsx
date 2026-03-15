@@ -3868,6 +3868,35 @@ export default function VaultPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Restore Confirmation */}
+      <AlertDialog open={!!restoreItemId} onOpenChange={() => setRestoreItemId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore {restoreItemType === "photo" ? "Photo" : "File"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              This {restoreItemType === "photo" ? "photo" : "file"} will be restored to its original location.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (restoreItemId) {
+                  if (restoreItemType === "photo") {
+                    restorePhotoMutation.mutate(restoreItemId);
+                  } else {
+                    restoreFileMutation.mutate(restoreItemId);
+                  }
+                  setRestoreItemId(null);
+                }
+              }}
+            >
+              Restore
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Bulk Delete Confirmation */}
       <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
         <AlertDialogContent>
