@@ -321,7 +321,8 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const newPts = (profile.ignite_points || 0) + 10;
+      const previousPts = profile.ignite_points || 0;
+      const newPts = previousPts + 10;
 
       await supabase.from('profiles').update({ ignite_points: newPts }).eq('id', rsvp.user_id);
 
