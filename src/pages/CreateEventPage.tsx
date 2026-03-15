@@ -1096,7 +1096,7 @@ export default function CreateEventPage() {
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20">
                   <span className="text-lg">🔥</span>
                   <p className="text-sm text-foreground">
-                    <span className="font-medium">Ignite Points:</span> Volunteers earn <span className="font-semibold text-primary">10 points</span> for each completed duty (Pro clubs only). Points are awarded 24 hours after the game ends.
+                    <span className="font-medium">Points:</span> Volunteers earn <span className="font-semibold text-primary">10 points</span> for each completed duty (Pro clubs only). Points are awarded 24 hours after the game ends.
                   </p>
                 </div>
                 

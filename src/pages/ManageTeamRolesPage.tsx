@@ -296,9 +296,9 @@ export default function ManageTeamRolesPage() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Reset Ignite Points?</AlertDialogTitle>
+                          <AlertDialogTitle>Reset Points?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            This will reset {profile?.display_name}'s Ignite points to 0 and remove any earned rewards.
+                            This will reset {profile?.display_name}'s points to 0 and remove any earned rewards.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

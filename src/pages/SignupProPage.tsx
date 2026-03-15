@@ -33,7 +33,7 @@ import { addMonths, addYears, isPast, parseISO } from "date-fns";
 const SPORTS = Object.keys(SPORT_EMOJIS);
 
 const PRO_FEATURES = [
-  "Ignite Points & Rewards System",
+  "Points & Rewards System",
   "Club-wide Announcements",
   "Photo & Media Uploads",
   "Vault File Storage",

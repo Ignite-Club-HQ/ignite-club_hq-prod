@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
       await supabase.from('notifications').insert({
         user_id: userId,
         type: 'points_awarded',
-        message: `🔥 Weekly engagement bonus! +${totalBonus} Ignite points for: ${reasons.join(', ')}`,
+        message: `🔥 Weekly engagement bonus! +${totalBonus} points for: ${reasons.join(', ')}`,
         related_id: clubId,
       });
 

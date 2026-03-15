@@ -738,7 +738,7 @@ export default function TeamDetailPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm">Unlock Pro Features</p>
-                <p className="text-xs text-muted-foreground">Get Ignite Points, media uploads, and more</p>
+                <p className="text-xs text-muted-foreground">Get Points & Rewards, media uploads, and more</p>
               </div>
               <Button size="sm" onClick={() => navigate(`/teams/${team.id}/upgrade`)}>
                 Upgrade

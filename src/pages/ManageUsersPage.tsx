@@ -573,8 +573,8 @@ export default function ManageUsersPage() {
         user_id: userId,
         type: "points_awarded",
         message: reason
-          ? `You received ${pointsText} Ignite points from ${clubName}: "${reason}"`
-          : `You received ${pointsText} Ignite points from ${clubName}`,
+          ? `You received ${pointsText} points from ${clubName}: "${reason}"`
+          : `You received ${pointsText} points from ${clubName}`,
         related_id: clubId,
       });
 
@@ -1818,7 +1818,7 @@ export default function ManageUsersPage() {
               Award Points
             </ResponsiveDialogTitle>
             <ResponsiveDialogDescription>
-              Award or deduct Ignite points for {awardPointsTarget?.name}
+              Award or deduct points for {awardPointsTarget?.name}
             </ResponsiveDialogDescription>
           </ResponsiveDialogHeader>
 

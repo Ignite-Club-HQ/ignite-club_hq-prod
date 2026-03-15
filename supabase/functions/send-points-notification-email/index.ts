@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
     // Subject line
     const isPositive = pointsAwarded > 0;
     const subject = isPositive
-      ? `You earned ${pointsAwarded} Ignite points!${rewardUnlocked ? ' 🎉' : ''}`
+      ? `You earned ${pointsAwarded} points!${rewardUnlocked ? ' 🎉' : ''}`
       : `Points Update from ${clubName}`;
 
     // Send email via send-email function
