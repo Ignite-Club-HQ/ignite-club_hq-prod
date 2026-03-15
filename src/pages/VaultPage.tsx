@@ -3770,8 +3770,8 @@ export default function VaultPage() {
               photos={trashItems?.photos || []}
               files={trashItems?.files || []}
               isLoading={isLoadingTrash}
-              onRestorePhoto={(id) => restorePhotoMutation.mutate(id)}
-              onRestoreFile={(id) => restoreFileMutation.mutate(id)}
+              onRestorePhoto={(id) => { setRestoreItemType("photo"); setRestoreItemId(id); }}
+              onRestoreFile={(id) => { setRestoreItemType("file"); setRestoreItemId(id); }}
               onPermanentDeletePhoto={isClubAdmin ? setDeletePhotoId : undefined}
               onPermanentDeleteFile={isClubAdmin ? setDeleteFileId : undefined}
               onEmptyTrash={isClubAdmin ? emptyTrash : undefined}
