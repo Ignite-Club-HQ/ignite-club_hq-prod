@@ -57,7 +57,9 @@ export function EventSponsorsSection({ eventId, clubId }: EventSponsorsSectionPr
             name,
             logo_url,
             description,
-            website_url
+            website_url,
+            tier,
+            display_order
           )
         `)
         .eq("event_id", eventId)
