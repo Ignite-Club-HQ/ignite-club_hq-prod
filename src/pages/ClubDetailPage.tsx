@@ -787,7 +787,7 @@ export default function ClubDetailPage() {
                     onSelect={(e) => e.preventDefault()}
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Club
+                    {club?.class_mode_enabled ? "Delete Organisation" : "Delete Club"}
                   </DropdownMenuItem>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
