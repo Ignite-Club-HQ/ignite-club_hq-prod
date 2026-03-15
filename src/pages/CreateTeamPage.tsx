@@ -403,7 +403,7 @@ export default function CreateTeamPage() {
           <Alert variant="destructive" className="max-w-md">
             <ShieldAlert className="h-4 w-4" />
             <AlertDescription>
-              Only club admins can create teams. Please contact your club administrator if you need to create a new team.
+              Only club admins can create {entityLabelLower(club)}es. Please contact your club administrator.
             </AlertDescription>
           </Alert>
         </div>
