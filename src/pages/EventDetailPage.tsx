@@ -63,6 +63,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { format, parseISO } from "date-fns";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { EventSponsorsSection } from "@/components/EventSponsorsSection";
+import { EventGuestsManager } from "@/components/EventGuestsManager";
 import { EventGroupsManager } from "@/components/EventGroupsManager";
 import { EventViewsAdminSection } from "@/components/EventViewsAdminSection";
 import { useEventViewTracking } from "@/hooks/useEventViews";
