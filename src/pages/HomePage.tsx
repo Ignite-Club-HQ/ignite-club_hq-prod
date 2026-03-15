@@ -2387,11 +2387,11 @@ export default function HomePage() {
                     icon: <span>⭐</span>,
                   })) || []),
               ]}
-              label="Select Team"
-              placeholder="Choose a team..."
+              label={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Select Class" : "Select Team"}
+              placeholder={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Choose a class..." : "Choose a team..."}
               searchable
-              searchPlaceholder="Search teams..."
-              emptyMessage="No teams found."
+              searchPlaceholder={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Search classes..." : "Search teams..."}
+              emptyMessage={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "No classes found." : "No teams found."}
             />
             {isLeagueSelected ? (
               <MobileCardSelect
