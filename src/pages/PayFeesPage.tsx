@@ -120,7 +120,7 @@ export default function PayFeesPage() {
     enabled: childIds.length > 0 && !!clubId && !!user,
   });
 
-  const selfHasPaid = !!selfPayment;
+  const selfHasPaid = selfPayment?.payment_status === 'paid';
   const feeAmount = paymentSettings?.member_subscription_amount || 0;
   const isEnabled = paymentSettings?.member_payments_enabled && feeAmount > 0;
 
