@@ -177,6 +177,17 @@ export default function CreateEventPage() {
     }
   }, [activeClubFilter, clubs, filteredClubs, clubId]);
 
+  // Apply club guest defaults when club is selected
+  useEffect(() => {
+    if (clubId && clubs) {
+      const selectedClub = clubs.find((c: any) => c.id === clubId);
+      if (selectedClub) {
+        setAllowGuests(selectedClub.allow_guests_default || false);
+        setMaxGuestsPerMember(selectedClub.max_guests_per_member_default || 2);
+      }
+    }
+  }, [clubId, clubs]);
+
   // Check if user is a club admin for the selected club
   const { data: isClubAdminForSelectedClub } = useQuery({
     queryKey: ["is-club-admin-for-event", clubId, user?.id],
