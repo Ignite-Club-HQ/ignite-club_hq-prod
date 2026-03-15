@@ -179,8 +179,8 @@ export default function CreateTeamPage() {
     if (existingTeam) {
       setSaving(false);
       toast({
-        title: "Team name already exists",
-        description: `A team called "${name.trim()}" already exists in this club. Please choose a different name.`,
+        title: `${entityLabel(club)} name already exists`,
+        description: `A ${entityLabelLower(club)} called "${name.trim()}" already exists in this club. Please choose a different name.`,
         variant: "destructive",
       });
       return;
