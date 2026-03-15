@@ -254,8 +254,36 @@ export default function MiniLeagueDetailPage() {
   // Delete player mutation
   const deletePlayerMutation = useMutation({
     mutationFn: async (playerId: string) => {
+      // Get the player's child_id before deleting
+      const { data: player } = await supabase
+        .from("mini_league_players")
+        .select("child_id")
+        .eq("id", playerId)
+        .single();
+
+      // Delete legacy player record
       const { error } = await supabase.from("mini_league_players").delete().eq("id", playerId);
       if (error) throw error;
+
+      // Clean up child_mini_league_assignments and children if child_id exists
+      if (player?.child_id) {
+        await supabase
+          .from("child_mini_league_assignments")
+          .delete()
+          .eq("child_id", player.child_id)
+          .eq("mini_league_id", id!);
+
+        // Check if child has any other assignments or team assignments
+        const [{ count: leagueCount }, { count: teamCount }] = await Promise.all([
+          supabase.from("child_mini_league_assignments").select("id", { count: "exact", head: true }).eq("child_id", player.child_id),
+          supabase.from("child_team_assignments").select("id", { count: "exact", head: true }).eq("child_id", player.child_id),
+        ]);
+
+        // Only delete child if they have no other assignments
+        if ((leagueCount || 0) === 0 && (teamCount || 0) === 0) {
+          await supabase.from("children").delete().eq("id", player.child_id);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mini-league-players", id] });
@@ -267,11 +295,42 @@ export default function MiniLeagueDetailPage() {
   // Bulk delete players mutation
   const bulkDeletePlayersMutation = useMutation({
     mutationFn: async (playerIds: string[]) => {
+      // Get child_ids before deleting
+      const { data: playersToDelete } = await supabase
+        .from("mini_league_players")
+        .select("id, child_id")
+        .in("id", playerIds);
+
+      const childIds = (playersToDelete || [])
+        .map(p => p.child_id)
+        .filter(Boolean) as string[];
+
+      // Delete legacy player records
       const { error } = await supabase
         .from("mini_league_players")
         .delete()
         .in("id", playerIds);
       if (error) throw error;
+
+      // Clean up child_mini_league_assignments
+      if (childIds.length > 0) {
+        await supabase
+          .from("child_mini_league_assignments")
+          .delete()
+          .in("child_id", childIds)
+          .eq("mini_league_id", id!);
+
+        // Check each child for remaining assignments before deleting
+        for (const childId of childIds) {
+          const [{ count: leagueCount }, { count: teamCount }] = await Promise.all([
+            supabase.from("child_mini_league_assignments").select("id", { count: "exact", head: true }).eq("child_id", childId),
+            supabase.from("child_team_assignments").select("id", { count: "exact", head: true }).eq("child_id", childId),
+          ]);
+          if ((leagueCount || 0) === 0 && (teamCount || 0) === 0) {
+            await supabase.from("children").delete().eq("id", childId);
+          }
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mini-league-players", id] });
@@ -279,6 +338,30 @@ export default function MiniLeagueDetailPage() {
       setSelectionMode(false);
       setBulkDeleteOpen(false);
       toast.success("Players removed");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  // Update ability rating mutation
+  const updateAbilityMutation = useMutation({
+    mutationFn: async ({ playerId, childId, newRating }: { playerId: string; childId: string | null; newRating: number }) => {
+      const { error } = await supabase
+        .from("mini_league_players")
+        .update({ ability_rating: newRating })
+        .eq("id", playerId);
+      if (error) throw error;
+
+      // Also update child_mini_league_assignments if child exists
+      if (childId) {
+        await supabase
+          .from("child_mini_league_assignments")
+          .update({ ability_rating: newRating })
+          .eq("child_id", childId)
+          .eq("mini_league_id", id!);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mini-league-players", id] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -401,9 +484,11 @@ export default function MiniLeagueDetailPage() {
           <h1 className="text-xl font-bold truncate">{league.name}</h1>
           <p className="text-sm text-muted-foreground truncate">{league.club?.name}</p>
         </div>
-        <Button variant="outline" size="icon" className="shrink-0" onClick={openSettings}>
-          <Settings className="h-4 w-4" />
-        </Button>
+        {canManageLeague && (
+          <Button variant="outline" size="icon" className="shrink-0" onClick={openSettings}>
+            <Settings className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       {league.description && (
@@ -570,34 +655,38 @@ export default function MiniLeagueDetailPage() {
           <div className="flex justify-between items-center gap-2">
             <h2 className="text-base font-semibold">Player Pool</h2>
             <div className="flex items-center gap-2">
-              {selectionMode ? (
+              {canManageLeague && (
                 <>
-                  <Button variant="ghost" size="sm" onClick={exitSelectionMode}>
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={selectedPlayerIds.size === 0}
-                    onClick={() => setBulkDeleteOpen(true)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1.5" />
-                    Delete ({selectedPlayerIds.size})
-                  </Button>
-                </>
-              ) : (
-                <>
-                  {(players?.length || 0) > 0 && (
-                    <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
-                      <CheckSquare className="h-4 w-4 mr-1.5" />
-                      Select
-                    </Button>
+                  {selectionMode ? (
+                    <>
+                      <Button variant="ghost" size="sm" onClick={exitSelectionMode}>
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={selectedPlayerIds.size === 0}
+                        onClick={() => setBulkDeleteOpen(true)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1.5" />
+                        Delete ({selectedPlayerIds.size})
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      {(players?.length || 0) > 0 && (
+                        <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
+                          <CheckSquare className="h-4 w-4 mr-1.5" />
+                          Select
+                        </Button>
+                      )}
+                      <AddMiniLeagueMemberSheet
+                        miniLeagueId={id!}
+                        miniLeagueName={league.name}
+                        clubId={league.club_id}
+                      />
+                    </>
                   )}
-                  <AddMiniLeagueMemberSheet
-                    miniLeagueId={id!}
-                    miniLeagueName={league.name}
-                    clubId={league.club_id}
-                  />
                 </>
               )}
             </div>
@@ -661,13 +750,23 @@ export default function MiniLeagueDetailPage() {
                                   />
                                 )}
                                 <div className="flex items-center gap-0.5 shrink-0">
-                                  {Array.from({ length: rating }).map((_, i) => (
-                                    <Star key={i} className="h-2.5 w-2.5 fill-primary text-primary" />
+                                  {Array.from({ length: 5 }).map((_, i) => (
+                                    <Star
+                                      key={i}
+                                      className={`h-3 w-3 ${i < player.ability_rating ? 'fill-primary text-primary' : 'text-muted-foreground/30'} ${canManageLeague && !selectionMode ? 'cursor-pointer hover:scale-125 transition-transform' : ''}`}
+                                      onClick={canManageLeague && !selectionMode ? (e) => {
+                                        e.stopPropagation();
+                                        const newRating = i + 1;
+                                        if (newRating !== player.ability_rating) {
+                                          updateAbilityMutation.mutate({ playerId: player.id, childId: player.child_id, newRating });
+                                        }
+                                      } : undefined}
+                                    />
                                   ))}
                                 </div>
                                 <span className="text-sm font-medium truncate">{player.name}</span>
                               </div>
-                              {!selectionMode && (
+                              {!selectionMode && canManageLeague && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
