@@ -271,8 +271,8 @@ export default function CreateTeamPage() {
         });
       } else {
         toast({
-          title: "Team created!",
-          description: `${adminAssignment.userDisplayName} has been assigned as Team Admin.`,
+          title: `${entityLabel(club)} created!`,
+          description: `${adminAssignment.userDisplayName} has been assigned as ${entityLabel(club)} Admin.`,
         });
       }
       navigate(`/teams/${team.id}`);
