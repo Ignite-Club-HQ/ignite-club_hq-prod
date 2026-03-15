@@ -896,6 +896,42 @@ export default function CreateEventPage() {
                 </div>
               )}
 
+              {/* Guest settings - only for social events, only for club admins */}
+              {type === "social" && isClubAdminForSelectedClub && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <Label htmlFor="allow-guests" className="flex items-center gap-2">
+                        <UserPlus className="h-4 w-4" />
+                        Allow Guests
+                      </Label>
+                      <span className="text-xs text-muted-foreground">
+                        Members can add non-member guests
+                      </span>
+                    </div>
+                    <Switch
+                      id="allow-guests"
+                      checked={allowGuests}
+                      onCheckedChange={setAllowGuests}
+                    />
+                  </div>
+                  {allowGuests && (
+                    <div className="space-y-2 pl-6">
+                      <Label htmlFor="max-guests">Max guests per member</Label>
+                      <Input
+                        id="max-guests"
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={maxGuestsPerMember}
+                        onChange={(e) => setMaxGuestsPerMember(parseInt(e.target.value) || 1)}
+                        className="w-24"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Description */}
               <div className="space-y-2">
                 <Label htmlFor="description">Description <span className="text-muted-foreground text-xs">(optional)</span></Label>
