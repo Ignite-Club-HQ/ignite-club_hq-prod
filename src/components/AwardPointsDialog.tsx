@@ -40,6 +40,7 @@ export default function AwardPointsDialog({
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const pointsName = usePointsDisplayName(clubId);
   const [open, setOpen] = useState(false);
   const [points, setPoints] = useState(10);
   const [reason, setReason] = useState("");
