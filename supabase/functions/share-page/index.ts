@@ -180,6 +180,25 @@ Deno.serve(async (req) => {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Resolve image URL with a timeout to avoid blocking crawlers */
+async function resolveWithTimeout(
+  supabase: ReturnType<typeof createClient>,
+  rawUrl: string | null | undefined,
+  timeoutMs: number,
+): Promise<string | null> {
+  if (!rawUrl) return null;
+  try {
+    const result = await Promise.race([
+      resolvePreviewImageUrl(supabase, rawUrl),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+    return result;
+  } catch (err) {
+    console.warn("resolveWithTimeout failed:", err);
+    return null;
+  }
+}
+
 async function resolvePreviewImageUrl(
   supabase: ReturnType<typeof createClient>,
   rawUrl: string | null | undefined,
