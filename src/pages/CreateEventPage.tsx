@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, MapPin, Repeat, Bell, ChevronDown, Calendar, FileText, DollarSign, ClipboardList, Plus, X, User, Star, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, MapPin, Repeat, Bell, ChevronDown, Calendar, FileText, DollarSign, ClipboardList, Plus, X, User, Star, Trash2, UserPlus } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
