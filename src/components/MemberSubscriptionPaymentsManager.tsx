@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, CreditCard, X, Loader2, ExternalLink, Shirt } from "lucide-react";
+import { Check, CreditCard, X, Loader2, ExternalLink, Shirt, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
