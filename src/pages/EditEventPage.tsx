@@ -466,6 +466,8 @@ export default function EditEventPage() {
         club_id: selectedClubId,
         team_id: selectedTeamId || null,
         opponent: type === "game" ? opponent.trim() || null : null,
+        allow_guests: type === "social" && allowGuests ? true : null,
+        max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
       };
 
       // If converting single event to recurring series
