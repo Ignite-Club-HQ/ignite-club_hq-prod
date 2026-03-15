@@ -831,7 +831,7 @@ export default function ClubUpgradePage() {
               <p className="text-sm text-destructive text-center">
                 Your payment failed. Please update your payment method{!isNative ? " or find a sponsor" : ""}.
               </p>
-              {!isNative && (
+              {!isNative && !isClassMode && (
                 <Button variant="outline" size="sm" onClick={handleGetSponsored} className="w-full">
                   <Heart className="h-4 w-4 mr-2 text-pink-500" />
                   Get Sponsored
