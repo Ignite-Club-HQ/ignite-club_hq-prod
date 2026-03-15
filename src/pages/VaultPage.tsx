@@ -1828,16 +1828,17 @@ export default function VaultPage() {
     let errorCount = 0;
 
     try {
-      // Soft delete photos
+      // Soft delete photos (vault photos are stored in vault_files)
       for (const photo of selectedPhotoItems) {
         try {
-          const { error } = await supabase.from("photos")
+          const { error } = await supabase.from("vault_files")
             .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id })
             .eq("id", photo.id);
           if (error) throw error;
           removePhotoFromCache(photo.id);
           deletedCount++;
-        } catch {
+        } catch (e) {
+          console.error("Failed to soft-delete photo", photo.id, e);
           errorCount++;
         }
       }
@@ -1850,7 +1851,8 @@ export default function VaultPage() {
             .eq("id", file.id);
           if (error) throw error;
           deletedCount++;
-        } catch {
+        } catch (e) {
+          console.error("Failed to soft-delete file", file.id, e);
           errorCount++;
         }
       }
