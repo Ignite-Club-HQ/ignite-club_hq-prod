@@ -1763,7 +1763,7 @@ serve(async (req) => {
         if (appAdminIds.size > 0) {
           await supabase
             .from("profiles")
-            .update({ ignite_points: 0, has_sausage_reward: false })
+            .update({ ignite_points: 0 })
             .in("id", Array.from(appAdminIds));
           
           // Delete any duties assigned to app_admins
