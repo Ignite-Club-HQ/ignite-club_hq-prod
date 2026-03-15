@@ -129,7 +129,7 @@ export default function PlayerOfMatchSelector({
         child_id: childId || null,
         awarded_by: user!.id,
         points_awarded: pointsToAward,
-      });
+      } as any);
 
       if (pomError) throw pomError;
 
