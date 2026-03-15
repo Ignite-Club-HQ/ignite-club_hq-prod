@@ -23,8 +23,6 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 // Rate limiting - stricter for admin operations
 const RATE_LIMIT_WINDOW_SECONDS = 300; // 5 minute window
