@@ -19,6 +19,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
+type TeamType = "junior" | "senior" | "mixed";
+
 export default function ClassEnrolmentPage() {
   const { clubId } = useParams<{ clubId: string }>();
   const { user } = useAuth();
@@ -64,24 +66,39 @@ export default function ClassEnrolmentPage() {
   const activeTerm = terms.find((t) => t.id === selectedTermId) || terms[0];
   const termId = activeTerm?.id;
 
-  // Fetch classes (teams with class fields) for this club
+  // Fetch classes (teams with class fields) for this club - include team_type
   const { data: classes = [], isLoading: classesLoading } = useQuery({
     queryKey: ["club-classes", clubId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("id, name, class_day, class_time, class_duration_minutes, class_capacity, level_age, logo_url")
+        .select("id, name, class_day, class_time, class_duration_minutes, class_capacity, level_age, logo_url, team_type")
         .eq("club_id", clubId!)
         .not("class_day", "is", null)
         .order("class_day")
         .order("class_time");
       if (error) throw error;
-      return data;
+      return data as Array<{
+        id: string;
+        name: string;
+        class_day: string | null;
+        class_time: string | null;
+        class_duration_minutes: number | null;
+        class_capacity: number | null;
+        level_age: string | null;
+        logo_url: string | null;
+        team_type: TeamType;
+      }>;
     },
     enabled: !!clubId,
   });
 
-  // Fetch user's children
+  // Determine if any class allows child enrolment (junior or mixed)
+  const hasChildClasses = classes.some((c) => c.team_type === "junior" || c.team_type === "mixed");
+  // Determine if any class allows adult enrolment (senior or mixed)
+  const hasAdultClasses = classes.some((c) => c.team_type === "senior" || c.team_type === "mixed");
+
+  // Fetch user's children (only needed if there are junior/mixed classes)
   const { data: children = [] } = useQuery({
     queryKey: ["my-children", user?.id],
     queryFn: async () => {
@@ -93,13 +110,13 @@ export default function ClassEnrolmentPage() {
       if (error) throw error;
       return data;
     },
-    enabled: !!user,
+    enabled: !!user && hasChildClasses,
   });
 
-  // Fetch existing enrolments for the selected term
+  // Fetch existing child enrolments for the selected term
   const childIds = children.map((c) => c.id);
-  const { data: enrolments = [] } = useQuery({
-    queryKey: ["class-enrolments", termId, user?.id, childIds],
+  const { data: childEnrolments = [] } = useQuery({
+    queryKey: ["class-enrolments-children", termId, user?.id, childIds],
     queryFn: async () => {
       if (!termId || childIds.length === 0) return [];
       const { data, error } = await supabase
@@ -112,6 +129,25 @@ export default function ClassEnrolmentPage() {
     },
     enabled: !!termId && childIds.length > 0,
   });
+
+  // Fetch existing adult (self) enrolments for the selected term
+  const { data: selfEnrolments = [] } = useQuery({
+    queryKey: ["class-enrolments-self", termId, user?.id],
+    queryFn: async () => {
+      if (!termId || !user) return [];
+      const { data, error } = await supabase
+        .from("class_enrolments")
+        .select("*")
+        .eq("term_id", termId)
+        .eq("user_id", user.id);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!termId && !!user && hasAdultClasses,
+  });
+
+  // Combined enrolments for display
+  const allEnrolments = [...childEnrolments, ...selfEnrolments];
 
   // Fetch enrolment counts per class for capacity check
   const { data: enrolmentCounts = {} } = useQuery({
@@ -138,18 +174,16 @@ export default function ClassEnrolmentPage() {
     enabled: !!termId && classes.length > 0,
   });
 
-  // Enrol mutation
-  const enrolMutation = useMutation({
+  // Enrol child mutation
+  const enrolChildMutation = useMutation({
     mutationFn: async ({ childId, teamId }: { childId: string; teamId: string }) => {
       if (!termId) throw new Error("No term selected");
 
-      // Check capacity
       const cls = classes.find((c) => c.id === teamId);
       const currentCount = enrolmentCounts[teamId] || 0;
       const isFull = cls?.class_capacity && currentCount >= cls.class_capacity;
       const status = isFull ? "waitlisted" : "enrolled";
 
-      // Get waitlist position if waitlisted
       let waitlistPosition: number | null = null;
       if (status === "waitlisted") {
         const { count } = await supabase
@@ -172,7 +206,7 @@ export default function ClassEnrolmentPage() {
       return { status };
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["class-enrolments"] });
+      queryClient.invalidateQueries({ queryKey: ["class-enrolments-children"] });
       queryClient.invalidateQueries({ queryKey: ["class-enrolment-counts"] });
       setEnrollingClassId(null);
       toast({
@@ -188,7 +222,62 @@ export default function ClassEnrolmentPage() {
       toast({
         title: isDuplicate ? "Already enrolled" : "Enrolment failed",
         description: isDuplicate
-          ? "This child is already enrolled in this class for the selected term."
+          ? "Already enrolled in this class for the selected term."
+          : "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Enrol self (adult) mutation
+  const enrolSelfMutation = useMutation({
+    mutationFn: async ({ teamId }: { teamId: string }) => {
+      if (!termId || !user) throw new Error("No term selected or not logged in");
+
+      const cls = classes.find((c) => c.id === teamId);
+      const currentCount = enrolmentCounts[teamId] || 0;
+      const isFull = cls?.class_capacity && currentCount >= cls.class_capacity;
+      const status = isFull ? "waitlisted" : "enrolled";
+
+      let waitlistPosition: number | null = null;
+      if (status === "waitlisted") {
+        const { count } = await supabase
+          .from("class_enrolments")
+          .select("*", { count: "exact", head: true })
+          .eq("term_id", termId)
+          .eq("team_id", teamId)
+          .eq("status", "waitlisted");
+        waitlistPosition = (count || 0) + 1;
+      }
+
+      const { error } = await supabase.from("class_enrolments").insert({
+        user_id: user.id,
+        team_id: teamId,
+        term_id: termId,
+        status,
+        waitlist_position: waitlistPosition,
+      });
+      if (error) throw error;
+      return { status };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["class-enrolments-self"] });
+      queryClient.invalidateQueries({ queryKey: ["class-enrolment-counts"] });
+      setEnrollingClassId(null);
+      toast({
+        title: result.status === "enrolled" ? "Enrolled!" : "Added to waitlist",
+        description: result.status === "enrolled"
+          ? "You have been enrolled in the class."
+          : "The class is full. You have been added to the waitlist.",
+      });
+    },
+    onError: (error: any) => {
+      setEnrollingClassId(null);
+      const isDuplicate = error?.code === "23505" || error?.message?.includes("duplicate");
+      toast({
+        title: isDuplicate ? "Already enrolled" : "Enrolment failed",
+        description: isDuplicate
+          ? "You are already enrolled in this class for the selected term."
           : "Please try again.",
         variant: "destructive",
       });
@@ -205,18 +294,27 @@ export default function ClassEnrolmentPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["class-enrolments"] });
+      queryClient.invalidateQueries({ queryKey: ["class-enrolments-children"] });
+      queryClient.invalidateQueries({ queryKey: ["class-enrolments-self"] });
       queryClient.invalidateQueries({ queryKey: ["class-enrolment-counts"] });
       toast({ title: "Withdrawn from class" });
     },
   });
 
-  const getEnrolment = (childId: string, teamId: string) =>
-    enrolments.find((e) => e.child_id === childId && e.team_id === teamId && e.status !== "withdrawn");
+  const getChildEnrolment = (childId: string, teamId: string) =>
+    childEnrolments.find((e) => e.child_id === childId && e.team_id === teamId && e.status !== "withdrawn");
+
+  const getSelfEnrolment = (teamId: string) =>
+    selfEnrolments.find((e) => (e as any).user_id === user?.id && e.team_id === teamId && e.status !== "withdrawn");
 
   const [selectedChildId, setSelectedChildId] = useState<string>("");
 
   const isLoading = termsLoading || classesLoading;
+
+  // Helper: does this class allow child enrolment?
+  const allowsChildren = (teamType: TeamType) => teamType === "junior" || teamType === "mixed";
+  // Helper: does this class allow adult self-enrolment?
+  const allowsAdults = (teamType: TeamType) => teamType === "senior" || teamType === "mixed";
 
   if (isLoading) {
     return (
@@ -241,7 +339,8 @@ export default function ClassEnrolmentPage() {
         </div>
       </div>
 
-      {children.length === 0 && (
+      {/* Alert: no children for junior/mixed classes */}
+      {hasChildClasses && children.length === 0 && !hasAdultClasses && (
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
@@ -283,8 +382,8 @@ export default function ClassEnrolmentPage() {
         </div>
       )}
 
-      {/* Child Selector */}
-      {children.length > 1 && (
+      {/* Child Selector - only shown if there are junior/mixed classes and user has children */}
+      {hasChildClasses && children.length > 1 && (
         <div className="space-y-2">
           <label className="text-sm font-medium">Select Child</label>
           <Select value={selectedChildId || children[0]?.id || ""} onValueChange={setSelectedChildId}>
@@ -314,8 +413,12 @@ export default function ClassEnrolmentPage() {
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-muted-foreground">Available Classes</h3>
           {classes.map((cls) => {
+            const teamType = cls.team_type || "mixed";
+            const canEnrolChild = allowsChildren(teamType);
+            const canEnrolSelf = allowsAdults(teamType);
             const activeChild = selectedChildId || children[0]?.id;
-            const existing = activeChild ? getEnrolment(activeChild, cls.id) : null;
+            const childExisting = canEnrolChild && activeChild ? getChildEnrolment(activeChild, cls.id) : null;
+            const selfExisting = canEnrolSelf ? getSelfEnrolment(cls.id) : null;
             const count = enrolmentCounts[cls.id] || 0;
             const isFull = cls.class_capacity ? count >= cls.class_capacity : false;
             const isEnrolling = enrollingClassId === cls.id;
@@ -351,31 +454,36 @@ export default function ClassEnrolmentPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="shrink-0">
-                      {existing ? (
-                        <div className="flex flex-col items-end gap-1.5">
-                          <Badge variant={existing.status === "enrolled" ? "default" : "secondary"}>
-                            {existing.status === "enrolled" ? "Enrolled" : `Waitlisted #${existing.waitlist_position}`}
+                  </div>
+
+                  {/* Adult self-enrolment section */}
+                  {canEnrolSelf && termId && (
+                    <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                      <span className="text-sm text-muted-foreground">Your enrolment</span>
+                      {selfExisting ? (
+                        <div className="flex items-center gap-2">
+                          <Badge variant={selfExisting.status === "enrolled" ? "default" : "secondary"}>
+                            {selfExisting.status === "enrolled" ? "Enrolled" : `Waitlisted #${selfExisting.waitlist_position}`}
                           </Badge>
                           <Button
                             variant="ghost"
                             size="sm"
                             className="text-destructive hover:text-destructive h-7 text-xs"
-                            onClick={() => withdrawMutation.mutate(existing.id)}
+                            onClick={() => withdrawMutation.mutate(selfExisting.id)}
                             disabled={withdrawMutation.isPending}
                           >
                             Withdraw
                           </Button>
                         </div>
-                      ) : activeChild && termId ? (
+                      ) : (
                         <Button
                           size="sm"
                           variant={isFull ? "outline" : "default"}
                           onClick={() => {
                             setEnrollingClassId(cls.id);
-                            enrolMutation.mutate({ childId: activeChild, teamId: cls.id });
+                            enrolSelfMutation.mutate({ teamId: cls.id });
                           }}
-                          disabled={isEnrolling || enrolMutation.isPending || !activeChild}
+                          disabled={isEnrolling || enrolSelfMutation.isPending}
                         >
                           {isEnrolling ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -386,9 +494,63 @@ export default function ClassEnrolmentPage() {
                             </>
                           )}
                         </Button>
-                      ) : null}
+                      )}
                     </div>
-                  </div>
+                  )}
+
+                  {/* Child enrolment section */}
+                  {canEnrolChild && activeChild && termId && (
+                    <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                      <span className="text-sm text-muted-foreground">
+                        {children.find((c) => c.id === activeChild)?.name || "Child"}
+                      </span>
+                      {childExisting ? (
+                        <div className="flex items-center gap-2">
+                          <Badge variant={childExisting.status === "enrolled" ? "default" : "secondary"}>
+                            {childExisting.status === "enrolled" ? "Enrolled" : `Waitlisted #${childExisting.waitlist_position}`}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive h-7 text-xs"
+                            onClick={() => withdrawMutation.mutate(childExisting.id)}
+                            disabled={withdrawMutation.isPending}
+                          >
+                            Withdraw
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant={isFull ? "outline" : "default"}
+                          onClick={() => {
+                            setEnrollingClassId(cls.id);
+                            enrolChildMutation.mutate({ childId: activeChild, teamId: cls.id });
+                          }}
+                          disabled={isEnrolling || enrolChildMutation.isPending}
+                        >
+                          {isEnrolling ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <UserPlus className="h-4 w-4 mr-1" />
+                              {isFull ? "Join Waitlist" : "Enrol"}
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Show hint if no children added but class supports children */}
+                  {canEnrolChild && !canEnrolSelf && children.length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">
+                      <Button variant="link" className="h-auto p-0 text-xs" onClick={() => navigate("/children")}>
+                        Add a child profile
+                      </Button>{" "}
+                      to enrol.
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             );

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
 import { Users, Loader2, UserMinus, Clock, CalendarDays } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +57,7 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("id, name, class_day, class_time, class_capacity, level_age")
+        .select("id, name, class_day, class_time, class_capacity, level_age, team_type")
         .eq("club_id", clubId)
         .not("class_day", "is", null)
         .order("class_day")
@@ -68,14 +67,14 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
     },
   });
 
-  // Fetch all enrolments for the selected term with child names
+  // Fetch all enrolments for the selected term with child names and user profiles
   const { data: enrolments = [], isLoading } = useQuery({
     queryKey: ["admin-enrolments", termId],
     queryFn: async () => {
       if (!termId) return [];
       const { data, error } = await supabase
         .from("class_enrolments")
-        .select("*, children (name, parent_id)")
+        .select("*, children (name, parent_id), profiles:user_id (display_name)")
         .eq("term_id", termId)
         .neq("status", "withdrawn")
         .order("created_at", { ascending: true });
@@ -96,9 +95,27 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-enrolments"] });
-      toast({ title: "Student withdrawn" });
+      toast({ title: "Member withdrawn" });
     },
   });
+
+  // Helper to get display name from an enrolment
+  const getEnrolmentName = (enrolment: any): string => {
+    if (enrolment.child_id && enrolment.children?.name) {
+      return enrolment.children.name;
+    }
+    if (enrolment.user_id && enrolment.profiles?.display_name) {
+      return enrolment.profiles.display_name;
+    }
+    return "Unknown";
+  };
+
+  // Helper to get enrolment type label
+  const getEnrolmentTypeLabel = (enrolment: any): string | null => {
+    if (enrolment.child_id) return "Child";
+    if (enrolment.user_id) return "Adult";
+    return null;
+  };
 
   if (terms.length === 0) {
     return (
@@ -175,72 +192,90 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
                     <p className="text-xs text-muted-foreground italic">No enrolments yet</p>
                   ) : (
                     <div className="space-y-1">
-                      {enrolled.map((e) => (
-                        <div key={e.id} className="flex items-center justify-between text-sm py-1 px-2 rounded bg-muted/50">
-                          <span>{(e as any).children?.name || "Unknown"}</span>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="default" className="text-[10px] h-5">Enrolled</Badge>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive">
-                                  <UserMinus className="h-3 w-3" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Withdraw student?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will remove {(e as any).children?.name} from {cls.name}. The next waitlisted student will be automatically promoted.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => withdrawMutation.mutate(e.id)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Withdraw
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
+                      {enrolled.map((e) => {
+                        const name = getEnrolmentName(e);
+                        const typeLabel = getEnrolmentTypeLabel(e);
+                        return (
+                          <div key={e.id} className="flex items-center justify-between text-sm py-1 px-2 rounded bg-muted/50">
+                            <div className="flex items-center gap-2">
+                              <span>{name}</span>
+                              {typeLabel && (
+                                <span className="text-[10px] text-muted-foreground">({typeLabel})</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="default" className="text-[10px] h-5">Enrolled</Badge>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive">
+                                    <UserMinus className="h-3 w-3" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Withdraw member?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will remove {name} from {cls.name}. The next waitlisted member will be automatically promoted.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => withdrawMutation.mutate(e.id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Withdraw
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                      {waitlisted.map((e) => (
-                        <div key={e.id} className="flex items-center justify-between text-sm py-1 px-2 rounded bg-muted/30">
-                          <span className="text-muted-foreground">{(e as any).children?.name || "Unknown"}</span>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="text-[10px] h-5">
-                              Waitlist #{e.waitlist_position}
-                            </Badge>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive">
-                                  <UserMinus className="h-3 w-3" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Remove from waitlist?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will remove {(e as any).children?.name} from the waitlist for {cls.name}.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => withdrawMutation.mutate(e.id)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Remove
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
+                        );
+                      })}
+                      {waitlisted.map((e) => {
+                        const name = getEnrolmentName(e);
+                        const typeLabel = getEnrolmentTypeLabel(e);
+                        return (
+                          <div key={e.id} className="flex items-center justify-between text-sm py-1 px-2 rounded bg-muted/30">
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground">{name}</span>
+                              {typeLabel && (
+                                <span className="text-[10px] text-muted-foreground">({typeLabel})</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className="text-[10px] h-5">
+                                Waitlist #{e.waitlist_position}
+                              </Badge>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive">
+                                    <UserMinus className="h-3 w-3" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Remove from waitlist?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will remove {name} from the waitlist for {cls.name}.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => withdrawMutation.mutate(e.id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Remove
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </CardContent>

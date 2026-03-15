@@ -835,7 +835,7 @@ export type Database = {
       }
       class_enrolments: {
         Row: {
-          child_id: string
+          child_id: string | null
           created_at: string
           enrolled_at: string
           id: string
@@ -843,11 +843,12 @@ export type Database = {
           team_id: string
           term_id: string
           updated_at: string
+          user_id: string | null
           waitlist_position: number | null
           withdrawn_at: string | null
         }
         Insert: {
-          child_id: string
+          child_id?: string | null
           created_at?: string
           enrolled_at?: string
           id?: string
@@ -855,11 +856,12 @@ export type Database = {
           team_id: string
           term_id: string
           updated_at?: string
+          user_id?: string | null
           waitlist_position?: number | null
           withdrawn_at?: string | null
         }
         Update: {
-          child_id?: string
+          child_id?: string | null
           created_at?: string
           enrolled_at?: string
           id?: string
@@ -867,6 +869,7 @@ export type Database = {
           team_id?: string
           term_id?: string
           updated_at?: string
+          user_id?: string | null
           waitlist_position?: number | null
           withdrawn_at?: string | null
         }
@@ -890,6 +893,13 @@ export type Database = {
             columns: ["term_id"]
             isOneToOne: false
             referencedRelation: "terms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_enrolments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
