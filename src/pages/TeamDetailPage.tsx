@@ -722,6 +722,24 @@ export default function TeamDetailPage() {
         </CardContent>
       </Card>
 
+      {/* Enrolment Link for Class-mode teams */}
+      {team.clubs?.class_mode_enabled && team.class_day && (
+        <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10 hover:border-primary/50 transition-colors cursor-pointer"
+          onClick={() => navigate(`/clubs/${team.club_id}/enrol`)}
+        >
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Calendar className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm">Enrol in this Class</p>
+              <p className="text-xs text-muted-foreground">View availability and enrol your child</p>
+            </div>
+            <ArrowLeft className="h-4 w-4 text-muted-foreground rotate-180" />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Team Sponsor Display */}
       {team.sponsor_id && (
         <PrimarySponsorDisplay sponsorId={team.sponsor_id} variant="full" context="team_page" />
