@@ -80,6 +80,7 @@ import { ClubDMSettings } from "@/components/ClubDMSettings";
 import { Palette, CalendarDays, BookOpen } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
 import { TermsManager } from "@/components/TermsManager";
+import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
 
 type ClubRole = "club_admin";
 
