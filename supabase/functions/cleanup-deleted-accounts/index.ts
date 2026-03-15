@@ -6,6 +6,24 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/**
+ * Extracts the storage path from a full Supabase storage URL.
+ */
+function extractStoragePath(url: string, bucket: string): string | null {
+  const patterns = [
+    `/storage/v1/object/public/${bucket}/`,
+    `/storage/v1/object/sign/${bucket}/`,
+    `/storage/v1/object/${bucket}/`,
+  ];
+  for (const pattern of patterns) {
+    const idx = url.indexOf(pattern);
+    if (idx !== -1) {
+      return decodeURIComponent(url.substring(idx + pattern.length).split("?")[0]);
+    }
+  }
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -52,17 +70,84 @@ serve(async (req) => {
     }
 
     let deletedCount = 0;
+    let storageFilesRemoved = 0;
     const errors: string[] = [];
 
     for (const account of accountsToDelete) {
-      const { error: deleteError } = await adminClient.auth.admin.deleteUser(account.id);
-      
-      if (deleteError) {
-        console.error(`Error deleting user ${account.id}:`, deleteError);
-        errors.push(`${account.id}: ${deleteError.message}`);
-      } else {
-        console.log(`Successfully deleted user ${account.id}`);
-        deletedCount++;
+      try {
+        // 1. Delete user's photos from storage
+        const { data: userPhotos } = await adminClient
+          .from("photos")
+          .select("id, image_url, file_url")
+          .eq("uploader_id", account.id);
+
+        if (userPhotos) {
+          for (const photo of userPhotos) {
+            const url = photo.file_url || photo.image_url;
+            if (url) {
+              const storagePath = extractStoragePath(url, "photos");
+              if (storagePath) {
+                const { error: storageError } = await adminClient.storage
+                  .from("photos")
+                  .remove([storagePath]);
+                if (!storageError) storageFilesRemoved++;
+              }
+            }
+          }
+        }
+
+        // 2. Delete user's vault files from storage
+        const { data: userFiles } = await adminClient
+          .from("vault_files")
+          .select("id, file_url, is_external_link")
+          .eq("uploaded_by", account.id);
+
+        if (userFiles) {
+          for (const file of userFiles) {
+            if (!file.is_external_link && file.file_url) {
+              for (const bucket of ["photos", "vault-files"]) {
+                const storagePath = extractStoragePath(file.file_url, bucket);
+                if (storagePath) {
+                  const { error: storageError } = await adminClient.storage
+                    .from(bucket)
+                    .remove([storagePath]);
+                  if (!storageError) {
+                    storageFilesRemoved++;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // 3. Delete user's profile avatar from storage if exists
+        const { data: profile } = await adminClient
+          .from("profiles")
+          .select("avatar_url")
+          .eq("id", account.id)
+          .maybeSingle();
+
+        if (profile?.avatar_url) {
+          const avatarPath = extractStoragePath(profile.avatar_url, "avatars");
+          if (avatarPath) {
+            await adminClient.storage.from("avatars").remove([avatarPath]);
+          }
+        }
+
+        // 4. Delete the auth user (cascades DB records via foreign keys)
+        const { error: deleteError } = await adminClient.auth.admin.deleteUser(account.id);
+        
+        if (deleteError) {
+          console.error(`Error deleting user ${account.id}:`, deleteError);
+          errors.push(`${account.id}: ${deleteError.message}`);
+        } else {
+          console.log(`Successfully deleted user ${account.id} (${storageFilesRemoved} storage files cleaned)`);
+          deletedCount++;
+        }
+      } catch (userError) {
+        console.error(`Error processing user ${account.id}:`, userError);
+        errors.push(`${account.id}: ${userError instanceof Error ? userError.message : 'Unknown error'}`);
       }
     }
 
@@ -70,6 +155,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         deletedCount,
+        storageFilesRemoved,
         totalScheduled: accountsToDelete.length,
         errors: errors.length > 0 ? errors : undefined
       }),
