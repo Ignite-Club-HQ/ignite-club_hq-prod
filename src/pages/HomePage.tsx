@@ -452,7 +452,7 @@ export default function HomePage() {
       // Fetch club details
       const { data: clubs } = await supabase
         .from("clubs")
-        .select("id, name, sport, points_display_name")
+        .select("id, name, sport, points_display_name, points_icon_url")
         .in("id", clubIds)
         .order("name");
 
