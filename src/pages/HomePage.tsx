@@ -89,6 +89,7 @@ interface Event {
   is_cancelled: boolean;
   is_recurring: boolean;
   parent_event_id: string | null;
+  amount: number | null;
   opponent: string | null;
   teams: { name: string } | null;
   clubs: { name: string; sport: string | null };
