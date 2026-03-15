@@ -1031,7 +1031,7 @@ export default function HomePage() {
       console.log("[HomePage] Fetching all clubs...");
       const { data, error } = await supabase
         .from("clubs")
-        .select("id, name, sport")
+        .select("id, name, sport, class_mode_enabled")
         .order("name");
       if (error) {
         console.error("[HomePage] Error fetching clubs:", error);
