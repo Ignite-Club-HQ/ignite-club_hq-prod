@@ -102,8 +102,8 @@ export function TermsManager({ clubId }: TermsManagerProps) {
       closeDialog();
       toast({ title: editingTerm ? "Term updated" : "Term created" });
     },
-    onError: () => {
-      toast({ title: "Failed to save term", variant: "destructive" });
+    onError: (error: any) => {
+      toast({ title: error?.message || "Failed to save term", variant: "destructive" });
     },
   });
 
