@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, MapPin, Repeat, Bell, ChevronDown, Calendar, FileText, DollarSign, ClipboardList, Plus, X, User, Star, Trash2, UserPlus } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -61,13 +61,20 @@ export default function CreateEventPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { activeClubFilter } = useClubTheme();
 
+  // Read query params for pre-filling from mini league
+  const presetType = searchParams.get("type") as EventType | null;
+  const presetClubId = searchParams.get("club_id");
+  const presetMiniLeagueId = searchParams.get("mini_league_id");
+  const isFromMiniLeague = presetType === "mini_league" && !!presetMiniLeagueId;
+
   const [title, setTitle] = useState("");
-  const [type, setType] = useState<EventType>("training");
-  const [clubId, setClubId] = useState("");
+  const [type, setType] = useState<EventType>(presetType || "training");
+  const [clubId, setClubId] = useState(presetClubId || "");
   const [teamId, setTeamId] = useState("");
-  const [miniLeagueId, setMiniLeagueId] = useState("");
+  const [miniLeagueId, setMiniLeagueId] = useState(presetMiniLeagueId || "");
   const [eventDateTime, setEventDateTime] = useState("");
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
@@ -686,14 +693,14 @@ export default function CreateEventPage() {
     <div className="pb-6 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3 py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/events")}>
+        <Button variant="ghost" size="icon" onClick={() => isFromMiniLeague ? navigate(-1) : navigate("/events")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-xl font-bold">New Event</h1>
+        <h1 className="text-xl font-bold">{isFromMiniLeague ? "New Session" : "New Event"}</h1>
       </div>
 
-      {/* Event Type Selection - show skeletons only while pro football check is loading for selected club */}
-      {(clubId && isLoadingProFootball) ? (
+      {/* Event Type Selection - hidden when coming from mini league */}
+      {!isFromMiniLeague && ((clubId && isLoadingProFootball) ? (
         <div className="grid grid-cols-4 gap-2">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="flex flex-col items-center gap-1 p-3 rounded-xl border-2 border-border animate-pulse">
@@ -739,7 +746,7 @@ export default function CreateEventPage() {
           );
         })}
       </div>
-      )}
+      ))}
 
 
       {/* Details Section */}
@@ -833,6 +840,7 @@ export default function CreateEventPage() {
 
               {/* Club & Team/Mini League */}
               <div className="flex flex-col gap-3">
+                {!isFromMiniLeague && (
                 <MobileCardSelect
                   value={clubId}
                   onValueChange={(v) => {
@@ -846,6 +854,7 @@ export default function CreateEventPage() {
                   required
                   disabled={!!activeClubFilter}
                 />
+                )}
                 
                 {/* Team selection - for non-mini-league events */}
                 {type !== "mini_league" && (
@@ -863,8 +872,8 @@ export default function CreateEventPage() {
                   />
                 )}
                 
-                {/* Mini League selection - only for mini_league events */}
-                {type === "mini_league" && (
+                {/* Mini League selection - only for mini_league events, hidden when pre-set */}
+                {type === "mini_league" && !isFromMiniLeague && (
                   <MobileCardSelect
                     value={miniLeagueId}
                     onValueChange={setMiniLeagueId}
