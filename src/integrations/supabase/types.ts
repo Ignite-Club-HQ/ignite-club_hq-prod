@@ -4370,6 +4370,7 @@ export type Database = {
       }
       rsvps: {
         Row: {
+          attendance_points_awarded: boolean
           child_id: string | null
           created_at: string
           early_rsvp_points_awarded: boolean
@@ -4383,6 +4384,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          attendance_points_awarded?: boolean
           child_id?: string | null
           created_at?: string
           early_rsvp_points_awarded?: boolean
@@ -4396,6 +4398,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          attendance_points_awarded?: boolean
           child_id?: string | null
           created_at?: string
           early_rsvp_points_awarded?: boolean
