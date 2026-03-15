@@ -1302,6 +1302,7 @@ export type Database = {
           notify_committee: boolean
           notify_committee_chat: boolean
           points_display_name: string | null
+          points_icon_url: string | null
           primary_sponsor_id: string | null
           proposed_tier: string | null
           recognition_gold_threshold: number
@@ -1365,6 +1366,7 @@ export type Database = {
           notify_committee?: boolean
           notify_committee_chat?: boolean
           points_display_name?: string | null
+          points_icon_url?: string | null
           primary_sponsor_id?: string | null
           proposed_tier?: string | null
           recognition_gold_threshold?: number
@@ -1428,6 +1430,7 @@ export type Database = {
           notify_committee?: boolean
           notify_committee_chat?: boolean
           points_display_name?: string | null
+          points_icon_url?: string | null
           primary_sponsor_id?: string | null
           proposed_tier?: string | null
           recognition_gold_threshold?: number
