@@ -121,6 +121,7 @@ export const NOTIFICATION_ICON_CONFIG: Record<string, NotificationIconConfig> = 
   subscription_expired: { iconName: 'AlertCircle', colorClass: 'text-red-500', emoji: '🚨' },
   storage_limit: { iconName: 'HardDrive', colorClass: 'text-orange-500', emoji: '💾' },
   system_announcement: { iconName: 'Info', colorClass: 'text-blue-500', emoji: 'ℹ️' },
+  fee_payment_request: { iconName: 'CreditCard', colorClass: 'text-amber-500', emoji: '💳' },
   
   // Pitch board types
   pending_sub: { iconName: 'ArrowLeftRight', colorClass: 'text-orange-500', emoji: '🔄' },
