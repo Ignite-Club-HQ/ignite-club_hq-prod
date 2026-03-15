@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePointsDisplayName } from "@/hooks/usePointsDisplayName";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Flame, Loader2, Plus, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
