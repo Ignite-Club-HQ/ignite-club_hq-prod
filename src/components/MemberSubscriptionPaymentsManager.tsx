@@ -171,6 +171,56 @@ export default function MemberSubscriptionPaymentsManager({
     },
   });
 
+  // Bulk send fee payment reminder notifications
+  const sendReminderMutation = useMutation({
+    mutationFn: async () => {
+      // Get unpaid members
+      const unpaidMemberIds = payableMembers
+        .filter(([userId]) => !paymentMap[userId])
+        .map(([userId]) => userId);
+
+      if (unpaidMemberIds.length === 0) {
+        throw new Error("All members have already paid");
+      }
+
+      // Get club name
+      const { data: clubData } = await supabase
+        .from("clubs")
+        .select("name")
+        .eq("id", clubId)
+        .single();
+
+      const clubName = clubData?.name || "Your club";
+      const feeLabel = activeTab === "subscription" ? "subscription" : "uniform";
+
+      // Insert notifications for all unpaid members
+      const notifications = unpaidMemberIds.map(userId => ({
+        user_id: userId,
+        type: "fee_payment_request",
+        message: `${clubName} is requesting payment of ${feeLabel} fees for ${paymentPeriod}`,
+        related_id: clubId,
+      }));
+
+      const { error } = await supabase.from("notifications").insert(notifications);
+      if (error) throw error;
+
+      return unpaidMemberIds.length;
+    },
+    onSuccess: (count) => {
+      toast({
+        title: "Fee reminders sent!",
+        description: `Notification sent to ${count} unpaid member${count !== 1 ? "s" : ""}`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to send reminders",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleMemberClick = (userId: string, displayName: string) => {
     if (!isAdmin) return;
     
