@@ -840,6 +840,7 @@ export default function CreateEventPage() {
 
               {/* Club & Team/Mini League */}
               <div className="flex flex-col gap-3">
+                {!isFromMiniLeague && (
                 <MobileCardSelect
                   value={clubId}
                   onValueChange={(v) => {
@@ -853,6 +854,7 @@ export default function CreateEventPage() {
                   required
                   disabled={!!activeClubFilter}
                 />
+                )}
                 
                 {/* Team selection - for non-mini-league events */}
                 {type !== "mini_league" && (
