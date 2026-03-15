@@ -881,6 +881,17 @@ export default function TeamChatPage() {
     onSettled: () => {
       // Invalidate messages page preview so latest message shows
       queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages"] });
+      // Award engagement points (fire and forget)
+      if (user && team?.club_id && teamId) {
+        import("@/lib/engagementPoints").then(({ awardEngagementPoints }) => {
+          awardEngagementPoints({
+            userId: user.id,
+            clubId: team.club_id,
+            action: "chat_message",
+            scopeId: teamId,
+          }).catch(() => {});
+        });
+      }
     },
   });
 

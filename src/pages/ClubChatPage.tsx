@@ -883,6 +883,17 @@ export default function ClubChatPage() {
     },
     onSettled: () => {
       // Don't invalidate here; realtime will sync messages
+      // Award engagement points (fire and forget)
+      if (user && clubId) {
+        import("@/lib/engagementPoints").then(({ awardEngagementPoints }) => {
+          awardEngagementPoints({
+            userId: user.id,
+            clubId: clubId,
+            action: "chat_message",
+            scopeId: clubId,
+          }).catch(() => {});
+        });
+      }
     },
    });
 
