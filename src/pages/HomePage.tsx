@@ -1678,7 +1678,13 @@ export default function HomePage() {
             <p className="text-primary-foreground/60 text-xs font-medium uppercase tracking-wide mb-1.5">Earn points by</p>
             <div className="flex flex-wrap gap-1.5">
               <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                🤝 Volunteering for duties
+                💬 Chat activity
+              </span>
+              <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                📸 Uploading photos
+              </span>
+              <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                🤝 Volunteering
               </span>
               <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
                 🎯 Early RSVPs
@@ -1688,6 +1694,9 @@ export default function HomePage() {
               </span>
               <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
                 📋 Attending events
+              </span>
+              <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                🔥 Weekly streaks
               </span>
             </div>
           </div>
