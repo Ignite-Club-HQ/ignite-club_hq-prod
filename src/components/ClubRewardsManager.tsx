@@ -97,7 +97,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
     queryFn: async () => {
       const { data, error } = await supabase
         .from("club_subscriptions")
-        .select("disable_team_pom_rewards")
+        .select("disable_team_pom_rewards, disable_points_system")
         .eq("club_id", clubId)
         .maybeSingle();
       if (error) throw error;
