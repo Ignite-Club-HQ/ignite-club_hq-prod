@@ -51,6 +51,8 @@ export function ChatHeaderMenu({
   showMembers = true,
   showMute = true,
   isNativePlatform = false,
+  onEditGroup,
+  onDeleteGroup,
 }: ChatHeaderMenuProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
