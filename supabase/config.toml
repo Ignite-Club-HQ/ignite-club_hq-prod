@@ -71,3 +71,9 @@ verify_jwt = false
 
 [functions.send-block-alert-email]
 verify_jwt = false
+
+[functions.permanent-delete-photos]
+verify_jwt = false
+
+[functions.auto-purge-trash]
+verify_jwt = false

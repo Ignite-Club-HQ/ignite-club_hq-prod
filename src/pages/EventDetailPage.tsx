@@ -1909,10 +1909,14 @@ export default function EventDetailPage() {
             const eventTime = parseISO(event.event_date);
             const now = new Date();
             const minutesUntilKickoff = (eventTime.getTime() - now.getTime()) / (1000 * 60);
-            const isWithin60Min = minutesUntilKickoff <= 60;
+            const isWithin120Min = minutesUntilKickoff <= 120;
             const hasStarted = minutesUntilKickoff <= 0;
+            const isPastGame = hasStarted && minutesUntilKickoff < -180; // more than 3 hours ago
             
-            return isWithin60Min ? (
+            // Don't show any pitch board button for past games
+            if (isPastGame) return null;
+            
+            return isWithin120Min ? (
               <Button
                 variant="default"
                 size="lg"

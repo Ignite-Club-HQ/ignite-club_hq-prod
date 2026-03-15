@@ -1,6 +1,24 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+/**
+ * Extracts the storage path from a full Supabase storage URL.
+ */
+function extractStoragePath(url: string, bucket: string): string | null {
+  const patterns = [
+    `/storage/v1/object/public/${bucket}/`,
+    `/storage/v1/object/sign/${bucket}/`,
+    `/storage/v1/object/${bucket}/`,
+  ];
+  for (const pattern of patterns) {
+    const idx = url.indexOf(pattern);
+    if (idx !== -1) {
+      return decodeURIComponent(url.substring(idx + pattern.length).split("?")[0]);
+    }
+  }
+  return null;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -302,6 +320,80 @@ serve(async (req) => {
         console.log("typing_indicators table may not exist");
       }
       
+      // 28b. Delete blocked users (both directions)
+      await deleteAndTrack('blocked_users', 'blocker_id', userId);
+      await deleteAndTrack('blocked_users', 'blocked_id', userId);
+      
+      // 28c. Delete business profiles
+      await deleteAndTrack('business_profiles', 'user_id', userId);
+      
+      // 28d. Delete event views
+      await deleteAndTrack('event_views', 'user_id', userId);
+      
+      // 28e. Delete FCM tokens
+      await deleteAndTrack('fcm_tokens', 'user_id', userId);
+      
+      // 28f. Delete group memberships
+      await deleteAndTrack('group_members', 'user_id', userId);
+      
+      // 28g. Delete hidden DM conversations
+      await deleteAndTrack('hidden_dm_conversations', 'user_id', userId);
+      
+      // 28h. Delete IAP transactions
+      await deleteAndTrack('iap_transactions', 'user_id', userId);
+      
+      // 28i. Delete match message reads
+      await deleteAndTrack('match_message_reads', 'user_id', userId);
+      
+      // 28j. Delete points history
+      await deleteAndTrack('points_history', 'user_id', userId);
+      
+      // 28k. Delete system messages
+      await deleteAndTrack('system_messages', 'user_id', userId);
+      
+      // 28l. Delete child guardians
+      await deleteAndTrack('child_guardians', 'guardian_id', userId);
+      
+      // 28m. Delete class enrolments for user's children
+      if (children && children.length > 0) {
+        const childIds = children.map(c => c.id);
+        const { data: enrolments } = await adminClient
+          .from('class_enrolments')
+          .delete()
+          .in('child_id', childIds)
+          .select('id');
+        deletionStats['class_enrolments'] = enrolments?.length || 0;
+        
+        // Delete child_mini_league_assignments
+        const { data: mlAssignments } = await adminClient
+          .from('child_mini_league_assignments')
+          .delete()
+          .in('child_id', childIds)
+          .select('id');
+        deletionStats['child_mini_league_assignments'] = mlAssignments?.length || 0;
+      }
+      
+      // 28n. Nullify event_group_duties assigned_to
+      const { data: egDuties } = await adminClient
+        .from('event_group_duties')
+        .update({ assigned_to: null })
+        .eq('assigned_to', userId)
+        .select('id');
+      deletionStats['event_group_duties_unassigned'] = egDuties?.length || 0;
+      
+      // 28o. Nullify mini_league_group_duties assigned_to
+      const { data: mlgDuties } = await adminClient
+        .from('mini_league_group_duties')
+        .update({ assigned_to: null })
+        .eq('assigned_to', userId)
+        .select('id');
+      deletionStats['mini_league_group_duties_unassigned'] = mlgDuties?.length || 0;
+      
+      // 28p. Anonymize reports (keep record for safety, remove reporter identity)
+      await adminClient.from('comment_reports').update({ reporter_id: '00000000-0000-0000-0000-000000000000' }).eq('reporter_id', userId);
+      await adminClient.from('photo_reports').update({ reporter_id: '00000000-0000-0000-0000-000000000000' }).eq('reporter_id', userId);
+      await adminClient.from('message_reports').update({ reporter_id: '00000000-0000-0000-0000-000000000000' }).eq('reporter_id', userId);
+      
       // 29. Anonymize messages instead of deleting (to preserve chat context)
       // Update team messages
       const { data: teamMsgs } = await adminClient
@@ -335,13 +427,103 @@ serve(async (req) => {
         .select('id');
       deletionStats['broadcast_messages_anonymized'] = broadcastMsgs?.length || 0;
       
-      // 30. Handle photos - soft delete or anonymize
-      const { data: photos } = await adminClient
-        .from('photos')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('uploader_id', userId)
+      // Update direct messages
+      const { data: directMsgs } = await adminClient
+        .from('direct_messages')
+        .update({ text: '[Message deleted - user data removed]', image_url: null })
+        .eq('author_id', userId)
         .select('id');
-      deletionStats['photos_soft_deleted'] = photos?.length || 0;
+      deletionStats['direct_messages_anonymized'] = directMsgs?.length || 0;
+      
+      // Anonymize match messages
+      const { data: matchMsgs } = await adminClient
+        .from('match_messages')
+        .update({ message: '[Message deleted - user data removed]' })
+        .eq('sender_id', userId)
+        .select('id');
+      deletionStats['match_messages_anonymized'] = matchMsgs?.length || 0;
+      
+      // Delete direct conversations where user is a participant
+      const { data: convos1 } = await adminClient
+        .from('direct_conversations')
+        .delete()
+        .eq('participant_1', userId)
+        .select('id');
+      const { data: convos2 } = await adminClient
+        .from('direct_conversations')
+        .delete()
+        .eq('participant_2', userId)
+        .select('id');
+      deletionStats['direct_conversations_deleted'] = (convos1?.length || 0) + (convos2?.length || 0);
+      
+      // 30. Handle photos - delete from storage then hard delete
+      let storageFilesRemoved = 0;
+      const { data: userPhotos } = await adminClient
+        .from('photos')
+        .select('id, image_url, file_url')
+        .eq('uploader_id', userId);
+      
+      if (userPhotos && userPhotos.length > 0) {
+        for (const photo of userPhotos) {
+          const url = photo.file_url || photo.image_url;
+          if (url) {
+            const storagePath = extractStoragePath(url, "photos");
+            if (storagePath) {
+              const { error: storageError } = await adminClient.storage
+                .from("photos")
+                .remove([storagePath]);
+              if (!storageError) storageFilesRemoved++;
+            }
+          }
+        }
+        // Hard delete photo records
+        await adminClient.from('photos').delete().eq('uploader_id', userId);
+        deletionStats['photos_deleted'] = userPhotos.length;
+      }
+      
+      // 30b. Handle vault_files - delete from storage then hard delete
+      const { data: userVaultFiles } = await adminClient
+        .from('vault_files')
+        .select('id, file_url, is_external_link')
+        .eq('uploaded_by', userId);
+      
+      if (userVaultFiles && userVaultFiles.length > 0) {
+        for (const file of userVaultFiles) {
+          if (!file.is_external_link && file.file_url) {
+            for (const bucket of ["photos", "vault-files"]) {
+              const storagePath = extractStoragePath(file.file_url, bucket);
+              if (storagePath) {
+                const { error: storageError } = await adminClient.storage
+                  .from(bucket)
+                  .remove([storagePath]);
+                if (!storageError) {
+                  storageFilesRemoved++;
+                  break;
+                }
+              }
+            }
+          }
+        }
+        await adminClient.from('vault_files').delete().eq('uploaded_by', userId);
+        deletionStats['vault_files_deleted'] = userVaultFiles.length;
+      }
+      
+      // 30c. Delete avatar from storage
+      const { data: profileForAvatar } = await adminClient
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (profileForAvatar?.avatar_url) {
+        const avatarPath = extractStoragePath(profileForAvatar.avatar_url, "avatars");
+        if (avatarPath) {
+          await adminClient.storage.from("avatars").remove([avatarPath]);
+          storageFilesRemoved++;
+        }
+      }
+      
+      deletionStats['storage_files_removed'] = storageFilesRemoved;
       
       // 31. Anonymize duties (keep record but remove assignment)
       const { data: duties } = await adminClient

@@ -44,22 +44,26 @@ Deno.serve(async (req) => {
       if (photo) {
         const teamName = (photo as any).teams?.name;
         const clubName = (photo as any).clubs?.name;
-        title = photo.title || "Photo shared on Ignite Club HQ";
-        description = [clubName, teamName].filter(Boolean).join(" · ") || "Check out this photo on Ignite Club HQ";
+        const photoTitle = photo.title || "Photo shared";
+        const context = [clubName, teamName].filter(Boolean).join(" · ");
+        title = context ? `${photoTitle} — ${context}` : `${photoTitle} on Ignite Club HQ`;
+        description = context || "Check out this photo on Ignite Club HQ";
 
-        // Try to resolve the actual photo image; fall back to club logo
+        // Try to resolve the actual photo image with a timeout
+        // Crawlers have limited patience, so fall back quickly
         const photoImageUrl = photo.file_url || photo.image_url;
-        const resolvedImage = await resolvePreviewImageUrl(supabase, photoImageUrl);
+        const resolvedImage = await resolveWithTimeout(supabase, photoImageUrl, 4000);
         if (resolvedImage) {
           image = resolvedImage;
         } else {
           // Fall back to club logo (skip SVGs — not supported by social platforms)
           const clubLogo = (photo as any).clubs?.logo_url;
           if (clubLogo && !/\.svg(\?|$)/i.test(clubLogo)) {
-            const resolvedLogo = await resolvePreviewImageUrl(supabase, clubLogo);
+            const resolvedLogo = await resolveWithTimeout(supabase, clubLogo, 3000);
             if (resolvedLogo) image = resolvedLogo;
           }
         }
+        console.log("Photo share resolved image:", { photoImageUrl, resolvedImage: image });
       }
 
       redirectUrl = `${APP_URL}/media/${id}`;
@@ -74,20 +78,26 @@ Deno.serve(async (req) => {
       console.log("Event lookup:", { id, event, eventError: eventError?.message });
 
       if (event) {
-        title = event.title || "Event on Ignite Club HQ";
-        const parts: string[] = [];
-        if ((event as any).clubs?.name) parts.push((event as any).clubs.name);
-        if ((event as any).teams?.name) parts.push((event as any).teams.name);
+        const eventTitle = event.title || "Event";
+        const clubName = (event as any).clubs?.name;
+        const teamName = (event as any).teams?.name;
+        let dateStr = "";
         if (event.event_date) {
           try {
             const d = new Date(event.event_date);
-            parts.push(d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" }));
+            dateStr = d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
           } catch {
             // ignore
           }
         }
-        description = parts.length > 0
-          ? `You're invited! ${parts.join(" · ")}`
+
+        // Build a rich title since Messenger often hides og:description
+        const contextParts = [clubName, teamName, dateStr].filter(Boolean);
+        title = contextParts.length > 0
+          ? `${eventTitle} — ${contextParts.join(" · ")}`
+          : `${eventTitle} on Ignite Club HQ`;
+        description = contextParts.length > 0
+          ? `You're invited! ${contextParts.join(" · ")}`
           : "You've been invited to an event on Ignite Club HQ";
 
         // Use the default Ignite logo for all event share previews
@@ -169,6 +179,25 @@ Deno.serve(async (req) => {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Resolve image URL with a timeout to avoid blocking crawlers */
+async function resolveWithTimeout(
+  supabase: ReturnType<typeof createClient>,
+  rawUrl: string | null | undefined,
+  timeoutMs: number,
+): Promise<string | null> {
+  if (!rawUrl) return null;
+  try {
+    const result = await Promise.race([
+      resolvePreviewImageUrl(supabase, rawUrl),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+    return result;
+  } catch (err) {
+    console.warn("resolveWithTimeout failed:", err);
+    return null;
+  }
+}
 
 async function resolvePreviewImageUrl(
   supabase: ReturnType<typeof createClient>,

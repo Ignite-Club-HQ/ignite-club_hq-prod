@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MoreVertical, Search, Users, Bell, BellOff, RefreshCw, Clock } from "lucide-react";
+import { MoreVertical, Search, Users, Bell, BellOff, RefreshCw, Clock, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -32,6 +32,8 @@ interface ChatHeaderMenuProps {
   showMembers?: boolean;
   showMute?: boolean;
   isNativePlatform?: boolean;
+  onEditGroup?: () => void;
+  onDeleteGroup?: () => void;
 }
 
 type MuteData = {
@@ -49,6 +51,8 @@ export function ChatHeaderMenu({
   showMembers = true,
   showMute = true,
   isNativePlatform = false,
+  onEditGroup,
+  onDeleteGroup,
 }: ChatHeaderMenuProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -156,6 +160,26 @@ export function ChatHeaderMenu({
             </DropdownMenuItem>
           )}
 
+          {(onEditGroup || onDeleteGroup) && (
+            <>
+              <DropdownMenuSeparator />
+              {onEditGroup && (
+                <DropdownMenuItem onClick={onEditGroup}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit group
+                </DropdownMenuItem>
+              )}
+              {onDeleteGroup && (
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={onDeleteGroup}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete group
+                </DropdownMenuItem>
+              )}
+            </>
+          )}
           {showMute && (
             <>
               <DropdownMenuSeparator />
