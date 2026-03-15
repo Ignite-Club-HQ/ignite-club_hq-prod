@@ -454,13 +454,16 @@ export default function MiniLeagueDetailPage() {
     );
   }
 
-  // Group players by ability
-  const playersByAbility = players?.reduce((acc, player) => {
+  // Filter players by search, then group by ability
+  const filteredPlayers = players?.filter(p => 
+    !playerSearch.trim() || p.name.toLowerCase().includes(playerSearch.trim().toLowerCase())
+  ) || [];
+  const playersByAbility = filteredPlayers.reduce((acc, player) => {
     const key = player.ability_rating;
     if (!acc[key]) acc[key] = [];
     acc[key].push(player);
     return acc;
-  }, {} as Record<number, MiniLeaguePlayer[]>) || {};
+  }, {} as Record<number, MiniLeaguePlayer[]>);
 
   // Separate upcoming and past events using date+time for accurate categorization
   const getEventDateTime = (e: MiniLeagueEvent) => {
