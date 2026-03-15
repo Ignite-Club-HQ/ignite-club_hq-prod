@@ -911,7 +911,7 @@ export default function ClubDetailPage() {
                 <Card className="hover:border-primary/50 transition-colors">
                   <CardContent className="p-4 flex flex-col items-center gap-2">
                     <MessageCircle className="h-6 w-6 text-primary" />
-                    <span className="text-sm font-medium">Club Chat</span>
+                    <span className="text-sm font-medium">{club?.class_mode_enabled ? "Group Chat" : "Club Chat"}</span>
                   </CardContent>
                 </Card>
               </Link>
