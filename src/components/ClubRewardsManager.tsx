@@ -101,12 +101,14 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
     queryFn: async () => {
       const { data } = await supabase
         .from("clubs")
-        .select("points_display_name")
+        .select("points_display_name, points_icon_url")
         .eq("id", clubId)
         .single();
       const name = (data as any)?.points_display_name || "Ignite Points";
+      const iconUrl = (data as any)?.points_icon_url || null;
       setCustomPointsName(name);
-      return name;
+      setPointsIconUrl(iconUrl);
+      return { name, iconUrl };
     },
   });
 
