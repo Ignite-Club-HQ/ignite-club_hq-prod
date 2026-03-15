@@ -74,12 +74,32 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
       if (!termId) return [];
       const { data, error } = await supabase
         .from("class_enrolments")
-        .select("*, children (name, parent_id), profiles:user_id (display_name)")
+        .select("*, children (name, parent_id)")
         .eq("term_id", termId)
         .neq("status", "withdrawn")
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return data;
+
+      // Fetch display names for adult enrolments separately
+      const adultUserIds = data
+        ?.filter((e: any) => e.user_id && !e.child_id)
+        .map((e: any) => e.user_id) || [];
+
+      let profileMap: Record<string, string> = {};
+      if (adultUserIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", adultUserIds);
+        profiles?.forEach((p) => {
+          if (p.display_name) profileMap[p.id] = p.display_name;
+        });
+      }
+
+      return data.map((e: any) => ({
+        ...e,
+        _adult_name: e.user_id ? profileMap[e.user_id] || null : null,
+      }));
     },
     enabled: !!termId,
   });
@@ -104,8 +124,8 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
     if (enrolment.child_id && enrolment.children?.name) {
       return enrolment.children.name;
     }
-    if (enrolment.user_id && enrolment.profiles?.display_name) {
-      return enrolment.profiles.display_name;
+    if (enrolment.user_id && enrolment._adult_name) {
+      return enrolment._adult_name;
     }
     return "Unknown";
   };
