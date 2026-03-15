@@ -1251,6 +1251,8 @@ export default function GroupChatPage() {
             onRefresh={handleManualRefresh}
             isRefreshing={isAnyRefreshing}
             isNativePlatform={isNativePlatform}
+            onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
+            onDeleteGroup={isAdmin ? () => setShowDeleteGroupDialog(true) : undefined}
           />
           <ChatMembersSheet
             chatType="group"
