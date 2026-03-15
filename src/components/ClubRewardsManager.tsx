@@ -39,6 +39,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { compressImage } from "@/lib/imageCompression";
+import { PointsIconGallery } from "@/components/PointsIconGallery";
 
 export type RewardType = "general" | "player_of_match";
 
