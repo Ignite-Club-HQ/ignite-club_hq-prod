@@ -2502,7 +2502,7 @@ export default function EventDetailPage() {
                             Claim
                           </Button>
                         )}
-                        {duty.status === "open" && duty.assigned_to === user?.id && (
+                        {duty.status === "open" && (duty.assigned_to === user?.id || isAdmin) && (
                           <Button
                             size="sm"
                             onClick={() => completeDutyMutation.mutate(duty.id)}
