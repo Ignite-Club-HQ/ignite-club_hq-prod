@@ -255,7 +255,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
       const results: { playerName: string; parentEmail: string; sent: boolean }[] = [];
 
       for (const player of validPlayers) {
-        // Create child record in the central children table
+        // Create child record - parent_id set to admin temporarily; reassigned when parent accepts invite
         const { data: child, error: childError } = await supabase
           .from("children")
           .insert({

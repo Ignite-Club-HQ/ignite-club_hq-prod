@@ -477,7 +477,7 @@ export default function MiniLeagueDetailPage() {
     <div className="container max-w-4xl py-4 space-y-4">
       {/* Header - matching team/club style */}
       <div className="flex items-start gap-3">
-        <Button variant="ghost" size="icon" className="shrink-0 mt-0.5" onClick={() => navigate("/mini-leagues")}>
+        <Button variant="ghost" size="icon" className="shrink-0 mt-0.5" onClick={() => navigate(league.club_id ? `/mini-leagues?clubId=${league.club_id}` : "/mini-leagues")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         {league.logo_url && (
