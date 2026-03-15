@@ -488,7 +488,7 @@ export default function PlayerOfMatchSelector({
             <div className="p-4 space-y-2">
               {activePomReward ? (
                 <p className="text-sm text-muted-foreground mb-4">
-                  The selected player will receive <strong>{activePomReward.points_required} Ignite points</strong> and the "{activePomReward.name}" reward.
+                  The selected player will receive <strong>{activePomReward.points_required} points</strong> and the "{activePomReward.name}" reward.
                 </p>
               ) : pomRewards.length > 0 ? (
                 <p className="text-sm text-muted-foreground mb-4">

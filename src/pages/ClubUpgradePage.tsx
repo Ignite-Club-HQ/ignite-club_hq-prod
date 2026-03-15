@@ -40,7 +40,7 @@ import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 
 const PRO_FEATURES = [
   "Club Chat (club-wide messaging)",
-  "Ignite Points & Rewards System",
+  "Points & Rewards System",
   "Photo & Media Uploads",
   "Vault File Storage",
   "Subfolder Organization",
