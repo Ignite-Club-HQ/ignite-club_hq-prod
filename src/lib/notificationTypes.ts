@@ -97,6 +97,7 @@ export const NOTIFICATION_ICON_CONFIG: Record<string, NotificationIconConfig> = 
   event_updated: { iconName: 'Calendar', colorClass: 'text-orange-500', emoji: '📅' },
   rsvp_reminder: { iconName: 'Calendar', colorClass: 'text-orange-500', emoji: '✅' },
   rsvp: { iconName: 'CheckCircle', colorClass: 'text-green-500', emoji: '✅' },
+  early_rsvp_points: { iconName: 'Zap', colorClass: 'text-amber-500', emoji: '🎯' },
   duty_assigned: { iconName: 'ClipboardList', colorClass: 'text-amber-500', emoji: '📋' },
   
   // Media types

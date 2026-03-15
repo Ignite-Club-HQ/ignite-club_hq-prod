@@ -101,8 +101,8 @@ export async function awardEarlyRsvpPoints({
     // Create notification
     await supabase.from("notifications").insert({
       user_id: userId,
-      type: "points_awarded",
-      message: `+${EARLY_RSVP_POINTS} Ignite point for early RSVP! (${daysUntilEvent} days before event)`,
+      type: "early_rsvp_points",
+      message: `🎯 Early bird bonus! You earned +${EARLY_RSVP_POINTS} Ignite point for RSVPing ${daysUntilEvent} days before the event. Keep it up!`,
       related_id: clubId,
     });
 
