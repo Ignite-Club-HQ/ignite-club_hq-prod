@@ -9,12 +9,15 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Building2, RefreshCw, Check, Loader2 } from "lucide-react";
+import { SponsorTier, TIER_CONFIG, selectWeightedSponsor } from "@/lib/sponsorTiers";
 
 interface Sponsor {
   id: string;
   name: string;
   logo_url: string | null;
   is_active: boolean;
+  tier: SponsorTier | null;
+  exposure_percentage: number | null;
 }
 
 interface ClubPrimarySponsorManagerProps {
