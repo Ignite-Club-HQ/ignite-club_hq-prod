@@ -51,7 +51,8 @@ export const ADMIN_NOTIFICATION_TYPES = [
   'subscription_expiring',
   'subscription_expired',
   'storage_limit',
-  'system_announcement'
+  'system_announcement',
+  'fee_payment_request'
 ] as const;
 
 // All notification types combined
