@@ -4666,12 +4666,15 @@ function ContentSection({
                 key={photo.id}
                 photo={photo}
                 index={index}
-                onPhotoClick={onPhotoClick}
+                onPhotoClick={selectionMode ? () => onTogglePhotoSelection?.(photo.id) : onPhotoClick}
                 canDelete={canDeletePhoto(photo)}
                 onDelete={onDeletePhoto}
                 onDownload={onDownloadPhoto}
                 canRename={canRenamePhoto?.(photo)}
                 onRename={onRenamePhoto}
+                selectionMode={selectionMode}
+                isSelected={selectedPhotos?.has(photo.id) || false}
+                onToggleSelection={onTogglePhotoSelection}
               />
             ))}
           </div>
