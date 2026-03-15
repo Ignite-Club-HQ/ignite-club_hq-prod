@@ -254,8 +254,36 @@ export default function MiniLeagueDetailPage() {
   // Delete player mutation
   const deletePlayerMutation = useMutation({
     mutationFn: async (playerId: string) => {
+      // Get the player's child_id before deleting
+      const { data: player } = await supabase
+        .from("mini_league_players")
+        .select("child_id")
+        .eq("id", playerId)
+        .single();
+
+      // Delete legacy player record
       const { error } = await supabase.from("mini_league_players").delete().eq("id", playerId);
       if (error) throw error;
+
+      // Clean up child_mini_league_assignments and children if child_id exists
+      if (player?.child_id) {
+        await supabase
+          .from("child_mini_league_assignments")
+          .delete()
+          .eq("child_id", player.child_id)
+          .eq("mini_league_id", id!);
+
+        // Check if child has any other assignments or team assignments
+        const [{ count: leagueCount }, { count: teamCount }] = await Promise.all([
+          supabase.from("child_mini_league_assignments").select("id", { count: "exact", head: true }).eq("child_id", player.child_id),
+          supabase.from("child_team_assignments").select("id", { count: "exact", head: true }).eq("child_id", player.child_id),
+        ]);
+
+        // Only delete child if they have no other assignments
+        if ((leagueCount || 0) === 0 && (teamCount || 0) === 0) {
+          await supabase.from("children").delete().eq("id", player.child_id);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mini-league-players", id] });
