@@ -401,9 +401,11 @@ export default function MiniLeagueDetailPage() {
           <h1 className="text-xl font-bold truncate">{league.name}</h1>
           <p className="text-sm text-muted-foreground truncate">{league.club?.name}</p>
         </div>
-        <Button variant="outline" size="icon" className="shrink-0" onClick={openSettings}>
-          <Settings className="h-4 w-4" />
-        </Button>
+        {canManageLeague && (
+          <Button variant="outline" size="icon" className="shrink-0" onClick={openSettings}>
+            <Settings className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       {league.description && (
