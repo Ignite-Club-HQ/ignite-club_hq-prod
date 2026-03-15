@@ -1008,7 +1008,7 @@ export default function ClubUpgradePage() {
               <p className="text-xs text-center text-muted-foreground">
                 ${effectiveIsAnnual ? annualPrice : monthlyPrice}/{effectiveIsAnnual ? 'year' : 'month'} AUD • Cancel anytime
               </p>
-              {!isNative && (
+              {!isNative && !isClassMode && (
                 <>
                   <div className="relative flex items-center justify-center gap-2 py-1">
                     <div className="flex-1 border-t border-border" />
