@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { differenceInDays, parseISO } from "date-fns";
 import { recordPointsHistory } from "@/lib/pointsHistory";
+import { checkRewardThreshold } from "@/lib/rewardThresholdCheck";
 
 const EARLY_RSVP_DAYS_THRESHOLD = 3;
 const EARLY_RSVP_POINTS = 1;
