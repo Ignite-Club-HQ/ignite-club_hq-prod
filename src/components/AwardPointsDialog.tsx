@@ -83,8 +83,8 @@ export default function AwardPointsDialog({
       // Create a notification for the member
       const pointsText = points > 0 ? `+${points}` : `${points}`;
       const message = reason 
-        ? `You received ${pointsText} Ignite points from ${clubName}: "${reason}"`
-        : `You received ${pointsText} Ignite points from ${clubName}`;
+        ? `You received ${pointsText} ${pointsName} from ${clubName}: "${reason}"`
+        : `You received ${pointsText} ${pointsName} from ${clubName}`;
 
       const { error: notificationError } = await supabase
         .from("notifications")

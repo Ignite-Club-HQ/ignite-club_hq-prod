@@ -1546,7 +1546,7 @@ export default function HomePage() {
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-1.5">
-                <p className="text-primary-foreground/80 text-sm font-medium">Ignite Points</p>
+                <p className="text-primary-foreground/80 text-sm font-medium">{(userClubs[0] as any)?.points_display_name || 'Ignite Points'}</p>
                 {!isLoadingProAccess && !isLoadingUserRoles && !hasProAccess && !isAppAdmin && (
                   <Badge variant="outline" className="text-xs bg-primary-foreground/10 border-primary-foreground/30 text-primary-foreground py-0 h-5">
                     <Lock className="h-3 w-3 mr-1" />

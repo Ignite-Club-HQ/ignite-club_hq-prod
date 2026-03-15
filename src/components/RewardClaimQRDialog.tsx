@@ -171,7 +171,7 @@ export function RewardClaimQRDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Reward Claimed</AlertDialogTitle>
             <AlertDialogDescription>
-              This will reset your Ignite Points to 0 and mark the reward as claimed.
+              This will reset your points to 0 and mark the reward as claimed.
               <br /><br />
               <strong>Only press this after receiving your reward!</strong>
             </AlertDialogDescription>
