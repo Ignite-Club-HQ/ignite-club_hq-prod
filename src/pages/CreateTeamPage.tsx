@@ -645,9 +645,9 @@ export default function CreateTeamPage() {
                   <Sparkles className="h-5 w-5 text-primary" />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground">You'll be the team admin</p>
+                  <p className="text-sm font-medium text-foreground">You'll be the {entityLabelLower(club)} admin</p>
                   <p className="text-xs text-muted-foreground">
-                    As the creator, you'll have full control to manage players, events, and team settings.
+                    As the creator, you'll have full control to manage members, events, and {entityLabelLower(club)} settings.
                   </p>
                 </div>
               </div>
