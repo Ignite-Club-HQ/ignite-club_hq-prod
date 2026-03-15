@@ -1656,8 +1656,8 @@ export default function ClubDetailPage() {
           </AccordionItem>
         )}
 
-      {/* Sponsors - Pro only, Admin only */}
-      {isAdmin && (
+      {/* Sponsors - Pro only, Admin only, hidden for class-mode clubs */}
+      {isAdmin && !club?.class_mode_enabled && (
         <AccordionItem 
           value="sponsors" 
           className="border rounded-lg px-4"
