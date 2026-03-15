@@ -125,6 +125,26 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
     },
   });
 
+  // Toggle points system setting
+  const togglePointsSystemMutation = useMutation({
+    mutationFn: async (disabled: boolean) => {
+      const { error } = await supabase
+        .from("club_subscriptions")
+        .update({ disable_points_system: disabled })
+        .eq("club_id", clubId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["club-subscription-rewards", clubId] });
+      queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+      toast({ 
+        title: clubSubscription?.disable_points_system 
+          ? "Points system enabled" 
+          : "Points system disabled" 
+      });
+    },
+  });
+
   // Fetch sponsors for this club
   const { data: sponsors = [] } = useQuery({
     queryKey: ["sponsors", clubId],
