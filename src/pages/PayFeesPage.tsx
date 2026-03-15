@@ -180,7 +180,7 @@ export default function PayFeesPage() {
 
       const result = await createMemberCheckout({
         club_id: clubId,
-        title: `Club Fees - ${club?.name || "Club"} (${currentYear})`,
+        title: `Membership Fees - ${club?.name || "Club"} (${currentYear})`,
         amount_cents: amountCents,
         type: "subscription",
         payer_email: user.email || undefined,
