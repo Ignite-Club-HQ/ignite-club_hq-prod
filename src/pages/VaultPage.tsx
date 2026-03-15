@@ -3209,6 +3209,7 @@ export default function VaultPage() {
                             </TooltipTrigger>
                             <TooltipContent>Download {selectedCount} selected items individually</TooltipContent>
                           </Tooltip>
+                          {(isClubAdmin || isAppAdmin) && (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button 
@@ -3222,6 +3223,7 @@ export default function VaultPage() {
                             </TooltipTrigger>
                             <TooltipContent>Delete {selectedCount} selected items</TooltipContent>
                           </Tooltip>
+                          )}
                         </>
                       )}
                     </>
