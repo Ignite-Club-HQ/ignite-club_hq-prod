@@ -89,6 +89,7 @@ interface Event {
   is_cancelled: boolean;
   is_recurring: boolean;
   parent_event_id: string | null;
+  amount: number | null;
   opponent: string | null;
   teams: { name: string } | null;
   clubs: { name: string; sport: string | null };
@@ -295,6 +296,7 @@ export default function HomePage() {
           is_cancelled,
           is_recurring,
           parent_event_id,
+          amount,
           opponent,
           teams (name),
           clubs (name, sport)
@@ -2683,6 +2685,7 @@ export default function HomePage() {
           opponent={quickRsvpEvent.opponent}
           clubId={quickRsvpEvent.club_id}
           clubName={quickRsvpEvent.clubs?.name || "Your club"}
+          eventAmount={quickRsvpEvent.amount}
         />
       )}
 

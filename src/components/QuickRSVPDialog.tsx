@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Circle, Loader2, Baby, Calendar, Clock, MapPin, Users } from "lucide-react";
+import { CheckCircle2, Circle, Loader2, Baby, Calendar, Clock, MapPin, Users, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -37,6 +38,7 @@ interface QuickRSVPDialogProps {
   opponent: string | null;
   clubId: string;
   clubName: string;
+  eventAmount?: number | null;
 }
 
 function formatEventDate(dateStr: string) {
@@ -58,11 +60,14 @@ export function QuickRSVPDialog({
   opponent,
   clubId,
   clubName,
+  eventAmount,
 }: QuickRSVPDialogProps) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedChildIds, setSelectedChildIds] = useState<Set<string>>(new Set());
+  const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
 
   // Fetch existing RSVPs for this event
   const { data: existingRsvps, isLoading: loadingRsvps } = useQuery({
@@ -145,11 +150,16 @@ export function QuickRSVPDialog({
         });
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, status) => {
       queryClient.invalidateQueries({ queryKey: ["quick-rsvp", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", eventId] });
       queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
       queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
+
+      // If going to a paid event, prompt payment
+      if (status === "going" && eventAmount && eventAmount > 0 && eventType === "social") {
+        setShowPaymentPrompt(true);
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -331,6 +341,36 @@ export function QuickRSVPDialog({
                   </div>
                 </>
               )}
+            </>
+          )}
+
+          {/* Payment prompt after RSVP going */}
+          {showPaymentPrompt && (
+            <>
+              <Separator />
+              <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-warning/20">
+                    <DollarSign className="h-5 w-5 text-warning" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Payment Required</p>
+                    <p className="text-sm text-muted-foreground">
+                      ${Number(eventAmount).toFixed(2)} per person
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    onOpenChange(false);
+                    navigate(`/events/${eventId}`);
+                  }}
+                >
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  Go to Event to Pay
+                </Button>
+              </div>
             </>
           )}
         </div>
