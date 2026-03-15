@@ -62,6 +62,21 @@ export function TermsManager({ clubId }: TermsManagerProps) {
     mutationFn: async () => {
       if (!name.trim() || !startDate || !endDate) throw new Error("Missing fields");
 
+      if (endDate <= startDate) {
+        throw new Error("End date must be after start date");
+      }
+
+      // Check for overlapping terms
+      const overlapping = terms.find((t) => {
+        if (editingTerm && t.id === editingTerm.id) return false;
+        const tStart = new Date(t.start_date);
+        const tEnd = new Date(t.end_date);
+        return startDate <= tEnd && endDate >= tStart;
+      });
+      if (overlapping) {
+        throw new Error(`Dates overlap with "${overlapping.name}"`);
+      }
+
       const payload = {
         club_id: clubId,
         name: name.trim(),
