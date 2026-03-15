@@ -153,7 +153,7 @@ export default function PayFeesPage() {
     });
   };
 
-  const totalPayments = (selfSelected && !selfHasPaid ? 1 : 0) + selectedChildIds.size;
+  const totalPayments = (isParentOrPlayer && selfSelected && !selfHasPaid ? 1 : 0) + selectedChildIds.size;
   const totalAmount = totalPayments * feeAmount;
 
   const handlePayNow = async () => {
