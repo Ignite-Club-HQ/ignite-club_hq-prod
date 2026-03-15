@@ -876,8 +876,8 @@ export default function ClubDetailPage() {
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {isAdmin 
-                        ? "Unlock Vault, Media, Rewards & more for your club"
-                        : "Contact your club admin to unlock Pro features"
+                        ? `Unlock Vault, Media, Rewards & more for your ${club?.class_mode_enabled ? "organisation" : "club"}`
+                        : `Contact your ${club?.class_mode_enabled ? "organisation" : "club"} admin to unlock Pro features`
                       }
                     </p>
                   </div>
