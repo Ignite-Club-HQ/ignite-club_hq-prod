@@ -1,8 +1,28 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+/**
+ * Extracts the storage path from a full Supabase storage URL.
+ */
+function extractStoragePath(url: string, bucket: string): string | null {
+  const patterns = [
+    `/storage/v1/object/public/${bucket}/`,
+    `/storage/v1/object/sign/${bucket}/`,
+    `/storage/v1/object/${bucket}/`,
+  ];
+  for (const pattern of patterns) {
+    const idx = url.indexOf(pattern);
+    if (idx !== -1) {
+      return decodeURIComponent(url.substring(idx + pattern.length).split("?")[0]);
+    }
+  }
+  return null;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -335,13 +355,74 @@ serve(async (req) => {
         .select('id');
       deletionStats['broadcast_messages_anonymized'] = broadcastMsgs?.length || 0;
       
-      // 30. Handle photos - soft delete or anonymize
-      const { data: photos } = await adminClient
+      // 30. Handle photos - delete from storage then hard delete
+      let storageFilesRemoved = 0;
+      const { data: userPhotos } = await adminClient
         .from('photos')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('uploader_id', userId)
-        .select('id');
-      deletionStats['photos_soft_deleted'] = photos?.length || 0;
+        .select('id, image_url, file_url')
+        .eq('uploader_id', userId);
+      
+      if (userPhotos && userPhotos.length > 0) {
+        for (const photo of userPhotos) {
+          const url = photo.file_url || photo.image_url;
+          if (url) {
+            const storagePath = extractStoragePath(url, "photos");
+            if (storagePath) {
+              const { error: storageError } = await adminClient.storage
+                .from("photos")
+                .remove([storagePath]);
+              if (!storageError) storageFilesRemoved++;
+            }
+          }
+        }
+        // Hard delete photo records
+        await adminClient.from('photos').delete().eq('uploader_id', userId);
+        deletionStats['photos_deleted'] = userPhotos.length;
+      }
+      
+      // 30b. Handle vault_files - delete from storage then hard delete
+      const { data: userVaultFiles } = await adminClient
+        .from('vault_files')
+        .select('id, file_url, is_external_link')
+        .eq('uploaded_by', userId);
+      
+      if (userVaultFiles && userVaultFiles.length > 0) {
+        for (const file of userVaultFiles) {
+          if (!file.is_external_link && file.file_url) {
+            for (const bucket of ["photos", "vault-files"]) {
+              const storagePath = extractStoragePath(file.file_url, bucket);
+              if (storagePath) {
+                const { error: storageError } = await adminClient.storage
+                  .from(bucket)
+                  .remove([storagePath]);
+                if (!storageError) {
+                  storageFilesRemoved++;
+                  break;
+                }
+              }
+            }
+          }
+        }
+        await adminClient.from('vault_files').delete().eq('uploaded_by', userId);
+        deletionStats['vault_files_deleted'] = userVaultFiles.length;
+      }
+      
+      // 30c. Delete avatar from storage
+      const { data: profileForAvatar } = await adminClient
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (profileForAvatar?.avatar_url) {
+        const avatarPath = extractStoragePath(profileForAvatar.avatar_url, "avatars");
+        if (avatarPath) {
+          await adminClient.storage.from("avatars").remove([avatarPath]);
+          storageFilesRemoved++;
+        }
+      }
+      
+      deletionStats['storage_files_removed'] = storageFilesRemoved;
       
       // 31. Anonymize duties (keep record but remove assignment)
       const { data: duties } = await adminClient
