@@ -1270,9 +1270,7 @@ export default function GroupChatPage() {
             <div className="space-y-4 p-4 pb-20">
             {/* Invisible trigger for infinite scroll */}
             {hasOlderMessages && !searchQuery && (
-              <div ref={loadTriggerRef} className="flex justify-center py-2">
-                {isLoadingOlder && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-              </div>
+              <div ref={loadTriggerRef} className="h-1" />
             )}
             {(filteredMessages || []).map((msg, index, arr) => {
             const isOwnMessage = msg.author_id === user?.id;

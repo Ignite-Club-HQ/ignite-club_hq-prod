@@ -1556,7 +1556,7 @@ export default function ClubDetailPage() {
                             );
                           })}
                         </div>
-                        {userId !== user?.id && isAdmin && (
+                        {isAdmin && (userId !== user?.id || isAppAdmin) && (
                           <>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -1574,6 +1574,7 @@ export default function ClubDetailPage() {
                                 <Flame className="h-4 w-4 mr-2 text-amber-500" />
                                 Award Points
                               </DropdownMenuItem>
+                              {userId !== user?.id && (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <DropdownMenuItem
@@ -1620,6 +1621,7 @@ export default function ClubDetailPage() {
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
                               </AlertDialog>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                           <div className="hidden">
