@@ -51,12 +51,11 @@ export function RewardClaimQRDialog({
   const handleMarkAsClaimed = async () => {
     setResetting(true);
     try {
-      // Reset user's points to 0 and clear sausage reward flag
+      // Reset user's points to 0
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
           ignite_points: 0,
-          has_sausage_reward: false,
         })
         .eq("id", userId);
 
