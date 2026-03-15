@@ -700,7 +700,7 @@ export default function CreateEventPage() {
       </div>
 
       {/* Event Type Selection - hidden when coming from mini league */}
-      {isFromMiniLeague ? null : (clubId && isLoadingProFootball) ? (
+      {!isFromMiniLeague && ((clubId && isLoadingProFootball) ? (
         <div className="grid grid-cols-4 gap-2">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="flex flex-col items-center gap-1 p-3 rounded-xl border-2 border-border animate-pulse">
@@ -709,7 +709,7 @@ export default function CreateEventPage() {
             </div>
           ))}
         </div>
-      ) : isFromMiniLeague ? null : (
+      ) : (
       <div className={cn("grid gap-2", (clubId && hasProFootball) ? "grid-cols-4" : "grid-cols-3")}>
         {EVENT_TYPES.map((eventType) => {
           // Hide pro football items if user doesn't have access (or no club selected yet)
