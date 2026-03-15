@@ -5054,19 +5054,39 @@ function TrashSection({
           Items in trash are automatically deleted after 30 days.
         </p>
         {onEmptyTrash && (
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={onEmptyTrash}
-            disabled={isEmptyingTrash}
-          >
-            {isEmptyingTrash ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4 mr-1" />
-            )}
-            Empty Trash
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={isEmptyingTrash}
+              >
+                {isEmptyingTrash ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-1" />
+                )}
+                Empty Trash
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Empty Trash?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete all {photos.length + files.length} item{photos.length + files.length !== 1 ? 's' : ''} in the trash. Files will be removed from storage and cannot be recovered.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={onEmptyTrash}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Yes, empty trash
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )}
       </div>
 
