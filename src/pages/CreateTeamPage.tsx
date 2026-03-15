@@ -478,10 +478,10 @@ export default function CreateTeamPage() {
 
           {/* Form Fields */}
           <div className="space-y-6">
-            {/* Team Name */}
+            {/* Name */}
             <div className="space-y-2">
               <Label htmlFor="name" className="text-sm font-medium">
-                Team Name <span className="text-destructive">*</span>
+                {entityLabel(club)} Name <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="name"
