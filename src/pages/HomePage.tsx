@@ -1,4 +1,6 @@
-import { useState, lazy, Suspense, useMemo } from "react";
+import { useState, lazy, Suspense, useMemo, useEffect } from "react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
