@@ -2216,6 +2216,51 @@ export type Database = {
           },
         ]
       }
+      file_deletion_logs: {
+        Row: {
+          club_id: string | null
+          deleted_at: string
+          deleted_by: string
+          deletion_type: string
+          file_id: string
+          file_name: string | null
+          file_size: number | null
+          file_url: string | null
+          id: string
+          original_created_at: string | null
+          original_uploaded_by: string | null
+          team_id: string | null
+        }
+        Insert: {
+          club_id?: string | null
+          deleted_at?: string
+          deleted_by: string
+          deletion_type: string
+          file_id: string
+          file_name?: string | null
+          file_size?: number | null
+          file_url?: string | null
+          id?: string
+          original_created_at?: string | null
+          original_uploaded_by?: string | null
+          team_id?: string | null
+        }
+        Update: {
+          club_id?: string | null
+          deleted_at?: string
+          deleted_by?: string
+          deletion_type?: string
+          file_id?: string
+          file_name?: string | null
+          file_size?: number | null
+          file_url?: string | null
+          id?: string
+          original_created_at?: string | null
+          original_uploaded_by?: string | null
+          team_id?: string | null
+        }
+        Relationships: []
+      }
       game_player_stats: {
         Row: {
           assists: number | null
@@ -3482,6 +3527,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      photo_deletion_logs: {
+        Row: {
+          club_id: string | null
+          deleted_at: string
+          deleted_by: string
+          deletion_type: string
+          file_size: number | null
+          file_url: string | null
+          id: string
+          image_url: string | null
+          original_created_at: string | null
+          original_uploader_id: string | null
+          photo_id: string
+          team_id: string | null
+        }
+        Insert: {
+          club_id?: string | null
+          deleted_at?: string
+          deleted_by: string
+          deletion_type: string
+          file_size?: number | null
+          file_url?: string | null
+          id?: string
+          image_url?: string | null
+          original_created_at?: string | null
+          original_uploader_id?: string | null
+          photo_id: string
+          team_id?: string | null
+        }
+        Update: {
+          club_id?: string | null
+          deleted_at?: string
+          deleted_by?: string
+          deletion_type?: string
+          file_size?: number | null
+          file_url?: string | null
+          id?: string
+          image_url?: string | null
+          original_created_at?: string | null
+          original_uploader_id?: string | null
+          photo_id?: string
+          team_id?: string | null
+        }
+        Relationships: []
       }
       photo_reactions: {
         Row: {
