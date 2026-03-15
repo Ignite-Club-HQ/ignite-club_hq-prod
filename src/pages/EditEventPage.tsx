@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, MapPin, Bell, Calendar, FileText, DollarSign, ChevronDown, ClipboardList, Plus, X, Repeat, Users, Building2 } from "lucide-react";
+import { ArrowLeft, Loader2, MapPin, Bell, Calendar, FileText, DollarSign, ChevronDown, ClipboardList, Plus, X, Repeat, Users, Building2, UserPlus } from "lucide-react";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
