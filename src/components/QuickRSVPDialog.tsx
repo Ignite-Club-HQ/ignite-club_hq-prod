@@ -149,11 +149,16 @@ export function QuickRSVPDialog({
         });
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, status) => {
       queryClient.invalidateQueries({ queryKey: ["quick-rsvp", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", eventId] });
       queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
       queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
+
+      // If going to a paid event, prompt payment
+      if (status === "going" && eventAmount && eventAmount > 0 && eventType === "social") {
+        setShowPaymentPrompt(true);
+      }
     },
     onError: (error: Error) => {
       toast({

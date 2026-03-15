@@ -849,11 +849,24 @@ export default function EventDetailPage() {
         }
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, status) => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
       toast({ title: "RSVP updated!" });
+
+      // Auto-trigger payment for paid social events when RSVPing "going"
+      if (
+        status === "going" &&
+        showPaymentStatus &&
+        !userHasPaid &&
+        !isProcessingPayment
+      ) {
+        // Small delay so user sees the RSVP confirmation first
+        setTimeout(() => {
+          handlePayNow();
+        }, 600);
+      }
     },
   });
 
