@@ -963,7 +963,7 @@ export default function ClubDetailPage() {
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" />
-              <span className="text-lg font-semibold">Teams</span>
+              <span className="text-lg font-semibold">{club?.class_mode_enabled ? "Classes" : "Teams"}</span>
               {activeTeams && <Badge variant="secondary" className="ml-2">{activeTeams.length}</Badge>}
             </div>
           </AccordionTrigger>
