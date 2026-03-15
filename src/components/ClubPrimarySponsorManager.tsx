@@ -41,7 +41,7 @@ export function ClubPrimarySponsorManager({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sponsors")
-        .select("id, name, logo_url, is_active")
+        .select("id, name, logo_url, is_active, tier, exposure_percentage")
         .eq("club_id", clubId)
         .eq("is_active", true)
         .order("display_order", { ascending: true });
