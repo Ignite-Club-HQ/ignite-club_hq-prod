@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MoreVertical, Search, Users, Bell, BellOff, RefreshCw, Clock } from "lucide-react";
+import { MoreVertical, Search, Users, Bell, BellOff, RefreshCw, Clock, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
