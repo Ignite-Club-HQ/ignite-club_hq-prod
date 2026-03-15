@@ -67,6 +67,7 @@ export function QuickRSVPDialog({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedChildIds, setSelectedChildIds] = useState<Set<string>>(new Set());
+  const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
 
   // Fetch existing RSVPs for this event
   const { data: existingRsvps, isLoading: loadingRsvps } = useQuery({
