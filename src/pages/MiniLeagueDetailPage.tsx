@@ -342,7 +342,30 @@ export default function MiniLeagueDetailPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const togglePlayerSelection = (playerId: string) => {
+  // Update ability rating mutation
+  const updateAbilityMutation = useMutation({
+    mutationFn: async ({ playerId, childId, newRating }: { playerId: string; childId: string | null; newRating: number }) => {
+      const { error } = await supabase
+        .from("mini_league_players")
+        .update({ ability_rating: newRating })
+        .eq("id", playerId);
+      if (error) throw error;
+
+      // Also update child_mini_league_assignments if child exists
+      if (childId) {
+        await supabase
+          .from("child_mini_league_assignments")
+          .update({ ability_rating: newRating })
+          .eq("child_id", childId)
+          .eq("mini_league_id", id!);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mini-league-players", id] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
     const newSet = new Set(selectedPlayerIds);
     if (newSet.has(playerId)) {
       newSet.delete(playerId);
