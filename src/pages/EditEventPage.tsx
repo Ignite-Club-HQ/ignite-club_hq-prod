@@ -403,6 +403,8 @@ export default function EditEventPage() {
       setSelectedClubId(event.club_id);
       setSelectedTeamId(event.team_id || "");
       setOpponent((event as any).opponent || "");
+      setAllowGuests(event.allow_guests === true);
+      setMaxGuestsPerMember(event.max_guests_per_member || 2);
       
       const parsedEventDateTime = parseISO(event.event_date);
       setEventDateTime(format(parsedEventDateTime, "yyyy-MM-dd'T'HH:mm"));
