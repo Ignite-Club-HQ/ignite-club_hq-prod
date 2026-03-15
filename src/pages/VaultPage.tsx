@@ -84,6 +84,8 @@ export default function VaultPage() {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [deletePhotoId, setDeletePhotoId] = useState<string | null>(null);
   const [deleteFileId, setDeleteFileId] = useState<string | null>(null);
+  const [restoreItemId, setRestoreItemId] = useState<string | null>(null);
+  const [restoreItemType, setRestoreItemType] = useState<"photo" | "file">("photo");
   const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null);
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -3693,8 +3695,8 @@ export default function VaultPage() {
               photos={trashItems?.photos || []}
               files={trashItems?.files || []}
               isLoading={isLoadingTrash}
-              onRestorePhoto={(id) => restorePhotoMutation.mutate(id)}
-              onRestoreFile={(id) => restoreFileMutation.mutate(id)}
+              onRestorePhoto={(id) => { setRestoreItemType("photo"); setRestoreItemId(id); }}
+              onRestoreFile={(id) => { setRestoreItemType("file"); setRestoreItemId(id); }}
               onPermanentDeletePhoto={isClubAdmin ? setDeletePhotoId : undefined}
               onPermanentDeleteFile={isClubAdmin ? setDeleteFileId : undefined}
               onEmptyTrash={isClubAdmin ? emptyTrash : undefined}
@@ -3768,8 +3770,8 @@ export default function VaultPage() {
               photos={trashItems?.photos || []}
               files={trashItems?.files || []}
               isLoading={isLoadingTrash}
-              onRestorePhoto={(id) => restorePhotoMutation.mutate(id)}
-              onRestoreFile={(id) => restoreFileMutation.mutate(id)}
+              onRestorePhoto={(id) => { setRestoreItemType("photo"); setRestoreItemId(id); }}
+              onRestoreFile={(id) => { setRestoreItemType("file"); setRestoreItemId(id); }}
               onPermanentDeletePhoto={isClubAdmin ? setDeletePhotoId : undefined}
               onPermanentDeleteFile={isClubAdmin ? setDeleteFileId : undefined}
               onEmptyTrash={isClubAdmin ? emptyTrash : undefined}
@@ -3861,6 +3863,35 @@ export default function VaultPage() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {showTrash ? "Delete Permanently" : "Move to Trash"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Restore Confirmation */}
+      <AlertDialog open={!!restoreItemId} onOpenChange={() => setRestoreItemId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore {restoreItemType === "photo" ? "Photo" : "File"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              This {restoreItemType === "photo" ? "photo" : "file"} will be restored to its original location.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (restoreItemId) {
+                  if (restoreItemType === "photo") {
+                    restorePhotoMutation.mutate(restoreItemId);
+                  } else {
+                    restoreFileMutation.mutate(restoreItemId);
+                  }
+                  setRestoreItemId(null);
+                }
+              }}
+            >
+              Restore
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
