@@ -70,7 +70,8 @@ export async function awardEngagementPoints({
     }
 
     // Check cooldown: has this user already been awarded for this action+scope today?
-    const { data: existingCooldown } = await supabase
+    // Using rpc or raw query since points_cooldowns isn't in generated types yet
+    const { data: existingCooldown } = await (supabase as any)
       .from("points_cooldowns")
       .select("id")
       .eq("user_id", userId)
@@ -84,14 +85,17 @@ export async function awardEngagementPoints({
     }
 
     // Check daily cap: total points awarded for this action type today
-    const { data: todayEntries } = await supabase
+    const { data: todayEntries } = await (supabase as any)
       .from("points_cooldowns")
       .select("points_awarded")
       .eq("user_id", userId)
       .eq("action_type", action)
       .eq("awarded_date", today);
 
-    const totalTodayPoints = (todayEntries || []).reduce((sum, e) => sum + (e.points_awarded || 0), 0);
+    const totalTodayPoints = (todayEntries || []).reduce(
+      (sum: number, e: { points_awarded: number }) => sum + (e.points_awarded || 0),
+      0
+    );
 
     if (totalTodayPoints >= config.dailyCap) {
       return false; // Daily cap reached
@@ -119,7 +123,7 @@ export async function awardEngagementPoints({
     }
 
     // Record cooldown
-    await supabase.from("points_cooldowns").insert({
+    await (supabase as any).from("points_cooldowns").insert({
       user_id: userId,
       action_type: action,
       scope_id: scopeId,
