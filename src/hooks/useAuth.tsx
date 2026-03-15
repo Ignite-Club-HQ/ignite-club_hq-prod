@@ -17,7 +17,6 @@ interface Profile {
   display_name: string | null;
   avatar_url: string | null;
   ignite_points: number;
-  has_sausage_reward: boolean;
   theme_preference: string | null;
 }
 
