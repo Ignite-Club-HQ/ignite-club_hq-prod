@@ -550,16 +550,18 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
 
                 {/* Actions */}
                 <div className="flex items-center gap-2 mt-3 pt-3 border-t">
-                  <Button
-                    variant={reward.is_default ? "secondary" : "ghost"}
-                    size="sm"
-                    className="flex-1 sm:flex-none h-9"
-                    onClick={() => setDefaultRewardMutation.mutate(reward.id)}
-                    disabled={setDefaultRewardMutation.isPending || reward.is_default}
-                  >
-                    <Star className={`h-4 w-4 mr-1.5 ${reward.is_default ? "fill-current text-amber-500" : ""}`} />
-                    {reward.is_default ? "Featured" : "Set Featured"}
-                  </Button>
+                  {reward.reward_type !== "player_of_match" && (
+                    <Button
+                      variant={reward.is_default ? "secondary" : "ghost"}
+                      size="sm"
+                      className="flex-1 sm:flex-none h-9"
+                      onClick={() => setDefaultRewardMutation.mutate(reward.id)}
+                      disabled={setDefaultRewardMutation.isPending || reward.is_default}
+                    >
+                      <Star className={`h-4 w-4 mr-1.5 ${reward.is_default ? "fill-current text-amber-500" : ""}`} />
+                      {reward.is_default ? "Featured" : "Set Featured"}
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
