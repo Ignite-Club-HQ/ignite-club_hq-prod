@@ -316,7 +316,6 @@ export default function RewardRedemptionCard() {
           .from("profiles")
           .update({
             ignite_points: remainingPoints,
-            has_sausage_reward: false,
           })
           .eq("id", user!.id);
         if (updateError) throw updateError;

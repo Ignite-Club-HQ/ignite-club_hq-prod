@@ -17,7 +17,6 @@ interface Profile {
   display_name: string | null;
   avatar_url: string | null;
   ignite_points: number;
-  has_sausage_reward: boolean;
   theme_preference: string | null;
 }
 
@@ -178,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         const fetchPromise = supabase
           .from("profiles")
-          .select("id, display_name, avatar_url, ignite_points, has_sausage_reward, theme_preference, events_view_mode")
+          .select("id, display_name, avatar_url, ignite_points, theme_preference, events_view_mode")
           .eq("id", userId)
           .maybeSingle();
         
