@@ -703,13 +703,12 @@ export default function HomePage() {
           description: `Redeemed: ${reward.name}`,
         });
       } else {
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update({
-            ignite_points: remainingPoints,
-            has_sausage_reward: false,
-          })
-          .eq("id", user!.id);
+         const { error: updateError } = await supabase
+           .from("profiles")
+           .update({
+             ignite_points: remainingPoints,
+           })
+           .eq("id", user!.id);
         if (updateError) throw updateError;
 
         // Record in points history
