@@ -84,6 +84,8 @@ export default function VaultPage() {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [deletePhotoId, setDeletePhotoId] = useState<string | null>(null);
   const [deleteFileId, setDeleteFileId] = useState<string | null>(null);
+  const [restoreItemId, setRestoreItemId] = useState<string | null>(null);
+  const [restoreItemType, setRestoreItemType] = useState<"photo" | "file">("photo");
   const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null);
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
