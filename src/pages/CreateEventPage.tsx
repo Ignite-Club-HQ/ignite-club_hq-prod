@@ -872,8 +872,8 @@ export default function CreateEventPage() {
                   />
                 )}
                 
-                {/* Mini League selection - only for mini_league events */}
-                {type === "mini_league" && (
+                {/* Mini League selection - only for mini_league events, hidden when pre-set */}
+                {type === "mini_league" && !isFromMiniLeague && (
                   <MobileCardSelect
                     value={miniLeagueId}
                     onValueChange={setMiniLeagueId}
