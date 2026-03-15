@@ -3,8 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ExternalLink } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
+import { SponsorTier, TIER_CONFIG } from "@/lib/sponsorTiers";
 
 interface Sponsor {
   id: string;
@@ -12,6 +14,7 @@ interface Sponsor {
   logo_url: string | null;
   website_url: string | null;
   description: string | null;
+  tier: SponsorTier | null;
 }
 
 interface PrimarySponsorDisplayProps {
@@ -29,7 +32,7 @@ export function PrimarySponsorDisplay({ sponsorId, variant = "compact", context 
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sponsors")
-        .select("id, name, logo_url, website_url, description")
+        .select("id, name, logo_url, website_url, description, tier")
         .eq("id", sponsorId!)
         .single();
       if (error) throw error;
@@ -66,6 +69,11 @@ export function PrimarySponsorDisplay({ sponsorId, variant = "compact", context 
           </AvatarFallback>
         </Avatar>
         <span className="text-sm font-medium">{sponsor.name}</span>
+        {sponsor.tier && (
+          <Badge variant="outline" className={`text-[10px] rounded-md ${TIER_CONFIG[sponsor.tier].bgColor} ${TIER_CONFIG[sponsor.tier].textColor} border-transparent`}>
+            {TIER_CONFIG[sponsor.tier].label}
+          </Badge>
+        )}
         {sponsor.website_url && (
           <button 
             onClick={(e) => { e.stopPropagation(); handleClick(); safeOpenUrl(sponsor.website_url!); }}
@@ -89,7 +97,7 @@ export function PrimarySponsorDisplay({ sponsorId, variant = "compact", context 
         </Avatar>
         <div className="flex-1 min-w-0">
           <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-            {entityName ? `Proud Sponsor of ${entityName}` : "Proud Sponsor"}
+            {sponsor.tier ? `${TIER_CONFIG[sponsor.tier].label} Partner` : entityName ? `Proud Sponsor of ${entityName}` : "Proud Sponsor"}
           </p>
           <h3 className="font-semibold text-lg truncate">{sponsor.name}</h3>
           {sponsor.description && (

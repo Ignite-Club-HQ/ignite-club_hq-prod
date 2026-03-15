@@ -128,7 +128,7 @@ export default function ManageTeamRolesPage() {
     mutationFn: async (userId: string) => {
       const { error } = await supabase
         .from("profiles")
-        .update({ ignite_points: 0, has_sausage_reward: false })
+        .update({ ignite_points: 0 })
         .eq("id", userId);
       if (error) throw error;
     },

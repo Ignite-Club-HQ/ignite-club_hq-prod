@@ -49,6 +49,7 @@ export default function PlayerOfMatchSelector({
   const queryClient = useQueryClient();
   const [selectDialogOpen, setSelectDialogOpen] = useState(false);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const [selectedReward, setSelectedReward] = useState<any | null>(null);
 
   // Fetch current player of match
   const { data: playerOfMatch, isLoading } = useQuery({
@@ -81,27 +82,27 @@ export default function PlayerOfMatchSelector({
     },
   });
 
-  // Fetch POM reward - team-specific first, then club-level fallback
-  const { data: pomReward } = useQuery({
-    queryKey: ["pom-reward", clubId, teamId],
+  // Fetch POM rewards - team-specific first, then club-level fallback
+  const { data: pomRewards = [] } = useQuery({
+    queryKey: ["pom-rewards", clubId, teamId],
     queryFn: async () => {
-      // First try team-specific reward
+      // First try team-specific rewards
       if (teamId) {
-        const { data: teamReward, error: teamError } = await supabase
+        const { data: teamRewards, error: teamError } = await supabase
           .from("club_rewards")
           .select("*")
           .eq("club_id", clubId)
           .eq("team_id", teamId)
           .eq("reward_type", "player_of_match")
           .eq("is_active", true)
-          .maybeSingle();
+          .order("created_at", { ascending: true });
         
-        if (!teamError && teamReward) {
-          return teamReward;
+        if (!teamError && teamRewards && teamRewards.length > 0) {
+          return teamRewards;
         }
       }
       
-      // Fall back to club-level reward (team_id is null)
+      // Fall back to club-level rewards (team_id is null)
       const { data, error } = await supabase
         .from("club_rewards")
         .select("*")
@@ -109,18 +110,22 @@ export default function PlayerOfMatchSelector({
         .is("team_id", null)
         .eq("reward_type", "player_of_match")
         .eq("is_active", true)
-        .maybeSingle();
+        .order("created_at", { ascending: true });
       
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
+
+  // Use selected reward or default to first available
+  const activePomReward = selectedReward || (pomRewards.length === 1 ? pomRewards[0] : null);
 
   // Award POM mutation
   const awardMutation = useMutation({
     mutationFn: async ({ userId, childId }: { userId?: string; childId?: string }) => {
       // Points to award - 0 if no reward configured
-      const pointsToAward = pomReward?.points_required || 0;
+      const rewardToUse = activePomReward;
+      const pointsToAward = rewardToUse?.points_required || 0;
 
       // Insert player of match record
       const { error: pomError } = await supabase.from("player_of_match").insert({
@@ -142,7 +147,8 @@ export default function PlayerOfMatchSelector({
             .eq("id", userId)
             .single();
 
-          const newPoints = (profile?.ignite_points || 0) + pointsToAward;
+          const previousPoints = profile?.ignite_points || 0;
+          const newPoints = previousPoints + pointsToAward;
 
           const { error: updateError } = await supabase
             .from("profiles")
@@ -163,11 +169,22 @@ export default function PlayerOfMatchSelector({
             createdBy: user!.id,
           });
 
+          // Check reward threshold
+          const { checkRewardThreshold } = await import("@/lib/rewardThresholdCheck");
+          const rewardName = await checkRewardThreshold({
+            userId,
+            clubId,
+            previousPoints,
+            newPoints,
+          });
+
           // Send notification with points
           await supabase.from("notifications").insert({
             user_id: userId,
             type: "player_of_match",
-            message: `🏆 Congratulations! You were selected as Player of the Match and earned ${pointsToAward} Ignite points!`,
+            message: rewardName
+              ? `🏆 Congratulations! You were selected as Player of the Match and earned ${pointsToAward} Ignite points! 🎁 Reward unlocked: ${rewardName}!`
+              : `🏆 Congratulations! You were selected as Player of the Match and earned ${pointsToAward} Ignite points!`,
             related_id: eventId,
           });
         } else if (childId) {
@@ -177,7 +194,8 @@ export default function PlayerOfMatchSelector({
             .eq("id", childId)
             .single();
 
-          const newPoints = (child?.ignite_points || 0) + pointsToAward;
+          const previousChildPoints = child?.ignite_points || 0;
+          const newPoints = previousChildPoints + pointsToAward;
 
           const { error: updateError } = await supabase
             .from("children")
@@ -198,12 +216,23 @@ export default function PlayerOfMatchSelector({
             createdBy: user!.id,
           });
 
+          // Check reward threshold for child
+          const { checkRewardThreshold: checkChildReward } = await import("@/lib/rewardThresholdCheck");
+          const childRewardName = await checkChildReward({
+            childId,
+            clubId,
+            previousPoints: previousChildPoints,
+            newPoints,
+          });
+
           // Notify parent with points
           if (child?.parent_id) {
             await supabase.from("notifications").insert({
               user_id: child.parent_id,
               type: "player_of_match",
-              message: `🏆 ${child.name} was selected as Player of the Match and earned ${pointsToAward} Ignite points!`,
+              message: childRewardName
+                ? `🏆 ${child.name} was selected as Player of the Match and earned ${pointsToAward} Ignite points! 🎁 Reward unlocked: ${childRewardName}!`
+                : `🏆 ${child.name} was selected as Player of the Match and earned ${pointsToAward} Ignite points!`,
               related_id: eventId,
             });
           }
@@ -391,12 +420,33 @@ export default function PlayerOfMatchSelector({
               )}
             </div>
           ) : isAdmin ? (
-            <div className="space-y-2">
+             <div className="space-y-2">
+              {/* Reward selector when multiple POM rewards exist */}
+              {pomRewards.length > 1 && (
+                <div className="mb-2">
+                  <p className="text-xs text-muted-foreground mb-1.5">Select reward to give:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {pomRewards.map((reward: any) => (
+                      <Button
+                        key={reward.id}
+                        variant={selectedReward?.id === reward.id ? "default" : "outline"}
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => setSelectedReward(reward)}
+                      >
+                        <Trophy className="h-3 w-3 mr-1" />
+                        {reward.name}
+                        {reward.points_required > 0 && ` (+${reward.points_required}pts)`}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <Button
                 variant="outline"
                 className="w-full border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
                 onClick={() => setSelectDialogOpen(true)}
-                disabled={goingPlayers.length === 0}
+                disabled={goingPlayers.length === 0 || (pomRewards.length > 1 && !selectedReward)}
               >
                 <Trophy className="h-4 w-4 mr-2" />
                 Select Player of the Match
@@ -406,9 +456,14 @@ export default function PlayerOfMatchSelector({
                   No players RSVP'd as "Going" yet
                 </p>
               )}
-              {!pomReward && goingPlayers.length > 0 && (
+              {pomRewards.length === 0 && goingPlayers.length > 0 && (
                 <p className="text-xs text-muted-foreground text-center">
                   No points reward configured. Add a "Player of the Match" reward in Club Rewards to award points.
+                </p>
+              )}
+              {pomRewards.length > 1 && !selectedReward && goingPlayers.length > 0 && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Select a reward above before choosing a player
                 </p>
               )}
             </div>
@@ -431,9 +486,13 @@ export default function PlayerOfMatchSelector({
           </ResponsiveDialogHeader>
           <ScrollArea className="max-h-[60vh]">
             <div className="p-4 space-y-2">
-              {pomReward ? (
+              {activePomReward ? (
                 <p className="text-sm text-muted-foreground mb-4">
-                  The selected player will receive <strong>{pomReward.points_required} Ignite points</strong> and the "{pomReward.name}" reward.
+                  The selected player will receive <strong>{activePomReward.points_required} Ignite points</strong> and the "{activePomReward.name}" reward.
+                </p>
+              ) : pomRewards.length > 0 ? (
+                <p className="text-sm text-muted-foreground mb-4">
+                  Select the player who stood out this match. Points will be awarded based on the selected reward.
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground mb-4">

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, MapPin, Repeat, Bell, ChevronDown, Calendar, FileText, DollarSign, ClipboardList, Plus, X, User, Star, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, MapPin, Repeat, Bell, ChevronDown, Calendar, FileText, DollarSign, ClipboardList, Plus, X, User, Star, Trash2, UserPlus } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,6 +87,10 @@ export default function CreateEventPage() {
   // Price for social events
   const [price, setPrice] = useState("");
 
+  // Guest settings for social events
+  const [allowGuests, setAllowGuests] = useState(false);
+  const [maxGuestsPerMember, setMaxGuestsPerMember] = useState(2);
+
   // Duties for game events
   const [duties, setDuties] = useState<{ name: string; assignedTo: string | null }[]>([]);
   const [newDutyName, setNewDutyName] = useState("");
@@ -150,7 +154,7 @@ export default function CreateEventPage() {
       
       const { data } = await supabase
         .from("clubs")
-        .select("id, name")
+        .select("id, name, allow_guests_default, max_guests_per_member_default")
         .in("id", clubIds);
 
       return data || [];
@@ -172,6 +176,17 @@ export default function CreateEventPage() {
       setClubId(filteredClubs[0].id);
     }
   }, [activeClubFilter, clubs, filteredClubs, clubId]);
+
+  // Apply club guest defaults when club is selected
+  useEffect(() => {
+    if (clubId && clubs) {
+      const selectedClub = clubs.find((c: any) => c.id === clubId);
+      if (selectedClub) {
+        setAllowGuests(selectedClub.allow_guests_default || false);
+        setMaxGuestsPerMember(selectedClub.max_guests_per_member_default || 2);
+      }
+    }
+  }, [clubId, clubs]);
 
   // Check if user is a club admin for the selected club
   const { data: isClubAdminForSelectedClub } = useQuery({
@@ -485,6 +500,8 @@ export default function CreateEventPage() {
       reminder_sent: false,
       amount: type === "social" ? parsedPrice : null,
       opponent: type === "game" ? opponent.trim() || null : null,
+      allow_guests: type === "social" && allowGuests ? true : null,
+      max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
     };
 
     try {
@@ -887,6 +904,42 @@ export default function CreateEventPage() {
                       className="pl-9"
                     />
                   </div>
+                </div>
+              )}
+
+              {/* Guest settings - only for social events, only for club admins */}
+              {type === "social" && isClubAdminForSelectedClub && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <Label htmlFor="allow-guests" className="flex items-center gap-2">
+                        <UserPlus className="h-4 w-4" />
+                        Allow Guests
+                      </Label>
+                      <span className="text-xs text-muted-foreground">
+                        Members can add non-member guests
+                      </span>
+                    </div>
+                    <Switch
+                      id="allow-guests"
+                      checked={allowGuests}
+                      onCheckedChange={setAllowGuests}
+                    />
+                  </div>
+                  {allowGuests && (
+                    <div className="space-y-2 pl-6">
+                      <Label htmlFor="max-guests">Max guests per member</Label>
+                      <Input
+                        id="max-guests"
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={maxGuestsPerMember}
+                        onChange={(e) => setMaxGuestsPerMember(parseInt(e.target.value) || 1)}
+                        className="w-24"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 

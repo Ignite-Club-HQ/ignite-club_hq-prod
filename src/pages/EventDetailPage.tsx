@@ -63,6 +63,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { format, parseISO } from "date-fns";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { EventSponsorsSection } from "@/components/EventSponsorsSection";
+import { EventGuestsManager } from "@/components/EventGuestsManager";
 import { EventGroupsManager } from "@/components/EventGroupsManager";
 import { EventViewsAdminSection } from "@/components/EventViewsAdminSection";
 import { useEventViewTracking } from "@/hooks/useEventViews";
@@ -848,11 +849,24 @@ export default function EventDetailPage() {
         }
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, status) => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
       toast({ title: "RSVP updated!" });
+
+      // Auto-trigger payment for paid social events when RSVPing "going"
+      if (
+        status === "going" &&
+        showPaymentStatus &&
+        !userHasPaid &&
+        !isProcessingPayment
+      ) {
+        // Small delay so user sees the RSVP confirmation first
+        setTimeout(() => {
+          handlePayNow();
+        }, 600);
+      }
     },
   });
 
@@ -2051,6 +2065,16 @@ export default function EventDetailPage() {
         )}
       </section>
 
+      {/* Guest Management Section - only for social events with guests enabled */}
+      {event.type === "social" && event.allow_guests && myRsvp?.status === "going" && (
+        <EventGuestsManager
+          eventId={event.id}
+          clubId={event.club_id}
+          maxGuestsPerMember={event.max_guests_per_member || 2}
+          isAdmin={isAdmin || isAppAdmin}
+        />
+      )}
+
       {/* Child RSVP Section - for parents with children on this team */}
       {childrenOnTeam && childrenOnTeam.length > 0 && (
         <section className="space-y-4">
@@ -2502,7 +2526,7 @@ export default function EventDetailPage() {
                             Claim
                           </Button>
                         )}
-                        {duty.status === "open" && duty.assigned_to === user?.id && (
+                        {duty.status === "open" && (duty.assigned_to === user?.id || isAdmin) && (
                           <Button
                             size="sm"
                             onClick={() => completeDutyMutation.mutate(duty.id)}

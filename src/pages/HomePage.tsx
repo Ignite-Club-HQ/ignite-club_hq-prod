@@ -89,6 +89,7 @@ interface Event {
   is_cancelled: boolean;
   is_recurring: boolean;
   parent_event_id: string | null;
+  amount: number | null;
   opponent: string | null;
   teams: { name: string } | null;
   clubs: { name: string; sport: string | null };
@@ -295,6 +296,7 @@ export default function HomePage() {
           is_cancelled,
           is_recurring,
           parent_event_id,
+          amount,
           opponent,
           teams (name),
           clubs (name, sport)
@@ -703,13 +705,12 @@ export default function HomePage() {
           description: `Redeemed: ${reward.name}`,
         });
       } else {
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update({
-            ignite_points: remainingPoints,
-            has_sausage_reward: false,
-          })
-          .eq("id", user!.id);
+         const { error: updateError } = await supabase
+           .from("profiles")
+           .update({
+             ignite_points: remainingPoints,
+           })
+           .eq("id", user!.id);
         if (updateError) throw updateError;
 
         // Record in points history
@@ -1633,7 +1634,7 @@ export default function HomePage() {
                   <CheckCircle2 className="h-4 w-4" />
                   Mark as Claimed
                 </Button>
-              ) : (profile?.ignite_points || 0) >= minRewardThreshold || profile?.has_sausage_reward ? (
+              ) : (profile?.ignite_points || 0) >= minRewardThreshold ? (
                 <Button
                   size="sm"
                   variant="secondary"
@@ -1646,7 +1647,7 @@ export default function HomePage() {
               ) : null}
             </div>
           </div>
-          {!latestPendingRedemption && !profile?.has_sausage_reward && (profile?.ignite_points || 0) < minRewardThreshold && (
+          {!latestPendingRedemption && (profile?.ignite_points || 0) < minRewardThreshold && (
             <div className="flex items-center justify-between mt-2">
               <p className="text-primary-foreground/70 text-sm">
                 💡 {minRewardThreshold - (profile?.ignite_points || 0)} more points to unlock rewards!
@@ -1667,7 +1668,7 @@ export default function HomePage() {
               🎁 You have a reward ready to claim: {latestPendingRedemption.club_rewards?.name}
             </p>
           )}
-          {!latestPendingRedemption && ((profile?.ignite_points || 0) >= minRewardThreshold || profile?.has_sausage_reward) && (
+          {!latestPendingRedemption && (profile?.ignite_points || 0) >= minRewardThreshold && (
             <p className="text-primary-foreground/80 text-sm mt-2">
               🎁 You have rewards available! Tap to browse and redeem.
             </p>
@@ -1676,13 +1677,13 @@ export default function HomePage() {
       </Card>
 
       {/* Reward Claim QR Dialog */}
-      {(latestPendingRedemption || profile?.has_sausage_reward) && user && (
+      {latestPendingRedemption && user && (
         <RewardClaimQRDialog
           open={rewardQROpen}
           onOpenChange={setRewardQROpen}
-          rewardName={latestPendingRedemption?.club_rewards?.name || "Free Sausage"}
-          clubName={latestPendingRedemption?.clubs?.name || "Club"}
-          redemptionId={latestPendingRedemption?.id || `sausage-${user.id}`}
+          rewardName={latestPendingRedemption.club_rewards?.name || "Reward"}
+          clubName={latestPendingRedemption.clubs?.name || "Club"}
+          redemptionId={latestPendingRedemption.id}
           qrCodeUrl={latestPendingRedemption?.club_rewards?.qr_code_url || null}
           userName={profile?.display_name || undefined}
           userId={user.id}
@@ -2684,6 +2685,7 @@ export default function HomePage() {
           opponent={quickRsvpEvent.opponent}
           clubId={quickRsvpEvent.club_id}
           clubName={quickRsvpEvent.clubs?.name || "Your club"}
+          eventAmount={quickRsvpEvent.amount}
         />
       )}
 

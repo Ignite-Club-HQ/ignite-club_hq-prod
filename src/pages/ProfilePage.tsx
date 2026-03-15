@@ -268,7 +268,7 @@ export default function ProfilePage() {
           name: entry.description,
           context: entry.clubs?.name || 'Club',
           date: entry.created_at,
-          eventId: entry.source_type === 'early_rsvp' || entry.source_type === 'player_of_match' ? entry.source_id : undefined,
+          eventId: entry.source_type === 'early_rsvp' || entry.source_type === 'player_of_match' || entry.source_type === 'attendance' ? entry.source_id : undefined,
         });
         if (entry.source_id) {
           addedSourceIds.add(entry.source_id);

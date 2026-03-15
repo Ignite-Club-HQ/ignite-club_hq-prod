@@ -9,12 +9,15 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Building2, RefreshCw, Check, Loader2 } from "lucide-react";
+import { SponsorTier, TIER_CONFIG, selectWeightedSponsor } from "@/lib/sponsorTiers";
 
 interface Sponsor {
   id: string;
   name: string;
   logo_url: string | null;
   is_active: boolean;
+  tier: SponsorTier | null;
+  exposure_percentage: number | null;
 }
 
 interface ClubPrimarySponsorManagerProps {
@@ -38,7 +41,7 @@ export function ClubPrimarySponsorManager({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sponsors")
-        .select("id, name, logo_url, is_active")
+        .select("id, name, logo_url, is_active, tier, exposure_percentage")
         .eq("club_id", clubId)
         .eq("is_active", true)
         .order("display_order", { ascending: true });
@@ -75,9 +78,14 @@ export function ClubPrimarySponsorManager({
   const rotateSponsor = () => {
     if (sponsors.length === 0) return;
     
-    const currentIndex = sponsors.findIndex(s => s.id === currentPrimarySponsorId);
-    const nextIndex = (currentIndex + 1) % sponsors.length;
-    updatePrimarySponsorMutation.mutate(sponsors[nextIndex].id);
+    // Use weighted selection, excluding current primary
+    const candidates = sponsors.filter(s => s.id !== currentPrimarySponsorId);
+    if (candidates.length === 0) return;
+    
+    const selected = selectWeightedSponsor(candidates);
+    if (selected) {
+      updatePrimarySponsorMutation.mutate(selected.id);
+    }
   };
 
   // Auto-rotate on mount if enabled (simulates rotation on page load)
@@ -154,6 +162,14 @@ export function ClubPrimarySponsorManager({
                 </AvatarFallback>
               </Avatar>
               <span className="font-medium flex-1">{sponsor.name}</span>
+              {sponsor.tier && (
+                <Badge 
+                  variant="outline" 
+                  className={`text-[10px] rounded-md ${TIER_CONFIG[sponsor.tier].bgColor} ${TIER_CONFIG[sponsor.tier].textColor} border-transparent`}
+                >
+                  {TIER_CONFIG[sponsor.tier].label}
+                </Badge>
+              )}
               {isSelected && (
                 <Badge variant="default" className="gap-1">
                   <Check className="h-3 w-3" />

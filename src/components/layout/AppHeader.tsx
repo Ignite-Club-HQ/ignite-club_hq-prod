@@ -603,6 +603,11 @@ export function AppHeader() {
             navigate(`/teams/${relatedId}`);
           }
           return;
+        case "fee_payment_request":
+          if (relatedId) {
+            navigate(`/pay-fees/${relatedId}`);
+          }
+          return;
       }
 
       navigate("/notifications");

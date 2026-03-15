@@ -1183,6 +1183,7 @@ export type Database = {
           admin_pro_override: boolean
           club_id: string
           created_at: string
+          disable_points_system: boolean
           disable_team_pom_rewards: boolean
           expires_at: string | null
           id: string
@@ -1210,6 +1211,7 @@ export type Database = {
           admin_pro_override?: boolean
           club_id: string
           created_at?: string
+          disable_points_system?: boolean
           disable_team_pom_rewards?: boolean
           expires_at?: string | null
           id?: string
@@ -1237,6 +1239,7 @@ export type Database = {
           admin_pro_override?: boolean
           club_id?: string
           created_at?: string
+          disable_points_system?: boolean
           disable_team_pom_rewards?: boolean
           expires_at?: string | null
           id?: string
@@ -1278,6 +1281,7 @@ export type Database = {
       clubs: {
         Row: {
           admin_user_id: string | null
+          allow_guests_default: boolean
           auto_reward_threshold: number | null
           city: string | null
           class_mode_enabled: boolean
@@ -1291,6 +1295,7 @@ export type Database = {
           logo_only_mode: boolean | null
           logo_url: string | null
           longitude: number | null
+          max_guests_per_member_default: number
           member_count: number | null
           member_payments_enabled: boolean
           name: string
@@ -1338,6 +1343,7 @@ export type Database = {
         }
         Insert: {
           admin_user_id?: string | null
+          allow_guests_default?: boolean
           auto_reward_threshold?: number | null
           city?: string | null
           class_mode_enabled?: boolean
@@ -1351,6 +1357,7 @@ export type Database = {
           logo_only_mode?: boolean | null
           logo_url?: string | null
           longitude?: number | null
+          max_guests_per_member_default?: number
           member_count?: number | null
           member_payments_enabled?: boolean
           name: string
@@ -1398,6 +1405,7 @@ export type Database = {
         }
         Update: {
           admin_user_id?: string | null
+          allow_guests_default?: boolean
           auto_reward_threshold?: number | null
           city?: string | null
           class_mode_enabled?: boolean
@@ -1411,6 +1419,7 @@ export type Database = {
           logo_only_mode?: boolean | null
           logo_url?: string | null
           longitude?: number | null
+          max_guests_per_member_default?: number
           member_count?: number | null
           member_payments_enabled?: boolean
           name?: string
@@ -1613,6 +1622,7 @@ export type Database = {
       duties: {
         Row: {
           assigned_to: string | null
+          completed_at: string | null
           created_at: string
           event_id: string
           id: string
@@ -1624,6 +1634,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          completed_at?: string | null
           created_at?: string
           event_id: string
           id?: string
@@ -1635,6 +1646,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          completed_at?: string | null
           created_at?: string
           event_id?: string
           id?: string
@@ -1804,6 +1816,38 @@ export type Database = {
           },
         ]
       }
+      event_guests: {
+        Row: {
+          added_by: string
+          created_at: string
+          event_id: string
+          guest_name: string
+          id: string
+        }
+        Insert: {
+          added_by: string
+          created_at?: string
+          event_id: string
+          guest_name: string
+          id?: string
+        }
+        Update: {
+          added_by?: string
+          created_at?: string
+          event_id?: string
+          guest_name?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_guests_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_payments: {
         Row: {
           amount: number
@@ -1919,6 +1963,7 @@ export type Database = {
       events: {
         Row: {
           address: string | null
+          allow_guests: boolean | null
           amount: number | null
           club_id: string
           created_at: string
@@ -1934,6 +1979,7 @@ export type Database = {
           is_recurring: boolean | null
           location: string | null
           location_name: string | null
+          max_guests_per_member: number | null
           meet_time: string | null
           mini_league_id: string | null
           opponent: string | null
@@ -1956,6 +2002,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          allow_guests?: boolean | null
           amount?: number | null
           club_id: string
           created_at?: string
@@ -1971,6 +2018,7 @@ export type Database = {
           is_recurring?: boolean | null
           location?: string | null
           location_name?: string | null
+          max_guests_per_member?: number | null
           meet_time?: string | null
           mini_league_id?: string | null
           opponent?: string | null
@@ -1993,6 +2041,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          allow_guests?: boolean | null
           amount?: number | null
           club_id?: string
           created_at?: string
@@ -2008,6 +2057,7 @@ export type Database = {
           is_recurring?: boolean | null
           location?: string | null
           location_name?: string | null
+          max_guests_per_member?: number | null
           meet_time?: string | null
           mini_league_id?: string | null
           opponent?: string | null
@@ -4364,6 +4414,7 @@ export type Database = {
       }
       rsvps: {
         Row: {
+          attendance_points_awarded: boolean
           child_id: string | null
           created_at: string
           early_rsvp_points_awarded: boolean
@@ -4377,6 +4428,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          attendance_points_awarded?: boolean
           child_id?: string | null
           created_at?: string
           early_rsvp_points_awarded?: boolean
@@ -4390,6 +4442,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          attendance_points_awarded?: boolean
           child_id?: string | null
           created_at?: string
           early_rsvp_points_awarded?: boolean
@@ -4513,12 +4566,14 @@ export type Database = {
           created_at: string
           description: string | null
           display_order: number
+          exposure_percentage: number | null
           id: string
           is_active: boolean
           is_team_only: boolean
           logo_url: string | null
           name: string
           team_id: string | null
+          tier: Database["public"]["Enums"]["sponsor_tier"] | null
           updated_at: string
           website_url: string | null
         }
@@ -4527,12 +4582,14 @@ export type Database = {
           created_at?: string
           description?: string | null
           display_order?: number
+          exposure_percentage?: number | null
           id?: string
           is_active?: boolean
           is_team_only?: boolean
           logo_url?: string | null
           name: string
           team_id?: string | null
+          tier?: Database["public"]["Enums"]["sponsor_tier"] | null
           updated_at?: string
           website_url?: string | null
         }
@@ -4541,12 +4598,14 @@ export type Database = {
           created_at?: string
           description?: string | null
           display_order?: number
+          exposure_percentage?: number | null
           id?: string
           is_active?: boolean
           is_team_only?: boolean
           logo_url?: string | null
           name?: string
           team_id?: string | null
+          tier?: Database["public"]["Enums"]["sponsor_tier"] | null
           updated_at?: string
           website_url?: string | null
         }
@@ -5760,6 +5819,7 @@ export type Database = {
       feedback_status: "open" | "in_progress" | "resolved"
       role_request_status: "pending" | "approved" | "denied"
       rsvp_status: "going" | "maybe" | "not_going"
+      sponsor_tier: "platinum" | "gold" | "silver" | "bronze"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5905,6 +5965,7 @@ export const Constants = {
       feedback_status: ["open", "in_progress", "resolved"],
       role_request_status: ["pending", "approved", "denied"],
       rsvp_status: ["going", "maybe", "not_going"],
+      sponsor_tier: ["platinum", "gold", "silver", "bronze"],
     },
   },
 } as const

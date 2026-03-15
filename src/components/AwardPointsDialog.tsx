@@ -45,8 +45,8 @@ export default function AwardPointsDialog({
 
   const awardMutation = useMutation({
     mutationFn: async () => {
-      // Update the member's ignite points
-      const newPoints = Math.max(0, currentPoints + points);
+      const previousPoints = currentPoints;
+      const newPoints = Math.max(0, previousPoints + points);
       
       const { error: updateError } = await supabase
         .from("profiles")
@@ -66,6 +66,18 @@ export default function AwardPointsDialog({
         createdBy: user?.id,
       });
 
+      // Check reward threshold
+      let rewardName: string | undefined;
+      if (points > 0 && clubId) {
+        const { checkRewardThreshold } = await import("@/lib/rewardThresholdCheck");
+        rewardName = await checkRewardThreshold({
+          userId: memberId,
+          clubId,
+          previousPoints,
+          newPoints,
+        });
+      }
+
       // Create a notification for the member
       const pointsText = points > 0 ? `+${points}` : `${points}`;
       const message = reason 
@@ -83,7 +95,6 @@ export default function AwardPointsDialog({
 
       if (notificationError) {
         console.error("Failed to create notification:", notificationError);
-        // Don't throw - points were still awarded
       }
 
       // Send email notification
@@ -96,12 +107,12 @@ export default function AwardPointsDialog({
             totalPoints: newPoints,
             clubName,
             clubLogoUrl,
-            rewardUnlocked: false,
+            rewardUnlocked: !!rewardName,
+            rewardName,
           },
         });
       } catch (emailErr) {
         console.error("Failed to send points email:", emailErr);
-        // Don't throw - points were still awarded
       }
     },
     onSuccess: () => {

@@ -89,6 +89,7 @@ const EventGroupPitchPage = lazy(() => import("./pages/EventGroupPitchPage"));
 const AppSettingsPage = lazy(() => import("./pages/AppSettingsPage"));
 const AdMobSettingsPage = lazy(() => import("./pages/AdMobSettingsPage"));
 const ClassEnrolmentPage = lazy(() => import("./pages/ClassEnrolmentPage"));
+const PayFeesPage = lazy(() => import("./pages/PayFeesPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -245,6 +246,7 @@ const App = () => {
                   <Route path="/children" element={<ChildrenPage />} />
                   <Route path="/children" element={<ChildrenPage />} />
                   <Route path="/notifications" element={<NotificationsPage />} />
+                  <Route path="/pay-fees/:clubId" element={<PayFeesPage />} />
                   <Route path="/reports/player-stats" element={<PlayerStatsReportPage />} />
                   <Route path="/admin/promo-codes" element={<ManagePromoCodesPage />} />
                   <Route path="/admin/stripe" element={<AppStripeSettingsPage />} />

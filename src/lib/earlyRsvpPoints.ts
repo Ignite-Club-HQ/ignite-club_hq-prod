@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { differenceInDays, parseISO } from "date-fns";
 import { recordPointsHistory } from "@/lib/pointsHistory";
+import { checkRewardThreshold } from "@/lib/rewardThresholdCheck";
 
 const EARLY_RSVP_DAYS_THRESHOLD = 3;
 const EARLY_RSVP_POINTS = 1;
@@ -25,6 +26,20 @@ export async function awardEarlyRsvpPoints({
   clubName,
 }: AwardEarlyRsvpPointsParams): Promise<boolean> {
   try {
+    // Check if club has Pro subscription and points system enabled
+    const { data: clubSub } = await supabase
+      .from("club_subscriptions")
+      .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, disable_points_system")
+      .eq("club_id", clubId)
+      .maybeSingle();
+
+    const hasPro = clubSub?.is_pro || clubSub?.is_pro_football || 
+                   clubSub?.admin_pro_override || clubSub?.admin_pro_football_override;
+
+    if (!hasPro || clubSub?.disable_points_system) {
+      return false;
+    }
+
     // Check if event is at least 3 days away
     const eventDateParsed = parseISO(eventDate);
     const now = new Date();
@@ -91,6 +106,14 @@ export async function awardEarlyRsvpPoints({
       related_id: clubId,
     });
 
+    // Check reward threshold
+    const rewardName = await checkRewardThreshold({
+      userId,
+      clubId,
+      previousPoints: currentPoints,
+      newPoints,
+    });
+
     // Send email notification (fire and forget)
     supabase.functions.invoke("send-points-notification-email", {
       body: {
@@ -99,7 +122,8 @@ export async function awardEarlyRsvpPoints({
         reason: "Early RSVP bonus",
         totalPoints: newPoints,
         clubName,
-        rewardUnlocked: false,
+        rewardUnlocked: !!rewardName,
+        rewardName,
       },
     }).catch((err) => console.error("Failed to send points email:", err));
 
