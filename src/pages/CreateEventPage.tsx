@@ -154,7 +154,7 @@ export default function CreateEventPage() {
       
       const { data } = await supabase
         .from("clubs")
-        .select("id, name")
+        .select("id, name, allow_guests_default, max_guests_per_member_default")
         .in("id", clubIds);
 
       return data || [];
