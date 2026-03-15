@@ -518,7 +518,24 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
           <PointsIconGallery
             clubId={clubId}
             currentIconUrl={pointsIconUrl}
-            onIconSelect={setPointsIconUrl}
+            onIconSelect={async (url) => {
+              setPointsIconUrl(url);
+              // Auto-save icon selection immediately
+              const { error } = await supabase
+                .from("clubs")
+                .update({ 
+                  points_display_name: customPointsName || 'Ignite Points',
+                  points_icon_url: url,
+                } as any)
+                .eq("id", clubId);
+              if (!error) {
+                queryClient.invalidateQueries({ queryKey: ["user-clubs"] });
+                queryClient.invalidateQueries({ queryKey: ["points-display-name"] });
+                queryClient.invalidateQueries({ queryKey: ["points-display"] });
+                queryClient.invalidateQueries({ queryKey: ["club-points-name"] });
+                toast({ title: url ? "Points icon updated" : "Points icon removed" });
+              }
+            }}
           />
 
           <Button
