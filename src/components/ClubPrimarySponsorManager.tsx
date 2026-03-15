@@ -78,9 +78,14 @@ export function ClubPrimarySponsorManager({
   const rotateSponsor = () => {
     if (sponsors.length === 0) return;
     
-    const currentIndex = sponsors.findIndex(s => s.id === currentPrimarySponsorId);
-    const nextIndex = (currentIndex + 1) % sponsors.length;
-    updatePrimarySponsorMutation.mutate(sponsors[nextIndex].id);
+    // Use weighted selection, excluding current primary
+    const candidates = sponsors.filter(s => s.id !== currentPrimarySponsorId);
+    if (candidates.length === 0) return;
+    
+    const selected = selectWeightedSponsor(candidates);
+    if (selected) {
+      updatePrimarySponsorMutation.mutate(selected.id);
+    }
   };
 
   // Auto-rotate on mount if enabled (simulates rotation on page load)
