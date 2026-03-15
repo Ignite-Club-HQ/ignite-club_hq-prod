@@ -632,7 +632,7 @@ export default function CreateTeamPage() {
           {clubId && (
             <AssignTeamAdminSection
               clubId={clubId}
-              teamName={name || "this team"}
+              teamName={name || `this ${entityLabelLower(club)}`}
               onAssignmentChange={setAdminAssignment}
             />
           )}
