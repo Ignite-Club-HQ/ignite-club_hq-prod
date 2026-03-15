@@ -619,7 +619,7 @@ export default function ClubUpgradePage() {
                 </p>
               </div>
             </div>
-            {!isNative && (
+            {!isNative && !isClassMode && (
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={handleGetSponsored} className="flex-1">
                   <Heart className="h-4 w-4 mr-2 text-pink-500" />
