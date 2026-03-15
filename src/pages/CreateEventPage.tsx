@@ -746,7 +746,7 @@ export default function CreateEventPage() {
           );
         })}
       </div>
-      )}
+      ))}
 
 
       {/* Details Section */}
