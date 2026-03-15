@@ -1,4 +1,6 @@
-import { useState, lazy, Suspense, useMemo } from "react";
+import { useState, lazy, Suspense, useMemo, useEffect } from "react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
@@ -187,6 +189,7 @@ export default function HomePage() {
   const [rewardQROpen, setRewardQROpen] = useState(false);
   const [claimDialogOpen, setClaimDialogOpen] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
+  const [earnPointsOpen, setEarnPointsOpen] = useState(() => !localStorage.getItem('earnPointsHintsSeen'));
   const [selectedUpgradeClub, setSelectedUpgradeClub] = useState<string>("");
   const [remindDialogOpen, setRemindDialogOpen] = useState(false);
   const [eventToRemind, setEventToRemind] = useState<Event | null>(null);
@@ -1604,33 +1607,48 @@ export default function HomePage() {
               🎁 You have rewards available! Tap to browse and redeem.
             </p>
           )}
-          {/* How to earn points hints */}
-          <div className="mt-3 pt-3 border-t border-primary-foreground/15">
-            <p className="text-primary-foreground/60 text-xs font-medium uppercase tracking-wide mb-1.5">Earn points by</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                💬 Chat activity
-              </span>
-              <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                📸 Uploading photos
-              </span>
-              <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                🤝 Volunteering
-              </span>
-              <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                🎯 Early RSVPs
-              </span>
-              <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                ⭐ Player of the Match
-              </span>
-              <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                📋 Attending events
-              </span>
-              <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                🔥 Weekly streaks
-              </span>
+          {/* How to earn points hints - collapsible */}
+          <Collapsible
+            open={earnPointsOpen}
+            onOpenChange={(open) => {
+              setEarnPointsOpen(open);
+              if (!open) {
+                localStorage.setItem('earnPointsHintsSeen', 'true');
+              }
+            }}
+          >
+            <div className="mt-3 pt-3 border-t border-primary-foreground/15">
+              <CollapsibleTrigger className="flex items-center justify-between w-full active:scale-[0.99] transition-transform">
+                <p className="text-primary-foreground/60 text-xs font-medium uppercase tracking-wide">Earn points by</p>
+                <ChevronDown className={`h-3.5 w-3.5 text-primary-foreground/50 transition-transform duration-200 ${earnPointsOpen ? 'rotate-180' : ''}`} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-1.5">
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                    💬 Chat activity
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                    📸 Uploading photos
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                    🤝 Volunteering
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                    🎯 Early RSVPs
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                    ⭐ Player of the Match
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                    📋 Attending events
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
+                    🔥 Weekly streaks
+                  </span>
+                </div>
+              </CollapsibleContent>
             </div>
-          </div>
+          </Collapsible>
         </CardContent>
       </Card>
 
