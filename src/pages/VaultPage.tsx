@@ -3727,6 +3727,11 @@ export default function VaultPage() {
             }}
             onRenameFile={() => {}}
             onDownloadPhoto={downloadFile}
+            selectionMode={selectionMode}
+            selectedPhotos={selectedPhotos}
+            selectedFiles={selectedFiles}
+            onTogglePhotoSelection={togglePhotoSelection}
+            onToggleFileSelection={toggleFileSelection}
           />
         </div>
       )}
