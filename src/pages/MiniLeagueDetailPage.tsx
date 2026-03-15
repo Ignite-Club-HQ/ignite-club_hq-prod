@@ -572,34 +572,38 @@ export default function MiniLeagueDetailPage() {
           <div className="flex justify-between items-center gap-2">
             <h2 className="text-base font-semibold">Player Pool</h2>
             <div className="flex items-center gap-2">
-              {selectionMode ? (
+              {canManageLeague && (
                 <>
-                  <Button variant="ghost" size="sm" onClick={exitSelectionMode}>
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={selectedPlayerIds.size === 0}
-                    onClick={() => setBulkDeleteOpen(true)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-1.5" />
-                    Delete ({selectedPlayerIds.size})
-                  </Button>
-                </>
-              ) : (
-                <>
-                  {(players?.length || 0) > 0 && (
-                    <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
-                      <CheckSquare className="h-4 w-4 mr-1.5" />
-                      Select
-                    </Button>
+                  {selectionMode ? (
+                    <>
+                      <Button variant="ghost" size="sm" onClick={exitSelectionMode}>
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={selectedPlayerIds.size === 0}
+                        onClick={() => setBulkDeleteOpen(true)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1.5" />
+                        Delete ({selectedPlayerIds.size})
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      {(players?.length || 0) > 0 && (
+                        <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
+                          <CheckSquare className="h-4 w-4 mr-1.5" />
+                          Select
+                        </Button>
+                      )}
+                      <AddMiniLeagueMemberSheet
+                        miniLeagueId={id!}
+                        miniLeagueName={league.name}
+                        clubId={league.club_id}
+                      />
+                    </>
                   )}
-                  <AddMiniLeagueMemberSheet
-                    miniLeagueId={id!}
-                    miniLeagueName={league.name}
-                    clubId={league.club_id}
-                  />
                 </>
               )}
             </div>
