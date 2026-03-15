@@ -647,7 +647,7 @@ export default function ClubUpgradePage() {
               </p>
               {isNearExpiry && (
                 <p className="text-xs text-amber-600 mt-0.5">
-                  Expiring in {daysUntilExpiry} days — renew or find a sponsor
+                  Expiring in {daysUntilExpiry} days — renew{!isClassMode ? " or find a sponsor" : ""}
                 </p>
               )}
             </div>
