@@ -1782,12 +1782,12 @@ serve(async (req) => {
         // Rewards: Free Drink (50), Jersey Discount (100), Training (200), Match Ball (500)
         // Give users enough points to redeem various rewards
         const pointsAssignments = [
-          { idx: 1, points: 125, hasSausageReward: true }, // Can redeem Free Drink + Jersey Discount
-          { idx: 5, points: 210, hasSausageReward: false }, // Can redeem up to Training Session
-          { idx: 9, points: 75, hasSausageReward: false },  // Can redeem Free Drink
-          { idx: 0, points: 520, hasSausageReward: false }, // Can redeem Match Ball (highest)
-          { idx: 4, points: 45, hasSausageReward: false },  // Almost at Free Drink
-          { idx: 8, points: 105, hasSausageReward: false }, // Can redeem Jersey Discount
+          { idx: 1, points: 125 },
+          { idx: 5, points: 210 },
+          { idx: 9, points: 75 },
+          { idx: 0, points: 520 },
+          { idx: 4, points: 45 },
+          { idx: 8, points: 105 },
         ];
         
         // Duty names for generating history
