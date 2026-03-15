@@ -99,11 +99,11 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
     mutationFn: async () => {
       if (!playerName.trim()) throw new Error("Player name is required");
 
-      // Create child record in the central children table
+      // Create child record - parent_id set to admin temporarily; reassigned when parent accepts invite
       const { data: child, error: childError } = await supabase
         .from("children")
         .insert({
-          parent_id: user!.id, // Initially set to the admin who added them
+          parent_id: user!.id,
           name: playerName.trim(),
         })
         .select()
@@ -255,7 +255,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
       const results: { playerName: string; parentEmail: string; sent: boolean }[] = [];
 
       for (const player of validPlayers) {
-        // Create child record in the central children table
+        // Create child record - parent_id set to admin temporarily; reassigned when parent accepts invite
         const { data: child, error: childError } = await supabase
           .from("children")
           .insert({
@@ -635,9 +635,17 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
                     onClick={() => addBulkPlayersMutation.mutate(undefined)}
                     disabled={!bulkPlayers.some(p => p.name.trim()) || isPending}
                   >
-                    {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    <Send className="h-4 w-4 mr-2" />
-                    Add Players & Send Invites
+                    {isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Adding Players...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Add Players & Send Invites
+                      </>
+                    )}
                   </Button>
                 </>
               )}

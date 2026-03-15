@@ -162,7 +162,7 @@ export default function MiniLeaguesPage() {
         (data || []).map(async (league) => {
           const [playersResult, sessionsResult] = await Promise.all([
             supabase.from("mini_league_players").select("id", { count: "exact", head: true }).eq("mini_league_id", league.id),
-            supabase.from("mini_league_sessions").select("id", { count: "exact", head: true }).eq("mini_league_id", league.id),
+            supabase.from("events").select("id", { count: "exact", head: true }).eq("mini_league_id", league.id),
           ]);
           return {
             ...league,

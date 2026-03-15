@@ -79,6 +79,7 @@ export default function MiniLeagueDetailPage() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [newBibColor, setNewBibColor] = useState("#ef4444");
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [playerSearch, setPlayerSearch] = useState("");
 
   // Available bib color presets
   const BIB_COLOR_PRESETS = [
@@ -453,23 +454,34 @@ export default function MiniLeagueDetailPage() {
     );
   }
 
-  // Group players by ability
-  const playersByAbility = players?.reduce((acc, player) => {
+  // Filter players by search, then group by ability
+  const filteredPlayers = players?.filter(p => 
+    !playerSearch.trim() || p.name.toLowerCase().includes(playerSearch.trim().toLowerCase())
+  ) || [];
+  const playersByAbility = filteredPlayers.reduce((acc, player) => {
     const key = player.ability_rating;
     if (!acc[key]) acc[key] = [];
     acc[key].push(player);
     return acc;
-  }, {} as Record<number, MiniLeaguePlayer[]>) || {};
+  }, {} as Record<number, MiniLeaguePlayer[]>);
 
-  // Separate upcoming and past events
-  const upcomingEvents = events?.filter(e => !e.is_cancelled && (isFuture(parseISO(e.event_date)) || isToday(parseISO(e.event_date)))) || [];
-  const pastEvents = events?.filter(e => !e.is_cancelled && !isFuture(parseISO(e.event_date)) && !isToday(parseISO(e.event_date))) || [];
+  // Separate upcoming and past events using date+time for accurate categorization
+  const getEventDateTime = (e: MiniLeagueEvent) => {
+    const dateStr = e.event_date;
+    if (e.start_time) {
+      return parseISO(`${dateStr}T${e.start_time}`);
+    }
+    return parseISO(`${dateStr}T23:59:59`);
+  };
+  const now = new Date();
+  const upcomingEvents = events?.filter(e => !e.is_cancelled && (getEventDateTime(e) >= now || isToday(parseISO(e.event_date)))) || [];
+  const pastEvents = events?.filter(e => !e.is_cancelled && getEventDateTime(e) < now && !isToday(parseISO(e.event_date))) || [];
 
   return (
     <div className="container max-w-4xl py-4 space-y-4">
       {/* Header - matching team/club style */}
       <div className="flex items-start gap-3">
-        <Button variant="ghost" size="icon" className="shrink-0 mt-0.5" onClick={() => navigate("/mini-leagues")}>
+        <Button variant="ghost" size="icon" className="shrink-0 mt-0.5" onClick={() => navigate(league.club_id ? `/mini-leagues?clubId=${league.club_id}` : "/mini-leagues")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         {league.logo_url && (
@@ -652,8 +664,20 @@ export default function MiniLeagueDetailPage() {
         </TabsContent>
 
         <TabsContent value="players" className="space-y-3 mt-3">
+          {/* Player search */}
+          {(players?.length || 0) > 5 && (
+            <Input
+              placeholder="Search players..."
+              value={playerSearch}
+              onChange={(e) => setPlayerSearch(e.target.value)}
+              className="h-9 text-sm"
+            />
+          )}
+
           <div className="flex justify-between items-center gap-2">
-            <h2 className="text-base font-semibold">Player Pool</h2>
+            <h2 className="text-base font-semibold">
+              Player Pool{playerSearch.trim() && ` (${filteredPlayers.length}/${players?.length || 0})`}
+            </h2>
             <div className="flex items-center gap-2">
               {canManageLeague && (
                 <>
