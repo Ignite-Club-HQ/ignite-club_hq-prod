@@ -120,7 +120,7 @@ export default function PayFeesPage() {
     enabled: childIds.length > 0 && !!clubId && !!user,
   });
 
-  const selfHasPaid = !!selfPayment;
+  const selfHasPaid = selfPayment?.payment_status === 'paid';
   const feeAmount = paymentSettings?.member_subscription_amount || 0;
   const isEnabled = paymentSettings?.member_payments_enabled && feeAmount > 0;
 
@@ -153,7 +153,7 @@ export default function PayFeesPage() {
     });
   };
 
-  const totalPayments = (selfSelected && !selfHasPaid ? 1 : 0) + selectedChildIds.size;
+  const totalPayments = (isParentOrPlayer && selfSelected && !selfHasPaid ? 1 : 0) + selectedChildIds.size;
   const totalAmount = totalPayments * feeAmount;
 
   const handlePayNow = async () => {
