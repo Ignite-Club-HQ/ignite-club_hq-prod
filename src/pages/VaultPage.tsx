@@ -2926,6 +2926,12 @@ export default function VaultPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="bg-popover">
+                              {(photos?.length > 0 || files?.length > 0) && !showTrash && (
+                                <DropdownMenuItem onClick={() => setSelectionMode(true)}>
+                                  <CheckSquare className="h-4 w-4 mr-2" />
+                                  Select
+                                </DropdownMenuItem>
+                              )}
                               {(photos?.length > 0 || files?.length > 0 || subfolders?.length > 0) && (
                                 <>
                                   <DropdownMenuItem onClick={() => initiateExport('zip')}>
