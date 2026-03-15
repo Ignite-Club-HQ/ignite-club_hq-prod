@@ -129,6 +129,8 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
       logo_url: string | null;
       is_team_only: boolean;
       is_active: boolean;
+      tier: SponsorTier | null;
+      exposure_percentage: number | null;
     }) => {
       const { error } = await supabase
         .from("sponsors")
@@ -140,6 +142,8 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
           logo_url: sponsorData.logo_url,
           is_team_only: sponsorData.is_team_only,
           is_active: sponsorData.is_active,
+          tier: sponsorData.tier,
+          exposure_percentage: sponsorData.exposure_percentage,
           display_order: (sponsors?.length || 0) + 1,
         });
       
