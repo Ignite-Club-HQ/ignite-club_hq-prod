@@ -49,6 +49,7 @@ export default function PlayerOfMatchSelector({
   const queryClient = useQueryClient();
   const [selectDialogOpen, setSelectDialogOpen] = useState(false);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const [selectedReward, setSelectedReward] = useState<any | null>(null);
 
   // Fetch current player of match
   const { data: playerOfMatch, isLoading } = useQuery({
