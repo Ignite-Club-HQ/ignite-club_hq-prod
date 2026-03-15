@@ -461,9 +461,17 @@ export default function MiniLeagueDetailPage() {
     return acc;
   }, {} as Record<number, MiniLeaguePlayer[]>) || {};
 
-  // Separate upcoming and past events
-  const upcomingEvents = events?.filter(e => !e.is_cancelled && (isFuture(parseISO(e.event_date)) || isToday(parseISO(e.event_date)))) || [];
-  const pastEvents = events?.filter(e => !e.is_cancelled && !isFuture(parseISO(e.event_date)) && !isToday(parseISO(e.event_date))) || [];
+  // Separate upcoming and past events using date+time for accurate categorization
+  const getEventDateTime = (e: MiniLeagueEvent) => {
+    const dateStr = e.event_date;
+    if (e.start_time) {
+      return parseISO(`${dateStr}T${e.start_time}`);
+    }
+    return parseISO(`${dateStr}T23:59:59`);
+  };
+  const now = new Date();
+  const upcomingEvents = events?.filter(e => !e.is_cancelled && (getEventDateTime(e) >= now || isToday(parseISO(e.event_date)))) || [];
+  const pastEvents = events?.filter(e => !e.is_cancelled && getEventDateTime(e) < now && !isToday(parseISO(e.event_date))) || [];
 
   return (
     <div className="container max-w-4xl py-4 space-y-4">
