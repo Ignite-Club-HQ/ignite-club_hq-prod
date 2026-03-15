@@ -25,6 +25,20 @@ export async function awardEarlyRsvpPoints({
   clubName,
 }: AwardEarlyRsvpPointsParams): Promise<boolean> {
   try {
+    // Check if club has Pro subscription and points system enabled
+    const { data: clubSub } = await supabase
+      .from("club_subscriptions")
+      .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, disable_points_system")
+      .eq("club_id", clubId)
+      .maybeSingle();
+
+    const hasPro = clubSub?.is_pro || clubSub?.is_pro_football || 
+                   clubSub?.admin_pro_override || clubSub?.admin_pro_football_override;
+
+    if (!hasPro || clubSub?.disable_points_system) {
+      return false;
+    }
+
     // Check if event is at least 3 days away
     const eventDateParsed = parseISO(eventDate);
     const now = new Date();
