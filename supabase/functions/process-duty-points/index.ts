@@ -375,6 +375,8 @@ Deno.serve(async (req) => {
         success: true,
         processedCount,
         pointsAwarded,
+        attendanceProcessed,
+        attendancePointsAwarded,
         emailsSent,
       }),
       { 
