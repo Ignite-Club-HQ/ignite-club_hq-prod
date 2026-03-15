@@ -10,6 +10,17 @@ import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { PageLoading } from "@/components/ui/page-loading";
+import EditGroupDialog from "@/components/chat/EditGroupDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 
 const MESSAGES_PER_PAGE = 15;
@@ -90,6 +101,8 @@ export default function GroupChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
+  const [showEditGroupDialog, setShowEditGroupDialog] = useState(false);
+  const [showDeleteGroupDialog, setShowDeleteGroupDialog] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -1199,6 +1212,20 @@ export default function GroupChatPage() {
     return map;
   }, [localMessages, reactions]);
 
+  // Delete group mutation
+  const deleteGroupMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("chat_groups").delete().eq("id", groupId!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Group deleted");
+      queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
+      queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
+      navigate(-1);
+    },
+    onError: () => toast.error("Failed to delete group"),
+  });
 
   if (groupLoading) {
     return <PageLoading message="Loading group chat..." />;
@@ -1235,6 +1262,8 @@ export default function GroupChatPage() {
             onRefresh={handleManualRefresh}
             isRefreshing={isAnyRefreshing}
             isNativePlatform={isNativePlatform}
+            onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
+            onDeleteGroup={isAdmin ? () => setShowDeleteGroupDialog(true) : undefined}
           />
           <ChatMembersSheet
             chatType="group"
@@ -1494,6 +1523,40 @@ export default function GroupChatPage() {
           </Button>
         </div>
       </div>
+
+      {/* Edit Group Dialog */}
+      {isAdmin && group && (
+        <EditGroupDialog
+          group={{
+            id: group.id,
+            name: group.name,
+            allowed_roles: group.allowed_roles as any,
+          }}
+          open={showEditGroupDialog}
+          onOpenChange={setShowEditGroupDialog}
+        />
+      )}
+
+      {/* Delete Group Confirmation */}
+      <AlertDialog open={showDeleteGroupDialog} onOpenChange={setShowDeleteGroupDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Chat Group</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{group.name}"? This action cannot be undone and all messages will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteGroupMutation.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
