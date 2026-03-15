@@ -456,7 +456,26 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
         </div>
       </Card>
 
-      {/* Rewards List */}
+      {/* Points System Toggle */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <Flame className="h-4 w-4 text-orange-500" />
+              <span className="font-medium text-sm">Points System</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Automatically award points for completed duties
+            </p>
+          </div>
+          <Switch
+            checked={!clubSubscription?.disable_points_system}
+            onCheckedChange={(checked) => togglePointsSystemMutation.mutate(!checked)}
+            disabled={togglePointsSystemMutation.isPending}
+          />
+        </div>
+      </Card>
+
       <div className="space-y-3">
         {isLoading ? (
           <Card className="p-8">
