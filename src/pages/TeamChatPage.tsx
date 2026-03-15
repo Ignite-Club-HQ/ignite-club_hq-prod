@@ -452,15 +452,20 @@ export default function TeamChatPage() {
     if (!localMessages?.length || isLoadingOlder || !hasOlderMessages) return;
 
     setIsLoadingOlder(true);
-    const firstVisibleMessageId = localMessages[0].id;
-    
+
+    // Preserve scroll position using container metrics only.
+    // Avoid element.scrollIntoView which can scroll ancestor containers and hide the chat header.
+    const scrollContainer = scrollAreaRef.current;
+    const previousScrollHeight = scrollContainer?.scrollHeight ?? 0;
+    const previousScrollTop = scrollContainer?.scrollTop ?? 0;
+
     // Create abort controller for timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
-    
+
     try {
       const oldestMessage = localMessages[0];
-      
+
       const { data: olderData, error } = await supabase
         .from("team_messages")
         .select("id, text, image_url, created_at, author_id, team_id, reply_to_id")
@@ -493,11 +498,11 @@ export default function TeamChatPage() {
       let reactionsData: any[] = [];
       let replyToData: any[] = [];
       let profilesMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
-      
+
       try {
         const secondaryController = new AbortController();
         const secondaryTimeout = setTimeout(() => secondaryController.abort(), 5000);
-        
+
         const [reactionsResult, replyToResult, cachedProfiles] = await Promise.all([
           supabase
             .from("message_reactions")
@@ -513,7 +518,7 @@ export default function TeamChatPage() {
             : Promise.resolve({ data: [] as any[], error: null }),
           fetchProfilesWithCache(authorIds),
         ]);
-        
+
         clearTimeout(secondaryTimeout);
         reactionsData = reactionsResult.data || [];
         replyToData = replyToResult.data || [];
@@ -540,13 +545,15 @@ export default function TeamChatPage() {
         return { ...(old || {}), messages: [...olderMessages, ...existingMessages] };
       });
 
-      // Scroll to the first previously visible message after DOM updates
-      setTimeout(() => {
-        const element = document.getElementById(`message-${firstVisibleMessageId}`);
-        if (element) {
-          element.scrollIntoView({ behavior: 'instant', block: 'start' });
-        }
-      }, 50);
+      // Restore the previous viewport anchor inside the chat scroller only.
+      requestAnimationFrame(() => {
+        const container = scrollAreaRef.current;
+        if (!container) return;
+
+        const nextScrollHeight = container.scrollHeight;
+        const scrollHeightDelta = nextScrollHeight - previousScrollHeight;
+        container.scrollTop = previousScrollTop + scrollHeightDelta;
+      });
     } catch (err) {
       clearTimeout(timeoutId);
       console.error('Failed to load older messages:', err);
