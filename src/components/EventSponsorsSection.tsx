@@ -108,7 +108,17 @@ export function EventSponsorsSection({ eventId, clubId }: EventSponsorsSectionPr
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm">{sponsor.name}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="font-medium text-sm">{sponsor.name}</p>
+                {sponsor.tier && (
+                  <Badge 
+                    variant="outline" 
+                    className={`text-[10px] rounded-md ${TIER_CONFIG[sponsor.tier].bgColor} ${TIER_CONFIG[sponsor.tier].textColor} border-transparent`}
+                  >
+                    {TIER_CONFIG[sponsor.tier].label}
+                  </Badge>
+                )}
+              </div>
               {sponsor.description && (
                 <p className="text-xs text-muted-foreground line-clamp-1">
                   {sponsor.description}
