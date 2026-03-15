@@ -693,10 +693,10 @@ export default function CreateEventPage() {
     <div className="pb-6 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3 py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/events")}>
+        <Button variant="ghost" size="icon" onClick={() => isFromMiniLeague ? navigate(-1) : navigate("/events")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-xl font-bold">New Event</h1>
+        <h1 className="text-xl font-bold">{isFromMiniLeague ? "New Session" : "New Event"}</h1>
       </div>
 
       {/* Event Type Selection - show skeletons only while pro football check is loading for selected club */}
