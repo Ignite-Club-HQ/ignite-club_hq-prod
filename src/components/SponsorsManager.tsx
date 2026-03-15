@@ -400,6 +400,17 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
                         {isPrimary && (
                           <Badge variant="default" className="text-xs">Primary</Badge>
                         )}
+                        {sponsor.tier && (
+                          <Badge 
+                            variant="outline" 
+                            className={`text-[10px] rounded-md ${TIER_CONFIG[sponsor.tier].bgColor} ${TIER_CONFIG[sponsor.tier].textColor} border-transparent`}
+                          >
+                            {TIER_CONFIG[sponsor.tier].label}
+                          </Badge>
+                        )}
+                        {sponsor.exposure_percentage != null && (
+                          <Badge variant="outline" className="text-[10px]">{sponsor.exposure_percentage}%</Badge>
+                        )}
                         {sponsor.is_team_only && (
                           <Badge variant="outline" className="text-xs">Team Only</Badge>
                         )}
