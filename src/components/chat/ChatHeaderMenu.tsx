@@ -180,7 +180,7 @@ export function ChatHeaderMenu({
               )}
             </>
           )}
-
+          {showMute && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleMuteClick}>
