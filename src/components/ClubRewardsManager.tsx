@@ -90,6 +90,23 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
   const [uploading, setUploading] = useState(false);
   const [uploadingQr, setUploadingQr] = useState(false);
   const hasCreatedDefault = useRef(false);
+  const [customPointsName, setCustomPointsName] = useState("Ignite Points");
+  const [savingPointsName, setSavingPointsName] = useState(false);
+
+  // Fetch club's current points display name
+  useQuery({
+    queryKey: ["club-points-name", clubId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("clubs")
+        .select("points_display_name")
+        .eq("id", clubId)
+        .single();
+      const name = (data as any)?.points_display_name || "Ignite Points";
+      setCustomPointsName(name);
+      return name;
+    },
+  });
 
   // Fetch club subscription settings
   const { data: clubSubscription } = useQuery({
