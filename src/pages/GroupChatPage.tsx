@@ -1201,6 +1201,20 @@ export default function GroupChatPage() {
     return map;
   }, [localMessages, reactions]);
 
+  // Delete group mutation
+  const deleteGroupMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("chat_groups").delete().eq("id", groupId!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Group deleted");
+      queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
+      queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
+      navigate(-1);
+    },
+    onError: () => toast.error("Failed to delete group"),
+  });
 
   if (groupLoading) {
     return <PageLoading message="Loading group chat..." />;
