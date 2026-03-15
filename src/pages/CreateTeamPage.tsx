@@ -471,7 +471,7 @@ export default function CreateTeamPage() {
               </label>
             </div>
             <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Add your team logo</p>
+              <p className="text-sm text-muted-foreground">Add your {entityLabelLower(club)} logo</p>
               <p className="text-xs text-muted-foreground/70">Recommended: Square image, 400x400px</p>
             </div>
           </div>
