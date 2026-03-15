@@ -183,8 +183,8 @@ export default function PlayerOfMatchSelector({
             user_id: userId,
             type: "player_of_match",
             message: rewardName
-              ? `🏆 Congratulations! You were selected as Player of the Match and earned ${pointsToAward} Ignite points! 🎁 Reward unlocked: ${rewardName}!`
-              : `🏆 Congratulations! You were selected as Player of the Match and earned ${pointsToAward} Ignite points!`,
+              ? `🏆 Congratulations! You were selected as Player of the Match and earned ${pointsToAward} points! 🎁 Reward unlocked: ${rewardName}!`
+              : `🏆 Congratulations! You were selected as Player of the Match and earned ${pointsToAward} points!`,
             related_id: eventId,
           });
         } else if (childId) {
