@@ -1,8 +1,28 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+/**
+ * Extracts the storage path from a full Supabase storage URL.
+ */
+function extractStoragePath(url: string, bucket: string): string | null {
+  const patterns = [
+    `/storage/v1/object/public/${bucket}/`,
+    `/storage/v1/object/sign/${bucket}/`,
+    `/storage/v1/object/${bucket}/`,
+  ];
+  for (const pattern of patterns) {
+    const idx = url.indexOf(pattern);
+    if (idx !== -1) {
+      return decodeURIComponent(url.substring(idx + pattern.length).split("?")[0]);
+    }
+  }
+  return null;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
