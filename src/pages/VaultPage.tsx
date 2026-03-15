@@ -1920,26 +1920,19 @@ export default function VaultPage() {
     
     try {
       const itemsToDelete = largeFilesData.items.filter(item => selectedLargeFiles.has(item.id));
-      const photos = itemsToDelete.filter(i => i.type === 'photo');
-      const files = itemsToDelete.filter(i => i.type === 'file');
+      const photoItems = itemsToDelete.filter(i => i.type === 'photo');
+      const fileItems = itemsToDelete.filter(i => i.type === 'file');
       
-      // Delete photos
-      if (photos.length > 0) {
-        const { error: photoError } = await supabase
-          .from("photos")
-          .delete()
-          .in("id", photos.map(p => p.id));
-        if (photoError) throw photoError;
-      }
+      // Use the permanent delete edge function to handle storage cleanup + audit
+      const response = await supabase.functions.invoke("permanent-delete-photos", {
+        body: {
+          photoIds: photoItems.map(p => p.id),
+          fileIds: fileItems.map(f => f.id),
+          deletionType: "permanent",
+        },
+      });
       
-      // Delete files
-      if (files.length > 0) {
-        const { error: fileError } = await supabase
-          .from("vault_files")
-          .delete()
-          .in("id", files.map(f => f.id));
-        if (fileError) throw fileError;
-      }
+      if (response.error) throw new Error(response.error.message);
       
       // Calculate total freed space
       const freedSpace = itemsToDelete.reduce((sum, item) => sum + item.size, 0);
