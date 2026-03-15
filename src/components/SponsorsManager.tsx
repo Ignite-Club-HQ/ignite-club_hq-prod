@@ -109,9 +109,13 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
   const rotateSponsor = () => {
     if (clubRotationSponsors.length === 0) return;
     
-    const currentIndex = clubRotationSponsors.findIndex(s => s.id === currentPrimarySponsorId);
-    const nextIndex = (currentIndex + 1) % clubRotationSponsors.length;
-    updatePrimarySponsorMutation.mutate(clubRotationSponsors[nextIndex].id);
+    const candidates = clubRotationSponsors.filter(s => s.id !== currentPrimarySponsorId);
+    if (candidates.length === 0) return;
+    
+    const selected = selectWeightedSponsor(candidates);
+    if (selected) {
+      updatePrimarySponsorMutation.mutate(selected.id);
+    }
   };
 
   // Auto-rotate on mount if enabled
