@@ -246,6 +246,7 @@ const App = () => {
                   <Route path="/children" element={<ChildrenPage />} />
                   <Route path="/children" element={<ChildrenPage />} />
                   <Route path="/notifications" element={<NotificationsPage />} />
+                  <Route path="/pay-fees/:clubId" element={<PayFeesPage />} />
                   <Route path="/reports/player-stats" element={<PlayerStatsReportPage />} />
                   <Route path="/admin/promo-codes" element={<ManagePromoCodesPage />} />
                   <Route path="/admin/stripe" element={<AppStripeSettingsPage />} />
