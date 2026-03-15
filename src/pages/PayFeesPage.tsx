@@ -323,7 +323,7 @@ export default function PayFeesPage() {
                         />
                       )}
                       <div>
-                        <p className="font-medium text-sm">Your Subscription</p>
+                        <p className="font-medium text-sm">Your Membership</p>
                         {selfHasPaid && (
                           <Badge variant="secondary" className="text-emerald-600 mt-0.5">Paid</Badge>
                         )}
