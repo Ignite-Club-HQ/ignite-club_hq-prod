@@ -457,7 +457,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
       </Card>
 
       {/* Points System Toggle */}
-      <Card className="p-4">
+      <Card className="p-4 space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
@@ -473,6 +473,44 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
             onCheckedChange={(checked) => togglePointsSystemMutation.mutate(!checked)}
             disabled={togglePointsSystemMutation.isPending}
           />
+        </div>
+
+        {/* Custom Points Name */}
+        <div className="border-t pt-3">
+          <Label htmlFor="points-name" className="text-xs text-muted-foreground">Custom Points Name</Label>
+          <div className="flex gap-2 mt-1">
+            <Input
+              id="points-name"
+              placeholder="Ignite Points"
+              value={customPointsName}
+              onChange={(e) => setCustomPointsName(e.target.value)}
+              className="text-sm"
+              maxLength={30}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={savingPointsName}
+              onClick={async () => {
+                setSavingPointsName(true);
+                const { error } = await supabase
+                  .from("clubs")
+                  .update({ points_display_name: customPointsName || 'Ignite Points' })
+                  .eq("id", clubId);
+                setSavingPointsName(false);
+                if (error) {
+                  toast({ title: "Failed to save", variant: "destructive" });
+                } else {
+                  queryClient.invalidateQueries({ queryKey: ["user-clubs"] });
+                  queryClient.invalidateQueries({ queryKey: ["points-display-name"] });
+                  toast({ title: "Points name updated" });
+                }
+              }}
+            >
+              {savingPointsName ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">e.g. "Tiger Points", "Eagles Rewards"</p>
         </div>
       </Card>
 
