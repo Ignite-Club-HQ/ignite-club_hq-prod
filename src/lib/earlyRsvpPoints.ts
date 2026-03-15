@@ -106,6 +106,14 @@ export async function awardEarlyRsvpPoints({
       related_id: clubId,
     });
 
+    // Check reward threshold
+    const rewardName = await checkRewardThreshold({
+      userId,
+      clubId,
+      previousPoints: currentPoints,
+      newPoints,
+    });
+
     // Send email notification (fire and forget)
     supabase.functions.invoke("send-points-notification-email", {
       body: {
@@ -114,7 +122,8 @@ export async function awardEarlyRsvpPoints({
         reason: "Early RSVP bonus",
         totalPoints: newPoints,
         clubName,
-        rewardUnlocked: false,
+        rewardUnlocked: !!rewardName,
+        rewardName,
       },
     }).catch((err) => console.error("Failed to send points email:", err));
 
