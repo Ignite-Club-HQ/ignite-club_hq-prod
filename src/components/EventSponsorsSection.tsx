@@ -4,8 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Building2 } from "lucide-react";
 import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
+import { SponsorTier, TIER_CONFIG, sortSponsorsByTier } from "@/lib/sponsorTiers";
 
 interface Sponsor {
   id: string;
@@ -13,6 +15,8 @@ interface Sponsor {
   logo_url: string | null;
   description: string | null;
   website_url: string | null;
+  tier: SponsorTier | null;
+  display_order: number;
 }
 
 interface EventSponsorsSectionProps {
@@ -53,14 +57,17 @@ export function EventSponsorsSection({ eventId, clubId }: EventSponsorsSectionPr
             name,
             logo_url,
             description,
-            website_url
+            website_url,
+            tier,
+            display_order
           )
         `)
         .eq("event_id", eventId)
         .order("display_order", { ascending: true });
       
       if (error) throw error;
-      return data?.map(es => es.sponsors).filter(Boolean) as Sponsor[];
+      const sponsors = data?.map(es => es.sponsors).filter(Boolean) as Sponsor[];
+      return sortSponsorsByTier(sponsors);
     },
     enabled: !!hasPro,
   });
@@ -101,7 +108,17 @@ export function EventSponsorsSection({ eventId, clubId }: EventSponsorsSectionPr
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm">{sponsor.name}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="font-medium text-sm">{sponsor.name}</p>
+                {sponsor.tier && (
+                  <Badge 
+                    variant="outline" 
+                    className={`text-[10px] rounded-md ${TIER_CONFIG[sponsor.tier].bgColor} ${TIER_CONFIG[sponsor.tier].textColor} border-transparent`}
+                  >
+                    {TIER_CONFIG[sponsor.tier].label}
+                  </Badge>
+                )}
+              </div>
               {sponsor.description && (
                 <p className="text-xs text-muted-foreground line-clamp-1">
                   {sponsor.description}

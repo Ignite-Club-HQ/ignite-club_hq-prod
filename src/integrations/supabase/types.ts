@@ -4522,12 +4522,14 @@ export type Database = {
           created_at: string
           description: string | null
           display_order: number
+          exposure_percentage: number | null
           id: string
           is_active: boolean
           is_team_only: boolean
           logo_url: string | null
           name: string
           team_id: string | null
+          tier: Database["public"]["Enums"]["sponsor_tier"] | null
           updated_at: string
           website_url: string | null
         }
@@ -4536,12 +4538,14 @@ export type Database = {
           created_at?: string
           description?: string | null
           display_order?: number
+          exposure_percentage?: number | null
           id?: string
           is_active?: boolean
           is_team_only?: boolean
           logo_url?: string | null
           name: string
           team_id?: string | null
+          tier?: Database["public"]["Enums"]["sponsor_tier"] | null
           updated_at?: string
           website_url?: string | null
         }
@@ -4550,12 +4554,14 @@ export type Database = {
           created_at?: string
           description?: string | null
           display_order?: number
+          exposure_percentage?: number | null
           id?: string
           is_active?: boolean
           is_team_only?: boolean
           logo_url?: string | null
           name?: string
           team_id?: string | null
+          tier?: Database["public"]["Enums"]["sponsor_tier"] | null
           updated_at?: string
           website_url?: string | null
         }
@@ -5769,6 +5775,7 @@ export type Database = {
       feedback_status: "open" | "in_progress" | "resolved"
       role_request_status: "pending" | "approved" | "denied"
       rsvp_status: "going" | "maybe" | "not_going"
+      sponsor_tier: "platinum" | "gold" | "silver" | "bronze"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5914,6 +5921,7 @@ export const Constants = {
       feedback_status: ["open", "in_progress", "resolved"],
       role_request_status: ["pending", "approved", "denied"],
       rsvp_status: ["going", "maybe", "not_going"],
+      sponsor_tier: ["platinum", "gold", "silver", "bronze"],
     },
   },
 } as const

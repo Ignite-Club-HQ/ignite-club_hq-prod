@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { SponsorTier, TIER_CONFIG, TIER_ORDER, sortSponsorsByTier, selectWeightedSponsor } from "@/lib/sponsorTiers";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,8 @@ interface Sponsor {
   is_active: boolean;
   is_team_only: boolean;
   display_order: number;
+  tier: SponsorTier | null;
+  exposure_percentage: number | null;
   created_at: string;
 }
 
@@ -58,6 +61,8 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [isTeamOnly, setIsTeamOnly] = useState(false);
+  const [tier, setTier] = useState<SponsorTier | "none">("none");
+  const [exposurePercentage, setExposurePercentage] = useState<string>("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -104,9 +109,13 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
   const rotateSponsor = () => {
     if (clubRotationSponsors.length === 0) return;
     
-    const currentIndex = clubRotationSponsors.findIndex(s => s.id === currentPrimarySponsorId);
-    const nextIndex = (currentIndex + 1) % clubRotationSponsors.length;
-    updatePrimarySponsorMutation.mutate(clubRotationSponsors[nextIndex].id);
+    const candidates = clubRotationSponsors.filter(s => s.id !== currentPrimarySponsorId);
+    if (candidates.length === 0) return;
+    
+    const selected = selectWeightedSponsor(candidates);
+    if (selected) {
+      updatePrimarySponsorMutation.mutate(selected.id);
+    }
   };
 
   // Auto-rotate on mount if enabled
@@ -124,6 +133,8 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
       logo_url: string | null;
       is_team_only: boolean;
       is_active: boolean;
+      tier: SponsorTier | null;
+      exposure_percentage: number | null;
     }) => {
       const { error } = await supabase
         .from("sponsors")
@@ -135,6 +146,8 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
           logo_url: sponsorData.logo_url,
           is_team_only: sponsorData.is_team_only,
           is_active: sponsorData.is_active,
+          tier: sponsorData.tier,
+          exposure_percentage: sponsorData.exposure_percentage,
           display_order: (sponsors?.length || 0) + 1,
         });
       
@@ -159,6 +172,8 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
       logo_url: string | null;
       is_team_only: boolean;
       is_active: boolean;
+      tier: SponsorTier | null;
+      exposure_percentage: number | null;
     }) => {
       const { error } = await supabase
         .from("sponsors")
@@ -169,6 +184,8 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
           logo_url: data.logo_url,
           is_active: data.is_active,
           is_team_only: data.is_team_only,
+          tier: data.tier,
+          exposure_percentage: data.exposure_percentage,
         })
         .eq("id", id);
       
@@ -238,6 +255,8 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
     setWebsiteUrl("");
     setIsTeamOnly(false);
     setIsActive(true);
+    setTier("none");
+    setExposurePercentage("");
     setLogoFile(null);
     setLogoPreview(null);
   };
@@ -250,6 +269,8 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
       setWebsiteUrl(sponsor.website_url || "");
       setIsTeamOnly(sponsor.is_team_only);
       setIsActive(sponsor.is_active);
+      setTier(sponsor.tier || "none");
+      setExposurePercentage(sponsor.exposure_percentage != null ? String(sponsor.exposure_percentage) : "");
       setLogoPreview(sponsor.logo_url);
     } else {
       resetForm();
@@ -300,6 +321,9 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
     try {
       const logoUrl = await uploadLogo();
       
+      const parsedTier = tier === "none" ? null : tier;
+      const parsedExposure = exposurePercentage.trim() !== "" ? parseInt(exposurePercentage) : null;
+      
       const sponsorData = {
         name: name.trim(),
         description: description.trim() || null,
@@ -307,6 +331,8 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
         logo_url: logoUrl,
         is_team_only: isTeamOnly,
         is_active: isActive,
+        tier: parsedTier,
+        exposure_percentage: parsedExposure,
       };
 
       if (editingSponsor) {
@@ -377,6 +403,17 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
                       <div className="flex flex-wrap items-center gap-1 mt-0.5">
                         {isPrimary && (
                           <Badge variant="default" className="text-xs">Primary</Badge>
+                        )}
+                        {sponsor.tier && (
+                          <Badge 
+                            variant="outline" 
+                            className={`text-[10px] rounded-md ${TIER_CONFIG[sponsor.tier].bgColor} ${TIER_CONFIG[sponsor.tier].textColor} border-transparent`}
+                          >
+                            {TIER_CONFIG[sponsor.tier].label}
+                          </Badge>
+                        )}
+                        {sponsor.exposure_percentage != null && (
+                          <Badge variant="outline" className="text-[10px]">{sponsor.exposure_percentage}%</Badge>
                         )}
                         {sponsor.is_team_only && (
                           <Badge variant="outline" className="text-xs">Team Only</Badge>
@@ -500,6 +537,46 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
                 value={websiteUrl}
                 onChange={(e) => setWebsiteUrl(e.target.value)}
                 placeholder="https://example.com"
+              />
+            </div>
+
+            {/* Sponsor Tier */}
+            <div className="space-y-2">
+              <Label>Sponsor Tier</Label>
+              <p className="text-xs text-muted-foreground">
+                Higher tiers get more exposure across the app
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {(["none", ...TIER_ORDER] as const).map((t) => (
+                  <Button
+                    key={t}
+                    type="button"
+                    variant={tier === t ? "default" : "outline"}
+                    size="sm"
+                    className={`text-xs ${t !== "none" && tier === t ? TIER_CONFIG[t].bgColor + " " + TIER_CONFIG[t].textColor + " border-transparent" : ""}`}
+                    onClick={() => setTier(t)}
+                  >
+                    {t === "none" ? "No Tier" : TIER_CONFIG[t].label}
+                    {t !== "none" && ` (${TIER_CONFIG[t].weight}x)`}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Exposure Override */}
+            <div className="space-y-2">
+              <Label htmlFor="exposure-pct">Exposure Override %</Label>
+              <p className="text-xs text-muted-foreground">
+                Optional. Overrides tier weighting with a custom percentage (0–100)
+              </p>
+              <Input
+                id="exposure-pct"
+                type="number"
+                min={0}
+                max={100}
+                value={exposurePercentage}
+                onChange={(e) => setExposurePercentage(e.target.value)}
+                placeholder="Leave empty to use tier weighting"
               />
             </div>
 
