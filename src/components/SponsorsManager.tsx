@@ -576,6 +576,7 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
               />
             </div>
 
+            <div className="flex items-center justify-between py-2">
               <div className="space-y-0.5">
                 <Label htmlFor="team-only">Team Only</Label>
                 <p className="text-xs text-muted-foreground">
