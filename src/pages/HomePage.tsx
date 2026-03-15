@@ -1637,7 +1637,7 @@ export default function HomePage() {
                     🎯 Early RSVPs
                   </span>
                   <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                    ⭐ Player of the Match
+                    💬 Photo comments
                   </span>
                   <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
                     📋 Attending events
