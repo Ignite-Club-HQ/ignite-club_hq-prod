@@ -160,7 +160,27 @@ export function ChatHeaderMenu({
             </DropdownMenuItem>
           )}
 
-          {showMute && (
+          {(onEditGroup || onDeleteGroup) && (
+            <>
+              <DropdownMenuSeparator />
+              {onEditGroup && (
+                <DropdownMenuItem onClick={onEditGroup}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit group
+                </DropdownMenuItem>
+              )}
+              {onDeleteGroup && (
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={onDeleteGroup}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete group
+                </DropdownMenuItem>
+              )}
+            </>
+          )}
+
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleMuteClick}>
