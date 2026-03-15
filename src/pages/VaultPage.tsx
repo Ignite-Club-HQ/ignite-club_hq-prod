@@ -1686,11 +1686,33 @@ export default function VaultPage() {
     },
   });
 
-  // Permanently delete photo (vault photos are in vault_files)
+  // Permanently delete photo via edge function (handles storage + DB + audit log)
   const permanentDeletePhotoMutation = useMutation({
     mutationFn: async (photoId: string) => {
-      const { error } = await supabase.from("vault_files").delete().eq("id", photoId);
-      if (error) throw error;
+      // Find the corresponding photos table record via file_url match
+      const { data: vaultFile } = await supabase
+        .from("vault_files")
+        .select("file_url")
+        .eq("id", photoId)
+        .maybeSingle();
+      
+      const photoIds: string[] = [];
+      const fileIds: string[] = [photoId];
+      
+      if (vaultFile?.file_url) {
+        const { data: photoRecord } = await supabase
+          .from("photos")
+          .select("id")
+          .eq("image_url", vaultFile.file_url)
+          .maybeSingle();
+        if (photoRecord) photoIds.push(photoRecord.id);
+      }
+      
+      const response = await supabase.functions.invoke("permanent-delete-photos", {
+        body: { photoIds, fileIds, deletionType: "permanent" },
+      });
+      
+      if (response.error) throw new Error(response.error.message);
       return photoId;
     },
     onSuccess: (photoId) => {
@@ -1698,6 +1720,7 @@ export default function VaultPage() {
       queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
       toast.success("Photo permanently deleted");
     },
     onError: (error: any) => {
@@ -1705,11 +1728,13 @@ export default function VaultPage() {
     },
   });
 
-  // Permanently delete file
+  // Permanently delete file via edge function (handles storage + DB + audit log)
   const permanentDeleteFileMutation = useMutation({
     mutationFn: async (fileId: string) => {
-      const { error } = await supabase.from("vault_files").delete().eq("id", fileId);
-      if (error) throw error;
+      const response = await supabase.functions.invoke("permanent-delete-photos", {
+        body: { fileIds: [fileId], deletionType: "permanent" },
+      });
+      if (response.error) throw new Error(response.error.message);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
@@ -1721,6 +1746,50 @@ export default function VaultPage() {
       toast.error(error.message || "Failed to permanently delete file");
     },
   });
+
+  // Empty all trash
+  const [isEmptyingTrash, setIsEmptyingTrash] = useState(false);
+  const emptyTrash = async () => {
+    if (!trashItems) return;
+    setIsEmptyingTrash(true);
+    try {
+      const allPhotoIds = (trashItems.photos || []).map((p: any) => p.id);
+      const allFileIds = (trashItems.files || []).map((f: any) => f.id);
+      
+      // Find corresponding photos table records for vault_files photos
+      const photoTableIds: string[] = [];
+      for (const photo of trashItems.photos || []) {
+        if (photo.file_url) {
+          const { data: photoRecord } = await supabase
+            .from("photos")
+            .select("id")
+            .eq("image_url", photo.file_url)
+            .maybeSingle();
+          if (photoRecord) photoTableIds.push(photoRecord.id);
+        }
+      }
+      
+      const response = await supabase.functions.invoke("permanent-delete-photos", {
+        body: {
+          photoIds: photoTableIds,
+          fileIds: [...allPhotoIds, ...allFileIds],
+          deletionType: "permanent",
+        },
+      });
+      
+      if (response.error) throw new Error(response.error.message);
+      
+      queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      toast.success("Trash emptied successfully");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to empty trash");
+    } finally {
+      setIsEmptyingTrash(false);
+    }
+  };
 
   // Move file to a different folder or team
   const moveFileMutation = useMutation({
@@ -1895,26 +1964,19 @@ export default function VaultPage() {
     
     try {
       const itemsToDelete = largeFilesData.items.filter(item => selectedLargeFiles.has(item.id));
-      const photos = itemsToDelete.filter(i => i.type === 'photo');
-      const files = itemsToDelete.filter(i => i.type === 'file');
+      const photoItems = itemsToDelete.filter(i => i.type === 'photo');
+      const fileItems = itemsToDelete.filter(i => i.type === 'file');
       
-      // Delete photos
-      if (photos.length > 0) {
-        const { error: photoError } = await supabase
-          .from("photos")
-          .delete()
-          .in("id", photos.map(p => p.id));
-        if (photoError) throw photoError;
-      }
+      // Use the permanent delete edge function to handle storage cleanup + audit
+      const response = await supabase.functions.invoke("permanent-delete-photos", {
+        body: {
+          photoIds: photoItems.map(p => p.id),
+          fileIds: fileItems.map(f => f.id),
+          deletionType: "permanent",
+        },
+      });
       
-      // Delete files
-      if (files.length > 0) {
-        const { error: fileError } = await supabase
-          .from("vault_files")
-          .delete()
-          .in("id", files.map(f => f.id));
-        if (fileError) throw fileError;
-      }
+      if (response.error) throw new Error(response.error.message);
       
       // Calculate total freed space
       const freedSpace = itemsToDelete.reduce((sum, item) => sum + item.size, 0);
@@ -3632,6 +3694,8 @@ export default function VaultPage() {
               onRestoreFile={(id) => restoreFileMutation.mutate(id)}
               onPermanentDeletePhoto={isClubAdmin ? setDeletePhotoId : undefined}
               onPermanentDeleteFile={isClubAdmin ? setDeleteFileId : undefined}
+              onEmptyTrash={isClubAdmin ? emptyTrash : undefined}
+              isEmptyingTrash={isEmptyingTrash}
             />
           )}
         </div>
@@ -3705,6 +3769,8 @@ export default function VaultPage() {
               onRestoreFile={(id) => restoreFileMutation.mutate(id)}
               onPermanentDeletePhoto={isClubAdmin ? setDeletePhotoId : undefined}
               onPermanentDeleteFile={isClubAdmin ? setDeleteFileId : undefined}
+              onEmptyTrash={isClubAdmin ? emptyTrash : undefined}
+              isEmptyingTrash={isEmptyingTrash}
             />
           )}
         </div>
@@ -4926,6 +4992,8 @@ interface TrashSectionProps {
   onRestoreFile: (id: string) => void;
   onPermanentDeletePhoto?: (id: string) => void;
   onPermanentDeleteFile?: (id: string) => void;
+  onEmptyTrash?: () => void;
+  isEmptyingTrash?: boolean;
 }
 
 function TrashSection({
@@ -4936,6 +5004,8 @@ function TrashSection({
   onRestoreFile,
   onPermanentDeletePhoto,
   onPermanentDeleteFile,
+  onEmptyTrash,
+  isEmptyingTrash,
 }: TrashSectionProps) {
   const hasContent = photos.length > 0 || files.length > 0;
 
@@ -4978,6 +5048,28 @@ function TrashSection({
 
   return (
     <div className="space-y-6">
+      {/* Auto-purge notice + Empty Trash */}
+      <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
+        <p className="text-xs text-muted-foreground">
+          Items in trash are automatically deleted after 30 days.
+        </p>
+        {onEmptyTrash && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={onEmptyTrash}
+            disabled={isEmptyingTrash}
+          >
+            {isEmptyingTrash ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4 mr-1" />
+            )}
+            Empty Trash
+          </Button>
+        )}
+      </div>
+
       {photos.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">Deleted Photos ({photos.length})</h2>
@@ -4995,6 +5087,10 @@ function TrashSection({
                     {photo.deleted_at && (
                       <p className="text-xs text-muted-foreground">
                         Deleted {format(new Date(photo.deleted_at), "MMM d, yyyy")}
+                        {(() => {
+                          const daysLeft = Math.max(0, 30 - Math.floor((Date.now() - new Date(photo.deleted_at).getTime()) / (1000 * 60 * 60 * 24)));
+                          return ` • Auto-deletes in ${daysLeft}d`;
+                        })()}
                       </p>
                     )}
                   </div>
@@ -5053,6 +5149,10 @@ function TrashSection({
                       <p className="text-xs text-muted-foreground">
                         Deleted {format(new Date(file.deleted_at), "MMM d, yyyy")}
                         {file.file_size ? ` • ${formatFileSize(file.file_size)}` : ''}
+                        {(() => {
+                          const daysLeft = Math.max(0, 30 - Math.floor((Date.now() - new Date(file.deleted_at).getTime()) / (1000 * 60 * 60 * 24)));
+                          return ` • Auto-deletes in ${daysLeft}d`;
+                        })()}
                       </p>
                     )}
                   </div>
