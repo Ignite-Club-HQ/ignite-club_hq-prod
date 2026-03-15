@@ -58,9 +58,9 @@ export default function TeamRewardsManager({ teamId, clubId, disableTeamOverride
   const [description, setDescription] = useState("");
   const [pointsRequired, setPointsRequired] = useState(10);
 
-  // Fetch team-specific POM reward (if exists)
-  const { data: teamReward, isLoading: isTeamRewardLoading } = useQuery({
-    queryKey: ["team-pom-reward", teamId],
+  // Fetch team-specific POM rewards (multiple)
+  const { data: teamRewards = [], isLoading: isTeamRewardsLoading } = useQuery({
+    queryKey: ["team-pom-rewards", teamId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("club_rewards")
@@ -68,15 +68,15 @@ export default function TeamRewardsManager({ teamId, clubId, disableTeamOverride
         .eq("club_id", clubId)
         .eq("team_id", teamId)
         .eq("reward_type", "player_of_match")
-        .maybeSingle();
+        .order("created_at", { ascending: true });
       if (error) throw error;
-      return data as TeamReward | null;
+      return (data || []) as TeamReward[];
     },
   });
 
-  // Fetch club-level POM reward (fallback/default)
-  const { data: clubReward, isLoading: isClubRewardLoading } = useQuery({
-    queryKey: ["club-pom-reward", clubId],
+  // Fetch club-level POM rewards (fallback/default)
+  const { data: clubRewards = [], isLoading: isClubRewardsLoading } = useQuery({
+    queryKey: ["club-pom-rewards", clubId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("club_rewards")
@@ -85,13 +85,13 @@ export default function TeamRewardsManager({ teamId, clubId, disableTeamOverride
         .is("team_id", null)
         .eq("reward_type", "player_of_match")
         .eq("is_active", true)
-        .maybeSingle();
+        .order("created_at", { ascending: true });
       if (error) throw error;
-      return data as TeamReward | null;
+      return (data || []) as TeamReward[];
     },
   });
 
-  const isLoading = isTeamRewardLoading || isClubRewardLoading;
+  const isLoading = isTeamRewardsLoading || isClubRewardsLoading;
 
   // Create team-specific reward
   const createMutation = useMutation({
@@ -109,8 +109,8 @@ export default function TeamRewardsManager({ teamId, clubId, disableTeamOverride
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["team-pom-reward", teamId] });
-      queryClient.invalidateQueries({ queryKey: ["pom-reward", clubId, teamId] });
+      queryClient.invalidateQueries({ queryKey: ["team-pom-rewards", teamId] });
+      queryClient.invalidateQueries({ queryKey: ["pom-rewards", clubId, teamId] });
       resetForm();
       setDialogOpen(false);
       toast({ title: "Team reward created" });
@@ -134,8 +134,8 @@ export default function TeamRewardsManager({ teamId, clubId, disableTeamOverride
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["team-pom-reward", teamId] });
-      queryClient.invalidateQueries({ queryKey: ["pom-reward", clubId, teamId] });
+      queryClient.invalidateQueries({ queryKey: ["team-pom-rewards", teamId] });
+      queryClient.invalidateQueries({ queryKey: ["pom-rewards", clubId, teamId] });
       resetForm();
       setDialogOpen(false);
       toast({ title: "Team reward updated" });
@@ -155,8 +155,8 @@ export default function TeamRewardsManager({ teamId, clubId, disableTeamOverride
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["team-pom-reward", teamId] });
-      queryClient.invalidateQueries({ queryKey: ["pom-reward", clubId, teamId] });
+      queryClient.invalidateQueries({ queryKey: ["team-pom-rewards", teamId] });
+      queryClient.invalidateQueries({ queryKey: ["pom-rewards", clubId, teamId] });
     },
   });
 
@@ -167,9 +167,9 @@ export default function TeamRewardsManager({ teamId, clubId, disableTeamOverride
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["team-pom-reward", teamId] });
-      queryClient.invalidateQueries({ queryKey: ["pom-reward", clubId, teamId] });
-      toast({ title: "Team reward deleted - club default will now apply" });
+      queryClient.invalidateQueries({ queryKey: ["team-pom-rewards", teamId] });
+      queryClient.invalidateQueries({ queryKey: ["pom-rewards", clubId, teamId] });
+      toast({ title: "Team reward deleted" });
     },
   });
 
@@ -188,12 +188,6 @@ export default function TeamRewardsManager({ teamId, clubId, disableTeamOverride
       setPointsRequired(reward.points_required);
     } else {
       resetForm();
-      // Pre-fill from club default if available
-      if (clubReward) {
-        setName(clubReward.name + " (Team)");
-        setDescription(clubReward.description || "");
-        setPointsRequired(clubReward.points_required);
-      }
     }
     setDialogOpen(true);
   };
@@ -219,8 +213,9 @@ export default function TeamRewardsManager({ teamId, clubId, disableTeamOverride
     }
   };
 
-  const activeReward = teamReward || clubReward;
-  const isUsingClubDefault = !teamReward && !!clubReward;
+  const hasTeamRewards = teamRewards.length > 0;
+  const activeRewards = hasTeamRewards ? teamRewards : clubRewards;
+  const isUsingClubDefaults = !hasTeamRewards && clubRewards.length > 0;
 
   return (
     <div className="space-y-4">
@@ -228,21 +223,21 @@ export default function TeamRewardsManager({ teamId, clubId, disableTeamOverride
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Trophy className="h-5 w-5 text-amber-500" />
-          <span className="font-medium">Player of the Match Reward</span>
+          <span className="font-medium">Player of the Match Rewards</span>
         </div>
-        {!teamReward && !disableTeamOverrides && (
+        {!disableTeamOverrides && (
           <Button size="sm" variant="outline" onClick={() => handleOpenDialog()}>
             <Plus className="h-4 w-4 mr-1" />
-            Override Club Default
+            Add Reward
           </Button>
         )}
       </div>
 
-      {disableTeamOverrides && !teamReward && (
+      {disableTeamOverrides && teamRewards.length === 0 && (
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
-            Team-specific rewards are disabled by your club admin. The club default reward is used for all teams.
+            Team-specific rewards are disabled by your club admin. The club default rewards are used for all teams.
           </AlertDescription>
         </Alert>
       )}
@@ -251,87 +246,103 @@ export default function TeamRewardsManager({ teamId, clubId, disableTeamOverride
         <div className="flex justify-center py-4">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
-      ) : activeReward ? (
-        <Card className={isUsingClubDefault ? "border-dashed" : ""}>
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3 flex-1 min-w-0">
-                <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
-                  <Trophy className="h-5 w-5 text-amber-500" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium">{activeReward.name}</span>
-                    {isUsingClubDefault && (
-                      <Badge variant="outline" className="text-xs">
-                        Club Default
-                      </Badge>
-                    )}
-                    {teamReward && (
-                      <Badge variant="secondary" className="text-xs">
-                        Team Override
-                      </Badge>
-                    )}
+      ) : activeRewards.length > 0 ? (
+        <div className="space-y-2">
+          {isUsingClubDefaults && (
+            <p className="text-xs text-muted-foreground">Using club default rewards:</p>
+          )}
+          {activeRewards.map((reward) => (
+            <Card key={reward.id} className={isUsingClubDefaults ? "border-dashed" : ""}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                      <Trophy className="h-5 w-5 text-amber-500" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium">{reward.name}</span>
+                        {isUsingClubDefaults && (
+                          <Badge variant="outline" className="text-xs">
+                            Club Default
+                          </Badge>
+                        )}
+                        {hasTeamRewards && reward.team_id && (
+                          <Badge variant="secondary" className="text-xs">
+                            Team Override
+                          </Badge>
+                        )}
+                        {!reward.is_active && (
+                          <Badge variant="outline" className="text-xs text-muted-foreground">
+                            Inactive
+                          </Badge>
+                        )}
+                      </div>
+                      {reward.description && (
+                        <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
+                          {reward.description}
+                        </p>
+                      )}
+                      {reward.points_required > 0 && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          +{reward.points_required} points
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  {activeReward.description && (
-                    <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
-                      {activeReward.description}
-                    </p>
-                  )}
-                  {/* POM rewards are awarded by selection, not points-based */}
-                </div>
-              </div>
 
-              {/* Actions for team-specific reward */}
-              {teamReward && (
-                <div className="flex items-center gap-2 shrink-0">
-                  <Switch
-                    checked={teamReward.is_active}
-                    onCheckedChange={(checked) =>
-                      toggleActiveMutation.mutate({ id: teamReward.id, isActive: checked })
-                    }
-                  />
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => handleOpenDialog(teamReward)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button size="icon" variant="ghost" className="text-destructive">
-                        <Trash2 className="h-4 w-4" />
+                  {/* Actions for team-specific rewards */}
+                  {reward.team_id && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Switch
+                        checked={reward.is_active}
+                        onCheckedChange={(checked) =>
+                          toggleActiveMutation.mutate({ id: reward.id, isActive: checked })
+                        }
+                      />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleOpenDialog(reward)}
+                      >
+                        <Pencil className="h-4 w-4" />
                       </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Team Reward?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will delete the team-specific reward override. The club default reward will be used instead.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => deleteMutation.mutate(teamReward.id)}
-                          className="bg-destructive text-destructive-foreground"
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="icon" variant="ghost" className="text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Team Reward?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will delete this team-specific reward. {teamRewards.length <= 1 ? "The club default rewards will be used instead." : ""}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteMutation.mutate(reward.id)}
+                              className="bg-destructive text-destructive-foreground"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : (
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
-            No Player of the Match reward is configured. Ask your club admin to set one up in Club Rewards, or create a team-specific reward.
+            No Player of the Match rewards configured. Ask your club admin to set one up in Club Rewards, or create a team-specific reward.
           </AlertDescription>
         </Alert>
       )}
@@ -367,8 +378,6 @@ export default function TeamRewardsManager({ teamId, clubId, disableTeamOverride
                 rows={2}
               />
             </div>
-
-            {/* POM rewards are awarded by selection, not points-based - no points field needed */}
           </div>
 
           <ResponsiveDialogFooter>
