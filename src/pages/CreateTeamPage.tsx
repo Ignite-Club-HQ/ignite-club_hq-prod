@@ -485,7 +485,7 @@ export default function CreateTeamPage() {
               </Label>
               <Input
                 id="name"
-                placeholder="e.g., U12 Dragons"
+                placeholder={club?.class_mode_enabled ? "e.g., Monday Beginners" : "e.g., U12 Dragons"}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={100}
