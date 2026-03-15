@@ -7,7 +7,12 @@ export type PointsSourceType =
   | 'player_of_match'
   | 'admin_award'
   | 'redemption'
-  | 'pom_removed';
+  | 'pom_removed'
+  | 'chat_engagement'
+  | 'photo_upload'
+  | 'photo_comment'
+  | 'weekly_chat_streak'
+  | 'weekly_photo_streak';
 
 interface RecordPointsHistoryParams {
   userId?: string | null;

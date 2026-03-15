@@ -893,6 +893,17 @@ export default function GroupChatPage() {
     onSettled: () => {
       // Invalidate messages page preview so latest message shows
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
+      // Award engagement points (fire and forget)
+      if (user && groupId && group?.club_id) {
+        import("@/lib/engagementPoints").then(({ awardEngagementPoints }) => {
+          awardEngagementPoints({
+            userId: user.id,
+            clubId: group.club_id!,
+            action: "chat_message",
+            scopeId: groupId,
+          }).catch(() => {});
+        });
+      }
     },
    });
 

@@ -658,9 +658,23 @@ export default function MediaPage() {
       
       return { previousComments, tempId, photoId };
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       // Invalidate to replace temp comment with real data from server
       queryClient.invalidateQueries({ queryKey: commentsQueryKey });
+      // Award engagement points for photo comment (fire and forget)
+      if (user?.id && variables.photoId) {
+        const photo = allPhotos?.find(p => p.id === variables.photoId);
+        if (photo?.club_id) {
+          import("@/lib/engagementPoints").then(({ awardEngagementPoints }) => {
+            awardEngagementPoints({
+              userId: user.id,
+              clubId: photo.club_id,
+              action: "photo_comment",
+              scopeId: variables.photoId,
+            }).catch(() => {});
+          });
+        }
+      }
     },
     onError: (err, variables, context) => {
       console.error("Failed to add comment:", err);

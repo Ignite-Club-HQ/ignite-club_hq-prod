@@ -745,6 +745,19 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     } else {
       toast.error(firstErrorMessage ? `Failed to upload photos: ${firstErrorMessage}` : "Failed to upload photos");
     }
+
+    // Award engagement points for successful uploads (fire and forget)
+    if (successCount > 0 && user && clubId) {
+      import("@/lib/engagementPoints").then(({ awardEngagementPoints }) => {
+        // Award once per upload session using a unique scope
+        awardEngagementPoints({
+          userId: user.id,
+          clubId: clubId,
+          action: "photo_upload",
+          scopeId: `upload-${Date.now()}`,
+        }).catch(() => {});
+      });
+    }
   };
 
   const compressingCount = selectedPhotos.filter(p => p.status === 'compressing').length;
