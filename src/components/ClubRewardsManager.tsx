@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Plus, Trash2, Gift, Loader2, Pencil, Star, ImagePlus, X, Trophy, QrCode, ClipboardList, Building2 } from "lucide-react";
+import { Plus, Trash2, Gift, Loader2, Pencil, Star, ImagePlus, X, Trophy, QrCode, ClipboardList, Building2, Flame } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
