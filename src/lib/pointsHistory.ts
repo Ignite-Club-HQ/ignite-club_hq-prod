@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 export type PointsSourceType = 
   | 'early_rsvp'
   | 'duty'
+  | 'attendance'
   | 'player_of_match'
   | 'admin_award'
   | 'redemption'

@@ -216,13 +216,167 @@ Deno.serve(async (req) => {
       console.log(`Duty ${duty.id}: Awarded 10 points to user ${duty.assigned_to} (total: ${newPoints})`);
     }
 
-    console.log(`Processing complete. Processed: ${processedCount}, Points awarded: ${pointsAwarded}, Emails sent: ${emailsSent}`);
+    // ============================================
+    // PART 2: Process attendance points for coaches/team admins
+    // ============================================
+    console.log('Processing attendance points for coaches/team admins...');
+
+    // Find events that ended 24+ hours ago with RSVPs from coaches/team_admins that haven't been awarded
+    const { data: eligibleRsvps, error: rsvpError } = await supabase
+      .from('rsvps')
+      .select(`
+        id,
+        user_id,
+        event_id,
+        events!inner (
+          id,
+          event_date,
+          club_id,
+          team_id,
+          type,
+          clubs!inner (
+            id,
+            name,
+            logo_url,
+            is_pro
+          )
+        )
+      `)
+      .eq('status', 'going')
+      .eq('attendance_points_awarded', false)
+      .is('child_id', null)
+      .lt('events.event_date', twentyFourHoursAgo);
+
+    if (rsvpError) {
+      console.error('Error fetching eligible RSVPs:', rsvpError);
+    }
+
+    let attendanceProcessed = 0;
+    let attendancePointsAwarded = 0;
+
+    for (const rsvp of eligibleRsvps || []) {
+      const event = rsvp.events as any;
+      const club = event?.clubs;
+
+      // Check Pro status
+      let isPro = club?.is_pro === true;
+      if (!isPro && event?.team_id) {
+        const { data: teamSub } = await supabase
+          .from('team_subscriptions')
+          .select('is_pro, is_pro_football')
+          .eq('team_id', event.team_id)
+          .maybeSingle();
+        isPro = teamSub?.is_pro === true || teamSub?.is_pro_football === true;
+      }
+
+      // Check if points system is disabled
+      if (isPro && club?.id) {
+        const { data: clubSub } = await supabase
+          .from('club_subscriptions')
+          .select('disable_points_system')
+          .eq('club_id', club.id)
+          .maybeSingle();
+        if (clubSub?.disable_points_system) {
+          isPro = false;
+        }
+      }
+
+      if (!isPro) {
+        await supabase.from('rsvps').update({ attendance_points_awarded: true }).eq('id', rsvp.id);
+        attendanceProcessed++;
+        continue;
+      }
+
+      // Check if user is a coach or team_admin for this team
+      const teamId = event?.team_id;
+      if (!teamId) {
+        await supabase.from('rsvps').update({ attendance_points_awarded: true }).eq('id', rsvp.id);
+        attendanceProcessed++;
+        continue;
+      }
+
+      const { data: userRole } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', rsvp.user_id)
+        .eq('team_id', teamId)
+        .in('role', ['coach', 'team_admin'])
+        .maybeSingle();
+
+      if (!userRole) {
+        // Not a coach/team_admin — mark processed, no points
+        await supabase.from('rsvps').update({ attendance_points_awarded: true }).eq('id', rsvp.id);
+        attendanceProcessed++;
+        continue;
+      }
+
+      // Award 10 points
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('ignite_points')
+        .eq('id', rsvp.user_id)
+        .single();
+
+      if (!profile) {
+        continue;
+      }
+
+      const newPts = (profile.ignite_points || 0) + 10;
+
+      await supabase.from('profiles').update({ ignite_points: newPts }).eq('id', rsvp.user_id);
+
+      await supabase.from('points_history').insert({
+        user_id: rsvp.user_id,
+        club_id: club?.id || null,
+        amount: 10,
+        balance_after: newPts,
+        source_type: 'attendance',
+        source_id: event.id,
+        description: 'Match attendance (coach/admin)',
+      });
+
+      await supabase.from('rsvps').update({ attendance_points_awarded: true }).eq('id', rsvp.id);
+
+      await supabase.from('notifications').insert({
+        user_id: rsvp.user_id,
+        type: 'points_awarded',
+        message: 'You earned 10 Ignite points for attending a match! 🔥',
+        related_id: event.id,
+      });
+
+      // Send email
+      try {
+        await supabase.functions.invoke('send-points-notification-email', {
+          body: {
+            recipientUserId: rsvp.user_id,
+            pointsAwarded: 10,
+            reason: 'Match attendance',
+            totalPoints: newPts,
+            clubName: club?.name || 'Your Club',
+            clubLogoUrl: club?.logo_url,
+            rewardUnlocked: false,
+          },
+        });
+        emailsSent++;
+      } catch (e) {
+        console.error('Error sending attendance points email:', e);
+      }
+
+      attendanceProcessed++;
+      attendancePointsAwarded += 10;
+      console.log(`RSVP ${rsvp.id}: Awarded 10 attendance points to user ${rsvp.user_id} (total: ${newPts})`);
+    }
+
+    const totalPoints = pointsAwarded + attendancePointsAwarded;
+    console.log(`Processing complete. Duties: ${processedCount}, Attendance: ${attendanceProcessed}, Total points: ${totalPoints}, Emails: ${emailsSent}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         processedCount,
         pointsAwarded,
+        attendanceProcessed,
+        attendancePointsAwarded,
         emailsSent,
       }),
       { 
