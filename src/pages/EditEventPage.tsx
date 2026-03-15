@@ -90,6 +90,10 @@ export default function EditEventPage() {
   // Price for social events
   const [price, setPrice] = useState("");
 
+  // Guest settings for social events
+  const [allowGuests, setAllowGuests] = useState(false);
+  const [maxGuestsPerMember, setMaxGuestsPerMember] = useState(2);
+
   // Recurring event state (for converting single event to recurring)
   const [enableRecurring, setEnableRecurring] = useState(false);
   const [recurrencePattern, setRecurrencePattern] = useState<RecurrencePattern>("weekly");
