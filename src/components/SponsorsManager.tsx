@@ -536,7 +536,46 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
               />
             </div>
 
-            <div className="flex items-center justify-between py-2">
+            {/* Sponsor Tier */}
+            <div className="space-y-2">
+              <Label>Sponsor Tier</Label>
+              <p className="text-xs text-muted-foreground">
+                Higher tiers get more exposure across the app
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {(["none", ...TIER_ORDER] as const).map((t) => (
+                  <Button
+                    key={t}
+                    type="button"
+                    variant={tier === t ? "default" : "outline"}
+                    size="sm"
+                    className={`text-xs ${t !== "none" && tier === t ? TIER_CONFIG[t].bgColor + " " + TIER_CONFIG[t].textColor + " border-transparent" : ""}`}
+                    onClick={() => setTier(t)}
+                  >
+                    {t === "none" ? "No Tier" : TIER_CONFIG[t].label}
+                    {t !== "none" && ` (${TIER_CONFIG[t].weight}x)`}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Exposure Override */}
+            <div className="space-y-2">
+              <Label htmlFor="exposure-pct">Exposure Override %</Label>
+              <p className="text-xs text-muted-foreground">
+                Optional. Overrides tier weighting with a custom percentage (0–100)
+              </p>
+              <Input
+                id="exposure-pct"
+                type="number"
+                min={0}
+                max={100}
+                value={exposurePercentage}
+                onChange={(e) => setExposurePercentage(e.target.value)}
+                placeholder="Leave empty to use tier weighting"
+              />
+            </div>
+
               <div className="space-y-0.5">
                 <Label htmlFor="team-only">Team Only</Label>
                 <p className="text-xs text-muted-foreground">
