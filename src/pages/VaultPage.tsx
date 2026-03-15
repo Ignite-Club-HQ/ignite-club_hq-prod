@@ -5087,6 +5087,10 @@ function TrashSection({
                     {photo.deleted_at && (
                       <p className="text-xs text-muted-foreground">
                         Deleted {format(new Date(photo.deleted_at), "MMM d, yyyy")}
+                        {(() => {
+                          const daysLeft = Math.max(0, 30 - Math.floor((Date.now() - new Date(photo.deleted_at).getTime()) / (1000 * 60 * 60 * 24)));
+                          return ` • Auto-deletes in ${daysLeft}d`;
+                        })()}
                       </p>
                     )}
                   </div>
