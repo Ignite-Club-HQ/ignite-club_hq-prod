@@ -114,6 +114,21 @@ export function EventGuestsManager({
       toast({ title: `Maximum ${maxGuestsPerMember} guests allowed`, variant: "destructive" });
       return;
     }
+    const normalised = newGuestName.trim().toLowerCase();
+    const duplicate = allGuests.find(
+      (g) => g.guest_name.toLowerCase() === normalised
+    );
+    if (duplicate) {
+      const addedByYou = duplicate.added_by === user?.id;
+      toast({
+        title: "Guest already added",
+        description: addedByYou
+          ? "You've already added this guest."
+          : `This guest has already been added by ${adderProfiles?.[duplicate.added_by] || "another member"}.`,
+        variant: "destructive",
+      });
+      return;
+    }
     addGuestMutation.mutate(newGuestName);
   };
 
