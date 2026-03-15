@@ -162,6 +162,14 @@ export function ClubPrimarySponsorManager({
                 </AvatarFallback>
               </Avatar>
               <span className="font-medium flex-1">{sponsor.name}</span>
+              {sponsor.tier && (
+                <Badge 
+                  variant="outline" 
+                  className={`text-[10px] rounded-md ${TIER_CONFIG[sponsor.tier].bgColor} ${TIER_CONFIG[sponsor.tier].textColor} border-transparent`}
+                >
+                  {TIER_CONFIG[sponsor.tier].label}
+                </Badge>
+              )}
               {isSelected && (
                 <Badge variant="default" className="gap-1">
                   <Check className="h-3 w-3" />
