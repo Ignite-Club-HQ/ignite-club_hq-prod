@@ -146,10 +146,21 @@ export default function CreateTeamPage() {
 
 
   const handleSubmit = async () => {
+    const label = entityLabelLower(club);
     if (!name.trim()) {
       toast({
         title: "Missing information",
-        description: "Please enter a team name.",
+        description: `Please enter a ${label} name.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate class_day is set when in class mode
+    if (club?.class_mode_enabled && !classDay) {
+      toast({
+        title: "Missing information",
+        description: "Please select a day of the week for this class.",
         variant: "destructive",
       });
       return;
