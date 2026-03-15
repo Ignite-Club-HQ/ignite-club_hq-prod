@@ -925,7 +925,7 @@ export default function ClubDetailPage() {
                     </Badge>
                   </div>
                   <MessageCircle className="h-6 w-6 text-muted-foreground" />
-                  <span className="text-sm font-medium text-muted-foreground">Club Chat</span>
+                  <span className="text-sm font-medium text-muted-foreground">{club?.class_mode_enabled ? "Group Chat" : "Club Chat"}</span>
                 </CardContent>
               </Card>
             )}
