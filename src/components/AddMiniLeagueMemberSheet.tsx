@@ -99,11 +99,11 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
     mutationFn: async () => {
       if (!playerName.trim()) throw new Error("Player name is required");
 
-      // Create child record in the central children table
+      // Create child record - parent_id set to admin temporarily; reassigned when parent accepts invite
       const { data: child, error: childError } = await supabase
         .from("children")
         .insert({
-          parent_id: user!.id, // Initially set to the admin who added them
+          parent_id: user!.id,
           name: playerName.trim(),
         })
         .select()
