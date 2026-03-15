@@ -209,7 +209,8 @@ export default function ClubUpgradePage() {
   const daysUntilExpiry = expiresAt ? differenceInDays(expiresAt, new Date()) : null;
   const isNearExpiry = daysUntilExpiry !== null && daysUntilExpiry <= 30 && daysUntilExpiry > 0;
   const isNative = isNativePlatform();
-  const showSponsorOption = (isExpired || isNearExpiry) && !isNative;
+  const isClassMode = !!(club as any)?.class_mode_enabled;
+  const showSponsorOption = (isExpired || isNearExpiry) && !isNative && !isClassMode;
 
   // Query active sponsors for this club to determine if sponsor-funded
   const { data: activeSponsors = [] } = useQuery({
