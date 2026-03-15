@@ -610,7 +610,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
         setDialogOpen(open);
         if (!open) resetForm();
       }}>
-        <ResponsiveDialogContent className="sm:max-w-md">
+        <ResponsiveDialogContent className="sm:max-w-md" fullScreen>
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle>{editingReward ? "Edit Reward" : "Add Reward"}</ResponsiveDialogTitle>
           </ResponsiveDialogHeader>
