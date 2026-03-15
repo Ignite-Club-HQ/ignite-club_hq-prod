@@ -1512,6 +1512,40 @@ export default function GroupChatPage() {
           </Button>
         </div>
       </div>
+
+      {/* Edit Group Dialog */}
+      {isAdmin && group && (
+        <EditGroupDialog
+          group={{
+            id: group.id,
+            name: group.name,
+            allowed_roles: group.allowed_roles as any,
+          }}
+          open={showEditGroupDialog}
+          onOpenChange={setShowEditGroupDialog}
+        />
+      )}
+
+      {/* Delete Group Confirmation */}
+      <AlertDialog open={showDeleteGroupDialog} onOpenChange={setShowDeleteGroupDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Chat Group</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{group.name}"? This action cannot be undone and all messages will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteGroupMutation.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
