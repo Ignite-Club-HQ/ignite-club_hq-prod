@@ -504,7 +504,7 @@ export const ChatMessage = memo(function ChatMessage({
           {displayName.charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
-      <div className={`max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
+      <div className={`flex flex-col max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
         {!isOwn && hasName && (
           <p className="text-xs text-muted-foreground mb-1">{displayName}</p>
         )}
