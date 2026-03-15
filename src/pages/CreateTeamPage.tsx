@@ -336,7 +336,7 @@ export default function CreateTeamPage() {
 
       setSaving(false);
       toast({
-        title: "Team created!",
+        title: `${entityLabel(club)} created!`,
         description: `${team.name} has been created successfully.`,
       });
       navigate(`/teams/${team.id}`, { 
