@@ -61,6 +61,8 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [isTeamOnly, setIsTeamOnly] = useState(false);
+  const [tier, setTier] = useState<SponsorTier | "none">("none");
+  const [exposurePercentage, setExposurePercentage] = useState<string>("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
