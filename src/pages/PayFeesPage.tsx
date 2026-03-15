@@ -412,7 +412,7 @@ export default function PayFeesPage() {
                   <Check className="h-10 w-10 mx-auto mb-3 text-emerald-500" />
                   <p className="font-semibold text-emerald-600">All Paid!</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Your fees are up to date for {currentYear}.
+                    Your membership fees are up to date for {currentYear}.
                   </p>
                 </CardContent>
               </Card>
