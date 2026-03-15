@@ -32,7 +32,7 @@ export function PrimarySponsorDisplay({ sponsorId, variant = "compact", context 
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sponsors")
-        .select("id, name, logo_url, website_url, description")
+        .select("id, name, logo_url, website_url, description, tier")
         .eq("id", sponsorId!)
         .single();
       if (error) throw error;
