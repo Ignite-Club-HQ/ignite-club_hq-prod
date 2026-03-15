@@ -614,7 +614,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
           <ResponsiveDialogHeader>
             <ResponsiveDialogTitle>{editingReward ? "Edit Reward" : "Add Reward"}</ResponsiveDialogTitle>
           </ResponsiveDialogHeader>
-          <div className="space-y-4 pt-4 px-4">
+          <div className="space-y-4 pt-4 px-4 flex-1 overflow-y-auto pb-safe">
             <div className="space-y-2">
               <Label htmlFor="reward-name">Name</Label>
               <Input
