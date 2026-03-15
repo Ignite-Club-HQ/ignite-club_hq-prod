@@ -101,6 +101,7 @@ interface Club {
   id: string;
   name: string;
   sport: string | null;
+  class_mode_enabled: boolean;
 }
 
 interface Team {
