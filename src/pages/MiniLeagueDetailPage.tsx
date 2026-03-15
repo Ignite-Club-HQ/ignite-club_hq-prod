@@ -673,7 +673,7 @@ export default function MiniLeagueDetailPage() {
                                 </div>
                                 <span className="text-sm font-medium truncate">{player.name}</span>
                               </div>
-                              {!selectionMode && (
+                              {!selectionMode && canManageLeague && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
