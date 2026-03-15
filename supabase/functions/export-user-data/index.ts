@@ -217,9 +217,9 @@ serve(async (req) => {
       supabase.from("duties").select("*, events(title, event_date)").eq("assigned_to", user.id),
       supabase.from("feedback").select("*").eq("user_id", user.id),
       supabase.from("reward_redemptions").select("*, club_rewards(name, points_required), clubs(name)").eq("user_id", user.id),
-      supabase.from("team_messages").select("id, image_url, created_at").eq("author_id", user.id).not("image_url", "is", null),
-      supabase.from("club_messages").select("id, image_url, created_at").eq("author_id", user.id).not("image_url", "is", null),
-      supabase.from("group_messages").select("id, image_url, created_at").eq("author_id", user.id).not("image_url", "is", null),
+      supabase.from("team_messages").select("id, image_url, created_at").eq("author_id", user.id).is("deleted_at", null).not("image_url", "is", null),
+      supabase.from("club_messages").select("id, image_url, created_at").eq("author_id", user.id).is("deleted_at", null).not("image_url", "is", null),
+      supabase.from("group_messages").select("id, image_url, created_at").eq("author_id", user.id).is("deleted_at", null).not("image_url", "is", null),
     ]);
 
     // Create ZIP file
