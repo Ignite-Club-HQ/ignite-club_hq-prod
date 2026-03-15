@@ -296,7 +296,7 @@ export default function CreateTeamPage() {
         setSaving(false);
         toast({
           title: "Warning",
-          description: "Team created but couldn't create invite.",
+          description: `${entityLabel(club)} created but couldn't create invite.`,
           variant: "destructive",
         });
         navigate(`/teams/${team.id}`);
