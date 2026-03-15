@@ -60,7 +60,9 @@ export function QuickRSVPDialog({
   opponent,
   clubId,
   clubName,
+  eventAmount,
 }: QuickRSVPDialogProps) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
