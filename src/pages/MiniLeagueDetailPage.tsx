@@ -79,6 +79,7 @@ export default function MiniLeagueDetailPage() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [newBibColor, setNewBibColor] = useState("#ef4444");
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [playerSearch, setPlayerSearch] = useState("");
 
   // Available bib color presets
   const BIB_COLOR_PRESETS = [
