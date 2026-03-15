@@ -573,8 +573,8 @@ export default function ManageUsersPage() {
         user_id: userId,
         type: "points_awarded",
         message: reason
-          ? `You received ${pointsText} Ignite points from ${clubName}: "${reason}"`
-          : `You received ${pointsText} Ignite points from ${clubName}`,
+          ? `You received ${pointsText} points from ${clubName}: "${reason}"`
+          : `You received ${pointsText} points from ${clubName}`,
         related_id: clubId,
       });
 
