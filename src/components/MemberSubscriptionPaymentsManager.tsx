@@ -363,6 +363,28 @@ export default function MemberSubscriptionPaymentsManager({
             </div>
           </div>
 
+          {/* Send Fee Reminder Button - Admin only */}
+          {isAdmin && unpaidCount > 0 && canPayOnline && (
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => sendReminderMutation.mutate()}
+              disabled={sendReminderMutation.isPending}
+            >
+              {sendReminderMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Bell className="h-4 w-4 mr-2" />
+                  Send Fee Reminder to {unpaidCount} Unpaid Member{unpaidCount !== 1 ? "s" : ""}
+                </>
+              )}
+            </Button>
+          )}
+
           {/* Pay Online Button for current user */}
           {isPayableMember && !hasCurrentUserPaid && canPayOnline && (
             <Card className="border-primary/30 bg-primary/5">
