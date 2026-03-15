@@ -829,7 +829,7 @@ export default function ClubUpgradePage() {
           {isExpired && (
             <div className="space-y-2">
               <p className="text-sm text-destructive text-center">
-                Your payment failed. Please update your payment method{!isNative ? " or find a sponsor" : ""}.
+                Your payment failed. Please update your payment method{!isNative && !isClassMode ? " or find a sponsor" : ""}.
               </p>
               {!isNative && !isClassMode && (
                 <Button variant="outline" size="sm" onClick={handleGetSponsored} className="w-full">
