@@ -3769,6 +3769,8 @@ export default function VaultPage() {
               onRestoreFile={(id) => restoreFileMutation.mutate(id)}
               onPermanentDeletePhoto={isClubAdmin ? setDeletePhotoId : undefined}
               onPermanentDeleteFile={isClubAdmin ? setDeleteFileId : undefined}
+              onEmptyTrash={isClubAdmin ? emptyTrash : undefined}
+              isEmptyingTrash={isEmptyingTrash}
             />
           )}
         </div>
