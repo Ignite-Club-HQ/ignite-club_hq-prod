@@ -750,8 +750,18 @@ export default function MiniLeagueDetailPage() {
                                   />
                                 )}
                                 <div className="flex items-center gap-0.5 shrink-0">
-                                  {Array.from({ length: rating }).map((_, i) => (
-                                    <Star key={i} className="h-2.5 w-2.5 fill-primary text-primary" />
+                                  {Array.from({ length: 5 }).map((_, i) => (
+                                    <Star
+                                      key={i}
+                                      className={`h-3 w-3 ${i < player.ability_rating ? 'fill-primary text-primary' : 'text-muted-foreground/30'} ${canManageLeague && !selectionMode ? 'cursor-pointer hover:scale-125 transition-transform' : ''}`}
+                                      onClick={canManageLeague && !selectionMode ? (e) => {
+                                        e.stopPropagation();
+                                        const newRating = i + 1;
+                                        if (newRating !== player.ability_rating) {
+                                          updateAbilityMutation.mutate({ playerId: player.id, childId: player.child_id, newRating });
+                                        }
+                                      } : undefined}
+                                    />
                                   ))}
                                 </div>
                                 <span className="text-sm font-medium truncate">{player.name}</span>
