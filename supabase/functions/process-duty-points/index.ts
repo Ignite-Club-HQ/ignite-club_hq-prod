@@ -364,7 +364,7 @@ Deno.serve(async (req) => {
       await supabase.from('notifications').insert({
         user_id: rsvp.user_id,
         type: 'points_awarded',
-        message: 'You earned 10 Ignite points for attending a match! 🔥',
+        message: 'You earned 10 points for attending a match! 🔥',
         related_id: event.id,
       });
 
