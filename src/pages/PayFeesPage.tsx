@@ -171,16 +171,16 @@ export default function PayFeesPage() {
 
       // Build description
       const parts: string[] = [];
-      if (selfSelected && !selfHasPaid) parts.push("Your subscription");
+      if (selfSelected && !selfHasPaid) parts.push("Your membership");
       children.forEach((child: any) => {
         if (selectedChildIds.has(child.id)) {
-          parts.push(`${child.name}'s subscription`);
+          parts.push(`${child.name}'s membership`);
         }
       });
 
       const result = await createMemberCheckout({
         club_id: clubId,
-        title: `Club Fees - ${club?.name || "Club"} (${currentYear})`,
+        title: `Membership Fees - ${club?.name || "Club"} (${currentYear})`,
         amount_cents: amountCents,
         type: "subscription",
         payer_email: user.email || undefined,
@@ -247,7 +247,7 @@ export default function PayFeesPage() {
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="font-semibold text-lg">Pay Club Fees</h1>
+          <h1 className="font-semibold text-lg">Pay Membership Fees</h1>
         </div>
       </div>
 
@@ -260,7 +260,7 @@ export default function PayFeesPage() {
             )}
             <div>
               <h2 className="font-semibold">{club.name}</h2>
-              <p className="text-sm text-muted-foreground">Subscription fees for {currentYear}</p>
+              <p className="text-sm text-muted-foreground">Membership fees for {currentYear}</p>
             </div>
           </div>
         )}
@@ -323,7 +323,7 @@ export default function PayFeesPage() {
                         />
                       )}
                       <div>
-                        <p className="font-medium text-sm">Your Subscription</p>
+                        <p className="font-medium text-sm">Your Membership</p>
                         {selfHasPaid && (
                           <Badge variant="secondary" className="text-emerald-600 mt-0.5">Paid</Badge>
                         )}
@@ -412,7 +412,7 @@ export default function PayFeesPage() {
                   <Check className="h-10 w-10 mx-auto mb-3 text-emerald-500" />
                   <p className="font-semibold text-emerald-600">All Paid!</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Your fees are up to date for {currentYear}.
+                    Your membership fees are up to date for {currentYear}.
                   </p>
                 </CardContent>
               </Card>
