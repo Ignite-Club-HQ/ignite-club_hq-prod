@@ -142,7 +142,8 @@ export default function PlayerOfMatchSelector({
             .eq("id", userId)
             .single();
 
-          const newPoints = (profile?.ignite_points || 0) + pointsToAward;
+          const previousPoints = profile?.ignite_points || 0;
+          const newPoints = previousPoints + pointsToAward;
 
           const { error: updateError } = await supabase
             .from("profiles")
@@ -163,11 +164,22 @@ export default function PlayerOfMatchSelector({
             createdBy: user!.id,
           });
 
+          // Check reward threshold
+          const { checkRewardThreshold } = await import("@/lib/rewardThresholdCheck");
+          const rewardName = await checkRewardThreshold({
+            userId,
+            clubId,
+            previousPoints,
+            newPoints,
+          });
+
           // Send notification with points
           await supabase.from("notifications").insert({
             user_id: userId,
             type: "player_of_match",
-            message: `🏆 Congratulations! You were selected as Player of the Match and earned ${pointsToAward} Ignite points!`,
+            message: rewardName
+              ? `🏆 Congratulations! You were selected as Player of the Match and earned ${pointsToAward} Ignite points! 🎁 Reward unlocked: ${rewardName}!`
+              : `🏆 Congratulations! You were selected as Player of the Match and earned ${pointsToAward} Ignite points!`,
             related_id: eventId,
           });
         } else if (childId) {
@@ -177,7 +189,8 @@ export default function PlayerOfMatchSelector({
             .eq("id", childId)
             .single();
 
-          const newPoints = (child?.ignite_points || 0) + pointsToAward;
+          const previousChildPoints = child?.ignite_points || 0;
+          const newPoints = previousChildPoints + pointsToAward;
 
           const { error: updateError } = await supabase
             .from("children")
@@ -198,12 +211,23 @@ export default function PlayerOfMatchSelector({
             createdBy: user!.id,
           });
 
+          // Check reward threshold for child
+          const { checkRewardThreshold: checkChildReward } = await import("@/lib/rewardThresholdCheck");
+          const childRewardName = await checkChildReward({
+            childId,
+            clubId,
+            previousPoints: previousChildPoints,
+            newPoints,
+          });
+
           // Notify parent with points
           if (child?.parent_id) {
             await supabase.from("notifications").insert({
               user_id: child.parent_id,
               type: "player_of_match",
-              message: `🏆 ${child.name} was selected as Player of the Match and earned ${pointsToAward} Ignite points!`,
+              message: childRewardName
+                ? `🏆 ${child.name} was selected as Player of the Match and earned ${pointsToAward} Ignite points! 🎁 Reward unlocked: ${childRewardName}!`
+                : `🏆 ${child.name} was selected as Player of the Match and earned ${pointsToAward} Ignite points!`,
               related_id: eventId,
             });
           }

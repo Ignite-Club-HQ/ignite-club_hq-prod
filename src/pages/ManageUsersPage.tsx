@@ -578,6 +578,18 @@ export default function ManageUsersPage() {
         related_id: clubId,
       });
 
+      // Check reward threshold
+      let rewardName: string | undefined;
+      if (points > 0 && clubId) {
+        const { checkRewardThreshold } = await import("@/lib/rewardThresholdCheck");
+        rewardName = await checkRewardThreshold({
+          userId,
+          clubId,
+          previousPoints: currentPoints,
+          newPoints,
+        });
+      }
+
       try {
         await supabase.functions.invoke('send-points-notification-email', {
           body: {
@@ -586,7 +598,8 @@ export default function ManageUsersPage() {
             reason: reason || (points > 0 ? 'Points awarded by admin' : 'Points adjustment'),
             totalPoints: newPoints,
             clubName,
-            rewardUnlocked: false,
+            rewardUnlocked: !!rewardName,
+            rewardName,
           },
         });
       } catch (e) {
