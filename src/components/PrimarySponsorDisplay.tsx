@@ -69,6 +69,11 @@ export function PrimarySponsorDisplay({ sponsorId, variant = "compact", context 
           </AvatarFallback>
         </Avatar>
         <span className="text-sm font-medium">{sponsor.name}</span>
+        {sponsor.tier && (
+          <Badge variant="outline" className={`text-[10px] rounded-md ${TIER_CONFIG[sponsor.tier].bgColor} ${TIER_CONFIG[sponsor.tier].textColor} border-transparent`}>
+            {TIER_CONFIG[sponsor.tier].label}
+          </Badge>
+        )}
         {sponsor.website_url && (
           <button 
             onClick={(e) => { e.stopPropagation(); handleClick(); safeOpenUrl(sponsor.website_url!); }}
