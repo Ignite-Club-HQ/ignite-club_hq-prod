@@ -5149,7 +5149,12 @@ function TrashSection({
                       <p className="text-xs text-muted-foreground">
                         Deleted {format(new Date(file.deleted_at), "MMM d, yyyy")}
                         {file.file_size ? ` • ${formatFileSize(file.file_size)}` : ''}
+                        {(() => {
+                          const daysLeft = Math.max(0, 30 - Math.floor((Date.now() - new Date(file.deleted_at).getTime()) / (1000 * 60 * 60 * 24)));
+                          return ` • Auto-deletes in ${daysLeft}d`;
+                        })()}
                       </p>
+                    )}
                     )}
                   </div>
                   <div className="flex items-center gap-1">
