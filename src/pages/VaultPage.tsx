@@ -4341,6 +4341,9 @@ function VaultPhotoItem({
   onDownload,
   canRename,
   onRename,
+  selectionMode = false,
+  isSelected = false,
+  onToggleSelection,
 }: {
   photo: any;
   index: number;
@@ -4350,6 +4353,9 @@ function VaultPhotoItem({
   onDownload?: (url: string, filename: string) => void;
   canRename?: boolean;
   onRename?: (photo: any) => void;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: (id: string) => void;
 }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
