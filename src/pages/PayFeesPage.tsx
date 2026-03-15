@@ -171,10 +171,10 @@ export default function PayFeesPage() {
 
       // Build description
       const parts: string[] = [];
-      if (selfSelected && !selfHasPaid) parts.push("Your subscription");
+      if (selfSelected && !selfHasPaid) parts.push("Your membership");
       children.forEach((child: any) => {
         if (selectedChildIds.has(child.id)) {
-          parts.push(`${child.name}'s subscription`);
+          parts.push(`${child.name}'s membership`);
         }
       });
 
