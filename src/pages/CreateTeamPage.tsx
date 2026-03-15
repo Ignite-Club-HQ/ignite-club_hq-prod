@@ -26,6 +26,10 @@ import type { Database } from "@/integrations/supabase/types";
 type AppRole = Database["public"]["Enums"]["app_role"];
 
 export default function CreateTeamPage() {
+  // Helper to determine entity label based on class mode
+  const isClassMode = (clubData: typeof club) => clubData?.class_mode_enabled === true;
+  const entityLabel = (clubData: typeof club) => isClassMode(clubData) ? "Class" : "Team";
+  const entityLabelLower = (clubData: typeof club) => isClassMode(clubData) ? "class" : "team";
   const { clubId } = useParams<{ clubId: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
