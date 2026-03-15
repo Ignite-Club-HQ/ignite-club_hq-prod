@@ -285,6 +285,34 @@ export default function EditClubPage() {
               className="text-base resize-none"
             />
           </div>
+
+          {/* Guest Settings */}
+          <div className="space-y-3 pt-2 border-t">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-base flex items-center gap-2">
+                  <UserPlus className="h-4 w-4" />
+                  Allow Guests at Social Events
+                </Label>
+                <p className="text-sm text-muted-foreground">Default setting for new social events</p>
+              </div>
+              <Switch checked={allowGuestsDefault} onCheckedChange={setAllowGuestsDefault} />
+            </div>
+            {allowGuestsDefault && (
+              <div className="space-y-2 pl-6">
+                <Label htmlFor="max-guests-default" className="text-sm">Default max guests per member</Label>
+                <Input
+                  id="max-guests-default"
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={maxGuestsDefault}
+                  onChange={(e) => setMaxGuestsDefault(parseInt(e.target.value) || 1)}
+                  className="w-24 h-12"
+                />
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
