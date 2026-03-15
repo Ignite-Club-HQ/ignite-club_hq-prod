@@ -27,12 +27,16 @@ export function usePointsDisplay(clubId: string | null | undefined) {
       if (!clubId) return { name: DEFAULT_POINTS_NAME, iconUrl: null };
       const { data } = await supabase
         .from("clubs")
-        .select("points_display_name, points_icon_url")
+        .select("points_display_name, points_icon_url, theme_enabled, club_subscriptions(is_pro, is_pro_football)")
         .eq("id", clubId)
         .single();
+      const club = data as any;
+      const sub = club?.club_subscriptions?.[0] ?? club?.club_subscriptions;
+      const isPro = sub?.is_pro || sub?.is_pro_football;
+      const canCustomise = isPro && club?.theme_enabled;
       return {
-        name: (data as any)?.points_display_name || DEFAULT_POINTS_NAME,
-        iconUrl: (data as any)?.points_icon_url || null,
+        name: (canCustomise && club?.points_display_name) || DEFAULT_POINTS_NAME,
+        iconUrl: (canCustomise && club?.points_icon_url) || null,
       };
     },
     enabled: !!clubId,
