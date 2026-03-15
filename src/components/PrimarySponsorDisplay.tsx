@@ -97,7 +97,7 @@ export function PrimarySponsorDisplay({ sponsorId, variant = "compact", context 
         </Avatar>
         <div className="flex-1 min-w-0">
           <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-            {entityName ? `Proud Sponsor of ${entityName}` : "Proud Sponsor"}
+            {sponsor.tier ? `${TIER_CONFIG[sponsor.tier].label} Partner` : entityName ? `Proud Sponsor of ${entityName}` : "Proud Sponsor"}
           </p>
           <h3 className="font-semibold text-lg truncate">{sponsor.name}</h3>
           {sponsor.description && (
