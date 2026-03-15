@@ -4411,17 +4411,32 @@ function VaultPhotoItem({
   const hasActions = onDownload || (canRename && onRename) || canDelete;
 
   return (
-    <div className="relative group">
+    <div className={`relative group ${selectionMode && isSelected ? 'ring-2 ring-primary rounded-lg' : ''}`}>
       <img
         src={photoUrl}
         alt={photo.title || "Photo"}
-        className="aspect-square object-cover rounded-lg cursor-pointer transition-opacity select-none hover:opacity-90"
+        className={`aspect-square object-cover rounded-lg cursor-pointer transition-opacity select-none hover:opacity-90 ${selectionMode && isSelected ? 'opacity-75' : ''}`}
         draggable={false}
         onContextMenu={(e) => e.preventDefault()}
-        onClick={() => onPhotoClick(index)}
+        onClick={() => selectionMode ? onToggleSelection?.(photo.id) : onPhotoClick(index)}
       />
-      {/* Three-dot menu for actions */}
-      {hasActions && (
+      {/* Selection checkbox overlay */}
+      {selectionMode && (
+        <div 
+          className="absolute top-1.5 left-1.5 z-10"
+          onClick={(e) => { e.stopPropagation(); onToggleSelection?.(photo.id); }}
+        >
+          <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+            isSelected 
+              ? 'bg-primary border-primary text-primary-foreground' 
+              : 'bg-background/80 border-muted-foreground/50'
+          }`}>
+            {isSelected && <CheckSquare className="h-3.5 w-3.5" />}
+          </div>
+        </div>
+      )}
+      {/* Three-dot menu for actions - hide in selection mode */}
+      {!selectionMode && hasActions && (
         <div className="absolute top-1 right-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
