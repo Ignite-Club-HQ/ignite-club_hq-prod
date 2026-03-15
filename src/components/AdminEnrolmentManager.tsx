@@ -124,8 +124,8 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
     if (enrolment.child_id && enrolment.children?.name) {
       return enrolment.children.name;
     }
-    if (enrolment.user_id && enrolment.profiles?.display_name) {
-      return enrolment.profiles.display_name;
+    if (enrolment.user_id && enrolment._adult_name) {
+      return enrolment._adult_name;
     }
     return "Unknown";
   };
