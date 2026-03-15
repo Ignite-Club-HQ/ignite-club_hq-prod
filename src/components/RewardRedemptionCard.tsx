@@ -132,7 +132,7 @@ export default function RewardRedemptionCard() {
       if (activeClubFilter) {
         const { data: club } = await supabase
           .from("clubs")
-          .select("id, name, logo_url")
+          .select("id, name, logo_url, points_display_name")
           .eq("id", activeClubFilter)
           .single();
 
