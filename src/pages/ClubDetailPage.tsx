@@ -792,9 +792,9 @@ export default function ClubDetailPage() {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Club?</AlertDialogTitle>
+                    <AlertDialogTitle>{club?.class_mode_enabled ? "Delete Organisation?" : "Delete Club?"}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will permanently delete the club, all teams, and events. This action cannot be undone.
+                      This will permanently delete the {club?.class_mode_enabled ? "organisation" : "club"}, all {club?.class_mode_enabled ? "classes" : "teams"}, and events. This action cannot be undone.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
