@@ -317,6 +317,9 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
     try {
       const logoUrl = await uploadLogo();
       
+      const parsedTier = tier === "none" ? null : tier;
+      const parsedExposure = exposurePercentage.trim() !== "" ? parseInt(exposurePercentage) : null;
+      
       const sponsorData = {
         name: name.trim(),
         description: description.trim() || null,
@@ -324,6 +327,8 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
         logo_url: logoUrl,
         is_team_only: isTeamOnly,
         is_active: isActive,
+        tier: parsedTier,
+        exposure_percentage: parsedExposure,
       };
 
       if (editingSponsor) {
