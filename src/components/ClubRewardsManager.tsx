@@ -92,6 +92,8 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
   const hasCreatedDefault = useRef(false);
   const [customPointsName, setCustomPointsName] = useState("Ignite Points");
   const [savingPointsName, setSavingPointsName] = useState(false);
+  const [pointsIconUrl, setPointsIconUrl] = useState<string | null>(null);
+  const [uploadingPointsIcon, setUploadingPointsIcon] = useState(false);
 
   // Fetch club's current points display name
   useQuery({
@@ -99,12 +101,14 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
     queryFn: async () => {
       const { data } = await supabase
         .from("clubs")
-        .select("points_display_name")
+        .select("points_display_name, points_icon_url")
         .eq("id", clubId)
         .single();
       const name = (data as any)?.points_display_name || "Ignite Points";
+      const iconUrl = (data as any)?.points_icon_url || null;
       setCustomPointsName(name);
-      return name;
+      setPointsIconUrl(iconUrl);
+      return { name, iconUrl };
     },
   });
 
@@ -493,41 +497,105 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
         </div>
 
         {/* Custom Points Name */}
-        <div className="border-t pt-3">
-          <Label htmlFor="points-name" className="text-xs text-muted-foreground">Custom Points Name</Label>
-          <div className="flex gap-2 mt-1">
-            <Input
-              id="points-name"
-              placeholder="Ignite Points"
-              value={customPointsName}
-              onChange={(e) => setCustomPointsName(e.target.value)}
-              className="text-sm"
-              maxLength={30}
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={savingPointsName}
-              onClick={async () => {
-                setSavingPointsName(true);
-                const { error } = await supabase
-                  .from("clubs")
-                  .update({ points_display_name: customPointsName || 'Ignite Points' })
-                  .eq("id", clubId);
-                setSavingPointsName(false);
-                if (error) {
-                  toast({ title: "Failed to save", variant: "destructive" });
-                } else {
-                  queryClient.invalidateQueries({ queryKey: ["user-clubs"] });
-                  queryClient.invalidateQueries({ queryKey: ["points-display-name"] });
-                  toast({ title: "Points name updated" });
-                }
-              }}
-            >
-              {savingPointsName ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
-            </Button>
+        <div className="border-t pt-3 space-y-3">
+          <div>
+            <Label htmlFor="points-name" className="text-xs text-muted-foreground">Custom Points Name</Label>
+            <div className="flex gap-2 mt-1">
+              <Input
+                id="points-name"
+                placeholder="Ignite Points"
+                value={customPointsName}
+                onChange={(e) => setCustomPointsName(e.target.value)}
+                className="text-sm"
+                maxLength={30}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">e.g. "Tiger Points", "Eagles Rewards"</p>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">e.g. "Tiger Points", "Eagles Rewards"</p>
+
+          {/* Points Icon Upload */}
+          <div>
+            <Label className="text-xs text-muted-foreground">Points Icon</Label>
+            <div className="flex items-center gap-3 mt-1">
+              {pointsIconUrl ? (
+                <div className="relative">
+                  <img src={pointsIconUrl} alt="Points icon" className="h-10 w-10 rounded-lg object-cover border" />
+                  <button
+                    type="button"
+                    className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                    onClick={() => setPointsIconUrl(null)}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <label className="h-10 w-10 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center cursor-pointer hover:border-primary transition-colors">
+                  {uploadingPointsIcon ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : (
+                    <ImagePlus className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setUploadingPointsIcon(true);
+                      try {
+                        const result = await compressImage(file);
+                        const fileName = `${clubId}/points-icon/${Date.now()}-${file.name}`;
+                        const { error: uploadError } = await supabase.storage
+                          .from("club-logos")
+                          .upload(fileName, result.file);
+                        if (uploadError) throw uploadError;
+                        const { data: urlData } = supabase.storage
+                          .from("club-logos")
+                          .getPublicUrl(fileName);
+                        setPointsIconUrl(urlData.publicUrl);
+                      } catch {
+                        toast({ title: "Failed to upload icon", variant: "destructive" });
+                      } finally {
+                        setUploadingPointsIcon(false);
+                      }
+                    }}
+                  />
+                </label>
+              )}
+              <p className="text-xs text-muted-foreground">Add a small icon next to your points name</p>
+            </div>
+          </div>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full"
+            disabled={savingPointsName}
+            onClick={async () => {
+              setSavingPointsName(true);
+              const { error } = await supabase
+                .from("clubs")
+                .update({ 
+                  points_display_name: customPointsName || 'Ignite Points',
+                  points_icon_url: pointsIconUrl,
+                } as any)
+                .eq("id", clubId);
+              setSavingPointsName(false);
+              if (error) {
+                toast({ title: "Failed to save", variant: "destructive" });
+              } else {
+                queryClient.invalidateQueries({ queryKey: ["user-clubs"] });
+                queryClient.invalidateQueries({ queryKey: ["points-display-name"] });
+                queryClient.invalidateQueries({ queryKey: ["points-display"] });
+                queryClient.invalidateQueries({ queryKey: ["club-points-name"] });
+                toast({ title: "Points branding updated" });
+              }
+            }}
+          >
+            {savingPointsName ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : null}
+            Save Points Branding
+          </Button>
         </div>
       </Card>
 

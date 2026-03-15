@@ -132,7 +132,7 @@ export default function RewardRedemptionCard() {
       if (activeClubFilter) {
         const { data: club } = await supabase
           .from("clubs")
-          .select("id, name, logo_url, points_display_name")
+          .select("id, name, logo_url, points_display_name, points_icon_url")
           .eq("id", activeClubFilter)
           .single();
 
@@ -170,7 +170,7 @@ export default function RewardRedemptionCard() {
       // Fetch club details with subscription info
       const { data: clubs } = await supabase
         .from("clubs")
-        .select("id, name, logo_url, points_display_name")
+        .select("id, name, logo_url, points_display_name, points_icon_url")
         .in("id", Array.from(clubIds));
 
       // Fetch subscriptions for these clubs
@@ -497,7 +497,10 @@ export default function RewardRedemptionCard() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <Gift className="h-6 w-6 text-primary-foreground" />
+                {(userClubs[0] as any)?.points_icon_url && (
+                  <img src={(userClubs[0] as any).points_icon_url} alt="" className="h-6 w-6 rounded object-cover" />
+                )}
+                {!(userClubs[0] as any)?.points_icon_url && <Gift className="h-6 w-6 text-primary-foreground" />}
                 <span className="font-semibold text-primary-foreground">{(userClubs[0] as any)?.points_display_name || 'Ignite Points'}</span>
               </div>
               <span className="text-3xl font-bold text-primary-foreground">
@@ -630,7 +633,10 @@ export default function RewardRedemptionCard() {
         <CardContent className="p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Gift className="h-6 w-6 text-primary-foreground" />
+              {(userClubs[0] as any)?.points_icon_url && (
+                <img src={(userClubs[0] as any).points_icon_url} alt="" className="h-6 w-6 rounded object-cover" />
+              )}
+              {!(userClubs[0] as any)?.points_icon_url && <Gift className="h-6 w-6 text-primary-foreground" />}
               <span className="font-semibold text-primary-foreground">{(userClubs[0] as any)?.points_display_name || 'Ignite Points'}</span>
             </div>
             <span className="text-3xl font-bold text-primary-foreground">
