@@ -513,59 +513,12 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
             <p className="text-xs text-muted-foreground mt-1">e.g. "Tiger Points", "Eagles Rewards"</p>
           </div>
 
-          {/* Points Icon Upload */}
-          <div>
-            <Label className="text-xs text-muted-foreground">Points Icon</Label>
-            <div className="flex items-center gap-3 mt-1">
-              {pointsIconUrl ? (
-                <div className="relative">
-                  <img src={pointsIconUrl} alt="Points icon" className="h-10 w-10 rounded-lg object-cover border" />
-                  <button
-                    type="button"
-                    className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
-                    onClick={() => setPointsIconUrl(null)}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ) : (
-                <label className="h-10 w-10 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center cursor-pointer hover:border-primary transition-colors">
-                  {uploadingPointsIcon ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  ) : (
-                    <ImagePlus className="h-4 w-4 text-muted-foreground" />
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      setUploadingPointsIcon(true);
-                      try {
-                        const result = await compressImage(file);
-                        const fileName = `${clubId}/points-icon/${Date.now()}-${file.name}`;
-                        const { error: uploadError } = await supabase.storage
-                          .from("club-logos")
-                          .upload(fileName, result.file);
-                        if (uploadError) throw uploadError;
-                        const { data: urlData } = supabase.storage
-                          .from("club-logos")
-                          .getPublicUrl(fileName);
-                        setPointsIconUrl(urlData.publicUrl);
-                      } catch {
-                        toast({ title: "Failed to upload icon", variant: "destructive" });
-                      } finally {
-                        setUploadingPointsIcon(false);
-                      }
-                    }}
-                  />
-                </label>
-              )}
-              <p className="text-xs text-muted-foreground">Add a small icon next to your points name</p>
-            </div>
-          </div>
+          {/* Points Icon Gallery */}
+          <PointsIconGallery
+            clubId={clubId}
+            currentIconUrl={pointsIconUrl}
+            onIconSelect={setPointsIconUrl}
+          />
 
           <Button
             size="sm"
