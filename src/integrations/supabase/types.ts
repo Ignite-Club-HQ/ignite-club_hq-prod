@@ -1613,6 +1613,7 @@ export type Database = {
       duties: {
         Row: {
           assigned_to: string | null
+          completed_at: string | null
           created_at: string
           event_id: string
           id: string
@@ -1624,6 +1625,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          completed_at?: string | null
           created_at?: string
           event_id: string
           id?: string
@@ -1635,6 +1637,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          completed_at?: string | null
           created_at?: string
           event_id?: string
           id?: string
