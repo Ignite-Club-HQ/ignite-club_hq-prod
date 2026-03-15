@@ -431,14 +431,14 @@ export default function CreateTeamPage() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="px-4 py-6 space-y-8 max-w-lg mx-auto">
-          {/* Team Limit Warning */}
+          {/* Team/Class Limit Warning */}
           {teamLimitExceeded && (
             <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="flex flex-col gap-3">
                 <span>
-                  Your club has reached its team limit ({clubSubscription?.team_limit} teams). 
-                  Please upgrade your club subscription to add more teams.
+                  Your club has reached its {entityLabelLower(club)} limit ({clubSubscription?.team_limit} {entityLabelLower(club)}es). 
+                  Please upgrade your club subscription to add more.
                 </span>
                 <Button asChild size="sm" className="w-fit">
                   <Link to={`/clubs/${clubId}/upgrade`}>
