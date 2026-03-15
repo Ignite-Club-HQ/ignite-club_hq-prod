@@ -265,7 +265,7 @@ export default function CreateTeamPage() {
       setSaving(false);
       if (roleError) {
         toast({
-          title: "Warning",
+          title: `${entityLabel(club)} created but couldn't assign admin role.`,
           description: "Team created but couldn't assign admin role.",
           variant: "destructive",
         });
