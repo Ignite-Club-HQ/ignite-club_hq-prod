@@ -260,7 +260,7 @@ export default function PayFeesPage() {
             )}
             <div>
               <h2 className="font-semibold">{club.name}</h2>
-              <p className="text-sm text-muted-foreground">Subscription fees for {currentYear}</p>
+              <p className="text-sm text-muted-foreground">Membership fees for {currentYear}</p>
             </div>
           </div>
         )}
