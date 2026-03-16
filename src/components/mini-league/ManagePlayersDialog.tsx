@@ -664,7 +664,7 @@ export function ManagePlayersDialog({
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
             >
-              <div className="space-y-4">
+              <div className="space-y-4" data-vaul-no-drag>
                 {[5, 4, 3, 2, 1].map((rating) => {
                   const abilityPlayers = playersByAbility[rating];
                   // Always show group as drop target when dragging, even if empty
