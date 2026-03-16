@@ -765,8 +765,8 @@ export default function TeamDetailPage() {
         </Card>
       )}
 
-      {/* Join Request Section for Non-members */}
-      {!isUserRoleLoading && !isMember && !isClubAdmin && (
+      {/* Join Request Section for Non-members - hidden in class mode (use enrolment page instead) */}
+      {!isClassMode && !isUserRoleLoading && !isMember && !isClubAdmin && (
         <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
           <CardContent className="p-5 sm:p-6">
             {existingRequest ? (
