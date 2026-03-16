@@ -117,7 +117,7 @@ export function CreateTeamFolderDialog({
         />
         {!keyboardVisible && (
           <p className="text-sm text-muted-foreground text-center">
-            Organize your teams into folders
+            Organize your {classMode ? "classes" : "teams"} into folders
           </p>
         )}
       </div>
