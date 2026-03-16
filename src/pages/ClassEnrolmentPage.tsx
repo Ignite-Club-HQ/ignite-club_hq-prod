@@ -428,7 +428,14 @@ export default function ClassEnrolmentPage() {
                 <CardContent className="py-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium">{cls.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{cls.name}</p>
+                        {teamType !== "mixed" && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                            {teamType === "junior" ? "Junior" : "Adult"}
+                          </Badge>
+                        )}
+                      </div>
                       {cls.level_age && (
                         <p className="text-xs text-muted-foreground">{cls.level_age}</p>
                       )}
