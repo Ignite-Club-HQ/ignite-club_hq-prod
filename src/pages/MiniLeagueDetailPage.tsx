@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { format, isToday, parseISO } from "date-fns";
+import { format, isToday, parseISO, startOfDay, isSameDay } from "date-fns";
 import {
-  ArrowLeft, Users, Calendar, Plus, MoreVertical, Loader2,
-  ChevronRight, Clock, MapPin, Shirt, Settings
+  ArrowLeft, Users, Calendar as CalendarIcon, Plus, MoreVertical, Loader2,
+  ChevronRight, Clock, MapPin, Shirt, Settings, List, CalendarDays
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar } from "@/components/ui/calendar";
 import { ManagePlayersDialog } from "@/components/mini-league/ManagePlayersDialog";
 import { MiniLeagueSettingsDialog } from "@/components/mini-league/MiniLeagueSettingsDialog";
 import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
@@ -42,7 +44,8 @@ export default function MiniLeagueDetailPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [playersOpen, setPlayersOpen] = useState(false);
   const [addPlayersOpen, setAddPlayersOpen] = useState(false);
-  const [showAllPast, setShowAllPast] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
   // Fetch mini league details
   const { data: league, isLoading: leagueLoading } = useQuery({
@@ -146,13 +149,15 @@ export default function MiniLeagueDetailPage() {
   });
 
   // Separate upcoming and past events
-  const getEventDateTime = (e: MiniLeagueEvent) => {
-    if (e.start_time) return parseISO(`${e.event_date}T${e.start_time}`);
-    return parseISO(`${e.event_date}T23:59:59`);
-  };
-  const now = new Date();
-  const upcomingEvents = events?.filter(e => !e.is_cancelled && (getEventDateTime(e) >= now || isToday(parseISO(e.event_date)))) || [];
-  const pastEvents = events?.filter(e => !e.is_cancelled && getEventDateTime(e) < now && !isToday(parseISO(e.event_date))) || [];
+  const nonCancelledEvents = events?.filter(e => !e.is_cancelled) || [];
+  const upcomingEvents = nonCancelledEvents.filter(e => new Date(e.event_date) >= startOfDay(new Date()));
+  const pastEvents = nonCancelledEvents.filter(e => new Date(e.event_date) < startOfDay(new Date()));
+
+  // Calendar data
+  const eventDates = nonCancelledEvents.map(e => parseISO(e.event_date));
+  const selectedDateEvents = selectedDate
+    ? nonCancelledEvents.filter(e => isSameDay(parseISO(e.event_date), selectedDate))
+    : [];
 
   if (leagueLoading) {
     return (
@@ -172,6 +177,104 @@ export default function MiniLeagueDetailPage() {
       </div>
     );
   }
+
+  const renderSessionCard = (event: MiniLeagueEvent, compact = false) => {
+    const hasScore = event.final_score_home != null && event.final_score_away != null;
+    const isPast = new Date(event.event_date) < startOfDay(new Date());
+
+    if (compact || isPast) {
+      return (
+        <Card
+          key={event.id}
+          className="cursor-pointer hover:bg-accent/50 transition-colors rounded-xl"
+          onClick={() => navigate(`/events/${event.id}`)}
+        >
+          <CardContent className="py-2.5 px-4">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-muted flex flex-col items-center justify-center shrink-0">
+                <span className="text-[9px] font-medium text-muted-foreground uppercase leading-none">
+                  {format(parseISO(event.event_date), "MMM")}
+                </span>
+                <span className="text-sm font-semibold text-muted-foreground leading-tight">
+                  {format(parseISO(event.event_date), "d")}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm truncate block">{event.title || format(parseISO(event.event_date), "EEEE")}</span>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  {event.start_time && <span>{event.start_time.slice(0, 5)}</span>}
+                  {(event._allocatedPlayers || 0) > 0 && (
+                    <span className="flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      {event._allocatedPlayers}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {hasScore && (
+                <Badge variant="outline" className="font-mono text-xs shrink-0">
+                  {event.final_score_home} – {event.final_score_away}
+                </Badge>
+              )}
+              <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <Card
+        key={event.id}
+        className="cursor-pointer hover:bg-accent/50 active:scale-[0.99] transition-all rounded-xl"
+        onClick={() => navigate(`/events/${event.id}`)}
+      >
+        <CardContent className="py-3.5 px-4">
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-xl bg-primary/10 flex flex-col items-center justify-center shrink-0">
+              <span className="text-[10px] font-semibold text-primary uppercase leading-none">
+                {format(parseISO(event.event_date), "MMM")}
+              </span>
+              <span className="text-lg font-bold text-primary leading-tight">
+                {format(parseISO(event.event_date), "d")}
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm truncate">
+                  {event.title || format(parseISO(event.event_date), "EEEE")}
+                </span>
+                {isToday(parseISO(event.event_date)) && (
+                  <Badge variant="default" className="text-[10px] px-1.5 py-0 shrink-0">Today</Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                {event.start_time && (
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {event.start_time.slice(0, 5)}
+                  </span>
+                )}
+                {event.location_name && (
+                  <span className="flex items-center gap-1 truncate">
+                    <MapPin className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{event.location_name}</span>
+                  </span>
+                )}
+                {(event._allocatedPlayers || 0) > 0 && (
+                  <span className="flex items-center gap-1">
+                    <Users className="h-3 w-3" />
+                    {event._allocatedPlayers}
+                  </span>
+                )}
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground/50 shrink-0" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 space-y-4 pb-24">
@@ -270,159 +373,162 @@ export default function MiniLeagueDetailPage() {
         </Card>
       )}
 
-      {/* Sessions */}
-      <div className="space-y-3">
-        <h2 className="text-base font-semibold">Sessions</h2>
+      {/* View Toggle */}
+      <div className="flex rounded-lg bg-muted p-1 gap-1">
+        <button
+          onClick={() => setViewMode("list")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
+            viewMode === "list"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <List className="h-4 w-4" />
+          List
+        </button>
+        <button
+          onClick={() => setViewMode("calendar")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
+            viewMode === "calendar"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <CalendarDays className="h-4 w-4" />
+          Calendar
+        </button>
+      </div>
 
-        {eventsLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : events?.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="py-10 text-center space-y-2">
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                <Calendar className="h-6 w-6 text-primary/60" />
-              </div>
-              <p className="text-sm font-medium text-muted-foreground">No sessions yet</p>
-              {canManageLeague ? (
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="text-primary"
-                  onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}
-                >
-                  Create your first session
-                </Button>
-              ) : (
-                <p className="text-xs text-muted-foreground">Ask an admin or coach to create a session</p>
-              )}
+      {/* Sessions Content */}
+      {eventsLoading ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : events?.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="py-10 text-center space-y-2">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+              <CalendarIcon className="h-6 w-6 text-primary/60" />
+            </div>
+            <p className="text-sm font-medium text-muted-foreground">No sessions yet</p>
+            {canManageLeague ? (
+              <Button
+                variant="link"
+                size="sm"
+                className="text-primary"
+                onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}
+              >
+                Create your first session
+              </Button>
+            ) : (
+              <p className="text-xs text-muted-foreground">Ask an admin or coach to create a session</p>
+            )}
+          </CardContent>
+        </Card>
+      ) : viewMode === "calendar" ? (
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="p-4">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={setSelectedDate}
+                modifiers={{
+                  hasEvent: eventDates,
+                }}
+                components={{
+                  DayContent: ({ date }) => {
+                    const dayEvents = nonCancelledEvents.filter(e => isSameDay(parseISO(e.event_date), date));
+                    const totalCount = dayEvents.length;
+
+                    return (
+                      <div className="relative flex items-center justify-center w-full h-full">
+                        <span>{date.getDate()}</span>
+                        {totalCount > 0 && (
+                          <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 flex gap-0.5">
+                            {dayEvents.slice(0, 3).map((_, i) => (
+                              <div key={i} className="w-1 h-1 rounded-full bg-primary" />
+                            ))}
+                            {totalCount > 3 && (
+                              <span className="text-[6px] text-muted-foreground font-bold leading-none">+</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  },
+                }}
+                className="rounded-md w-full"
+              />
             </CardContent>
           </Card>
-        ) : (
-          <div className="space-y-4">
-            {upcomingEvents.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Upcoming</h3>
-                <div className="space-y-2">
-                  {upcomingEvents.map((event) => (
-                    <Card
-                      key={event.id}
-                      className="cursor-pointer hover:bg-accent/50 active:scale-[0.99] transition-all rounded-xl"
-                      onClick={() => navigate(`/events/${event.id}`)}
-                    >
-                      <CardContent className="py-3.5 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="h-12 w-12 rounded-xl bg-primary/10 flex flex-col items-center justify-center shrink-0">
-                            <span className="text-[10px] font-semibold text-primary uppercase leading-none">
-                              {format(parseISO(event.event_date), "MMM")}
-                            </span>
-                            <span className="text-lg font-bold text-primary leading-tight">
-                              {format(parseISO(event.event_date), "d")}
-                            </span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-sm truncate">
-                                {event.title || format(parseISO(event.event_date), "EEEE")}
-                              </span>
-                              {isToday(parseISO(event.event_date)) && (
-                                <Badge variant="default" className="text-[10px] px-1.5 py-0 shrink-0">Today</Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                              {event.start_time && (
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {event.start_time.slice(0, 5)}
-                                </span>
-                              )}
-                              {event.location_name && (
-                                <span className="flex items-center gap-1 truncate">
-                                  <MapPin className="h-3 w-3 shrink-0" />
-                                  <span className="truncate">{event.location_name}</span>
-                                </span>
-                              )}
-                              {(event._allocatedPlayers || 0) > 0 && (
-                                <span className="flex items-center gap-1">
-                                  <Users className="h-3 w-3" />
-                                  {event._allocatedPlayers}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <ChevronRight className="h-5 w-5 text-muted-foreground/50 shrink-0" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            )}
 
-            {pastEvents.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Past</h3>
-                  {pastEvents.length > 5 && (
+          {selectedDate && (
+            <div className="space-y-3">
+              <h2 className="font-semibold text-sm">
+                Sessions on {format(selectedDate, "EEEE, MMMM d")}
+              </h2>
+              {selectedDateEvents.length === 0 ? (
+                <Card className="border-dashed">
+                  <CardContent className="p-6 text-center">
+                    <p className="text-sm text-muted-foreground">No sessions on this date</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {selectedDateEvents.map(event => renderSessionCard(event))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <Tabs defaultValue="upcoming" className="w-full">
+          <TabsList className="w-full">
+            <TabsTrigger value="upcoming" className="flex-1">
+              Upcoming {upcomingEvents.length > 0 && `(${upcomingEvents.length})`}
+            </TabsTrigger>
+            <TabsTrigger value="past" className="flex-1">
+              Past {pastEvents.length > 0 && `(${pastEvents.length})`}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="upcoming" className="mt-4 space-y-2">
+            {upcomingEvents.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="p-8 text-center">
+                  <CalendarIcon className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
+                  <p className="text-sm text-muted-foreground">No upcoming sessions</p>
+                  {canManageLeague && (
                     <Button
-                      variant="ghost"
+                      variant="link"
                       size="sm"
-                      className="text-xs h-6 px-2 text-muted-foreground"
-                      onClick={() => setShowAllPast(!showAllPast)}
+                      className="text-primary mt-1"
+                      onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}
                     >
-                      {showAllPast ? "Show Less" : `View All (${pastEvents.length})`}
+                      Create a session
                     </Button>
                   )}
-                </div>
-                <div className="space-y-1.5">
-                  {(showAllPast ? pastEvents : pastEvents.slice(0, 5)).map((event) => {
-                    const hasScore = event.final_score_home != null && event.final_score_away != null;
-                    return (
-                      <Card
-                        key={event.id}
-                        className="cursor-pointer hover:bg-accent/50 transition-colors rounded-xl"
-                        onClick={() => navigate(`/events/${event.id}`)}
-                      >
-                        <CardContent className="py-2.5 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-lg bg-muted flex flex-col items-center justify-center shrink-0">
-                              <span className="text-[9px] font-medium text-muted-foreground uppercase leading-none">
-                                {format(parseISO(event.event_date), "MMM")}
-                              </span>
-                              <span className="text-sm font-semibold text-muted-foreground leading-tight">
-                                {format(parseISO(event.event_date), "d")}
-                              </span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <span className="text-sm truncate block">{event.title || format(parseISO(event.event_date), "EEEE")}</span>
-                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                {event.start_time && <span>{event.start_time.slice(0, 5)}</span>}
-                                {(event._allocatedPlayers || 0) > 0 && (
-                                  <span className="flex items-center gap-1">
-                                    <Users className="h-3 w-3" />
-                                    {event._allocatedPlayers}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            {hasScore && (
-                              <Badge variant="outline" className="font-mono text-xs shrink-0">
-                                {event.final_score_home} – {event.final_score_away}
-                              </Badge>
-                            )}
-                            <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </div>
+                </CardContent>
+              </Card>
+            ) : (
+              upcomingEvents.map(event => renderSessionCard(event))
             )}
-          </div>
-        )}
-      </div>
+          </TabsContent>
+
+          <TabsContent value="past" className="mt-4 space-y-1.5">
+            {pastEvents.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="p-8 text-center">
+                  <p className="text-sm text-muted-foreground">No past sessions</p>
+                </CardContent>
+              </Card>
+            ) : (
+              pastEvents.map(event => renderSessionCard(event, true))
+            )}
+          </TabsContent>
+        </Tabs>
+      )}
 
       {/* Floating Action Button */}
       {canManageLeague && (
