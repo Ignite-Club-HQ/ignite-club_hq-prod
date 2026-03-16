@@ -483,7 +483,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     // Auto-distribute event-level duties to matches
     await distributeEventDutiesToMatches(matchIds, matchPlayers.map(mp => mp.map(p => p.playerId)));
 
-    return effectiveNumMatches;
+    return { numCreated: effectiveNumMatches, matchIds, matchPlayerIds: matchPlayers.map(mp => mp.map(p => p.playerId)) };
   }, [availablePlayers, miniLeague, showAdvanced, playersPerTeam, numGroups, abilityMode, eventId]);
 
   // Create group mutation
