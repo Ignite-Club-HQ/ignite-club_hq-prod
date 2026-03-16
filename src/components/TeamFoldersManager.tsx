@@ -231,7 +231,7 @@ export default function TeamFoldersManager({ clubId, isAdmin, classMode = false 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground font-medium">Team Folders</p>
+        <p className="text-sm text-muted-foreground font-medium">{classMode ? "Class Folders" : "Team Folders"}</p>
         <Button variant="outline" size="sm" onClick={() => setCreateDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-1" /> Add Folder
         </Button>
