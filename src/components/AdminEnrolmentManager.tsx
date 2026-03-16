@@ -30,6 +30,7 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedTermId, setSelectedTermId] = useState<string>("");
+  const [dayFilter, setDayFilter] = useState<string>("all");
 
   // Fetch active terms
   const { data: terms = [] } = useQuery({
