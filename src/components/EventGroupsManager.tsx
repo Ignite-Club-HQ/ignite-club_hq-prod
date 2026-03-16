@@ -868,7 +868,14 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       </div>
 
       {hasGroups ? (
-        <div className="grid gap-3">
+        <div className="space-y-3">
+          {isAdmin && !swapSource && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <ArrowRightLeft className="h-3 w-3" />
+              Tap a player to move them · Tap a duty badge to reassign
+            </p>
+          )}
+          <div className="grid gap-3">
           {groups.map((group) => {
             const teamAPlayers = group.players.filter(p => p.team === "a");
             const teamBPlayers = group.players.filter(p => p.team === "b");
