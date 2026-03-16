@@ -408,6 +408,9 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       }
     }
 
+    // Auto-distribute event-level duties to matches
+    await distributeEventDutiesToMatches(matchIds, matchPlayers.map(mp => mp.map(p => p.playerId)));
+
     return effectiveNumMatches;
   }, [availablePlayers, miniLeague, showAdvanced, playersPerTeam, numGroups, abilityMode, eventId]);
 
