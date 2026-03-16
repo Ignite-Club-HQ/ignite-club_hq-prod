@@ -6967,6 +6967,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           setPendingSubBenchPlayer(null);
           setRequiredPosition(null);
         }}
+        miniLeagueTeams={miniLeagueTeams}
       />
 
       {/* Substitution Preview Dialog */}
