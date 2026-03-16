@@ -814,6 +814,13 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
 
   const hasGroups = groups && groups.length > 0;
 
+  // Calculate unallocated players (available but not in any match)
+  const allocatedPlayerIds = new Set(
+    groups?.flatMap(g => g.players.map(p => p.id)) || []
+  );
+  const unallocatedPlayers = availablePlayers.filter(p => !allocatedPlayerIds.has(p.id));
+  const hasUnallocatedPlayers = unallocatedPlayers.length > 0;
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -839,9 +846,15 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Regenerate All
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setIsCreateOpen(true)}>
+                <DropdownMenuItem 
+                  onClick={() => setIsCreateOpen(true)}
+                  disabled={!hasUnallocatedPlayers}
+                >
                   <Plus className="h-4 w-4 mr-2" />
                   Add Match Manually
+                  {!hasUnallocatedPlayers && (
+                    <span className="ml-1 text-xs text-muted-foreground">(no players left)</span>
+                  )}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setIsCopyPreviousOpen(true)}>
                   <Copy className="h-4 w-4 mr-2" />
@@ -1093,7 +1106,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         onOpenChange={setIsCreateOpen}
         onConfirm={(data) => createGroupMutation.mutate(data)}
         isPending={createGroupMutation.isPending}
-        availablePlayers={availablePlayers}
+        availablePlayers={unallocatedPlayers}
         existingMatchCount={groups?.length || 0}
       />
 
