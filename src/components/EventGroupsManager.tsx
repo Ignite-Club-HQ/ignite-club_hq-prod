@@ -1087,10 +1087,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                     variant="outline" 
                     size="sm" 
                     className="shrink-0"
-                    onClick={() => {
-                      setNewGroupName("Match 1");
-                      setIsCreateOpen(true);
-                    }}
+                    onClick={() => setIsCreateOpen(true)}
                   >
                     <Plus className="h-4 w-4 mr-1" />
                     Manual
