@@ -1841,8 +1841,15 @@ export default function ClubDetailPage() {
             </div>
           </AccordionTrigger>
           <AccordionContent>
-            <div className="pt-2">
+            <div className="pt-2 space-y-6">
               <ClassAttendanceManager clubId={id!} />
+              <div className="border-t pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  <h4 className="text-sm font-semibold">Attendance Report</h4>
+                </div>
+                <AttendanceStatsView clubId={id!} />
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>
