@@ -202,6 +202,32 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     refetchOnMount: "always",
   });
 
+  // Fetch all duties for all groups in this event (for inline badges)
+  const { data: allGroupDuties } = useQuery({
+    queryKey: ["event-all-group-duties", eventId],
+    queryFn: async () => {
+      if (!groups || groups.length === 0) return {};
+      const groupIds = groups.map(g => g.id);
+      const { data, error } = await supabase
+        .from("event_group_duties")
+        .select("*, assignee:profiles!event_group_duties_assigned_to_fkey(display_name)")
+        .in("group_id", groupIds)
+        .order("created_at");
+      if (error) throw error;
+      // Group by group_id
+      const map: Record<string, typeof data> = {};
+      for (const d of data || []) {
+        if (!map[d.group_id]) map[d.group_id] = [];
+        map[d.group_id].push(d);
+      }
+      return map;
+    },
+    enabled: !!eventId && !!groups && groups.length > 0,
+  });
+
+  // State for quick-assign (clicking a duty badge)
+  const [quickAssignDutyId, setQuickAssignDutyId] = useState<string | null>(null);
+
   // Map RSVPs to mini league players
   const rsvpPlayerIds = new Set<string>();
   if (eventRsvps && allPlayers) {
