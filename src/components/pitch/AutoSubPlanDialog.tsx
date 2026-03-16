@@ -736,9 +736,8 @@ function DialogInner({
     // Use setTimeout to allow UI to update before heavy computation
     setTimeout(() => {
       try {
-        const halfDurationSeconds = minutesPerHalf * 60;
-        const generatedPlan = createSubPlan(players, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId);
-        console.log("[AutoSubPlan] Generated", generatedPlan.length, "subs");
+        const generatedPlan = generatePlan(players);
+        console.log("[AutoSubPlan] Generated", generatedPlan.length, "subs", miniLeagueTeams ? "(mini-league per-team)" : "");
         setPlan(generatedPlan);
       } catch (error) {
         console.error("Error generating plan:", error);
