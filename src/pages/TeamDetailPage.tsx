@@ -745,9 +745,8 @@ export default function TeamDetailPage() {
         <PrimarySponsorDisplay sponsorId={team.sponsor_id} variant="full" context="team_page" />
       )}
 
-      {/* Upgrade Banner - Show only for team/club admins without pro access */}
-      {/* Don't show if: user is just a regular member, or club/team already has Pro */}
-      {(isAdmin || isClubAdmin) && !isTeamPro && !hasProFootball && (
+      {/* Upgrade Banner - Show only for team/club admins without pro access, hidden in class mode */}
+      {!isClassMode && (isAdmin || isClubAdmin) && !isTeamPro && !hasProFootball && (
         <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
