@@ -6925,7 +6925,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             />
 
             {/* Players on pitch */}
-            {playersOnPitch.map(player => (
+            {filteredPlayersOnPitch.map(player => (
               <PlayerToken
                 key={player.id}
                 player={player}
