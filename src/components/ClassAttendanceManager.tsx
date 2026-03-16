@@ -296,7 +296,11 @@ export function ClassAttendanceManager({ clubId }: ClassAttendanceManagerProps) 
                           }
                           disabled={markAttendanceMutation.isPending}
                         >
-                          {s.charAt(0).toUpperCase() + s.slice(1)}
+                          <span className="hidden sm:inline">{s.charAt(0).toUpperCase() + s.slice(1)}</span>
+                          <span className="sm:hidden">{s === "present" ? "P" : s === "late" ? "L" : "A"}</span>
+                        </Button>
+                      )
+                    )}
                         </Button>
                       )
                     )}
