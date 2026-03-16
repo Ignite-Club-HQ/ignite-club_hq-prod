@@ -26,6 +26,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -1189,16 +1197,15 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         existingMatchCount={groups?.length || 0}
       />
 
-      {/* Streamlined Auto-Generate Dialog */}
-      <Dialog open={isAutoGenOpen} onOpenChange={setIsAutoGenOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Generate Matches</DialogTitle>
-            <DialogDescription>
+      <ResponsiveDialog open={isAutoGenOpen} onOpenChange={setIsAutoGenOpen}>
+        <ResponsiveDialogContent className="sm:max-w-md">
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>Generate Matches</ResponsiveDialogTitle>
+            <ResponsiveDialogDescription>
               Create balanced matches from {availablePlayers.length} available players
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
+            </ResponsiveDialogDescription>
+          </ResponsiveDialogHeader>
+          <div className="py-2 space-y-4 px-1">
             {/* Ability Assignment Mode */}
             <div className="space-y-2">
               <Label>Ability Grouping</Label>
@@ -1267,7 +1274,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
               <CollapsibleContent className="space-y-4 pt-2">
                 <div className="space-y-2">
                   <Label>Players per Side</Label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     {[4, 5, 6, 7, 8].map((n) => (
                       <Button
                         key={n}
@@ -1299,20 +1306,21 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
               </CollapsibleContent>
             </Collapsible>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAutoGenOpen(false)}>
-              Cancel
-            </Button>
+          <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-row">
             <Button
               onClick={() => autoGenMutation.mutate()}
               disabled={autoGenMutation.isPending || availablePlayers.length === 0}
+              className="w-full sm:w-auto h-12 text-base"
             >
               {autoGenMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Generate
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <Button variant="outline" onClick={() => setIsAutoGenOpen(false)} className="w-full sm:w-auto h-12 text-base">
+              Cancel
+            </Button>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* Copy from Previous Dialog */}
       <Dialog open={isCopyPreviousOpen} onOpenChange={setIsCopyPreviousOpen}>
