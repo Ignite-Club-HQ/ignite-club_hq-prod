@@ -170,12 +170,12 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Users className="h-5 w-5 text-primary" />
           <h3 className="font-semibold text-lg">Enrolments</h3>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {enrolments.length > 0 && (
             <Button
               variant="outline"
