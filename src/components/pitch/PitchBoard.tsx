@@ -333,6 +333,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
   const [tacticalMode, setTacticalMode] = useState<TacticalMode>("neutral");
   const [tacticalFormationSuggestion, setTacticalFormationSuggestion] = useState<TacticalFormationSuggestion | null>(null);
+  
+  // Mini-league team selector for formation/tactical changes
+  const [selectedTeamForSettings, setSelectedTeamForSettings] = useState<"a" | "b" | "both">("both");
 
   // Sync settings from props when they change (e.g., when edited on team page)
   // Also sync on initial mount if no saved state exists for the setting
@@ -2031,6 +2034,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const formation = FORMATIONS[teamSize][index];
     if (!formation) return;
 
+    // In mini-league mode, skip preview dialog and apply directly
+    if (miniLeagueTeams) {
+      applyFormationChange(index);
+      return;
+    }
+
     const numPositions = parseInt(teamSize);
     
     // Calculate what changes would happen
@@ -2302,10 +2311,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Persist to database
     persistFormationToDb(formation.name);
 
-    // For mini-league mode, re-place both teams with the new formation (reposition to formation)
+    // For mini-league mode, re-place teams with the new formation
     if (miniLeagueTeams) {
+      const targetTeam = selectedTeamForSettings;
       setPlayers(prev => {
-        // Ensure teamSide is set on all players before placement
+        // Ensure teamSide is set on all players
         const playersWithTeamSide = prev.map(p => {
           if (p.teamSide) return p;
           let teamSide: "a" | "b" | undefined;
@@ -2316,9 +2326,46 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           }
           return { ...p, teamSide };
         });
-        return autoPlaceMiniLeaguePlayers(playersWithTeamSide, teamSize, true, index, true);
+        
+        if (targetTeam === "both") {
+          return autoPlaceMiniLeaguePlayers(playersWithTeamSide, teamSize, true, index, true);
+        }
+        
+        // Single team formation change - only reposition that team's players
+        const scaleToBottomHalf = (pos: { x: number; y: number }) => ({
+          x: pos.x,
+          y: 50 + (pos.y / 100) * 45,
+        });
+        const scaleToTopHalf = (pos: { x: number; y: number }) => ({
+          x: 100 - pos.x,
+          y: 50 - (pos.y / 100) * 45,
+        });
+        const scaleFunc = targetTeam === "a" ? scaleToBottomHalf : scaleToTopHalf;
+        
+        return playersWithTeamSide.map(p => {
+          if (p.teamSide !== targetTeam) return p; // Leave other team unchanged
+          if (p.position === null) return p; // Leave bench players unchanged
+          
+          // Find this player's index among on-pitch players of this team
+          const teamOnPitch = playersWithTeamSide.filter(pp => pp.teamSide === targetTeam && pp.position !== null);
+          const playerIndex = teamOnPitch.findIndex(pp => pp.id === p.id);
+          
+          if (playerIndex >= 0 && playerIndex < formation.positions.length) {
+            const pos = scaleFunc(formation.positions[playerIndex]);
+            return {
+              ...p,
+              position: pos,
+              currentPitchPosition: getPositionFromCoords(formation.positions[playerIndex].y, teamSize),
+            };
+          }
+          return p;
+        });
       });
-      toast({ title: "Formation applied", description: `${formation.name} formation set for both teams` });
+      
+      const teamLabel = targetTeam === "both" ? "both teams" 
+        : targetTeam === "a" ? (miniLeagueTeams.teamAName || "Team A")
+        : (miniLeagueTeams.teamBName || "Team B");
+      toast({ title: "Formation applied", description: `${formation.name} set for ${teamLabel}` });
       return;
     }
 
@@ -2412,7 +2459,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         regeneratePlanRef.current?.();
       }, 300);
     }
-  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers, autoSubActive, notifyFormationOrSizeChange]);
+  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers, autoSubActive, notifyFormationOrSizeChange, selectedTeamForSettings]);
 
   // Handle formation change dialog confirm
   const handleFormationChangeConfirm = useCallback(() => {
@@ -4762,7 +4809,36 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {timerFormationDropdownOpen && (
                   <>
                   <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerFormationDropdownOpen(false); }} />
-                  <div className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[140px] py-1 max-h-48 overflow-y-auto">
+                  <div className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[160px] py-1 max-h-64 overflow-y-auto">
+                    {/* Team selector for mini-league */}
+                    {miniLeagueTeams && (
+                      <div className="px-2 pb-1 mb-1 border-b border-border">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-1 py-1">Apply to</p>
+                        <div className="flex gap-1">
+                          {(["a", "b", "both"] as const).map((team) => (
+                            <button
+                              key={team}
+                              className={cn(
+                                "flex-1 text-xs font-medium py-1.5 px-1 rounded transition-colors text-center",
+                                selectedTeamForSettings === team
+                                  ? "text-white"
+                                  : "bg-muted hover:bg-muted/80 text-foreground"
+                              )}
+                              style={selectedTeamForSettings === team ? {
+                                backgroundColor: team === "a" ? miniLeagueTeams.teamAColor 
+                                  : team === "b" ? miniLeagueTeams.teamBColor 
+                                  : undefined,
+                              } : undefined}
+                              onClick={(e) => { e.stopPropagation(); setSelectedTeamForSettings(team); }}
+                            >
+                              {team === "a" ? (miniLeagueTeams.teamAName || "Team A")
+                                : team === "b" ? (miniLeagueTeams.teamBName || "Team B")
+                                : "Both"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {FORMATIONS[teamSize].map((f, i) => (
                       <button
                         key={i}
@@ -6167,7 +6243,36 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {timerFormationDropdownOpen && (
                   <>
                   <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerFormationDropdownOpen(false); }} />
-                   <div data-timer-dropdown className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[140px] py-1 max-h-48 overflow-y-auto">
+                   <div data-timer-dropdown className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[160px] py-1 max-h-64 overflow-y-auto">
+                    {/* Team selector for mini-league */}
+                    {miniLeagueTeams && (
+                      <div className="px-2 pb-1 mb-1 border-b border-border">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-1 py-1">Apply to</p>
+                        <div className="flex gap-1">
+                          {(["a", "b", "both"] as const).map((team) => (
+                            <button
+                              key={team}
+                              className={cn(
+                                "flex-1 text-xs font-medium py-1.5 px-1 rounded transition-colors text-center",
+                                selectedTeamForSettings === team
+                                  ? "text-white"
+                                  : "bg-muted hover:bg-muted/80 text-foreground"
+                              )}
+                              style={selectedTeamForSettings === team ? {
+                                backgroundColor: team === "a" ? miniLeagueTeams.teamAColor 
+                                  : team === "b" ? miniLeagueTeams.teamBColor 
+                                  : undefined,
+                              } : undefined}
+                              onClick={(e) => { e.stopPropagation(); setSelectedTeamForSettings(team); }}
+                            >
+                              {team === "a" ? (miniLeagueTeams.teamAName || "Team A")
+                                : team === "b" ? (miniLeagueTeams.teamBName || "Team B")
+                                : "Both"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {FORMATIONS[teamSize].map((f, i) => (
                       <button
                         key={i}
