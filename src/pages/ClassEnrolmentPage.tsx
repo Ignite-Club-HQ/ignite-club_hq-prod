@@ -19,13 +19,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { MobileSelect } from "@/components/ui/mobile-select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -376,21 +370,16 @@ export default function ClassEnrolmentPage() {
       {terms.length > 0 && (
         <div className="space-y-2">
           <label className="text-sm font-medium">Select Term</label>
-          <Select
+          <MobileSelect
             value={selectedTermId || terms[0]?.id || ""}
             onValueChange={setSelectedTermId}
-          >
-            <SelectTrigger className="h-11">
-              <SelectValue placeholder="Select a term" />
-            </SelectTrigger>
-            <SelectContent className="bg-popover">
-              {terms.map((term) => (
-                <SelectItem key={term.id} value={term.id}>
-                  {term.name}{term.start_date && term.end_date ? ` (${format(new Date(term.start_date), "d MMM")} – ${format(new Date(term.end_date), "d MMM yyyy")})` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={terms.map((term) => ({
+              value: term.id,
+              label: term.name + (term.start_date && term.end_date ? ` (${format(new Date(term.start_date), "d MMM")} – ${format(new Date(term.end_date), "d MMM yyyy")})` : ""),
+            }))}
+            placeholder="Select a term"
+            title="Select Term"
+          />
         </div>
       )}
 
@@ -398,18 +387,13 @@ export default function ClassEnrolmentPage() {
       {hasChildClasses && children.length >= 1 && (
         <div className="space-y-2">
           <label className="text-sm font-medium">Select Child</label>
-          <Select value={selectedChildId || children[0]?.id || ""} onValueChange={setSelectedChildId}>
-            <SelectTrigger className="h-11">
-              <SelectValue placeholder="Select a child" />
-            </SelectTrigger>
-            <SelectContent className="bg-popover">
-              {children.map((child) => (
-                <SelectItem key={child.id} value={child.id}>
-                  {child.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MobileSelect
+            value={selectedChildId || children[0]?.id || ""}
+            onValueChange={setSelectedChildId}
+            options={children.map((child) => ({ value: child.id, label: child.name }))}
+            placeholder="Select a child"
+            title="Select Child"
+          />
         </div>
       )}
 

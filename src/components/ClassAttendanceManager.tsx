@@ -5,13 +5,7 @@ import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { MobileSelect } from "@/components/ui/mobile-select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -202,36 +196,26 @@ export function ClassAttendanceManager({ clubId }: ClassAttendanceManagerProps) 
 
       <div className="grid grid-cols-1 gap-3">
         {terms.length > 1 ? (
-          <Select value={termId || ""} onValueChange={setSelectedTermId}>
-            <SelectTrigger className="h-10">
-              <SelectValue placeholder="Term" />
-            </SelectTrigger>
-            <SelectContent className="bg-popover">
-              {terms.map((term) => (
-                <SelectItem key={term.id} value={term.id}>
-                  {term.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MobileSelect
+            value={termId || ""}
+            onValueChange={setSelectedTermId}
+            options={terms.map((term) => ({ value: term.id, label: term.name }))}
+            placeholder="Term"
+            title="Select Term"
+          />
         ) : (
           <p className="text-sm text-muted-foreground self-center">
             {terms[0]?.name}
           </p>
         )}
 
-        <Select value={classId || ""} onValueChange={setSelectedClassId}>
-          <SelectTrigger className="h-10">
-            <SelectValue placeholder="Select class" />
-          </SelectTrigger>
-          <SelectContent className="bg-popover">
-            {classes.map((cls) => (
-              <SelectItem key={cls.id} value={cls.id}>
-                {cls.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MobileSelect
+          value={classId || ""}
+          onValueChange={setSelectedClassId}
+          options={classes.map((cls) => ({ value: cls.id, label: cls.name }))}
+          placeholder="Select class"
+          title="Select Class"
+        />
 
         <input
           type="date"
