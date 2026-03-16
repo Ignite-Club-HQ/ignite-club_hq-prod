@@ -38,11 +38,18 @@ export interface MemberCheckoutResponse {
 export async function createMemberCheckout(
   params: MemberCheckoutParams
 ): Promise<MemberCheckoutResponse> {
+  const platformFeeCents = Math.round(params.amount_cents * IGNITE_PLATFORM_FEE_PERCENT);
+
   const body: MemberCheckoutParams = {
     ...params,
     currency: params.currency ?? 'aud',
     success_url: params.success_url ?? 'igniteclubhq://payment-success',
     cancel_url: params.cancel_url ?? 'igniteclubhq://payment-cancel',
+    platform_fee_cents: platformFeeCents,
+    metadata: {
+      ...params.metadata,
+      platform_fee_cents: platformFeeCents.toString(),
+    },
   };
 
   const res = await fetch(
