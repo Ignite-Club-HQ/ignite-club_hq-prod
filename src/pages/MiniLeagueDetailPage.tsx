@@ -484,28 +484,28 @@ export default function MiniLeagueDetailPage() {
   const pastEvents = events?.filter(e => !e.is_cancelled && getEventDateTime(e) < now && !isToday(parseISO(e.event_date))) || [];
 
   return (
-    <div className="container max-w-4xl py-4 space-y-4">
-      {/* Header - matching team/club style */}
-      <div className="flex items-start gap-3">
-        <Button variant="ghost" size="icon" className="shrink-0 mt-0.5" onClick={() => navigate(league.club_id ? `/mini-leagues?clubId=${league.club_id}` : "/mini-leagues")}>
+    <div className="container max-w-4xl py-4 space-y-5">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" className="shrink-0 h-11 w-11" onClick={() => navigate(league.club_id ? `/mini-leagues?clubId=${league.club_id}` : "/mini-leagues")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        {league.logo_url && (
-          <Avatar className="h-12 w-12 shrink-0">
+        <Avatar className="h-11 w-11 shrink-0">
+          {league.logo_url ? (
             <AvatarImage src={league.logo_url} alt={league.name} />
-            <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-              {league.name.slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-        )}
+          ) : null}
+          <AvatarFallback className="bg-primary/10 text-primary text-sm font-bold">
+            {league.name.slice(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold truncate">{league.name}</h1>
-          <p className="text-sm text-muted-foreground truncate">{league.club?.name}</p>
+          <h1 className="text-lg font-bold truncate leading-tight">{league.name}</h1>
+          <p className="text-xs text-muted-foreground truncate">{league.club?.name}</p>
         </div>
         {canManageLeague && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0">
+              <Button variant="ghost" size="icon" className="shrink-0 h-11 w-11">
                 <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
@@ -524,157 +524,167 @@ export default function MiniLeagueDetailPage() {
       </div>
 
       {league.description && (
-        <p className="text-sm text-muted-foreground px-1">{league.description}</p>
+        <p className="text-sm text-muted-foreground leading-relaxed">{league.description}</p>
       )}
 
-      {/* Stats - compact horizontal layout */}
+      {/* Quick stats row */}
       <div className="flex gap-3">
-        <Card className="flex-1">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-xl font-bold">{players?.length || 0}</span>
-                <span className="text-xs text-muted-foreground">Players</span>
-              </div>
+        <button
+          type="button"
+          onClick={canManageLeague ? () => setPlayersOpen(true) : undefined}
+          className={`flex-1 rounded-xl border bg-card p-3 text-left transition-colors ${canManageLeague ? 'hover:bg-accent/50 cursor-pointer active:scale-[0.98]' : ''}`}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Users className="h-4.5 w-4.5 text-primary" />
             </div>
-          </CardContent>
-        </Card>
-        <Card className="flex-1">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-xl font-bold">{events?.length || 0}</span>
-                <span className="text-xs text-muted-foreground">Sessions</span>
-              </div>
+            <div>
+              <span className="text-2xl font-bold leading-none">{players?.length || 0}</span>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Players</p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </button>
+        <div className="flex-1 rounded-xl border bg-card p-3">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Calendar className="h-4.5 w-4.5 text-primary" />
+            </div>
+            <div>
+              <span className="text-2xl font-bold leading-none">{events?.length || 0}</span>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Sessions</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Sessions */}
+      {/* Sessions list */}
       <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            <h2 className="text-base font-semibold">Sessions</h2>
-            {canManageLeague ? (
-              <Button 
-                size="sm" 
-                onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}
-              >
-                <Plus className="h-4 w-4 mr-1.5" />
-                New Session
-              </Button>
-            ) : (
-              <Button 
-                size="sm" 
-                variant="outline"
-                className="opacity-60 relative"
-                onClick={() => toast.error("Only admins and coaches can create sessions")}
-              >
-                <Plus className="h-4 w-4 mr-1.5" />
-                New Session
-                <span className="absolute -top-1 -right-1 text-[10px] bg-muted text-muted-foreground px-1 py-0.5 rounded">Admin</span>
-              </Button>
-            )}
-          </div>
+        <div className="flex justify-between items-center">
+          <h2 className="text-base font-semibold">Sessions</h2>
+          {canManageLeague && (
+            <Button 
+              size="sm" 
+              onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              New Session
+            </Button>
+          )}
+        </div>
 
-          {eventsLoading ? (
-            <div className="flex justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : events?.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="py-8 text-center">
-                <Calendar className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-                <p className="text-sm text-muted-foreground">No sessions scheduled</p>
-                {canManageLeague ? (
-                  <Button 
-                    variant="link" 
-                    size="sm" 
-                    className="mt-1"
-                    onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}
-                  >
-                    Create your first session
-                  </Button>
-                ) : (
-                  <p className="text-xs text-muted-foreground mt-1">Ask an admin or coach to create a session</p>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {upcomingEvents.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Upcoming</h3>
-                  {upcomingEvents.map((event) => (
-                    <Card
-                      key={event.id}
-                      className="cursor-pointer hover:bg-accent/50 transition-colors"
-                      onClick={() => navigate(`/events/${event.id}`)}
-                    >
-                      <CardContent className="py-3 px-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm truncate">
-                                {event.title || format(parseISO(event.event_date), "EEE, MMM d")}
-                              </span>
-                              {isToday(parseISO(event.event_date)) && (
-                                <Badge variant="default" className="text-[10px] px-1.5 py-0">Today</Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                              {event.start_time && (
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {event.start_time.slice(0, 5)}
-                                </span>
-                              )}
-                              {event.location_name && (
-                                <span className="flex items-center gap-1 truncate">
-                                  <MapPin className="h-3 w-3 shrink-0" />
-                                  <span className="truncate">{event.location_name}</span>
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+        {eventsLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : events?.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="py-10 text-center space-y-2">
+              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                <Calendar className="h-6 w-6 text-primary/60" />
+              </div>
+              <p className="text-sm font-medium text-muted-foreground">No sessions yet</p>
+              {canManageLeague ? (
+                <Button 
+                  variant="link" 
+                  size="sm" 
+                  className="text-primary"
+                  onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}
+                >
+                  Create your first session
+                </Button>
+              ) : (
+                <p className="text-xs text-muted-foreground">Ask an admin or coach to create a session</p>
               )}
-              
-              {pastEvents.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Past</h3>
-                  {pastEvents.slice(0, 5).map((event) => (
-                    <Card
-                      key={event.id}
-                      className="cursor-pointer hover:bg-accent/50 transition-colors opacity-60"
-                      onClick={() => navigate(`/events/${event.id}`)}
-                    >
-                      <CardContent className="py-2.5 px-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 text-sm">
-                            <span className="truncate">{event.title || format(parseISO(event.event_date), "MMM d")}</span>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {upcomingEvents.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Upcoming</h3>
+                {upcomingEvents.map((event) => (
+                  <Card
+                    key={event.id}
+                    className="cursor-pointer hover:bg-accent/50 active:scale-[0.99] transition-all"
+                    onClick={() => navigate(`/events/${event.id}`)}
+                  >
+                    <CardContent className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        {/* Date block */}
+                        <div className="h-11 w-11 rounded-lg bg-primary/10 flex flex-col items-center justify-center shrink-0">
+                          <span className="text-[10px] font-semibold text-primary uppercase leading-none">
+                            {format(parseISO(event.event_date), "MMM")}
+                          </span>
+                          <span className="text-base font-bold text-primary leading-tight">
+                            {format(parseISO(event.event_date), "d")}
+                          </span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm truncate">
+                              {event.title || format(parseISO(event.event_date), "EEEE")}
+                            </span>
+                            {isToday(parseISO(event.event_date)) && (
+                              <Badge variant="default" className="text-[10px] px-1.5 py-0 shrink-0">Today</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                             {event.start_time && (
-                              <span className="text-muted-foreground text-xs">
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
                                 {event.start_time.slice(0, 5)}
                               </span>
                             )}
+                            {event.location_name && (
+                              <span className="flex items-center gap-1 truncate">
+                                <MapPin className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{event.location_name}</span>
+                              </span>
+                            )}
                           </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+                        <ChevronRight className="h-4 w-4 text-muted-foreground/60 shrink-0" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+            
+            {pastEvents.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Past</h3>
+                {pastEvents.slice(0, 5).map((event) => (
+                  <Card
+                    key={event.id}
+                    className="cursor-pointer hover:bg-accent/50 transition-colors"
+                    onClick={() => navigate(`/events/${event.id}`)}
+                  >
+                    <CardContent className="py-2.5 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-lg bg-muted flex flex-col items-center justify-center shrink-0">
+                          <span className="text-[9px] font-medium text-muted-foreground uppercase leading-none">
+                            {format(parseISO(event.event_date), "MMM")}
+                          </span>
+                          <span className="text-sm font-semibold text-muted-foreground leading-tight">
+                            {format(parseISO(event.event_date), "d")}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm truncate block">{event.title || format(parseISO(event.event_date), "EEEE")}</span>
+                          {event.start_time && (
+                            <span className="text-xs text-muted-foreground">{event.start_time.slice(0, 5)}</span>
+                          )}
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Manage Players Dialog */}
