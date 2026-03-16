@@ -362,6 +362,9 @@ serve(async (req) => {
       customerId = customer.id;
     }
 
+    // Calculate platform fee (5%)
+    const platformFeeCents = Math.round(unitAmount * 0.05);
+
     // Create the checkout session for subscription
     const sessionConfig: any = {
       customer: customerId,
@@ -375,6 +378,20 @@ serve(async (req) => {
             product_data: {
               name: productName,
               description: `${entityName} - ${isAnnual ? 'Annual' : 'Monthly'} billing`,
+            },
+            recurring: {
+              interval: interval,
+            },
+          },
+          quantity: 1,
+        },
+        {
+          price_data: {
+            currency: 'aud',
+            unit_amount: platformFeeCents,
+            product_data: {
+              name: 'Ignite Platform Fee',
+              description: 'Ignite Club HQ processing fee (5%)',
             },
             recurring: {
               interval: interval,
