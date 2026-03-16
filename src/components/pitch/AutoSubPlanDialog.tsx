@@ -988,6 +988,7 @@ export default function AutoSubPlanDialog({
                 currentHalf={currentHalf}
                 preferredSecondHalfGkId={preferredSecondHalfGkId}
                 isSetupFlow={showStepper}
+                miniLeagueTeams={miniLeagueTeams}
               />
             )}
           </div>
