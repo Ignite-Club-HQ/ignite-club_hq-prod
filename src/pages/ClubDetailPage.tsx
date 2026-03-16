@@ -1750,20 +1750,35 @@ export default function ClubDetailPage() {
         </AccordionItem>
       )}
 
-      {/* Class Mode - Terms Management (Admin only, when class mode enabled) */}
+      {/* Class Mode - Terms (Admin only) */}
       {isAdmin && club?.class_mode_enabled && (
         <AccordionItem value="terms" className="border rounded-lg px-4">
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <CalendarDays className="h-5 w-5 text-primary" />
-              <span className="text-lg font-semibold">Terms & Classes</span>
+              <span className="text-lg font-semibold">Terms</span>
             </div>
           </AccordionTrigger>
-             <AccordionContent>
-            <div className="pt-2 space-y-6">
+          <AccordionContent>
+            <div className="pt-2 space-y-4">
               <TermsManager clubId={id!} />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      )}
+
+      {/* Class Mode - Enrolments (Admin only) */}
+      {isAdmin && club?.class_mode_enabled && (
+        <AccordionItem value="enrolments" className="border rounded-lg px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-primary" />
+              <span className="text-lg font-semibold">Enrolments</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="pt-2 space-y-4">
               <AdminEnrolmentManager clubId={id!} />
-              <ClassAttendanceManager clubId={id!} />
               <Link to={`/clubs/${id}/enrol`}>
                 <Card className="hover:border-primary/50 transition-colors">
                   <CardContent className="p-4 flex items-center gap-3">
@@ -1774,6 +1789,23 @@ export default function ClubDetailPage() {
                   </CardContent>
                 </Card>
               </Link>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      )}
+
+      {/* Class Mode - Attendance (Admin only) */}
+      {isAdmin && club?.class_mode_enabled && (
+        <AccordionItem value="attendance" className="border rounded-lg px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5 text-primary" />
+              <span className="text-lg font-semibold">Attendance</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="pt-2">
+              <ClassAttendanceManager clubId={id!} />
             </div>
           </AccordionContent>
         </AccordionItem>
