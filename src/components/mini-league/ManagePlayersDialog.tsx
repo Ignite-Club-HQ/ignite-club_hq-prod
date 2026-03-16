@@ -515,19 +515,16 @@ export function ManagePlayersDialog({
                                 </div>
                                 {!selectionMode && canManage && !isEditing && (
                                   <AlertDialog>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-7 w-7 shrink-0"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        // Trigger the alert dialog by finding and clicking the hidden trigger
-                                        const btn = e.currentTarget.nextElementSibling as HTMLElement;
-                                        btn?.click();
-                                      }}
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                                    </Button>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 shrink-0"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                      </Button>
+                                    </AlertDialogTrigger>
                                     <AlertDialogContent>
                                       <AlertDialogHeader>
                                         <AlertDialogTitle>Remove Player?</AlertDialogTitle>
