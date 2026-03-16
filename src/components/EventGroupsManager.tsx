@@ -444,7 +444,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     // Distribute players
     const matchPlayers: { playerId: string; team: "a" | "b" }[][] = Array(effectiveNumMatches).fill(null).map(() => []);
     
-    if (abilityMode === "similar") {
+    if (effectiveAbilityMode === "similar") {
       let playerIdx = 0;
       for (let matchIdx = 0; matchIdx < effectiveNumMatches && playerIdx < sortedPlayers.length; matchIdx++) {
         const targetSize = matchTargetSizes[matchIdx];
