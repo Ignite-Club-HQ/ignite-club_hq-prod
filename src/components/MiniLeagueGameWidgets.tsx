@@ -256,7 +256,7 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
           teamAScore,
           teamBScore,
           isAdmin,
-          isSubsManager: false,
+          isReferee: isRefForGroup,
           minutesPerHalf: league.minutes_per_half || 10,
         });
       }
