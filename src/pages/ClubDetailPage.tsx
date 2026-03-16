@@ -1758,10 +1758,11 @@ export default function ClubDetailPage() {
               <span className="text-lg font-semibold">Terms & Classes</span>
             </div>
           </AccordionTrigger>
-           <AccordionContent>
-            <div className="pt-2 space-y-4">
+             <AccordionContent>
+            <div className="pt-2 space-y-6">
               <TermsManager clubId={id!} />
               <AdminEnrolmentManager clubId={id!} />
+              <ClassAttendanceManager clubId={id!} />
               <Link to={`/clubs/${id}/enrol`}>
                 <Card className="hover:border-primary/50 transition-colors">
                   <CardContent className="p-4 flex items-center gap-3">
