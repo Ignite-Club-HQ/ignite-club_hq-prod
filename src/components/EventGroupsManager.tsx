@@ -516,27 +516,34 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     return { numCreated: effectiveNumMatches, matchIds, matchPlayerIds: matchPlayers.map(mp => mp.map(p => p.playerId)) };
   }, [availablePlayers, miniLeague, showAdvanced, playersPerTeam, numGroups, abilityMode, eventId]);
 
-  // Create group mutation
+  // Create group mutation - with player assignments
   const createGroupMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (data: { name: string; pitchName: string; teamAPlayerIds: string[]; teamBPlayerIds: string[] }) => {
       const leagueColors = miniLeague?.bib_colors || DEFAULT_BIB_COLORS;
       const colors = getMatchColors(groups?.length || 0, leagueColors);
-      const effectiveName = newGroupName.trim() || `Match ${(groups?.length || 0) + 1}`;
-      const { error } = await supabase.from("event_groups").insert({
+      const { data: newGroup, error } = await supabase.from("event_groups").insert({
         event_id: eventId,
-        name: effectiveName,
-        pitch_name: newPitchName.trim() || null,
+        name: data.name,
+        pitch_name: data.pitchName || null,
         display_order: (groups?.length || 0) + 1,
         team_a_color: colors.teamA,
         team_b_color: colors.teamB,
-      });
+      }).select().single();
       if (error) throw error;
+
+      // Insert player assignments
+      const playerInserts = [
+        ...data.teamAPlayerIds.map(pid => ({ group_id: newGroup.id, player_id: pid, team: "a" as const })),
+        ...data.teamBPlayerIds.map(pid => ({ group_id: newGroup.id, player_id: pid, team: "b" as const })),
+      ];
+      if (playerInserts.length > 0) {
+        const { error: playerError } = await supabase.from("event_group_players").insert(playerInserts);
+        if (playerError) throw playerError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       setIsCreateOpen(false);
-      setNewGroupName("");
-      setNewPitchName("");
       toast.success("Match created");
     },
     onError: (error: Error) => toast.error(error.message),
