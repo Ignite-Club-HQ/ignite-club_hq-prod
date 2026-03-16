@@ -323,6 +323,7 @@ export default function ClassEnrolmentPage() {
 
   const [selectedChildId, setSelectedChildId] = useState<string>("");
   const [dayFilter, setDayFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
 
   const isLoading = termsLoading || classesLoading;
 
