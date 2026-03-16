@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Wand2, User, Megaphone, Apple } from "lucide-react";
+import { Loader2, Wand2, User, Megaphone, Apple, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -21,7 +21,7 @@ interface ParentMember {
 interface QuickSetupDutyDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (assignments: Record<string, string | null>) => void;
+  onConfirm: (assignments: Record<string, string[]>) => void;
   isPending: boolean;
   parents: ParentMember[];
   playerCount: number;
@@ -40,23 +40,38 @@ export function QuickSetupDutyDialog({
   parents,
   playerCount,
 }: QuickSetupDutyDialogProps) {
-  const [assignments, setAssignments] = useState<Record<string, string | null>>({
-    Referee: null,
-    Oranges: null,
+  const [assignments, setAssignments] = useState<Record<string, string[]>>({
+    Referee: [],
+    Oranges: [],
   });
   const [expandedDuty, setExpandedDuty] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
-      setAssignments({ Referee: null, Oranges: null });
+      setAssignments({ Referee: [], Oranges: [] });
       setExpandedDuty(null);
     }
   }, [open]);
 
-  const getAssigneeName = (dutyId: string) => {
-    const userId = assignments[dutyId];
-    if (!userId) return null;
-    return parents.find(p => p.id === userId);
+  const toggleParent = (dutyId: string, parentId: string) => {
+    setAssignments(prev => {
+      const current = prev[dutyId] || [];
+      const isSelected = current.includes(parentId);
+      return {
+        ...prev,
+        [dutyId]: isSelected
+          ? current.filter(id => id !== parentId)
+          : [...current, parentId],
+      };
+    });
+  };
+
+  const getAssigneeNames = (dutyId: string) => {
+    const userIds = assignments[dutyId] || [];
+    if (userIds.length === 0) return null;
+    return userIds
+      .map(id => parents.find(p => p.id === id))
+      .filter(Boolean) as ParentMember[];
   };
 
   return (
@@ -71,14 +86,15 @@ export function QuickSetupDutyDialog({
 
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
-            {playerCount} players will be split into balanced matches. Assign duties for each match:
+            {playerCount} players will be split into balanced matches. Assign duties below (optional):
           </p>
 
           <div className="space-y-3">
             {DUTIES.map((duty) => {
-              const assignee = getAssigneeName(duty.id);
+              const assignees = getAssigneeNames(duty.id);
               const isExpanded = expandedDuty === duty.id;
               const Icon = duty.icon;
+              const count = (assignments[duty.id] || []).length;
 
               return (
                 <div key={duty.id} className="space-y-2">
@@ -103,52 +119,41 @@ export function QuickSetupDutyDialog({
                       <div>
                         <p className="font-medium">{duty.label}</p>
                         <p className="text-xs text-muted-foreground">
-                          {assignee ? assignee.display_name : "Tap to assign"}
+                          {assignees && assignees.length > 0
+                            ? assignees.map(a => a.display_name).join(", ")
+                            : "Tap to assign"}
                         </p>
                       </div>
                     </div>
-                    {assignee && (
-                      <Avatar className="h-8 w-8 border-2 border-primary">
-                        <AvatarImage src={assignee.avatar_url || undefined} />
-                        <AvatarFallback className="text-xs">
-                          {assignee.display_name?.charAt(0)?.toUpperCase() || "?"}
-                        </AvatarFallback>
-                      </Avatar>
+                    {count > 0 && (
+                      <div className="flex -space-x-2">
+                        {assignees?.slice(0, 3).map((a) => (
+                          <Avatar key={a.id} className="h-8 w-8 border-2 border-primary">
+                            <AvatarImage src={a.avatar_url || undefined} />
+                            <AvatarFallback className="text-xs">
+                              {a.display_name?.charAt(0)?.toUpperCase() || "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                        ))}
+                        {count > 3 && (
+                          <div className="h-8 w-8 rounded-full bg-muted border-2 border-primary flex items-center justify-center text-xs font-medium">
+                            +{count - 3}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </button>
 
                   {isExpanded && (
                     <ScrollArea className="max-h-[200px]">
                       <div className="space-y-1.5 pl-2">
-                        {/* Skip / unassigned option */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAssignments(prev => ({ ...prev, [duty.id]: null }));
-                            setExpandedDuty(null);
-                          }}
-                          className={cn(
-                            "w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left",
-                            "touch-manipulation hover:bg-accent",
-                            !assignments[duty.id] ? "bg-accent" : ""
-                          )}
-                        >
-                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                          <span className="text-sm text-muted-foreground">Auto-assign</span>
-                        </button>
-
                         {parents.map((parent) => {
-                          const isSelected = assignments[duty.id] === parent.id;
+                          const isSelected = (assignments[duty.id] || []).includes(parent.id);
                           return (
                             <button
                               key={parent.id}
                               type="button"
-                              onClick={() => {
-                                setAssignments(prev => ({ ...prev, [duty.id]: parent.id }));
-                                setExpandedDuty(null);
-                              }}
+                              onClick={() => toggleParent(duty.id, parent.id)}
                               className={cn(
                                 "w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left",
                                 "touch-manipulation hover:bg-accent",
@@ -165,11 +170,14 @@ export function QuickSetupDutyDialog({
                                 </AvatarFallback>
                               </Avatar>
                               <span className={cn(
-                                "text-sm font-medium",
+                                "text-sm font-medium flex-1",
                                 isSelected ? "text-primary" : "text-foreground"
                               )}>
                                 {parent.display_name}
                               </span>
+                              {isSelected && (
+                                <Check className="h-4 w-4 text-primary shrink-0" />
+                              )}
                             </button>
                           );
                         })}
