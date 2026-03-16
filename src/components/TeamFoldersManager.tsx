@@ -57,6 +57,7 @@ export const getFolderColorClass = (color: string) => {
 interface TeamFoldersManagerProps {
   clubId: string;
   isAdmin: boolean;
+  classMode?: boolean;
 }
 
 export default function TeamFoldersManager({ clubId, isAdmin }: TeamFoldersManagerProps) {
