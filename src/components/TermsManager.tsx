@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarIcon, Plus, Pencil, Trash2, Loader2, CalendarDays, ToggleLeft, ToggleRight } from "lucide-react";
+import { CalendarIcon, Plus, Pencil, Trash2, Loader2, CalendarDays, ToggleLeft, ToggleRight, Archive, ArchiveRestore } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -111,7 +111,21 @@ export function TermsManager({ clubId }: TermsManagerProps) {
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
       const { error } = await supabase
         .from("terms")
-        .update({ is_active: isActive })
+        .update({ is_active: isActive, status: isActive ? "active" : "archived" })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["terms", clubId] });
+    },
+  });
+
+  const setTermStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const isActive = status === "active";
+      const { error } = await supabase
+        .from("terms")
+        .update({ status, is_active: isActive })
         .eq("id", id);
       if (error) throw error;
     },
@@ -194,10 +208,13 @@ export function TermsManager({ clubId }: TermsManagerProps) {
             <Card key={term.id}>
               <CardContent className="py-3 flex items-center justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-medium truncate">{term.name}</p>
-                    <Badge variant={term.is_active ? "default" : "secondary"} className="text-xs shrink-0">
-                      {term.is_active ? "Active" : "Inactive"}
+                    <Badge
+                      variant={(term as any).status === "completed" ? "outline" : term.is_active ? "default" : "secondary"}
+                      className={`text-xs shrink-0 ${(term as any).status === "completed" ? "border-emerald-500 text-emerald-600" : ""}`}
+                    >
+                      {(term as any).status === "completed" ? "Completed" : term.is_active ? "Active" : "Archived"}
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -205,17 +222,37 @@ export function TermsManager({ clubId }: TermsManagerProps) {
                   </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  {(term as any).status !== "completed" && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => toggleActiveMutation.mutate({ id: term.id, isActive: !term.is_active })}
+                      title={term.is_active ? "Archive" : "Activate"}
+                    >
+                      {term.is_active ? (
+                        <ToggleRight className="h-4 w-4 text-primary" />
+                      ) : (
+                        <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    onClick={() => toggleActiveMutation.mutate({ id: term.id, isActive: !term.is_active })}
-                    title={term.is_active ? "Deactivate" : "Activate"}
+                    onClick={() =>
+                      setTermStatusMutation.mutate({
+                        id: term.id,
+                        status: (term as any).status === "completed" ? "active" : "completed",
+                      })
+                    }
+                    title={(term as any).status === "completed" ? "Re-open term" : "Mark as completed"}
                   >
-                    {term.is_active ? (
-                      <ToggleRight className="h-4 w-4 text-primary" />
+                    {(term as any).status === "completed" ? (
+                      <ArchiveRestore className="h-4 w-4 text-emerald-500" />
                     ) : (
-                      <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+                      <Archive className="h-4 w-4 text-muted-foreground" />
                     )}
                   </Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(term)}>

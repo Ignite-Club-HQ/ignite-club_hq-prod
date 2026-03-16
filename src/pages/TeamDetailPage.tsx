@@ -3,7 +3,7 @@ import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder, ClipboardCheck } from "lucide-react";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -74,6 +74,7 @@ import { TeamSponsorSelector } from "@/components/TeamSponsorSelector";
 import PendingInvitesList from "@/components/PendingInvitesList";
 import TeamRewardsManager from "@/components/TeamRewardsManager";
 import { getFolderColorClass } from "@/components/TeamFoldersManager";
+import { ClassAttendanceSingle } from "@/components/ClassAttendanceSingle";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -1189,7 +1190,23 @@ export default function TeamDetailPage() {
             </AccordionContent>
           </AccordionItem>
 
-          {/* Chat Groups Section - only for team members */}
+          {/* Class Attendance - only in class mode for admins */}
+          {isClassMode && (isCoachOrAdmin || isClubAdmin) && (
+            <AccordionItem value="class-attendance" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <ClipboardCheck className="h-5 w-5 text-primary" />
+                  <span className="text-lg font-semibold">Attendance</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="pt-2">
+                  <ClassAttendanceSingle teamId={id!} clubId={team.club_id} />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
+
           {isMember && (
           <AccordionItem value="chat-groups" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
