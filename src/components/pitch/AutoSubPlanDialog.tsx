@@ -925,6 +925,7 @@ export default function AutoSubPlanDialog({
   currentHalf = 1,
   preferredSecondHalfGkId,
   showStepper = false,
+  miniLeagueTeams,
 }: AutoSubPlanDialogProps) {
   const handleClose = () => onOpenChange(false);
   
