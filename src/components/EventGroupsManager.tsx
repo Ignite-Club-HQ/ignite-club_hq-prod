@@ -1147,10 +1147,18 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       {/* Match Duties Dialog */}
       <MatchDutiesDialog
         open={!!activeDutiesGroup}
-        onOpenChange={(open) => !open && setActiveDutiesGroup(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActiveDutiesGroup(null);
+            setQuickAssignDutyId(null);
+            // Refresh inline badges
+            queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
+          }
+        }}
         groupId={activeDutiesGroup?.id || ""}
         groupName={activeDutiesGroup?.name || ""}
         miniLeagueId={miniLeagueId}
+        initialDutyId={quickAssignDutyId}
       />
 
       {/* Pitch Board Portal */}
