@@ -533,6 +533,7 @@ export default function EventDetailPage() {
   const isSocialEvent = event?.type === "social";
   const effectiveShowAll = isSocialEvent ? true : showAllRoles;
   const isMiniLeagueEvent = !!event?.mini_league_id;
+  const eventTypeLabel = isMiniLeagueEvent ? "Session" : getEventTypeLabel(event?.type);
 
   // Filter members based on showAllRoles toggle
   const members = membersWithRoles;
@@ -1652,7 +1653,7 @@ export default function EventDetailPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <Badge className={eventTypeColors[event.type as EventType]} variant="secondary">
-          {getEventTypeLabel(event.type)}
+          {eventTypeLabel}
         </Badge>
         
         <div className="flex-1" />
@@ -1708,7 +1709,7 @@ export default function EventDetailPage() {
                 <>
                   <DropdownMenuItem onClick={() => navigate(`/events/${id}/edit`)}>
                     <Pencil className="h-4 w-4 mr-2" />
-                    Edit {getEventTypeLabel(event.type)}
+                    Edit {eventTypeLabel}
                   </DropdownMenuItem>
                   {canSendReminders ? (
                     <DropdownMenuItem onClick={() => {
@@ -1731,7 +1732,7 @@ export default function EventDetailPage() {
                     className="text-warning focus:text-warning"
                   >
                     <XCircle className="h-4 w-4 mr-2" />
-                    Cancel {getEventTypeLabel(event.type)}
+                    Cancel {eventTypeLabel}
                   </DropdownMenuItem>
                 </>
               )}
@@ -1740,7 +1741,7 @@ export default function EventDetailPage() {
                 className="text-destructive focus:text-destructive"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                Delete {getEventTypeLabel(event.type)}
+                Delete {eventTypeLabel}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1814,8 +1815,8 @@ export default function EventDetailPage() {
           <RecurringEventActionDialog
             open={deleteDialogOpen}
             onOpenChange={setDeleteDialogOpen}
-            title={`Delete ${getEventTypeLabel(event.type)}?`}
-            description={`This will permanently delete the ${getEventTypeLabel(event.type).toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
+            title={`Delete ${eventTypeLabel}?`}
+            description={`This will permanently delete the ${eventTypeLabel.toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
             actionLabel="Delete"
             actionVariant="destructive"
             onSingleAction={() => deleteEventMutation.mutate('single')}
@@ -1826,9 +1827,9 @@ export default function EventDetailPage() {
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete {getEventTypeLabel(event.type)}?</AlertDialogTitle>
+                <AlertDialogTitle>Delete {eventTypeLabel}?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will permanently delete this {getEventTypeLabel(event.type).toLowerCase()} and all RSVPs. This action cannot be undone.
+                  This will permanently delete this {eventTypeLabel.toLowerCase()} and all RSVPs. This action cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
