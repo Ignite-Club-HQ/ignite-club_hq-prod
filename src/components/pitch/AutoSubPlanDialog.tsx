@@ -117,6 +117,15 @@ interface SubstitutionEvent {
   executed?: boolean;
 }
 
+interface MiniLeagueTeams {
+  teamAPlayerIds: string[];
+  teamBPlayerIds: string[];
+  teamAColor?: string;
+  teamBColor?: string;
+  teamAName?: string;
+  teamBName?: string;
+}
+
 interface AutoSubPlanDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -134,6 +143,7 @@ interface AutoSubPlanDialogProps {
   currentHalf?: 1 | 2; // Current half (for mid-game start)
   preferredSecondHalfGkId?: string; // Preferred 2nd half GK from lineup screen
   showStepper?: boolean; // Show the Lineup → Subs step indicator
+  miniLeagueTeams?: MiniLeagueTeams; // When set, generate per-team plans
 }
 
 const formatTime = (seconds: number) => {
