@@ -94,8 +94,6 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isAutoGenOpen, setIsAutoGenOpen] = useState(false);
   const [isCopyPreviousOpen, setIsCopyPreviousOpen] = useState(false);
-  const [newGroupName, setNewGroupName] = useState("");
-  const [newPitchName, setNewPitchName] = useState("");
   const [numGroups, setNumGroups] = useState(2);
   const [playersPerTeam, setPlayersPerTeam] = useState(6);
   const [abilityMode, setAbilityMode] = useState<"similar" | "mixed">("similar");
