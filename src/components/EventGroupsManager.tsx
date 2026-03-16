@@ -891,7 +891,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
             {swapSource && (
               <Button size="sm" variant="destructive" onClick={() => setSwapSource(null)}>
                 <X className="h-4 w-4 mr-1" />
-                Cancel Move
+                Cancel
+              </Button>
               </Button>
             )}
             <DropdownMenu>
