@@ -828,13 +828,6 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                 Cancel Move
               </Button>
             )}
-            <Button 
-              size="sm" 
-              onClick={() => { refetchRsvps(); setIsAutoGenOpen(true); }}
-            >
-              <Wand2 className="h-4 w-4 mr-1" />
-              Generate
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" variant="outline" className="px-2">
@@ -846,14 +839,13 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Regenerate All
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsCreateOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Match Manually
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setIsCopyPreviousOpen(true)}>
                   <Copy className="h-4 w-4 mr-2" />
                   Copy from Previous
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setIsCreateOpen(true)}>
-
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Match Manually
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
