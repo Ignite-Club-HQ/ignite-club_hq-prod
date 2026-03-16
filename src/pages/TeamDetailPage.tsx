@@ -1437,8 +1437,8 @@ export default function TeamDetailPage() {
             </AccordionItem>
           )}
 
-          {/* Team Sponsor - Pro only */}
-          {isAdmin && team.club_id && (
+          {/* Team Sponsor - Pro only, hidden in class mode */}
+          {isAdmin && team.club_id && !isClassMode && (
             <AccordionItem value="team-sponsor" className="border rounded-lg px-4" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
                 <div className="flex items-center gap-2">
