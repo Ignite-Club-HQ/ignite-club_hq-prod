@@ -18,10 +18,12 @@ interface ParentMember {
   avatar_url?: string | null;
 }
 
+export type AbilityMode = "similar" | "mixed";
+
 interface QuickSetupDutyDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (assignments: Record<string, string[]>) => void;
+  onConfirm: (data: { assignments: Record<string, string[]>; abilityMode: AbilityMode }) => void;
   isPending: boolean;
   parents: ParentMember[];
   playerCount: number;
