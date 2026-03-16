@@ -62,6 +62,9 @@ interface MiniLeagueEvent {
   end_time: string | null;
   location_name: string | null;
   is_cancelled: boolean;
+  final_score_home: number | null;
+  final_score_away: number | null;
+  _allocatedPlayers?: number;
 }
 
 export default function MiniLeagueDetailPage() {
