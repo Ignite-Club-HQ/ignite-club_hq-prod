@@ -1,7 +1,8 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Trash2, Loader2, Camera, ImageIcon, Plus, X, Clock, Users, UsersRound } from "lucide-react";
+import { Trash2, Loader2, Camera, ImageIcon, Plus, X, Clock, Users, UsersRound, Copy } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +61,7 @@ interface MiniLeagueSettingsDialogProps {
 
 export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLeagueSettingsDialogProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const logoInputRef = useRef<HTMLInputElement>(null);
 
@@ -146,6 +148,53 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
     onSuccess: () => {
       toast.success("Mini League deleted");
       navigate("/mini-leagues");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const duplicateLeagueMutation = useMutation({
+    mutationFn: async () => {
+      // Create duplicated league
+      const { data: newLeague, error: createError } = await supabase
+        .from("mini_leagues")
+        .insert({
+          name: `${league.name} (Copy)`,
+          description: league.description,
+          club_id: league.club_id,
+          team_size: league.team_size,
+          min_players_per_side: league.min_players_per_side,
+          minutes_per_half: league.minutes_per_half,
+          bib_colors: league.bib_colors,
+          logo_url: league.logo_url,
+          created_by: user!.id,
+        })
+        .select("id")
+        .single();
+      if (createError) throw createError;
+
+      // Copy players
+      const { data: existingPlayers } = await supabase
+        .from("mini_league_players")
+        .select("name, ability_rating, notes, parent_user_id, child_id")
+        .eq("mini_league_id", league.id);
+
+      if (existingPlayers && existingPlayers.length > 0) {
+        const { error: playersError } = await supabase
+          .from("mini_league_players")
+          .insert(existingPlayers.map(p => ({
+            ...p,
+            mini_league_id: newLeague.id,
+          })));
+        if (playersError) throw playersError;
+      }
+
+      return newLeague.id;
+    },
+    onSuccess: (newId) => {
+      queryClient.invalidateQueries({ queryKey: ["mini-leagues"] });
+      onOpenChange(false);
+      toast.success("League duplicated!");
+      navigate(`/mini-leagues/${newId}`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -310,31 +359,47 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
         </div>
 
         <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-row">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" className="w-full sm:w-auto">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete League
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Mini League?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete "{league.name}" and all its players. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => deleteLeagueMutation.mutate()}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
+          <div className="flex gap-2 w-full sm:w-auto">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="flex-1 sm:flex-none">
+                  <Trash2 className="h-4 w-4 mr-2" />
                   Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Mini League?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete "{league.name}" and all its players. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => deleteLeagueMutation.mutate()}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            <Button
+              variant="outline"
+              className="flex-1 sm:flex-none"
+              onClick={() => duplicateLeagueMutation.mutate()}
+              disabled={duplicateLeagueMutation.isPending}
+            >
+              {duplicateLeagueMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Copy className="h-4 w-4 mr-2" />
+              )}
+              Duplicate
+            </Button>
+          </div>
 
           <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-none">Cancel</Button>

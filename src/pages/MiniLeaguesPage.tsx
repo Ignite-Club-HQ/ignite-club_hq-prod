@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Plus, Users, Calendar, ChevronRight, Loader2, Trophy, ArrowLeft, Crown, Lock } from "lucide-react";
+import { Plus, Users, Calendar, ChevronRight, Loader2, Trophy, ArrowLeft, Crown, Lock, Search, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,7 @@ export default function MiniLeaguesPage() {
   
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newLeague, setNewLeague] = useState({ name: "", description: "", team_size: "5", club_id: "" });
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch clubs where user is admin AND has Pro Football access
   const { data: adminClubs, isLoading: clubsLoading } = useQuery({
@@ -256,6 +257,19 @@ export default function MiniLeaguesPage() {
         </div>
       </div>
 
+      {/* Search */}
+      {(miniLeagues?.length || 0) > 0 && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search leagues..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 h-9"
+          />
+        </div>
+      )}
+
       {/* Content */}
       {isLoading || clubsLoading ? (
         <div className="flex justify-center py-16">
@@ -290,7 +304,11 @@ export default function MiniLeaguesPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {miniLeagues?.map((league) => (
+          {miniLeagues?.filter(l => 
+            !searchQuery.trim() || 
+            l.name.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
+            l.club?.name?.toLowerCase().includes(searchQuery.trim().toLowerCase())
+          ).map((league) => (
             <Card
               key={league.id}
               className="cursor-pointer hover:bg-muted/50 transition-colors active:scale-[0.99]"
