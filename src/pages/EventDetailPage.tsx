@@ -533,6 +533,7 @@ export default function EventDetailPage() {
   const isSocialEvent = event?.type === "social";
   const effectiveShowAll = isSocialEvent ? true : showAllRoles;
   const isMiniLeagueEvent = !!event?.mini_league_id;
+  const eventTypeLabel = isMiniLeagueEvent ? "Session" : getEventTypeLabel(event?.type);
 
   // Filter members based on showAllRoles toggle
   const members = membersWithRoles;
