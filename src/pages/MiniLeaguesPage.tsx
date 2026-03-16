@@ -257,6 +257,19 @@ export default function MiniLeaguesPage() {
         </div>
       </div>
 
+      {/* Search */}
+      {(miniLeagues?.length || 0) > 0 && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search leagues..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 h-9"
+          />
+        </div>
+      )}
+
       {/* Content */}
       {isLoading || clubsLoading ? (
         <div className="flex justify-center py-16">
