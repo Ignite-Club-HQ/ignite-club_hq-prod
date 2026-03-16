@@ -2305,10 +2305,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Persist to database
     persistFormationToDb(formation.name);
 
-    // For mini-league mode, re-place both teams with the new formation (reposition to formation)
+    // For mini-league mode, re-place teams with the new formation
     if (miniLeagueTeams) {
+      const targetTeam = selectedTeamForSettings;
       setPlayers(prev => {
-        // Ensure teamSide is set on all players before placement
+        // Ensure teamSide is set on all players
         const playersWithTeamSide = prev.map(p => {
           if (p.teamSide) return p;
           let teamSide: "a" | "b" | undefined;
@@ -2319,9 +2320,46 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           }
           return { ...p, teamSide };
         });
-        return autoPlaceMiniLeaguePlayers(playersWithTeamSide, teamSize, true, index, true);
+        
+        if (targetTeam === "both") {
+          return autoPlaceMiniLeaguePlayers(playersWithTeamSide, teamSize, true, index, true);
+        }
+        
+        // Single team formation change - only reposition that team's players
+        const scaleToBottomHalf = (pos: { x: number; y: number }) => ({
+          x: pos.x,
+          y: 50 + (pos.y / 100) * 45,
+        });
+        const scaleToTopHalf = (pos: { x: number; y: number }) => ({
+          x: 100 - pos.x,
+          y: 50 - (pos.y / 100) * 45,
+        });
+        const scaleFunc = targetTeam === "a" ? scaleToBottomHalf : scaleToTopHalf;
+        
+        return playersWithTeamSide.map(p => {
+          if (p.teamSide !== targetTeam) return p; // Leave other team unchanged
+          if (p.position === null) return p; // Leave bench players unchanged
+          
+          // Find this player's index among on-pitch players of this team
+          const teamOnPitch = playersWithTeamSide.filter(pp => pp.teamSide === targetTeam && pp.position !== null);
+          const playerIndex = teamOnPitch.findIndex(pp => pp.id === p.id);
+          
+          if (playerIndex >= 0 && playerIndex < formation.positions.length) {
+            const pos = scaleFunc(formation.positions[playerIndex]);
+            return {
+              ...p,
+              position: pos,
+              currentPitchPosition: getPositionFromCoords(formation.positions[playerIndex].y, teamSize),
+            };
+          }
+          return p;
+        });
       });
-      toast({ title: "Formation applied", description: `${formation.name} formation set for both teams` });
+      
+      const teamLabel = targetTeam === "both" ? "both teams" 
+        : targetTeam === "a" ? (miniLeagueTeams.teamAName || "Team A")
+        : (miniLeagueTeams.teamBName || "Team B");
+      toast({ title: "Formation applied", description: `${formation.name} set for ${teamLabel}` });
       return;
     }
 
