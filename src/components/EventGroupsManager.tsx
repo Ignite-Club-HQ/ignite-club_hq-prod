@@ -1362,7 +1362,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       <QuickSetupDutyDialog
         open={isQuickSetupOpen}
         onOpenChange={setIsQuickSetupOpen}
-        onConfirm={(assignments) => quickSetupMutation.mutate(assignments)}
+        onConfirm={(data) => quickSetupMutation.mutate(data)}
         isPending={quickSetupMutation.isPending}
         parents={parentProfiles || []}
         playerCount={availablePlayers.length}
