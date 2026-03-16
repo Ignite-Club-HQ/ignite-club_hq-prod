@@ -250,7 +250,7 @@ export function QuickSetupDutyDialog({
             Cancel
           </Button>
           <Button
-            onClick={() => onConfirm(assignments)}
+            onClick={() => onConfirm({ assignments, abilityMode })}
             disabled={isPending}
             className="flex-1 sm:flex-none"
           >
