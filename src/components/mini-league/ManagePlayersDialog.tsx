@@ -259,14 +259,12 @@ export function ManagePlayersDialog({
         </ResponsiveDialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-3 py-2 px-1">
-          {(players?.length || 0) > 5 && (
-            <Input
-              placeholder="Search players..."
-              value={playerSearch}
-              onChange={(e) => setPlayerSearch(e.target.value)}
-              className="h-9 text-sm"
-            />
-          )}
+          <Input
+            placeholder="Search players..."
+            value={playerSearch}
+            onChange={(e) => setPlayerSearch(e.target.value)}
+            className="h-9 text-sm"
+          />
 
           <div className="flex justify-between items-center gap-2">
             <h2 className="text-base font-semibold">
