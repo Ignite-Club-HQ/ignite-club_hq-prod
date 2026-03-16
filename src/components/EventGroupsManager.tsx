@@ -831,11 +831,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   )}
                   Quick Setup
                 </Button>
-                <div className="flex gap-2">
+                <div className="flex gap-2 overflow-x-auto pb-1">
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="flex-1"
+                    className="shrink-0"
                     onClick={() => { refetchRsvps(); setIsAutoGenOpen(true); }}
                   >
                     <Wand2 className="h-4 w-4 mr-1" />
@@ -844,7 +844,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="flex-1"
+                    className="shrink-0"
                     onClick={() => setIsCopyPreviousOpen(true)}
                   >
                     <Copy className="h-4 w-4 mr-1" />
@@ -853,7 +853,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="flex-1"
+                    className="shrink-0"
                     onClick={() => {
                       setNewGroupName("Match 1");
                       setIsCreateOpen(true);
