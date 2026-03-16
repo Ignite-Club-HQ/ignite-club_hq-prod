@@ -498,7 +498,7 @@ export default function MiniLeagueDetailPage() {
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-bold truncate leading-tight">{league.name}</h1>
+          <h1 className="text-lg font-bold leading-tight">{league.name}</h1>
           <p className="text-xs text-muted-foreground truncate">{league.club?.name}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             {players?.length || 0} Players · {events?.length || 0} Sessions
