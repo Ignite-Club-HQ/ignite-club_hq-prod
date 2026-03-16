@@ -489,62 +489,83 @@ export default function ClassEnrolmentPage() {
           </CardContent>
         </Card>
       ) : viewMode === "calendar" ? (
-        /* Weekly Calendar View */
-        <div className="space-y-3">
-          {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-            .filter(day => classes.some(c => c.class_day === day))
-            .map(day => {
-              const dayClasses = classes.filter(c => c.class_day === day);
-              return (
-                <div key={day}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <span className="text-xs font-bold text-primary">{day.slice(0, 2)}</span>
-                    </div>
-                    <h3 className="text-sm font-semibold">{day}</h3>
-                    <span className="text-xs text-muted-foreground">({dayClasses.length} {dayClasses.length === 1 ? "class" : "classes"})</span>
-                  </div>
-                  <div className="space-y-2 ml-10">
-                    {dayClasses.map(cls => {
-                      const count = enrolmentCounts[cls.id] || 0;
-                      const isFull = cls.class_capacity ? count >= cls.class_capacity : false;
-                      const teamType = cls.team_type || "mixed";
-                      const canEnrolChild = allowsChildren(teamType);
-                      const canEnrolSelf = allowsAdults(teamType);
-                      const activeChild = selectedChildId || children[0]?.id;
-                      const childExisting = canEnrolChild && activeChild ? getChildEnrolment(activeChild, cls.id) : null;
-                      const selfExisting = canEnrolSelf ? getSelfEnrolment(cls.id) : null;
-                      const isEnrolled = !!childExisting || !!selfExisting;
+        /* Monthly Calendar View */
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="p-2">
+              <Calendar
+                mode="single"
+                selected={selectedCalendarDate}
+                onSelect={(date) => date && setSelectedCalendarDate(date)}
+                month={calendarMonth}
+                onMonthChange={setCalendarMonth}
+                fromDate={activeTerm ? parseISO(activeTerm.start_date) : undefined}
+                toDate={activeTerm ? parseISO(activeTerm.end_date) : undefined}
+                modifiers={{
+                  hasClass: (date) => classDaysInMonth.has(format(date, "yyyy-MM-dd")),
+                }}
+                modifiersClassNames={{
+                  hasClass: "bg-primary/15 font-semibold text-primary",
+                }}
+              />
+            </CardContent>
+          </Card>
 
-                      return (
-                        <Card key={cls.id} className={`rounded-xl ${isEnrolled ? "border-primary/30 bg-primary/5" : ""}`}>
-                          <CardContent className="py-2.5 px-3">
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-medium truncate">{cls.name}</span>
-                                  {isEnrolled && <Badge variant="default" className="text-[10px] px-1.5 py-0 shrink-0">Enrolled</Badge>}
-                                  {!isEnrolled && isFull && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">Full</Badge>}
-                                </div>
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                                  {cls.class_time && <span>{cls.class_time.slice(0, 5)}</span>}
-                                  {cls.class_duration_minutes && <span>{cls.class_duration_minutes} mins</span>}
-                                  {cls.level_age && <span>{cls.level_age}</span>}
-                                  <span className="flex items-center gap-1">
-                                    <Users className="h-3 w-3" />
-                                    {count}{cls.class_capacity ? `/${cls.class_capacity}` : ""}
-                                  </span>
-                                </div>
-                              </div>
+          {/* Classes for selected date */}
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">
+              {format(selectedCalendarDate, "EEEE, d MMMM")}
+              {classesForSelectedDate.length > 0 && (
+                <span className="ml-1">({classesForSelectedDate.length} {classesForSelectedDate.length === 1 ? "class" : "classes"})</span>
+              )}
+            </h3>
+            {classesForSelectedDate.length === 0 ? (
+              <Card>
+                <CardContent className="py-6 text-center">
+                  <p className="text-sm text-muted-foreground">No classes on this day</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {classesForSelectedDate.map(cls => {
+                  const count = enrolmentCounts[cls.id] || 0;
+                  const isFull = cls.class_capacity ? count >= cls.class_capacity : false;
+                  const teamType = cls.team_type || "mixed";
+                  const canEnrolChild = allowsChildren(teamType);
+                  const canEnrolSelf = allowsAdults(teamType);
+                  const activeChild = selectedChildId || children[0]?.id;
+                  const childExisting = canEnrolChild && activeChild ? getChildEnrolment(activeChild, cls.id) : null;
+                  const selfExisting = canEnrolSelf ? getSelfEnrolment(cls.id) : null;
+                  const isEnrolled = !!childExisting || !!selfExisting;
+
+                  return (
+                    <Card key={cls.id} className={`rounded-xl ${isEnrolled ? "border-primary/30 bg-primary/5" : ""}`}>
+                      <CardContent className="py-2.5 px-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium truncate">{cls.name}</span>
+                              {isEnrolled && <Badge variant="default" className="text-[10px] px-1.5 py-0 shrink-0">Enrolled</Badge>}
+                              {!isEnrolled && isFull && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">Full</Badge>}
                             </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                              {cls.class_time && <span>{cls.class_time.slice(0, 5)}</span>}
+                              {cls.class_duration_minutes && <span>{cls.class_duration_minutes} mins</span>}
+                              {cls.level_age && <span>{cls.level_age}</span>}
+                              <span className="flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                {count}{cls.class_capacity ? `/${cls.class_capacity}` : ""}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-3">
