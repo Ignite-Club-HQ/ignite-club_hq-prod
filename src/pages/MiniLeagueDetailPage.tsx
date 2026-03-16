@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -70,8 +70,8 @@ export default function MiniLeagueDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("sessions");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [playersOpen, setPlayersOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
@@ -510,6 +510,10 @@ export default function MiniLeagueDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-popover">
+              <DropdownMenuItem onClick={() => setPlayersOpen(true)}>
+                <Users className="h-4 w-4 mr-2" />
+                Manage Players
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={openSettings}>
                 <Settings className="h-4 w-4 mr-2" />
                 Edit Settings
@@ -549,14 +553,8 @@ export default function MiniLeagueDetailPage() {
         </Card>
       </div>
 
-      {/* Tabs - cleaner style */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 h-10">
-          <TabsTrigger value="sessions" className="text-sm">Sessions</TabsTrigger>
-          <TabsTrigger value="players" className="text-sm">Players</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="sessions" className="space-y-3 mt-3">
+      {/* Sessions */}
+      <div className="space-y-3">
           <div className="flex justify-between items-center">
             <h2 className="text-base font-semibold">Sessions</h2>
             {canManageLeague ? (
@@ -677,215 +675,239 @@ export default function MiniLeagueDetailPage() {
               )}
             </div>
           )}
-        </TabsContent>
+      </div>
 
-        <TabsContent value="players" className="space-y-3 mt-3">
-          {/* Player search */}
-          {(players?.length || 0) > 5 && (
-            <Input
-              placeholder="Search players..."
-              value={playerSearch}
-              onChange={(e) => setPlayerSearch(e.target.value)}
-              className="h-9 text-sm"
-            />
-          )}
+      {/* Manage Players Dialog */}
+      <ResponsiveDialog open={playersOpen} onOpenChange={(open) => {
+        if (!open) {
+          setSelectionMode(false);
+          setSelectedPlayerIds(new Set());
+          setPlayerSearch("");
+        }
+        setPlayersOpen(open);
+      }}>
+        <ResponsiveDialogContent className="sm:max-w-lg" fullScreen>
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              Manage Players
+            </ResponsiveDialogTitle>
+          </ResponsiveDialogHeader>
 
-          <div className="flex justify-between items-center gap-2">
-            <h2 className="text-base font-semibold">
-              Player Pool{playerSearch.trim() && ` (${filteredPlayers.length}/${players?.length || 0})`}
-            </h2>
-            <div className="flex items-center gap-2">
-              {canManageLeague && (
-                <>
-                  {selectionMode ? (
-                    <>
-                      <Button variant="ghost" size="sm" onClick={exitSelectionMode}>
-                        Cancel
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        disabled={selectedPlayerIds.size === 0}
-                        onClick={() => setBulkDeleteOpen(true)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-1.5" />
-                        Delete ({selectedPlayerIds.size})
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      {(players?.length || 0) > 0 && (
-                        <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
-                          <CheckSquare className="h-4 w-4 mr-1.5" />
-                          Select
+          <div className="flex-1 overflow-y-auto space-y-3 py-2 px-1">
+            {/* Player search */}
+            {(players?.length || 0) > 5 && (
+              <Input
+                placeholder="Search players..."
+                value={playerSearch}
+                onChange={(e) => setPlayerSearch(e.target.value)}
+                className="h-9 text-sm"
+              />
+            )}
+
+            <div className="flex justify-between items-center gap-2">
+              <h2 className="text-base font-semibold">
+                Player Pool{playerSearch.trim() && ` (${filteredPlayers.length}/${players?.length || 0})`}
+              </h2>
+              <div className="flex items-center gap-2">
+                {canManageLeague && (
+                  <>
+                    {selectionMode ? (
+                      <>
+                        <Button variant="ghost" size="sm" onClick={exitSelectionMode}>
+                          Cancel
                         </Button>
-                      )}
-                      <AddMiniLeagueMemberSheet
-                        miniLeagueId={id!}
-                        miniLeagueName={league.name}
-                        clubId={league.club_id}
-                      />
-                    </>
-                  )}
-                </>
-              )}
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={selectedPlayerIds.size === 0}
+                          onClick={() => setBulkDeleteOpen(true)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1.5" />
+                          Delete ({selectedPlayerIds.size})
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        {(players?.length || 0) > 0 && (
+                          <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
+                            <CheckSquare className="h-4 w-4 mr-1.5" />
+                            Select
+                          </Button>
+                        )}
+                        <AddMiniLeagueMemberSheet
+                          miniLeagueId={id!}
+                          miniLeagueName={league.name}
+                          clubId={league.club_id}
+                        />
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
+
+            {/* Select All when in selection mode */}
+            {selectionMode && players && players.length > 0 && (
+              <div className="flex items-center gap-2 py-2 px-1 border-b">
+                <Checkbox
+                  checked={selectedPlayerIds.size === players.length}
+                  onCheckedChange={toggleSelectAll}
+                />
+                <span className="text-sm text-muted-foreground">
+                  Select all ({players.length} players)
+                </span>
+              </div>
+            )}
+
+            {playersLoading ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : players?.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="py-8 text-center">
+                  <Users className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+                  <p className="text-sm text-muted-foreground">No players added yet</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {[5, 4, 3, 2, 1].map((rating) => {
+                  const abilityPlayers = playersByAbility[rating];
+                  if (!abilityPlayers?.length) return null;
+                  
+                  return (
+                    <div key={rating} className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Badge className={`text-xs ${getAbilityColor(rating)}`}>
+                          {getAbilityLabel(rating)}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {abilityPlayers.length} player{abilityPlayers.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {abilityPlayers.map((player) => (
+                          <Card 
+                            key={player.id} 
+                            className={`overflow-hidden ${selectionMode && selectedPlayerIds.has(player.id) ? 'ring-2 ring-primary' : ''}`}
+                            onClick={selectionMode ? () => togglePlayerSelection(player.id) : undefined}
+                          >
+                            <CardContent className="py-2.5 px-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {selectionMode && (
+                                    <Checkbox
+                                      checked={selectedPlayerIds.has(player.id)}
+                                      onCheckedChange={() => togglePlayerSelection(player.id)}
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  )}
+                                  <div className="flex items-center gap-0.5 shrink-0">
+                                    {Array.from({ length: 5 }).map((_, i) => (
+                                      <Star
+                                        key={i}
+                                        className={`h-3 w-3 ${i < player.ability_rating ? 'fill-primary text-primary' : 'text-muted-foreground/30'} ${canManageLeague && !selectionMode ? 'cursor-pointer hover:scale-125 transition-transform' : ''}`}
+                                        onClick={canManageLeague && !selectionMode ? (e) => {
+                                          e.stopPropagation();
+                                          const newRating = i + 1;
+                                          if (newRating !== player.ability_rating) {
+                                            updateAbilityMutation.mutate({ playerId: player.id, childId: player.child_id, newRating });
+                                          }
+                                        } : undefined}
+                                      />
+                                    ))}
+                                  </div>
+                                  <span className="text-sm font-medium truncate">{player.name}</span>
+                                </div>
+                                {!selectionMode && canManageLeague && (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Remove Player?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This will remove {player.name} from the player pool.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => deletePlayerMutation.mutate(player.id)}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                          Remove
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                )}
+                              </div>
+                              {player.notes && (
+                                <p className={`text-xs text-muted-foreground mt-1 truncate ${selectionMode ? 'pl-[66px]' : 'pl-[42px]'}`}>
+                                  {player.notes}
+                                </p>
+                              )}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Pending Parent Invites */}
+            {pendingInvites.length > 0 && (
+              <div className="space-y-2 mt-4">
+                <h3 className="text-sm font-medium text-muted-foreground">Pending Parent Invites</h3>
+                <PendingInvitesList
+                  invites={pendingInvites}
+                  clubId={league.club_id}
+                />
+              </div>
+            )}
+
+            {/* Bulk Delete Confirmation Dialog */}
+            <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove {selectedPlayerIds.size} Players?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently remove {selectedPlayerIds.size} player{selectedPlayerIds.size !== 1 ? 's' : ''} from the player pool. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => bulkDeletePlayersMutation.mutate(Array.from(selectedPlayerIds))}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    disabled={bulkDeletePlayersMutation.isPending}
+                  >
+                    {bulkDeletePlayersMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Remove All"
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
 
-          {/* Select All when in selection mode */}
-          {selectionMode && players && players.length > 0 && (
-            <div className="flex items-center gap-2 py-2 px-1 border-b">
-              <Checkbox
-                checked={selectedPlayerIds.size === players.length}
-                onCheckedChange={toggleSelectAll}
-              />
-              <span className="text-sm text-muted-foreground">
-                Select all ({players.length} players)
-              </span>
-            </div>
-          )}
-
-          {playersLoading ? (
-            <div className="flex justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : players?.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="py-8 text-center">
-                <Users className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-                <p className="text-sm text-muted-foreground">No players added yet</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {[5, 4, 3, 2, 1].map((rating) => {
-                const abilityPlayers = playersByAbility[rating];
-                if (!abilityPlayers?.length) return null;
-                
-                return (
-                  <div key={rating} className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Badge className={`text-xs ${getAbilityColor(rating)}`}>
-                        {getAbilityLabel(rating)}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {abilityPlayers.length} player{abilityPlayers.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    <div className="space-y-1.5">
-                      {abilityPlayers.map((player) => (
-                        <Card 
-                          key={player.id} 
-                          className={`overflow-hidden ${selectionMode && selectedPlayerIds.has(player.id) ? 'ring-2 ring-primary' : ''}`}
-                          onClick={selectionMode ? () => togglePlayerSelection(player.id) : undefined}
-                        >
-                          <CardContent className="py-2.5 px-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                {selectionMode && (
-                                  <Checkbox
-                                    checked={selectedPlayerIds.has(player.id)}
-                                    onCheckedChange={() => togglePlayerSelection(player.id)}
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                )}
-                                <div className="flex items-center gap-0.5 shrink-0">
-                                  {Array.from({ length: 5 }).map((_, i) => (
-                                    <Star
-                                      key={i}
-                                      className={`h-3 w-3 ${i < player.ability_rating ? 'fill-primary text-primary' : 'text-muted-foreground/30'} ${canManageLeague && !selectionMode ? 'cursor-pointer hover:scale-125 transition-transform' : ''}`}
-                                      onClick={canManageLeague && !selectionMode ? (e) => {
-                                        e.stopPropagation();
-                                        const newRating = i + 1;
-                                        if (newRating !== player.ability_rating) {
-                                          updateAbilityMutation.mutate({ playerId: player.id, childId: player.child_id, newRating });
-                                        }
-                                      } : undefined}
-                                    />
-                                  ))}
-                                </div>
-                                <span className="text-sm font-medium truncate">{player.name}</span>
-                              </div>
-                              {!selectionMode && canManageLeague && (
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-                                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Remove Player?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        This will remove {player.name} from the player pool.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() => deletePlayerMutation.mutate(player.id)}
-                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                      >
-                                        Remove
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              )}
-                            </div>
-                            {player.notes && (
-                              <p className={`text-xs text-muted-foreground mt-1 truncate ${selectionMode ? 'pl-[66px]' : 'pl-[42px]'}`}>
-                                {player.notes}
-                              </p>
-                            )}
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Pending Parent Invites */}
-          {pendingInvites.length > 0 && (
-            <div className="space-y-2 mt-4">
-              <h3 className="text-sm font-medium text-muted-foreground">Pending Parent Invites</h3>
-              <PendingInvitesList
-                invites={pendingInvites}
-                clubId={league.club_id}
-              />
-            </div>
-          )}
-
-          {/* Bulk Delete Confirmation Dialog */}
-          <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remove {selectedPlayerIds.size} Players?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently remove {selectedPlayerIds.size} player{selectedPlayerIds.size !== 1 ? 's' : ''} from the player pool. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => bulkDeletePlayersMutation.mutate(Array.from(selectedPlayerIds))}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  disabled={bulkDeletePlayersMutation.isPending}
-                >
-                  {bulkDeletePlayersMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Remove All"
-                  )}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </TabsContent>
-      </Tabs>
+          <ResponsiveDialogFooter>
+            <Button variant="outline" onClick={() => setPlayersOpen(false)} className="w-full sm:w-auto">
+              Done
+            </Button>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* Settings Dialog */}
       <ResponsiveDialog open={settingsOpen} onOpenChange={setSettingsOpen}>
