@@ -563,10 +563,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
   // Quick setup - opens dialog for duty assignment, then generates matches
   const quickSetupMutation = useMutation({
     mutationFn: async ({ assignments: dutyAssignments, abilityMode: mode }: { assignments: Record<string, string[]>; abilityMode: "similar" | "mixed" }) => {
-      // Temporarily set ability mode for the generation
-      const prevMode = abilityMode;
-      setAbilityMode(mode);
       await refetchRsvps();
+      const result = await runAutoGenerate(mode);
       const result = await runAutoGenerate();
 
       // Create Referee and Oranges match duties for each match
