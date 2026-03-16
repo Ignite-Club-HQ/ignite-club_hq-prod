@@ -77,10 +77,12 @@ import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import { ClubTeamSponsorAllocator } from "@/components/ClubTeamSponsorAllocator";
 import { ClubThemeEditor } from "@/components/ClubThemeEditor";
 import { ClubDMSettings } from "@/components/ClubDMSettings";
-import { Palette, CalendarDays, BookOpen } from "lucide-react";
+import { Palette, CalendarDays, BookOpen, ClipboardCheck } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
 import { TermsManager } from "@/components/TermsManager";
 import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
+import { ClassAttendanceManager } from "@/components/ClassAttendanceManager";
+import { ClassModeOnboardingGuide } from "@/components/ClassModeOnboardingGuide";
 
 type ClubRole = "club_admin";
 
@@ -894,6 +896,11 @@ export default function ClubDetailPage() {
           </Card>
         );
       })()}
+
+      {/* Class Mode Onboarding Guide */}
+      {isAdmin && club?.class_mode_enabled && (
+        <ClassModeOnboardingGuide clubId={id!} />
+      )}
 
       {/* Primary Sponsor Display */}
       {club?.primary_sponsor_id && (
@@ -1751,10 +1758,11 @@ export default function ClubDetailPage() {
               <span className="text-lg font-semibold">Terms & Classes</span>
             </div>
           </AccordionTrigger>
-           <AccordionContent>
-            <div className="pt-2 space-y-4">
+             <AccordionContent>
+            <div className="pt-2 space-y-6">
               <TermsManager clubId={id!} />
               <AdminEnrolmentManager clubId={id!} />
+              <ClassAttendanceManager clubId={id!} />
               <Link to={`/clubs/${id}/enrol`}>
                 <Card className="hover:border-primary/50 transition-colors">
                   <CardContent className="p-4 flex items-center gap-3">

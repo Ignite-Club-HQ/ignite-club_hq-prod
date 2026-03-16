@@ -833,6 +833,81 @@ export type Database = {
         }
         Relationships: []
       }
+      class_attendance: {
+        Row: {
+          child_id: string | null
+          created_at: string
+          id: string
+          marked_by: string | null
+          session_date: string
+          status: string
+          team_id: string
+          term_id: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          child_id?: string | null
+          created_at?: string
+          id?: string
+          marked_by?: string | null
+          session_date: string
+          status?: string
+          team_id: string
+          term_id: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          child_id?: string | null
+          created_at?: string
+          id?: string
+          marked_by?: string | null
+          session_date?: string
+          status?: string
+          team_id?: string
+          term_id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_attendance_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_attendance_marked_by_fkey"
+            columns: ["marked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_attendance_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_attendance_term_id_fkey"
+            columns: ["term_id"]
+            isOneToOne: false
+            referencedRelation: "terms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_attendance_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       class_enrolments: {
         Row: {
           child_id: string | null

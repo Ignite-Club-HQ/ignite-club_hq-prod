@@ -125,6 +125,8 @@ export default function TeamDetailPage() {
     team.clubs.sport.toLowerCase().includes(keyword)
   );
 
+  const isClassMode = !!team?.clubs?.class_mode_enabled;
+
   const { data: teamSubscription } = useQuery({
     queryKey: ["team-subscription", id],
     queryFn: async () => {
@@ -745,9 +747,8 @@ export default function TeamDetailPage() {
         <PrimarySponsorDisplay sponsorId={team.sponsor_id} variant="full" context="team_page" />
       )}
 
-      {/* Upgrade Banner - Show only for team/club admins without pro access */}
-      {/* Don't show if: user is just a regular member, or club/team already has Pro */}
-      {(isAdmin || isClubAdmin) && !isTeamPro && !hasProFootball && (
+      {/* Upgrade Banner - Show only for team/club admins without pro access, hidden in class mode */}
+      {!isClassMode && (isAdmin || isClubAdmin) && !isTeamPro && !hasProFootball && (
         <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -766,8 +767,8 @@ export default function TeamDetailPage() {
         </Card>
       )}
 
-      {/* Join Request Section for Non-members */}
-      {!isUserRoleLoading && !isMember && !isClubAdmin && (
+      {/* Join Request Section for Non-members - hidden in class mode (use enrolment page instead) */}
+      {!isClassMode && !isUserRoleLoading && !isMember && !isClubAdmin && (
         <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
           <CardContent className="p-5 sm:p-6">
             {existingRequest ? (
@@ -1436,8 +1437,8 @@ export default function TeamDetailPage() {
             </AccordionItem>
           )}
 
-          {/* Team Sponsor - Pro only */}
-          {isAdmin && team.club_id && (
+          {/* Team Sponsor - Pro only, hidden in class mode */}
+          {isAdmin && team.club_id && !isClassMode && (
             <AccordionItem value="team-sponsor" className="border rounded-lg px-4" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
                 <div className="flex items-center gap-2">
@@ -1473,8 +1474,8 @@ export default function TeamDetailPage() {
             </AccordionItem>
           )}
 
-          {/* Team Rewards Section - Pro only */}
-          {isAdmin && team.club_id && (
+          {/* Team Rewards Section - Pro only, hidden in class mode */}
+          {isAdmin && team.club_id && !isClassMode && (
             <AccordionItem value="team-rewards" className="border rounded-lg px-4" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
                 <div className="flex items-center gap-2">
