@@ -242,6 +242,7 @@ export default function TeamFoldersManager({ clubId, isAdmin, classMode = false 
             createFolderMutation.mutate({ name, description, color })
           }
           isCreating={createFolderMutation.isPending}
+          classMode={classMode}
         />
       </div>
 
