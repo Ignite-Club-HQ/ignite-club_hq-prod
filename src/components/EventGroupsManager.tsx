@@ -565,7 +565,6 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     mutationFn: async ({ assignments: dutyAssignments, abilityMode: mode }: { assignments: Record<string, string[]>; abilityMode: "similar" | "mixed" }) => {
       await refetchRsvps();
       const result = await runAutoGenerate(mode);
-      const result = await runAutoGenerate();
 
       // Create Referee and Oranges match duties for each match
       const QUICK_SETUP_DUTIES = ["Referee", "Oranges"];
