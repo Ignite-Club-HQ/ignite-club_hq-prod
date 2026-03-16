@@ -198,8 +198,12 @@ async function notifyTeamStaff(
   elapsedMinutes?: number,
   currentHalf?: number,
 ) {
-  // Build recipient list: game owner + team staff (deduplicated)
-  const allRecipients = new Set<string>([gameOwnerId, ...staffUserIds]);
+  // For mini-league matches, only notify referees (staffUserIds already filtered)
+  // For regular teams, include game owner + team staff
+  const isMiniLeague = teamId?.startsWith('event-group-');
+  const allRecipients = isMiniLeague
+    ? new Set<string>(staffUserIds)
+    : new Set<string>([gameOwnerId, ...staffUserIds]);
   let notificationsSent = 0;
 
   const pushUrl = linkedEventId
