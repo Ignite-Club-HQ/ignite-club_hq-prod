@@ -5766,6 +5766,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
           currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
           showStepper={autoSubFromPreGame}
+          miniLeagueTeams={miniLeagueTeams}
         />
 
         {/* Sub Confirm Dialog */}
