@@ -733,7 +733,7 @@ export default function TeamDetailPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm">Enrol in this Class</p>
-              <p className="text-xs text-muted-foreground">View availability and enrol your child</p>
+              <p className="text-xs text-muted-foreground">View availability and enrol</p>
             </div>
             <ArrowLeft className="h-4 w-4 text-muted-foreground rotate-180" />
           </CardContent>

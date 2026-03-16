@@ -308,6 +308,7 @@ export default function ClassEnrolmentPage() {
     selfEnrolments.find((e) => (e as any).user_id === user?.id && e.team_id === teamId && e.status !== "withdrawn");
 
   const [selectedChildId, setSelectedChildId] = useState<string>("");
+  const [dayFilter, setDayFilter] = useState<string>("all");
 
   const isLoading = termsLoading || classesLoading;
 
@@ -383,7 +384,7 @@ export default function ClassEnrolmentPage() {
       )}
 
       {/* Child Selector - only shown if there are junior/mixed classes and user has children */}
-      {hasChildClasses && children.length > 1 && (
+      {hasChildClasses && children.length >= 1 && (
         <div className="space-y-2">
           <label className="text-sm font-medium">Select Child</label>
           <Select value={selectedChildId || children[0]?.id || ""} onValueChange={setSelectedChildId}>
@@ -411,8 +412,38 @@ export default function ClassEnrolmentPage() {
         </Card>
       ) : (
         <div className="space-y-3">
+          {/* Day filter chips - only show if classes span multiple days */}
+          {(() => {
+            const uniqueDays = [...new Set(classes.map(c => c.class_day).filter(Boolean))];
+            if (uniqueDays.length > 1) {
+              return (
+                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                  <Button
+                    variant={dayFilter === "all" ? "default" : "outline"}
+                    size="sm"
+                    className="h-7 text-xs shrink-0"
+                    onClick={() => setDayFilter("all")}
+                  >
+                    All Days
+                  </Button>
+                  {uniqueDays.map(day => (
+                    <Button
+                      key={day}
+                      variant={dayFilter === day ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 text-xs shrink-0"
+                      onClick={() => setDayFilter(day!)}
+                    >
+                      {day}
+                    </Button>
+                  ))}
+                </div>
+              );
+            }
+            return null;
+          })()}
           <h3 className="text-sm font-medium text-muted-foreground">Available Classes</h3>
-          {classes.map((cls) => {
+          {classes.filter(cls => dayFilter === "all" || cls.class_day === dayFilter).map((cls) => {
             const teamType = cls.team_type || "mixed";
             const canEnrolChild = allowsChildren(teamType);
             const canEnrolSelf = allowsAdults(teamType);
@@ -428,7 +459,14 @@ export default function ClassEnrolmentPage() {
                 <CardContent className="py-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium">{cls.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{cls.name}</p>
+                        {teamType !== "mixed" && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                            {teamType === "junior" ? "Junior" : "Adult"}
+                          </Badge>
+                        )}
+                      </div>
                       {cls.level_age && (
                         <p className="text-xs text-muted-foreground">{cls.level_age}</p>
                       )}

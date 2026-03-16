@@ -154,7 +154,7 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
         </div>
       </div>
 
-      {terms.length > 1 && (
+      {terms.length > 1 ? (
         <Select value={termId || ""} onValueChange={setSelectedTermId}>
           <SelectTrigger className="h-10">
             <SelectValue placeholder="Select a term" />
@@ -167,7 +167,9 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
             ))}
           </SelectContent>
         </Select>
-      )}
+      ) : terms.length === 1 ? (
+        <p className="text-sm text-muted-foreground">{terms[0].name}</p>
+      ) : null}
 
       {isLoading ? (
         <div className="flex justify-center py-6">
