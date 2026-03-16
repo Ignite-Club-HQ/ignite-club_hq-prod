@@ -208,10 +208,13 @@ export function TermsManager({ clubId }: TermsManagerProps) {
             <Card key={term.id}>
               <CardContent className="py-3 flex items-center justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-medium truncate">{term.name}</p>
-                    <Badge variant={term.is_active ? "default" : "secondary"} className="text-xs shrink-0">
-                      {term.is_active ? "Active" : "Inactive"}
+                    <Badge
+                      variant={(term as any).status === "completed" ? "outline" : term.is_active ? "default" : "secondary"}
+                      className={`text-xs shrink-0 ${(term as any).status === "completed" ? "border-emerald-500 text-emerald-600" : ""}`}
+                    >
+                      {(term as any).status === "completed" ? "Completed" : term.is_active ? "Active" : "Archived"}
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -219,17 +222,37 @@ export function TermsManager({ clubId }: TermsManagerProps) {
                   </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  {(term as any).status !== "completed" && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => toggleActiveMutation.mutate({ id: term.id, isActive: !term.is_active })}
+                      title={term.is_active ? "Archive" : "Activate"}
+                    >
+                      {term.is_active ? (
+                        <ToggleRight className="h-4 w-4 text-primary" />
+                      ) : (
+                        <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    onClick={() => toggleActiveMutation.mutate({ id: term.id, isActive: !term.is_active })}
-                    title={term.is_active ? "Deactivate" : "Activate"}
+                    onClick={() =>
+                      setTermStatusMutation.mutate({
+                        id: term.id,
+                        status: (term as any).status === "completed" ? "active" : "completed",
+                      })
+                    }
+                    title={(term as any).status === "completed" ? "Re-open term" : "Mark as completed"}
                   >
-                    {term.is_active ? (
-                      <ToggleRight className="h-4 w-4 text-primary" />
+                    {(term as any).status === "completed" ? (
+                      <ArchiveRestore className="h-4 w-4 text-emerald-500" />
                     ) : (
-                      <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+                      <Archive className="h-4 w-4 text-muted-foreground" />
                     )}
                   </Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(term)}>
