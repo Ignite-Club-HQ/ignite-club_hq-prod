@@ -41,6 +41,7 @@ export default function EditTeamPage() {
   const [classTime, setClassTime] = useState("");
   const [classDuration, setClassDuration] = useState<number | null>(null);
   const [classCapacity, setClassCapacity] = useState<number | null>(null);
+  const [isActive, setIsActive] = useState(true);
 
   const { data: team, isLoading } = useQuery({
     queryKey: ["team", id],
