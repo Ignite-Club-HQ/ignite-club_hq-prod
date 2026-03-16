@@ -698,7 +698,7 @@ export function ManagePlayersDialog({
                 })}
               </div>
 
-              <DragOverlay>
+              <DragOverlay dropAnimation={null} style={{ zIndex: 100000 }}>
                 {activePlayer ? renderPlayerCard(activePlayer, true) : null}
               </DragOverlay>
             </DndContext>
