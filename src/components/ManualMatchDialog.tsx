@@ -1,5 +1,4 @@
-import { useState, useMemo } from "react";
-import { Loader2, Plus, Shirt, Users, Search } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
