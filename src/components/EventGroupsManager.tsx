@@ -722,11 +722,10 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     onError: (error: Error) => toast.error(error.message),
   });
 
-  // Move player mutation (tap-to-swap)
+  // Move player mutation (move to a team)
   const movePlayerMutation = useMutation({
     mutationFn: async ({ playerId, fromGroupId, toGroupId, toTeam }: { playerId: string; fromGroupId: string; toGroupId: string; toTeam: "a" | "b" }) => {
       if (fromGroupId === toGroupId) {
-        // Same match, just switch team
         const { error } = await supabase
           .from("event_group_players")
           .update({ team: toTeam })
@@ -734,7 +733,6 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           .eq("player_id", playerId);
         if (error) throw error;
       } else {
-        // Different match: delete from old, insert into new
         const { error: deleteError } = await supabase
           .from("event_group_players")
           .delete()
@@ -752,6 +750,50 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       setSwapSource(null);
       toast.success("Player moved");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+      setSwapSource(null);
+    },
+  });
+
+  // Swap two players between teams
+  const swapPlayersMutation = useMutation({
+    mutationFn: async ({ 
+      player1Id, player1GroupId, player1Team, 
+      player2Id, player2GroupId, player2Team 
+    }: { 
+      player1Id: string; player1GroupId: string; player1Team: "a" | "b"; 
+      player2Id: string; player2GroupId: string; player2Team: "a" | "b";
+    }) => {
+      if (player1GroupId === player2GroupId) {
+        // Same group: just swap teams
+        const { error: e1 } = await supabase
+          .from("event_group_players")
+          .update({ team: player2Team })
+          .eq("group_id", player1GroupId)
+          .eq("player_id", player1Id);
+        if (e1) throw e1;
+        const { error: e2 } = await supabase
+          .from("event_group_players")
+          .update({ team: player1Team })
+          .eq("group_id", player2GroupId)
+          .eq("player_id", player2Id);
+        if (e2) throw e2;
+      } else {
+        // Different groups: move each to the other's group+team
+        // Delete both
+        await supabase.from("event_group_players").delete().eq("group_id", player1GroupId).eq("player_id", player1Id);
+        await supabase.from("event_group_players").delete().eq("group_id", player2GroupId).eq("player_id", player2Id);
+        // Re-insert swapped
+        await supabase.from("event_group_players").insert({ group_id: player2GroupId, player_id: player1Id, team: player2Team });
+        await supabase.from("event_group_players").insert({ group_id: player1GroupId, player_id: player2Id, team: player1Team });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
+      setSwapSource(null);
+      toast.success("Players swapped");
     },
     onError: (error: Error) => {
       toast.error(error.message);
