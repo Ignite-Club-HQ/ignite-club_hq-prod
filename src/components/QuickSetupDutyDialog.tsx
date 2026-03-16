@@ -47,11 +47,13 @@ export function QuickSetupDutyDialog({
     Oranges: [],
   });
   const [expandedDuty, setExpandedDuty] = useState<string | null>(null);
+  const [abilityMode, setAbilityMode] = useState<AbilityMode>("mixed");
 
   useEffect(() => {
     if (open) {
       setAssignments({ Referee: [], Oranges: [] });
       setExpandedDuty(null);
+      setAbilityMode("mixed");
     }
   }, [open]);
 
