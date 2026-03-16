@@ -61,6 +61,7 @@ interface MiniLeagueSettingsDialogProps {
 
 export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLeagueSettingsDialogProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const logoInputRef = useRef<HTMLInputElement>(null);
 
