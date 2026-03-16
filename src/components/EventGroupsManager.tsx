@@ -550,7 +550,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
 
   // Auto-generate mutation
   const autoGenMutation = useMutation({
-    mutationFn: runAutoGenerate,
+    mutationFn: () => runAutoGenerate(),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
