@@ -102,6 +102,7 @@ interface Player {
   currentPitchPosition?: PitchPosition;
   minutesPlayed?: number;
   isInjured?: boolean;
+  teamSide?: "a" | "b";
 }
 
 interface SubstitutionEvent {
@@ -115,6 +116,15 @@ interface SubstitutionEvent {
     toPosition: PitchPosition;
   };
   executed?: boolean;
+}
+
+interface MiniLeagueTeams {
+  teamAPlayerIds: string[];
+  teamBPlayerIds: string[];
+  teamAColor?: string;
+  teamBColor?: string;
+  teamAName?: string;
+  teamBName?: string;
 }
 
 interface AutoSubPlanDialogProps {
@@ -134,6 +144,7 @@ interface AutoSubPlanDialogProps {
   currentHalf?: 1 | 2; // Current half (for mid-game start)
   preferredSecondHalfGkId?: string; // Preferred 2nd half GK from lineup screen
   showStepper?: boolean; // Show the Lineup → Subs step indicator
+  miniLeagueTeams?: MiniLeagueTeams; // When set, generate per-team plans
 }
 
 const formatTime = (seconds: number) => {
@@ -598,7 +609,42 @@ function createSubPlan(
   return plan;
 }
 
-// Separate content component to isolate re-renders
+// Generate per-team plans for mini-league mode and merge them
+function createMiniLeagueSubPlan(
+  players: Player[],
+  teamSize: number,
+  halfDurationSeconds: number,
+  rotationSpeed: number,
+  disablePositionSwaps: boolean,
+  disableBatchSubs: boolean,
+  rotateGkAtHalftime: boolean,
+  startElapsedSeconds: number,
+  startHalf: 1 | 2,
+  miniLeagueTeams: MiniLeagueTeams,
+  preferredSecondHalfGkId?: string
+): SubstitutionEvent[] {
+  const teamAPlayers = players.filter(p => p.teamSide === "a");
+  const teamBPlayers = players.filter(p => p.teamSide === "b");
+  
+  const planA = teamAPlayers.length > 0
+    ? createSubPlan(teamAPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, preferredSecondHalfGkId)
+    : [];
+  
+  const planB = teamBPlayers.length > 0
+    ? createSubPlan(teamBPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf)
+    : [];
+  
+  // Merge and sort by half then time
+  const merged = [...planA, ...planB];
+  merged.sort((a, b) => {
+    if (a.half !== b.half) return a.half - b.half;
+    return a.time - b.time;
+  });
+  
+  return merged;
+}
+
+
 function DialogInner({ 
   players, 
   teamSize, 
@@ -615,6 +661,7 @@ function DialogInner({
   currentHalf = 1,
   preferredSecondHalfGkId,
   isSetupFlow = false,
+  miniLeagueTeams,
 }: {
   players: Player[];
   teamSize: number;
@@ -631,22 +678,34 @@ function DialogInner({
   currentHalf?: 1 | 2;
   preferredSecondHalfGkId?: string;
   isSetupFlow?: boolean;
+  miniLeagueTeams?: MiniLeagueTeams;
 }) {
   const [plan, setPlan] = useState<SubstitutionEvent[] | null>(existingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'forecast' | 'edit'>(editMode ? 'edit' : 'forecast');
+  
+  const generatePlan = (allPlayers: Player[]) => {
+    const halfDurationSeconds = minutesPerHalf * 60;
+    if (miniLeagueTeams) {
+      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed!, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId);
+    }
+    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId);
+  };
   
   // Auto-generate plan on mount if no existing plan
   useEffect(() => {
     if (plan === null && !isGenerating && !editMode) {
       const playersOnP = players.filter(p => p.position !== null);
       const benchP = players.filter(p => p.position === null);
-      if (playersOnP.length >= teamSize && benchP.length > 0) {
+      // In mini-league mode, check per-team bench availability
+      const hasEnough = miniLeagueTeams
+        ? playersOnP.length > 0 && benchP.length > 0
+        : playersOnP.length >= teamSize && benchP.length > 0;
+      if (hasEnough) {
         setIsGenerating(true);
         setTimeout(() => {
           try {
-            const halfDurationSeconds = minutesPerHalf * 60;
-            const generatedPlan = createSubPlan(players, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId);
+            const generatedPlan = generatePlan(players);
             setPlan(generatedPlan);
           } catch (error) {
             console.error("Error auto-generating plan:", error);
@@ -661,7 +720,9 @@ function DialogInner({
   
   const playersOnPitch = players.filter(p => p.position !== null);
   const benchPlayers = players.filter(p => p.position === null);
-  const hasEnoughPlayers = playersOnPitch.length >= teamSize && benchPlayers.length > 0;
+  const hasEnoughPlayers = miniLeagueTeams
+    ? playersOnPitch.length > 0 && benchPlayers.length > 0
+    : playersOnPitch.length >= teamSize && benchPlayers.length > 0;
   
   // Calculate time forecasts when plan exists
   const forecasts = useMemo(() => {
@@ -675,9 +736,8 @@ function DialogInner({
     // Use setTimeout to allow UI to update before heavy computation
     setTimeout(() => {
       try {
-        const halfDurationSeconds = minutesPerHalf * 60;
-        const generatedPlan = createSubPlan(players, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId);
-        console.log("[AutoSubPlan] Generated", generatedPlan.length, "subs");
+        const generatedPlan = generatePlan(players);
+        console.log("[AutoSubPlan] Generated", generatedPlan.length, "subs", miniLeagueTeams ? "(mini-league per-team)" : "");
         setPlan(generatedPlan);
       } catch (error) {
         console.error("Error generating plan:", error);
@@ -865,6 +925,7 @@ export default function AutoSubPlanDialog({
   currentHalf = 1,
   preferredSecondHalfGkId,
   showStepper = false,
+  miniLeagueTeams,
 }: AutoSubPlanDialogProps) {
   const handleClose = () => onOpenChange(false);
   
@@ -928,6 +989,7 @@ export default function AutoSubPlanDialog({
                 currentHalf={currentHalf}
                 preferredSecondHalfGkId={preferredSecondHalfGkId}
                 isSetupFlow={showStepper}
+                miniLeagueTeams={miniLeagueTeams}
               />
             )}
           </div>
