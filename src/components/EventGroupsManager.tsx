@@ -584,33 +584,28 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       const dutyInserts: { group_id: string; name: string; assigned_to: string | null; status: string }[] = [];
 
       for (const dutyName of QUICK_SETUP_DUTIES) {
+        const selectedParents = dutyAssignments[dutyName] || [];
+
         for (let matchIdx = 0; matchIdx < result.matchIds.length; matchIdx++) {
-          let assignedTo: string | null = null;
-
-          // Use user-selected assignment if provided
-          const userPick = dutyAssignments[dutyName];
-          if (userPick) {
-            assignedTo = userPick;
-          } else {
-            // Auto-assign: pick least-burdened parent from this match
-            if (matchParentIds[matchIdx].length > 0) {
-              const candidates = matchParentIds[matchIdx]
-                .map(pid => ({ id: pid, count: parentDutyCount.get(pid) || 0 }))
-                .sort((a, b) => a.count - b.count);
-              assignedTo = candidates[0].id;
+          if (selectedParents.length > 0) {
+            // Create one duty row per selected parent
+            for (const parentId of selectedParents) {
+              dutyInserts.push({
+                group_id: result.matchIds[matchIdx],
+                name: dutyName,
+                assigned_to: parentId,
+                status: "confirmed",
+              });
             }
+          } else {
+            // No one selected — create unassigned duty
+            dutyInserts.push({
+              group_id: result.matchIds[matchIdx],
+              name: dutyName,
+              assigned_to: null,
+              status: "pending",
+            });
           }
-
-          if (assignedTo) {
-            parentDutyCount.set(assignedTo, (parentDutyCount.get(assignedTo) || 0) + 1);
-          }
-
-          dutyInserts.push({
-            group_id: result.matchIds[matchIdx],
-            name: dutyName,
-            assigned_to: assignedTo,
-            status: assignedTo ? "confirmed" : "pending",
-          });
         }
       }
 
