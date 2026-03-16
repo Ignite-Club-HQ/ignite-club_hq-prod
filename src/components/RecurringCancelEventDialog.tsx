@@ -133,7 +133,7 @@ export function RecurringCancelEventDialog({
 
   const chatType = miniLeagueId ? "league" : (teamId ? "team" : "club");
 
-  const typeLabel = getEventTypeLabel(eventType);
+  const typeLabel = getEventTypeLabel(eventType, { miniLeagueId });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

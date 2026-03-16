@@ -57,9 +57,10 @@ export const getFolderColorClass = (color: string) => {
 interface TeamFoldersManagerProps {
   clubId: string;
   isAdmin: boolean;
+  classMode?: boolean;
 }
 
-export default function TeamFoldersManager({ clubId, isAdmin }: TeamFoldersManagerProps) {
+export default function TeamFoldersManager({ clubId, isAdmin, classMode = false }: TeamFoldersManagerProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -230,7 +231,7 @@ export default function TeamFoldersManager({ clubId, isAdmin }: TeamFoldersManag
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground font-medium">Team Folders</p>
+        <p className="text-sm text-muted-foreground font-medium">{classMode ? "Class Folders" : "Team Folders"}</p>
         <Button variant="outline" size="sm" onClick={() => setCreateDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-1" /> Add Folder
         </Button>
@@ -241,6 +242,7 @@ export default function TeamFoldersManager({ clubId, isAdmin }: TeamFoldersManag
             createFolderMutation.mutate({ name, description, color })
           }
           isCreating={createFolderMutation.isPending}
+          classMode={classMode}
         />
       </div>
 

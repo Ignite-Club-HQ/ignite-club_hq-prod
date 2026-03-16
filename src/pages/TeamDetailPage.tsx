@@ -3,7 +3,7 @@ import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder, ClipboardCheck, Copy } from "lucide-react";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -74,6 +74,7 @@ import { TeamSponsorSelector } from "@/components/TeamSponsorSelector";
 import PendingInvitesList from "@/components/PendingInvitesList";
 import TeamRewardsManager from "@/components/TeamRewardsManager";
 import { getFolderColorClass } from "@/components/TeamFoldersManager";
+import { ClassAttendanceSingle } from "@/components/ClassAttendanceSingle";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -124,6 +125,8 @@ export default function TeamDetailPage() {
   const isSoccerClub = team?.clubs?.sport && SOCCER_SPORTS.some(keyword => 
     team.clubs.sport.toLowerCase().includes(keyword)
   );
+
+  const isClassMode = !!team?.clubs?.class_mode_enabled;
 
   const { data: teamSubscription } = useQuery({
     queryKey: ["team-subscription", id],
@@ -572,6 +575,11 @@ export default function TeamDetailPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-2xl font-bold flex-1 truncate">{team.name}</h1>
+          {isAdmin && isClassMode && (
+            <Button variant="ghost" size="icon" onClick={() => navigate(`/teams/${id}/edit`)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
           {isAdmin && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -582,8 +590,39 @@ export default function TeamDetailPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
                 <Pencil className="h-4 w-4 mr-2" />
-                Edit Team
+                Edit {isClassMode ? "Class" : "Team"}
               </DropdownMenuItem>
+              {isClassMode && (
+                <DropdownMenuItem onClick={async () => {
+                  // Duplicate class: create a copy with "(Copy)" suffix
+                  const { data: newTeam, error } = await supabase
+                    .from("teams")
+                    .insert({
+                      name: `${team.name} (Copy)`,
+                      club_id: team.club_id,
+                      level_age: (team as any).level_age || null,
+                      description: (team as any).description || null,
+                      folder_id: (team as any).folder_id || null,
+                      team_type: (team as any).team_type || "mixed",
+                      created_by: user!.id,
+                      class_day: (team as any).class_day || null,
+                      class_time: (team as any).class_time || null,
+                      class_duration_minutes: (team as any).class_duration_minutes || null,
+                      class_capacity: (team as any).class_capacity || null,
+                    })
+                    .select()
+                    .single();
+                  if (error) {
+                    toast({ title: "Failed to duplicate class", variant: "destructive" });
+                  } else {
+                    toast({ title: "Class duplicated", description: `"${newTeam.name}" created. Edit it to customise.` });
+                    navigate(`/teams/${newTeam.id}/edit`);
+                  }
+                }}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplicate Class
+                </DropdownMenuItem>
+              )}
               {teamFolders.length > 0 && (
                 <>
                   <DropdownMenuSeparator />
@@ -733,7 +772,7 @@ export default function TeamDetailPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm">Enrol in this Class</p>
-              <p className="text-xs text-muted-foreground">View availability and enrol your child</p>
+              <p className="text-xs text-muted-foreground">View availability and enrol</p>
             </div>
             <ArrowLeft className="h-4 w-4 text-muted-foreground rotate-180" />
           </CardContent>
@@ -745,9 +784,8 @@ export default function TeamDetailPage() {
         <PrimarySponsorDisplay sponsorId={team.sponsor_id} variant="full" context="team_page" />
       )}
 
-      {/* Upgrade Banner - Show only for team/club admins without pro access */}
-      {/* Don't show if: user is just a regular member, or club/team already has Pro */}
-      {(isAdmin || isClubAdmin) && !isTeamPro && !hasProFootball && (
+      {/* Upgrade Banner - Show only for team/club admins without pro access, hidden in class mode */}
+      {!isClassMode && (isAdmin || isClubAdmin) && !isTeamPro && !hasProFootball && (
         <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -766,8 +804,8 @@ export default function TeamDetailPage() {
         </Card>
       )}
 
-      {/* Join Request Section for Non-members */}
-      {!isUserRoleLoading && !isMember && !isClubAdmin && (
+      {/* Join Request Section for Non-members - hidden in class mode (use enrolment page instead) */}
+      {!isClassMode && !isUserRoleLoading && !isMember && !isClubAdmin && (
         <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
           <CardContent className="p-5 sm:p-6">
             {existingRequest ? (
@@ -1188,7 +1226,23 @@ export default function TeamDetailPage() {
             </AccordionContent>
           </AccordionItem>
 
-          {/* Chat Groups Section - only for team members */}
+          {/* Class Attendance - only in class mode for admins */}
+          {isClassMode && (isCoachOrAdmin || isClubAdmin) && (
+            <AccordionItem value="class-attendance" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <ClipboardCheck className="h-5 w-5 text-primary" />
+                  <span className="text-lg font-semibold">Attendance</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="pt-2">
+                  <ClassAttendanceSingle teamId={id!} clubId={team.club_id} />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
+
           {isMember && (
           <AccordionItem value="chat-groups" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
@@ -1436,8 +1490,8 @@ export default function TeamDetailPage() {
             </AccordionItem>
           )}
 
-          {/* Team Sponsor - Pro only */}
-          {isAdmin && team.club_id && (
+          {/* Team Sponsor - Pro only, hidden in class mode */}
+          {isAdmin && team.club_id && !isClassMode && (
             <AccordionItem value="team-sponsor" className="border rounded-lg px-4" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
                 <div className="flex items-center gap-2">
@@ -1473,8 +1527,8 @@ export default function TeamDetailPage() {
             </AccordionItem>
           )}
 
-          {/* Team Rewards Section - Pro only */}
-          {isAdmin && team.club_id && (
+          {/* Team Rewards Section - Pro only, hidden in class mode */}
+          {isAdmin && team.club_id && !isClassMode && (
             <AccordionItem value="team-rewards" className="border rounded-lg px-4" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
                 <div className="flex items-center gap-2">

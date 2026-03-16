@@ -333,6 +333,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
   const [tacticalMode, setTacticalMode] = useState<TacticalMode>("neutral");
   const [tacticalFormationSuggestion, setTacticalFormationSuggestion] = useState<TacticalFormationSuggestion | null>(null);
+  
+  // Mini-league team selector for formation/tactical changes
+  const [selectedTeamForSettings, setSelectedTeamForSettings] = useState<"a" | "b" | "both">("both");
 
   // Sync settings from props when they change (e.g., when edited on team page)
   // Also sync on initial mount if no saved state exists for the setting
@@ -598,14 +601,36 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Only send email notifications when linking (not unlinking) and event is different
     if (eventId && eventId !== previousLinkedEventId && user?.id) {
       try {
-        // Get team admins and coaches who should receive notifications
-        const { data: teamAdmins } = await supabase
-          .from('user_roles')
-          .select('user_id')
-          .eq('team_id', teamId)
-          .in('role', ['team_admin', 'coach']);
-        
-        if (teamAdmins && teamAdmins.length > 0) {
+        const isEventGroup = teamId.startsWith("event-group-");
+        let recipientUserIds: string[] = [];
+
+        if (isEventGroup) {
+          // Mini-league: only notify the Referee of this specific match
+          const groupId = teamId.replace("event-group-", "");
+          const { data: referees } = await supabase
+            .from('event_group_duties')
+            .select('assigned_to')
+            .eq('group_id', groupId)
+            .eq('name', 'Referee')
+            .not('assigned_to', 'is', null);
+          
+          recipientUserIds = (referees || [])
+            .map((d: any) => d.assigned_to as string)
+            .filter(uid => uid !== user.id);
+        } else {
+          // Regular team: notify coaches/admins
+          const { data: teamAdmins } = await supabase
+            .from('user_roles')
+            .select('user_id')
+            .eq('team_id', teamId)
+            .in('role', ['team_admin', 'coach']);
+          
+          recipientUserIds = (teamAdmins || [])
+            .map((r: any) => r.user_id as string)
+            .filter(uid => uid !== user.id);
+        }
+
+        if (recipientUserIds.length > 0) {
           // Get event details for the notification message
           const { data: eventData } = await supabase
             .from('events')
@@ -614,11 +639,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             .single();
           
           const eventTitle = eventData?.title || 'a game';
-          
-          // Send email notifications to all team admins/coaches (except the current user)
-          const recipientUserIds = teamAdmins
-            .map(r => r.user_id)
-            .filter(uid => uid !== user.id);
           
           for (const recipientUserId of recipientUserIds) {
             supabase.functions.invoke('send-pitch-board-notification-email', {
@@ -2031,6 +2051,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const formation = FORMATIONS[teamSize][index];
     if (!formation) return;
 
+    // In mini-league mode, skip preview dialog and apply directly
+    if (miniLeagueTeams) {
+      applyFormationChange(index);
+      return;
+    }
+
     const numPositions = parseInt(teamSize);
     
     // Calculate what changes would happen
@@ -2207,33 +2233,34 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (!user?.id || readOnly) return;
     try {
       const recipientIds = new Set<string>();
+      const isEventGroup = teamId.startsWith("event-group-");
 
-      // Get team coaches/admins
-      const { data: staffRoles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("team_id", teamId)
-        .in("role", ["coach", "team_admin"]);
-      
-      staffRoles?.forEach(r => {
-        if (r.user_id !== user.id) recipientIds.add(r.user_id);
-      });
+      if (isEventGroup) {
+        // Mini-league: only notify the Referee of this specific match
+        const groupId = teamId.replace("event-group-", "");
+        const { data: referees } = await supabase
+          .from("event_group_duties")
+          .select("assigned_to")
+          .eq("group_id", groupId)
+          .eq("name", "Referee")
+          .not("assigned_to", "is", null);
+        referees?.forEach(d => {
+          if (d.assigned_to && d.assigned_to !== user.id) recipientIds.add(d.assigned_to);
+        });
+      } else {
+        // Regular team: notify coaches/admins
+        const { data: staffRoles } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("team_id", teamId)
+          .in("role", ["coach", "team_admin"]);
+        
+        staffRoles?.forEach(r => {
+          if (r.user_id !== user.id) recipientIds.add(r.user_id);
+        });
 
-      // Also include Subs Manager assignees for this event
-      if (linkedEventId) {
-        const isEventGroup = teamId.startsWith("event-group-");
-        if (isEventGroup) {
-          const groupId = teamId.replace("event-group-", "");
-          const { data: subsManagers } = await supabase
-            .from("event_group_duties")
-            .select("assigned_to")
-            .eq("group_id", groupId)
-            .eq("name", "Subs Manager")
-            .not("assigned_to", "is", null);
-          subsManagers?.forEach(d => {
-            if (d.assigned_to && d.assigned_to !== user.id) recipientIds.add(d.assigned_to);
-          });
-        } else {
+        // Also include Subs Manager assignees for regular events
+        if (linkedEventId) {
           const { data: subsManagers } = await supabase
             .from("duties")
             .select("assigned_to")
@@ -2302,10 +2329,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Persist to database
     persistFormationToDb(formation.name);
 
-    // For mini-league mode, re-place both teams with the new formation (reposition to formation)
+    // For mini-league mode, re-place teams with the new formation
     if (miniLeagueTeams) {
+      const targetTeam = selectedTeamForSettings;
       setPlayers(prev => {
-        // Ensure teamSide is set on all players before placement
+        // Ensure teamSide is set on all players
         const playersWithTeamSide = prev.map(p => {
           if (p.teamSide) return p;
           let teamSide: "a" | "b" | undefined;
@@ -2316,9 +2344,50 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           }
           return { ...p, teamSide };
         });
-        return autoPlaceMiniLeaguePlayers(playersWithTeamSide, teamSize, true, index, true);
+        
+        if (targetTeam === "both") {
+          return autoPlaceMiniLeaguePlayers(playersWithTeamSide, teamSize, true, index, true);
+        }
+        
+        // Single team formation change - use autoPlaceMiniLeaguePlayers for the target team,
+        // but preserve the other team's positions
+        const scaleToBottomHalf = (pos: { x: number; y: number }) => ({
+          x: pos.x,
+          y: 50 + (pos.y / 100) * 45,
+        });
+        const scaleToTopHalf = (pos: { x: number; y: number }) => ({
+          x: 100 - pos.x,
+          y: 50 - (pos.y / 100) * 45,
+        });
+        const scaleFunc = targetTeam === "a" ? scaleToBottomHalf : scaleToTopHalf;
+        
+        // Get on-pitch players for target team in a stable order
+        const teamOnPitch = playersWithTeamSide.filter(pp => pp.teamSide === targetTeam && pp.position !== null);
+        const teamOnBench = playersWithTeamSide.filter(pp => pp.teamSide === targetTeam && pp.position === null);
+        
+        return playersWithTeamSide.map(p => {
+          if (p.teamSide !== targetTeam) return p; // Leave other team unchanged
+          if (p.position === null) return p; // Leave bench players unchanged
+          
+          const playerIndex = teamOnPitch.findIndex(pp => pp.id === p.id);
+          
+          if (playerIndex >= 0 && playerIndex < formation.positions.length) {
+            const pos = scaleFunc(formation.positions[playerIndex]);
+            return {
+              ...p,
+              position: pos,
+              currentPitchPosition: getPositionFromCoords(formation.positions[playerIndex].y, teamSize),
+            };
+          }
+          // More players than formation slots - send to bench
+          return { ...p, position: null, currentPitchPosition: undefined };
+        });
       });
-      toast({ title: "Formation applied", description: `${formation.name} formation set for both teams` });
+      
+      const teamLabel = targetTeam === "both" ? "both teams" 
+        : targetTeam === "a" ? (miniLeagueTeams.teamAName || "Team A")
+        : (miniLeagueTeams.teamBName || "Team B");
+      toast({ title: "Formation applied", description: `${formation.name} set for ${teamLabel}` });
       return;
     }
 
@@ -2412,7 +2481,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         regeneratePlanRef.current?.();
       }, 300);
     }
-  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers, autoSubActive, notifyFormationOrSizeChange]);
+  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers, autoSubActive, notifyFormationOrSizeChange, selectedTeamForSettings]);
 
   // Handle formation change dialog confirm
   const handleFormationChangeConfirm = useCallback(() => {
@@ -2890,6 +2959,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const toggleSubMode = () => {
     if (readOnly) return;
     const newSubMode = !subMode;
+    
+    // Check if there are any available bench players (not injured)
+    if (newSubMode) {
+      const availableBenchPlayers = players.filter(p => p.position === null && !p.isInjured);
+      if (availableBenchPlayers.length === 0) {
+        toast({
+          title: "No subs available",
+          description: players.some(p => p.position === null)
+            ? "All bench players are currently injured."
+            : "There are no players on the bench to bring on.",
+        });
+        return;
+      }
+    }
+    
     setSubMode(newSubMode);
     setSelectedOnPitch(null);
     setSelectedOnBench(null);
@@ -4004,10 +4088,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const playersOnPitch = useMemo(() => players.filter(p => p.position !== null), [players]);
   const playersOnBench = useMemo(() => players.filter(p => p.position === null), [players]);
 
+  // Filtered on-pitch players for mini-league team selector (hides the other team)
+  const filteredPlayersOnPitch = useMemo(() => {
+    if (!miniLeagueTeams || selectedTeamForSettings === "both") return playersOnPitch;
+    return playersOnPitch.filter(p => p.teamSide === selectedTeamForSettings);
+  }, [playersOnPitch, miniLeagueTeams, selectedTeamForSettings]);
+
   // Tactical mode: batch-compute visual offsets (CSS translate) for on-pitch players
   const tacticalOffsets = useMemo(() => 
-    computeTacticalOffsets(players, tacticalMode, teamSize),
-    [players, tacticalMode, teamSize]
+    computeTacticalOffsets(players, tacticalMode, teamSize, !!miniLeagueTeams),
+    [players, tacticalMode, teamSize, miniLeagueTeams]
   );
 
   // Compute ball visual offset to avoid overlapping with tactically-shifted players
@@ -4506,7 +4596,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     variant={subMode ? "secondary" : "default"}
                     size="sm"
                     className="h-10 shrink-0 gap-1.5 px-3 text-sm"
-                    onClick={() => { setSubMode(prev => !prev); setSelectedOnPitch(null); setSelectedOnBench(null); }}
+                    onClick={() => toggleSubMode()}
                   >
                     <Users className="h-4 w-4" />
                     {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
@@ -4650,6 +4740,34 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         </div>
         
+        {/* Mini-league team selector strip - landscape */}
+        {miniLeagueTeams && !readOnly && (
+          <div className="shrink-0 flex items-center gap-1.5 px-3 py-1 border-b border-border bg-background z-[60]">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Team:</span>
+            {(["a", "b", "both"] as const).map((team) => (
+              <button
+                key={team}
+                className={cn(
+                  "h-7 px-3 text-xs font-semibold rounded-md transition-colors",
+                  selectedTeamForSettings === team
+                    ? "text-white shadow-sm"
+                    : "bg-muted hover:bg-muted/80 text-foreground"
+                )}
+                style={selectedTeamForSettings === team ? {
+                  backgroundColor: team === "a" ? miniLeagueTeams.teamAColor 
+                    : team === "b" ? miniLeagueTeams.teamBColor 
+                    : 'hsl(var(--primary))',
+                } : undefined}
+                onClick={(e) => { e.stopPropagation(); setSelectedTeamForSettings(team); }}
+              >
+                {team === "a" ? (miniLeagueTeams.teamAName || "Team A")
+                  : team === "b" ? (miniLeagueTeams.teamBName || "Team B")
+                  : "Both"}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Main content area */}
         <div className="flex-1 flex overflow-visible">
           {/* Main pitch area - full height */}
@@ -4762,7 +4880,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {timerFormationDropdownOpen && (
                   <>
                   <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerFormationDropdownOpen(false); }} />
-                  <div className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[140px] py-1 max-h-48 overflow-y-auto">
+                  <div className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[160px] py-1 max-h-64 overflow-y-auto">
+                    {/* Team selector moved to top strip */}
                     {FORMATIONS[teamSize].map((f, i) => (
                       <button
                         key={i}
@@ -5008,7 +5127,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               />
 
               {/* Players on pitch */}
-              {playersOnPitch.map(player => (
+              {filteredPlayersOnPitch.map(player => (
                 <PlayerToken
                   key={player.id}
                   player={player}
@@ -5501,6 +5620,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       )}
                       {playersOnBench
                         .filter(player => {
+                          // Mini-league team filter
+                          if (miniLeagueTeams && selectedTeamForSettings !== "both" && player.teamSide !== selectedTeamForSettings) return false;
                           if (subMode && selectedOnPitch) {
                             return getValidBenchPlayerIds.has(player.id);
                           }
@@ -5636,6 +5757,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             setPendingSubBenchPlayer(null);
             setRequiredPosition(null);
           }}
+          miniLeagueTeams={miniLeagueTeams}
         />
 
         {/* Substitution Preview Dialog */}
@@ -5689,6 +5811,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
           currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
           showStepper={autoSubFromPreGame}
+          miniLeagueTeams={miniLeagueTeams}
         />
 
         {/* Sub Confirm Dialog */}
@@ -5957,7 +6080,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 variant={subMode ? "secondary" : "default"}
                 size="sm"
                 className="h-9 shrink-0 gap-1 px-2 text-xs"
-                onClick={() => { setSubMode(prev => !prev); setSelectedOnPitch(null); setSelectedOnBench(null); }}
+                onClick={() => toggleSubMode()}
               >
                 <Users className="h-4 w-4" />
                 {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
@@ -6055,6 +6178,34 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </>
         )}
       </div>
+
+      {/* Mini-league team selector strip - portrait */}
+      {miniLeagueTeams && !readOnly && (
+        <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 border-b border-border bg-background">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Team:</span>
+          {(["a", "b", "both"] as const).map((team) => (
+            <button
+              key={team}
+              className={cn(
+                "h-8 px-3 text-xs font-semibold rounded-md transition-colors",
+                selectedTeamForSettings === team
+                  ? "text-white shadow-sm"
+                  : "bg-muted hover:bg-muted/80 text-foreground"
+              )}
+              style={selectedTeamForSettings === team ? {
+                backgroundColor: team === "a" ? miniLeagueTeams.teamAColor 
+                  : team === "b" ? miniLeagueTeams.teamBColor 
+                  : 'hsl(var(--primary))',
+              } : undefined}
+              onClick={() => setSelectedTeamForSettings(team)}
+            >
+              {team === "a" ? (miniLeagueTeams.teamAName || "Team A")
+                : team === "b" ? (miniLeagueTeams.teamBName || "Team B")
+                : "Both"}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Full-screen Pitch Area */}
       <div className="flex-1 min-h-0 relative overflow-visible z-[65]">
@@ -6167,7 +6318,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 {timerFormationDropdownOpen && (
                   <>
                   <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerFormationDropdownOpen(false); }} />
-                   <div data-timer-dropdown className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[140px] py-1 max-h-48 overflow-y-auto">
+                   <div data-timer-dropdown className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[160px] py-1 max-h-64 overflow-y-auto">
+                    {/* Team selector moved to top strip */}
                     {FORMATIONS[teamSize].map((f, i) => (
                       <button
                         key={i}
@@ -6468,6 +6620,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       )}
                       {playersOnBench
                         .filter(player => {
+                          // Mini-league team filter
+                          if (miniLeagueTeams && selectedTeamForSettings !== "both" && player.teamSide !== selectedTeamForSettings) return false;
                           if (subMode && selectedOnPitch) {
                             return getValidBenchPlayerIds.has(player.id);
                           }
@@ -6752,7 +6906,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             />
 
             {/* Players on pitch */}
-            {playersOnPitch.map(player => (
+            {filteredPlayersOnPitch.map(player => (
               <PlayerToken
                 key={player.id}
                 player={player}
@@ -6861,6 +7015,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           setPendingSubBenchPlayer(null);
           setRequiredPosition(null);
         }}
+        miniLeagueTeams={miniLeagueTeams}
       />
 
       {/* Substitution Preview Dialog */}
@@ -7004,6 +7159,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         currentElapsedSeconds={gameTimerRef.current?.getElapsedSeconds() || 0}
         currentHalf={gameTimerRef.current?.getCurrentHalf() || 1}
         showStepper={autoSubFromPreGame}
+        miniLeagueTeams={miniLeagueTeams}
       />
 
       {/* Auto-Sub Control Panel */}

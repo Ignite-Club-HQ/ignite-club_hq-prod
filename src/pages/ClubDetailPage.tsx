@@ -77,10 +77,14 @@ import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import { ClubTeamSponsorAllocator } from "@/components/ClubTeamSponsorAllocator";
 import { ClubThemeEditor } from "@/components/ClubThemeEditor";
 import { ClubDMSettings } from "@/components/ClubDMSettings";
-import { Palette, CalendarDays, BookOpen } from "lucide-react";
+import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3 } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
 import { TermsManager } from "@/components/TermsManager";
 import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
+import { ClassAttendanceManager } from "@/components/ClassAttendanceManager";
+import { ClassModeOnboardingGuide } from "@/components/ClassModeOnboardingGuide";
+import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
+import { AttendanceStatsView } from "@/components/AttendanceStatsView";
 
 type ClubRole = "club_admin";
 
@@ -895,6 +899,16 @@ export default function ClubDetailPage() {
         );
       })()}
 
+      {/* Class Mode Onboarding Guide */}
+      {isAdmin && club?.class_mode_enabled && (
+        <ClassModeOnboardingGuide clubId={id!} />
+      )}
+
+      {/* Today's Classes Dashboard */}
+      {isAdmin && club?.class_mode_enabled && (
+        <TodaysClassesDashboard clubId={id!} />
+      )}
+
       {/* Primary Sponsor Display */}
       {club?.primary_sponsor_id && (
         <PrimarySponsorDisplay sponsorId={club.primary_sponsor_id} variant="full" context="club_page" />
@@ -981,10 +995,11 @@ export default function ClubDetailPage() {
                       createFolderMutation.mutate({ name, description, color })
                     }
                     isCreating={createFolderMutation.isPending}
+                    classMode={!!club?.class_mode_enabled}
                   />
                   <Link to={`/clubs/${id}/teams/new`}>
                     <Button size="sm">
-                      <Plus className="h-4 w-4 mr-1" /> Add Team
+                      <Plus className="h-4 w-4 mr-1" /> {club?.class_mode_enabled ? "Add Class" : "Add Team"}
                     </Button>
                   </Link>
                 </div>
@@ -996,7 +1011,7 @@ export default function ClubDetailPage() {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search teams..."
+                      placeholder={club?.class_mode_enabled ? "Search classes..." : "Search teams..."}
                       value={teamSearchQuery}
                       onChange={(e) => setTeamSearchQuery(e.target.value)}
                       className="pl-9 pr-9"
@@ -1742,29 +1757,99 @@ export default function ClubDetailPage() {
         </AccordionItem>
       )}
 
-      {/* Class Mode - Terms Management (Admin only, when class mode enabled) */}
+      {/* Class Mode - Terms (Admin only) */}
       {isAdmin && club?.class_mode_enabled && (
         <AccordionItem value="terms" className="border rounded-lg px-4">
           <AccordionTrigger className="hover:no-underline">
             <div className="flex items-center gap-2">
               <CalendarDays className="h-5 w-5 text-primary" />
-              <span className="text-lg font-semibold">Terms & Classes</span>
+              <span className="text-lg font-semibold">Terms</span>
             </div>
           </AccordionTrigger>
-           <AccordionContent>
+          <AccordionContent>
             <div className="pt-2 space-y-4">
               <TermsManager clubId={id!} />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      )}
+
+      {/* Class Mode - Enrolments (Admin only) */}
+      {isAdmin && club?.class_mode_enabled && (
+        <AccordionItem value="enrolments" className="border rounded-lg px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-primary" />
+              <span className="text-lg font-semibold">Enrolments</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="pt-2 space-y-4">
               <AdminEnrolmentManager clubId={id!} />
-              <Link to={`/clubs/${id}/enrol`}>
-                <Card className="hover:border-primary/50 transition-colors">
-                  <CardContent className="p-4 flex items-center gap-3">
+              <Card className="border">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-primary/10">
                       <BookOpen className="h-5 w-5 text-primary" />
                     </div>
-                    <span className="font-medium">View Enrolment Page</span>
-                  </CardContent>
-                </Card>
-              </Link>
+                    <div className="flex-1">
+                      <span className="font-medium">Enrolment Page</span>
+                      <p className="text-xs text-muted-foreground">Share this link with parents to enrol</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Link to={`/clubs/${id}/enrol`} className="flex-1">
+                      <Button variant="outline" size="sm" className="w-full gap-1.5">
+                        <BookOpen className="h-3.5 w-3.5" />
+                        View Page
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={async () => {
+                        const url = `${window.location.origin}/clubs/${id}/enrol`;
+                        if (navigator.share) {
+                          try {
+                            await navigator.share({ title: `${club?.name} - Enrolment`, url });
+                          } catch {}
+                        } else {
+                          await navigator.clipboard.writeText(url);
+                          toast({ title: "Link copied!", description: "Enrolment link copied to clipboard." });
+                        }
+                      }}
+                    >
+                      <Share2 className="h-3.5 w-3.5" />
+                      Share Link
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      )}
+
+      {/* Class Mode - Attendance (Admin only) */}
+      {isAdmin && club?.class_mode_enabled && (
+        <AccordionItem value="attendance" className="border rounded-lg px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5 text-primary" />
+              <span className="text-lg font-semibold">Attendance</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="pt-2 space-y-6">
+              <ClassAttendanceManager clubId={id!} />
+              <div className="border-t pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  <h4 className="text-sm font-semibold">Attendance Report</h4>
+                </div>
+                <AttendanceStatsView clubId={id!} />
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>

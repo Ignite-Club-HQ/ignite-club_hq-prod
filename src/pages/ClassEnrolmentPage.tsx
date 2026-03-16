@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, UserPlus, Users, Clock, CalendarDays, AlertCircle } from "lucide-react";
@@ -9,12 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { MobileSelect } from "@/components/ui/mobile-select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,10 +28,18 @@ type TeamType = "junior" | "senior" | "mixed";
 
 export default function ClassEnrolmentPage() {
   const { clubId } = useParams<{ clubId: string }>();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  // Auth gate: redirect unauthenticated users to login with return URL
+  useEffect(() => {
+    if (!authLoading && !user) {
+      sessionStorage.setItem("redirectAfterAuth", `/clubs/${clubId}/enrol`);
+      navigate("/auth", { replace: true });
+    }
+  }, [authLoading, user, clubId, navigate]);
 
   const [selectedTermId, setSelectedTermId] = useState<string>("");
   const [enrollingClassId, setEnrollingClassId] = useState<string | null>(null);
@@ -74,6 +87,7 @@ export default function ClassEnrolmentPage() {
         .from("teams")
         .select("id, name, class_day, class_time, class_duration_minutes, class_capacity, level_age, logo_url, team_type")
         .eq("club_id", clubId!)
+        .eq("is_archived", false)
         .not("class_day", "is", null)
         .order("class_day")
         .order("class_time");
@@ -308,6 +322,7 @@ export default function ClassEnrolmentPage() {
     selfEnrolments.find((e) => (e as any).user_id === user?.id && e.team_id === teamId && e.status !== "withdrawn");
 
   const [selectedChildId, setSelectedChildId] = useState<string>("");
+  const [dayFilter, setDayFilter] = useState<string>("all");
 
   const isLoading = termsLoading || classesLoading;
 
@@ -364,40 +379,36 @@ export default function ClassEnrolmentPage() {
       {terms.length > 0 && (
         <div className="space-y-2">
           <label className="text-sm font-medium">Select Term</label>
-          <Select
+          <MobileSelect
             value={selectedTermId || terms[0]?.id || ""}
             onValueChange={setSelectedTermId}
-          >
-            <SelectTrigger className="h-11">
-              <SelectValue placeholder="Select a term" />
-            </SelectTrigger>
-            <SelectContent className="bg-popover">
-              {terms.map((term) => (
-                <SelectItem key={term.id} value={term.id}>
-                  {term.name} ({format(new Date(term.start_date), "d MMM")} – {format(new Date(term.end_date), "d MMM yyyy")})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={terms.map((term) => ({
+              value: term.id,
+              label: term.name + (term.start_date && term.end_date ? ` (${format(new Date(term.start_date), "d MMM")} – ${format(new Date(term.end_date), "d MMM yyyy")})` : ""),
+            }))}
+            placeholder="Select a term"
+            title="Select Term"
+          />
         </div>
       )}
 
       {/* Child Selector - only shown if there are junior/mixed classes and user has children */}
+      {hasChildClasses && children.length === 1 && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border">
+          <span className="text-sm text-muted-foreground">Enrolling for:</span>
+          <span className="text-sm font-medium">{children[0].name}</span>
+        </div>
+      )}
       {hasChildClasses && children.length > 1 && (
         <div className="space-y-2">
           <label className="text-sm font-medium">Select Child</label>
-          <Select value={selectedChildId || children[0]?.id || ""} onValueChange={setSelectedChildId}>
-            <SelectTrigger className="h-11">
-              <SelectValue placeholder="Select a child" />
-            </SelectTrigger>
-            <SelectContent className="bg-popover">
-              {children.map((child) => (
-                <SelectItem key={child.id} value={child.id}>
-                  {child.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MobileSelect
+            value={selectedChildId || children[0]?.id || ""}
+            onValueChange={setSelectedChildId}
+            options={children.map((child) => ({ value: child.id, label: child.name }))}
+            placeholder="Select a child"
+            title="Select Child"
+          />
         </div>
       )}
 
@@ -411,8 +422,38 @@ export default function ClassEnrolmentPage() {
         </Card>
       ) : (
         <div className="space-y-3">
+          {/* Day filter chips - only show if classes span multiple days */}
+          {(() => {
+            const uniqueDays = [...new Set(classes.map(c => c.class_day).filter(Boolean))];
+            if (uniqueDays.length > 1) {
+              return (
+                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                  <Button
+                    variant={dayFilter === "all" ? "default" : "outline"}
+                    size="sm"
+                    className="h-7 text-xs shrink-0"
+                    onClick={() => setDayFilter("all")}
+                  >
+                    All Days
+                  </Button>
+                  {uniqueDays.map(day => (
+                    <Button
+                      key={day}
+                      variant={dayFilter === day ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 text-xs shrink-0"
+                      onClick={() => setDayFilter(day!)}
+                    >
+                      {day}
+                    </Button>
+                  ))}
+                </div>
+              );
+            }
+            return null;
+          })()}
           <h3 className="text-sm font-medium text-muted-foreground">Available Classes</h3>
-          {classes.map((cls) => {
+          {classes.filter(cls => dayFilter === "all" || cls.class_day === dayFilter).map((cls) => {
             const teamType = cls.team_type || "mixed";
             const canEnrolChild = allowsChildren(teamType);
             const canEnrolSelf = allowsAdults(teamType);
@@ -428,7 +469,14 @@ export default function ClassEnrolmentPage() {
                 <CardContent className="py-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium">{cls.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{cls.name}</p>
+                        {teamType !== "mixed" && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                            {teamType === "junior" ? "Junior" : "Adult"}
+                          </Badge>
+                        )}
+                      </div>
                       {cls.level_age && (
                         <p className="text-xs text-muted-foreground">{cls.level_age}</p>
                       )}
@@ -465,35 +513,77 @@ export default function ClassEnrolmentPage() {
                           <Badge variant={selfExisting.status === "enrolled" ? "default" : "secondary"}>
                             {selfExisting.status === "enrolled" ? "Enrolled" : `Waitlisted #${selfExisting.waitlist_position}`}
                           </Badge>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive h-7 text-xs"
-                            onClick={() => withdrawMutation.mutate(selfExisting.id)}
-                            disabled={withdrawMutation.isPending}
-                          >
-                            Withdraw
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive h-7 text-xs"
+                                disabled={withdrawMutation.isPending}
+                              >
+                                Withdraw
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Withdraw from class?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to withdraw from <strong>{cls.name}</strong>? You can re-enrol later if spots are available.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={() => withdrawMutation.mutate(selfExisting.id)}
+                                >
+                                  Withdraw
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant={isFull ? "outline" : "default"}
-                          onClick={() => {
-                            setEnrollingClassId(cls.id);
-                            enrolSelfMutation.mutate({ teamId: cls.id });
-                          }}
-                          disabled={isEnrolling || enrolSelfMutation.isPending}
-                        >
-                          {isEnrolling ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <>
-                              <UserPlus className="h-4 w-4 mr-1" />
-                              {isFull ? "Join Waitlist" : "Enrol"}
-                            </>
-                          )}
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant={isFull ? "outline" : "default"}
+                              disabled={isEnrolling || enrolSelfMutation.isPending}
+                            >
+                              {isEnrolling ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <UserPlus className="h-4 w-4 mr-1" />
+                                  {isFull ? "Join Waitlist" : "Enrol"}
+                                </>
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>{isFull ? "Join waitlist?" : "Confirm enrolment"}</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                {isFull
+                                  ? <>The class <strong>{cls.name}</strong> is currently full. You will be added to the waitlist and notified when a spot becomes available.</>
+                                  : <>Are you sure you want to enrol in <strong>{cls.name}</strong>?</>
+                                }
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => {
+                                  setEnrollingClassId(cls.id);
+                                  enrolSelfMutation.mutate({ teamId: cls.id });
+                                }}
+                              >
+                                {isFull ? "Join Waitlist" : "Enrol"}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                     </div>
                   )}
@@ -509,35 +599,77 @@ export default function ClassEnrolmentPage() {
                           <Badge variant={childExisting.status === "enrolled" ? "default" : "secondary"}>
                             {childExisting.status === "enrolled" ? "Enrolled" : `Waitlisted #${childExisting.waitlist_position}`}
                           </Badge>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive h-7 text-xs"
-                            onClick={() => withdrawMutation.mutate(childExisting.id)}
-                            disabled={withdrawMutation.isPending}
-                          >
-                            Withdraw
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive h-7 text-xs"
+                                disabled={withdrawMutation.isPending}
+                              >
+                                Withdraw
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Withdraw from class?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to withdraw {children.find((c) => c.id === activeChild)?.name || "your child"} from <strong>{cls.name}</strong>? You can re-enrol later if spots are available.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={() => withdrawMutation.mutate(childExisting.id)}
+                                >
+                                  Withdraw
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant={isFull ? "outline" : "default"}
-                          onClick={() => {
-                            setEnrollingClassId(cls.id);
-                            enrolChildMutation.mutate({ childId: activeChild, teamId: cls.id });
-                          }}
-                          disabled={isEnrolling || enrolChildMutation.isPending}
-                        >
-                          {isEnrolling ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <>
-                              <UserPlus className="h-4 w-4 mr-1" />
-                              {isFull ? "Join Waitlist" : "Enrol"}
-                            </>
-                          )}
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant={isFull ? "outline" : "default"}
+                              disabled={isEnrolling || enrolChildMutation.isPending}
+                            >
+                              {isEnrolling ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <UserPlus className="h-4 w-4 mr-1" />
+                                  {isFull ? "Join Waitlist" : "Enrol"}
+                                </>
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>{isFull ? "Join waitlist?" : "Confirm enrolment"}</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                {isFull
+                                  ? <>The class <strong>{cls.name}</strong> is currently full. {children.find((c) => c.id === activeChild)?.name || "Your child"} will be added to the waitlist.</>
+                                  : <>Are you sure you want to enrol {children.find((c) => c.id === activeChild)?.name || "your child"} in <strong>{cls.name}</strong>?</>
+                                }
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => {
+                                  setEnrollingClassId(cls.id);
+                                  enrolChildMutation.mutate({ childId: activeChild, teamId: cls.id });
+                                }}
+                              >
+                                {isFull ? "Join Waitlist" : "Enrol"}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                     </div>
                   )}

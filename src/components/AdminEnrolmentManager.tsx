@@ -1,16 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Loader2, UserMinus, Clock, CalendarDays } from "lucide-react";
+import { Users, Loader2, UserMinus, Clock, CalendarDays, Download } from "lucide-react";
+import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { MobileSelect } from "@/components/ui/mobile-select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +19,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { AdminManualEnrolDialog } from "@/components/AdminManualEnrolDialog";
+import { exportEnrolmentsCSV } from "@/lib/exportEnrolments";
 
 interface AdminEnrolmentManagerProps {
   clubId: string;
@@ -33,6 +30,7 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedTermId, setSelectedTermId] = useState<string>("");
+  const [dayFilter, setDayFilter] = useState<string>("all");
 
   // Fetch active terms
   const { data: terms = [] } = useQuery({
@@ -50,6 +48,7 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
   });
 
   const termId = selectedTermId || terms[0]?.id;
+  const activeTerm = terms.find((t) => t.id === termId) || terms[0];
 
   // Fetch classes for this club
   const { data: classes = [] } = useQuery({
@@ -59,6 +58,7 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
         .from("teams")
         .select("id, name, class_day, class_time, class_capacity, level_age, team_type")
         .eq("club_id", clubId)
+        .eq("is_archived", false)
         .not("class_day", "is", null)
         .order("class_day")
         .order("class_time");
@@ -104,6 +104,14 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
     enabled: !!termId,
   });
 
+  // Enrolment counts for manual enrol dialog
+  const enrolmentCounts: Record<string, number> = {};
+  enrolments.forEach((e: any) => {
+    if (e.status === "enrolled") {
+      enrolmentCounts[e.team_id] = (enrolmentCounts[e.team_id] || 0) + 1;
+    }
+  });
+
   // Withdraw mutation
   const withdrawMutation = useMutation({
     mutationFn: async (enrolmentId: string) => {
@@ -137,6 +145,23 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
     return null;
   };
 
+  const handleExportCSV = () => {
+    if (!activeTerm) return;
+    const rows = enrolments.map((e: any) => {
+      const cls = classes.find((c) => c.id === e.team_id);
+      return {
+        className: cls?.name || "Unknown",
+        memberName: getEnrolmentName(e),
+        type: getEnrolmentTypeLabel(e) || "Unknown",
+        status: e.status,
+        waitlistPosition: e.waitlist_position,
+        enrolledDate: format(new Date(e.enrolled_at || e.created_at), "dd/MM/yyyy"),
+      };
+    });
+    exportEnrolmentsCSV(rows, activeTerm.name);
+    toast({ title: "CSV exported" });
+  };
+
   if (terms.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center py-4">
@@ -147,27 +172,44 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold text-lg">Enrolments</h3>
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {enrolments.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={handleExportCSV}
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export
+          </Button>
+        )}
+        {termId && (
+          <AdminManualEnrolDialog
+            clubId={clubId}
+            termId={termId}
+            classes={classes.map((c) => ({
+              id: c.id,
+              name: c.name,
+              class_capacity: c.class_capacity,
+              team_type: c.team_type || "mixed",
+            }))}
+            enrolmentCounts={enrolmentCounts}
+          />
+        )}
       </div>
 
-      {terms.length > 1 && (
-        <Select value={termId || ""} onValueChange={setSelectedTermId}>
-          <SelectTrigger className="h-10">
-            <SelectValue placeholder="Select a term" />
-          </SelectTrigger>
-          <SelectContent className="bg-popover">
-            {terms.map((term) => (
-              <SelectItem key={term.id} value={term.id}>
-                {term.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
+      {terms.length > 1 ? (
+        <MobileSelect
+          value={termId || ""}
+          onValueChange={setSelectedTermId}
+          options={terms.map((term) => ({ value: term.id, label: term.name }))}
+          placeholder="Select a term"
+          title="Select Term"
+        />
+      ) : terms.length === 1 ? (
+        <p className="text-sm text-muted-foreground">{terms[0].name}</p>
+      ) : null}
 
       {isLoading ? (
         <div className="flex justify-center py-6">
@@ -177,7 +219,37 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
         <p className="text-sm text-muted-foreground text-center py-4">No classes set up yet.</p>
       ) : (
         <div className="space-y-4">
-          {classes.map((cls) => {
+          {/* Day filter chips */}
+          {(() => {
+            const uniqueDays = [...new Set(classes.map(c => (c as any).class_day).filter(Boolean))];
+            if (uniqueDays.length > 1) {
+              return (
+                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                  <Button
+                    variant={dayFilter === "all" ? "default" : "outline"}
+                    size="sm"
+                    className="h-7 text-xs shrink-0"
+                    onClick={() => setDayFilter("all")}
+                  >
+                    All Days
+                  </Button>
+                  {uniqueDays.map(day => (
+                    <Button
+                      key={day}
+                      variant={dayFilter === day ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 text-xs shrink-0"
+                      onClick={() => setDayFilter(day!)}
+                    >
+                      {day}
+                    </Button>
+                  ))}
+                </div>
+              );
+            }
+            return null;
+          })()}
+          {classes.filter(cls => dayFilter === "all" || (cls as any).class_day === dayFilter).map((cls) => {
             const classEnrolments = enrolments.filter((e) => e.team_id === cls.id);
             const enrolled = classEnrolments.filter((e) => e.status === "enrolled");
             const waitlisted = classEnrolments.filter((e) => e.status === "waitlisted");

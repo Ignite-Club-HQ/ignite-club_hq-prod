@@ -1,18 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, UserPlus, Loader2 } from "lucide-react";
+import { Plus, X, UserPlus, Loader2, Check, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 import { toast } from "sonner";
 import { AddDutySheet } from "@/components/AddDutySheet";
-import { AssignDutySheet } from "@/components/AssignDutySheet";
+import { cn } from "@/lib/utils";
 
 interface GroupDuty {
   id: string;
@@ -29,7 +30,11 @@ interface MatchDutiesDialogProps {
   groupId: string;
   groupName: string;
   miniLeagueId: string;
+  /** Pre-select a duty for assignment (quick-assign from badge) */
+  initialDutyId?: string | null;
 }
+
+type View = "list" | "assign";
 
 export function MatchDutiesDialog({
   open,
@@ -37,11 +42,13 @@ export function MatchDutiesDialog({
   groupId,
   groupName,
   miniLeagueId,
+  initialDutyId,
 }: MatchDutiesDialogProps) {
   const queryClient = useQueryClient();
   const [isDutySheetOpen, setIsDutySheetOpen] = useState(false);
-  const [assignDutyOpen, setAssignDutyOpen] = useState(false);
+  const [view, setView] = useState<View>("list");
   const [selectedDuty, setSelectedDuty] = useState<GroupDuty | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   // Fetch group duties
   const { data: duties, isLoading: dutiesLoading } = useQuery({
@@ -58,11 +65,27 @@ export function MatchDutiesDialog({
     enabled: open && !!groupId,
   });
 
-  // Fetch league members for duty assignment (parents, admins, coaches - not players)
+  // Auto-open assign view when initialDutyId is provided
+  const handledInitialRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (open && initialDutyId && duties && handledInitialRef.current !== initialDutyId) {
+      const duty = duties.find(d => d.id === initialDutyId);
+      if (duty) {
+        setSelectedDuty(duty);
+        setSelectedUserId(duty.assigned_to);
+        setView("assign");
+        handledInitialRef.current = initialDutyId;
+      }
+    }
+    if (!open) {
+      handledInitialRef.current = null;
+    }
+  }, [open, initialDutyId, duties]);
+
+  // Fetch league members for duty assignment
   const { data: leagueMembers } = useQuery({
     queryKey: ["mini-league-duty-assignees", miniLeagueId],
     queryFn: async () => {
-      // Get mini league to find the club_id
       const { data: league, error: leagueError } = await supabase
         .from("mini_leagues")
         .select("club_id")
@@ -70,7 +93,6 @@ export function MatchDutiesDialog({
         .single();
       if (leagueError) throw leagueError;
       
-      // Get all parent user IDs from mini league players
       const { data: playersData, error: playersError } = await supabase
         .from("mini_league_players")
         .select("parent_user_id")
@@ -80,7 +102,6 @@ export function MatchDutiesDialog({
       
       const parentIds = [...new Set(playersData?.map(p => p.parent_user_id).filter(Boolean) as string[])];
       
-      // Get club admins and league admins (coaches) from user_roles
       const { data: adminRoles, error: rolesError } = await supabase
         .from("user_roles")
         .select("user_id")
@@ -89,12 +110,9 @@ export function MatchDutiesDialog({
       if (rolesError) throw rolesError;
       
       const adminIds = adminRoles?.map(r => r.user_id) || [];
-      
-      // Combine all unique IDs
       const allUserIds = [...new Set([...parentIds, ...adminIds])];
       if (!allUserIds.length) return [];
       
-      // Fetch profiles for all these users
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("id, display_name, avatar_url")
@@ -135,6 +153,8 @@ export function MatchDutiesDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-group-duties", groupId] });
+      setView("list");
+      setSelectedDuty(null);
       toast.success("Duty updated");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -153,92 +173,201 @@ export function MatchDutiesDialog({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      setView("list");
+      setSelectedDuty(null);
+      setSelectedUserId(null);
+    }
+    onOpenChange(isOpen);
+  };
+
+  const openAssignView = (duty: GroupDuty) => {
+    setSelectedDuty(duty);
+    setSelectedUserId(duty.assigned_to);
+    setView("assign");
+  };
+
+  const handleAssign = () => {
+    if (selectedDuty) {
+      assignDutyMutation.mutate({
+        dutyId: selectedDuty.id,
+        assignedTo: selectedUserId,
+      });
+    }
+  };
+
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-md max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>{groupName} Duties</DialogTitle>
-            <DialogDescription>
-              Manage duties for this match
-            </DialogDescription>
-          </DialogHeader>
+      <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
+        <ResponsiveDialogContent className="sm:max-w-md">
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>
+              {view === "assign" && selectedDuty
+                ? `Assign: ${selectedDuty.name}`
+                : `${groupName} — Duties`}
+            </ResponsiveDialogTitle>
+          </ResponsiveDialogHeader>
 
-          <div className="flex-1 overflow-y-auto py-2">
-            {dutiesLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : duties?.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-sm text-muted-foreground mb-4">No duties assigned yet</p>
-                <Button variant="outline" onClick={() => setIsDutySheetOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add First Duty
-                </Button>
+          <div className="flex-1 overflow-y-auto max-h-[60vh]">
+            {view === "list" ? (
+              /* ── DUTY LIST VIEW ── */
+              <div className="px-1">
+                {dutiesLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : duties?.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-muted-foreground mb-4">No duties yet</p>
+                    <Button variant="outline" onClick={() => setIsDutySheetOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add First Duty
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2 py-2 px-2">
+                    {duties?.map((duty) => (
+                      <div
+                        key={duty.id}
+                        className="flex items-center justify-between p-3 bg-muted/50 rounded-xl"
+                      >
+                        <button
+                          type="button"
+                          className="flex items-center gap-3 flex-1 text-left touch-manipulation"
+                          onClick={() => openAssignView(duty)}
+                        >
+                          <div className={cn(
+                            "w-2.5 h-2.5 rounded-full shrink-0",
+                            duty.status === "completed" ? "bg-green-500" :
+                            duty.status === "confirmed" ? "bg-primary" : "bg-muted-foreground"
+                          )} />
+                          <div>
+                            <p className="font-medium text-sm">{duty.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {duty.assignee?.display_name || "Tap to assign"}
+                            </p>
+                          </div>
+                        </button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive shrink-0"
+                          onClick={() => deleteDutyMutation.mutate(duty.id)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="space-y-2">
-                {duties?.map((duty) => (
-                  <div 
-                    key={duty.id} 
-                    className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${
-                        duty.status === "completed" ? "bg-green-500" :
-                        duty.status === "confirmed" ? "bg-primary" : "bg-muted-foreground"
-                      }`} />
-                      <div>
-                        <p className="font-medium text-sm">{duty.name}</p>
-                        {duty.assignee?.display_name && (
-                          <p className="text-xs text-muted-foreground">
-                            {duty.assignee.display_name}
-                          </p>
-                        )}
-                      </div>
+              /* ── ASSIGN VIEW (inline, no extra sheet) ── */
+              <div className="space-y-3 py-2 px-3">
+                {/* Unassigned option */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserId(null)}
+                  className={cn(
+                    "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left",
+                    "touch-manipulation",
+                    selectedUserId === null
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-card hover:border-primary/50"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "h-10 w-10 rounded-full flex items-center justify-center",
+                      selectedUserId === null ? "bg-primary text-primary-foreground" : "bg-muted"
+                    )}>
+                      <User className="h-4 w-4" />
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => {
-                          setSelectedDuty(duty);
-                          setAssignDutyOpen(true);
-                        }}
-                      >
-                        <UserPlus className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive"
-                        onClick={() => deleteDutyMutation.mutate(duty.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                    <div>
+                      <p className={cn("font-medium text-sm", selectedUserId === null && "text-primary")}>
+                        Unassigned
+                      </p>
+                      <p className="text-xs text-muted-foreground">Leave duty open</p>
                     </div>
                   </div>
-                ))}
+                  {selectedUserId === null && <Check className="h-5 w-5 text-primary" />}
+                </button>
+
+                {(leagueMembers || []).map((member) => {
+                  const isSelected = selectedUserId === member.id;
+                  return (
+                    <button
+                      key={member.id}
+                      type="button"
+                      onClick={() => setSelectedUserId(member.id)}
+                      className={cn(
+                        "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left",
+                        "touch-manipulation",
+                        isSelected
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-card hover:border-primary/50"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar className={cn(
+                          "h-10 w-10 border-2",
+                          isSelected ? "border-primary" : "border-transparent"
+                        )}>
+                          <AvatarImage src={member.avatar_url || undefined} />
+                          <AvatarFallback className="text-sm bg-muted">
+                            {member.display_name?.charAt(0)?.toUpperCase() || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <p className={cn("font-medium text-sm", isSelected && "text-primary")}>
+                          {member.display_name || "Unknown"}
+                        </p>
+                      </div>
+                      {isSelected && <Check className="h-5 w-5 text-primary" />}
+                    </button>
+                  );
+                })}
+
+                {(leagueMembers || []).length === 0 && (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <p className="text-sm">No members available</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {(duties?.length ?? 0) > 0 && (
-            <div className="pt-2 border-t">
-              <Button 
-                variant="outline" 
-                className="w-full"
-                onClick={() => setIsDutySheetOpen(true)}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Duty
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          <ResponsiveDialogFooter className="gap-2 sm:gap-0">
+            {view === "list" ? (
+              <>
+                <Button variant="outline" onClick={() => handleOpenChange(false)} className="flex-1 sm:flex-none">
+                  Close
+                </Button>
+                {(duties?.length ?? 0) > 0 && (
+                  <Button onClick={() => setIsDutySheetOpen(true)} className="flex-1 sm:flex-none">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Duty
+                  </Button>
+                )}
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => { setView("list"); setSelectedDuty(null); }} className="flex-1 sm:flex-none">
+                  Back
+                </Button>
+                <Button
+                  onClick={handleAssign}
+                  disabled={assignDutyMutation.isPending}
+                  className="flex-1 sm:flex-none"
+                >
+                  {assignDutyMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  Save
+                </Button>
+              </>
+            )}
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* Add Duty Sheet */}
       <AddDutySheet
@@ -249,33 +378,6 @@ export function MatchDutiesDialog({
         isMiniLeague={true}
         context="match"
       />
-
-      {/* Assign Duty Sheet */}
-      {selectedDuty && (
-        <AssignDutySheet
-          open={assignDutyOpen}
-          onOpenChange={(open) => {
-            setAssignDutyOpen(open);
-            if (!open) setSelectedDuty(null);
-          }}
-          dutyName={selectedDuty.name}
-          currentAssignee={selectedDuty.assigned_to}
-          members={(leagueMembers || []).map(m => ({
-            id: m.id,
-            display_name: m.display_name,
-            avatar_url: m.avatar_url,
-          }))}
-          onAssign={(userId) => {
-            assignDutyMutation.mutate({
-              dutyId: selectedDuty.id,
-              assignedTo: userId,
-            });
-            setAssignDutyOpen(false);
-            setSelectedDuty(null);
-          }}
-          isPending={assignDutyMutation.isPending}
-        />
-      )}
     </>
   );
 }

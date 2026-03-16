@@ -1039,8 +1039,8 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
             <RecurringEventActionDialog
               open={deleteDialogOpen}
               onOpenChange={setDeleteDialogOpen}
-              title={`Delete ${getEventTypeLabel(event.type)}?`}
-              description={`This will permanently delete the ${getEventTypeLabel(event.type).toLowerCase()}(s). This action cannot be undone.`}
+              title={`Delete ${getEventTypeLabel(event.type, { miniLeagueId: event.mini_league_id })}?`}
+              description={`This will permanently delete the ${getEventTypeLabel(event.type, { miniLeagueId: event.mini_league_id }).toLowerCase()}(s). This action cannot be undone.`}
               actionLabel="Delete"
               actionVariant="destructive"
               onSingleAction={() => deleteEventMutation.mutate('single')}
@@ -1051,9 +1051,9 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Delete {getEventTypeLabel(event.type)}?</AlertDialogTitle>
+                  <AlertDialogTitle>Delete {getEventTypeLabel(event.type, { miniLeagueId: event.mini_league_id })}?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will permanently delete this {getEventTypeLabel(event.type).toLowerCase()}. This action cannot be undone.
+                    This will permanently delete this {getEventTypeLabel(event.type, { miniLeagueId: event.mini_league_id }).toLowerCase()}. This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

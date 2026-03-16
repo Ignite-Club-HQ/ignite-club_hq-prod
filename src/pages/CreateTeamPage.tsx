@@ -515,7 +515,7 @@ export default function CreateTeamPage() {
               </Label>
               <Textarea
                 id="description"
-                placeholder="Tell members about this team..."
+                placeholder={club?.class_mode_enabled ? "Describe this class, what students will learn..." : "Tell members about this team..."}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={500}
@@ -577,7 +577,7 @@ export default function CreateTeamPage() {
             </div>
 
             {/* Folder Selection */}
-            {folders.length > 0 && (
+            {folders.length > 0 && !club?.class_mode_enabled && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium flex items-center gap-2">
                   <FolderOpen className="h-4 w-4 text-muted-foreground" />

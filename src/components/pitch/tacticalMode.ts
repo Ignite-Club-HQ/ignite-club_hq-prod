@@ -35,6 +35,7 @@ export const computeTacticalOffsets = (
   players: Player[],
   mode: TacticalMode,
   teamSize: TeamSize,
+  isMiniLeague: boolean = false,
 ): Map<string, TacticalOffset> => {
   const result = new Map<string, TacticalOffset>();
   const onPitch = players.filter(p => p.position !== null);
@@ -264,14 +265,33 @@ export const computeTacticalOffsets = (
       }
     }
 
+    // Scale offsets for mini-league half-pitch mode
+    if (isMiniLeague && (dx !== 0 || dy !== 0)) {
+      const HALF_SCALE = 0.45;
+      dy *= HALF_SCALE;
+      // Team B is vertically mirrored: "deeper" = lower y, so invert dy
+      if (p.teamSide === "b") dy = -dy;
+    }
+
     if (dx !== 0 || dy !== 0) {
       const baseY = p.position!.y;
-      // Clamp so players never go above y=20% (under timer/score overlays) or below y=84%
-      const finalY = baseY + dy;
-      if (finalY < 20) dy = 20 - baseY;
-      if (finalY > 84) dy = 84 - baseY;
 
-      if (mode === "defend" && pos === "DEF" && projectedGoalkeeperY !== null) {
+      // Determine Y bounds based on mini-league team side
+      let minY = 20, maxY = 84;
+      if (isMiniLeague) {
+        if (p.teamSide === "a") {
+          minY = 52; maxY = 93;
+        } else if (p.teamSide === "b") {
+          minY = 7; maxY = 48;
+        }
+      }
+
+      // Clamp so players stay within their pitch area
+      const finalY = baseY + dy;
+      if (finalY < minY) dy = minY - baseY;
+      if (finalY > maxY) dy = maxY - baseY;
+
+      if (mode === "defend" && pos === "DEF" && projectedGoalkeeperY !== null && !isMiniLeague) {
         const maxDefenderY = projectedGoalkeeperY - MIN_DEFENDER_GK_GAP;
         const adjustedY = baseY + dy;
         if (adjustedY > maxDefenderY) {
@@ -279,7 +299,7 @@ export const computeTacticalOffsets = (
         }
       }
 
-      if (mode === "attack" && pos === "MID" && projectedDeepestForwardY !== null) {
+      if (mode === "attack" && pos === "MID" && projectedDeepestForwardY !== null && !isMiniLeague) {
         const minMidY = Math.min(projectedDeepestForwardY + MIN_MID_FORWARD_GAP, 84);
         const adjustedY = baseY + dy;
         if (adjustedY < minMidY) {

@@ -1,7 +1,8 @@
-import { useState, lazy, Suspense } from "react";
+import { useState, lazy, Suspense, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Users, PlayCircle, Wand2, Loader2, X, ClipboardList, Copy, Shirt, RefreshCw, Flame } from "lucide-react";
+import { Plus, Users, PlayCircle, Wand2, Loader2, X, Copy, Shirt, RefreshCw, Flame, MoreHorizontal, ChevronDown, ArrowRightLeft } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,9 +25,30 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { MatchDutiesDialog } from "@/components/MatchDutiesDialog";
+import { QuickSetupDutyDialog } from "@/components/QuickSetupDutyDialog";
+import { ManualMatchDialog } from "@/components/ManualMatchDialog";
 
 // Lazy load PitchBoard for performance
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
@@ -37,7 +59,6 @@ const DEFAULT_BIB_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316
 // Get a pair of contrasting colors for a match from available colors
 const getMatchColors = (index: number, availableColors: string[]): { teamA: string; teamB: string } => {
   const colors = availableColors.length >= 2 ? availableColors : DEFAULT_BIB_COLORS;
-  // Pick two different colors for each match, cycling through available colors
   const colorIndex = (index * 2) % colors.length;
   const teamAColor = colors[colorIndex];
   const teamBColor = colors[(colorIndex + 1) % colors.length];
@@ -57,17 +78,6 @@ interface MiniLeaguePlayer {
   ability_rating: number;
   parent_user_id: string | null;
 }
-
-const getAbilityLabel = (rating: number): string => {
-  switch (rating) {
-    case 1: return "Beginner";
-    case 2: return "Developing";
-    case 3: return "Intermediate";
-    case 4: return "Advanced";
-    case 5: return "Expert";
-    default: return "Unknown";
-  }
-};
 
 interface GroupPlayer {
   id: string;
@@ -92,14 +102,16 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isAutoGenOpen, setIsAutoGenOpen] = useState(false);
   const [isCopyPreviousOpen, setIsCopyPreviousOpen] = useState(false);
-  const [newGroupName, setNewGroupName] = useState("");
-  const [newPitchName, setNewPitchName] = useState("");
   const [numGroups, setNumGroups] = useState(2);
   const [playersPerTeam, setPlayersPerTeam] = useState(6);
-  const [useAutoMode, setUseAutoMode] = useState(true);
   const [abilityMode, setAbilityMode] = useState<"similar" | "mixed">("similar");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedPreviousEventId, setSelectedPreviousEventId] = useState<string | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isQuickSetupOpen, setIsQuickSetupOpen] = useState(false);
+  
+  // Tap-to-swap state
+  const [swapSource, setSwapSource] = useState<{ groupId: string; playerId: string; team: "a" | "b" | null } | null>(null);
   
   // State for direct pitch board and duties opening
   const [activePitchBoardGroup, setActivePitchBoardGroup] = useState<EventGroup | null>(null);
@@ -116,7 +128,6 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         .order("display_order");
       if (error) throw error;
 
-      // Fetch players for each group with team assignment
       const groupsWithPlayers: EventGroup[] = [];
       for (const group of groupsData || []) {
         const { data: playerLinks } = await supabase
@@ -150,7 +161,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       return groupsWithPlayers;
     },
     enabled: !!eventId,
-    staleTime: 0, // Always consider stale
+    staleTime: 0,
     refetchOnMount: "always",
   });
 
@@ -169,7 +180,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     enabled: !!miniLeagueId,
   });
 
-  // Fetch mini league players for auto-generation
+  // Fetch mini league players
   const { data: allPlayers } = useQuery({
     queryKey: ["mini-league-players", miniLeagueId],
     queryFn: async () => {
@@ -184,7 +195,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     enabled: !!miniLeagueId,
   });
 
-  // Fetch RSVPs for this event to determine who is attending
+  // Fetch RSVPs
   const { data: eventRsvps, refetch: refetchRsvps } = useQuery({
     queryKey: ["event-rsvps-going", eventId],
     queryFn: async () => {
@@ -197,44 +208,85 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       return data as { user_id: string | null; child_id: string | null; mini_league_player_id: string | null }[];
     },
     enabled: !!eventId,
-    staleTime: 0, // Always consider stale to get fresh data
-    refetchOnMount: "always", // Always refetch when component mounts
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
-  // Map RSVPs to mini league players - now includes direct mini_league_player_id matching
+  // Fetch all duties for all groups in this event (for inline badges)
+  const { data: allGroupDuties } = useQuery({
+    queryKey: ["event-all-group-duties", eventId],
+    queryFn: async () => {
+      if (!groups || groups.length === 0) return {};
+      const groupIds = groups.map(g => g.id);
+      const { data, error } = await supabase
+        .from("event_group_duties")
+        .select("*, assignee:profiles!event_group_duties_assigned_to_fkey(display_name)")
+        .in("group_id", groupIds)
+        .order("created_at");
+      if (error) throw error;
+      // Group by group_id
+      const map: Record<string, typeof data> = {};
+      for (const d of data || []) {
+        if (!map[d.group_id]) map[d.group_id] = [];
+        map[d.group_id].push(d);
+      }
+      return map;
+    },
+    enabled: !!eventId && !!groups && groups.length > 0,
+  });
+
+  // State for quick-assign (clicking a duty badge)
+  const [quickAssignDutyId, setQuickAssignDutyId] = useState<string | null>(null);
+
+  // Map RSVPs to mini league players
   const rsvpPlayerIds = new Set<string>();
   if (eventRsvps && allPlayers) {
     eventRsvps.forEach(rsvp => {
-      // Direct mini league player RSVP (standalone players)
       if (rsvp.mini_league_player_id) {
         rsvpPlayerIds.add(rsvp.mini_league_player_id);
       }
     });
     
-    // Also check via child_id or parent_user_id for linked players
     allPlayers.forEach(player => {
-      // Check if player's child_id matches an RSVP child_id
       if (player.child_id) {
         const hasChildRsvp = eventRsvps.some(r => r.child_id === player.child_id);
-        if (hasChildRsvp) {
-          rsvpPlayerIds.add(player.id);
-        }
+        if (hasChildRsvp) rsvpPlayerIds.add(player.id);
       }
-      // Also check if player's parent has RSVP'd (for players without child_id)
       if (player.parent_user_id) {
         const hasParentRsvp = eventRsvps.some(r => r.user_id === player.parent_user_id && !r.child_id);
-        if (hasParentRsvp) {
-          rsvpPlayerIds.add(player.id);
-        }
+        if (hasParentRsvp) rsvpPlayerIds.add(player.id);
       }
     });
   }
 
-  // Players who RSVP'd going - now the primary source for available players
-  const rsvpGoingPlayers = allPlayers?.filter(p => rsvpPlayerIds.has(p.id)) || [];
+  const availablePlayers = allPlayers?.filter(p => rsvpPlayerIds.has(p.id)) || [];
 
-  // Available players = those who RSVP'd going (no longer relies on playerOverrides)
-  const availablePlayers = rsvpGoingPlayers;
+  // Get unique parent IDs from available players for duty assignment
+  const parentUserIds = [...new Set(
+    availablePlayers
+      .map(p => p.parent_user_id)
+      .filter((id): id is string => !!id)
+  )];
+
+  // Fetch parent profiles for duty assignment
+  const { data: parentProfiles } = useQuery({
+    queryKey: ["parent-profiles-for-duties", parentUserIds.join(",")],
+    queryFn: async () => {
+      if (parentUserIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", parentUserIds);
+      if (error) throw error;
+      return (data || []).map(p => ({
+        id: p.id,
+        display_name: p.display_name || "Unknown",
+        avatar_url: p.avatar_url,
+      }));
+    },
+    enabled: parentUserIds.length > 0,
+  });
+
 
   // Fetch previous events for copy
   const { data: previousEvents } = useQuery({
@@ -253,257 +305,345 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     enabled: !!miniLeagueId && isCopyPreviousOpen,
   });
 
-  // Create group mutation
+  // Smart duty distribution: assign event-level duties to matches, preferring parents whose kids are in each match
+  const distributeEventDutiesToMatches = useCallback(async (matchIds: string[], matchPlayerIds: string[][]) => {
+    // Fetch event-level duties
+    const { data: eventDuties } = await supabase
+      .from("duties")
+      .select("id, name, assigned_to")
+      .eq("event_id", eventId);
+    
+    if (!eventDuties || eventDuties.length === 0) return;
+
+    // Build a map: player_id -> parent_user_id
+    const playerParentMap = new Map<string, string>();
+    if (allPlayers) {
+      for (const p of allPlayers) {
+        if (p.parent_user_id) playerParentMap.set(p.id, p.parent_user_id);
+      }
+    }
+
+    // For each match, find which parents have kids playing
+    const matchParentIds: string[][] = matchPlayerIds.map(playerIds => {
+      const parents = new Set<string>();
+      for (const pid of playerIds) {
+        const parentId = playerParentMap.get(pid);
+        if (parentId) parents.add(parentId);
+      }
+      return [...parents];
+    });
+
+    // Track how many duties each parent has been assigned (for fair rotation)
+    const parentDutyCount = new Map<string, number>();
+
+    // For each duty, create an event_group_duty in every match
+    const dutyInserts: { group_id: string; name: string; assigned_to: string | null; status: string }[] = [];
+
+    for (const duty of eventDuties) {
+      for (let matchIdx = 0; matchIdx < matchIds.length; matchIdx++) {
+        let assignedTo: string | null = null;
+
+        if (duty.assigned_to) {
+          // If the event-level duty is pre-assigned, check if that parent has a kid in this match
+          const parentInMatch = matchParentIds[matchIdx].includes(duty.assigned_to);
+          if (parentInMatch) {
+            assignedTo = duty.assigned_to;
+          }
+        }
+
+        // If not pre-assigned or parent not in this match, pick the least-burdened parent from this match
+        if (!assignedTo && matchParentIds[matchIdx].length > 0) {
+          const candidates = matchParentIds[matchIdx]
+            .map(pid => ({ id: pid, count: parentDutyCount.get(pid) || 0 }))
+            .sort((a, b) => a.count - b.count);
+          assignedTo = candidates[0].id;
+        }
+
+        if (assignedTo) {
+          parentDutyCount.set(assignedTo, (parentDutyCount.get(assignedTo) || 0) + 1);
+        }
+
+        dutyInserts.push({
+          group_id: matchIds[matchIdx],
+          name: duty.name,
+          assigned_to: assignedTo,
+          status: assignedTo ? "confirmed" : "pending",
+        });
+      }
+    }
+
+    if (dutyInserts.length > 0) {
+      await supabase.from("event_group_duties").insert(dutyInserts);
+    }
+  }, [eventId, allPlayers]);
+
+  // Auto-generate matches (core logic)
+  const runAutoGenerate = useCallback(async (abilityModeOverride?: "similar" | "mixed") => {
+    const effectiveAbilityMode = abilityModeOverride || abilityMode;
+    if (!availablePlayers || availablePlayers.length === 0) {
+      throw new Error("No available players for this session");
+    }
+
+    const minPlayersPerSide = miniLeague?.min_players_per_side || 2;
+    const minPlayersPerMatch = minPlayersPerSide * 2;
+
+    if (availablePlayers.length < minPlayersPerMatch) {
+      throw new Error(`Need at least ${minPlayersPerMatch} players (${minPlayersPerSide}v${minPlayersPerSide}) to create a match`);
+    }
+
+    const effectivePlayersPerTeam = showAdvanced ? playersPerTeam : (miniLeague?.team_size || 6);
+    const playersPerMatch = effectivePlayersPerTeam * 2;
+    
+    const maxMatchesForMinPlayers = Math.floor(availablePlayers.length / minPlayersPerMatch);
+    let effectiveNumMatches = showAdvanced 
+      ? numGroups
+      : Math.ceil(availablePlayers.length / playersPerMatch);
+    
+    effectiveNumMatches = Math.min(effectiveNumMatches, maxMatchesForMinPlayers);
+
+    if (effectiveNumMatches < 1) {
+      throw new Error(`Need at least ${minPlayersPerMatch} players (${minPlayersPerSide}v${minPlayersPerSide}) to create a match`);
+    }
+
+    const sortedPlayers = [...availablePlayers];
+    const leagueColors = miniLeague?.bib_colors || DEFAULT_BIB_COLORS;
+    const matchNames = ["Match 1", "Match 2", "Match 3", "Match 4", "Match 5", "Match 6", "Match 7", "Match 8"];
+    
+    const matchIds: string[] = [];
+    for (let i = 0; i < effectiveNumMatches; i++) {
+      const colors = getMatchColors(i, leagueColors);
+      const abilityBand = effectiveAbilityMode === "similar" 
+        ? (["High", "Medium", "Low"][Math.floor(i / Math.ceil(effectiveNumMatches / 3))] || null)
+        : null;
+      
+      const { data, error } = await supabase
+        .from("event_groups")
+        .insert({
+          event_id: eventId,
+          name: matchNames[i] || `Match ${i + 1}`,
+          ability_band: abilityBand,
+          pitch_name: `Pitch ${i + 1}`,
+          display_order: i + 1,
+          team_a_color: colors.teamA,
+          team_b_color: colors.teamB,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      matchIds.push(data.id);
+    }
+
+    // Calculate target sizes
+    const totalPlayerCount = sortedPlayers.length;
+    const matchTargetSizes: number[] = [];
+    let remaining = totalPlayerCount;
+    
+    for (let i = 0; i < effectiveNumMatches; i++) {
+      const matchesLeft = effectiveNumMatches - i;
+      const avgRemaining = remaining / matchesLeft;
+      let target = Math.min(playersPerMatch, Math.floor(avgRemaining));
+      if (target % 2 !== 0) target = target - 1;
+      if (target < minPlayersPerMatch && remaining >= minPlayersPerMatch) target = minPlayersPerMatch;
+      if (i === effectiveNumMatches - 1) target = remaining;
+      matchTargetSizes.push(target);
+      remaining -= target;
+    }
+    
+    // Distribute players
+    const matchPlayers: { playerId: string; team: "a" | "b" }[][] = Array(effectiveNumMatches).fill(null).map(() => []);
+    
+    if (effectiveAbilityMode === "similar") {
+      let playerIdx = 0;
+      for (let matchIdx = 0; matchIdx < effectiveNumMatches && playerIdx < sortedPlayers.length; matchIdx++) {
+        const targetSize = matchTargetSizes[matchIdx];
+        for (let j = 0; j < targetSize && playerIdx < sortedPlayers.length; j++) {
+          matchPlayers[matchIdx].push({ playerId: sortedPlayers[playerIdx].id, team: "a" });
+          playerIdx++;
+        }
+      }
+    } else {
+      let forward = true;
+      let matchIndex = 0;
+      
+      sortedPlayers.forEach((player) => {
+        let attempts = 0;
+        while (matchPlayers[matchIndex].length >= matchTargetSizes[matchIndex] && attempts < effectiveNumMatches * 2) {
+          if (forward) {
+            matchIndex++;
+            if (matchIndex >= effectiveNumMatches) { matchIndex = effectiveNumMatches - 1; forward = false; }
+          } else {
+            matchIndex--;
+            if (matchIndex < 0) { matchIndex = 0; forward = true; }
+          }
+          attempts++;
+        }
+        
+        if (matchPlayers[matchIndex].length < matchTargetSizes[matchIndex]) {
+          matchPlayers[matchIndex].push({ playerId: player.id, team: "a" });
+        } else {
+          for (let i = 0; i < effectiveNumMatches; i++) {
+            if (matchPlayers[i].length < matchTargetSizes[i]) {
+              matchPlayers[i].push({ playerId: player.id, team: "a" });
+              break;
+            }
+          }
+        }
+        
+        if (forward) {
+          matchIndex++;
+          if (matchIndex >= effectiveNumMatches) { matchIndex = effectiveNumMatches - 1; forward = false; }
+        } else {
+          matchIndex--;
+          if (matchIndex < 0) { matchIndex = 0; forward = true; }
+        }
+      });
+    }
+    
+    // Balance teams within each match
+    matchPlayers.forEach((players) => {
+      const teamASize = Math.floor(players.length / 2);
+      players.forEach((p, idx) => { p.team = idx < teamASize ? "a" : "b"; });
+    });
+
+    // Insert player assignments
+    for (let i = 0; i < effectiveNumMatches; i++) {
+      if (matchPlayers[i].length > 0) {
+        const assignments = matchPlayers[i].map(p => ({
+          group_id: matchIds[i],
+          player_id: p.playerId,
+          team: p.team,
+        }));
+        await supabase.from("event_group_players").insert(assignments);
+      }
+    }
+
+    // Auto-distribute event-level duties to matches
+    await distributeEventDutiesToMatches(matchIds, matchPlayers.map(mp => mp.map(p => p.playerId)));
+
+    return { numCreated: effectiveNumMatches, matchIds, matchPlayerIds: matchPlayers.map(mp => mp.map(p => p.playerId)) };
+  }, [availablePlayers, miniLeague, showAdvanced, playersPerTeam, numGroups, abilityMode, eventId]);
+
+  // Create group mutation - with player assignments
   const createGroupMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (data: { name: string; pitchName: string; teamAPlayerIds: string[]; teamBPlayerIds: string[] }) => {
       const leagueColors = miniLeague?.bib_colors || DEFAULT_BIB_COLORS;
       const colors = getMatchColors(groups?.length || 0, leagueColors);
-      const { error } = await supabase.from("event_groups").insert({
+      const { data: newGroup, error } = await supabase.from("event_groups").insert({
         event_id: eventId,
-        name: newGroupName.trim(),
-        pitch_name: newPitchName.trim() || null,
+        name: data.name,
+        pitch_name: data.pitchName || null,
         display_order: (groups?.length || 0) + 1,
         team_a_color: colors.teamA,
         team_b_color: colors.teamB,
-      });
+      }).select().single();
       if (error) throw error;
+
+      // Insert player assignments
+      const playerInserts = [
+        ...data.teamAPlayerIds.map(pid => ({ group_id: newGroup.id, player_id: pid, team: "a" as const })),
+        ...data.teamBPlayerIds.map(pid => ({ group_id: newGroup.id, player_id: pid, team: "b" as const })),
+      ];
+      if (playerInserts.length > 0) {
+        const { error: playerError } = await supabase.from("event_group_players").insert(playerInserts);
+        if (playerError) throw playerError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       setIsCreateOpen(false);
-      setNewGroupName("");
-      setNewPitchName("");
       toast.success("Match created");
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  // Auto-generate groups mutation (now creates matches with 2 teams each)
+  // Auto-generate mutation
   const autoGenMutation = useMutation({
-    mutationFn: async () => {
-      if (!availablePlayers || availablePlayers.length === 0) {
-        throw new Error("No available players for this session");
-      }
-
-      // Get min players per side from league settings (default 2)
-      const minPlayersPerSide = miniLeague?.min_players_per_side || 2;
-      const minPlayersPerMatch = minPlayersPerSide * 2;
-
-      // Validate we have enough players for at least one match
-      if (availablePlayers.length < minPlayersPerMatch) {
-        throw new Error(`Need at least ${minPlayersPerMatch} players (${minPlayersPerSide}v${minPlayersPerSide}) to create a match`);
-      }
-
-      // Calculate number of groups based on mode
-      // For matches: each match has 2 teams, so total players per match = playersPerTeam * 2
-      const effectivePlayersPerTeam = useAutoMode && miniLeague?.team_size 
-        ? miniLeague.team_size 
-        : playersPerTeam;
-      const playersPerMatch = effectivePlayersPerTeam * 2;
-      
-      // Calculate max possible matches ensuring each has at least minPlayersPerMatch
-      const maxMatchesForMinPlayers = Math.floor(availablePlayers.length / minPlayersPerMatch);
-      let effectiveNumMatches = useAutoMode 
-        ? Math.ceil(availablePlayers.length / playersPerMatch)
-        : numGroups;
-      
-      // Ensure we don't create more matches than we can fill with minimum players
-      effectiveNumMatches = Math.min(effectiveNumMatches, maxMatchesForMinPlayers);
-
-      if (effectiveNumMatches < 1) {
-        throw new Error(`Need at least ${minPlayersPerMatch} players (${minPlayersPerSide}v${minPlayersPerSide}) to create a match`);
-      }
-
-      // Sort by ability rating (already sorted desc)
-      const sortedPlayers = [...availablePlayers];
-      
-      // Create matches with balanced ability using league's bib colors
-      const leagueColors = miniLeague?.bib_colors || DEFAULT_BIB_COLORS;
-      const matchNames = ["Match 1", "Match 2", "Match 3", "Match 4", "Match 5", "Match 6", "Match 7", "Match 8"];
-      
-      // Create the matches first
-      const matchIds: string[] = [];
-      for (let i = 0; i < effectiveNumMatches; i++) {
-        const colors = getMatchColors(i, leagueColors);
-        // For similar ability mode, assign ability bands; for mixed, leave null
-        const abilityBand = abilityMode === "similar" 
-          ? (["High", "Medium", "Low"][Math.floor(i / Math.ceil(effectiveNumMatches / 3))] || null)
-          : null;
-        
-        const { data, error } = await supabase
-          .from("event_groups")
-          .insert({
-            event_id: eventId,
-            name: matchNames[i] || `Match ${i + 1}`,
-            ability_band: abilityBand,
-            pitch_name: `Pitch ${i + 1}`,
-            display_order: i + 1,
-            team_a_color: colors.teamA,
-            team_b_color: colors.teamB,
-          })
-          .select()
-          .single();
-        if (error) throw error;
-        matchIds.push(data.id);
-      }
-
-      // Calculate target sizes for each match - ensure even player counts per match
-      // This guarantees equal team sizes within each match
-      // Also enforce minimum players per match
-      const totalPlayerCount = sortedPlayers.length;
-      const matchTargetSizes: number[] = [];
-      
-      // Start with base even count per match
-      const basePerMatch = Math.floor(totalPlayerCount / effectiveNumMatches);
-      const baseEven = basePerMatch % 2 === 0 ? basePerMatch : basePerMatch - 1;
-      let remaining = totalPlayerCount;
-      
-      for (let i = 0; i < effectiveNumMatches; i++) {
-        // Calculate how many players this match should get
-        // Prioritize filling matches to max capacity (even number) first
-        const matchesLeft = effectiveNumMatches - i;
-        const avgRemaining = remaining / matchesLeft;
-        
-        // Target: closest even number not exceeding playersPerMatch
-        let target = Math.min(playersPerMatch, Math.floor(avgRemaining));
-        // Make it even (round down)
-        if (target % 2 !== 0) target = target - 1;
-        // Ensure at least minPlayersPerMatch (e.g., 6 for 3v3)
-        if (target < minPlayersPerMatch && remaining >= minPlayersPerMatch) {
-          target = minPlayersPerMatch;
-        }
-        // If this is the last match, take whatever is left
-        if (i === effectiveNumMatches - 1) target = remaining;
-        
-        matchTargetSizes.push(target);
-        remaining -= target;
-      }
-      
-      // Validate all matches meet minimum - redistribute if needed
-      // If any match would have fewer than minPlayersPerMatch players, reduce match count
-      const validTargets = matchTargetSizes.filter(size => size >= minPlayersPerMatch || size === 0);
-      if (validTargets.length < effectiveNumMatches) {
-        // Some matches don't have enough players - we should have caught this earlier
-        // but as a safety check, throw an error
-        throw new Error(`Cannot create ${effectiveNumMatches} matches with minimum ${minPlayersPerSide}v${minPlayersPerSide}. Try fewer matches.`);
-      }
-      
-      // If total players is odd, only one match will have odd count (last match)
-      // Redistribute to ensure most matches are balanced
-      // Sort targets so larger matches come first (helps with snake draft)
-      const sortedTargetIndices = matchTargetSizes
-        .map((size, idx) => ({ size, idx }))
-        .sort((a, b) => b.size - a.size)
-        .map(item => item.idx);
-      
-      // Distribute players across matches based on ability mode
-      const matchPlayers: { playerId: string; team: "a" | "b" }[][] = Array(effectiveNumMatches).fill(null).map(() => []);
-      
-      if (abilityMode === "similar") {
-        // Similar ability mode: consecutive players (by rating) go to same match
-        // Players are already sorted by ability desc
-        let playerIdx = 0;
-        for (let matchIdx = 0; matchIdx < effectiveNumMatches && playerIdx < sortedPlayers.length; matchIdx++) {
-          const targetSize = matchTargetSizes[matchIdx];
-          for (let j = 0; j < targetSize && playerIdx < sortedPlayers.length; j++) {
-            matchPlayers[matchIdx].push({ playerId: sortedPlayers[playerIdx].id, team: "a" });
-            playerIdx++;
-          }
-        }
-      } else {
-        // Mixed ability mode: snake draft across matches for even ability distribution
-        // But respect the target sizes to ensure even player counts per match
-        let forward = true;
-        let matchIndex = 0;
-        
-        sortedPlayers.forEach((player) => {
-          // Find next match that has room (under its target size)
-          let attempts = 0;
-          while (matchPlayers[matchIndex].length >= matchTargetSizes[matchIndex] && attempts < effectiveNumMatches * 2) {
-            if (forward) {
-              matchIndex++;
-              if (matchIndex >= effectiveNumMatches) {
-                matchIndex = effectiveNumMatches - 1;
-                forward = false;
-              }
-            } else {
-              matchIndex--;
-              if (matchIndex < 0) {
-                matchIndex = 0;
-                forward = true;
-              }
-            }
-            attempts++;
-          }
-          
-          if (matchPlayers[matchIndex].length < matchTargetSizes[matchIndex]) {
-            matchPlayers[matchIndex].push({ playerId: player.id, team: "a" });
-          } else {
-            // Fallback: find any match with room
-            for (let i = 0; i < effectiveNumMatches; i++) {
-              if (matchPlayers[i].length < matchTargetSizes[i]) {
-                matchPlayers[i].push({ playerId: player.id, team: "a" });
-                break;
-              }
-            }
-          }
-          
-          // Move to next match in snake pattern
-          if (forward) {
-            matchIndex++;
-            if (matchIndex >= effectiveNumMatches) {
-              matchIndex = effectiveNumMatches - 1;
-              forward = false;
-            }
-          } else {
-            matchIndex--;
-            if (matchIndex < 0) {
-              matchIndex = 0;
-              forward = true;
-            }
-          }
-        });
-      }
-      
-      // Balance teams within each match - split players evenly between Team A and B
-      matchPlayers.forEach((players) => {
-        const totalPlayers = players.length;
-        // Equal split: e.g., 6 players = 3v3, 8 players = 4v4
-        // If odd (only possible when total league is odd), Team B gets extra
-        const teamASize = Math.floor(totalPlayers / 2);
-        players.forEach((p, idx) => {
-          p.team = idx < teamASize ? "a" : "b";
-        });
-      });
-
-      // Insert player assignments with team
-      for (let i = 0; i < effectiveNumMatches; i++) {
-        if (matchPlayers[i].length > 0) {
-          const assignments = matchPlayers[i].map(p => ({
-            group_id: matchIds[i],
-            player_id: p.playerId,
-            team: p.team,
-          }));
-          await supabase.from("event_group_players").insert(assignments);
-        }
-      }
-
-      return effectiveNumMatches;
-    },
-    onSuccess: (numCreated) => {
+    mutationFn: () => runAutoGenerate(),
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
       setIsAutoGenOpen(false);
-      toast.success(`${numCreated} matches created with balanced teams`);
+      toast.success(`${result.numCreated} matches created with balanced teams & duties assigned`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  // Copy from previous event mutation
+  // Quick setup - opens dialog for duty assignment, then generates matches
+  const quickSetupMutation = useMutation({
+    mutationFn: async ({ assignments: dutyAssignments, abilityMode: mode }: { assignments: Record<string, string[]>; abilityMode: "similar" | "mixed" }) => {
+      await refetchRsvps();
+      const result = await runAutoGenerate(mode);
+
+      // Create Referee and Oranges match duties for each match
+      const QUICK_SETUP_DUTIES = ["Referee", "Oranges"];
+
+      // Build parent map for smart assignment
+      const playerParentMap = new Map<string, string>();
+      if (allPlayers) {
+        for (const p of allPlayers) {
+          if (p.parent_user_id) playerParentMap.set(p.id, p.parent_user_id);
+        }
+      }
+
+      // For each match, find which parents have kids playing
+      const matchParentIds = result.matchPlayerIds.map(playerIds => {
+        const parents = new Set<string>();
+        for (const pid of playerIds) {
+          const parentId = playerParentMap.get(pid);
+          if (parentId) parents.add(parentId);
+        }
+        return [...parents];
+      });
+
+      const parentDutyCount = new Map<string, number>();
+      const dutyInserts: { group_id: string; name: string; assigned_to: string | null; status: string }[] = [];
+
+      for (const dutyName of QUICK_SETUP_DUTIES) {
+        const selectedParents = dutyAssignments[dutyName] || [];
+
+        for (let matchIdx = 0; matchIdx < result.matchIds.length; matchIdx++) {
+          if (selectedParents.length > 0) {
+            // Create one duty row per selected parent
+            for (const parentId of selectedParents) {
+              dutyInserts.push({
+                group_id: result.matchIds[matchIdx],
+                name: dutyName,
+                assigned_to: parentId,
+                status: "confirmed",
+              });
+            }
+          } else {
+            // No one selected — create unassigned duty
+            dutyInserts.push({
+              group_id: result.matchIds[matchIdx],
+              name: dutyName,
+              assigned_to: null,
+              status: "pending",
+            });
+          }
+        }
+      }
+
+      if (dutyInserts.length > 0) {
+        await supabase.from("event_group_duties").insert(dutyInserts);
+      }
+
+      return result.numCreated;
+    },
+    onSuccess: (numCreated) => {
+      queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
+      setIsQuickSetupOpen(false);
+      toast.success(`${numCreated} matches created with Referee & Oranges assigned`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  // Copy from previous mutation
   const copyFromPreviousMutation = useMutation({
     mutationFn: async () => {
       if (!selectedPreviousEventId) throw new Error("Select an event");
 
-      // Fetch groups from previous event
       const { data: prevGroups, error: groupsError } = await supabase
         .from("event_groups")
         .select("*")
@@ -511,8 +651,10 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         .order("display_order");
       if (groupsError) throw groupsError;
 
+      const newMatchIds: string[] = [];
+      const newMatchPlayerIds: string[][] = [];
+
       for (const prevGroup of prevGroups || []) {
-        // Create new group with team colors
         const { data: newGroup, error: createError } = await supabase
           .from("event_groups")
           .insert({
@@ -528,12 +670,14 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           .single();
         if (createError) throw createError;
 
-        // Copy player assignments with team
+        newMatchIds.push(newGroup.id);
+
         const { data: prevPlayers } = await supabase
           .from("event_group_players")
           .select("player_id, team")
           .eq("group_id", prevGroup.id);
 
+        const playerIds: string[] = [];
         if (prevPlayers && prevPlayers.length > 0) {
           const assignments = prevPlayers.map(p => ({
             group_id: newGroup.id,
@@ -541,14 +685,20 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
             team: p.team,
           }));
           await supabase.from("event_group_players").insert(assignments);
+          playerIds.push(...prevPlayers.map(p => p.player_id));
         }
+        newMatchPlayerIds.push(playerIds);
       }
+
+      // Auto-distribute event-level duties to copied matches
+      await distributeEventDutiesToMatches(newMatchIds, newMatchPlayerIds);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
       setIsCopyPreviousOpen(false);
       setSelectedPreviousEventId(null);
-      toast.success("Matches copied from previous event");
+      toast.success("Matches copied with duties assigned");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -566,7 +716,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     onError: (error: Error) => toast.error(error.message),
   });
 
-  // Delete all groups mutation (for regeneration)
+  // Delete all groups mutation
   const deleteAllGroupsMutation = useMutation({
     mutationFn: async () => {
       const groupIds = groups?.map(g => g.id) || [];
@@ -580,11 +730,89 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     onError: (error: Error) => toast.error(error.message),
   });
 
+  // Move player mutation (move to a team)
+  const movePlayerMutation = useMutation({
+    mutationFn: async ({ playerId, fromGroupId, toGroupId, toTeam }: { playerId: string; fromGroupId: string; toGroupId: string; toTeam: "a" | "b" }) => {
+      if (fromGroupId === toGroupId) {
+        const { error } = await supabase
+          .from("event_group_players")
+          .update({ team: toTeam })
+          .eq("group_id", fromGroupId)
+          .eq("player_id", playerId);
+        if (error) throw error;
+      } else {
+        const { error: deleteError } = await supabase
+          .from("event_group_players")
+          .delete()
+          .eq("group_id", fromGroupId)
+          .eq("player_id", playerId);
+        if (deleteError) throw deleteError;
+        
+        const { error: insertError } = await supabase
+          .from("event_group_players")
+          .insert({ group_id: toGroupId, player_id: playerId, team: toTeam });
+        if (insertError) throw insertError;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
+      setSwapSource(null);
+      toast.success("Player moved");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+      setSwapSource(null);
+    },
+  });
+
+  // Swap two players between teams
+  const swapPlayersMutation = useMutation({
+    mutationFn: async ({ 
+      player1Id, player1GroupId, player1Team, 
+      player2Id, player2GroupId, player2Team 
+    }: { 
+      player1Id: string; player1GroupId: string; player1Team: "a" | "b"; 
+      player2Id: string; player2GroupId: string; player2Team: "a" | "b";
+    }) => {
+      if (player1GroupId === player2GroupId) {
+        // Same group: just swap teams
+        const { error: e1 } = await supabase
+          .from("event_group_players")
+          .update({ team: player2Team })
+          .eq("group_id", player1GroupId)
+          .eq("player_id", player1Id);
+        if (e1) throw e1;
+        const { error: e2 } = await supabase
+          .from("event_group_players")
+          .update({ team: player1Team })
+          .eq("group_id", player2GroupId)
+          .eq("player_id", player2Id);
+        if (e2) throw e2;
+      } else {
+        // Different groups: move each to the other's group+team
+        // Delete both
+        await supabase.from("event_group_players").delete().eq("group_id", player1GroupId).eq("player_id", player1Id);
+        await supabase.from("event_group_players").delete().eq("group_id", player2GroupId).eq("player_id", player2Id);
+        // Re-insert swapped
+        await supabase.from("event_group_players").insert({ group_id: player2GroupId, player_id: player1Id, team: player2Team });
+        await supabase.from("event_group_players").insert({ group_id: player1GroupId, player_id: player2Id, team: player1Team });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
+      setSwapSource(null);
+      toast.success("Players swapped");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+      setSwapSource(null);
+    },
+  });
+
   // Regenerate handler
   const handleRegenerate = async () => {
     setIsRegenerating(true);
     try {
-      // Refetch RSVPs to get latest data before regenerating
       await refetchRsvps();
       await deleteAllGroupsMutation.mutateAsync();
       setIsAutoGenOpen(true);
@@ -594,6 +822,53 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       setIsRegenerating(false);
     }
   };
+
+  // Resolve selected player name for UI hints
+  const swapSourcePlayerName = swapSource
+    ? groups?.flatMap(g => g.players).find(p => p.id === swapSource.playerId)?.name || "Selected player"
+    : null;
+
+  // Handle player tap for swap mode
+  const handlePlayerTap = (groupId: string, playerId: string, currentTeam: "a" | "b" | null) => {
+    if (!isAdmin) return;
+    
+    if (!swapSource) {
+      // Select source player
+      setSwapSource({ groupId, playerId, team: currentTeam });
+    } else if (swapSource.playerId === playerId && swapSource.groupId === groupId) {
+      // Deselect
+      setSwapSource(null);
+    } else if (currentTeam && swapSource.team) {
+      // Tapped a second player — swap them between teams
+      swapPlayersMutation.mutate({
+        player1Id: swapSource.playerId,
+        player1GroupId: swapSource.groupId,
+        player1Team: swapSource.team,
+        player2Id: playerId,
+        player2GroupId: groupId,
+        player2Team: currentTeam,
+      });
+    } else if (currentTeam) {
+      // Fallback: move source to this team
+      handleTeamTap(groupId, currentTeam);
+    } else {
+      setSwapSource(null);
+    }
+  };
+
+  // Handle team header tap as destination
+  const handleTeamTap = (groupId: string, team: "a" | "b") => {
+    if (!isAdmin || !swapSource) return;
+    
+    // Move source player to this team
+    movePlayerMutation.mutate({
+      playerId: swapSource.playerId,
+      fromGroupId: swapSource.groupId,
+      toGroupId: groupId,
+      toTeam: team,
+    });
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -604,45 +879,81 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     );
   }
 
+  const hasGroups = groups && groups.length > 0;
+
+  // Calculate unallocated players (available but not in any match)
+  const allocatedPlayerIds = new Set(
+    groups?.flatMap(g => g.players.map(p => p.id)) || []
+  );
+  const unallocatedPlayers = availablePlayers.filter(p => !allocatedPlayerIds.has(p.id));
+  const hasUnallocatedPlayers = unallocatedPlayers.length > 0;
+
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">Matches</h3>
-        {isAdmin && (
+        {isAdmin && hasGroups && (
           <div className="flex gap-2">
-            {groups && groups.length > 0 && (
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={handleRegenerate}
-                disabled={isRegenerating}
-              >
-                {isRegenerating ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-1" />
-                )}
-                Regenerate
+            {/* Swap mode indicator */}
+            {swapSource && (
+              <Button size="sm" variant="destructive" onClick={() => setSwapSource(null)}>
+                <X className="h-4 w-4 mr-1" />
+                Cancel
               </Button>
             )}
-            <Button size="sm" variant="outline" onClick={() => setIsCopyPreviousOpen(true)}>
-              <Copy className="h-4 w-4 mr-1" />
-              Copy
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => { refetchRsvps(); setIsAutoGenOpen(true); }}>
-              <Wand2 className="h-4 w-4 mr-1" />
-              Auto
-            </Button>
-            <Button size="sm" onClick={() => setIsCreateOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="px-2">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleRegenerate} disabled={isRegenerating}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Regenerate All
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => setIsCreateOpen(true)}
+                  disabled={!hasUnallocatedPlayers}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Match Manually
+                  {!hasUnallocatedPlayers && (
+                    <span className="ml-1 text-xs text-muted-foreground">(no players left)</span>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsCopyPreviousOpen(true)}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy from Previous
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       </div>
 
-      {groups && groups.length > 0 ? (
-        <div className="grid gap-3">
+      {hasGroups ? (
+        <div className="space-y-3">
+          {isAdmin && !swapSource && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <ArrowRightLeft className="h-3 w-3" />
+              Tap a player, then tap another to swap them · Or tap a team header to move
+            </p>
+          )}
+          {isAdmin && swapSource && (
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-sm">
+              <ArrowRightLeft className="h-4 w-4 text-primary shrink-0" />
+              <span>
+                <span className="font-semibold text-primary">{swapSourcePlayerName}</span>
+                {" selected — tap another player to "}
+                <span className="font-semibold">swap</span>
+                {" or tap a team header to "}
+                <span className="font-semibold">move</span>
+              </span>
+            </div>
+          )}
+          <div className="grid gap-3">
           {groups.map((group) => {
             const teamAPlayers = group.players.filter(p => p.team === "a");
             const teamBPlayers = group.players.filter(p => p.team === "b");
@@ -664,8 +975,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   <div className="flex items-center gap-2">
                     <CardTitle className="text-base">{group.name}</CardTitle>
                     {group.ability_band && (
-                      <Badge variant="outline" className="text-xs">
-                        {group.ability_band}
+                      <Badge variant="outline" className="text-xs gap-1">
+                        <span className="text-muted-foreground">Ability:</span> {group.ability_band}
                       </Badge>
                     )}
                   </div>
@@ -674,64 +985,84 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   )}
                 </CardHeader>
                 <CardContent className="pt-0">
-                  {/* Two Teams Display */}
+                  {/* Two Teams Display - Bold bib colors */}
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     {/* Team A */}
-                    <div className="p-2 rounded-lg border" style={{ borderColor: group.team_a_color }}>
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <Shirt className="h-4 w-4" style={{ color: group.team_a_color }} />
-                        <span className="text-xs font-medium" style={{ color: group.team_a_color }}>
+                    <div 
+                      className={`rounded-lg overflow-hidden ${swapSource && isAdmin ? "cursor-pointer ring-2 ring-primary/30 hover:ring-primary" : ""}`}
+                      onClick={() => swapSource && handleTeamTap(group.id, "a")}
+                    >
+                      <div 
+                        className="flex items-center gap-1.5 px-2.5 py-1.5"
+                        style={{ backgroundColor: group.team_a_color }}
+                      >
+                        <Shirt className="h-3.5 w-3.5 text-white" />
+                        <span className="text-xs font-bold text-white">
                           Team A
                         </span>
-                        <span className="text-xs text-muted-foreground">({teamAPlayers.length})</span>
+                        <span className="text-xs text-white/70">({teamAPlayers.length})</span>
                       </div>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="p-2 border border-t-0 rounded-b-lg space-y-0.5" style={{ borderColor: `${group.team_a_color}40` }}>
                         {teamAPlayers.map((player) => (
-                          <Badge
+                          <div
                             key={player.id}
-                            variant="secondary"
-                            className="text-xs flex items-center gap-1"
-                            style={{ backgroundColor: `${group.team_a_color}20`, borderColor: group.team_a_color }}
+                            onClick={(e) => { e.stopPropagation(); handlePlayerTap(group.id, player.id, "a"); }}
+                            className={`text-xs px-2 py-1 rounded transition-all ${
+                              isAdmin ? "cursor-pointer hover:bg-accent" : ""
+                            } ${
+                              swapSource?.playerId === player.id && swapSource?.groupId === group.id
+                                ? "bg-primary/20 ring-1 ring-primary font-medium"
+                                : ""
+                            }`}
                           >
                             {player.name}
-                            <span className="opacity-60 text-[10px]">({getAbilityLabel(player.ability_rating)})</span>
-                          </Badge>
+                          </div>
                         ))}
                         {teamAPlayers.length === 0 && (
-                          <span className="text-xs text-muted-foreground">No players</span>
+                          <span className="text-xs text-muted-foreground px-2">No players</span>
                         )}
                       </div>
                     </div>
                     
                     {/* Team B */}
-                    <div className="p-2 rounded-lg border" style={{ borderColor: group.team_b_color }}>
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <Shirt className="h-4 w-4" style={{ color: group.team_b_color }} />
-                        <span className="text-xs font-medium" style={{ color: group.team_b_color }}>
+                    <div 
+                      className={`rounded-lg overflow-hidden ${swapSource && isAdmin ? "cursor-pointer ring-2 ring-primary/30 hover:ring-primary" : ""}`}
+                      onClick={() => swapSource && handleTeamTap(group.id, "b")}
+                    >
+                      <div 
+                        className="flex items-center gap-1.5 px-2.5 py-1.5"
+                        style={{ backgroundColor: group.team_b_color }}
+                      >
+                        <Shirt className="h-3.5 w-3.5 text-white" />
+                        <span className="text-xs font-bold text-white">
                           Team B
                         </span>
-                        <span className="text-xs text-muted-foreground">({teamBPlayers.length})</span>
+                        <span className="text-xs text-white/70">({teamBPlayers.length})</span>
                       </div>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="p-2 border border-t-0 rounded-b-lg space-y-0.5" style={{ borderColor: `${group.team_b_color}40` }}>
                         {teamBPlayers.map((player) => (
-                          <Badge
+                          <div
                             key={player.id}
-                            variant="secondary"
-                            className="text-xs flex items-center gap-1"
-                            style={{ backgroundColor: `${group.team_b_color}20`, borderColor: group.team_b_color }}
+                            onClick={(e) => { e.stopPropagation(); handlePlayerTap(group.id, player.id, "b"); }}
+                            className={`text-xs px-2 py-1 rounded transition-all ${
+                              isAdmin ? "cursor-pointer hover:bg-accent" : ""
+                            } ${
+                              swapSource?.playerId === player.id && swapSource?.groupId === group.id
+                                ? "bg-primary/20 ring-1 ring-primary font-medium"
+                                : ""
+                            }`}
                           >
                             {player.name}
-                            <span className="opacity-60 text-[10px]">({getAbilityLabel(player.ability_rating)})</span>
-                          </Badge>
+                          </div>
                         ))}
                         {teamBPlayers.length === 0 && (
-                          <span className="text-xs text-muted-foreground">No players</span>
+                          <span className="text-xs text-muted-foreground px-2">No players</span>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Unassigned Players (if any) */}
+                  {/* Unassigned Players */}
                   {unassignedPlayers.length > 0 && (
                     <div className="mb-3 p-2 rounded-lg bg-muted/50">
                       <span className="text-xs text-muted-foreground">Unassigned: </span>
@@ -743,6 +1074,38 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                     </div>
                   )}
 
+                  {/* Inline Duty Badges */}
+                  {(() => {
+                    const groupDuties = allGroupDuties?.[group.id] || [];
+                    if (groupDuties.length === 0) return null;
+                    return (
+                      <div className="mb-3 flex flex-wrap gap-1.5">
+                        {groupDuties.map((duty: any) => (
+                          <button
+                            key={duty.id}
+                            type="button"
+                            onClick={() => {
+                              setQuickAssignDutyId(duty.id);
+                              setActiveDutiesGroup(group);
+                            }}
+                            className={cn(
+                              "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors touch-manipulation",
+                              duty.assigned_to
+                                ? "bg-primary/10 text-primary border border-primary/20"
+                                : "bg-muted text-muted-foreground border border-border hover:border-primary/50"
+                            )}
+                          >
+                            <span className={cn(
+                              "w-1.5 h-1.5 rounded-full shrink-0",
+                              duty.assigned_to ? "bg-primary" : "bg-muted-foreground"
+                            )} />
+                            {duty.name}{duty.assignee?.display_name ? `: ${duty.assignee.display_name}` : ""}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
                   <div className="flex gap-2">
                     <Button
                       size="sm"
@@ -753,103 +1116,99 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                       <PlayCircle className="h-4 w-4 mr-1" />
                       Pitch Board
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => setActiveDutiesGroup(group)}
-                    >
-                      <ClipboardList className="h-4 w-4 mr-1" />
-                      Duties
-                    </Button>
                   </div>
                 </CardContent>
               </Card>
             );
           })}
+          </div>
         </div>
       ) : (
-        <Card>
-          <CardContent className="py-8 text-center">
-            <Users className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">No matches yet</p>
-            {isAdmin && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Auto-generate balanced matches or create them manually
+        /* Empty State - Hero Quick Setup */
+        <Card className="border-dashed">
+          <CardContent className="py-10 text-center space-y-4">
+            <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+              <Wand2 className="h-7 w-7 text-primary" />
+            </div>
+            <div>
+              <h4 className="font-semibold text-lg">Ready to set up matches?</h4>
+              <p className="text-sm text-muted-foreground mt-1">
+                {availablePlayers.length > 0 
+                  ? `${availablePlayers.length} players available — auto-generate balanced matches in one tap`
+                  : "Mark players as attending first, then generate matches"}
               </p>
+            </div>
+            {isAdmin && (
+              <div className="space-y-2">
+                <Button 
+                  className="w-full h-12 text-base font-semibold"
+                  onClick={() => setIsQuickSetupOpen(true)}
+                  disabled={quickSetupMutation.isPending || availablePlayers.length === 0}
+                >
+                  {quickSetupMutation.isPending ? (
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  ) : (
+                    <Wand2 className="h-5 w-5 mr-2" />
+                  )}
+                  Quick Setup
+                </Button>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="shrink-0"
+                    onClick={() => { refetchRsvps(); setIsAutoGenOpen(true); }}
+                  >
+                    <Wand2 className="h-4 w-4 mr-1" />
+                    Customize
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="shrink-0"
+                    onClick={() => setIsCopyPreviousOpen(true)}
+                  >
+                    <Copy className="h-4 w-4 mr-1" />
+                    Copy Previous
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="shrink-0"
+                    onClick={() => setIsCreateOpen(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Manual
+                  </Button>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* Create Match Sheet */}
-      <Sheet open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <SheetContent side="bottom" className="h-auto">
-          <SheetHeader>
-            <SheetTitle>Create Match</SheetTitle>
-            <SheetDescription>Add a new match with two teams</SheetDescription>
-          </SheetHeader>
-          <div className="py-4 space-y-4">
-            <div className="space-y-2">
-              <Label>Match Name</Label>
-              <Input
-                placeholder="e.g. Match 1, Finals"
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Pitch Name (optional)</Label>
-              <Input
-                placeholder="e.g. Pitch 1, North Field"
-                value={newPitchName}
-                onChange={(e) => setNewPitchName(e.target.value)}
-              />
-            </div>
-          </div>
-          <SheetFooter>
-            <Button
-              className="w-full"
-              onClick={() => createGroupMutation.mutate()}
-              disabled={!newGroupName.trim() || createGroupMutation.isPending}
-            >
-              {createGroupMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create Match
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+      {/* Manual Match Dialog */}
+      <ManualMatchDialog
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        onConfirm={(data) => createGroupMutation.mutate(data)}
+        isPending={createGroupMutation.isPending}
+        availablePlayers={unallocatedPlayers}
+        existingMatchCount={groups?.length || 0}
+      />
 
-      {/* Auto-Generate Dialog */}
-      <Dialog open={isAutoGenOpen} onOpenChange={setIsAutoGenOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Auto-Generate Matches</DialogTitle>
-            <DialogDescription>
-              Automatically create balanced matches with two teams each based on player ability
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
-            {/* Auto Mode Toggle */}
-            <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-              <div>
-                <p className="font-medium text-sm">Use League Defaults</p>
-                <p className="text-xs text-muted-foreground">
-                  {miniLeague?.team_size || 6} players per side ({(miniLeague?.team_size || 6) * 2} per match)
-                </p>
-              </div>
-              <Button
-                variant={useAutoMode ? "default" : "outline"}
-                size="sm"
-                onClick={() => setUseAutoMode(!useAutoMode)}
-              >
-                {useAutoMode ? "Auto" : "Manual"}
-              </Button>
-            </div>
-
+      <ResponsiveDialog open={isAutoGenOpen} onOpenChange={setIsAutoGenOpen}>
+        <ResponsiveDialogContent className="sm:max-w-md">
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>Generate Matches</ResponsiveDialogTitle>
+            <ResponsiveDialogDescription>
+              Create balanced matches from {availablePlayers.length} available players
+            </ResponsiveDialogDescription>
+          </ResponsiveDialogHeader>
+          <div className="py-2 space-y-4 px-1">
             {/* Ability Assignment Mode */}
             <div className="space-y-2">
-              <Label>Ability Assignment</Label>
+              <Label>Ability Grouping</Label>
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant={abilityMode === "similar" ? "default" : "outline"}
@@ -857,8 +1216,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   className="flex flex-col h-auto py-3"
                   onClick={() => setAbilityMode("similar")}
                 >
-                  <span className="font-medium">Similar Ability</span>
-                  <span className="text-xs text-muted-foreground font-normal mt-0.5">
+                  <span className="font-medium">Similar</span>
+                  <span className="text-xs opacity-70 font-normal mt-0.5">
                     Same levels together
                   </span>
                 </Button>
@@ -868,72 +1227,54 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   className="flex flex-col h-auto py-3"
                   onClick={() => setAbilityMode("mixed")}
                 >
-                  <span className="font-medium">Mixed Ability</span>
-                  <span className="text-xs text-muted-foreground font-normal mt-0.5">
-                    Different levels mixed
+                  <span className="font-medium">Mixed</span>
+                  <span className="text-xs opacity-70 font-normal mt-0.5">
+                    Balanced across matches
                   </span>
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {abilityMode === "similar" 
-                  ? "Players with similar ratings will be grouped in the same match"
-                  : "Players of different abilities will be evenly distributed across matches"}
-              </p>
             </div>
 
-            {/* Player Count Summary */}
+            {/* Summary */}
             <div className="p-3 rounded-lg border bg-muted/30">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Available Players</span>
-                <span className="text-sm">
-                  <span className="font-bold text-primary">{availablePlayers.length}</span>
-                  <span className="text-muted-foreground"> / {allPlayers?.length || 0}</span>
-                </span>
-              </div>
-              {availablePlayers.length === 0 && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
-                  No players available. Use the Responses button to manage player availability.
-                </p>
-              )}
+              {(() => {
+                const teamSize = showAdvanced ? playersPerTeam : (miniLeague?.team_size || 4);
+                const minPerSide = miniLeague?.min_players_per_side || 3;
+                const ppm = teamSize * 2;
+                const minPPM = minPerSide * 2;
+                const idealMatches = showAdvanced ? numGroups : Math.ceil(availablePlayers.length / ppm);
+                const maxForMin = Math.floor(availablePlayers.length / minPPM);
+                const actual = Math.min(idealMatches, maxForMin);
+                
+                return (
+                  <div className="space-y-1">
+                    <p className="text-sm">
+                      <span className="font-bold text-primary">{availablePlayers.length}</span> players →{" "}
+                      <span className="font-bold">{actual}</span>{" "}
+                      {actual === 1 ? "match" : "matches"} ({teamSize}v{teamSize})
+                    </p>
+                    {availablePlayers.length === 0 && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        No players available. Use the Responses section to manage attendance.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
-            {useAutoMode ? (
-              <div className="p-3 rounded-lg border bg-primary/5 space-y-1">
-                {(() => {
-                  const teamSize = miniLeague?.team_size || 4;
-                  const minPerSide = miniLeague?.min_players_per_side || 3;
-                  const playersPerMatch = teamSize * 2;
-                  const minPlayersPerMatch = minPerSide * 2;
-                  
-                  // Max matches based on target team size
-                  const idealMatches = Math.ceil(availablePlayers.length / playersPerMatch);
-                  // Max matches ensuring each has minimum players
-                  const maxMatchesForMin = Math.floor(availablePlayers.length / minPlayersPerMatch);
-                  // Actual matches is the lesser of the two
-                  const actualMatches = Math.min(idealMatches, maxMatchesForMin);
-                  
-                  return (
-                    <>
-                      <p className="text-sm">
-                        <span className="font-medium">{availablePlayers.length}</span> available players ÷{" "}
-                        <span className="font-medium">{playersPerMatch}</span> per match ={" "}
-                        <span className="font-medium">{actualMatches}</span>{" "}
-                        {actualMatches === 1 ? "match" : "matches"}
-                      </p>
-                      {maxMatchesForMin < idealMatches && (
-                        <p className="text-xs text-muted-foreground">
-                          Limited to {actualMatches} {actualMatches === 1 ? "match" : "matches"} (min {minPerSide}v{minPerSide} required)
-                        </p>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            ) : (
-              <>
+            {/* Advanced Options - Collapsible */}
+            <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="w-full justify-between text-muted-foreground">
+                  Advanced Options
+                  <ChevronDown className={`h-4 w-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 pt-2">
                 <div className="space-y-2">
                   <Label>Players per Side</Label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     {[4, 5, 6, 7, 8].map((n) => (
                       <Button
                         key={n}
@@ -945,9 +1286,6 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                       </Button>
                     ))}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Each match will have {playersPerTeam * 2} players total ({playersPerTeam} vs {playersPerTeam})
-                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -965,28 +1303,24 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                     ))}
                   </div>
                 </div>
-
-                <p className="text-sm text-muted-foreground">
-                  {availablePlayers.length} available players will be distributed across {numGroups} matches
-                  (~{Math.ceil(availablePlayers.length / numGroups)} per match)
-                </p>
-              </>
-            )}
+              </CollapsibleContent>
+            </Collapsible>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAutoGenOpen(false)}>
-              Cancel
-            </Button>
+          <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-row">
             <Button
               onClick={() => autoGenMutation.mutate()}
               disabled={autoGenMutation.isPending || availablePlayers.length === 0}
+              className="w-full sm:w-auto h-12 text-base"
             >
               {autoGenMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Generate ({availablePlayers.length} players)
+              Generate
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <Button variant="outline" onClick={() => setIsAutoGenOpen(false)} className="w-full sm:w-auto h-12 text-base">
+              Cancel
+            </Button>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* Copy from Previous Dialog */}
       <Dialog open={isCopyPreviousOpen} onOpenChange={setIsCopyPreviousOpen}>
@@ -1041,10 +1375,18 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       {/* Match Duties Dialog */}
       <MatchDutiesDialog
         open={!!activeDutiesGroup}
-        onOpenChange={(open) => !open && setActiveDutiesGroup(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActiveDutiesGroup(null);
+            setQuickAssignDutyId(null);
+            // Refresh inline badges
+            queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
+          }
+        }}
         groupId={activeDutiesGroup?.id || ""}
         groupName={activeDutiesGroup?.name || ""}
         miniLeagueId={miniLeagueId}
+        initialDutyId={quickAssignDutyId}
       />
 
       {/* Pitch Board Portal */}
@@ -1102,6 +1444,15 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         </Suspense>,
         document.body
       )}
+      {/* Quick Setup Duty Dialog */}
+      <QuickSetupDutyDialog
+        open={isQuickSetupOpen}
+        onOpenChange={setIsQuickSetupOpen}
+        onConfirm={(data) => quickSetupMutation.mutate(data)}
+        isPending={quickSetupMutation.isPending}
+        parents={parentProfiles || []}
+        playerCount={availablePlayers.length}
+      />
     </div>
   );
 }
