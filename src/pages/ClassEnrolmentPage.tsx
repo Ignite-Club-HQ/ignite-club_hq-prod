@@ -308,6 +308,7 @@ export default function ClassEnrolmentPage() {
     selfEnrolments.find((e) => (e as any).user_id === user?.id && e.team_id === teamId && e.status !== "withdrawn");
 
   const [selectedChildId, setSelectedChildId] = useState<string>("");
+  const [dayFilter, setDayFilter] = useState<string>("all");
 
   const isLoading = termsLoading || classesLoading;
 
