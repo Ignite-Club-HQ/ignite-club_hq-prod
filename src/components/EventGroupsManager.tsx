@@ -814,6 +814,13 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
 
   const hasGroups = groups && groups.length > 0;
 
+  // Calculate unallocated players (available but not in any match)
+  const allocatedPlayerIds = new Set(
+    groups?.flatMap(g => g.players.map(p => p.id)) || []
+  );
+  const unallocatedPlayers = availablePlayers.filter(p => !allocatedPlayerIds.has(p.id));
+  const hasUnallocatedPlayers = unallocatedPlayers.length > 0;
+
   return (
     <div className="space-y-4">
       {/* Header */}
