@@ -24,8 +24,8 @@ const ALL_DUTY_OPTIONS = [
   { id: "custom", label: "Other", icon: FileText, description: "Custom duty" },
 ];
 
-// For mini league session level: only Canteen, Linemarker, Other
-const MINI_LEAGUE_SESSION_DUTIES = ["Canteen", "Linemarker", "custom"];
+// For mini league session level: all duties available (auto-distributed to matches)
+const MINI_LEAGUE_SESSION_DUTIES = ["Canteen", "Linemarker", "Referee", "Linesperson", "Subs Manager", "Oranges", "Snacks", "custom"];
 
 // For mini league match level: only Referee and Linesperson
 const MINI_LEAGUE_MATCH_DUTIES = ["Linesperson", "Referee", "Subs Manager", "Oranges", "Snacks"];
