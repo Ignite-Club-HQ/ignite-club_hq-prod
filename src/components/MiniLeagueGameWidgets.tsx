@@ -37,7 +37,7 @@ interface ActiveMiniLeagueMatch {
   teamAScore: number;
   teamBScore: number;
   isAdmin: boolean;
-  isSubsManager: boolean;
+  isReferee: boolean;
   minutesPerHalf: number;
 }
 
