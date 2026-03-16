@@ -128,6 +128,22 @@ export default function TeamDetailPage() {
 
   const isClassMode = !!team?.clubs?.class_mode_enabled;
 
+  // Check if user (or their children) is already enrolled in this class
+  const { data: isEnrolledInClass } = useQuery({
+    queryKey: ["class-enrolment-check", id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("class_enrolments")
+        .select("id")
+        .eq("team_id", id!)
+        .neq("status", "withdrawn")
+        .limit(1);
+      if (error) throw error;
+      return (data?.length ?? 0) > 0;
+    },
+    enabled: !!id && !!user && isClassMode,
+  });
+
   const { data: teamSubscription } = useQuery({
     queryKey: ["team-subscription", id],
     queryFn: async () => {
