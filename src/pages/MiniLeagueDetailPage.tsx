@@ -485,11 +485,11 @@ export default function MiniLeagueDetailPage() {
   return (
     <div className="container max-w-4xl py-4 space-y-4 pb-24">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" className="shrink-0 h-11 w-11" onClick={() => navigate(league.club_id ? `/mini-leagues?clubId=${league.club_id}` : "/mini-leagues")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <Avatar className="h-10 w-10 shrink-0">
+        <Avatar className="h-12 w-12 shrink-0">
           {league.logo_url ? (
             <AvatarImage src={league.logo_url} alt={league.name} />
           ) : null}
