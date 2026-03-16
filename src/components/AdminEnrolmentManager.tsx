@@ -57,6 +57,7 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
         .from("teams")
         .select("id, name, class_day, class_time, class_capacity, level_age, team_type")
         .eq("club_id", clubId)
+        .eq("is_archived", false)
         .not("class_day", "is", null)
         .order("class_day")
         .order("class_time");
