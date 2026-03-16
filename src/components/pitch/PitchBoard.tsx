@@ -5605,6 +5605,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       )}
                       {playersOnBench
                         .filter(player => {
+                          // Mini-league team filter
+                          if (miniLeagueTeams && selectedTeamForSettings !== "both" && player.teamSide !== selectedTeamForSettings) return false;
                           if (subMode && selectedOnPitch) {
                             return getValidBenchPlayerIds.has(player.id);
                           }
