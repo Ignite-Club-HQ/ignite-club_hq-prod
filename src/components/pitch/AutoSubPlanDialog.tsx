@@ -720,7 +720,9 @@ function DialogInner({
   
   const playersOnPitch = players.filter(p => p.position !== null);
   const benchPlayers = players.filter(p => p.position === null);
-  const hasEnoughPlayers = playersOnPitch.length >= teamSize && benchPlayers.length > 0;
+  const hasEnoughPlayers = miniLeagueTeams
+    ? playersOnPitch.length > 0 && benchPlayers.length > 0
+    : playersOnPitch.length >= teamSize && benchPlayers.length > 0;
   
   // Calculate time forecasts when plan exists
   const forecasts = useMemo(() => {
