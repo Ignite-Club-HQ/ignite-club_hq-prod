@@ -1051,7 +1051,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
               <div className="space-y-2">
                 <Button 
                   className="w-full h-12 text-base font-semibold"
-                  onClick={() => quickSetupMutation.mutate()}
+                  onClick={() => setIsQuickSetupOpen(true)}
                   disabled={quickSetupMutation.isPending || availablePlayers.length === 0}
                 >
                   {quickSetupMutation.isPending ? (
