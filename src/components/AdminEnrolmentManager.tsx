@@ -204,18 +204,13 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
       </div>
 
       {terms.length > 1 ? (
-        <Select value={termId || ""} onValueChange={setSelectedTermId}>
-          <SelectTrigger className="h-10">
-            <SelectValue placeholder="Select a term" />
-          </SelectTrigger>
-          <SelectContent className="bg-popover">
-            {terms.map((term) => (
-              <SelectItem key={term.id} value={term.id}>
-                {term.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MobileSelect
+          value={termId || ""}
+          onValueChange={setSelectedTermId}
+          options={terms.map((term) => ({ value: term.id, label: term.name }))}
+          placeholder="Select a term"
+          title="Select Term"
+        />
       ) : terms.length === 1 ? (
         <p className="text-sm text-muted-foreground">{terms[0].name}</p>
       ) : null}

@@ -167,18 +167,13 @@ export function AdminManualEnrolDialog({
         <div className="space-y-4 pt-2">
           <div className="space-y-2">
             <Label>Class</Label>
-            <Select value={selectedClassId} onValueChange={handleClassChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a class" />
-              </SelectTrigger>
-              <SelectContent className="bg-popover">
-                {classes.map((cls) => (
-                  <SelectItem key={cls.id} value={cls.id}>
-                    {cls.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MobileSelect
+              value={selectedClassId}
+              onValueChange={handleClassChange}
+              options={classes.map((cls) => ({ value: cls.id, label: cls.name }))}
+              placeholder="Select a class"
+              title="Select Class"
+            />
           </div>
 
           {selectedClassId && (allowsChildren && allowsAdults) && (
