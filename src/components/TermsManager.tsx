@@ -181,11 +181,7 @@ export function TermsManager({ clubId }: TermsManagerProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <CalendarDays className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold text-lg">Terms</h3>
-        </div>
+      <div className="flex justify-end">
         <Button size="sm" onClick={openCreate}>
           <Plus className="h-4 w-4 mr-1" />
           Add Term

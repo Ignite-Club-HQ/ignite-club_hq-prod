@@ -189,10 +189,6 @@ export function ClassAttendanceManager({ clubId }: ClassAttendanceManagerProps) 
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <ClipboardCheck className="h-5 w-5 text-primary" />
-        <h3 className="font-semibold text-lg">Attendance</h3>
-      </div>
 
       <div className="grid grid-cols-1 gap-3">
         {terms.length > 1 ? (

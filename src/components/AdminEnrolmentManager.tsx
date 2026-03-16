@@ -170,37 +170,31 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold text-lg">Enrolments</h3>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {enrolments.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={handleExportCSV}
-            >
-              <Download className="h-3.5 w-3.5" />
-              Export
-            </Button>
-          )}
-          {termId && (
-            <AdminManualEnrolDialog
-              clubId={clubId}
-              termId={termId}
-              classes={classes.map((c) => ({
-                id: c.id,
-                name: c.name,
-                class_capacity: c.class_capacity,
-                team_type: c.team_type || "mixed",
-              }))}
-              enrolmentCounts={enrolmentCounts}
-            />
-          )}
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {enrolments.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={handleExportCSV}
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export
+          </Button>
+        )}
+        {termId && (
+          <AdminManualEnrolDialog
+            clubId={clubId}
+            termId={termId}
+            classes={classes.map((c) => ({
+              id: c.id,
+              name: c.name,
+              class_capacity: c.class_capacity,
+              team_type: c.team_type || "mixed",
+            }))}
+            enrolmentCounts={enrolmentCounts}
+          />
+        )}
       </div>
 
       {terms.length > 1 ? (
