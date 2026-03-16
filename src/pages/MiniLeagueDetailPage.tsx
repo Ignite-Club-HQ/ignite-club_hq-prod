@@ -483,7 +483,7 @@ export default function MiniLeagueDetailPage() {
   const pastEvents = events?.filter(e => !e.is_cancelled && getEventDateTime(e) < now && !isToday(parseISO(e.event_date))) || [];
 
   return (
-    <div className="container max-w-4xl py-4 space-y-4 pb-24">
+    <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 space-y-4 pb-24">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" className="shrink-0 h-11 w-11" onClick={() => navigate(league.club_id ? `/mini-leagues?clubId=${league.club_id}` : "/mini-leagues")}>
