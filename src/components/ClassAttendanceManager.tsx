@@ -314,7 +314,6 @@ export function ClassAttendanceManager({ clubId }: ClassAttendanceManagerProps) 
                       }
                     )}
                   </div>
-                  </div>
                 </div>
               );
             })}
