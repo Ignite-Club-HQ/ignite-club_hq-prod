@@ -383,7 +383,7 @@ export default function ClassEnrolmentPage() {
       )}
 
       {/* Child Selector - only shown if there are junior/mixed classes and user has children */}
-      {hasChildClasses && children.length > 1 && (
+      {hasChildClasses && children.length >= 1 && (
         <div className="space-y-2">
           <label className="text-sm font-medium">Select Child</label>
           <Select value={selectedChildId || children[0]?.id || ""} onValueChange={setSelectedChildId}>
