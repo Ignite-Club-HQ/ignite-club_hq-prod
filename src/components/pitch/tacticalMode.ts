@@ -35,6 +35,7 @@ export const computeTacticalOffsets = (
   players: Player[],
   mode: TacticalMode,
   teamSize: TeamSize,
+  isMiniLeague: boolean = false,
 ): Map<string, TacticalOffset> => {
   const result = new Map<string, TacticalOffset>();
   const onPitch = players.filter(p => p.position !== null);
