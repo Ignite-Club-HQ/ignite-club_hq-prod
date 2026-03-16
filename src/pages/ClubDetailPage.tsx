@@ -83,6 +83,7 @@ import { TermsManager } from "@/components/TermsManager";
 import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
 import { ClassAttendanceManager } from "@/components/ClassAttendanceManager";
 import { ClassModeOnboardingGuide } from "@/components/ClassModeOnboardingGuide";
+import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
 
 type ClubRole = "club_admin";
 
