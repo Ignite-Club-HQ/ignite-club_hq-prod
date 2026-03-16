@@ -51,11 +51,20 @@ const abilityOptions = [
   { value: "5", label: "5 - Expert" },
 ];
 
-export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId }: AddMiniLeagueMemberSheetProps) {
+export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId, externalOpen, onExternalOpenChange }: AddMiniLeagueMemberSheetProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isExternallyControlled = externalOpen !== undefined;
+  const open = isExternallyControlled ? externalOpen : internalOpen;
+  const setOpen = (val: boolean) => {
+    if (isExternallyControlled) {
+      onExternalOpenChange?.(val);
+    } else {
+      setInternalOpen(val);
+    }
+  };
   const [mode, setMode] = useState<"single" | "bulk">("single");
   
   // Single input state
