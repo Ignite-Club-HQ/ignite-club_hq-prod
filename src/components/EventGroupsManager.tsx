@@ -517,8 +517,9 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     mutationFn: runAutoGenerate,
     onSuccess: (numCreated) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
       setIsAutoGenOpen(false);
-      toast.success(`${numCreated} matches created with balanced teams`);
+      toast.success(`${numCreated} matches created with balanced teams & duties assigned`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
