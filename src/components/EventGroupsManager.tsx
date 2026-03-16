@@ -722,11 +722,10 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     onError: (error: Error) => toast.error(error.message),
   });
 
-  // Move player mutation (tap-to-swap)
+  // Move player mutation (move to a team)
   const movePlayerMutation = useMutation({
     mutationFn: async ({ playerId, fromGroupId, toGroupId, toTeam }: { playerId: string; fromGroupId: string; toGroupId: string; toTeam: "a" | "b" }) => {
       if (fromGroupId === toGroupId) {
-        // Same match, just switch team
         const { error } = await supabase
           .from("event_group_players")
           .update({ team: toTeam })
@@ -734,7 +733,6 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           .eq("player_id", playerId);
         if (error) throw error;
       } else {
-        // Different match: delete from old, insert into new
         const { error: deleteError } = await supabase
           .from("event_group_players")
           .delete()
@@ -759,6 +757,50 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     },
   });
 
+  // Swap two players between teams
+  const swapPlayersMutation = useMutation({
+    mutationFn: async ({ 
+      player1Id, player1GroupId, player1Team, 
+      player2Id, player2GroupId, player2Team 
+    }: { 
+      player1Id: string; player1GroupId: string; player1Team: "a" | "b"; 
+      player2Id: string; player2GroupId: string; player2Team: "a" | "b";
+    }) => {
+      if (player1GroupId === player2GroupId) {
+        // Same group: just swap teams
+        const { error: e1 } = await supabase
+          .from("event_group_players")
+          .update({ team: player2Team })
+          .eq("group_id", player1GroupId)
+          .eq("player_id", player1Id);
+        if (e1) throw e1;
+        const { error: e2 } = await supabase
+          .from("event_group_players")
+          .update({ team: player1Team })
+          .eq("group_id", player2GroupId)
+          .eq("player_id", player2Id);
+        if (e2) throw e2;
+      } else {
+        // Different groups: move each to the other's group+team
+        // Delete both
+        await supabase.from("event_group_players").delete().eq("group_id", player1GroupId).eq("player_id", player1Id);
+        await supabase.from("event_group_players").delete().eq("group_id", player2GroupId).eq("player_id", player2Id);
+        // Re-insert swapped
+        await supabase.from("event_group_players").insert({ group_id: player2GroupId, player_id: player1Id, team: player2Team });
+        await supabase.from("event_group_players").insert({ group_id: player1GroupId, player_id: player2Id, team: player1Team });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
+      setSwapSource(null);
+      toast.success("Players swapped");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+      setSwapSource(null);
+    },
+  });
+
   // Regenerate handler
   const handleRegenerate = async () => {
     setIsRegenerating(true);
@@ -773,6 +815,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     }
   };
 
+  // Resolve selected player name for UI hints
+  const swapSourcePlayerName = swapSource
+    ? groups?.flatMap(g => g.players).find(p => p.id === swapSource.playerId)?.name || "Selected player"
+    : null;
+
   // Handle player tap for swap mode
   const handlePlayerTap = (groupId: string, playerId: string, currentTeam: "a" | "b" | null) => {
     if (!isAdmin) return;
@@ -780,17 +827,24 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     if (!swapSource) {
       // Select source player
       setSwapSource({ groupId, playerId, team: currentTeam });
-      toast.info("Now tap the team you want to move this player to", { duration: 3000 });
     } else if (swapSource.playerId === playerId && swapSource.groupId === groupId) {
       // Deselect
       setSwapSource(null);
+    } else if (currentTeam && swapSource.team) {
+      // Tapped a second player — swap them between teams
+      swapPlayersMutation.mutate({
+        player1Id: swapSource.playerId,
+        player1GroupId: swapSource.groupId,
+        player1Team: swapSource.team,
+        player2Id: playerId,
+        player2GroupId: groupId,
+        player2Team: currentTeam,
+      });
+    } else if (currentTeam) {
+      // Fallback: move source to this team
+      handleTeamTap(groupId, currentTeam);
     } else {
-      // Tapped a different player — move source player to this player's team/group
-      if (currentTeam) {
-        handleTeamTap(groupId, currentTeam);
-      } else {
-        setSwapSource(null);
-      }
+      setSwapSource(null);
     }
   };
 
@@ -837,7 +891,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
             {swapSource && (
               <Button size="sm" variant="destructive" onClick={() => setSwapSource(null)}>
                 <X className="h-4 w-4 mr-1" />
-                Cancel Move
+                Cancel
               </Button>
             )}
             <DropdownMenu>
@@ -876,8 +930,20 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           {isAdmin && !swapSource && (
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
               <ArrowRightLeft className="h-3 w-3" />
-              Tap a player to move them · Tap a duty badge to reassign
+              Tap a player, then tap another to swap them · Or tap a team header to move
             </p>
+          )}
+          {isAdmin && swapSource && (
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-sm">
+              <ArrowRightLeft className="h-4 w-4 text-primary shrink-0" />
+              <span>
+                <span className="font-semibold text-primary">{swapSourcePlayerName}</span>
+                {" selected — tap another player to "}
+                <span className="font-semibold">swap</span>
+                {" or tap a team header to "}
+                <span className="font-semibold">move</span>
+              </span>
+            </div>
           )}
           <div className="grid gap-3">
           {groups.map((group) => {
