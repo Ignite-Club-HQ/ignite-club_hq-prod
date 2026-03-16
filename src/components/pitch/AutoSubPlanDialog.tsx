@@ -102,6 +102,7 @@ interface Player {
   currentPitchPosition?: PitchPosition;
   minutesPlayed?: number;
   isInjured?: boolean;
+  teamSide?: "a" | "b";
 }
 
 interface SubstitutionEvent {
