@@ -21,13 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
+import { MobileSelect } from "@/components/ui/mobile-select";
 import { supabase } from "@/integrations/supabase/client";
 
 type TeamType = "junior" | "senior" | "mixed";
