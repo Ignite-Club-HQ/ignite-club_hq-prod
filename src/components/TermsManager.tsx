@@ -223,38 +223,80 @@ export function TermsManager({ clubId }: TermsManagerProps) {
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {(term as any).status !== "completed" && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => toggleActiveMutation.mutate({ id: term.id, isActive: !term.is_active })}
-                      title={term.is_active ? "Archive" : "Activate"}
-                    >
-                      {term.is_active ? (
-                        <ToggleRight className="h-4 w-4 text-primary" />
-                      ) : (
-                        <ToggleLeft className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title={term.is_active ? "Archive" : "Activate"}
+                        >
+                          {term.is_active ? (
+                            <ToggleRight className="h-4 w-4 text-primary" />
+                          ) : (
+                            <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>{term.is_active ? "Archive" : "Activate"} "{term.name}"?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {term.is_active
+                              ? "Archiving this term will hide it from enrolment. You can reactivate it later."
+                              : "Activating this term will make it available for enrolment."}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => toggleActiveMutation.mutate({ id: term.id, isActive: !term.is_active })}>
+                            {term.is_active ? "Archive" : "Activate"}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() =>
-                      setTermStatusMutation.mutate({
-                        id: term.id,
-                        status: (term as any).status === "completed" ? "active" : "completed",
-                      })
-                    }
-                    title={(term as any).status === "completed" ? "Re-open term" : "Mark as completed"}
-                  >
-                    {(term as any).status === "completed" ? (
-                      <ArchiveRestore className="h-4 w-4 text-emerald-500" />
-                    ) : (
-                      <Archive className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        title={(term as any).status === "completed" ? "Re-open term" : "Mark as completed"}
+                      >
+                        {(term as any).status === "completed" ? (
+                          <ArchiveRestore className="h-4 w-4 text-emerald-500" />
+                        ) : (
+                          <Archive className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          {(term as any).status === "completed" ? "Re-open" : "Complete"} "{term.name}"?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {(term as any).status === "completed"
+                            ? "This will re-open the term and set it back to active."
+                            : "Marking this term as completed indicates it has finished. You can re-open it later if needed."}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() =>
+                            setTermStatusMutation.mutate({
+                              id: term.id,
+                              status: (term as any).status === "completed" ? "active" : "completed",
+                            })
+                          }
+                        >
+                          {(term as any).status === "completed" ? "Re-open" : "Complete"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(term)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
