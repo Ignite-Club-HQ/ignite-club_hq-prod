@@ -553,14 +553,8 @@ export default function MiniLeagueDetailPage() {
         </Card>
       </div>
 
-      {/* Tabs - cleaner style */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 h-10">
-          <TabsTrigger value="sessions" className="text-sm">Sessions</TabsTrigger>
-          <TabsTrigger value="players" className="text-sm">Players</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="sessions" className="space-y-3 mt-3">
+      {/* Sessions */}
+      <div className="space-y-3">
           <div className="flex justify-between items-center">
             <h2 className="text-base font-semibold">Sessions</h2>
             {canManageLeague ? (
