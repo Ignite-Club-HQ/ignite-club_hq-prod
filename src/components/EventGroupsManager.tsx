@@ -1,7 +1,7 @@
 import { useState, lazy, Suspense, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Users, PlayCircle, Wand2, Loader2, X, ClipboardList, Copy, Shirt, RefreshCw, Flame, MoreHorizontal, ChevronDown, ArrowRightLeft } from "lucide-react";
+import { Plus, Users, PlayCircle, Wand2, Loader2, X, Copy, Shirt, RefreshCw, Flame, MoreHorizontal, ChevronDown, ArrowRightLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -269,6 +269,78 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     enabled: !!miniLeagueId && isCopyPreviousOpen,
   });
 
+  // Smart duty distribution: assign event-level duties to matches, preferring parents whose kids are in each match
+  const distributeEventDutiesToMatches = useCallback(async (matchIds: string[], matchPlayerIds: string[][]) => {
+    // Fetch event-level duties
+    const { data: eventDuties } = await supabase
+      .from("duties")
+      .select("id, name, assigned_to")
+      .eq("event_id", eventId);
+    
+    if (!eventDuties || eventDuties.length === 0) return;
+
+    // Build a map: player_id -> parent_user_id
+    const playerParentMap = new Map<string, string>();
+    if (allPlayers) {
+      for (const p of allPlayers) {
+        if (p.parent_user_id) playerParentMap.set(p.id, p.parent_user_id);
+      }
+    }
+
+    // For each match, find which parents have kids playing
+    const matchParentIds: string[][] = matchPlayerIds.map(playerIds => {
+      const parents = new Set<string>();
+      for (const pid of playerIds) {
+        const parentId = playerParentMap.get(pid);
+        if (parentId) parents.add(parentId);
+      }
+      return [...parents];
+    });
+
+    // Track how many duties each parent has been assigned (for fair rotation)
+    const parentDutyCount = new Map<string, number>();
+
+    // For each duty, create an event_group_duty in every match
+    const dutyInserts: { group_id: string; name: string; assigned_to: string | null; status: string }[] = [];
+
+    for (const duty of eventDuties) {
+      for (let matchIdx = 0; matchIdx < matchIds.length; matchIdx++) {
+        let assignedTo: string | null = null;
+
+        if (duty.assigned_to) {
+          // If the event-level duty is pre-assigned, check if that parent has a kid in this match
+          const parentInMatch = matchParentIds[matchIdx].includes(duty.assigned_to);
+          if (parentInMatch) {
+            assignedTo = duty.assigned_to;
+          }
+        }
+
+        // If not pre-assigned or parent not in this match, pick the least-burdened parent from this match
+        if (!assignedTo && matchParentIds[matchIdx].length > 0) {
+          const candidates = matchParentIds[matchIdx]
+            .map(pid => ({ id: pid, count: parentDutyCount.get(pid) || 0 }))
+            .sort((a, b) => a.count - b.count);
+          assignedTo = candidates[0].id;
+        }
+
+        if (assignedTo) {
+          parentDutyCount.set(assignedTo, (parentDutyCount.get(assignedTo) || 0) + 1);
+        }
+
+        dutyInserts.push({
+          group_id: matchIds[matchIdx],
+          name: duty.name,
+          assigned_to: assignedTo,
+          status: assignedTo ? "confirmed" : "pending",
+        });
+      }
+    }
+
+    if (dutyInserts.length > 0) {
+      await supabase.from("event_group_duties").insert(dutyInserts);
+    }
+  }, [eventId, allPlayers]);
+
   // Auto-generate matches (core logic)
   const runAutoGenerate = useCallback(async () => {
     if (!availablePlayers || availablePlayers.length === 0) {
@@ -408,6 +480,9 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       }
     }
 
+    // Auto-distribute event-level duties to matches
+    await distributeEventDutiesToMatches(matchIds, matchPlayers.map(mp => mp.map(p => p.playerId)));
+
     return effectiveNumMatches;
   }, [availablePlayers, miniLeague, showAdvanced, playersPerTeam, numGroups, abilityMode, eventId]);
 
@@ -442,8 +517,9 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     mutationFn: runAutoGenerate,
     onSuccess: (numCreated) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
       setIsAutoGenOpen(false);
-      toast.success(`${numCreated} matches created with balanced teams`);
+      toast.success(`${numCreated} matches created with balanced teams & duties assigned`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -456,7 +532,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     },
     onSuccess: (numCreated) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
-      toast.success(`${numCreated} matches created with balanced teams`);
+      queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
+      toast.success(`${numCreated} matches created with balanced teams & duties assigned`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -472,6 +549,9 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         .eq("event_id", selectedPreviousEventId)
         .order("display_order");
       if (groupsError) throw groupsError;
+
+      const newMatchIds: string[] = [];
+      const newMatchPlayerIds: string[][] = [];
 
       for (const prevGroup of prevGroups || []) {
         const { data: newGroup, error: createError } = await supabase
@@ -489,11 +569,14 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           .single();
         if (createError) throw createError;
 
+        newMatchIds.push(newGroup.id);
+
         const { data: prevPlayers } = await supabase
           .from("event_group_players")
           .select("player_id, team")
           .eq("group_id", prevGroup.id);
 
+        const playerIds: string[] = [];
         if (prevPlayers && prevPlayers.length > 0) {
           const assignments = prevPlayers.map(p => ({
             group_id: newGroup.id,
@@ -501,14 +584,20 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
             team: p.team,
           }));
           await supabase.from("event_group_players").insert(assignments);
+          playerIds.push(...prevPlayers.map(p => p.player_id));
         }
+        newMatchPlayerIds.push(playerIds);
       }
+
+      // Auto-distribute event-level duties to copied matches
+      await distributeEventDutiesToMatches(newMatchIds, newMatchPlayerIds);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
       setIsCopyPreviousOpen(false);
       setSelectedPreviousEventId(null);
-      toast.success("Matches copied from previous event");
+      toast.success("Matches copied with duties assigned");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -845,18 +934,6 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                     >
                       <PlayCircle className="h-4 w-4 mr-1" />
                       Pitch Board
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => {
-                        setQuickAssignDutyId(null);
-                        setActiveDutiesGroup(group);
-                      }}
-                    >
-                      <ClipboardList className="h-4 w-4 mr-1" />
-                      Duties
                     </Button>
                   </div>
                 </CardContent>
