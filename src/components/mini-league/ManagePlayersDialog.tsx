@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Users, Trash2, Loader2, Star, CheckSquare } from "lucide-react";
+import { Users, Trash2, Loader2, Star, CheckSquare, Pencil, Check, X, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,7 +16,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   ResponsiveDialog,
@@ -25,7 +24,6 @@ import {
   ResponsiveDialogTitle,
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
-import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
 import PendingInvitesList from "@/components/PendingInvitesList";
 import { toast } from "sonner";
 
@@ -38,6 +36,11 @@ export interface MiniLeaguePlayer {
   child_id: string | null;
 }
 
+interface ParentProfile {
+  id: string;
+  display_name: string | null;
+}
+
 interface ManagePlayersDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -45,6 +48,7 @@ interface ManagePlayersDialogProps {
   miniLeagueName: string;
   clubId: string;
   canManage: boolean;
+  onOpenAddPlayers?: () => void;
 }
 
 const getAbilityLabel = (rating: number) => {
@@ -70,12 +74,16 @@ export function ManagePlayersDialog({
   miniLeagueName,
   clubId,
   canManage,
+  onOpenAddPlayers,
 }: ManagePlayersDialogProps) {
   const queryClient = useQueryClient();
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [playerSearch, setPlayerSearch] = useState("");
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch players
   const { data: players, isLoading: playersLoading } = useQuery({
@@ -91,6 +99,24 @@ export function ManagePlayersDialog({
     },
     enabled: !!miniLeagueId && open,
   });
+
+  // Fetch parent profiles for linked players
+  const parentUserIds = [...new Set((players || []).map(p => p.parent_user_id).filter(Boolean) as string[])];
+  const { data: parentProfiles } = useQuery({
+    queryKey: ["parent-profiles", parentUserIds],
+    queryFn: async () => {
+      if (parentUserIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", parentUserIds);
+      if (error) throw error;
+      return data as ParentProfile[];
+    },
+    enabled: parentUserIds.length > 0 && open,
+  });
+
+  const parentMap = new Map((parentProfiles || []).map(p => [p.id, p.display_name || "Unknown"]));
 
   // Fetch pending invites
   const { data: pendingInvites = [] } = useQuery({
@@ -212,6 +238,45 @@ export function ManagePlayersDialog({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  // Update player name mutation
+  const updateNameMutation = useMutation({
+    mutationFn: async ({ playerId, childId, newName }: { playerId: string; childId: string | null; newName: string }) => {
+      const { error } = await supabase
+        .from("mini_league_players")
+        .update({ name: newName })
+        .eq("id", playerId);
+      if (error) throw error;
+
+      if (childId) {
+        await supabase
+          .from("children")
+          .update({ name: newName })
+          .eq("id", childId);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mini-league-players", miniLeagueId] });
+      setEditingPlayerId(null);
+      toast.success("Name updated");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const startEditingName = (player: MiniLeaguePlayer) => {
+    setEditingPlayerId(player.id);
+    setEditingName(player.name);
+    setTimeout(() => editInputRef.current?.focus(), 50);
+  };
+
+  const saveEditingName = (player: MiniLeaguePlayer) => {
+    const trimmed = editingName.trim();
+    if (!trimmed || trimmed === player.name) {
+      setEditingPlayerId(null);
+      return;
+    }
+    updateNameMutation.mutate({ playerId: player.id, childId: player.child_id, newName: trimmed });
+  };
+
   const togglePlayerSelection = (playerId: string) => {
     const newSet = new Set(selectedPlayerIds);
     if (newSet.has(playerId)) newSet.delete(playerId);
@@ -228,6 +293,12 @@ export function ManagePlayersDialog({
   const exitSelectionMode = () => {
     setSelectionMode(false);
     setSelectedPlayerIds(new Set());
+  };
+
+  const handleAddPlayersClick = () => {
+    onOpenChange(false);
+    // Small delay to let dialog close before opening sheet
+    setTimeout(() => onOpenAddPlayers?.(), 200);
   };
 
   const filteredPlayers = players?.filter(p =>
@@ -247,6 +318,7 @@ export function ManagePlayersDialog({
         setSelectionMode(false);
         setSelectedPlayerIds(new Set());
         setPlayerSearch("");
+        setEditingPlayerId(null);
       }
       onOpenChange(o);
     }}>
@@ -294,11 +366,10 @@ export function ManagePlayersDialog({
                           Select
                         </Button>
                       )}
-                      <AddMiniLeagueMemberSheet
-                        miniLeagueId={miniLeagueId}
-                        miniLeagueName={miniLeagueName}
-                        clubId={clubId}
-                      />
+                      <Button size="sm" onClick={handleAddPlayersClick}>
+                        <Users className="h-4 w-4 mr-1.5" />
+                        Add Players
+                      </Button>
                     </>
                   )}
                 </>
@@ -321,7 +392,12 @@ export function ManagePlayersDialog({
             <Card className="border-dashed">
               <CardContent className="py-8 text-center">
                 <Users className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-                <p className="text-sm text-muted-foreground">No players added yet</p>
+                <p className="text-sm text-muted-foreground mb-3">No players added yet</p>
+                {canManage && (
+                  <Button size="sm" onClick={handleAddPlayersClick}>
+                    Add Players
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ) : (
@@ -341,84 +417,146 @@ export function ManagePlayersDialog({
                       </span>
                     </div>
                     <div className="space-y-1.5">
-                      {abilityPlayers.map((player) => (
-                        <Card
-                          key={player.id}
-                          className={`overflow-hidden ${selectionMode && selectedPlayerIds.has(player.id) ? "ring-2 ring-primary" : ""}`}
-                          onClick={selectionMode ? () => togglePlayerSelection(player.id) : undefined}
-                        >
-                          <CardContent className="py-2.5 px-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                {selectionMode && (
-                                  <Checkbox
-                                    checked={selectedPlayerIds.has(player.id)}
-                                    onCheckedChange={() => togglePlayerSelection(player.id)}
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                )}
-                                <div className="flex items-center gap-0 shrink-0">
-                                  {Array.from({ length: 5 }).map((_, i) => (
-                                    <button
-                                      key={i}
-                                      type="button"
-                                      disabled={!canManage || selectionMode}
-                                      className={`p-1 ${canManage && !selectionMode ? "cursor-pointer hover:scale-125 transition-transform" : ""}`}
-                                      onClick={
-                                        canManage && !selectionMode
-                                          ? (e) => {
-                                              e.stopPropagation();
-                                              const newRating = i + 1;
-                                              if (newRating !== player.ability_rating) {
-                                                updateAbilityMutation.mutate({ playerId: player.id, childId: player.child_id, newRating });
+                      {abilityPlayers.map((player) => {
+                        const parentName = player.parent_user_id ? parentMap.get(player.parent_user_id) : null;
+                        const isEditing = editingPlayerId === player.id;
+
+                        return (
+                          <Card
+                            key={player.id}
+                            className={`overflow-hidden ${selectionMode && selectedPlayerIds.has(player.id) ? "ring-2 ring-primary" : ""}`}
+                            onClick={selectionMode ? () => togglePlayerSelection(player.id) : undefined}
+                          >
+                            <CardContent className="py-2.5 px-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  {selectionMode && (
+                                    <Checkbox
+                                      checked={selectedPlayerIds.has(player.id)}
+                                      onCheckedChange={() => togglePlayerSelection(player.id)}
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  )}
+                                  <div className="flex items-center gap-0 shrink-0">
+                                    {Array.from({ length: 5 }).map((_, i) => (
+                                      <button
+                                        key={i}
+                                        type="button"
+                                        disabled={!canManage || selectionMode}
+                                        className={`p-1 ${canManage && !selectionMode ? "cursor-pointer hover:scale-125 transition-transform" : ""}`}
+                                        onClick={
+                                          canManage && !selectionMode
+                                            ? (e) => {
+                                                e.stopPropagation();
+                                                const newRating = i + 1;
+                                                if (newRating !== player.ability_rating) {
+                                                  updateAbilityMutation.mutate({ playerId: player.id, childId: player.child_id, newRating });
+                                                }
                                               }
-                                            }
-                                          : undefined
-                                      }
-                                    >
-                                      <Star
-                                        className={`h-4 w-4 ${i < player.ability_rating ? "fill-primary text-primary" : "text-muted-foreground/30"}`}
-                                      />
-                                    </button>
-                                  ))}
+                                            : undefined
+                                        }
+                                      >
+                                        <Star
+                                          className={`h-4 w-4 ${i < player.ability_rating ? "fill-primary text-primary" : "text-muted-foreground/30"}`}
+                                        />
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    {isEditing ? (
+                                      <div className="flex items-center gap-1">
+                                        <Input
+                                          ref={editInputRef}
+                                          value={editingName}
+                                          onChange={(e) => setEditingName(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter") saveEditingName(player);
+                                            if (e.key === "Escape") setEditingPlayerId(null);
+                                          }}
+                                          className="h-7 text-sm py-0 px-1"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <button
+                                          type="button"
+                                          className="p-1 text-primary hover:text-primary/80"
+                                          onClick={(e) => { e.stopPropagation(); saveEditingName(player); }}
+                                        >
+                                          <Check className="h-3.5 w-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="p-1 text-muted-foreground hover:text-foreground"
+                                          onClick={(e) => { e.stopPropagation(); setEditingPlayerId(null); }}
+                                        >
+                                          <X className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-sm font-medium truncate">{player.name}</span>
+                                        {canManage && !selectionMode && (
+                                          <button
+                                            type="button"
+                                            className="p-1 text-muted-foreground/50 hover:text-muted-foreground shrink-0"
+                                            onClick={(e) => { e.stopPropagation(); startEditingName(player); }}
+                                          >
+                                            <Pencil className="h-3 w-3" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                    {parentName && (
+                                      <div className="flex items-center gap-1 mt-0.5">
+                                        <UserRound className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                                        <span className="text-xs text-muted-foreground truncate">{parentName}</span>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                                <span className="text-sm font-medium truncate">{player.name}</span>
-                              </div>
-                              {!selectionMode && canManage && (
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                                {!selectionMode && canManage && !isEditing && (
+                                  <AlertDialog>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 shrink-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        // Trigger the alert dialog by finding and clicking the hidden trigger
+                                        const btn = e.currentTarget.nextElementSibling as HTMLElement;
+                                        btn?.click();
+                                      }}
+                                    >
                                       <Trash2 className="h-3.5 w-3.5 text-destructive" />
                                     </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Remove Player?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        This will remove {player.name} from the player pool.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() => deletePlayerMutation.mutate(player.id)}
-                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                      >
-                                        Remove
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Remove Player?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This will remove {player.name} from the player pool.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => deletePlayerMutation.mutate(player.id)}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                          Remove
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                )}
+                              </div>
+                              {player.notes && !isEditing && (
+                                <p className={`text-xs text-muted-foreground mt-1 truncate ${selectionMode ? "pl-[66px]" : "pl-[42px]"}`}>
+                                  {player.notes}
+                                </p>
                               )}
-                            </div>
-                            {player.notes && (
-                              <p className={`text-xs text-muted-foreground mt-1 truncate ${selectionMode ? "pl-[66px]" : "pl-[42px]"}`}>
-                                {player.notes}
-                              </p>
-                            )}
-                          </CardContent>
-                        </Card>
-                      ))}
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
                     </div>
                   </div>
                 );
