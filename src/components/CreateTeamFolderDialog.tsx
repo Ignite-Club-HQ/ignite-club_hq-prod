@@ -43,6 +43,7 @@ export function CreateTeamFolderDialog({
   onOpenChange,
   onCreateFolder,
   isCreating = false,
+  classMode = false,
 }: CreateTeamFolderDialogProps) {
   const [folderName, setFolderName] = useState("");
   const [folderDescription, setFolderDescription] = useState("");
