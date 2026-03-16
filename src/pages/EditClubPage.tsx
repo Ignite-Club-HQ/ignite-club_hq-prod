@@ -177,7 +177,7 @@ export default function EditClubPage() {
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-xl font-bold">Edit Club</h1>
+        <h1 className="text-xl font-bold">Edit {club?.class_mode_enabled ? "Organisation" : "Club"}</h1>
       </div>
 
       {/* Logo Upload Section */}
