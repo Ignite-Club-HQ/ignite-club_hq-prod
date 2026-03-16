@@ -2453,7 +2453,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         regeneratePlanRef.current?.();
       }, 300);
     }
-  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers, autoSubActive, notifyFormationOrSizeChange]);
+  }, [teamSize, persistFormationToDb, toast, miniLeagueTeams, autoPlaceMiniLeaguePlayers, autoSubActive, notifyFormationOrSizeChange, selectedTeamForSettings]);
 
   // Handle formation change dialog confirm
   const handleFormationChangeConfirm = useCallback(() => {
