@@ -4578,7 +4578,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     variant={subMode ? "secondary" : "default"}
                     size="sm"
                     className="h-10 shrink-0 gap-1.5 px-3 text-sm"
-                    onClick={() => { setSubMode(prev => !prev); setSelectedOnPitch(null); setSelectedOnBench(null); }}
+                    onClick={() => toggleSubMode()}
                   >
                     <Users className="h-4 w-4" />
                     {subMode ? "Cancel" : `Sub (${playersOnBench.length})`}
