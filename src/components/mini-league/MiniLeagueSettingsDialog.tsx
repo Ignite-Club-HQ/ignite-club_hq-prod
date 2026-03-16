@@ -154,19 +154,21 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
 
   const duplicateLeagueMutation = useMutation({
     mutationFn: async () => {
-      // Create duplicated league
+      if (!user) throw new Error("You must be logged in to duplicate a league");
+
+      // Create duplicated league with current form values
       const { data: newLeague, error: createError } = await supabase
         .from("mini_leagues")
         .insert({
-          name: `${league.name} (Copy)`,
-          description: league.description,
+          name: `${editName.trim() || league.name} (Copy)`,
+          description: editDescription.trim() || league.description,
           club_id: league.club_id,
-          team_size: league.team_size,
-          min_players_per_side: league.min_players_per_side,
-          minutes_per_half: league.minutes_per_half,
-          bib_colors: league.bib_colors,
-          logo_url: league.logo_url,
-          created_by: user!.id,
+          team_size: editTeamSize,
+          min_players_per_side: editMinPlayersPerSide,
+          minutes_per_half: editMinutesPerHalf,
+          bib_colors: editBibColors.length > 0 ? editBibColors : league.bib_colors,
+          logo_url: editLogoUrl ?? league.logo_url,
+          created_by: user.id,
         })
         .select("id")
         .single();
@@ -193,10 +195,10 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
     onSuccess: (newId) => {
       queryClient.invalidateQueries({ queryKey: ["mini-leagues"] });
       onOpenChange(false);
-      toast.success("League duplicated!");
+      toast.success("League duplicated with all players!");
       navigate(`/mini-leagues/${newId}`);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(`Failed to duplicate: ${error.message}`),
   });
 
   const getColorName = (hex: string) => {
