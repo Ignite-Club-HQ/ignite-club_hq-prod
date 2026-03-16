@@ -200,7 +200,7 @@ export function ClassAttendanceManager({ clubId }: ClassAttendanceManagerProps) 
         <h3 className="font-semibold text-lg">Attendance</h3>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         {terms.length > 1 ? (
           <Select value={termId || ""} onValueChange={setSelectedTermId}>
             <SelectTrigger className="h-10">
