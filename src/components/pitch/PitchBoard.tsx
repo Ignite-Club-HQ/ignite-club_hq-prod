@@ -1547,27 +1547,46 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, [players, teamSize, selectedFormation, autoPlacePlayersOnPitch, miniLeagueTeams]);
 
   // Save pitch state to localStorage whenever it changes (only after initialization)
+  // Debounced to avoid excessive saves during drag operations
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     if (!hasInitialized) return;
     
-    savePitchState(teamId, {
-      players,
-      teamSize,
-      selectedFormation,
-      ballPosition,
-      autoSubPlan,
-      autoSubActive,
-      autoSubPaused,
-      mockMode,
-      linkedEventId,
-      goals,
-    });
-    
-    // Also sync to database if this is an event group (mini-league match)
-    if (isEventGroup) {
-      forceEventGroupSync();
+    // Clear any pending save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
-  }, [hasInitialized, teamId, players, teamSize, selectedFormation, ballPosition, autoSubPlan, autoSubActive, autoSubPaused, mockMode, linkedEventId, goals, isEventGroup, forceEventGroupSync]);
+    
+    // During active drag, debounce saves to reduce jank
+    const isActiveDrag = touchDragPlayer !== null || draggedPlayer !== null;
+    const delay = isActiveDrag ? 300 : 0;
+    
+    saveTimeoutRef.current = setTimeout(() => {
+      savePitchState(teamId, {
+        players,
+        teamSize,
+        selectedFormation,
+        ballPosition,
+        autoSubPlan,
+        autoSubActive,
+        autoSubPaused,
+        mockMode,
+        linkedEventId,
+        goals,
+      });
+      
+      // Also sync to database if this is an event group (mini-league match)
+      if (isEventGroup) {
+        forceEventGroupSync();
+      }
+    }, delay);
+    
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [hasInitialized, teamId, players, teamSize, selectedFormation, ballPosition, autoSubPlan, autoSubActive, autoSubPaused, mockMode, linkedEventId, goals, isEventGroup, forceEventGroupSync, touchDragPlayer, draggedPlayer]);
 
   // Sync player position preferences from database when they change
   // This ensures updated preferences are reflected even when using saved state from localStorage
