@@ -39,6 +39,8 @@ interface AddMiniLeagueMemberSheetProps {
   miniLeagueId: string;
   miniLeagueName: string;
   clubId: string;
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
 }
 
 const abilityOptions = [
