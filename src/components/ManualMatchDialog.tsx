@@ -43,29 +43,21 @@ export function ManualMatchDialog({
   existingMatchCount,
 }: ManualMatchDialogProps) {
   const defaultName = `Match ${existingMatchCount + 1}`;
-  const [matchName, setMatchName] = useState(defaultName);
+  const [matchName, setMatchName] = useState("");
   const [pitchName, setPitchName] = useState("");
   const [teamAIds, setTeamAIds] = useState<Set<string>>(new Set());
   const [teamBIds, setTeamBIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Reset state when dialog opens - use a ref to track
-  const prevOpen = useState(false);
-  if (open && !prevOpen[0]) {
-    setMatchName(`Match ${existingMatchCount + 1}`);
-    setPitchName("");
-    setTeamAIds(new Set());
-    setTeamBIds(new Set());
-    setSearchQuery("");
-  }
-  prevOpen[0] = open;
+  useEffect(() => {
+    if (open) {
       setMatchName(`Match ${existingMatchCount + 1}`);
       setPitchName("");
       setTeamAIds(new Set());
       setTeamBIds(new Set());
       setSearchQuery("");
     }
-  });
+  }, [open, existingMatchCount]);
 
   const unassignedPlayers = useMemo(() => {
     return availablePlayers.filter(
