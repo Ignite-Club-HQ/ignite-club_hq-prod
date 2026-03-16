@@ -254,6 +254,33 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
 
   const availablePlayers = allPlayers?.filter(p => rsvpPlayerIds.has(p.id)) || [];
 
+  // Get unique parent IDs from available players for duty assignment
+  const parentUserIds = [...new Set(
+    availablePlayers
+      .map(p => p.parent_user_id)
+      .filter((id): id is string => !!id)
+  )];
+
+  // Fetch parent profiles for duty assignment
+  const { data: parentProfiles } = useQuery({
+    queryKey: ["parent-profiles-for-duties", parentUserIds.join(",")],
+    queryFn: async () => {
+      if (parentUserIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", parentUserIds);
+      if (error) throw error;
+      return (data || []).map(p => ({
+        id: p.id,
+        display_name: p.display_name || "Unknown",
+        avatar_url: p.avatar_url,
+      }));
+    },
+    enabled: parentUserIds.length > 0,
+  });
+
+
   // Fetch previous events for copy
   const { data: previousEvents } = useQuery({
     queryKey: ["previous-mini-league-events", miniLeagueId],
