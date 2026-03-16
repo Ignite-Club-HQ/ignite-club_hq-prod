@@ -1653,7 +1653,7 @@ export default function EventDetailPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <Badge className={eventTypeColors[event.type as EventType]} variant="secondary">
-          {getEventTypeLabel(event.type)}
+          {eventTypeLabel}
         </Badge>
         
         <div className="flex-1" />
