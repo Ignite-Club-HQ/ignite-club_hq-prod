@@ -903,6 +903,11 @@ export default function ClubDetailPage() {
         <ClassModeOnboardingGuide clubId={id!} />
       )}
 
+      {/* Today's Classes Dashboard */}
+      {isAdmin && club?.class_mode_enabled && (
+        <TodaysClassesDashboard clubId={id!} />
+      )}
+
       {/* Primary Sponsor Display */}
       {club?.primary_sponsor_id && (
         <PrimarySponsorDisplay sponsorId={club.primary_sponsor_id} variant="full" context="club_page" />
