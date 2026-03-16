@@ -2,6 +2,7 @@ import { useState, lazy, Suspense, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Users, PlayCircle, Wand2, Loader2, X, ClipboardList, Copy, Shirt, RefreshCw, Flame, MoreHorizontal, ChevronDown, ArrowRightLeft } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -201,6 +202,32 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     staleTime: 0,
     refetchOnMount: "always",
   });
+
+  // Fetch all duties for all groups in this event (for inline badges)
+  const { data: allGroupDuties } = useQuery({
+    queryKey: ["event-all-group-duties", eventId],
+    queryFn: async () => {
+      if (!groups || groups.length === 0) return {};
+      const groupIds = groups.map(g => g.id);
+      const { data, error } = await supabase
+        .from("event_group_duties")
+        .select("*, assignee:profiles!event_group_duties_assigned_to_fkey(display_name)")
+        .in("group_id", groupIds)
+        .order("created_at");
+      if (error) throw error;
+      // Group by group_id
+      const map: Record<string, typeof data> = {};
+      for (const d of data || []) {
+        if (!map[d.group_id]) map[d.group_id] = [];
+        map[d.group_id].push(d);
+      }
+      return map;
+    },
+    enabled: !!eventId && !!groups && groups.length > 0,
+  });
+
+  // State for quick-assign (clicking a duty badge)
+  const [quickAssignDutyId, setQuickAssignDutyId] = useState<string | null>(null);
 
   // Map RSVPs to mini league players
   const rsvpPlayerIds = new Set<string>();
@@ -777,6 +804,38 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                     </div>
                   )}
 
+                  {/* Inline Duty Badges */}
+                  {(() => {
+                    const groupDuties = allGroupDuties?.[group.id] || [];
+                    if (groupDuties.length === 0) return null;
+                    return (
+                      <div className="mb-3 flex flex-wrap gap-1.5">
+                        {groupDuties.map((duty: any) => (
+                          <button
+                            key={duty.id}
+                            type="button"
+                            onClick={() => {
+                              setQuickAssignDutyId(duty.id);
+                              setActiveDutiesGroup(group);
+                            }}
+                            className={cn(
+                              "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors touch-manipulation",
+                              duty.assigned_to
+                                ? "bg-primary/10 text-primary border border-primary/20"
+                                : "bg-muted text-muted-foreground border border-border hover:border-primary/50"
+                            )}
+                          >
+                            <span className={cn(
+                              "w-1.5 h-1.5 rounded-full shrink-0",
+                              duty.assigned_to ? "bg-primary" : "bg-muted-foreground"
+                            )} />
+                            {duty.name}{duty.assignee?.display_name ? `: ${duty.assignee.display_name}` : ""}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
                   <div className="flex gap-2">
                     <Button
                       size="sm"
@@ -791,7 +850,10 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                       size="sm"
                       variant="outline"
                       className="flex-1"
-                      onClick={() => setActiveDutiesGroup(group)}
+                      onClick={() => {
+                        setQuickAssignDutyId(null);
+                        setActiveDutiesGroup(group);
+                      }}
                     >
                       <ClipboardList className="h-4 w-4 mr-1" />
                       Duties
@@ -1085,10 +1147,18 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       {/* Match Duties Dialog */}
       <MatchDutiesDialog
         open={!!activeDutiesGroup}
-        onOpenChange={(open) => !open && setActiveDutiesGroup(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActiveDutiesGroup(null);
+            setQuickAssignDutyId(null);
+            // Refresh inline badges
+            queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
+          }
+        }}
         groupId={activeDutiesGroup?.id || ""}
         groupName={activeDutiesGroup?.name || ""}
         miniLeagueId={miniLeagueId}
+        initialDutyId={quickAssignDutyId}
       />
 
       {/* Pitch Board Portal */}
