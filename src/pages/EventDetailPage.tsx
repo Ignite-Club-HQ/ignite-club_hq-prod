@@ -1815,8 +1815,8 @@ export default function EventDetailPage() {
           <RecurringEventActionDialog
             open={deleteDialogOpen}
             onOpenChange={setDeleteDialogOpen}
-            title={`Delete ${getEventTypeLabel(event.type)}?`}
-            description={`This will permanently delete the ${getEventTypeLabel(event.type).toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
+            title={`Delete ${eventTypeLabel}?`}
+            description={`This will permanently delete the ${eventTypeLabel.toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
             actionLabel="Delete"
             actionVariant="destructive"
             onSingleAction={() => deleteEventMutation.mutate('single')}
@@ -1827,9 +1827,9 @@ export default function EventDetailPage() {
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete {getEventTypeLabel(event.type)}?</AlertDialogTitle>
+                <AlertDialogTitle>Delete {eventTypeLabel}?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will permanently delete this {getEventTypeLabel(event.type).toLowerCase()} and all RSVPs. This action cannot be undone.
+                  This will permanently delete this {eventTypeLabel.toLowerCase()} and all RSVPs. This action cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
