@@ -30,6 +30,7 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedTermId, setSelectedTermId] = useState<string>("");
+  const [dayFilter, setDayFilter] = useState<string>("all");
 
   // Fetch active terms
   const { data: terms = [] } = useQuery({
@@ -218,7 +219,37 @@ export function AdminEnrolmentManager({ clubId }: AdminEnrolmentManagerProps) {
         <p className="text-sm text-muted-foreground text-center py-4">No classes set up yet.</p>
       ) : (
         <div className="space-y-4">
-          {classes.map((cls) => {
+          {/* Day filter chips */}
+          {(() => {
+            const uniqueDays = [...new Set(classes.map(c => (c as any).class_day).filter(Boolean))];
+            if (uniqueDays.length > 1) {
+              return (
+                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                  <Button
+                    variant={dayFilter === "all" ? "default" : "outline"}
+                    size="sm"
+                    className="h-7 text-xs shrink-0"
+                    onClick={() => setDayFilter("all")}
+                  >
+                    All Days
+                  </Button>
+                  {uniqueDays.map(day => (
+                    <Button
+                      key={day}
+                      variant={dayFilter === day ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 text-xs shrink-0"
+                      onClick={() => setDayFilter(day!)}
+                    >
+                      {day}
+                    </Button>
+                  ))}
+                </div>
+              );
+            }
+            return null;
+          })()}
+          {classes.filter(cls => dayFilter === "all" || (cls as any).class_day === dayFilter).map((cls) => {
             const classEnrolments = enrolments.filter((e) => e.team_id === cls.id);
             const enrolled = classEnrolments.filter((e) => e.status === "enrolled");
             const waitlisted = classEnrolments.filter((e) => e.status === "waitlisted");

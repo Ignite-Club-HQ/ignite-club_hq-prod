@@ -3,7 +3,7 @@ import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder, ClipboardCheck, Copy } from "lucide-react";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -590,8 +590,39 @@ export default function TeamDetailPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
                 <Pencil className="h-4 w-4 mr-2" />
-                Edit Team
+                Edit {isClassMode ? "Class" : "Team"}
               </DropdownMenuItem>
+              {isClassMode && (
+                <DropdownMenuItem onClick={async () => {
+                  // Duplicate class: create a copy with "(Copy)" suffix
+                  const { data: newTeam, error } = await supabase
+                    .from("teams")
+                    .insert({
+                      name: `${team.name} (Copy)`,
+                      club_id: team.club_id,
+                      level_age: (team as any).level_age || null,
+                      description: (team as any).description || null,
+                      folder_id: (team as any).folder_id || null,
+                      team_type: (team as any).team_type || "mixed",
+                      created_by: user!.id,
+                      class_day: (team as any).class_day || null,
+                      class_time: (team as any).class_time || null,
+                      class_duration_minutes: (team as any).class_duration_minutes || null,
+                      class_capacity: (team as any).class_capacity || null,
+                    })
+                    .select()
+                    .single();
+                  if (error) {
+                    toast({ title: "Failed to duplicate class", variant: "destructive" });
+                  } else {
+                    toast({ title: "Class duplicated", description: `"${newTeam.name}" created. Edit it to customise.` });
+                    navigate(`/teams/${newTeam.id}/edit`);
+                  }
+                }}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplicate Class
+                </DropdownMenuItem>
+              )}
               {teamFolders.length > 0 && (
                 <>
                   <DropdownMenuSeparator />
