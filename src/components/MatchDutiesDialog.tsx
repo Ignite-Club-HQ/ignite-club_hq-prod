@@ -66,16 +66,21 @@ export function MatchDutiesDialog({
   });
 
   // Auto-open assign view when initialDutyId is provided
-  const hasHandledInitial = useState(false);
-  if (open && initialDutyId && duties && !hasHandledInitial[0]) {
-    const duty = duties.find(d => d.id === initialDutyId);
-    if (duty) {
-      setSelectedDuty(duty);
-      setSelectedUserId(duty.assigned_to);
-      setView("assign");
-      hasHandledInitial[1](true);
+  const handledInitialRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (open && initialDutyId && duties && handledInitialRef.current !== initialDutyId) {
+      const duty = duties.find(d => d.id === initialDutyId);
+      if (duty) {
+        setSelectedDuty(duty);
+        setSelectedUserId(duty.assigned_to);
+        setView("assign");
+        handledInitialRef.current = initialDutyId;
+      }
     }
-  }
+    if (!open) {
+      handledInitialRef.current = null;
+    }
+  }, [open, initialDutyId, duties]);
 
   // Fetch league members for duty assignment
   const { data: leagueMembers } = useQuery({
