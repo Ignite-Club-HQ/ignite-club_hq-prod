@@ -444,6 +444,7 @@ export default function MiniLeagueDetailPage() {
         miniLeagueName={league.name}
         clubId={league.club_id}
         canManage={!!canManageLeague}
+        onOpenAddPlayers={() => setAddPlayersOpen(true)}
       />
 
       <MiniLeagueSettingsDialog
@@ -451,6 +452,17 @@ export default function MiniLeagueDetailPage() {
         onOpenChange={setSettingsOpen}
         league={league}
       />
+
+      {/* Add Players Sheet - rendered at page level to avoid nested overlay issues */}
+      {canManageLeague && (
+        <AddMiniLeagueMemberSheet
+          miniLeagueId={id!}
+          miniLeagueName={league.name}
+          clubId={league.club_id}
+          externalOpen={addPlayersOpen}
+          onExternalOpenChange={setAddPlayersOpen}
+        />
+      )}
     </div>
   );
 }
