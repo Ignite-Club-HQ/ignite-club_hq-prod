@@ -357,6 +357,19 @@ export default function EditTeamPage() {
             </div>
           )}
 
+          {/* Active Toggle (Class Mode) */}
+          {(team?.clubs as any)?.class_mode_enabled && (
+            <div className="flex items-center justify-between pt-2 border-t">
+              <div className="space-y-0.5">
+                <Label className="text-base">Active</Label>
+                <p className="text-sm text-muted-foreground">
+                  Inactive classes are hidden from the enrolment page
+                </p>
+              </div>
+              <Switch checked={isActive} onCheckedChange={setIsActive} />
+            </div>
+          )}
+
           {/* Class Mode Fields */}
           {(team?.clubs as any)?.class_mode_enabled && (
             <ClassFieldsSection
