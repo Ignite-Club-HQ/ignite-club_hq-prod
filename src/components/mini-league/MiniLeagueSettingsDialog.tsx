@@ -152,6 +152,53 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const duplicateLeagueMutation = useMutation({
+    mutationFn: async () => {
+      // Create duplicated league
+      const { data: newLeague, error: createError } = await supabase
+        .from("mini_leagues")
+        .insert({
+          name: `${league.name} (Copy)`,
+          description: league.description,
+          club_id: league.club_id,
+          team_size: league.team_size,
+          min_players_per_side: league.min_players_per_side,
+          minutes_per_half: league.minutes_per_half,
+          bib_colors: league.bib_colors,
+          logo_url: league.logo_url,
+          created_by: user!.id,
+        })
+        .select("id")
+        .single();
+      if (createError) throw createError;
+
+      // Copy players
+      const { data: existingPlayers } = await supabase
+        .from("mini_league_players")
+        .select("name, ability_rating, notes, parent_user_id, child_id")
+        .eq("mini_league_id", league.id);
+
+      if (existingPlayers && existingPlayers.length > 0) {
+        const { error: playersError } = await supabase
+          .from("mini_league_players")
+          .insert(existingPlayers.map(p => ({
+            ...p,
+            mini_league_id: newLeague.id,
+          })));
+        if (playersError) throw playersError;
+      }
+
+      return newLeague.id;
+    },
+    onSuccess: (newId) => {
+      queryClient.invalidateQueries({ queryKey: ["mini-leagues"] });
+      onOpenChange(false);
+      toast.success("League duplicated!");
+      navigate(`/mini-leagues/${newId}`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const getColorName = (hex: string) => {
     const preset = BIB_COLOR_PRESETS.find(p => p.value.toLowerCase() === hex.toLowerCase());
     return preset?.name || hex;
