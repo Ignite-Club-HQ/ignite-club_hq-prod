@@ -26,6 +26,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
