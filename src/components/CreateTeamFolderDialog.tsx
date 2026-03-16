@@ -215,7 +215,7 @@ export function CreateTeamFolderDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FolderPlus className="h-5 w-5 text-primary" />
-            Create Team Folder
+            Create {classMode ? "Class" : "Team"} Folder
           </DialogTitle>
         </DialogHeader>
         <div className="py-4">
