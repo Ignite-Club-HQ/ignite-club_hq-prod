@@ -893,7 +893,6 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                 <X className="h-4 w-4 mr-1" />
                 Cancel
               </Button>
-              </Button>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
