@@ -575,6 +575,11 @@ export default function TeamDetailPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-2xl font-bold flex-1 truncate">{team.name}</h1>
+          {isAdmin && isClassMode && (
+            <Button variant="ghost" size="icon" onClick={() => navigate(`/teams/${id}/edit`)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
           {isAdmin && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
