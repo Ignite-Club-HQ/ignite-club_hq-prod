@@ -10,13 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -332,12 +331,12 @@ export function TermsManager({ clubId }: TermsManagerProps) {
       )}
 
       {/* Create/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingTerm ? "Edit Term" : "Create Term"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
+      <ResponsiveDialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <ResponsiveDialogContent className="sm:max-w-md">
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>{editingTerm ? "Edit Term" : "Create Term"}</ResponsiveDialogTitle>
+          </ResponsiveDialogHeader>
+          <div className="space-y-4 py-2 px-1">
             <div className="space-y-2">
               <Label>Term Name</Label>
               <Input
@@ -392,19 +391,20 @@ export function TermsManager({ clubId }: TermsManagerProps) {
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
+          <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-row">
             <Button
+              className="w-full sm:w-auto h-12 text-base"
               onClick={() => saveMutation.mutate()}
               disabled={!name.trim() || !startDate || !endDate || saveMutation.isPending}
             >
               {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editingTerm ? "Save" : "Create"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <Button variant="outline" className="w-full sm:w-auto h-12 text-base" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </div>
   );
 }
