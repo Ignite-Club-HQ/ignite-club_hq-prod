@@ -2941,6 +2941,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const toggleSubMode = () => {
     if (readOnly) return;
     const newSubMode = !subMode;
+    
+    // Check if there are any available bench players (not injured)
+    if (newSubMode) {
+      const availableBenchPlayers = players.filter(p => p.position === null && !p.isInjured);
+      if (availableBenchPlayers.length === 0) {
+        toast({
+          title: "No subs available",
+          description: players.some(p => p.position === null)
+            ? "All bench players are currently injured."
+            : "There are no players on the bench to bring on.",
+        });
+        return;
+      }
+    }
+    
     setSubMode(newSubMode);
     setSelectedOnPitch(null);
     setSelectedOnBench(null);
