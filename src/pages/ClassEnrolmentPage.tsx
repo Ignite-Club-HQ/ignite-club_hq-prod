@@ -28,10 +28,18 @@ type TeamType = "junior" | "senior" | "mixed";
 
 export default function ClassEnrolmentPage() {
   const { clubId } = useParams<{ clubId: string }>();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  // Auth gate: redirect unauthenticated users to login with return URL
+  useEffect(() => {
+    if (!authLoading && !user) {
+      sessionStorage.setItem("redirectAfterAuth", `/clubs/${clubId}/enrol`);
+      navigate("/auth", { replace: true });
+    }
+  }, [authLoading, user, clubId, navigate]);
 
   const [selectedTermId, setSelectedTermId] = useState<string>("");
   const [enrollingClassId, setEnrollingClassId] = useState<string | null>(null);
