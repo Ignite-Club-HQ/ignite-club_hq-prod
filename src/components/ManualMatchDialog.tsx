@@ -50,9 +50,16 @@ export function ManualMatchDialog({
   const [teamBIds, setTeamBIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Reset state when dialog opens
-  useState(() => {
-    if (open) {
+  // Reset state when dialog opens - use a ref to track
+  const prevOpen = useState(false);
+  if (open && !prevOpen[0]) {
+    setMatchName(`Match ${existingMatchCount + 1}`);
+    setPitchName("");
+    setTeamAIds(new Set());
+    setTeamBIds(new Set());
+    setSearchQuery("");
+  }
+  prevOpen[0] = open;
       setMatchName(`Match ${existingMatchCount + 1}`);
       setPitchName("");
       setTeamAIds(new Set());
