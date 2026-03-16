@@ -846,9 +846,15 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Regenerate All
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setIsCreateOpen(true)}>
+                <DropdownMenuItem 
+                  onClick={() => setIsCreateOpen(true)}
+                  disabled={!hasUnallocatedPlayers}
+                >
                   <Plus className="h-4 w-4 mr-2" />
                   Add Match Manually
+                  {!hasUnallocatedPlayers && (
+                    <span className="ml-1 text-xs text-muted-foreground">(no players left)</span>
+                  )}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setIsCopyPreviousOpen(true)}>
                   <Copy className="h-4 w-4 mr-2" />
