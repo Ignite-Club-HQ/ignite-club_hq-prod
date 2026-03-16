@@ -333,6 +333,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
   const [tacticalMode, setTacticalMode] = useState<TacticalMode>("neutral");
   const [tacticalFormationSuggestion, setTacticalFormationSuggestion] = useState<TacticalFormationSuggestion | null>(null);
+  
+  // Mini-league team selector for formation/tactical changes
+  const [selectedTeamForSettings, setSelectedTeamForSettings] = useState<"a" | "b" | "both">("both");
 
   // Sync settings from props when they change (e.g., when edited on team page)
   // Also sync on initial mount if no saved state exists for the setting
