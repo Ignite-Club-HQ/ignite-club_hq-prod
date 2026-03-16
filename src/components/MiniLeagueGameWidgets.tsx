@@ -202,17 +202,42 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
         const isAdmin = userLeagueMemberships.isAppAdmin || 
           userLeagueMemberships.adminLeagueIds.includes(league.id);
 
-        // Check if user has "Subs Manager" duty for this specific group
-        let isSubsManagerForGroup = false;
-        if (!isAdmin && user) {
-          const { data: subsManagerDuty } = await supabase
+        // Check if user has a duty (e.g. Referee, Subs Manager) for this group
+        let isRefForGroup = false;
+        let hasGroupDuty = false;
+        if (user) {
+          const { data: userDuties } = await supabase
             .from("event_group_duties")
-            .select("id")
+            .select("id, name")
             .eq("group_id", group.id)
-            .eq("name", "Subs Manager")
-            .eq("assigned_to", user.id)
-            .maybeSingle();
-          isSubsManagerForGroup = !!subsManagerDuty;
+            .eq("assigned_to", user.id);
+          hasGroupDuty = !!userDuties?.length;
+          isRefForGroup = !!userDuties?.some(d => d.name === "Referee");
+        }
+
+        // For non-admins, only show matches where:
+        // 1. Their child is a player in this group, OR
+        // 2. They have a duty assigned in this group
+        if (!isAdmin) {
+          const userChildIds = playerLinks?.filter(pl => {
+            const player = players.find(p => p.id === pl.player_id);
+            return player !== undefined;
+          }).map(pl => pl.player_id) || [];
+
+          // Check if any of the user's children are in this match
+          let hasChildInMatch = false;
+          if (userChildIds.length > 0) {
+            const { data: userChildren } = await supabase
+              .from("mini_league_players")
+              .select("id")
+              .in("id", userChildIds)
+              .eq("parent_user_id", user!.id);
+            hasChildInMatch = !!userChildren?.length;
+          }
+
+          if (!hasChildInMatch && !hasGroupDuty) {
+            continue; // Skip this match - user has no association
+          }
         }
 
         activeMatches.push({
@@ -231,7 +256,7 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
           teamAScore,
           teamBScore,
           isAdmin,
-          isSubsManager: isSubsManagerForGroup,
+          isSubsManager: false,
           minutesPerHalf: league.minutes_per_half || 10,
         });
       }
