@@ -147,6 +147,7 @@ export default function EditTeamPage() {
         logo_url: logoUrl || null,
         folder_id: folderId || null,
         team_type: teamType,
+        is_archived: !isActive,
         ...((team?.clubs as any)?.class_mode_enabled ? {
           class_day: classDay || null,
           class_time: classTime || null,
