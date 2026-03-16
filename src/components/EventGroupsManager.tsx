@@ -1099,43 +1099,15 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         </Card>
       )}
 
-      {/* Create Match Sheet - Auto-named */}
-      <Sheet open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <SheetContent side="bottom" className="h-auto">
-          <SheetHeader>
-            <SheetTitle>Create Match</SheetTitle>
-            <SheetDescription>Add a new match with two teams</SheetDescription>
-          </SheetHeader>
-          <div className="py-4 space-y-4">
-            <div className="space-y-2">
-              <Label>Match Name</Label>
-              <Input
-                placeholder={`Match ${(groups?.length || 0) + 1}`}
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Pitch Name (optional)</Label>
-              <Input
-                placeholder="e.g. Pitch 1, North Field"
-                value={newPitchName}
-                onChange={(e) => setNewPitchName(e.target.value)}
-              />
-            </div>
-          </div>
-          <SheetFooter>
-            <Button
-              className="w-full"
-              onClick={() => createGroupMutation.mutate()}
-              disabled={createGroupMutation.isPending}
-            >
-              {createGroupMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create Match
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+      {/* Manual Match Dialog */}
+      <ManualMatchDialog
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        onConfirm={(data) => createGroupMutation.mutate(data)}
+        isPending={createGroupMutation.isPending}
+        availablePlayers={availablePlayers}
+        existingMatchCount={groups?.length || 0}
+      />
 
       {/* Streamlined Auto-Generate Dialog */}
       <Dialog open={isAutoGenOpen} onOpenChange={setIsAutoGenOpen}>
