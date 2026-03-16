@@ -803,6 +803,38 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                     </div>
                   )}
 
+                  {/* Inline Duty Badges */}
+                  {(() => {
+                    const groupDuties = allGroupDuties?.[group.id] || [];
+                    if (groupDuties.length === 0) return null;
+                    return (
+                      <div className="mb-3 flex flex-wrap gap-1.5">
+                        {groupDuties.map((duty: any) => (
+                          <button
+                            key={duty.id}
+                            type="button"
+                            onClick={() => {
+                              setQuickAssignDutyId(duty.id);
+                              setActiveDutiesGroup(group);
+                            }}
+                            className={cn(
+                              "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors touch-manipulation",
+                              duty.assigned_to
+                                ? "bg-primary/10 text-primary border border-primary/20"
+                                : "bg-muted text-muted-foreground border border-border hover:border-primary/50"
+                            )}
+                          >
+                            <span className={cn(
+                              "w-1.5 h-1.5 rounded-full shrink-0",
+                              duty.assigned_to ? "bg-primary" : "bg-muted-foreground"
+                            )} />
+                            {duty.name}{duty.assignee?.display_name ? `: ${duty.assignee.display_name}` : ""}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
                   <div className="flex gap-2">
                     <Button
                       size="sm"
@@ -817,7 +849,10 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                       size="sm"
                       variant="outline"
                       className="flex-1"
-                      onClick={() => setActiveDutiesGroup(group)}
+                      onClick={() => {
+                        setQuickAssignDutyId(null);
+                        setActiveDutiesGroup(group);
+                      }}
                     >
                       <ClipboardList className="h-4 w-4 mr-1" />
                       Duties
