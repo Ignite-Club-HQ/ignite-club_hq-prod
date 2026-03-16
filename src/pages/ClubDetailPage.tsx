@@ -897,6 +897,11 @@ export default function ClubDetailPage() {
         );
       })()}
 
+      {/* Class Mode Onboarding Guide */}
+      {isAdmin && club?.class_mode_enabled && (
+        <ClassModeOnboardingGuide clubId={id!} />
+      )}
+
       {/* Primary Sponsor Display */}
       {club?.primary_sponsor_id && (
         <PrimarySponsorDisplay sponsorId={club.primary_sponsor_id} variant="full" context="club_page" />
