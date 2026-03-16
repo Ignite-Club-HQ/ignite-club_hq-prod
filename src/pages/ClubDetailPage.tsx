@@ -988,6 +988,7 @@ export default function ClubDetailPage() {
                       createFolderMutation.mutate({ name, description, color })
                     }
                     isCreating={createFolderMutation.isPending}
+                    classMode={!!club?.class_mode_enabled}
                   />
                   <Link to={`/clubs/${id}/teams/new`}>
                     <Button size="sm">
