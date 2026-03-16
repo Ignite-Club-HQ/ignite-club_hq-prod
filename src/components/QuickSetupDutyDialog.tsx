@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Wand2, User, Megaphone, Apple, Check } from "lucide-react";
+import { Loader2, Wand2, User, Megaphone, Apple, Check, Shuffle, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -18,10 +18,12 @@ interface ParentMember {
   avatar_url?: string | null;
 }
 
+export type AbilityMode = "similar" | "mixed";
+
 interface QuickSetupDutyDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (assignments: Record<string, string[]>) => void;
+  onConfirm: (data: { assignments: Record<string, string[]>; abilityMode: AbilityMode }) => void;
   isPending: boolean;
   parents: ParentMember[];
   playerCount: number;
@@ -45,11 +47,13 @@ export function QuickSetupDutyDialog({
     Oranges: [],
   });
   const [expandedDuty, setExpandedDuty] = useState<string | null>(null);
+  const [abilityMode, setAbilityMode] = useState<AbilityMode>("mixed");
 
   useEffect(() => {
     if (open) {
       setAssignments({ Referee: [], Oranges: [] });
       setExpandedDuty(null);
+      setAbilityMode("mixed");
     }
   }, [open]);
 
@@ -86,10 +90,51 @@ export function QuickSetupDutyDialog({
 
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
-            {playerCount} players will be split into balanced matches. Assign duties below (optional):
+            {playerCount} players will be split into balanced matches.
           </p>
 
-          <div className="space-y-3">
+          {/* Ability Grouping */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Grouping</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setAbilityMode("mixed")}
+                className={cn(
+                  "flex items-center gap-2.5 p-3 rounded-xl border-2 transition-all text-left touch-manipulation",
+                  abilityMode === "mixed"
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-card hover:border-primary/50"
+                )}
+              >
+                <Shuffle className={cn("h-4 w-4", abilityMode === "mixed" ? "text-primary" : "text-muted-foreground")} />
+                <div>
+                  <p className="text-sm font-medium">Mixed</p>
+                  <p className="text-[10px] text-muted-foreground">Balanced teams</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAbilityMode("similar")}
+                className={cn(
+                  "flex items-center gap-2.5 p-3 rounded-xl border-2 transition-all text-left touch-manipulation",
+                  abilityMode === "similar"
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-card hover:border-primary/50"
+                )}
+              >
+                <Layers className={cn("h-4 w-4", abilityMode === "similar" ? "text-primary" : "text-muted-foreground")} />
+                <div>
+                  <p className="text-sm font-medium">Similar</p>
+                  <p className="text-[10px] text-muted-foreground">Same levels</p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Duties */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Duties (optional)</p>
             {DUTIES.map((duty) => {
               const assignees = getAssigneeNames(duty.id);
               const isExpanded = expandedDuty === duty.id;
@@ -205,7 +250,7 @@ export function QuickSetupDutyDialog({
             Cancel
           </Button>
           <Button
-            onClick={() => onConfirm(assignments)}
+            onClick={() => onConfirm({ assignments, abilityMode })}
             disabled={isPending}
             className="flex-1 sm:flex-none"
           >

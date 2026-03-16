@@ -370,7 +370,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
   }, [eventId, allPlayers]);
 
   // Auto-generate matches (core logic)
-  const runAutoGenerate = useCallback(async () => {
+  const runAutoGenerate = useCallback(async (abilityModeOverride?: "similar" | "mixed") => {
+    const effectiveAbilityMode = abilityModeOverride || abilityMode;
     if (!availablePlayers || availablePlayers.length === 0) {
       throw new Error("No available players for this session");
     }
@@ -403,7 +404,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     const matchIds: string[] = [];
     for (let i = 0; i < effectiveNumMatches; i++) {
       const colors = getMatchColors(i, leagueColors);
-      const abilityBand = abilityMode === "similar" 
+      const abilityBand = effectiveAbilityMode === "similar" 
         ? (["High", "Medium", "Low"][Math.floor(i / Math.ceil(effectiveNumMatches / 3))] || null)
         : null;
       
@@ -443,7 +444,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     // Distribute players
     const matchPlayers: { playerId: string; team: "a" | "b" }[][] = Array(effectiveNumMatches).fill(null).map(() => []);
     
-    if (abilityMode === "similar") {
+    if (effectiveAbilityMode === "similar") {
       let playerIdx = 0;
       for (let matchIdx = 0; matchIdx < effectiveNumMatches && playerIdx < sortedPlayers.length; matchIdx++) {
         const targetSize = matchTargetSizes[matchIdx];
@@ -549,7 +550,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
 
   // Auto-generate mutation
   const autoGenMutation = useMutation({
-    mutationFn: runAutoGenerate,
+    mutationFn: () => runAutoGenerate(),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
@@ -561,9 +562,9 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
 
   // Quick setup - opens dialog for duty assignment, then generates matches
   const quickSetupMutation = useMutation({
-    mutationFn: async (dutyAssignments: Record<string, string[]>) => {
+    mutationFn: async ({ assignments: dutyAssignments, abilityMode: mode }: { assignments: Record<string, string[]>; abilityMode: "similar" | "mixed" }) => {
       await refetchRsvps();
-      const result = await runAutoGenerate();
+      const result = await runAutoGenerate(mode);
 
       // Create Referee and Oranges match duties for each match
       const QUICK_SETUP_DUTIES = ["Referee", "Oranges"];
@@ -1361,7 +1362,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       <QuickSetupDutyDialog
         open={isQuickSetupOpen}
         onOpenChange={setIsQuickSetupOpen}
-        onConfirm={(assignments) => quickSetupMutation.mutate(assignments)}
+        onConfirm={(data) => quickSetupMutation.mutate(data)}
         isPending={quickSetupMutation.isPending}
         parents={parentProfiles || []}
         playerCount={availablePlayers.length}
