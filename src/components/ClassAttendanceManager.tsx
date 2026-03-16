@@ -300,6 +300,7 @@ export function ClassAttendanceManager({ clubId }: ClassAttendanceManagerProps) 
                           <span className="sm:hidden">{s === "present" ? "P" : s === "late" ? "L" : "A"}</span>
                         </Button>
                       )
+                    )}
                   </div>
                 </div>
               );
