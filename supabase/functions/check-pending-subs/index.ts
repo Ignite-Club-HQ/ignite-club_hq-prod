@@ -44,52 +44,58 @@ interface PitchState {
 const CHECK_INTERVAL_MS = 10000;
 const TOTAL_DURATION_MS = 55000;
 
-// Get coaches and team admins for a specific team
+// Get notification recipients for a specific team/match
+// For mini-league matches (event-group-*), only the Referee receives notifications
+// For regular teams, coaches/admins and Subs Manager assignees receive notifications
 async function getTeamStaffUserIds(supabase: any, teamId: string | null | undefined, linkedEventId?: string): Promise<string[]> {
   const userIds = new Set<string>();
 
-  if (teamId) {
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .eq('team_id', teamId)
-      .in('role', ['team_admin', 'coach']);
+  const isMiniLeague = teamId?.startsWith('event-group-');
 
-    if (error) {
-      console.error('[CHECK-SUBS] Error fetching team staff:', error?.message);
-    } else if (data) {
-      data.forEach((r: any) => userIds.add(r.user_id as string));
-    }
-  }
-
-  // Also include Subs Manager duty assignees
-  if (linkedEventId) {
-    // Check regular event duties
-    const { data: dutyAssignees } = await supabase
-      .from('duties')
-      .select('assigned_to')
-      .eq('event_id', linkedEventId)
-      .eq('name', 'Subs Manager')
-      .not('assigned_to', 'is', null);
-    
-    dutyAssignees?.forEach((d: any) => {
-      if (d.assigned_to) userIds.add(d.assigned_to);
-    });
-  }
-
-  // Check event_group_duties for mini-league matches (teamId starts with "event-group-")
-  if (teamId?.startsWith('event-group-')) {
-    const groupId = teamId.replace('event-group-', '');
-    const { data: groupDutyAssignees } = await supabase
+  if (isMiniLeague) {
+    // Mini-league: only notify the Referee of this specific match
+    const groupId = teamId!.replace('event-group-', '');
+    const { data: referees } = await supabase
       .from('event_group_duties')
       .select('assigned_to')
       .eq('group_id', groupId)
-      .eq('name', 'Subs Manager')
+      .eq('name', 'Referee')
       .not('assigned_to', 'is', null);
     
-    groupDutyAssignees?.forEach((d: any) => {
+    referees?.forEach((d: any) => {
       if (d.assigned_to) userIds.add(d.assigned_to);
     });
+
+    console.log(`[CHECK-SUBS] Mini-league match ${groupId}: ${userIds.size} referee(s) found`);
+  } else {
+    // Regular team: notify coaches/admins
+    if (teamId) {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('team_id', teamId)
+        .in('role', ['team_admin', 'coach']);
+
+      if (error) {
+        console.error('[CHECK-SUBS] Error fetching team staff:', error?.message);
+      } else if (data) {
+        data.forEach((r: any) => userIds.add(r.user_id as string));
+      }
+    }
+
+    // Also include Subs Manager duty assignees for regular events
+    if (linkedEventId) {
+      const { data: dutyAssignees } = await supabase
+        .from('duties')
+        .select('assigned_to')
+        .eq('event_id', linkedEventId)
+        .eq('name', 'Subs Manager')
+        .not('assigned_to', 'is', null);
+      
+      dutyAssignees?.forEach((d: any) => {
+        if (d.assigned_to) userIds.add(d.assigned_to);
+      });
+    }
   }
 
   return [...userIds];
@@ -192,8 +198,12 @@ async function notifyTeamStaff(
   elapsedMinutes?: number,
   currentHalf?: number,
 ) {
-  // Build recipient list: game owner + team staff (deduplicated)
-  const allRecipients = new Set<string>([gameOwnerId, ...staffUserIds]);
+  // For mini-league matches, only notify referees (staffUserIds already filtered)
+  // For regular teams, include game owner + team staff
+  const isMiniLeague = teamId?.startsWith('event-group-');
+  const allRecipients = isMiniLeague
+    ? new Set<string>(staffUserIds)
+    : new Set<string>([gameOwnerId, ...staffUserIds]);
   let notificationsSent = 0;
 
   const pushUrl = linkedEventId
