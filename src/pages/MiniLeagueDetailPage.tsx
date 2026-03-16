@@ -150,19 +150,72 @@ export default function MiniLeagueDetailPage() {
     enabled: !!id,
   });
 
-  // Fetch events linked to mini league
+  // Fetch events linked to mini league (with scores and player counts)
   const { data: events, isLoading: eventsLoading } = useQuery({
     queryKey: ["mini-league-events", id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("events")
-        .select("id, title, event_date, start_time, end_time, location_name, is_cancelled")
+        .select("id, title, event_date, start_time, end_time, location_name, is_cancelled, final_score_home, final_score_away")
         .eq("mini_league_id", id!)
         .order("event_date", { ascending: false });
       if (error) throw error;
-      return data as MiniLeagueEvent[];
+
+      // Fetch allocated player counts per event via event_groups → event_group_players
+      const eventIds = (data || []).map(e => e.id);
+      if (eventIds.length > 0) {
+        const { data: groups } = await supabase
+          .from("event_groups")
+          .select("event_id, id")
+          .in("event_id", eventIds);
+        
+        if (groups && groups.length > 0) {
+          const groupIds = groups.map(g => g.id);
+          const { data: groupPlayers } = await supabase
+            .from("event_group_players")
+            .select("group_id")
+            .in("group_id", groupIds);
+          
+          // Build count per event
+          const groupToEvent = new Map<string, string>();
+          groups.forEach(g => groupToEvent.set(g.id, g.event_id));
+          const eventPlayerCounts = new Map<string, Set<string>>();
+          groupPlayers?.forEach(gp => {
+            const eventId = groupToEvent.get(gp.group_id);
+            if (eventId) {
+              if (!eventPlayerCounts.has(eventId)) eventPlayerCounts.set(eventId, new Set());
+              // Count group_player entries (not unique players, but allocated slots)
+              eventPlayerCounts.get(eventId)!.add(gp.group_id + Math.random());
+            }
+          });
+          
+          return (data || []).map(e => ({
+            ...e,
+            _allocatedPlayers: groupPlayers?.filter(gp => {
+              const evId = groupToEvent.get(gp.group_id);
+              return evId === e.id;
+            }).length || 0,
+          })) as MiniLeagueEvent[];
+        }
+      }
+
+      return (data || []).map(e => ({ ...e, _allocatedPlayers: 0 })) as MiniLeagueEvent[];
     },
     enabled: !!id,
+  });
+
+  // Find the user's children in this league (for parent-facing next session)
+  const { data: userPlayerIds } = useQuery({
+    queryKey: ["mini-league-user-players", id, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("mini_league_players")
+        .select("id, name")
+        .eq("mini_league_id", id!)
+        .eq("parent_user_id", user!.id);
+      return data || [];
+    },
+    enabled: !!id && !!user && !canManageLeague,
   });
 
   // Fetch pending invites for this mini league
