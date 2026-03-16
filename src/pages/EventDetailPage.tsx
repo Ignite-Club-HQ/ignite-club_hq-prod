@@ -2426,8 +2426,8 @@ export default function EventDetailPage() {
         </>
       )}
 
-      {/* Duties Section (only for games) */}
-      {event.type === "game" && (
+      {/* Duties Section (only for non-mini-league games — mini league duties are auto-created via Quick Setup) */}
+      {event.type === "game" && !isMiniLeagueEvent && (
         <>
           <section className="space-y-3">
             <div className="flex items-center justify-between">
