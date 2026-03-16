@@ -2103,6 +2103,21 @@ export default function EventDetailPage() {
         </section>
       )}
 
+      {/* Mini League Breakout Groups (only for mini league events) - above responses for easy access */}
+      {event.mini_league_id && (
+        <>
+          <Separator />
+          <section className="space-y-3">
+            <EventGroupsManager
+              eventId={id!}
+              miniLeagueId={event.mini_league_id}
+              isAdmin={isAdmin || isAppAdmin || false}
+              playerOverrides={playerOverrides}
+            />
+          </section>
+        </>
+      )}
+
       <Separator />
 
       {/* Attendees by Status */}
