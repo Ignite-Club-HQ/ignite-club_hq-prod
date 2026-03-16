@@ -281,7 +281,7 @@ export default function HomePage() {
       if (!userMemberships) return [];
       
       const { teamIds, clubIds, miniLeagueIds } = userMemberships;
-      if (teamIds.length === 0 && clubIds.length === 0) return [];
+      if (teamIds.length === 0 && clubIds.length === 0 && miniLeagueIds.length === 0) return [];
       
       const now = new Date();
       const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
