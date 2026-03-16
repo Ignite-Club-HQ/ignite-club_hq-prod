@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, UserPlus, Users, Clock, CalendarDays, AlertCircle } from "lucide-react";
+import { ArrowLeft, Loader2, UserPlus, Users, Clock, CalendarDays, AlertCircle, List } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
