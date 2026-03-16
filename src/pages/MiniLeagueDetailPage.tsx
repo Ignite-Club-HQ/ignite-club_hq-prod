@@ -70,8 +70,8 @@ export default function MiniLeagueDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("sessions");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [playersOpen, setPlayersOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
