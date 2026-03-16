@@ -715,13 +715,17 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
 
       // Auto-distribute event-level duties to copied matches
       await distributeEventDutiesToMatches(newMatchIds, newMatchPlayerIds);
+      return { skippedCount };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
       setIsCopyPreviousOpen(false);
       setSelectedPreviousEventId(null);
-      toast.success("Matches copied with duties assigned");
+      const msg = result?.skippedCount 
+        ? `Matches copied (${result.skippedCount} player${result.skippedCount === 1 ? '' : 's'} skipped - not RSVP'd going)`
+        : "Matches copied with duties assigned";
+      toast.success(msg);
     },
     onError: (error: Error) => toast.error(error.message),
   });
