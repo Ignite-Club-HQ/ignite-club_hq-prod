@@ -304,7 +304,11 @@ export default function MiniLeaguesPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {miniLeagues?.map((league) => (
+          {miniLeagues?.filter(l => 
+            !searchQuery.trim() || 
+            l.name.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
+            l.club?.name?.toLowerCase().includes(searchQuery.trim().toLowerCase())
+          ).map((league) => (
             <Card
               key={league.id}
               className="cursor-pointer hover:bg-muted/50 transition-colors active:scale-[0.99]"

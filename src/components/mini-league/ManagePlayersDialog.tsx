@@ -357,11 +357,13 @@ export function ManagePlayersDialog({
                                     onClick={(e) => e.stopPropagation()}
                                   />
                                 )}
-                                <div className="flex items-center gap-0.5 shrink-0">
+                                <div className="flex items-center gap-0 shrink-0">
                                   {Array.from({ length: 5 }).map((_, i) => (
-                                    <Star
+                                    <button
                                       key={i}
-                                      className={`h-3 w-3 ${i < player.ability_rating ? "fill-primary text-primary" : "text-muted-foreground/30"} ${canManage && !selectionMode ? "cursor-pointer hover:scale-125 transition-transform" : ""}`}
+                                      type="button"
+                                      disabled={!canManage || selectionMode}
+                                      className={`p-1 ${canManage && !selectionMode ? "cursor-pointer hover:scale-125 transition-transform" : ""}`}
                                       onClick={
                                         canManage && !selectionMode
                                           ? (e) => {
@@ -373,7 +375,11 @@ export function ManagePlayersDialog({
                                             }
                                           : undefined
                                       }
-                                    />
+                                    >
+                                      <Star
+                                        className={`h-4 w-4 ${i < player.ability_rating ? "fill-primary text-primary" : "text-muted-foreground/30"}`}
+                                      />
+                                    </button>
                                   ))}
                                 </div>
                                 <span className="text-sm font-medium truncate">{player.name}</span>
