@@ -3,12 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserPlus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 import { MobileSelect } from "@/components/ui/mobile-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -153,126 +152,129 @@ export function AdminManualEnrolDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
-          <UserPlus className="h-3.5 w-3.5" />
-          Manual Enrol
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Manual Enrolment</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 pt-2">
-          <div className="space-y-2">
-            <Label>Class</Label>
-            <MobileSelect
-              value={selectedClassId}
-              onValueChange={handleClassChange}
-              options={classes.map((cls) => ({ value: cls.id, label: cls.name }))}
-              placeholder="Select a class"
-              title="Select Class"
-            />
-          </div>
-
-          {selectedClassId && (allowsChildren && allowsAdults) && (
+    <>
+      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
+        <UserPlus className="h-3.5 w-3.5" />
+        Manual Enrol
+      </Button>
+      <ResponsiveDialog open={open} onOpenChange={setOpen}>
+        <ResponsiveDialogContent>
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>Manual Enrolment</ResponsiveDialogTitle>
+          </ResponsiveDialogHeader>
+          <div className="space-y-4 px-1 pt-2">
             <div className="space-y-2">
-              <Label>Enrolment Type</Label>
-              <div className="flex gap-2">
-                <Button
-                  variant={enrolmentType === "child" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    setEnrolmentType("child");
-                    setSearchQuery("");
-                  }}
-                >
-                  Child
-                </Button>
-                <Button
-                  variant={enrolmentType === "adult" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    setEnrolmentType("adult");
-                    setSearchQuery("");
-                  }}
-                >
-                  Adult
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {selectedClassId && (
-            <div className="space-y-2">
-              <Label>
-                Search {enrolmentType === "child" ? "Child" : "Member"} by Name
-              </Label>
-              <Input
-                placeholder={`Type a name...`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+              <Label className="text-base">Class</Label>
+              <MobileSelect
+                value={selectedClassId}
+                onValueChange={handleClassChange}
+                options={classes.map((cls) => ({ value: cls.id, label: cls.name }))}
+                placeholder="Select a class"
+                title="Select Class"
               />
-              {searchQuery.length >= 2 && (
-                <div className="max-h-40 overflow-y-auto space-y-1 border rounded-md p-1">
-                  {enrolmentType === "child"
-                    ? childResults.length === 0 ? (
-                        <p className="text-xs text-muted-foreground p-2">
-                          No children found
-                        </p>
-                      ) : (
-                        childResults.map((child) => (
-                          <button
-                            key={child.id}
-                            className="w-full text-left px-3 py-2 text-sm rounded hover:bg-muted flex items-center justify-between"
-                            onClick={() =>
-                              enrolMutation.mutate({ childId: child.id })
-                            }
-                            disabled={enrolMutation.isPending}
-                          >
-                            <span>{child.name}</span>
-                            {enrolMutation.isPending ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Badge variant="outline" className="text-[10px]">
-                                Enrol
-                              </Badge>
-                            )}
-                          </button>
-                        ))
-                      )
-                    : adultResults.length === 0 ? (
-                        <p className="text-xs text-muted-foreground p-2">
-                          No members found
-                        </p>
-                      ) : (
-                        adultResults.map((profile) => (
-                          <button
-                            key={profile.id}
-                            className="w-full text-left px-3 py-2 text-sm rounded hover:bg-muted flex items-center justify-between"
-                            onClick={() =>
-                              enrolMutation.mutate({ userId: profile.id })
-                            }
-                            disabled={enrolMutation.isPending}
-                          >
-                            <span>{profile.display_name || "Unknown"}</span>
-                            {enrolMutation.isPending ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Badge variant="outline" className="text-[10px]">
-                                Enrol
-                              </Badge>
-                            )}
-                          </button>
-                        ))
-                      )}
-                </div>
-              )}
             </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+
+            {selectedClassId && (allowsChildren && allowsAdults) && (
+              <div className="space-y-2">
+                <Label className="text-base">Enrolment Type</Label>
+                <div className="flex gap-2">
+                  <Button
+                    variant={enrolmentType === "child" ? "default" : "outline"}
+                    size="sm"
+                    className="h-10"
+                    onClick={() => {
+                      setEnrolmentType("child");
+                      setSearchQuery("");
+                    }}
+                  >
+                    Child
+                  </Button>
+                  <Button
+                    variant={enrolmentType === "adult" ? "default" : "outline"}
+                    size="sm"
+                    className="h-10"
+                    onClick={() => {
+                      setEnrolmentType("adult");
+                      setSearchQuery("");
+                    }}
+                  >
+                    Adult
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {selectedClassId && (
+              <div className="space-y-2">
+                <Label className="text-base">
+                  Search {enrolmentType === "child" ? "Child" : "Member"} by Name
+                </Label>
+                <Input
+                  placeholder={`Type a name...`}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-12 text-base"
+                />
+                {searchQuery.length >= 2 && (
+                  <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-1">
+                    {enrolmentType === "child"
+                      ? childResults.length === 0 ? (
+                          <p className="text-xs text-muted-foreground p-2">
+                            No children found
+                          </p>
+                        ) : (
+                          childResults.map((child) => (
+                            <button
+                              key={child.id}
+                              className="w-full text-left px-3 py-3 text-sm rounded hover:bg-muted flex items-center justify-between"
+                              onClick={() =>
+                                enrolMutation.mutate({ childId: child.id })
+                              }
+                              disabled={enrolMutation.isPending}
+                            >
+                              <span>{child.name}</span>
+                              {enrolMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Badge variant="outline" className="text-[10px]">
+                                  Enrol
+                                </Badge>
+                              )}
+                            </button>
+                          ))
+                        )
+                      : adultResults.length === 0 ? (
+                          <p className="text-xs text-muted-foreground p-2">
+                            No members found
+                          </p>
+                        ) : (
+                          adultResults.map((profile) => (
+                            <button
+                              key={profile.id}
+                              className="w-full text-left px-3 py-3 text-sm rounded hover:bg-muted flex items-center justify-between"
+                              onClick={() =>
+                                enrolMutation.mutate({ userId: profile.id })
+                              }
+                              disabled={enrolMutation.isPending}
+                            >
+                              <span>{profile.display_name || "Unknown"}</span>
+                              {enrolMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Badge variant="outline" className="text-[10px]">
+                                  Enrol
+                                </Badge>
+                              )}
+                            </button>
+                          ))
+                        )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
+    </>
   );
 }
