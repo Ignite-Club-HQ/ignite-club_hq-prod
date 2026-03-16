@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Loader2, Mail, X, Send, Users, Plus, Trash2, Upload, Baby, User, Star } from "lucide-react";
+import { UserPlus, Loader2, Mail, X, Send, Users, Plus, Trash2, Upload, Baby, User, Star, Search, CheckCircle2 } from "lucide-react";
 import { MiniLeagueMemberCSVImportDialog } from "@/components/MiniLeagueMemberCSVImportDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sheet,
   SheetContent,
@@ -26,6 +27,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface BulkPlayer {
   id: string;
@@ -39,6 +41,8 @@ interface AddMiniLeagueMemberSheetProps {
   miniLeagueId: string;
   miniLeagueName: string;
   clubId: string;
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
 }
 
 const abilityOptions = [
@@ -49,11 +53,20 @@ const abilityOptions = [
   { value: "5", label: "5 - Expert" },
 ];
 
-export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId }: AddMiniLeagueMemberSheetProps) {
+export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId, externalOpen, onExternalOpenChange }: AddMiniLeagueMemberSheetProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isExternallyControlled = externalOpen !== undefined;
+  const open = isExternallyControlled ? externalOpen : internalOpen;
+  const setOpen = (val: boolean) => {
+    if (isExternallyControlled) {
+      onExternalOpenChange?.(val);
+    } else {
+      setInternalOpen(val);
+    }
+  };
   const [mode, setMode] = useState<"single" | "bulk">("single");
   
   // Single input state
@@ -62,6 +75,15 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
   const [parentName, setParentName] = useState("");
   const [parentEmail, setParentEmail] = useState("");
   const [isSendingNotification, setIsSendingNotification] = useState(false);
+
+  // Parent search state
+  const [parentSearchQuery, setParentSearchQuery] = useState("");
+  const [selectedParent, setSelectedParent] = useState<{
+    id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null>(null);
+  const [parentMode, setParentMode] = useState<"search" | "manual">("search");
   
   // Bulk input state
   const [bulkPlayers, setBulkPlayers] = useState<BulkPlayer[]>([
@@ -69,6 +91,8 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
   ]);
   const [bulkResults, setBulkResults] = useState<{ playerName: string; parentEmail: string; sent: boolean }[]>([]);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
+
+  const debouncedParentSearch = useDebounce(parentSearchQuery, 300);
 
   // Fetch club branding for emails
   const { data: clubBranding } = useQuery({
@@ -84,14 +108,52 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
     enabled: !!clubId,
   });
 
+  // Search for existing users (for parent linking)
+  const { data: parentSearchResults = [], isLoading: isSearchingParent } = useQuery({
+    queryKey: ["user-search-mini-league-parent", debouncedParentSearch],
+    queryFn: async () => {
+      if (debouncedParentSearch.length < 2) return [];
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .ilike("display_name", `%${debouncedParentSearch}%`)
+        .limit(8);
+      return data || [];
+    },
+    enabled: debouncedParentSearch.length >= 2 && parentMode === "search" && !selectedParent,
+  });
+
   const handleClose = () => {
     setOpen(false);
     setPlayerName("");
     setAbilityRating("3");
     setParentName("");
     setParentEmail("");
+    setParentSearchQuery("");
+    setSelectedParent(null);
+    setParentMode("search");
     setBulkPlayers([{ id: crypto.randomUUID(), name: "", abilityRating: "3", parentName: "", parentEmail: "" }]);
     setBulkResults([]);
+  };
+
+  // Helper: ensure user has parent role in club
+  const ensureParentRole = async (parentUserId: string) => {
+    // Check if user already has a role in this club
+    const { data: existingRole } = await supabase
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", parentUserId)
+      .eq("club_id", clubId)
+      .limit(1);
+    
+    if (!existingRole || existingRole.length === 0) {
+      // Add parent role at club level
+      await supabase.from("user_roles").insert({
+        user_id: parentUserId,
+        club_id: clubId,
+        role: "parent" as any,
+      });
+    }
   };
 
   // Add single player - creates child record and league assignment
@@ -99,11 +161,13 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
     mutationFn: async () => {
       if (!playerName.trim()) throw new Error("Player name is required");
 
-      // Create child record - parent_id set to admin temporarily; reassigned when parent accepts invite
+      const parentUserId = selectedParent?.id || null;
+
+      // Create child record
       const { data: child, error: childError } = await supabase
         .from("children")
         .insert({
-          parent_id: user!.id,
+          parent_id: parentUserId || user!.id,
           name: playerName.trim(),
         })
         .select()
@@ -130,7 +194,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
           name: playerName.trim(),
           ability_rating: parseInt(abilityRating),
           child_id: child.id,
-          parent_user_id: null, // Will be linked when parent accepts invite
+          parent_user_id: parentUserId,
         })
         .select()
         .single();
@@ -139,7 +203,32 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
         console.warn("Failed to create legacy player record:", playerError);
       }
 
-      // If parent email provided, create pending invite with child info
+      // If existing user selected as parent, add role and notify
+      if (parentUserId) {
+        await ensureParentRole(parentUserId);
+
+        // Also link child to parent via child_guardians if not already the owner
+        if (parentUserId !== user!.id) {
+          await supabase.from("child_guardians").insert({
+            child_id: child.id,
+            guardian_id: parentUserId,
+            is_primary: true,
+            relationship_type: "parent",
+          }).then(() => {});
+        }
+
+        // Send notification to the parent
+        await supabase.from("notifications").insert({
+          user_id: parentUserId,
+          type: "membership",
+          message: `${playerName.trim()} has been added to ${miniLeagueName}`,
+          related_id: miniLeagueId,
+        });
+
+        return { child, player, inviteToken: null, parentEmail: null, linkedExisting: true };
+      }
+
+      // If parent email provided (manual mode), create pending invite
       if (parentEmail.trim()) {
         const inviteToken = crypto.randomUUID();
         
@@ -162,14 +251,23 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
         
         if (inviteError) throw inviteError;
 
-        return { child, player, inviteToken, parentEmail: parentEmail.trim() };
+        return { child, player, inviteToken, parentEmail: parentEmail.trim(), linkedExisting: false };
       }
 
-      return { child, player, inviteToken: null, parentEmail: null };
+      return { child, player, inviteToken: null, parentEmail: null, linkedExisting: false };
     },
-    onSuccess: async ({ player, inviteToken, parentEmail: email }) => {
+    onSuccess: async ({ player, inviteToken, parentEmail: email, linkedExisting }) => {
       queryClient.invalidateQueries({ queryKey: ["mini-league-players", miniLeagueId] });
       
+      if (linkedExisting) {
+        toast({
+          title: "Player added!",
+          description: `${playerName} added and linked to ${selectedParent?.display_name}`,
+        });
+        handleClose();
+        return;
+      }
+
       // Send email if parent email provided
       if (email && inviteToken) {
         setIsSendingNotification(true);
@@ -255,7 +353,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
       const results: { playerName: string; parentEmail: string; sent: boolean }[] = [];
 
       for (const player of validPlayers) {
-        // Create child record - parent_id set to admin temporarily; reassigned when parent accepts invite
+        // Create child record
         const { data: child, error: childError } = await supabase
           .from("children")
           .insert({
@@ -283,7 +381,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
           console.error("Failed to create league assignment:", player.name, assignmentError);
         }
 
-        // Also create legacy mini_league_players record for backward compatibility
+        // Also create legacy mini_league_players record
         const { data: newPlayer, error: playerError } = await supabase
           .from("mini_league_players")
           .insert({
@@ -419,12 +517,14 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
   return (
     <>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger asChild>
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Players
-          </Button>
-        </SheetTrigger>
+        {!isExternallyControlled && (
+          <SheetTrigger asChild>
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Players
+            </Button>
+          </SheetTrigger>
+        )}
         <SheetContent side="bottom" className="h-[85vh] flex flex-col">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
@@ -485,32 +585,139 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
                 </div>
               </div>
 
-              {/* Parent Info */}
+              {/* Parent Info - with search or manual */}
               <div className="space-y-3 border-t pt-4">
                 <h3 className="text-sm font-medium flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  Parent Details (Optional)
+                  <User className="h-4 w-4" />
+                  Link Parent (Optional)
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Add parent email to send them an invite to manage their child
+                  Search for an existing user or enter details to send an invite
                 </p>
-                <div className="space-y-2">
-                  <Label>Parent Name</Label>
-                  <Input
-                    placeholder="e.g. John Smith"
-                    value={parentName}
-                    onChange={(e) => setParentName(e.target.value)}
-                  />
+
+                {/* Mode toggle */}
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={parentMode === "search" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setParentMode("search");
+                      setParentName("");
+                      setParentEmail("");
+                    }}
+                  >
+                    <Search className="h-3.5 w-3.5 mr-1.5" />
+                    Existing User
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={parentMode === "manual" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setParentMode("manual");
+                      setSelectedParent(null);
+                      setParentSearchQuery("");
+                    }}
+                  >
+                    <Mail className="h-3.5 w-3.5 mr-1.5" />
+                    New Invite
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label>Parent Email</Label>
-                  <Input
-                    type="email"
-                    placeholder="parent@example.com"
-                    value={parentEmail}
-                    onChange={(e) => setParentEmail(e.target.value)}
-                  />
-                </div>
+
+                {parentMode === "search" ? (
+                  <div className="space-y-2">
+                    {selectedParent ? (
+                      <div className="flex items-center gap-3 p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={selectedParent.avatar_url || undefined} />
+                          <AvatarFallback className="text-xs">
+                            {selectedParent.display_name?.charAt(0)?.toUpperCase() || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{selectedParent.display_name}</p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3 text-primary" />
+                            Will be linked as parent
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => {
+                            setSelectedParent(null);
+                            setParentSearchQuery("");
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search by name..."
+                            value={parentSearchQuery}
+                            onChange={(e) => setParentSearchQuery(e.target.value)}
+                            className="pl-9"
+                          />
+                        </div>
+                        {isSearchingParent && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Searching...
+                          </div>
+                        )}
+                        {parentSearchResults.length > 0 && (
+                          <div className="border rounded-lg divide-y max-h-48 overflow-auto">
+                            {parentSearchResults.map((result) => (
+                              <button
+                                key={result.id}
+                                className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors text-left"
+                                onClick={() => {
+                                  setSelectedParent(result);
+                                  setParentSearchQuery("");
+                                }}
+                              >
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={result.avatar_url || undefined} />
+                                  <AvatarFallback className="text-xs">
+                                    {result.display_name?.charAt(0)?.toUpperCase() || "?"}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-sm font-medium">{result.display_name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {debouncedParentSearch.length >= 2 && !isSearchingParent && parentSearchResults.length === 0 && (
+                          <p className="text-xs text-muted-foreground p-2">
+                            No users found. Try "New Invite" to send an email instead.
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Parent Name</Label>
+                    <Input
+                      placeholder="e.g. John Smith"
+                      value={parentName}
+                      onChange={(e) => setParentName(e.target.value)}
+                    />
+                    <Label>Parent Email</Label>
+                    <Input
+                      type="email"
+                      placeholder="parent@example.com"
+                      value={parentEmail}
+                      onChange={(e) => setParentEmail(e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
 
               <Button
@@ -519,7 +726,12 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
                 disabled={!playerName.trim() || isPending}
               >
                 {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {parentEmail.trim() ? (
+                {selectedParent ? (
+                  <>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Player & Link Parent
+                  </>
+                ) : parentEmail.trim() ? (
                   <>
                     <Send className="h-4 w-4 mr-2" />
                     Add Player & Send Invite

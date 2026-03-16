@@ -413,7 +413,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     for (let i = 0; i < effectiveNumMatches; i++) {
       const colors = getMatchColors(i, leagueColors);
       const abilityBand = effectiveAbilityMode === "similar" 
-        ? (["High", "Medium", "Low"][Math.floor(i / Math.ceil(effectiveNumMatches / 3))] || null)
+        ? (["Advanced", "Intermediate", "Beginner"][Math.floor(i / Math.ceil(effectiveNumMatches / 3))] || null)
         : null;
       
       const { data, error } = await supabase
@@ -644,6 +644,19 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     mutationFn: async () => {
       if (!selectedPreviousEventId) throw new Error("Select an event");
 
+      // Get players who have RSVP'd "going" to the CURRENT session
+      const { data: currentRsvps } = await supabase
+        .from("rsvps")
+        .select("mini_league_player_id")
+        .eq("event_id", eventId)
+        .eq("status", "going");
+      
+      const goingPlayerIds = new Set(
+        (currentRsvps || [])
+          .map(r => r.mini_league_player_id)
+          .filter(Boolean) as string[]
+      );
+
       const { data: prevGroups, error: groupsError } = await supabase
         .from("event_groups")
         .select("*")
@@ -653,6 +666,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
 
       const newMatchIds: string[] = [];
       const newMatchPlayerIds: string[][] = [];
+      let skippedCount = 0;
 
       for (const prevGroup of prevGroups || []) {
         const { data: newGroup, error: createError } = await supabase
@@ -679,26 +693,39 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
 
         const playerIds: string[] = [];
         if (prevPlayers && prevPlayers.length > 0) {
-          const assignments = prevPlayers.map(p => ({
-            group_id: newGroup.id,
-            player_id: p.player_id,
-            team: p.team,
-          }));
-          await supabase.from("event_group_players").insert(assignments);
-          playerIds.push(...prevPlayers.map(p => p.player_id));
+          // Only include players who RSVP'd going to the current session
+          const eligiblePlayers = goingPlayerIds.size > 0
+            ? prevPlayers.filter(p => goingPlayerIds.has(p.player_id))
+            : prevPlayers; // If no RSVPs exist at all, copy all (fallback)
+          
+          skippedCount += prevPlayers.length - eligiblePlayers.length;
+
+          if (eligiblePlayers.length > 0) {
+            const assignments = eligiblePlayers.map(p => ({
+              group_id: newGroup.id,
+              player_id: p.player_id,
+              team: p.team,
+            }));
+            await supabase.from("event_group_players").insert(assignments);
+            playerIds.push(...eligiblePlayers.map(p => p.player_id));
+          }
         }
         newMatchPlayerIds.push(playerIds);
       }
 
       // Auto-distribute event-level duties to copied matches
       await distributeEventDutiesToMatches(newMatchIds, newMatchPlayerIds);
+      return { skippedCount };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
       setIsCopyPreviousOpen(false);
       setSelectedPreviousEventId(null);
-      toast.success("Matches copied with duties assigned");
+      const msg = result?.skippedCount 
+        ? `Matches copied (${result.skippedCount} player${result.skippedCount === 1 ? '' : 's'} skipped - not RSVP'd going)`
+        : "Matches copied with duties assigned";
+      toast.success(msg);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -1406,6 +1433,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           </div>
         }>
           <PitchBoard
+            key={activePitchBoardGroup.id}
             teamId={`event-group-${activePitchBoardGroup.id}`}
             teamName={activePitchBoardGroup.name}
             members={activePitchBoardGroup.players.map((player, index) => ({
@@ -1426,8 +1454,16 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
             initialTeamSize={(() => {
               const teamACount = activePitchBoardGroup.players.filter(p => p.team === "a").length;
               const teamBCount = activePitchBoardGroup.players.filter(p => p.team === "b").length;
-              const avgTeamSize = Math.max(Math.ceil((teamACount + teamBCount) / 2), 4);
-              return avgTeamSize <= 4 ? 4 : avgTeamSize <= 7 ? 7 : avgTeamSize <= 9 ? 9 : 11;
+              const avgTeamSize = Math.max(Math.ceil((teamACount + teamBCount) / 2), 3);
+              if (avgTeamSize <= 3) return 3;
+              if (avgTeamSize <= 4) return 4;
+              if (avgTeamSize <= 5) return 5;
+              if (avgTeamSize <= 6) return 6;
+              if (avgTeamSize <= 7) return 7;
+              if (avgTeamSize <= 8) return 8;
+              if (avgTeamSize <= 9) return 9;
+              if (avgTeamSize <= 10) return 10;
+              return 11;
             })()}
             readOnly={false}
             initialLinkedEventId={null}

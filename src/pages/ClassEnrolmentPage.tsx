@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, UserPlus, Users, Clock, CalendarDays, AlertCircle } from "lucide-react";
-import { format } from "date-fns";
+import { ArrowLeft, Loader2, UserPlus, Users, Clock, CalendarDays, AlertCircle, List } from "lucide-react";
+import { format, getDay, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval, parseISO, startOfDay } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -323,6 +324,45 @@ export default function ClassEnrolmentPage() {
 
   const [selectedChildId, setSelectedChildId] = useState<string>("");
   const [dayFilter, setDayFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date>(new Date());
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+
+  // Map day names to JS day indices (0=Sun, 1=Mon, ..., 6=Sat)
+  const dayNameToIndex: Record<string, number> = {
+    Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6,
+  };
+
+  // Days in the current calendar month that have classes (within term dates)
+  const classDaysInMonth = useMemo(() => {
+    if (!activeTerm || classes.length === 0) return new Set<string>();
+    const termStart = parseISO(activeTerm.start_date);
+    const termEnd = parseISO(activeTerm.end_date);
+    const monthStart = startOfMonth(calendarMonth);
+    const monthEnd = endOfMonth(calendarMonth);
+    const rangeStart = termStart > monthStart ? termStart : monthStart;
+    const rangeEnd = termEnd < monthEnd ? termEnd : monthEnd;
+    if (rangeStart > rangeEnd) return new Set<string>();
+
+    const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
+    const classDayIndices = new Set(classes.map(c => c.class_day ? dayNameToIndex[c.class_day] : -1));
+    const result = new Set<string>();
+    days.forEach(d => {
+      if (classDayIndices.has(getDay(d))) {
+        result.add(format(d, "yyyy-MM-dd"));
+      }
+    });
+    return result;
+  }, [calendarMonth, activeTerm, classes]);
+
+  // Classes for the selected date
+  const selectedDayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][selectedCalendarDate.getDay()];
+  const classesForSelectedDate = useMemo(() => {
+    if (!activeTerm) return [];
+    const dateStr = format(selectedCalendarDate, "yyyy-MM-dd");
+    if (!classDaysInMonth.has(dateStr)) return [];
+    return classes.filter(c => c.class_day === selectedDayName);
+  }, [selectedCalendarDate, classDaysInMonth, classes, selectedDayName]);
 
   const isLoading = termsLoading || classesLoading;
 
@@ -412,6 +452,34 @@ export default function ClassEnrolmentPage() {
         </div>
       )}
 
+      {/* View Mode Toggle */}
+      {classes.length > 0 && (
+        <div className="flex rounded-lg bg-muted p-1 gap-1">
+          <button
+            onClick={() => setViewMode("list")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
+              viewMode === "list"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <List className="h-4 w-4" />
+            List
+          </button>
+          <button
+            onClick={() => setViewMode("calendar")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
+              viewMode === "calendar"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <CalendarDays className="h-4 w-4" />
+            Calendar
+          </button>
+        </div>
+      )}
+
       {/* Classes List */}
       {classes.length === 0 ? (
         <Card>
@@ -420,6 +488,85 @@ export default function ClassEnrolmentPage() {
             <p className="text-sm text-muted-foreground">No classes have been set up yet.</p>
           </CardContent>
         </Card>
+      ) : viewMode === "calendar" ? (
+        /* Monthly Calendar View */
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="p-2">
+              <Calendar
+                mode="single"
+                selected={selectedCalendarDate}
+                onSelect={(date) => date && setSelectedCalendarDate(date)}
+                month={calendarMonth}
+                onMonthChange={setCalendarMonth}
+                fromDate={activeTerm ? parseISO(activeTerm.start_date) : undefined}
+                toDate={activeTerm ? parseISO(activeTerm.end_date) : undefined}
+                modifiers={{
+                  hasClass: (date) => classDaysInMonth.has(format(date, "yyyy-MM-dd")),
+                }}
+                modifiersClassNames={{
+                  hasClass: "bg-primary/15 font-semibold text-primary",
+                }}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Classes for selected date */}
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">
+              {format(selectedCalendarDate, "EEEE, d MMMM")}
+              {classesForSelectedDate.length > 0 && (
+                <span className="ml-1">({classesForSelectedDate.length} {classesForSelectedDate.length === 1 ? "class" : "classes"})</span>
+              )}
+            </h3>
+            {classesForSelectedDate.length === 0 ? (
+              <Card>
+                <CardContent className="py-6 text-center">
+                  <p className="text-sm text-muted-foreground">No classes on this day</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {classesForSelectedDate.map(cls => {
+                  const count = enrolmentCounts[cls.id] || 0;
+                  const isFull = cls.class_capacity ? count >= cls.class_capacity : false;
+                  const teamType = cls.team_type || "mixed";
+                  const canEnrolChild = allowsChildren(teamType);
+                  const canEnrolSelf = allowsAdults(teamType);
+                  const activeChild = selectedChildId || children[0]?.id;
+                  const childExisting = canEnrolChild && activeChild ? getChildEnrolment(activeChild, cls.id) : null;
+                  const selfExisting = canEnrolSelf ? getSelfEnrolment(cls.id) : null;
+                  const isEnrolled = !!childExisting || !!selfExisting;
+
+                  return (
+                    <Card key={cls.id} className={`rounded-xl ${isEnrolled ? "border-primary/30 bg-primary/5" : ""}`}>
+                      <CardContent className="py-2.5 px-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium truncate">{cls.name}</span>
+                              {isEnrolled && <Badge variant="default" className="text-[10px] px-1.5 py-0 shrink-0">Enrolled</Badge>}
+                              {!isEnrolled && isFull && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">Full</Badge>}
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                              {cls.class_time && <span>{cls.class_time.slice(0, 5)}</span>}
+                              {cls.class_duration_minutes && <span>{cls.class_duration_minutes} mins</span>}
+                              {cls.level_age && <span>{cls.level_age}</span>}
+                              <span className="flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                {count}{cls.class_capacity ? `/${cls.class_capacity}` : ""}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       ) : (
         <div className="space-y-3">
           {/* Day filter chips - only show if classes span multiple days */}

@@ -37,7 +37,7 @@ interface ActiveMiniLeagueMatch {
   teamAScore: number;
   teamBScore: number;
   isAdmin: boolean;
-  isSubsManager: boolean;
+  isReferee: boolean;
   minutesPerHalf: number;
 }
 
@@ -202,17 +202,42 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
         const isAdmin = userLeagueMemberships.isAppAdmin || 
           userLeagueMemberships.adminLeagueIds.includes(league.id);
 
-        // Check if user has "Subs Manager" duty for this specific group
-        let isSubsManagerForGroup = false;
-        if (!isAdmin && user) {
-          const { data: subsManagerDuty } = await supabase
+        // Check if user has a duty (e.g. Referee, Subs Manager) for this group
+        let isRefForGroup = false;
+        let hasGroupDuty = false;
+        if (user) {
+          const { data: userDuties } = await supabase
             .from("event_group_duties")
-            .select("id")
+            .select("id, name")
             .eq("group_id", group.id)
-            .eq("name", "Subs Manager")
-            .eq("assigned_to", user.id)
-            .maybeSingle();
-          isSubsManagerForGroup = !!subsManagerDuty;
+            .eq("assigned_to", user.id);
+          hasGroupDuty = !!userDuties?.length;
+          isRefForGroup = !!userDuties?.some(d => d.name === "Referee");
+        }
+
+        // For non-admins, only show matches where:
+        // 1. Their child is a player in this group, OR
+        // 2. They have a duty assigned in this group
+        if (!isAdmin) {
+          const userChildIds = playerLinks?.filter(pl => {
+            const player = players.find(p => p.id === pl.player_id);
+            return player !== undefined;
+          }).map(pl => pl.player_id) || [];
+
+          // Check if any of the user's children are in this match
+          let hasChildInMatch = false;
+          if (userChildIds.length > 0) {
+            const { data: userChildren } = await supabase
+              .from("mini_league_players")
+              .select("id")
+              .in("id", userChildIds)
+              .eq("parent_user_id", user!.id);
+            hasChildInMatch = !!userChildren?.length;
+          }
+
+          if (!hasChildInMatch && !hasGroupDuty) {
+            continue; // Skip this match - user has no association
+          }
         }
 
         activeMatches.push({
@@ -231,7 +256,7 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
           teamAScore,
           teamBScore,
           isAdmin,
-          isSubsManager: isSubsManagerForGroup,
+          isReferee: isRefForGroup,
           minutesPerHalf: league.minutes_per_half || 10,
         });
       }
@@ -373,6 +398,7 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
       {activePitchBoard && createPortal(
         <Suspense fallback={<LoadingOverlay />}>
           <PitchBoard
+            key={activePitchBoard.id}
             teamId={`event-group-${activePitchBoard.id}`}
             teamName={`${activePitchBoard.leagueName} - ${activePitchBoard.name}`}
             members={activePitchBoard.players.map(p => ({
@@ -392,16 +418,23 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
               teamBColor: activePitchBoard.teamBColor,
             }}
             initialTeamSize={(() => {
-              const count = activePitchBoard.players.length;
-              if (count <= 8) return 4;
-              if (count <= 14) return 7;
-              if (count <= 18) return 9;
+              const teamACount = activePitchBoard.players.filter(p => p.team === "a").length;
+              const teamBCount = activePitchBoard.players.filter(p => p.team === "b").length;
+              const avgTeamSize = Math.max(Math.ceil((teamACount + teamBCount) / 2), 3);
+              if (avgTeamSize <= 3) return 3;
+              if (avgTeamSize <= 4) return 4;
+              if (avgTeamSize <= 5) return 5;
+              if (avgTeamSize <= 6) return 6;
+              if (avgTeamSize <= 7) return 7;
+              if (avgTeamSize <= 8) return 8;
+              if (avgTeamSize <= 9) return 9;
+              if (avgTeamSize <= 10) return 10;
               return 11;
             })()}
             initialMinutesPerHalf={activePitchBoard.minutesPerHalf}
             initialLinkedEventId={activePitchBoard.eventId}
-            readOnly={!activePitchBoard.isAdmin && !activePitchBoard.isSubsManager}
-            isSubsManager={activePitchBoard.isSubsManager}
+            readOnly={!activePitchBoard.isAdmin && !activePitchBoard.isReferee}
+            isSubsManager={false}
           />
         </Suspense>,
         document.body

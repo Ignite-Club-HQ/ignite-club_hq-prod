@@ -44,7 +44,7 @@ function LightboxImage({
     <img
       src={effectiveSrc}
       alt={alt}
-      className="max-w-[100vw] max-h-[100dvh] object-contain transition-transform duration-100"
+      className="max-w-[100vw] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] object-contain transition-transform duration-100"
       style={{
         transform: `scale(${scale}) translate(${translateX / scale}px, ${translateY / scale}px)`,
       }}
@@ -142,14 +142,15 @@ export function PhotoLightbox({
           <DialogTitle>Photo viewer</DialogTitle>
         </VisuallyHidden>
         <div 
-          className="relative w-full h-full flex items-center justify-center touch-none overflow-hidden"
+          className="relative w-full h-full flex items-center justify-center overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onDoubleClick={handleDoubleClick}
+          style={{ touchAction: 'none' }}
         >
           {/* Top toolbar with dark background for visibility */}
-          <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-gradient-to-b from-black/70 to-transparent">
+          <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between p-4 pt-[calc(env(safe-area-inset-top)+1rem)] bg-gradient-to-b from-black/70 to-transparent">
             {/* Left side - Delete button */}
             <div>
               {canDelete && onDelete && (
@@ -191,8 +192,9 @@ export function PhotoLightbox({
             <Button
               variant="ghost"
               size="icon"
-              className="absolute left-4 z-50 text-white hover:bg-white/20 bg-black/40 rounded-full"
-              onClick={handlePrev}
+              className="absolute left-4 z-50 text-white hover:bg-white/20 bg-black/40 rounded-full touch-auto"
+              onClick={(e) => { e.stopPropagation(); handlePrev(); }}
+              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handlePrev(); }}
             >
               <ChevronLeft className="h-8 w-8" />
             </Button>
@@ -202,8 +204,9 @@ export function PhotoLightbox({
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-4 z-50 text-white hover:bg-white/20 bg-black/40 rounded-full"
-              onClick={handleNext}
+              className="absolute right-4 z-50 text-white hover:bg-white/20 bg-black/40 rounded-full touch-auto"
+              onClick={(e) => { e.stopPropagation(); handleNext(); }}
+              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleNext(); }}
             >
               <ChevronRight className="h-8 w-8" />
             </Button>

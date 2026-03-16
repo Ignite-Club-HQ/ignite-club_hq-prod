@@ -65,6 +65,7 @@ import { useClubTheme, hasClubThemeCached } from "@/hooks/useClubTheme";
 import { ClubSponsorSection } from "@/components/ClubSponsorSection";
 import { MultiClubSponsorCarousel } from "@/components/MultiClubSponsorCarousel";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
+import { UpcomingClassesWidget } from "@/components/UpcomingClassesWidget";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -280,7 +281,7 @@ export default function HomePage() {
       if (!userMemberships) return [];
       
       const { teamIds, clubIds, miniLeagueIds } = userMemberships;
-      if (teamIds.length === 0 && clubIds.length === 0) return [];
+      if (teamIds.length === 0 && clubIds.length === 0 && miniLeagueIds.length === 0) return [];
       
       const now = new Date();
       const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
@@ -1913,6 +1914,9 @@ export default function HomePage() {
           </ResponsiveDialogFooter>
         </ResponsiveDialogContent>
       </ResponsiveDialog>
+
+      {/* Upcoming Classes Widget - for parents with enrolled children */}
+      <UpcomingClassesWidget />
 
       {/* Upcoming Schedule - Moved above Quick Actions */}
       <section className="space-y-4">
