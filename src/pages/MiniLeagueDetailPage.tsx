@@ -499,13 +499,10 @@ export default function MiniLeagueDetailPage() {
         </Avatar>
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold truncate leading-tight">{league.name}</h1>
-          <div className="flex items-center gap-2 mt-0.5">
-            <p className="text-xs text-muted-foreground truncate">{league.club?.name}</p>
-            <span className="text-muted-foreground/40">·</span>
-            <span className="text-xs text-muted-foreground">{players?.length || 0} Players</span>
-            <span className="text-muted-foreground/40">·</span>
-            <span className="text-xs text-muted-foreground">{events?.length || 0} Sessions</span>
-          </div>
+          <p className="text-xs text-muted-foreground truncate">{league.club?.name}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {players?.length || 0} Players · {events?.length || 0} Sessions
+          </p>
         </div>
         {canManageLeague && (
           <DropdownMenu>
