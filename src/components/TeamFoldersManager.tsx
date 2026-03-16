@@ -60,7 +60,7 @@ interface TeamFoldersManagerProps {
   classMode?: boolean;
 }
 
-export default function TeamFoldersManager({ clubId, isAdmin }: TeamFoldersManagerProps) {
+export default function TeamFoldersManager({ clubId, isAdmin, classMode = false }: TeamFoldersManagerProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
