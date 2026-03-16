@@ -1779,16 +1779,46 @@ export default function ClubDetailPage() {
           <AccordionContent>
             <div className="pt-2 space-y-4">
               <AdminEnrolmentManager clubId={id!} />
-              <Link to={`/clubs/${id}/enrol`}>
-                <Card className="hover:border-primary/50 transition-colors">
-                  <CardContent className="p-4 flex items-center gap-3">
+              <Card className="border">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-primary/10">
                       <BookOpen className="h-5 w-5 text-primary" />
                     </div>
-                    <span className="font-medium">View Enrolment Page</span>
-                  </CardContent>
-                </Card>
-              </Link>
+                    <div className="flex-1">
+                      <span className="font-medium">Enrolment Page</span>
+                      <p className="text-xs text-muted-foreground">Share this link with parents to enrol</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Link to={`/clubs/${id}/enrol`} className="flex-1">
+                      <Button variant="outline" size="sm" className="w-full gap-1.5">
+                        <BookOpen className="h-3.5 w-3.5" />
+                        View Page
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={async () => {
+                        const url = `${window.location.origin}/clubs/${id}/enrol`;
+                        if (navigator.share) {
+                          try {
+                            await navigator.share({ title: `${club?.name} - Enrolment`, url });
+                          } catch {}
+                        } else {
+                          await navigator.clipboard.writeText(url);
+                          toast({ title: "Link copied!", description: "Enrolment link copied to clipboard." });
+                        }
+                      }}
+                    >
+                      <Share2 className="h-3.5 w-3.5" />
+                      Share Link
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </AccordionContent>
         </AccordionItem>
