@@ -325,6 +325,44 @@ export default function ClassEnrolmentPage() {
   const [selectedChildId, setSelectedChildId] = useState<string>("");
   const [dayFilter, setDayFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date>(new Date());
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+
+  // Map day names to JS day indices (0=Sun, 1=Mon, ..., 6=Sat)
+  const dayNameToIndex: Record<string, number> = {
+    Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6,
+  };
+
+  // Days in the current calendar month that have classes (within term dates)
+  const classDaysInMonth = useMemo(() => {
+    if (!activeTerm || classes.length === 0) return new Set<string>();
+    const termStart = parseISO(activeTerm.start_date);
+    const termEnd = parseISO(activeTerm.end_date);
+    const monthStart = startOfMonth(calendarMonth);
+    const monthEnd = endOfMonth(calendarMonth);
+    const rangeStart = termStart > monthStart ? termStart : monthStart;
+    const rangeEnd = termEnd < monthEnd ? termEnd : monthEnd;
+    if (rangeStart > rangeEnd) return new Set<string>();
+
+    const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd });
+    const classDayIndices = new Set(classes.map(c => c.class_day ? dayNameToIndex[c.class_day] : -1));
+    const result = new Set<string>();
+    days.forEach(d => {
+      if (classDayIndices.has(getDay(d))) {
+        result.add(format(d, "yyyy-MM-dd"));
+      }
+    });
+    return result;
+  }, [calendarMonth, activeTerm, classes]);
+
+  // Classes for the selected date
+  const selectedDayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][selectedCalendarDate.getDay()];
+  const classesForSelectedDate = useMemo(() => {
+    if (!activeTerm) return [];
+    const dateStr = format(selectedCalendarDate, "yyyy-MM-dd");
+    if (!classDaysInMonth.has(dateStr)) return [];
+    return classes.filter(c => c.class_day === selectedDayName);
+  }, [selectedCalendarDate, classDaysInMonth, classes, selectedDayName]);
 
   const isLoading = termsLoading || classesLoading;
 
