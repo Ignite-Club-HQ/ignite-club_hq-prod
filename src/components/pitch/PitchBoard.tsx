@@ -1547,27 +1547,46 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, [players, teamSize, selectedFormation, autoPlacePlayersOnPitch, miniLeagueTeams]);
 
   // Save pitch state to localStorage whenever it changes (only after initialization)
+  // Debounced to avoid excessive saves during drag operations
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     if (!hasInitialized) return;
     
-    savePitchState(teamId, {
-      players,
-      teamSize,
-      selectedFormation,
-      ballPosition,
-      autoSubPlan,
-      autoSubActive,
-      autoSubPaused,
-      mockMode,
-      linkedEventId,
-      goals,
-    });
-    
-    // Also sync to database if this is an event group (mini-league match)
-    if (isEventGroup) {
-      forceEventGroupSync();
+    // Clear any pending save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
-  }, [hasInitialized, teamId, players, teamSize, selectedFormation, ballPosition, autoSubPlan, autoSubActive, autoSubPaused, mockMode, linkedEventId, goals, isEventGroup, forceEventGroupSync]);
+    
+    // During active drag, debounce saves to reduce jank
+    const isActiveDrag = touchDragPlayer !== null || draggedPlayer !== null;
+    const delay = isActiveDrag ? 300 : 0;
+    
+    saveTimeoutRef.current = setTimeout(() => {
+      savePitchState(teamId, {
+        players,
+        teamSize,
+        selectedFormation,
+        ballPosition,
+        autoSubPlan,
+        autoSubActive,
+        autoSubPaused,
+        mockMode,
+        linkedEventId,
+        goals,
+      });
+      
+      // Also sync to database if this is an event group (mini-league match)
+      if (isEventGroup) {
+        forceEventGroupSync();
+      }
+    }, delay);
+    
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [hasInitialized, teamId, players, teamSize, selectedFormation, ballPosition, autoSubPlan, autoSubActive, autoSubPaused, mockMode, linkedEventId, goals, isEventGroup, forceEventGroupSync, touchDragPlayer, draggedPlayer]);
 
   // Sync player position preferences from database when they change
   // This ensures updated preferences are reflected even when using saved state from localStorage
@@ -5185,7 +5204,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                         left: `${player.position!.x + tx}%`,
                         top: `${player.position!.y + ty}%`,
                         transform: "translate(-50%, -50%)",
-                        transition: (isDragging || recentlyDropped) ? "none" : "left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+                        transition: (isDragging || recentlyDropped || touchDragPlayer !== null || draggedPlayer !== null) ? "none" : "left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
                       };
                     })(),
                     zIndex: (subAnimationPlayers.in === player.id || subAnimationPlayers.swap === player.id) ? 40 : previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
@@ -6963,7 +6982,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       left: `${player.position!.x + tx}%`,
                       top: `${player.position!.y + ty}%`,
                       transform: "translate(-50%, -50%)",
-                      transition: (isDragging || recentlyDropped) ? "none" : "left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+                      transition: (isDragging || recentlyDropped || touchDragPlayer !== null || draggedPlayer !== null) ? "none" : "left 0.6s cubic-bezier(0.4, 0, 0.2, 1), top 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
                     };
                   })(),
                   zIndex: (subAnimationPlayers.in === player.id || subAnimationPlayers.swap === player.id) ? 40 : previewSwapPlayers.sourceId === player.id || previewSwapPlayers.targetId === player.id ? 30 : (touchDragPlayer === player.id ? 50 : 10),
