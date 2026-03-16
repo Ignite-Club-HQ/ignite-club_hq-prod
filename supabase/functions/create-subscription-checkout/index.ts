@@ -410,6 +410,7 @@ serve(async (req) => {
         user_id: user.id,
         is_annual: isAnnual.toString(),
         with_trial: (withTrial || false).toString(),
+        platform_fee_cents: platformFeeCents.toString(),
       },
       success_url: successUrl || `${req.headers.get('origin')}/subscription-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: cancelUrl || `${req.headers.get('origin')}/subscription-cancelled`,

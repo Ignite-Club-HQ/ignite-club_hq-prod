@@ -200,6 +200,7 @@ serve(async (req) => {
         user_id: user.id,
         payment_period: paymentPeriod,
         amount: subscription.member_subscription_amount.toString(),
+        platform_fee_cents: platformFeeCents.toString(),
       },
     });
 
