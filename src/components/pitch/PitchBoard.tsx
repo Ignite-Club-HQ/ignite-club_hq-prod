@@ -2034,6 +2034,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const formation = FORMATIONS[teamSize][index];
     if (!formation) return;
 
+    // In mini-league mode, skip preview dialog and apply directly
+    if (miniLeagueTeams) {
+      applyFormationChange(index);
+      return;
+    }
+
     const numPositions = parseInt(teamSize);
     
     // Calculate what changes would happen
