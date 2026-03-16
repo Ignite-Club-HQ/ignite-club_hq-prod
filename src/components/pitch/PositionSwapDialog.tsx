@@ -10,6 +10,7 @@ import {
   ResponsiveDialogDescription,
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
+import { MiniLeagueTeams } from "./types";
 
 interface Player {
   id: string;
@@ -18,6 +19,7 @@ interface Player {
   position: { x: number; y: number } | null;
   assignedPositions?: PitchPosition[];
   currentPitchPosition?: PitchPosition;
+  teamSide?: "a" | "b";
 }
 
 interface PositionSwapDialogProps {
@@ -28,6 +30,7 @@ interface PositionSwapDialogProps {
   requiredPosition: PitchPosition | null;
   onSwapAndSubstitute: (pitchPlayerId: string, swapWithId: string) => void;
   onCancel: () => void;
+  miniLeagueTeams?: MiniLeagueTeams;
 }
 
 export default function PositionSwapDialog({
@@ -38,9 +41,18 @@ export default function PositionSwapDialog({
   requiredPosition,
   onSwapAndSubstitute,
   onCancel,
+  miniLeagueTeams,
 }: PositionSwapDialogProps) {
+  const benchPlayerTeam = benchPlayer?.teamSide;
+  const isMiniLeague = !!miniLeagueTeams && !!benchPlayerTeam;
+
+  // Filter pitch players to same team in mini-league mode
+  const filteredPitchPlayers = isMiniLeague
+    ? pitchPlayers.filter(p => p.teamSide === benchPlayerTeam)
+    : pitchPlayers;
+
   // Find a player currently in the required position (this is the player being subbed off)
-  const playerInPosition = pitchPlayers.find(p => p.currentPitchPosition === requiredPosition);
+  const playerInPosition = filteredPitchPlayers.find(p => p.currentPitchPosition === requiredPosition);
 
   // Helper to check if a player can play a position
   const canPlayPosition = (player: Player | null, position: PitchPosition): boolean => {
@@ -51,7 +63,7 @@ export default function PositionSwapDialog({
   };
 
   // Find players who can swap to the required position AND whose position the bench player can take
-  const playersWhoCanSwap = pitchPlayers.filter(p => {
+  const playersWhoCanSwap = filteredPitchPlayers.filter(p => {
     // Can't swap with the player being subbed off (the one in the required position)
     if (p.id === playerInPosition?.id) return false;
     // Swap player must be able to play the required position
