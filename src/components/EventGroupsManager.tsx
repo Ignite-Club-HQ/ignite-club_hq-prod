@@ -850,10 +850,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   <Copy className="h-4 w-4 mr-2" />
                   Copy from Previous
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => {
-                  setNewGroupName(`Match ${(groups?.length || 0) + 1}`);
-                  setIsCreateOpen(true);
-                }}>
+                <DropdownMenuItem onClick={() => setIsCreateOpen(true)}>
+
                   <Plus className="h-4 w-4 mr-2" />
                   Add Match Manually
                 </DropdownMenuItem>
