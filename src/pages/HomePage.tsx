@@ -1915,6 +1915,9 @@ export default function HomePage() {
         </ResponsiveDialogContent>
       </ResponsiveDialog>
 
+      {/* Upcoming Classes Widget - for parents with enrolled children */}
+      <UpcomingClassesWidget />
+
       {/* Upcoming Schedule - Moved above Quick Actions */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
