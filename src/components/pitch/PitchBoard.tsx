@@ -601,14 +601,36 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Only send email notifications when linking (not unlinking) and event is different
     if (eventId && eventId !== previousLinkedEventId && user?.id) {
       try {
-        // Get team admins and coaches who should receive notifications
-        const { data: teamAdmins } = await supabase
-          .from('user_roles')
-          .select('user_id')
-          .eq('team_id', teamId)
-          .in('role', ['team_admin', 'coach']);
-        
-        if (teamAdmins && teamAdmins.length > 0) {
+        const isEventGroup = teamId.startsWith("event-group-");
+        let recipientUserIds: string[] = [];
+
+        if (isEventGroup) {
+          // Mini-league: only notify the Referee of this specific match
+          const groupId = teamId.replace("event-group-", "");
+          const { data: referees } = await supabase
+            .from('event_group_duties')
+            .select('assigned_to')
+            .eq('group_id', groupId)
+            .eq('name', 'Referee')
+            .not('assigned_to', 'is', null);
+          
+          recipientUserIds = (referees || [])
+            .map((d: any) => d.assigned_to as string)
+            .filter(uid => uid !== user.id);
+        } else {
+          // Regular team: notify coaches/admins
+          const { data: teamAdmins } = await supabase
+            .from('user_roles')
+            .select('user_id')
+            .eq('team_id', teamId)
+            .in('role', ['team_admin', 'coach']);
+          
+          recipientUserIds = (teamAdmins || [])
+            .map((r: any) => r.user_id as string)
+            .filter(uid => uid !== user.id);
+        }
+
+        if (recipientUserIds.length > 0) {
           // Get event details for the notification message
           const { data: eventData } = await supabase
             .from('events')
@@ -617,11 +639,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             .single();
           
           const eventTitle = eventData?.title || 'a game';
-          
-          // Send email notifications to all team admins/coaches (except the current user)
-          const recipientUserIds = teamAdmins
-            .map(r => r.user_id)
-            .filter(uid => uid !== user.id);
           
           for (const recipientUserId of recipientUserIds) {
             supabase.functions.invoke('send-pitch-board-notification-email', {
