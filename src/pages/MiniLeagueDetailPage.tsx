@@ -3,9 +3,15 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, isToday, isFuture, parseISO } from "date-fns";
 import { 
-  ArrowLeft, Users, Calendar, Plus, Settings, Trash2, Loader2, 
-  ChevronRight, Clock, MapPin, Star, Pencil, Camera, ImageIcon, CheckSquare, Square, UsersRound, Shirt, X
+  ArrowLeft, Users, Calendar, Plus, MoreVertical, Trash2, Loader2, 
+  ChevronRight, Clock, MapPin, Star, Pencil, Camera, ImageIcon, CheckSquare, Square, UsersRound, Shirt, X, Settings
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -497,9 +503,19 @@ export default function MiniLeagueDetailPage() {
           <p className="text-sm text-muted-foreground truncate">{league.club?.name}</p>
         </div>
         {canManageLeague && (
-          <Button variant="outline" size="icon" className="shrink-0" onClick={openSettings}>
-            <Settings className="h-4 w-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="shrink-0">
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-popover">
+              <DropdownMenuItem onClick={openSettings}>
+                <Settings className="h-4 w-4 mr-2" />
+                Edit Settings
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
 
