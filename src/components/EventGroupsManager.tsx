@@ -39,6 +39,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { MatchDutiesDialog } from "@/components/MatchDutiesDialog";
+import { QuickSetupDutyDialog } from "@/components/QuickSetupDutyDialog";
 
 // Lazy load PitchBoard for performance
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
@@ -100,6 +101,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedPreviousEventId, setSelectedPreviousEventId] = useState<string | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isQuickSetupOpen, setIsQuickSetupOpen] = useState(false);
   
   // Tap-to-swap state
   const [swapSource, setSwapSource] = useState<{ groupId: string; playerId: string; team: "a" | "b" | null } | null>(null);
@@ -251,6 +253,33 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
   }
 
   const availablePlayers = allPlayers?.filter(p => rsvpPlayerIds.has(p.id)) || [];
+
+  // Get unique parent IDs from available players for duty assignment
+  const parentUserIds = [...new Set(
+    availablePlayers
+      .map(p => p.parent_user_id)
+      .filter((id): id is string => !!id)
+  )];
+
+  // Fetch parent profiles for duty assignment
+  const { data: parentProfiles } = useQuery({
+    queryKey: ["parent-profiles-for-duties", parentUserIds.join(",")],
+    queryFn: async () => {
+      if (parentUserIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", parentUserIds);
+      if (error) throw error;
+      return (data || []).map(p => ({
+        id: p.id,
+        display_name: p.display_name || "Unknown",
+        avatar_url: p.avatar_url,
+      }));
+    },
+    enabled: parentUserIds.length > 0,
+  });
+
 
   // Fetch previous events for copy
   const { data: previousEvents } = useQuery({
@@ -524,13 +553,13 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     onError: (error: Error) => toast.error(error.message),
   });
 
-  // Quick setup (one-tap) - uses defaults directly, auto-creates Referee & Oranges duties
+  // Quick setup - opens dialog for duty assignment, then generates matches
   const quickSetupMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (dutyAssignments: Record<string, string | null>) => {
       await refetchRsvps();
       const result = await runAutoGenerate();
 
-      // Auto-create Referee and Oranges match duties for each match
+      // Create Referee and Oranges match duties for each match
       const QUICK_SETUP_DUTIES = ["Referee", "Oranges"];
 
       // Build parent map for smart assignment
@@ -558,11 +587,18 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         for (let matchIdx = 0; matchIdx < result.matchIds.length; matchIdx++) {
           let assignedTo: string | null = null;
 
-          if (matchParentIds[matchIdx].length > 0) {
-            const candidates = matchParentIds[matchIdx]
-              .map(pid => ({ id: pid, count: parentDutyCount.get(pid) || 0 }))
-              .sort((a, b) => a.count - b.count);
-            assignedTo = candidates[0].id;
+          // Use user-selected assignment if provided
+          const userPick = dutyAssignments[dutyName];
+          if (userPick) {
+            assignedTo = userPick;
+          } else {
+            // Auto-assign: pick least-burdened parent from this match
+            if (matchParentIds[matchIdx].length > 0) {
+              const candidates = matchParentIds[matchIdx]
+                .map(pid => ({ id: pid, count: parentDutyCount.get(pid) || 0 }))
+                .sort((a, b) => a.count - b.count);
+              assignedTo = candidates[0].id;
+            }
           }
 
           if (assignedTo) {
@@ -587,7 +623,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     onSuccess: (numCreated) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
-      toast.success(`${numCreated} matches created with balanced teams, Referee & Oranges assigned`);
+      setIsQuickSetupOpen(false);
+      toast.success(`${numCreated} matches created with Referee & Oranges assigned`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -1014,7 +1051,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
               <div className="space-y-2">
                 <Button 
                   className="w-full h-12 text-base font-semibold"
-                  onClick={() => quickSetupMutation.mutate()}
+                  onClick={() => setIsQuickSetupOpen(true)}
                   disabled={quickSetupMutation.isPending || availablePlayers.length === 0}
                 >
                   {quickSetupMutation.isPending ? (
@@ -1347,6 +1384,15 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         </Suspense>,
         document.body
       )}
+      {/* Quick Setup Duty Dialog */}
+      <QuickSetupDutyDialog
+        open={isQuickSetupOpen}
+        onOpenChange={setIsQuickSetupOpen}
+        onConfirm={(assignments) => quickSetupMutation.mutate(assignments)}
+        isPending={quickSetupMutation.isPending}
+        parents={parentProfiles || []}
+        playerCount={availablePlayers.length}
+      />
     </div>
   );
 }
