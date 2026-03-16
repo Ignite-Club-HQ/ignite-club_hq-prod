@@ -644,6 +644,19 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     mutationFn: async () => {
       if (!selectedPreviousEventId) throw new Error("Select an event");
 
+      // Get players who have RSVP'd "going" to the CURRENT session
+      const { data: currentRsvps } = await supabase
+        .from("rsvps")
+        .select("mini_league_player_id")
+        .eq("event_id", eventId)
+        .eq("status", "going");
+      
+      const goingPlayerIds = new Set(
+        (currentRsvps || [])
+          .map(r => r.mini_league_player_id)
+          .filter(Boolean) as string[]
+      );
+
       const { data: prevGroups, error: groupsError } = await supabase
         .from("event_groups")
         .select("*")
@@ -653,6 +666,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
 
       const newMatchIds: string[] = [];
       const newMatchPlayerIds: string[][] = [];
+      let skippedCount = 0;
 
       for (const prevGroup of prevGroups || []) {
         const { data: newGroup, error: createError } = await supabase
@@ -679,26 +693,39 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
 
         const playerIds: string[] = [];
         if (prevPlayers && prevPlayers.length > 0) {
-          const assignments = prevPlayers.map(p => ({
-            group_id: newGroup.id,
-            player_id: p.player_id,
-            team: p.team,
-          }));
-          await supabase.from("event_group_players").insert(assignments);
-          playerIds.push(...prevPlayers.map(p => p.player_id));
+          // Only include players who RSVP'd going to the current session
+          const eligiblePlayers = goingPlayerIds.size > 0
+            ? prevPlayers.filter(p => goingPlayerIds.has(p.player_id))
+            : prevPlayers; // If no RSVPs exist at all, copy all (fallback)
+          
+          skippedCount += prevPlayers.length - eligiblePlayers.length;
+
+          if (eligiblePlayers.length > 0) {
+            const assignments = eligiblePlayers.map(p => ({
+              group_id: newGroup.id,
+              player_id: p.player_id,
+              team: p.team,
+            }));
+            await supabase.from("event_group_players").insert(assignments);
+            playerIds.push(...eligiblePlayers.map(p => p.player_id));
+          }
         }
         newMatchPlayerIds.push(playerIds);
       }
 
       // Auto-distribute event-level duties to copied matches
       await distributeEventDutiesToMatches(newMatchIds, newMatchPlayerIds);
+      return { skippedCount };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
       setIsCopyPreviousOpen(false);
       setSelectedPreviousEventId(null);
-      toast.success("Matches copied with duties assigned");
+      const msg = result?.skippedCount 
+        ? `Matches copied (${result.skippedCount} player${result.skippedCount === 1 ? '' : 's'} skipped - not RSVP'd going)`
+        : "Matches copied with duties assigned";
+      toast.success(msg);
     },
     onError: (error: Error) => toast.error(error.message),
   });
