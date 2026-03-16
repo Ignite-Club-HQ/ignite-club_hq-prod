@@ -269,6 +269,78 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     enabled: !!miniLeagueId && isCopyPreviousOpen,
   });
 
+  // Smart duty distribution: assign event-level duties to matches, preferring parents whose kids are in each match
+  const distributeEventDutiesToMatches = useCallback(async (matchIds: string[], matchPlayerIds: string[][]) => {
+    // Fetch event-level duties
+    const { data: eventDuties } = await supabase
+      .from("duties")
+      .select("id, name, assigned_to")
+      .eq("event_id", eventId);
+    
+    if (!eventDuties || eventDuties.length === 0) return;
+
+    // Build a map: player_id -> parent_user_id
+    const playerParentMap = new Map<string, string>();
+    if (allPlayers) {
+      for (const p of allPlayers) {
+        if (p.parent_user_id) playerParentMap.set(p.id, p.parent_user_id);
+      }
+    }
+
+    // For each match, find which parents have kids playing
+    const matchParentIds: string[][] = matchPlayerIds.map(playerIds => {
+      const parents = new Set<string>();
+      for (const pid of playerIds) {
+        const parentId = playerParentMap.get(pid);
+        if (parentId) parents.add(parentId);
+      }
+      return [...parents];
+    });
+
+    // Track how many duties each parent has been assigned (for fair rotation)
+    const parentDutyCount = new Map<string, number>();
+
+    // For each duty, create an event_group_duty in every match
+    const dutyInserts: { group_id: string; name: string; assigned_to: string | null; status: string }[] = [];
+
+    for (const duty of eventDuties) {
+      for (let matchIdx = 0; matchIdx < matchIds.length; matchIdx++) {
+        let assignedTo: string | null = null;
+
+        if (duty.assigned_to) {
+          // If the event-level duty is pre-assigned, check if that parent has a kid in this match
+          const parentInMatch = matchParentIds[matchIdx].includes(duty.assigned_to);
+          if (parentInMatch) {
+            assignedTo = duty.assigned_to;
+          }
+        }
+
+        // If not pre-assigned or parent not in this match, pick the least-burdened parent from this match
+        if (!assignedTo && matchParentIds[matchIdx].length > 0) {
+          const candidates = matchParentIds[matchIdx]
+            .map(pid => ({ id: pid, count: parentDutyCount.get(pid) || 0 }))
+            .sort((a, b) => a.count - b.count);
+          assignedTo = candidates[0].id;
+        }
+
+        if (assignedTo) {
+          parentDutyCount.set(assignedTo, (parentDutyCount.get(assignedTo) || 0) + 1);
+        }
+
+        dutyInserts.push({
+          group_id: matchIds[matchIdx],
+          name: duty.name,
+          assigned_to: assignedTo,
+          status: assignedTo ? "confirmed" : "pending",
+        });
+      }
+    }
+
+    if (dutyInserts.length > 0) {
+      await supabase.from("event_group_duties").insert(dutyInserts);
+    }
+  }, [eventId, allPlayers]);
+
   // Auto-generate matches (core logic)
   const runAutoGenerate = useCallback(async () => {
     if (!availablePlayers || availablePlayers.length === 0) {
