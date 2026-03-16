@@ -430,12 +430,14 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
   return (
     <>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger asChild>
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Players
-          </Button>
-        </SheetTrigger>
+        {!isExternallyControlled && (
+          <SheetTrigger asChild>
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Players
+            </Button>
+          </SheetTrigger>
+        )}
         <SheetContent side="bottom" className="h-[85vh] flex flex-col">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
