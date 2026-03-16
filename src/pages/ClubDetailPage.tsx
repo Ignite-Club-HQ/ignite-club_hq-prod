@@ -83,6 +83,7 @@ import { TermsManager } from "@/components/TermsManager";
 import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
 import { ClassAttendanceManager } from "@/components/ClassAttendanceManager";
 import { ClassModeOnboardingGuide } from "@/components/ClassModeOnboardingGuide";
+import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
 
 type ClubRole = "club_admin";
 
@@ -900,6 +901,11 @@ export default function ClubDetailPage() {
       {/* Class Mode Onboarding Guide */}
       {isAdmin && club?.class_mode_enabled && (
         <ClassModeOnboardingGuide clubId={id!} />
+      )}
+
+      {/* Today's Classes Dashboard */}
+      {isAdmin && club?.class_mode_enabled && (
+        <TodaysClassesDashboard clubId={id!} />
       )}
 
       {/* Primary Sponsor Display */}
