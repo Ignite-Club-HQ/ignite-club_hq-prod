@@ -785,8 +785,12 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       // Deselect
       setSwapSource(null);
     } else {
-      // This shouldn't happen - team headers handle the destination
-      setSwapSource(null);
+      // Tapped a different player — move source player to this player's team/group
+      if (currentTeam) {
+        handleTeamTap(groupId, currentTeam);
+      } else {
+        setSwapSource(null);
+      }
     }
   };
 
