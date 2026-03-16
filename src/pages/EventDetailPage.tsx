@@ -1709,7 +1709,7 @@ export default function EventDetailPage() {
                 <>
                   <DropdownMenuItem onClick={() => navigate(`/events/${id}/edit`)}>
                     <Pencil className="h-4 w-4 mr-2" />
-                    Edit {getEventTypeLabel(event.type)}
+                    Edit {eventTypeLabel}
                   </DropdownMenuItem>
                   {canSendReminders ? (
                     <DropdownMenuItem onClick={() => {
@@ -1732,7 +1732,7 @@ export default function EventDetailPage() {
                     className="text-warning focus:text-warning"
                   >
                     <XCircle className="h-4 w-4 mr-2" />
-                    Cancel {getEventTypeLabel(event.type)}
+                    Cancel {eventTypeLabel}
                   </DropdownMenuItem>
                 </>
               )}
@@ -1741,7 +1741,7 @@ export default function EventDetailPage() {
                 className="text-destructive focus:text-destructive"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                Delete {getEventTypeLabel(event.type)}
+                Delete {eventTypeLabel}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
