@@ -967,8 +967,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   <div className="flex items-center gap-2">
                     <CardTitle className="text-base">{group.name}</CardTitle>
                     {group.ability_band && (
-                      <Badge variant="outline" className="text-xs">
-                        {group.ability_band}
+                      <Badge variant="outline" className="text-xs gap-1">
+                        <span className="text-muted-foreground">Ability:</span> {group.ability_band}
                       </Badge>
                     )}
                   </div>
