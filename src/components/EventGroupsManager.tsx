@@ -815,6 +815,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     }
   };
 
+  // Resolve selected player name for UI hints
+  const swapSourcePlayerName = swapSource
+    ? groups?.flatMap(g => g.players).find(p => p.id === swapSource.playerId)?.name || "Selected player"
+    : null;
+
   // Handle player tap for swap mode
   const handlePlayerTap = (groupId: string, playerId: string, currentTeam: "a" | "b" | null) => {
     if (!isAdmin) return;
@@ -822,17 +827,24 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     if (!swapSource) {
       // Select source player
       setSwapSource({ groupId, playerId, team: currentTeam });
-      toast.info("Now tap the team you want to move this player to", { duration: 3000 });
     } else if (swapSource.playerId === playerId && swapSource.groupId === groupId) {
       // Deselect
       setSwapSource(null);
+    } else if (currentTeam && swapSource.team) {
+      // Tapped a second player — swap them between teams
+      swapPlayersMutation.mutate({
+        player1Id: swapSource.playerId,
+        player1GroupId: swapSource.groupId,
+        player1Team: swapSource.team,
+        player2Id: playerId,
+        player2GroupId: groupId,
+        player2Team: currentTeam,
+      });
+    } else if (currentTeam) {
+      // Fallback: move source to this team
+      handleTeamTap(groupId, currentTeam);
     } else {
-      // Tapped a different player — move source player to this player's team/group
-      if (currentTeam) {
-        handleTeamTap(groupId, currentTeam);
-      } else {
-        setSwapSource(null);
-      }
+      setSwapSource(null);
     }
   };
 
