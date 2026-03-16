@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const WELCOME_MESSAGE_TEXT =
-  "Welcome to Ignite Club HQ! 🔥 For tips on how to use all of the app's features and help manage your club in one place, visit https://igniteclubhq.com/videos\n\nFor the latest news, join us on [Facebook page](https://www.facebook.com/share/1BHVkXuKNz/)";
+  "Welcome to Ignite Club HQ! 🔥\n\nManage your club, teams, schedules, messaging, media and more — all in one place.\n\nTo learn more and see tips on using Ignite, visit:\nhttps://igniteclubhq.com\n\nFor the latest updates, follow us on our [Facebook page](https://www.facebook.com/profile.php?id=61585375267816).";
 
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight
