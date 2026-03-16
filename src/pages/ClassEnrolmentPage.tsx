@@ -386,7 +386,7 @@ export default function ClassEnrolmentPage() {
             <SelectContent className="bg-popover">
               {terms.map((term) => (
                 <SelectItem key={term.id} value={term.id}>
-                  {term.name} ({format(new Date(term.start_date), "d MMM")} – {format(new Date(term.end_date), "d MMM yyyy")})
+                  {term.name}{term.start_date && term.end_date ? ` (${format(new Date(term.start_date), "d MMM")} – ${format(new Date(term.end_date), "d MMM yyyy")})` : ""}
                 </SelectItem>
               ))}
             </SelectContent>
