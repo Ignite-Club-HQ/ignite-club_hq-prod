@@ -404,7 +404,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     const matchIds: string[] = [];
     for (let i = 0; i < effectiveNumMatches; i++) {
       const colors = getMatchColors(i, leagueColors);
-      const abilityBand = abilityMode === "similar" 
+      const abilityBand = effectiveAbilityMode === "similar" 
         ? (["High", "Medium", "Low"][Math.floor(i / Math.ceil(effectiveNumMatches / 3))] || null)
         : null;
       
