@@ -178,7 +178,6 @@ export function MatchDutiesDialog({
       setView("list");
       setSelectedDuty(null);
       setSelectedUserId(null);
-      hasHandledInitial[1](false);
     }
     onOpenChange(isOpen);
   };
