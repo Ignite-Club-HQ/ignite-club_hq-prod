@@ -991,7 +991,7 @@ export default function ClubDetailPage() {
                   />
                   <Link to={`/clubs/${id}/teams/new`}>
                     <Button size="sm">
-                      <Plus className="h-4 w-4 mr-1" /> Add Team
+                      <Plus className="h-4 w-4 mr-1" /> {club?.class_mode_enabled ? "Add Class" : "Add Team"}
                     </Button>
                   </Link>
                 </div>
