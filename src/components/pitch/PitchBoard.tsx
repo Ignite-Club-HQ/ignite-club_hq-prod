@@ -4051,6 +4051,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const playersOnPitch = useMemo(() => players.filter(p => p.position !== null), [players]);
   const playersOnBench = useMemo(() => players.filter(p => p.position === null), [players]);
 
+  // Filtered on-pitch players for mini-league team selector (hides the other team)
+  const filteredPlayersOnPitch = useMemo(() => {
+    if (!miniLeagueTeams || selectedTeamForSettings === "both") return playersOnPitch;
+    return playersOnPitch.filter(p => p.teamSide === selectedTeamForSettings);
+  }, [playersOnPitch, miniLeagueTeams, selectedTeamForSettings]);
+
   // Tactical mode: batch-compute visual offsets (CSS translate) for on-pitch players
   const tacticalOffsets = useMemo(() => 
     computeTacticalOffsets(players, tacticalMode, teamSize),
