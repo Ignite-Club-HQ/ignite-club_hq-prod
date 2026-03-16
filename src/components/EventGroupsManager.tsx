@@ -413,7 +413,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     for (let i = 0; i < effectiveNumMatches; i++) {
       const colors = getMatchColors(i, leagueColors);
       const abilityBand = effectiveAbilityMode === "similar" 
-        ? (["High", "Medium", "Low"][Math.floor(i / Math.ceil(effectiveNumMatches / 3))] || null)
+        ? (["Advanced", "Intermediate", "Beginner"][Math.floor(i / Math.ceil(effectiveNumMatches / 3))] || null)
         : null;
       
       const { data, error } = await supabase
