@@ -608,7 +608,42 @@ function createSubPlan(
   return plan;
 }
 
-// Separate content component to isolate re-renders
+// Generate per-team plans for mini-league mode and merge them
+function createMiniLeagueSubPlan(
+  players: Player[],
+  teamSize: number,
+  halfDurationSeconds: number,
+  rotationSpeed: number,
+  disablePositionSwaps: boolean,
+  disableBatchSubs: boolean,
+  rotateGkAtHalftime: boolean,
+  startElapsedSeconds: number,
+  startHalf: 1 | 2,
+  miniLeagueTeams: MiniLeagueTeams,
+  preferredSecondHalfGkId?: string
+): SubstitutionEvent[] {
+  const teamAPlayers = players.filter(p => p.teamSide === "a");
+  const teamBPlayers = players.filter(p => p.teamSide === "b");
+  
+  const planA = teamAPlayers.length > 0
+    ? createSubPlan(teamAPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf, preferredSecondHalfGkId)
+    : [];
+  
+  const planB = teamBPlayers.length > 0
+    ? createSubPlan(teamBPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, startElapsedSeconds, startHalf)
+    : [];
+  
+  // Merge and sort by half then time
+  const merged = [...planA, ...planB];
+  merged.sort((a, b) => {
+    if (a.half !== b.half) return a.half - b.half;
+    return a.time - b.time;
+  });
+  
+  return merged;
+}
+
+
 function DialogInner({ 
   players, 
   teamSize, 
