@@ -84,6 +84,7 @@ export default function EditTeamPage() {
       setClassTime((team as any).class_time || "");
       setClassDuration((team as any).class_duration_minutes ?? null);
       setClassCapacity((team as any).class_capacity ?? null);
+      setIsActive(!team.is_archived);
     }
   }, [team]);
 
