@@ -532,6 +532,7 @@ export default function EventGroupPitchPage() {
           </div>
         }>
           <PitchBoard
+            key={groupId}
             teamId={`event-group-${groupId}`}
             teamName={group.name}
             members={pitchBoardMembers}
