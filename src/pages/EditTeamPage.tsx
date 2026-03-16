@@ -330,7 +330,7 @@ export default function EditTeamPage() {
           {/* Folder Selection */}
           {folders.length > 0 && (
             <div className="space-y-2">
-              <Label htmlFor="folder" className="text-base">Team Folder</Label>
+              <Label htmlFor="folder" className="text-base">{(team?.clubs as any)?.class_mode_enabled ? "Class Folder" : "Team Folder"}</Label>
               <Select
                 value={folderId || "none"}
                 onValueChange={(value) => setFolderId(value === "none" ? null : value)}
