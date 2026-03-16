@@ -412,8 +412,38 @@ export default function ClassEnrolmentPage() {
         </Card>
       ) : (
         <div className="space-y-3">
+          {/* Day filter chips - only show if classes span multiple days */}
+          {(() => {
+            const uniqueDays = [...new Set(classes.map(c => c.class_day).filter(Boolean))];
+            if (uniqueDays.length > 1) {
+              return (
+                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                  <Button
+                    variant={dayFilter === "all" ? "default" : "outline"}
+                    size="sm"
+                    className="h-7 text-xs shrink-0"
+                    onClick={() => setDayFilter("all")}
+                  >
+                    All Days
+                  </Button>
+                  {uniqueDays.map(day => (
+                    <Button
+                      key={day}
+                      variant={dayFilter === day ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 text-xs shrink-0"
+                      onClick={() => setDayFilter(day!)}
+                    >
+                      {day}
+                    </Button>
+                  ))}
+                </div>
+              );
+            }
+            return null;
+          })()}
           <h3 className="text-sm font-medium text-muted-foreground">Available Classes</h3>
-          {classes.map((cls) => {
+          {classes.filter(cls => dayFilter === "all" || cls.class_day === dayFilter).map((cls) => {
             const teamType = cls.team_type || "mixed";
             const canEnrolChild = allowsChildren(teamType);
             const canEnrolSelf = allowsAdults(teamType);
