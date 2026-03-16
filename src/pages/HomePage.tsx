@@ -2547,8 +2547,8 @@ export default function HomePage() {
             setDeleteDialogOpen(open);
             if (!open) setEventToDelete(null);
           }}
-          title={`Delete ${getEventTypeLabel(eventToDelete?.type)}?`}
-          description={`This will permanently delete the ${getEventTypeLabel(eventToDelete?.type).toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
+          title={`Delete ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id })}?`}
+          description={`This will permanently delete the ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id }).toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
           actionLabel="Delete"
           actionVariant="destructive"
           onSingleAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'single' })}
@@ -2562,9 +2562,9 @@ export default function HomePage() {
         }}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete {getEventTypeLabel(eventToDelete?.type)}?</AlertDialogTitle>
+              <AlertDialogTitle>Delete {getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id })}?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete this {getEventTypeLabel(eventToDelete?.type).toLowerCase()} and all RSVPs. This action cannot be undone.
+                This will permanently delete this {getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id }).toLowerCase()} and all RSVPs. This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
