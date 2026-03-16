@@ -125,6 +125,8 @@ export default function TeamDetailPage() {
     team.clubs.sport.toLowerCase().includes(keyword)
   );
 
+  const isClassMode = !!team?.clubs?.class_mode_enabled;
+
   const { data: teamSubscription } = useQuery({
     queryKey: ["team-subscription", id],
     queryFn: async () => {
