@@ -370,7 +370,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
   }, [eventId, allPlayers]);
 
   // Auto-generate matches (core logic)
-  const runAutoGenerate = useCallback(async () => {
+  const runAutoGenerate = useCallback(async (abilityModeOverride?: "similar" | "mixed") => {
+    const effectiveAbilityMode = abilityModeOverride || abilityMode;
     if (!availablePlayers || availablePlayers.length === 0) {
       throw new Error("No available players for this session");
     }
