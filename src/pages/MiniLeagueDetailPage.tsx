@@ -510,6 +510,10 @@ export default function MiniLeagueDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-popover">
+              <DropdownMenuItem onClick={() => setPlayersOpen(true)}>
+                <Users className="h-4 w-4 mr-2" />
+                Manage Players
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={openSettings}>
                 <Settings className="h-4 w-4 mr-2" />
                 Edit Settings
