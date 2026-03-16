@@ -942,7 +942,7 @@ export default function EventDetailPage() {
       status: RsvpStatus;
     }) => {
       // For mini-league players, we need to find or create an RSVP
-      // Priority: child_id > parent_user_id > mini_league_player_id (standalone)
+      // Priority: child_id > mini_league_player_id (always use player ID when no child link)
       if (childId) {
         // Check for existing RSVP for this child
         const { data: existingRsvp } = await supabase
@@ -970,33 +970,9 @@ export default function EventDetailPage() {
         } else {
           throw new Error("Cannot create RSVP: no parent user linked to this player");
         }
-      } else if (parentUserId) {
-        // Player without child_id - RSVP is on the parent user directly
-        const { data: existingRsvp } = await supabase
-          .from("rsvps")
-          .select("id")
-          .eq("event_id", id!)
-          .eq("user_id", parentUserId)
-          .is("child_id", null)
-          .maybeSingle();
-        
-        if (existingRsvp) {
-          const { error } = await supabase
-            .from("rsvps")
-            .update({ status })
-            .eq("id", existingRsvp.id);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.from("rsvps").insert({
-            event_id: id!,
-            user_id: parentUserId,
-            status,
-          });
-          if (error) throw error;
-        }
       } else {
-        // Standalone mini-league player without parent/child link
-        // Use mini_league_player_id for RSVP tracking
+        // Player without child_id — always use mini_league_player_id to avoid
+        // conflicting with the parent's own personal RSVP
         const { data: existingRsvp } = await supabase
           .from("rsvps")
           .select("id")
