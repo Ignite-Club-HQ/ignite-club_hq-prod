@@ -9,6 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -503,35 +514,77 @@ export default function ClassEnrolmentPage() {
                           <Badge variant={selfExisting.status === "enrolled" ? "default" : "secondary"}>
                             {selfExisting.status === "enrolled" ? "Enrolled" : `Waitlisted #${selfExisting.waitlist_position}`}
                           </Badge>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive h-7 text-xs"
-                            onClick={() => withdrawMutation.mutate(selfExisting.id)}
-                            disabled={withdrawMutation.isPending}
-                          >
-                            Withdraw
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive h-7 text-xs"
+                                disabled={withdrawMutation.isPending}
+                              >
+                                Withdraw
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Withdraw from class?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to withdraw from <strong>{cls.name}</strong>? You can re-enrol later if spots are available.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={() => withdrawMutation.mutate(selfExisting.id)}
+                                >
+                                  Withdraw
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant={isFull ? "outline" : "default"}
-                          onClick={() => {
-                            setEnrollingClassId(cls.id);
-                            enrolSelfMutation.mutate({ teamId: cls.id });
-                          }}
-                          disabled={isEnrolling || enrolSelfMutation.isPending}
-                        >
-                          {isEnrolling ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <>
-                              <UserPlus className="h-4 w-4 mr-1" />
-                              {isFull ? "Join Waitlist" : "Enrol"}
-                            </>
-                          )}
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant={isFull ? "outline" : "default"}
+                              disabled={isEnrolling || enrolSelfMutation.isPending}
+                            >
+                              {isEnrolling ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <UserPlus className="h-4 w-4 mr-1" />
+                                  {isFull ? "Join Waitlist" : "Enrol"}
+                                </>
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>{isFull ? "Join waitlist?" : "Confirm enrolment"}</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                {isFull
+                                  ? <>The class <strong>{cls.name}</strong> is currently full. You will be added to the waitlist and notified when a spot becomes available.</>
+                                  : <>Are you sure you want to enrol in <strong>{cls.name}</strong>?</>
+                                }
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => {
+                                  setEnrollingClassId(cls.id);
+                                  enrolSelfMutation.mutate({ teamId: cls.id });
+                                }}
+                              >
+                                {isFull ? "Join Waitlist" : "Enrol"}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                     </div>
                   )}
@@ -547,35 +600,77 @@ export default function ClassEnrolmentPage() {
                           <Badge variant={childExisting.status === "enrolled" ? "default" : "secondary"}>
                             {childExisting.status === "enrolled" ? "Enrolled" : `Waitlisted #${childExisting.waitlist_position}`}
                           </Badge>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive h-7 text-xs"
-                            onClick={() => withdrawMutation.mutate(childExisting.id)}
-                            disabled={withdrawMutation.isPending}
-                          >
-                            Withdraw
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive h-7 text-xs"
+                                disabled={withdrawMutation.isPending}
+                              >
+                                Withdraw
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Withdraw from class?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to withdraw {children.find((c) => c.id === activeChild)?.name || "your child"} from <strong>{cls.name}</strong>? You can re-enrol later if spots are available.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={() => withdrawMutation.mutate(childExisting.id)}
+                                >
+                                  Withdraw
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant={isFull ? "outline" : "default"}
-                          onClick={() => {
-                            setEnrollingClassId(cls.id);
-                            enrolChildMutation.mutate({ childId: activeChild, teamId: cls.id });
-                          }}
-                          disabled={isEnrolling || enrolChildMutation.isPending}
-                        >
-                          {isEnrolling ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <>
-                              <UserPlus className="h-4 w-4 mr-1" />
-                              {isFull ? "Join Waitlist" : "Enrol"}
-                            </>
-                          )}
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant={isFull ? "outline" : "default"}
+                              disabled={isEnrolling || enrolChildMutation.isPending}
+                            >
+                              {isEnrolling ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <UserPlus className="h-4 w-4 mr-1" />
+                                  {isFull ? "Join Waitlist" : "Enrol"}
+                                </>
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>{isFull ? "Join waitlist?" : "Confirm enrolment"}</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                {isFull
+                                  ? <>The class <strong>{cls.name}</strong> is currently full. {children.find((c) => c.id === activeChild)?.name || "Your child"} will be added to the waitlist.</>
+                                  : <>Are you sure you want to enrol {children.find((c) => c.id === activeChild)?.name || "your child"} in <strong>{cls.name}</strong>?</>
+                                }
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => {
+                                  setEnrollingClassId(cls.id);
+                                  enrolChildMutation.mutate({ childId: activeChild, teamId: cls.id });
+                                }}
+                              >
+                                {isFull ? "Join Waitlist" : "Enrol"}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                     </div>
                   )}
