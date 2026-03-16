@@ -41,6 +41,7 @@ export default function MiniLeagueDetailPage() {
   const { user } = useAuth();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [playersOpen, setPlayersOpen] = useState(false);
+  const [addPlayersOpen, setAddPlayersOpen] = useState(false);
   const [showAllPast, setShowAllPast] = useState(false);
 
   // Fetch mini league details
