@@ -142,14 +142,15 @@ export function PhotoLightbox({
           <DialogTitle>Photo viewer</DialogTitle>
         </VisuallyHidden>
         <div 
-          className="relative w-full h-full flex items-center justify-center touch-none overflow-hidden"
+          className="relative w-full h-full flex items-center justify-center overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onDoubleClick={handleDoubleClick}
+          style={{ touchAction: 'none' }}
         >
           {/* Top toolbar with dark background for visibility */}
-          <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-gradient-to-b from-black/70 to-transparent">
+          <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between p-4 pt-[calc(env(safe-area-inset-top)+1rem)] bg-gradient-to-b from-black/70 to-transparent">
             {/* Left side - Delete button */}
             <div>
               {canDelete && onDelete && (
