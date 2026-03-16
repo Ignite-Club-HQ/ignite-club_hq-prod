@@ -48,6 +48,7 @@ export default function MiniLeaguesPage() {
   
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newLeague, setNewLeague] = useState({ name: "", description: "", team_size: "5", club_id: "" });
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch clubs where user is admin AND has Pro Football access
   const { data: adminClubs, isLoading: clubsLoading } = useQuery({
