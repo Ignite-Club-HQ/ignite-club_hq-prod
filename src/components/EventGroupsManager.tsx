@@ -555,7 +555,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
 
   // Quick setup - opens dialog for duty assignment, then generates matches
   const quickSetupMutation = useMutation({
-    mutationFn: async (dutyAssignments: Record<string, string | null>) => {
+    mutationFn: async (dutyAssignments: Record<string, string[]>) => {
       await refetchRsvps();
       const result = await runAutoGenerate();
 
