@@ -39,6 +39,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { MatchDutiesDialog } from "@/components/MatchDutiesDialog";
+import { QuickSetupDutyDialog } from "@/components/QuickSetupDutyDialog";
 
 // Lazy load PitchBoard for performance
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
