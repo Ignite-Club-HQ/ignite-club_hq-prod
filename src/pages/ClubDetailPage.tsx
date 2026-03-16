@@ -77,10 +77,12 @@ import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import { ClubTeamSponsorAllocator } from "@/components/ClubTeamSponsorAllocator";
 import { ClubThemeEditor } from "@/components/ClubThemeEditor";
 import { ClubDMSettings } from "@/components/ClubDMSettings";
-import { Palette, CalendarDays, BookOpen } from "lucide-react";
+import { Palette, CalendarDays, BookOpen, ClipboardCheck } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
 import { TermsManager } from "@/components/TermsManager";
 import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
+import { ClassAttendanceManager } from "@/components/ClassAttendanceManager";
+import { ClassModeOnboardingGuide } from "@/components/ClassModeOnboardingGuide";
 
 type ClubRole = "club_admin";
 
