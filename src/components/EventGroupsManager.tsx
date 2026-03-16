@@ -101,6 +101,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedPreviousEventId, setSelectedPreviousEventId] = useState<string | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isQuickSetupOpen, setIsQuickSetupOpen] = useState(false);
   
   // Tap-to-swap state
   const [swapSource, setSwapSource] = useState<{ groupId: string; playerId: string; team: "a" | "b" | null } | null>(null);
