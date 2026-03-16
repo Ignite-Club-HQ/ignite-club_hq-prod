@@ -111,7 +111,21 @@ export function TermsManager({ clubId }: TermsManagerProps) {
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
       const { error } = await supabase
         .from("terms")
-        .update({ is_active: isActive })
+        .update({ is_active: isActive, status: isActive ? "active" : "archived" })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["terms", clubId] });
+    },
+  });
+
+  const setTermStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const isActive = status === "active";
+      const { error } = await supabase
+        .from("terms")
+        .update({ status, is_active: isActive })
         .eq("id", id);
       if (error) throw error;
     },
