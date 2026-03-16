@@ -39,6 +39,8 @@ interface AddMiniLeagueMemberSheetProps {
   miniLeagueId: string;
   miniLeagueName: string;
   clubId: string;
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
 }
 
 const abilityOptions = [
@@ -49,11 +51,20 @@ const abilityOptions = [
   { value: "5", label: "5 - Expert" },
 ];
 
-export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId }: AddMiniLeagueMemberSheetProps) {
+export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId, externalOpen, onExternalOpenChange }: AddMiniLeagueMemberSheetProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isExternallyControlled = externalOpen !== undefined;
+  const open = isExternallyControlled ? externalOpen : internalOpen;
+  const setOpen = (val: boolean) => {
+    if (isExternallyControlled) {
+      onExternalOpenChange?.(val);
+    } else {
+      setInternalOpen(val);
+    }
+  };
   const [mode, setMode] = useState<"single" | "bulk">("single");
   
   // Single input state
@@ -419,12 +430,14 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId 
   return (
     <>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger asChild>
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Players
-          </Button>
-        </SheetTrigger>
+        {!isExternallyControlled && (
+          <SheetTrigger asChild>
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Players
+            </Button>
+          </SheetTrigger>
+        )}
         <SheetContent side="bottom" className="h-[85vh] flex flex-col">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">

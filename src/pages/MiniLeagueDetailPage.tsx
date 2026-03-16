@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ManagePlayersDialog } from "@/components/mini-league/ManagePlayersDialog";
 import { MiniLeagueSettingsDialog } from "@/components/mini-league/MiniLeagueSettingsDialog";
+import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
 
 interface MiniLeagueEvent {
   id: string;
@@ -40,6 +41,7 @@ export default function MiniLeagueDetailPage() {
   const { user } = useAuth();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [playersOpen, setPlayersOpen] = useState(false);
+  const [addPlayersOpen, setAddPlayersOpen] = useState(false);
   const [showAllPast, setShowAllPast] = useState(false);
 
   // Fetch mini league details
@@ -442,6 +444,7 @@ export default function MiniLeagueDetailPage() {
         miniLeagueName={league.name}
         clubId={league.club_id}
         canManage={!!canManageLeague}
+        onOpenAddPlayers={() => setAddPlayersOpen(true)}
       />
 
       <MiniLeagueSettingsDialog
@@ -449,6 +452,17 @@ export default function MiniLeagueDetailPage() {
         onOpenChange={setSettingsOpen}
         league={league}
       />
+
+      {/* Add Players Sheet - rendered at page level to avoid nested overlay issues */}
+      {canManageLeague && (
+        <AddMiniLeagueMemberSheet
+          miniLeagueId={id!}
+          miniLeagueName={league.name}
+          clubId={league.club_id}
+          externalOpen={addPlayersOpen}
+          onExternalOpenChange={setAddPlayersOpen}
+        />
+      )}
     </div>
   );
 }
