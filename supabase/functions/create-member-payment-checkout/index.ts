@@ -159,6 +159,10 @@ serve(async (req) => {
       customerId = customer.id;
     }
 
+    // Calculate platform fee (5%)
+    const subscriptionAmountCents = Math.round(subscription.member_subscription_amount * 100);
+    const platformFeeCents = Math.round(subscriptionAmountCents * 0.05);
+
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -171,7 +175,18 @@ serve(async (req) => {
               name: `${club.name} - Club Subscription`,
               description: `Subscription payment for ${paymentPeriod}`,
             },
-            unit_amount: Math.round(subscription.member_subscription_amount * 100),
+            unit_amount: subscriptionAmountCents,
+          },
+          quantity: 1,
+        },
+        {
+          price_data: {
+            currency: 'aud',
+            product_data: {
+              name: 'Platform Fee',
+              description: 'Ignite Club HQ processing fee (5%)',
+            },
+            unit_amount: platformFeeCents,
           },
           quantity: 1,
         },
