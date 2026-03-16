@@ -548,6 +548,9 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         .order("display_order");
       if (groupsError) throw groupsError;
 
+      const newMatchIds: string[] = [];
+      const newMatchPlayerIds: string[][] = [];
+
       for (const prevGroup of prevGroups || []) {
         const { data: newGroup, error: createError } = await supabase
           .from("event_groups")
@@ -564,11 +567,14 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           .single();
         if (createError) throw createError;
 
+        newMatchIds.push(newGroup.id);
+
         const { data: prevPlayers } = await supabase
           .from("event_group_players")
           .select("player_id, team")
           .eq("group_id", prevGroup.id);
 
+        const playerIds: string[] = [];
         if (prevPlayers && prevPlayers.length > 0) {
           const assignments = prevPlayers.map(p => ({
             group_id: newGroup.id,
@@ -576,8 +582,13 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
             team: p.team,
           }));
           await supabase.from("event_group_players").insert(assignments);
+          playerIds.push(...prevPlayers.map(p => p.player_id));
         }
+        newMatchPlayerIds.push(playerIds);
       }
+
+      // Auto-distribute event-level duties to copied matches
+      await distributeEventDutiesToMatches(newMatchIds, newMatchPlayerIds);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
