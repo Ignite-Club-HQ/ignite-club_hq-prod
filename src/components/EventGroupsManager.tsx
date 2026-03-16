@@ -515,25 +515,79 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
   // Auto-generate mutation
   const autoGenMutation = useMutation({
     mutationFn: runAutoGenerate,
-    onSuccess: (numCreated) => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
       setIsAutoGenOpen(false);
-      toast.success(`${numCreated} matches created with balanced teams & duties assigned`);
+      toast.success(`${result.numCreated} matches created with balanced teams & duties assigned`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  // Quick setup (one-tap) - uses defaults directly
+  // Quick setup (one-tap) - uses defaults directly, auto-creates Referee & Oranges duties
   const quickSetupMutation = useMutation({
     mutationFn: async () => {
       await refetchRsvps();
-      return runAutoGenerate();
+      const result = await runAutoGenerate();
+
+      // Auto-create Referee and Oranges match duties for each match
+      const QUICK_SETUP_DUTIES = ["Referee", "Oranges"];
+
+      // Build parent map for smart assignment
+      const playerParentMap = new Map<string, string>();
+      if (allPlayers) {
+        for (const p of allPlayers) {
+          if (p.parent_user_id) playerParentMap.set(p.id, p.parent_user_id);
+        }
+      }
+
+      // For each match, find which parents have kids playing
+      const matchParentIds = result.matchPlayerIds.map(playerIds => {
+        const parents = new Set<string>();
+        for (const pid of playerIds) {
+          const parentId = playerParentMap.get(pid);
+          if (parentId) parents.add(parentId);
+        }
+        return [...parents];
+      });
+
+      const parentDutyCount = new Map<string, number>();
+      const dutyInserts: { group_id: string; name: string; assigned_to: string | null; status: string }[] = [];
+
+      for (const dutyName of QUICK_SETUP_DUTIES) {
+        for (let matchIdx = 0; matchIdx < result.matchIds.length; matchIdx++) {
+          let assignedTo: string | null = null;
+
+          if (matchParentIds[matchIdx].length > 0) {
+            const candidates = matchParentIds[matchIdx]
+              .map(pid => ({ id: pid, count: parentDutyCount.get(pid) || 0 }))
+              .sort((a, b) => a.count - b.count);
+            assignedTo = candidates[0].id;
+          }
+
+          if (assignedTo) {
+            parentDutyCount.set(assignedTo, (parentDutyCount.get(assignedTo) || 0) + 1);
+          }
+
+          dutyInserts.push({
+            group_id: result.matchIds[matchIdx],
+            name: dutyName,
+            assigned_to: assignedTo,
+            status: assignedTo ? "confirmed" : "pending",
+          });
+        }
+      }
+
+      if (dutyInserts.length > 0) {
+        await supabase.from("event_group_duties").insert(dutyInserts);
+      }
+
+      return result.numCreated;
     },
     onSuccess: (numCreated) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
-      toast.success(`${numCreated} matches created with balanced teams & duties assigned`);
+      toast.success(`${numCreated} matches created with balanced teams, Referee & Oranges assigned`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
