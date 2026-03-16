@@ -594,9 +594,10 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
       setIsCopyPreviousOpen(false);
       setSelectedPreviousEventId(null);
-      toast.success("Matches copied from previous event");
+      toast.success("Matches copied with duties assigned");
     },
     onError: (error: Error) => toast.error(error.message),
   });
