@@ -4697,6 +4697,34 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           </div>
         </div>
         
+        {/* Mini-league team selector strip - landscape */}
+        {miniLeagueTeams && !readOnly && (
+          <div className="shrink-0 flex items-center gap-1.5 px-3 py-1 border-b border-border bg-background z-[60]">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Team:</span>
+            {(["a", "b", "both"] as const).map((team) => (
+              <button
+                key={team}
+                className={cn(
+                  "h-7 px-3 text-xs font-semibold rounded-md transition-colors",
+                  selectedTeamForSettings === team
+                    ? "text-white shadow-sm"
+                    : "bg-muted hover:bg-muted/80 text-foreground"
+                )}
+                style={selectedTeamForSettings === team ? {
+                  backgroundColor: team === "a" ? miniLeagueTeams.teamAColor 
+                    : team === "b" ? miniLeagueTeams.teamBColor 
+                    : 'hsl(var(--primary))',
+                } : undefined}
+                onClick={(e) => { e.stopPropagation(); setSelectedTeamForSettings(team); }}
+              >
+                {team === "a" ? (miniLeagueTeams.teamAName || "Team A")
+                  : team === "b" ? (miniLeagueTeams.teamBName || "Team B")
+                  : "Both"}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Main content area */}
         <div className="flex-1 flex overflow-visible">
           {/* Main pitch area - full height */}
