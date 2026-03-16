@@ -1106,7 +1106,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         onOpenChange={setIsCreateOpen}
         onConfirm={(data) => createGroupMutation.mutate(data)}
         isPending={createGroupMutation.isPending}
-        availablePlayers={availablePlayers}
+        availablePlayers={unallocatedPlayers}
         existingMatchCount={groups?.length || 0}
       />
 
