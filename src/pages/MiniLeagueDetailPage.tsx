@@ -3,9 +3,15 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, isToday, isFuture, parseISO } from "date-fns";
 import { 
-  ArrowLeft, Users, Calendar, Plus, Settings, Trash2, Loader2, 
-  ChevronRight, Clock, MapPin, Star, Pencil, Camera, ImageIcon, CheckSquare, Square, UsersRound, Shirt, X
+  ArrowLeft, Users, Calendar, Plus, MoreVertical, Trash2, Loader2, 
+  ChevronRight, Clock, MapPin, Star, Pencil, Camera, ImageIcon, CheckSquare, Square, UsersRound, Shirt, X, Settings
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
