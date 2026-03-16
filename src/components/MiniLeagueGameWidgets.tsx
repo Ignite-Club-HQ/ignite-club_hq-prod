@@ -398,6 +398,7 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
       {activePitchBoard && createPortal(
         <Suspense fallback={<LoadingOverlay />}>
           <PitchBoard
+            key={activePitchBoard.id}
             teamId={`event-group-${activePitchBoard.id}`}
             teamName={`${activePitchBoard.leagueName} - ${activePitchBoard.name}`}
             members={activePitchBoard.players.map(p => ({

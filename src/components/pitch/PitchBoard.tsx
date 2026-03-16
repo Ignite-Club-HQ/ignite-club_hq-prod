@@ -183,15 +183,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [hasInitialized, setHasInitialized] = useState(false);
   
   // Load saved state once for initialization
-  // Use a sentinel object to distinguish "not yet loaded" from "loaded but empty"
-  const UNLOADED = "UNLOADED" as const;
-  const savedStateRef = useRef<PitchBoardState | null | typeof UNLOADED>(UNLOADED);
-  if (savedStateRef.current === UNLOADED) {
+  // Use a sentinel to distinguish "not yet loaded" from "loaded but no state found"
+  const savedStateLoadedRef = useRef(false);
+  const savedStateRef = useRef<PitchBoardState | null>(null);
+  if (!savedStateLoadedRef.current) {
+    savedStateLoadedRef.current = true;
     const loaded = loadPitchState(teamId);
     savedStateRef.current = loaded;
     console.log("[PitchState] Initial load result:", loaded ? "found" : "not found", "teamId:", teamId);
   }
-  const savedState = savedStateRef.current === UNLOADED ? null : savedStateRef.current;
+  const savedState = savedStateRef.current;
   
   // Determine initial team size - prefer saved state, then DB value, then default
   const getInitialTeamSize = (): TeamSize => {

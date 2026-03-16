@@ -1406,6 +1406,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           </div>
         }>
           <PitchBoard
+            key={activePitchBoardGroup.id}
             teamId={`event-group-${activePitchBoardGroup.id}`}
             teamName={activePitchBoardGroup.name}
             members={activePitchBoardGroup.players.map((player, index) => ({
