@@ -4844,35 +4844,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <>
                   <div className="fixed inset-0 z-[59]" onClick={(e) => { e.stopPropagation(); setTimerFormationDropdownOpen(false); }} />
                   <div className="absolute top-full left-0 mt-1 bg-background border rounded-lg shadow-xl z-[60] min-w-[160px] py-1 max-h-64 overflow-y-auto">
-                    {/* Team selector for mini-league */}
-                    {miniLeagueTeams && (
-                      <div className="px-2 pb-1 mb-1 border-b border-border">
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-1 py-1">Apply to</p>
-                        <div className="flex gap-1">
-                          {(["a", "b", "both"] as const).map((team) => (
-                            <button
-                              key={team}
-                              className={cn(
-                                "flex-1 text-xs font-medium py-1.5 px-1 rounded transition-colors text-center",
-                                selectedTeamForSettings === team
-                                  ? "text-white"
-                                  : "bg-muted hover:bg-muted/80 text-foreground"
-                              )}
-                              style={selectedTeamForSettings === team ? {
-                                backgroundColor: team === "a" ? miniLeagueTeams.teamAColor 
-                                  : team === "b" ? miniLeagueTeams.teamBColor 
-                                  : undefined,
-                              } : undefined}
-                              onClick={(e) => { e.stopPropagation(); setSelectedTeamForSettings(team); }}
-                            >
-                              {team === "a" ? (miniLeagueTeams.teamAName || "Team A")
-                                : team === "b" ? (miniLeagueTeams.teamBName || "Team B")
-                                : "Both"}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    {/* Team selector moved to top strip */}
                     {FORMATIONS[teamSize].map((f, i) => (
                       <button
                         key={i}
