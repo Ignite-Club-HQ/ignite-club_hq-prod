@@ -777,8 +777,8 @@ export default function TeamDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Enrolment Link for Class-mode teams */}
-      {team.clubs?.class_mode_enabled && team.class_day && (
+      {/* Enrolment Link for Class-mode teams - hide if already enrolled */}
+      {team.clubs?.class_mode_enabled && team.class_day && !isEnrolledInClass && (
         <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10 hover:border-primary/50 transition-colors cursor-pointer"
           onClick={() => navigate(`/clubs/${team.club_id}/enrol`)}
         >
