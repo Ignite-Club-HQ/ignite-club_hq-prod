@@ -600,15 +600,35 @@ export default function ClassEnrolmentPage() {
                           <Badge variant={childExisting.status === "enrolled" ? "default" : "secondary"}>
                             {childExisting.status === "enrolled" ? "Enrolled" : `Waitlisted #${childExisting.waitlist_position}`}
                           </Badge>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive h-7 text-xs"
-                            onClick={() => withdrawMutation.mutate(childExisting.id)}
-                            disabled={withdrawMutation.isPending}
-                          >
-                            Withdraw
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive h-7 text-xs"
+                                disabled={withdrawMutation.isPending}
+                              >
+                                Withdraw
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Withdraw from class?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to withdraw {children.find((c) => c.id === activeChild)?.name || "your child"} from <strong>{cls.name}</strong>? You can re-enrol later if spots are available.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={() => withdrawMutation.mutate(childExisting.id)}
+                                >
+                                  Withdraw
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       ) : (
                         <Button
