@@ -418,10 +418,17 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
               teamBColor: activePitchBoard.teamBColor,
             }}
             initialTeamSize={(() => {
-              const count = activePitchBoard.players.length;
-              if (count <= 8) return 4;
-              if (count <= 14) return 7;
-              if (count <= 18) return 9;
+              const teamACount = activePitchBoard.players.filter(p => p.team === "a").length;
+              const teamBCount = activePitchBoard.players.filter(p => p.team === "b").length;
+              const avgTeamSize = Math.max(Math.ceil((teamACount + teamBCount) / 2), 3);
+              if (avgTeamSize <= 3) return 3;
+              if (avgTeamSize <= 4) return 4;
+              if (avgTeamSize <= 5) return 5;
+              if (avgTeamSize <= 6) return 6;
+              if (avgTeamSize <= 7) return 7;
+              if (avgTeamSize <= 8) return 8;
+              if (avgTeamSize <= 9) return 9;
+              if (avgTeamSize <= 10) return 10;
               return 11;
             })()}
             initialMinutesPerHalf={activePitchBoard.minutesPerHalf}
