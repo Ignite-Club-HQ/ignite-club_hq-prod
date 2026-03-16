@@ -271,36 +271,49 @@ export function ClassAttendanceManager({ clubId }: ClassAttendanceManagerProps) 
                       </span>
                     )}
                   </div>
-                  <div className="flex gap-1 shrink-0">
+                  <div className="flex gap-1.5 shrink-0">
                     {(["present", "late", "absent"] as AttendanceStatus[]).map(
-                      (s) => (
-                        <Button
-                          key={s}
-                          variant={currentStatus === s ? "default" : "outline"}
-                          size="sm"
-                          className={`h-7 text-xs px-2 ${
-                            currentStatus === s
-                              ? s === "present"
-                                ? "bg-emerald-500 hover:bg-emerald-600 text-white"
-                                : s === "late"
-                                ? "bg-amber-500 hover:bg-amber-600 text-white"
-                                : "bg-destructive hover:bg-destructive/90"
-                              : ""
-                          }`}
-                          onClick={() =>
-                            markAttendanceMutation.mutate({
-                              childId: member.child_id,
-                              userId: member.child_id ? null : member.user_id,
-                              status: s,
-                            })
-                          }
-                          disabled={markAttendanceMutation.isPending}
-                        >
-                          <span className="hidden sm:inline">{s.charAt(0).toUpperCase() + s.slice(1)}</span>
-                          <span className="sm:hidden">{s === "present" ? "P" : s === "late" ? "L" : "A"}</span>
-                        </Button>
-                      )
+                      (s) => {
+                        const isActive = currentStatus === s;
+                        const colorMap = {
+                          present: {
+                            active: "bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 shadow-sm shadow-emerald-200",
+                            inactive: "border-emerald-300 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-400",
+                          },
+                          late: {
+                            active: "bg-amber-500 hover:bg-amber-600 text-white border-amber-500 shadow-sm shadow-amber-200",
+                            inactive: "border-amber-300 text-amber-600 bg-amber-50 hover:bg-amber-100 hover:border-amber-400",
+                          },
+                          absent: {
+                            active: "bg-red-500 hover:bg-red-600 text-white border-red-500 shadow-sm shadow-red-200",
+                            inactive: "border-red-300 text-red-600 bg-red-50 hover:bg-red-100 hover:border-red-400",
+                          },
+                        };
+                        const colors = colorMap[s];
+                        return (
+                          <Button
+                            key={s}
+                            variant="outline"
+                            size="sm"
+                            className={`h-9 w-9 text-xs font-bold rounded-lg border-2 p-0 ${
+                              isActive ? colors.active : colors.inactive
+                            }`}
+                            onClick={() =>
+                              markAttendanceMutation.mutate({
+                                childId: member.child_id,
+                                userId: member.child_id ? null : member.user_id,
+                                status: s,
+                              })
+                            }
+                            disabled={markAttendanceMutation.isPending}
+                            aria-label={`Mark ${member._name} as ${s}`}
+                          >
+                            {s === "present" ? "✓" : s === "late" ? "L" : "✗"}
+                          </Button>
+                        );
+                      }
                     )}
+                  </div>
                   </div>
                 </div>
               );
