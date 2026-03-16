@@ -65,6 +65,7 @@ import { useClubTheme, hasClubThemeCached } from "@/hooks/useClubTheme";
 import { ClubSponsorSection } from "@/components/ClubSponsorSection";
 import { MultiClubSponsorCarousel } from "@/components/MultiClubSponsorCarousel";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
+import { UpcomingClassesWidget } from "@/components/UpcomingClassesWidget";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
