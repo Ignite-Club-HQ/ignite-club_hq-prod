@@ -7,6 +7,8 @@ const WEBSITE_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
 
 export const websiteSupabase = createClient(WEBSITE_SUPABASE_URL, WEBSITE_SUPABASE_ANON_KEY);
 
+export const IGNITE_PLATFORM_FEE_PERCENT = 0.05; // 5%
+
 export interface MemberCheckoutParams {
   club_id: string;
   title: string;
@@ -20,6 +22,7 @@ export interface MemberCheckoutParams {
   success_url?: string;
   cancel_url?: string;
   metadata?: Record<string, string>;
+  platform_fee_cents?: number; // Ignite platform fee (5%)
 }
 
 export interface MemberCheckoutResponse {
@@ -35,11 +38,18 @@ export interface MemberCheckoutResponse {
 export async function createMemberCheckout(
   params: MemberCheckoutParams
 ): Promise<MemberCheckoutResponse> {
+  const platformFeeCents = Math.round(params.amount_cents * IGNITE_PLATFORM_FEE_PERCENT);
+
   const body: MemberCheckoutParams = {
     ...params,
     currency: params.currency ?? 'aud',
     success_url: params.success_url ?? 'igniteclubhq://payment-success',
     cancel_url: params.cancel_url ?? 'igniteclubhq://payment-cancel',
+    platform_fee_cents: platformFeeCents,
+    metadata: {
+      ...params.metadata,
+      platform_fee_cents: platformFeeCents.toString(),
+    },
   };
 
   const res = await fetch(
