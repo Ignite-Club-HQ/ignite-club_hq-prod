@@ -2331,7 +2331,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           return autoPlaceMiniLeaguePlayers(playersWithTeamSide, teamSize, true, index, true);
         }
         
-        // Single team formation change - only reposition that team's players
+        // Single team formation change - use autoPlaceMiniLeaguePlayers for the target team,
+        // but preserve the other team's positions
         const scaleToBottomHalf = (pos: { x: number; y: number }) => ({
           x: pos.x,
           y: 50 + (pos.y / 100) * 45,
@@ -2342,12 +2343,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         });
         const scaleFunc = targetTeam === "a" ? scaleToBottomHalf : scaleToTopHalf;
         
+        // Get on-pitch players for target team in a stable order
+        const teamOnPitch = playersWithTeamSide.filter(pp => pp.teamSide === targetTeam && pp.position !== null);
+        const teamOnBench = playersWithTeamSide.filter(pp => pp.teamSide === targetTeam && pp.position === null);
+        
         return playersWithTeamSide.map(p => {
           if (p.teamSide !== targetTeam) return p; // Leave other team unchanged
           if (p.position === null) return p; // Leave bench players unchanged
           
-          // Find this player's index among on-pitch players of this team
-          const teamOnPitch = playersWithTeamSide.filter(pp => pp.teamSide === targetTeam && pp.position !== null);
           const playerIndex = teamOnPitch.findIndex(pp => pp.id === p.id);
           
           if (playerIndex >= 0 && playerIndex < formation.positions.length) {
@@ -2358,7 +2361,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
               currentPitchPosition: getPositionFromCoords(formation.positions[playerIndex].y, teamSize),
             };
           }
-          return p;
+          // More players than formation slots - send to bench
+          return { ...p, position: null, currentPitchPosition: undefined };
         });
       });
       
