@@ -4063,8 +4063,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Tactical mode: batch-compute visual offsets (CSS translate) for on-pitch players
   const tacticalOffsets = useMemo(() => 
-    computeTacticalOffsets(players, tacticalMode, teamSize),
-    [players, tacticalMode, teamSize]
+    computeTacticalOffsets(players, tacticalMode, teamSize, !!miniLeagueTeams),
+    [players, tacticalMode, teamSize, miniLeagueTeams]
   );
 
   // Compute ball visual offset to avoid overlapping with tactically-shifted players
