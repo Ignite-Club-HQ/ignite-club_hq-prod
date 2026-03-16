@@ -40,6 +40,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { MatchDutiesDialog } from "@/components/MatchDutiesDialog";
 import { QuickSetupDutyDialog } from "@/components/QuickSetupDutyDialog";
+import { ManualMatchDialog } from "@/components/ManualMatchDialog";
 
 // Lazy load PitchBoard for performance
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
@@ -93,8 +94,6 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isAutoGenOpen, setIsAutoGenOpen] = useState(false);
   const [isCopyPreviousOpen, setIsCopyPreviousOpen] = useState(false);
-  const [newGroupName, setNewGroupName] = useState("");
-  const [newPitchName, setNewPitchName] = useState("");
   const [numGroups, setNumGroups] = useState(2);
   const [playersPerTeam, setPlayersPerTeam] = useState(6);
   const [abilityMode, setAbilityMode] = useState<"similar" | "mixed">("similar");
@@ -515,27 +514,34 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     return { numCreated: effectiveNumMatches, matchIds, matchPlayerIds: matchPlayers.map(mp => mp.map(p => p.playerId)) };
   }, [availablePlayers, miniLeague, showAdvanced, playersPerTeam, numGroups, abilityMode, eventId]);
 
-  // Create group mutation
+  // Create group mutation - with player assignments
   const createGroupMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (data: { name: string; pitchName: string; teamAPlayerIds: string[]; teamBPlayerIds: string[] }) => {
       const leagueColors = miniLeague?.bib_colors || DEFAULT_BIB_COLORS;
       const colors = getMatchColors(groups?.length || 0, leagueColors);
-      const effectiveName = newGroupName.trim() || `Match ${(groups?.length || 0) + 1}`;
-      const { error } = await supabase.from("event_groups").insert({
+      const { data: newGroup, error } = await supabase.from("event_groups").insert({
         event_id: eventId,
-        name: effectiveName,
-        pitch_name: newPitchName.trim() || null,
+        name: data.name,
+        pitch_name: data.pitchName || null,
         display_order: (groups?.length || 0) + 1,
         team_a_color: colors.teamA,
         team_b_color: colors.teamB,
-      });
+      }).select().single();
       if (error) throw error;
+
+      // Insert player assignments
+      const playerInserts = [
+        ...data.teamAPlayerIds.map(pid => ({ group_id: newGroup.id, player_id: pid, team: "a" as const })),
+        ...data.teamBPlayerIds.map(pid => ({ group_id: newGroup.id, player_id: pid, team: "b" as const })),
+      ];
+      if (playerInserts.length > 0) {
+        const { error: playerError } = await supabase.from("event_group_players").insert(playerInserts);
+        if (playerError) throw playerError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       setIsCreateOpen(false);
-      setNewGroupName("");
-      setNewPitchName("");
       toast.success("Match created");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -844,10 +850,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   <Copy className="h-4 w-4 mr-2" />
                   Copy from Previous
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => {
-                  setNewGroupName(`Match ${(groups?.length || 0) + 1}`);
-                  setIsCreateOpen(true);
-                }}>
+                <DropdownMenuItem onClick={() => setIsCreateOpen(true)}>
+
                   <Plus className="h-4 w-4 mr-2" />
                   Add Match Manually
                 </DropdownMenuItem>
@@ -1079,10 +1083,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                     variant="outline" 
                     size="sm" 
                     className="shrink-0"
-                    onClick={() => {
-                      setNewGroupName("Match 1");
-                      setIsCreateOpen(true);
-                    }}
+                    onClick={() => setIsCreateOpen(true)}
                   >
                     <Plus className="h-4 w-4 mr-1" />
                     Manual
@@ -1094,43 +1095,15 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         </Card>
       )}
 
-      {/* Create Match Sheet - Auto-named */}
-      <Sheet open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <SheetContent side="bottom" className="h-auto">
-          <SheetHeader>
-            <SheetTitle>Create Match</SheetTitle>
-            <SheetDescription>Add a new match with two teams</SheetDescription>
-          </SheetHeader>
-          <div className="py-4 space-y-4">
-            <div className="space-y-2">
-              <Label>Match Name</Label>
-              <Input
-                placeholder={`Match ${(groups?.length || 0) + 1}`}
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Pitch Name (optional)</Label>
-              <Input
-                placeholder="e.g. Pitch 1, North Field"
-                value={newPitchName}
-                onChange={(e) => setNewPitchName(e.target.value)}
-              />
-            </div>
-          </div>
-          <SheetFooter>
-            <Button
-              className="w-full"
-              onClick={() => createGroupMutation.mutate()}
-              disabled={createGroupMutation.isPending}
-            >
-              {createGroupMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create Match
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+      {/* Manual Match Dialog */}
+      <ManualMatchDialog
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        onConfirm={(data) => createGroupMutation.mutate(data)}
+        isPending={createGroupMutation.isPending}
+        availablePlayers={availablePlayers}
+        existingMatchCount={groups?.length || 0}
+      />
 
       {/* Streamlined Auto-Generate Dialog */}
       <Dialog open={isAutoGenOpen} onOpenChange={setIsAutoGenOpen}>
