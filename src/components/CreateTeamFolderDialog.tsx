@@ -35,6 +35,7 @@ interface CreateTeamFolderDialogProps {
   onOpenChange: (open: boolean) => void;
   onCreateFolder: (name: string, description: string, color: string) => void;
   isCreating?: boolean;
+  classMode?: boolean;
 }
 
 export function CreateTeamFolderDialog({
