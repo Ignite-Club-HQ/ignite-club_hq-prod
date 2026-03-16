@@ -585,6 +585,58 @@ export default function MiniLeagueDetailPage() {
         <p className="text-sm text-muted-foreground leading-relaxed">{league.description}</p>
       )}
 
+      {/* Parent-facing next session highlight */}
+      {!canManageLeague && upcomingEvents.length > 0 && userPlayerIds && userPlayerIds.length > 0 && (
+        <Card className="border-primary/30 bg-primary/5 rounded-xl">
+          <CardContent className="py-4 px-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <Shirt className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold text-primary">Next Session</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-xl bg-primary/10 flex flex-col items-center justify-center shrink-0">
+                <span className="text-[10px] font-semibold text-primary uppercase leading-none">
+                  {format(parseISO(upcomingEvents[0].event_date), "MMM")}
+                </span>
+                <span className="text-lg font-bold text-primary leading-tight">
+                  {format(parseISO(upcomingEvents[0].event_date), "d")}
+                </span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-sm">
+                  {upcomingEvents[0].title || format(parseISO(upcomingEvents[0].event_date), "EEEE")}
+                </p>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                  {upcomingEvents[0].start_time && (
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {upcomingEvents[0].start_time.slice(0, 5)}
+                    </span>
+                  )}
+                  {upcomingEvents[0].location_name && (
+                    <span className="flex items-center gap-1 truncate">
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{upcomingEvents[0].location_name}</span>
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {userPlayerIds.map(p => p.name).join(", ")}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => navigate(`/events/${upcomingEvents[0].id}`)}
+              >
+                View
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Sessions */}
       <div className="space-y-3">
         <h2 className="text-base font-semibold">Sessions</h2>
@@ -659,6 +711,12 @@ export default function MiniLeagueDetailPage() {
                                   <span className="truncate">{event.location_name}</span>
                                 </span>
                               )}
+                              {(event._allocatedPlayers || 0) > 0 && (
+                                <span className="flex items-center gap-1">
+                                  <Users className="h-3 w-3" />
+                                  {event._allocatedPlayers}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <ChevronRight className="h-5 w-5 text-muted-foreground/50 shrink-0" />
@@ -672,35 +730,63 @@ export default function MiniLeagueDetailPage() {
             
             {pastEvents.length > 0 && (
               <div className="space-y-2">
-                <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Past</h3>
-                <div className="space-y-1.5">
-                  {pastEvents.slice(0, 5).map((event) => (
-                    <Card
-                      key={event.id}
-                      className="cursor-pointer hover:bg-accent/50 transition-colors rounded-xl"
-                      onClick={() => navigate(`/events/${event.id}`)}
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Past</h3>
+                  {pastEvents.length > 5 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs h-6 px-2 text-muted-foreground"
+                      onClick={() => setShowAllPast(!showAllPast)}
                     >
-                      <CardContent className="py-2.5 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-lg bg-muted flex flex-col items-center justify-center shrink-0">
-                            <span className="text-[9px] font-medium text-muted-foreground uppercase leading-none">
-                              {format(parseISO(event.event_date), "MMM")}
-                            </span>
-                            <span className="text-sm font-semibold text-muted-foreground leading-tight">
-                              {format(parseISO(event.event_date), "d")}
-                            </span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="text-sm truncate block">{event.title || format(parseISO(event.event_date), "EEEE")}</span>
-                            {event.start_time && (
-                              <span className="text-xs text-muted-foreground">{event.start_time.slice(0, 5)}</span>
+                      {showAllPast ? "Show Less" : `View All (${pastEvents.length})`}
+                    </Button>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  {(showAllPast ? pastEvents : pastEvents.slice(0, 5)).map((event) => {
+                    const hasScore = event.final_score_home != null && event.final_score_away != null;
+                    return (
+                      <Card
+                        key={event.id}
+                        className="cursor-pointer hover:bg-accent/50 transition-colors rounded-xl"
+                        onClick={() => navigate(`/events/${event.id}`)}
+                      >
+                        <CardContent className="py-2.5 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 rounded-lg bg-muted flex flex-col items-center justify-center shrink-0">
+                              <span className="text-[9px] font-medium text-muted-foreground uppercase leading-none">
+                                {format(parseISO(event.event_date), "MMM")}
+                              </span>
+                              <span className="text-sm font-semibold text-muted-foreground leading-tight">
+                                {format(parseISO(event.event_date), "d")}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm truncate block">{event.title || format(parseISO(event.event_date), "EEEE")}</span>
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                {event.start_time && (
+                                  <span>{event.start_time.slice(0, 5)}</span>
+                                )}
+                                {(event._allocatedPlayers || 0) > 0 && (
+                                  <span className="flex items-center gap-1">
+                                    <Users className="h-3 w-3" />
+                                    {event._allocatedPlayers}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {hasScore && (
+                              <Badge variant="outline" className="font-mono text-xs shrink-0">
+                                {event.final_score_home} – {event.final_score_away}
+                              </Badge>
                             )}
+                            <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
                           </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
             )}
