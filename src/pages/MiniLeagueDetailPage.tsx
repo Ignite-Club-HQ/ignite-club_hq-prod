@@ -425,12 +425,12 @@ export default function MiniLeagueDetailPage() {
       {/* Floating Action Button */}
       {canManageLeague && (
         <Button
-          size="lg"
-          className="fixed bottom-20 right-4 h-14 w-14 rounded-full shadow-lg z-40 p-0 sm:bottom-6 sm:right-6"
+          size="icon"
+          className="fixed bottom-24 right-4 h-12 w-12 rounded-full shadow-md z-40 sm:bottom-6 sm:right-6"
           onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}
           aria-label="New Session"
         >
-          <Plus className="h-6 w-6" />
+          <Plus className="h-5 w-5" />
         </Button>
       )}
 
