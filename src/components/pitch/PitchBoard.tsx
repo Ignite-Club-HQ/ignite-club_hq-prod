@@ -2216,33 +2216,34 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (!user?.id || readOnly) return;
     try {
       const recipientIds = new Set<string>();
+      const isEventGroup = teamId.startsWith("event-group-");
 
-      // Get team coaches/admins
-      const { data: staffRoles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("team_id", teamId)
-        .in("role", ["coach", "team_admin"]);
-      
-      staffRoles?.forEach(r => {
-        if (r.user_id !== user.id) recipientIds.add(r.user_id);
-      });
+      if (isEventGroup) {
+        // Mini-league: only notify the Referee of this specific match
+        const groupId = teamId.replace("event-group-", "");
+        const { data: referees } = await supabase
+          .from("event_group_duties")
+          .select("assigned_to")
+          .eq("group_id", groupId)
+          .eq("name", "Referee")
+          .not("assigned_to", "is", null);
+        referees?.forEach(d => {
+          if (d.assigned_to && d.assigned_to !== user.id) recipientIds.add(d.assigned_to);
+        });
+      } else {
+        // Regular team: notify coaches/admins
+        const { data: staffRoles } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("team_id", teamId)
+          .in("role", ["coach", "team_admin"]);
+        
+        staffRoles?.forEach(r => {
+          if (r.user_id !== user.id) recipientIds.add(r.user_id);
+        });
 
-      // Also include Subs Manager assignees for this event
-      if (linkedEventId) {
-        const isEventGroup = teamId.startsWith("event-group-");
-        if (isEventGroup) {
-          const groupId = teamId.replace("event-group-", "");
-          const { data: subsManagers } = await supabase
-            .from("event_group_duties")
-            .select("assigned_to")
-            .eq("group_id", groupId)
-            .eq("name", "Subs Manager")
-            .not("assigned_to", "is", null);
-          subsManagers?.forEach(d => {
-            if (d.assigned_to && d.assigned_to !== user.id) recipientIds.add(d.assigned_to);
-          });
-        } else {
+        // Also include Subs Manager assignees for regular events
+        if (linkedEventId) {
           const { data: subsManagers } = await supabase
             .from("duties")
             .select("assigned_to")
