@@ -1384,6 +1384,15 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         </Suspense>,
         document.body
       )}
+      {/* Quick Setup Duty Dialog */}
+      <QuickSetupDutyDialog
+        open={isQuickSetupOpen}
+        onOpenChange={setIsQuickSetupOpen}
+        onConfirm={(assignments) => quickSetupMutation.mutate(assignments)}
+        isPending={quickSetupMutation.isPending}
+        parents={parentProfiles || []}
+        playerCount={availablePlayers.length}
+      />
     </div>
   );
 }
