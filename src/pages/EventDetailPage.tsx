@@ -2128,6 +2128,8 @@ export default function EventDetailPage() {
           // Filter RSVPs based on effectiveShowAll (social events always show all)
           const filterRsvp = (rsvp: any) => {
             if (effectiveShowAll) return true;
+            // Mini-league events: show all RSVPs (scoped to league members)
+            if (isMiniLeagueEvent) return true;
             // Show mini-league player RSVPs 
             if (rsvp.mini_league_player_id) return true;
             // Show child RSVPs (they are always players)
