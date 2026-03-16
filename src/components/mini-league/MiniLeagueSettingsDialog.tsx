@@ -359,31 +359,47 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
         </div>
 
         <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-row">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" className="w-full sm:w-auto">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete League
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Mini League?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete "{league.name}" and all its players. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => deleteLeagueMutation.mutate()}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
+          <div className="flex gap-2 w-full sm:w-auto">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="flex-1 sm:flex-none">
+                  <Trash2 className="h-4 w-4 mr-2" />
                   Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Mini League?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete "{league.name}" and all its players. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => deleteLeagueMutation.mutate()}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            <Button
+              variant="outline"
+              className="flex-1 sm:flex-none"
+              onClick={() => duplicateLeagueMutation.mutate()}
+              disabled={duplicateLeagueMutation.isPending}
+            >
+              {duplicateLeagueMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Copy className="h-4 w-4 mr-2" />
+              )}
+              Duplicate
+            </Button>
+          </div>
 
           <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-none">Cancel</Button>
