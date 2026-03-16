@@ -393,7 +393,13 @@ export default function ClassEnrolmentPage() {
       )}
 
       {/* Child Selector - only shown if there are junior/mixed classes and user has children */}
-      {hasChildClasses && children.length >= 1 && (
+      {hasChildClasses && children.length === 1 && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border">
+          <span className="text-sm text-muted-foreground">Enrolling for:</span>
+          <span className="text-sm font-medium">{children[0].name}</span>
+        </div>
+      )}
+      {hasChildClasses && children.length > 1 && (
         <div className="space-y-2">
           <label className="text-sm font-medium">Select Child</label>
           <MobileSelect

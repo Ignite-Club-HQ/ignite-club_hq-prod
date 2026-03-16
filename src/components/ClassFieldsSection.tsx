@@ -37,7 +37,7 @@ export function ClassFieldsSection({
 
       {/* Day */}
       <div className="space-y-2">
-        <Label className="text-sm font-medium">Day of Week</Label>
+        <Label className="text-sm font-medium">Day of Week <span className="text-destructive">*</span></Label>
         <Select value={classDay} onValueChange={setClassDay}>
           <SelectTrigger className="h-11 bg-background">
             <SelectValue placeholder="Select a day" />
