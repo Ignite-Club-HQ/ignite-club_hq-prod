@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Plus, Users, Calendar, ChevronRight, Loader2, Trophy, ArrowLeft, Crown, Lock } from "lucide-react";
+import { Plus, Users, Calendar, ChevronRight, Loader2, Trophy, ArrowLeft, Crown, Lock, Search, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
