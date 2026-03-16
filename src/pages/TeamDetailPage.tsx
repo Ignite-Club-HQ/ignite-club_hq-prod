@@ -1189,7 +1189,23 @@ export default function TeamDetailPage() {
             </AccordionContent>
           </AccordionItem>
 
-          {/* Chat Groups Section - only for team members */}
+          {/* Class Attendance - only in class mode for admins */}
+          {isClassMode && (isCoachOrAdmin || isClubAdmin) && (
+            <AccordionItem value="class-attendance" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <ClipboardCheck className="h-5 w-5 text-primary" />
+                  <span className="text-lg font-semibold">Attendance</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="pt-2">
+                  <ClassAttendanceSingle teamId={id!} clubId={team.club_id} />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
+
           {isMember && (
           <AccordionItem value="chat-groups" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
