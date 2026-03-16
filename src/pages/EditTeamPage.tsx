@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Camera, Loader2, Baby, UserCheck, Users } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +41,7 @@ export default function EditTeamPage() {
   const [classTime, setClassTime] = useState("");
   const [classDuration, setClassDuration] = useState<number | null>(null);
   const [classCapacity, setClassCapacity] = useState<number | null>(null);
+  const [isActive, setIsActive] = useState(true);
 
   const { data: team, isLoading } = useQuery({
     queryKey: ["team", id],
@@ -82,6 +84,7 @@ export default function EditTeamPage() {
       setClassTime((team as any).class_time || "");
       setClassDuration((team as any).class_duration_minutes ?? null);
       setClassCapacity((team as any).class_capacity ?? null);
+      setIsActive(!team.is_archived);
     }
   }, [team]);
 
@@ -144,6 +147,7 @@ export default function EditTeamPage() {
         logo_url: logoUrl || null,
         folder_id: folderId || null,
         team_type: teamType,
+        is_archived: !isActive,
         ...((team?.clubs as any)?.class_mode_enabled ? {
           class_day: classDay || null,
           class_time: classTime || null,
@@ -350,6 +354,19 @@ export default function EditTeamPage() {
               <p className="text-xs text-muted-foreground">
                 Organize this team into a folder (e.g., Junior Teams, Senior Teams)
               </p>
+            </div>
+          )}
+
+          {/* Active Toggle (Class Mode) */}
+          {(team?.clubs as any)?.class_mode_enabled && (
+            <div className="flex items-center justify-between pt-2 border-t">
+              <div className="space-y-0.5">
+                <Label className="text-base">Active</Label>
+                <p className="text-sm text-muted-foreground">
+                  Inactive classes are hidden from the enrolment page
+                </p>
+              </div>
+              <Switch checked={isActive} onCheckedChange={setIsActive} />
             </div>
           )}
 
