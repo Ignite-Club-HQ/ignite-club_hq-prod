@@ -192,8 +192,9 @@ export function PhotoLightbox({
             <Button
               variant="ghost"
               size="icon"
-              className="absolute left-4 z-50 text-white hover:bg-white/20 bg-black/40 rounded-full"
-              onClick={handlePrev}
+              className="absolute left-4 z-50 text-white hover:bg-white/20 bg-black/40 rounded-full touch-auto"
+              onClick={(e) => { e.stopPropagation(); handlePrev(); }}
+              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handlePrev(); }}
             >
               <ChevronLeft className="h-8 w-8" />
             </Button>
@@ -203,8 +204,9 @@ export function PhotoLightbox({
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-4 z-50 text-white hover:bg-white/20 bg-black/40 rounded-full"
-              onClick={handleNext}
+              className="absolute right-4 z-50 text-white hover:bg-white/20 bg-black/40 rounded-full touch-auto"
+              onClick={(e) => { e.stopPropagation(); handleNext(); }}
+              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleNext(); }}
             >
               <ChevronRight className="h-8 w-8" />
             </Button>
