@@ -553,13 +553,13 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     onError: (error: Error) => toast.error(error.message),
   });
 
-  // Quick setup (one-tap) - uses defaults directly, auto-creates Referee & Oranges duties
+  // Quick setup - opens dialog for duty assignment, then generates matches
   const quickSetupMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (dutyAssignments: Record<string, string | null>) => {
       await refetchRsvps();
       const result = await runAutoGenerate();
 
-      // Auto-create Referee and Oranges match duties for each match
+      // Create Referee and Oranges match duties for each match
       const QUICK_SETUP_DUTIES = ["Referee", "Oranges"];
 
       // Build parent map for smart assignment
@@ -587,11 +587,18 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         for (let matchIdx = 0; matchIdx < result.matchIds.length; matchIdx++) {
           let assignedTo: string | null = null;
 
-          if (matchParentIds[matchIdx].length > 0) {
-            const candidates = matchParentIds[matchIdx]
-              .map(pid => ({ id: pid, count: parentDutyCount.get(pid) || 0 }))
-              .sort((a, b) => a.count - b.count);
-            assignedTo = candidates[0].id;
+          // Use user-selected assignment if provided
+          const userPick = dutyAssignments[dutyName];
+          if (userPick) {
+            assignedTo = userPick;
+          } else {
+            // Auto-assign: pick least-burdened parent from this match
+            if (matchParentIds[matchIdx].length > 0) {
+              const candidates = matchParentIds[matchIdx]
+                .map(pid => ({ id: pid, count: parentDutyCount.get(pid) || 0 }))
+                .sort((a, b) => a.count - b.count);
+              assignedTo = candidates[0].id;
+            }
           }
 
           if (assignedTo) {
@@ -616,7 +623,8 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     onSuccess: (numCreated) => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-all-group-duties", eventId] });
-      toast.success(`${numCreated} matches created with balanced teams, Referee & Oranges assigned`);
+      setIsQuickSetupOpen(false);
+      toast.success(`${numCreated} matches created with Referee & Oranges assigned`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
