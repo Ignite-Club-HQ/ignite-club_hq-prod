@@ -35,6 +35,7 @@ interface CreateTeamFolderDialogProps {
   onOpenChange: (open: boolean) => void;
   onCreateFolder: (name: string, description: string, color: string) => void;
   isCreating?: boolean;
+  classMode?: boolean;
 }
 
 export function CreateTeamFolderDialog({
@@ -42,6 +43,7 @@ export function CreateTeamFolderDialog({
   onOpenChange,
   onCreateFolder,
   isCreating = false,
+  classMode = false,
 }: CreateTeamFolderDialogProps) {
   const [folderName, setFolderName] = useState("");
   const [folderDescription, setFolderDescription] = useState("");
@@ -115,7 +117,7 @@ export function CreateTeamFolderDialog({
         />
         {!keyboardVisible && (
           <p className="text-sm text-muted-foreground text-center">
-            Organize your teams into folders
+            Organize your {classMode ? "classes" : "teams"} into folders
           </p>
         )}
       </div>
@@ -192,7 +194,7 @@ export function CreateTeamFolderDialog({
             <DrawerHeader className="px-0">
               <DrawerTitle className="flex items-center gap-2">
                 <FolderPlus className="h-5 w-5 text-primary" />
-                Create Team Folder
+                Create {classMode ? "Class" : "Team"} Folder
               </DrawerTitle>
             </DrawerHeader>
             <div className="py-2">
@@ -213,7 +215,7 @@ export function CreateTeamFolderDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FolderPlus className="h-5 w-5 text-primary" />
-            Create Team Folder
+            Create {classMode ? "Class" : "Team"} Folder
           </DialogTitle>
         </DialogHeader>
         <div className="py-4">
