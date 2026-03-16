@@ -661,6 +661,7 @@ function DialogInner({
   currentHalf = 1,
   preferredSecondHalfGkId,
   isSetupFlow = false,
+  miniLeagueTeams,
 }: {
   players: Player[];
   teamSize: number;
@@ -677,22 +678,34 @@ function DialogInner({
   currentHalf?: 1 | 2;
   preferredSecondHalfGkId?: string;
   isSetupFlow?: boolean;
+  miniLeagueTeams?: MiniLeagueTeams;
 }) {
   const [plan, setPlan] = useState<SubstitutionEvent[] | null>(existingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'forecast' | 'edit'>(editMode ? 'edit' : 'forecast');
+  
+  const generatePlan = (allPlayers: Player[]) => {
+    const halfDurationSeconds = minutesPerHalf * 60;
+    if (miniLeagueTeams) {
+      return createMiniLeagueSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed!, disablePositionSwaps!, disableBatchSubs!, rotateGkAtHalftime!, currentElapsedSeconds!, currentHalf!, miniLeagueTeams, preferredSecondHalfGkId);
+    }
+    return createSubPlan(allPlayers, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId);
+  };
   
   // Auto-generate plan on mount if no existing plan
   useEffect(() => {
     if (plan === null && !isGenerating && !editMode) {
       const playersOnP = players.filter(p => p.position !== null);
       const benchP = players.filter(p => p.position === null);
-      if (playersOnP.length >= teamSize && benchP.length > 0) {
+      // In mini-league mode, check per-team bench availability
+      const hasEnough = miniLeagueTeams
+        ? playersOnP.length > 0 && benchP.length > 0
+        : playersOnP.length >= teamSize && benchP.length > 0;
+      if (hasEnough) {
         setIsGenerating(true);
         setTimeout(() => {
           try {
-            const halfDurationSeconds = minutesPerHalf * 60;
-            const generatedPlan = createSubPlan(players, teamSize, halfDurationSeconds, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, currentElapsedSeconds, currentHalf, preferredSecondHalfGkId);
+            const generatedPlan = generatePlan(players);
             setPlan(generatedPlan);
           } catch (error) {
             console.error("Error auto-generating plan:", error);
