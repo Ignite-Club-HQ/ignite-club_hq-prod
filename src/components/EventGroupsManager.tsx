@@ -1043,6 +1043,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
               </Card>
             );
           })}
+          </div>
         </div>
       ) : (
         /* Empty State - Hero Quick Setup */
