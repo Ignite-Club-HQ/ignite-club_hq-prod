@@ -545,24 +545,46 @@ export default function ClassEnrolmentPage() {
                           </AlertDialog>
                         </div>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant={isFull ? "outline" : "default"}
-                          onClick={() => {
-                            setEnrollingClassId(cls.id);
-                            enrolSelfMutation.mutate({ teamId: cls.id });
-                          }}
-                          disabled={isEnrolling || enrolSelfMutation.isPending}
-                        >
-                          {isEnrolling ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <>
-                              <UserPlus className="h-4 w-4 mr-1" />
-                              {isFull ? "Join Waitlist" : "Enrol"}
-                            </>
-                          )}
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant={isFull ? "outline" : "default"}
+                              disabled={isEnrolling || enrolSelfMutation.isPending}
+                            >
+                              {isEnrolling ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <UserPlus className="h-4 w-4 mr-1" />
+                                  {isFull ? "Join Waitlist" : "Enrol"}
+                                </>
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>{isFull ? "Join waitlist?" : "Confirm enrolment"}</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                {isFull
+                                  ? <>The class <strong>{cls.name}</strong> is currently full. You will be added to the waitlist and notified when a spot becomes available.</>
+                                  : <>Are you sure you want to enrol in <strong>{cls.name}</strong>?</>
+                                }
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => {
+                                  setEnrollingClassId(cls.id);
+                                  enrolSelfMutation.mutate({ teamId: cls.id });
+                                }}
+                              >
+                                {isFull ? "Join Waitlist" : "Enrol"}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                     </div>
                   )}
