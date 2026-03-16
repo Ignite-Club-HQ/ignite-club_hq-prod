@@ -932,18 +932,6 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                       <PlayCircle className="h-4 w-4 mr-1" />
                       Pitch Board
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => {
-                        setQuickAssignDutyId(null);
-                        setActiveDutiesGroup(group);
-                      }}
-                    >
-                      <ClipboardList className="h-4 w-4 mr-1" />
-                      Duties
-                    </Button>
                   </div>
                 </CardContent>
               </Card>
