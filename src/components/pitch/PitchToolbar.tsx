@@ -32,6 +32,7 @@ interface SubstitutionEvent {
   playerIn: any;
   positionSwap?: any;
   executed?: boolean;
+  skipped?: boolean;
 }
 
 interface Formation {

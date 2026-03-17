@@ -3480,6 +3480,7 @@ export type Database = {
           is_read: boolean
           message: string
           related_id: string | null
+          skip_push: boolean
           type: string
           user_id: string
         }
@@ -3489,6 +3490,7 @@ export type Database = {
           is_read?: boolean
           message: string
           related_id?: string | null
+          skip_push?: boolean
           type: string
           user_id: string
         }
@@ -3498,6 +3500,7 @@ export type Database = {
           is_read?: boolean
           message?: string
           related_id?: string | null
+          skip_push?: boolean
           type?: string
           user_id?: string
         }
@@ -5688,6 +5691,10 @@ export type Database = {
       check_password_reset_rate_limit: {
         Args: { p_email: string }
         Returns: boolean
+      }
+      cleanup_fcm_token_for_user: {
+        Args: { p_token: string; p_user_id: string }
+        Returns: undefined
       }
       cleanup_rate_limits: { Args: never; Returns: undefined }
       decrypt_sensitive_data: {

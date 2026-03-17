@@ -131,12 +131,12 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
       if (!mod) return;
       
       const platform = mod.getPlatform();
-      // Remove this token from any other users first (prevents cross-user notifications)
-      await supabase
-        .from('fcm_tokens' as any)
-        .delete()
-        .eq('token', token)
-        .neq('user_id', userId);
+      // Remove this token from any other users first using security definer function
+      // (RLS prevents deleting other users' rows directly)
+      await supabase.rpc('cleanup_fcm_token_for_user', {
+        p_token: token,
+        p_user_id: userId,
+      });
       
       // Use 'as any' since table may not be in generated types yet
       await supabase

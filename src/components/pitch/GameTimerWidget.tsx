@@ -21,7 +21,7 @@ import { Play, Pause, Timer, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundChec
 import { Goal, getSpecificPositionLabel } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
-import { recalculateRemainingPlan } from "./pitchStateUtils";
+import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan } from "./pitchStateUtils";
 
 // Storage keys
 const ACTIVE_TIMER_KEY = 'pitch-board-timer-state';
@@ -62,6 +62,7 @@ interface SubstitutionEvent {
     toPosition: PitchPosition;
   };
   executed?: boolean;
+  skipped?: boolean;
 }
 
 interface PitchBoardState {
@@ -295,6 +296,16 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       if (!pitchRaw) return;
 
       const pitchState: PitchBoardState = JSON.parse(pitchRaw);
+
+      // Guard: check if this sub was already skipped (e.g., by auto-skip while dialog was open)
+      const matchingSub = pitchState.autoSubPlan?.find(s =>
+        s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half
+      );
+      if (matchingSub?.executed || matchingSub?.skipped) {
+        toast({ title: "Substitution expired", description: "This sub was already skipped — a newer one is due", variant: "destructive" });
+        setShowConfirmDialog(false);
+        return;
+      }
       let currentElapsedSeconds = 0, currentHalf: 1 | 2 = 1, minutesPerHalf = 20;
       if (timerRaw) {
         const ts: TimerState = JSON.parse(timerRaw);

@@ -21,7 +21,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage } from "@/lib/messageCache";
-import { ChatSearchBar, highlightText } from "@/components/chat/ChatSearch";
+import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { IGNITE_SUPPORT_USER_ID, isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessageReads } from "@/hooks/useMessageReads";
 import { Capacitor } from "@capacitor/core";
@@ -543,7 +543,7 @@ export default function DirectMessagePage() {
     setReplyTo(null);
   };
 
-  // Real-time subscription for new messages
+  // Real-time subscription for messages, deletions, edits, and reactions
   useEffect(() => {
     if (!conversationId) return;
 
@@ -557,8 +557,173 @@ export default function DirectMessagePage() {
           table: "direct_messages",
           filter: `conversation_id=eq.${conversationId}`,
         },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+        (payload) => {
+          const newMsg = payload.new as any;
+          // Skip if it's our own optimistic message already in cache
+          queryClient.setQueryData(
+            ["dm-messages", conversationId],
+            (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
+              if (!old) return old;
+              if (old.messages.some(m => m.id === newMsg.id)) return old;
+              // Remove any temp message from same author
+              const filtered = old.messages.filter(
+                m => !(m.id.startsWith('temp-') && m.author_id === newMsg.author_id)
+              );
+              const messageToAdd: DirectMessage = {
+                ...newMsg,
+                author: null,
+                reactions: [],
+                reply_to: null,
+              };
+              return {
+                ...old,
+                messages: [...filtered, messageToAdd].sort(
+                  (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                ),
+              };
+            }
+          );
+          // Fetch profile and reply data async
+          const fetchExtra = async () => {
+            const [profileResult, replyResult] = await Promise.all([
+              supabase.from("profiles").select("display_name, avatar_url").eq("id", newMsg.author_id).maybeSingle(),
+              newMsg.reply_to_id
+                ? supabase.from("direct_messages").select("text, author_id").eq("id", newMsg.reply_to_id).maybeSingle()
+                : Promise.resolve({ data: null }),
+            ]);
+            let replyAuthor = null;
+            if (replyResult.data?.author_id) {
+              const { data: rp } = await supabase.from("profiles").select("display_name").eq("id", replyResult.data.author_id).maybeSingle();
+              replyAuthor = rp;
+            }
+            queryClient.setQueryData(
+              ["dm-messages", conversationId],
+              (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
+                if (!old) return old;
+                return {
+                  ...old,
+                  messages: old.messages.map(m => {
+                    if (m.id !== newMsg.id) return m;
+                    return {
+                      ...m,
+                      author: profileResult.data
+                        ? { display_name: profileResult.data.display_name, avatar_url: profileResult.data.avatar_url }
+                        : m.author,
+                      reply_to: replyResult.data
+                        ? { text: replyResult.data.text, author: replyAuthor ? { display_name: replyAuthor.display_name } : null }
+                        : m.reply_to,
+                    };
+                  }),
+                };
+              }
+            );
+          };
+          fetchExtra();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "direct_messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const deletedId = (payload.old as any).id;
+          queryClient.setQueryData(
+            ["dm-messages", conversationId],
+            (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
+              if (!old) return old;
+              return { ...old, messages: old.messages.filter(m => m.id !== deletedId) };
+            }
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "direct_messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const updated = payload.new as any;
+          queryClient.setQueryData(
+            ["dm-messages", conversationId],
+            (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
+              if (!old) return old;
+              if (updated.deleted_at) {
+                return { ...old, messages: old.messages.filter(m => m.id !== updated.id) };
+              }
+              return {
+                ...old,
+                messages: old.messages.map(m =>
+                  m.id === updated.id ? { ...m, text: updated.text, image_url: updated.image_url } : m
+                ),
+              };
+            }
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "message_reactions",
+        },
+        (payload) => {
+          const reaction = payload.new as any;
+          if (!reaction.direct_message_id) return;
+          queryClient.setQueryData(
+            ["dm-messages", conversationId],
+            (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
+              if (!old) return old;
+              return {
+                ...old,
+                messages: old.messages.map(m => {
+                  if (m.id !== reaction.direct_message_id) return m;
+                  const reactions = m.reactions || [];
+                  if (reactions.some(r => r.id === reaction.id)) return m;
+                  // Replace temp reaction from same user
+                  const filtered = reactions.filter(
+                    r => !(r.id.startsWith('temp-') && r.user_id === reaction.user_id)
+                  );
+                  return {
+                    ...m,
+                    reactions: [...filtered, { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type }],
+                  };
+                }),
+              };
+            }
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "message_reactions",
+        },
+        (payload) => {
+          const deletedReaction = payload.old as any;
+          if (!deletedReaction.id) return;
+          queryClient.setQueryData(
+            ["dm-messages", conversationId],
+            (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
+              if (!old) return old;
+              return {
+                ...old,
+                messages: old.messages.map(m => ({
+                  ...m,
+                  reactions: (m.reactions || []).filter(r => r.id !== deletedReaction.id),
+                })),
+              };
+            }
+          );
         }
       )
       .subscribe();
@@ -704,7 +869,7 @@ export default function DirectMessagePage() {
                   >
                     <ChatMessage
                       id={msg.id}
-                      text={searchQuery ? highlightText(msg.text, searchQuery) as string : msg.text}
+                      text={msg.text}
                       imageUrl={msg.image_url}
                       authorId={msg.author_id}
                       authorName={isIgniteSupportUser(msg.author_id) ? "Ignite Support" : (getProfile(msg.author_id)?.display_name || msg.author?.display_name || null)}
@@ -715,6 +880,7 @@ export default function DirectMessagePage() {
                       reactions={msg.reactions || []}
                       currentUserId={user?.id}
                       messageType="dm"
+                      searchQuery={searchQuery}
                       readFrontierReaders={readFrontier[msg.id] || []}
                       readCount={readCounts[msg.id] || 0}
                       readerName={msg.author_id === user?.id ? (otherUser?.display_name || null) : null}

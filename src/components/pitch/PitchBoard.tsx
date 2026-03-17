@@ -77,7 +77,7 @@ import {
   loadPitchState,
   clearPitchState,
   loadTimerStateForMinutes,
-  recalculateRemainingPlan
+  recalculateRemainingPlanTeamAware as recalculateRemainingPlan
 } from "./pitchStateUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 
@@ -3079,19 +3079,28 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       return subId === skippedId ? { ...sub, executed: true, skipped: true } : sub;
     });
 
-    const remainingCount = updatedPlan.filter(sub => !sub.executed).length;
-    setAutoSubPlan(updatedPlan);
+    // Recalculate remaining plan after skip
+    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
+    const halfDurationSeconds = minsPerHalf * 60;
+    const recalculated = recalculateRemainingPlan(
+      players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, nextSub, rotateGkAtHalftime
+    );
+
+    const executedSubs = updatedPlan.filter(s => s.executed);
+    const finalPlan = [...executedSubs, ...recalculated];
+    const remainingCount = finalPlan.filter(sub => !sub.executed).length;
+    setAutoSubPlan(finalPlan);
     setAutoSubActive(remainingCount > 0);
 
     toast({
-      title: "Substitution skipped",
+      title: "Substitution skipped & plan recalculated",
       description: remainingCount > 0
-        ? `${remainingCount} planned substitution${remainingCount === 1 ? "" : "s"} remaining`
+        ? `${remainingCount} substitution${remainingCount === 1 ? "" : "s"} rescheduled`
         : "No more planned substitutions",
     });
 
     skipCooldownRef.current = Date.now();
-  }, [autoSubPlan, toast]);
+  }, [autoSubPlan, players, teamSize, rotateGkAtHalftime, toast]);
 
   const handleExecuteNow = useCallback(() => {
     const remainingSubs = autoSubPlan.filter(s => !s.executed);
@@ -3359,6 +3368,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Execute auto-sub (handles batch subs)
   const handleConfirmAutoSub = useCallback(() => {
     if (!pendingAutoSub) return;
+
+    // Guard: check if this sub was already skipped (e.g., by auto-skip while dialog was open)
+    const matchingSub = autoSubPlan.find(s =>
+      s.playerOut.id === pendingAutoSub.playerOut.id && 
+      s.time === pendingAutoSub.time && 
+      s.half === pendingAutoSub.half
+    );
+    if (matchingSub?.executed || matchingSub?.skipped) {
+      toast({ title: "Substitution expired", description: "This sub was already skipped — a newer one is due", variant: "destructive" });
+      setSubConfirmDialogOpen(false);
+      setPendingAutoSub(null);
+      setPendingBatchSubs([]);
+      setSubDuePlayerIds(new Set());
+      return;
+    }
     
     // Combine primary and batch subs
     const allPendingSubs = [pendingAutoSub, ...pendingBatchSubs];
@@ -3507,15 +3531,26 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       return skippedIds.includes(subId) ? { ...sub, executed: true, skipped: true } : sub;
     });
 
-    const remainingCount = updatedPlan.filter(sub => !sub.executed).length;
-    setAutoSubPlan(updatedPlan);
+    // Recalculate remaining plan after skip
+    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
+    const half = gameTimerRef.current?.getCurrentHalf() || 1;
+    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
+    const halfDurationSeconds = minsPerHalf * 60;
+    const recalculated = recalculateRemainingPlan(
+      players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, pendingAutoSub, rotateGkAtHalftime
+    );
+
+    const executedSubs = updatedPlan.filter(s => s.executed);
+    const finalPlan = [...executedSubs, ...recalculated];
+    const remainingCount = finalPlan.filter(sub => !sub.executed).length;
+    setAutoSubPlan(finalPlan);
     setAutoSubActive(remainingCount > 0);
 
     const skippedCount = allPendingSubs.length;
     toast({ 
-      title: skippedCount > 1 ? `${skippedCount} substitutions skipped` : "Substitution skipped", 
+      title: skippedCount > 1 ? `${skippedCount} subs skipped & plan recalculated` : "Sub skipped & plan recalculated", 
       description: remainingCount > 0
-        ? `${remainingCount} planned substitution${remainingCount === 1 ? "" : "s"} remaining`
+        ? `${remainingCount} substitution${remainingCount === 1 ? "" : "s"} rescheduled`
         : "No more planned substitutions"
     });
     
@@ -3525,7 +3560,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setPendingBatchSubs([]);
     setSubDuePlayerIds(new Set());
     if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-  }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, toast]);
+  }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, players, teamSize, rotateGkAtHalftime, toast]);
 
   // Ball drag handlers
   const handleBallDragStart = () => {

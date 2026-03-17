@@ -399,7 +399,7 @@ export default function EditEventPage() {
       setAddress(event.address || "");
       setReminderEnabled(event.reminder_hours_before !== null);
       setReminderHours(event.reminder_hours_before || 24);
-      setPrice((event as any).price ? String((event as any).price) : "");
+      setPrice(event.amount ? String(event.amount) : "");
       setSelectedClubId(event.club_id);
       setSelectedTeamId(event.team_id || "");
       setOpponent((event as any).opponent || "");

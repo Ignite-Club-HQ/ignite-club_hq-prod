@@ -21,7 +21,7 @@ import { UserRoundCheck, ArrowRightLeft, ChevronRight, X, Clock, ArrowDown, Arro
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { getSpecificPositionLabel } from "./types";
 import { toast } from "@/hooks/use-toast";
-import { recalculateRemainingPlan } from "./pitchStateUtils";
+import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan } from "./pitchStateUtils";
 
 const TIMER_STATE_KEY = "pitch-board-timer-state";
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
@@ -50,6 +50,7 @@ interface SubstitutionEvent {
     toPosition: PitchPosition;
   };
   executed?: boolean;
+  skipped?: boolean;
 }
 
 interface TimerState {
@@ -220,10 +221,11 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
       
       // If multiple time groups are due, auto-skip older ones
       if (allDueSubs.length > 0) {
-        const dueTimes = [...new Set(allDueSubs.map(s => s.time))].sort((a, b) => a - b);
+        const dueTimes = [...new Set(allDueSubs.map(s => `${s.half}-${s.time}`))].sort();
         if (dueTimes.length > 1) {
-          const latestTime = dueTimes[dueTimes.length - 1];
-          const olderSubs = allDueSubs.filter(s => s.time < latestTime);
+          const latestTimeKey = dueTimes[dueTimes.length - 1];
+          const [latestHalf, latestTime] = latestTimeKey.split('-').map(Number);
+          const olderSubs = allDueSubs.filter(s => !(s.half === latestHalf && s.time === latestTime));
           const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
           const updatedPlan = (pitchState.autoSubPlan || []).map(s =>
             olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
@@ -325,6 +327,17 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
       
       if (pitchStateRaw) {
         const pitchState: PitchBoardState = JSON.parse(pitchStateRaw);
+
+        // Guard: check if this sub was already skipped (e.g., by auto-skip while dialog was open)
+        const matchingSub = pitchState.autoSubPlan?.find(s =>
+          s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half
+        );
+        if (matchingSub?.executed || matchingSub?.skipped) {
+          toast({ title: "Substitution expired", description: "This sub was already skipped — a newer one is due", variant: "destructive" });
+          setShowConfirmDialog(false);
+          checkForPendingSub();
+          return;
+        }
         
         // Get current time info for regenerating plan
         let currentElapsedSeconds = 0;
@@ -469,74 +482,43 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
       if (pitchStateRaw) {
         const pitchState: PitchBoardState = JSON.parse(pitchStateRaw);
         
-        // Get current time info
-        let currentElapsedSeconds = 0;
-        let currentHalf: 1 | 2 = 1;
-        let minutesPerHalf = 20;
+        // Mark current sub as executed + skipped
+        let updatedPlan = pitchState.autoSubPlan.map(s => {
+          if (s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half) {
+            return { ...s, executed: true, skipped: true };
+          }
+          return s;
+        });
         
+        // Recalculate remaining plan using the proper algorithm
         if (timerStateRaw) {
           const timerState: TimerState = JSON.parse(timerStateRaw);
-          minutesPerHalf = timerState.minutesPerHalf || 20;
-          currentHalf = timerState.currentHalf || 1;
-          currentElapsedSeconds = timerState.elapsedSeconds || 0;
+          let currentElapsedSeconds = timerState.elapsedSeconds || 0;
+          const currentHalf = timerState.currentHalf || 1;
+          const minutesPerHalf = timerState.minutesPerHalf || 20;
           
           if (timerState.isRunning && timerState.lastUpdateTime) {
             const secondsPassed = Math.floor((Date.now() - timerState.lastUpdateTime) / 1000);
             currentElapsedSeconds = Math.min(currentElapsedSeconds + secondsPassed, minutesPerHalf * 60);
           }
-        }
-        
-        const currentTotalSeconds = currentHalf === 1 ? currentElapsedSeconds : (minutesPerHalf * 60) + currentElapsedSeconds;
-        
-        // Mark current sub as executed (skipped)
-        let updatedPlan = pitchState.autoSubPlan.map(s => {
-          if (s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half) {
-            return { ...s, executed: true };
+          
+          const halfDurationSeconds = minutesPerHalf * 60;
+          const remainingSubs = updatedPlan.filter(s => !s.executed);
+          
+          if (remainingSubs.length > 0) {
+            const recalculated = recalculateRemainingPlan(
+              pitchState.players,
+              parseInt(pitchState.teamSize),
+              halfDurationSeconds,
+              currentElapsedSeconds,
+              currentHalf as 1 | 2,
+              sub,
+              true
+            );
+            
+            const executedSubs = updatedPlan.filter(s => s.executed);
+            updatedPlan = [...executedSubs, ...recalculated];
           }
-          return s;
-        });
-        
-        // Only redistribute FUTURE subs (not other subs due at the same time)
-        const halfDurationSeconds = minutesPerHalf * 60;
-        const skippedSubTotal = sub.half === 1 ? sub.time : halfDurationSeconds + sub.time;
-        
-        const remainingSubs = updatedPlan.filter(s => !s.executed);
-        const stillDueSubs = remainingSubs.filter(s => {
-          const subTotal = s.half === 1 ? s.time : halfDurationSeconds + s.time;
-          return subTotal <= currentTotalSeconds;
-        });
-        const futureSubs = remainingSubs.filter(s => {
-          const subTotal = s.half === 1 ? s.time : halfDurationSeconds + s.time;
-          return subTotal > currentTotalSeconds;
-        });
-        
-        // Only redistribute future subs if there are any
-        if (futureSubs.length > 0) {
-          const totalGameSeconds = minutesPerHalf * 2 * 60;
-          const remainingGameSeconds = totalGameSeconds - currentTotalSeconds;
-          const numFutureSubs = futureSubs.length;
-          const intervalBetweenSubs = Math.floor(remainingGameSeconds / (numFutureSubs + 1));
-          const actualInterval = Math.max(intervalBetweenSubs, 60);
-          
-          let nextSubTime = currentTotalSeconds + actualInterval;
-          
-          // Build a set of future sub keys for matching
-          const futureSubKeys = new Set(futureSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`));
-          
-          updatedPlan = updatedPlan.map(s => {
-            if (s.executed) return s;
-            const subKey = `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`;
-            if (!futureSubKeys.has(subKey)) return s; // Keep due subs unchanged
-            
-            const newHalf: 1 | 2 = nextSubTime < halfDurationSeconds ? 1 : 2;
-            const newTime = newHalf === 1 ? nextSubTime : nextSubTime - halfDurationSeconds;
-            
-            nextSubTime += actualInterval;
-            
-            return { ...s, half: newHalf, time: Math.floor(newTime) };
-          });
-          
-          console.log(`[PendingSubWidget] Skipped sub, redistributed ${numFutureSubs} future subs, kept ${stillDueSubs.length} due subs`);
         }
         
         const updatedState = { ...pitchState, autoSubPlan: updatedPlan };
@@ -544,9 +526,12 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
         
         window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
         
+        const remainingCount = updatedPlan.filter(s => !s.executed).length;
         toast({
-          title: "Substitution skipped",
-          description: `Remaining subs have been rescheduled`,
+          title: "Substitution skipped & plan recalculated",
+          description: remainingCount > 0
+            ? `${remainingCount} substitution${remainingCount === 1 ? "" : "s"} rescheduled`
+            : "No more planned substitutions",
         });
         
         checkForPendingSub();
