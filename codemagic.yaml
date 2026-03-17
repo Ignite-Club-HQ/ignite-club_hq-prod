@@ -21,6 +21,15 @@ workflows:
           cp firebase/google-services.json android/app/google-services.json
       - name: Sync Capacitor
         script: npx cap sync android
+      - name: Patch Firebase receiver for Android 12+
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "FirebaseInstanceIdReceiver" "$MANIFEST"; then
+            sed -i '' 's|</application>|<receiver android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver" android:exported="true" android:permission="com.google.android.c2dm.permission.SEND"><intent-filter><action android:name="com.google.android.c2dm.intent.RECEIVE" /></intent-filter></receiver></application>|' "$MANIFEST"
+            echo "FirebaseInstanceIdReceiver injected into AndroidManifest.xml"
+          else
+            echo "FirebaseInstanceIdReceiver already present"
+          fi
       - name: Add AdMob App ID to AndroidManifest
         script: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
