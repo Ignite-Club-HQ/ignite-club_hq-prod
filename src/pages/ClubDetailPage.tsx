@@ -1970,6 +1970,30 @@ export default function ClubDetailPage() {
         </AccordionItem>
       )}
       </Accordion>
+
+      {/* Standalone delete folder confirmation dialog */}
+      <AlertDialog open={!!deletingFolder} onOpenChange={(open) => !open && setDeletingFolder(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Folder?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete the folder "{deletingFolder?.name}". Teams in this folder will become uncategorized.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deletingFolder) deleteFolderMutation.mutate(deletingFolder.id);
+                setDeletingFolder(null);
+              }}
+              className="bg-destructive text-destructive-foreground"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
