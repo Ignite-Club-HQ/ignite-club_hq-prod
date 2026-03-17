@@ -581,36 +581,40 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                       OUT {subInfo.sub.playerOut.name} · IN {subInfo.sub.playerIn.name}
                     </p>
                   </div>
-                  {!readOnly && (
-                    <Button
-                      variant={subInfo.isDue && idx === 0 ? "default" : "outline"}
-                      size="sm"
-                      className={`h-8 px-2.5 text-xs gap-1 shrink-0 ${subInfo.isDue && idx === 0 ? "bg-warning text-warning-foreground hover:bg-warning/90" : ""}`}
-                      onClick={(e) => { e.stopPropagation(); openSubDialog(idx); }}
-                      disabled={subInfo.isDue && idx > 0}
-                    >
-                      {subInfo.isDue && idx === 0 ? (
-                        <>
-                          <UserRoundCheck className="h-3.5 w-3.5" />
-                          Accept
-                        </>
-                      ) : subInfo.isDue && idx > 0 ? (
-                        <>
-                          <Clock className="h-3.5 w-3.5" />
-                          Next
-                        </>
-                      ) : idx === 0 || allSubs.slice(0, idx).every(s => s.isDue && allSubs.indexOf(s) === 0) ? (
-                        <>
-                          <ArrowRightLeft className="h-3.5 w-3.5" />
-                          Sub Now
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="h-3.5 w-3.5" />
-                          View
-                        </>
-                      )}
-                    </Button>
+                  {!readOnly && (() => {
+                    const actionable = isSubActionable(subInfo, idx);
+                    return (
+                      <Button
+                        variant={subInfo.isDue && actionable ? "default" : "outline"}
+                        size="sm"
+                        className={`h-8 px-2.5 text-xs gap-1 shrink-0 ${subInfo.isDue && actionable ? "bg-warning text-warning-foreground hover:bg-warning/90" : ""}`}
+                        onClick={(e) => { e.stopPropagation(); openSubDialog(idx); }}
+                        disabled={subInfo.isDue && !actionable}
+                      >
+                        {subInfo.isDue && actionable ? (
+                          <>
+                            <UserRoundCheck className="h-3.5 w-3.5" />
+                            Accept
+                          </>
+                        ) : subInfo.isDue && !actionable ? (
+                          <>
+                            <Clock className="h-3.5 w-3.5" />
+                            Next
+                          </>
+                        ) : actionable ? (
+                          <>
+                            <ArrowRightLeft className="h-3.5 w-3.5" />
+                            Sub Now
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="h-3.5 w-3.5" />
+                            View
+                          </>
+                        )}
+                      </Button>
+                    );
+                  })()}
                   )}
                 </div>
               ))}
