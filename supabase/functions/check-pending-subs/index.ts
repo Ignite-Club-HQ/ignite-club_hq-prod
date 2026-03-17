@@ -267,8 +267,8 @@ async function checkGames(supabase: any): Promise<number> {
     const pitchState = game.pitch_state as PitchState;
 
     if (!timerState || !pitchState) continue;
-    if (!timerState.isRunning) continue;
-    if (!pitchState.autoSubActive || pitchState.autoSubPaused || !pitchState.autoSubPlan?.length) continue;
+
+    const hasAutoSub = pitchState.autoSubActive && !pitchState.autoSubPaused && pitchState.autoSubPlan?.length > 0;
 
     const now = Date.now();
     const halfDurationSecs = timerState.minutesPerHalf * 60;
@@ -282,18 +282,21 @@ async function checkGames(supabase: any): Promise<number> {
     const currentElapsed = Math.min(rawElapsed, halfDurationSecs);
     const currentHalf = timerState.currentHalf;
 
-    // Detect half-time boundary: timer shows running but elapsed has reached/exceeded half duration
-    // This happens when the client pauses at half-time but the DB state hasn't synced yet
+    // Detect half-time boundary: elapsed has reached/exceeded half duration
+    // This works whether timer is running (extrapolated) or paused (elapsedSeconds already at boundary)
     const isAtHalfTimeBoundary = timerState.currentHalf === 1 && rawElapsed >= halfDurationSecs;
     const isAtFullTimeBoundary = timerState.currentHalf === 2 && rawElapsed >= halfDurationSecs;
 
-    // Skip stale games - if lastUpdateTime is more than 2 minutes ago,
+    // Skip stale games - if the DB row hasn't been updated recently,
     // the client has stopped syncing and this game is abandoned.
-    // BUT: use a much longer threshold during half-time/full-time boundaries
+    // Use game.updated_at (set by client sync every 10s) NOT timerState.lastUpdateTime
+    // (which is a frozen snapshot from when the timer was last interacted with).
+    // Use a longer threshold during half-time/full-time boundaries
     // because the client legitimately stops syncing during breaks.
     const STALE_THRESHOLD_MS = (isAtHalfTimeBoundary || isAtFullTimeBoundary) ? 600_000 : 120_000; // 10min at breaks, 2min normally
-    if (timerState.lastUpdateTime > 0 && (now - timerState.lastUpdateTime) > STALE_THRESHOLD_MS) {
-      console.log(`[CHECK-SUBS] Game ${game.id} is stale (last update ${Math.floor((now - timerState.lastUpdateTime) / 1000)}s ago), marking inactive`);
+    const gameUpdatedAt = new Date(game.updated_at).getTime();
+    if (gameUpdatedAt > 0 && (now - gameUpdatedAt) > STALE_THRESHOLD_MS) {
+      console.log(`[CHECK-SUBS] Game ${game.id} is stale (DB row last updated ${Math.floor((now - gameUpdatedAt) / 1000)}s ago), marking inactive`);
       await supabase
         .from('active_games')
         .update({ is_active: false })
@@ -336,69 +339,72 @@ async function checkGames(supabase: any): Promise<number> {
     // Get team staff (coaches + team_admins) for this specific team
     const staffUserIds = await getTeamStaffUserIds(supabase, teamId, linkedEventId);
 
-    const getAbsoluteSubTime = (sub: SubstitutionEvent) => {
-      return sub.half === 1 ? sub.time : halfDurationSecs + sub.time;
-    };
+    // Only process substitution notifications if auto-sub is active AND timer is running
+    if (hasAutoSub && timerState.isRunning) {
+      const getAbsoluteSubTime = (sub: SubstitutionEvent) => {
+        return sub.half === 1 ? sub.time : halfDurationSecs + sub.time;
+      };
 
-    // Find next unexecuted sub for current half that's due
-    // Skip subs that are more than 90 seconds overdue (matches client-side auto-skip)
-    const AUTO_SKIP_THRESHOLD_SECS = 60;
-    const nextSub = pitchState.autoSubPlan.find((sub: SubstitutionEvent) => {
-      const absoluteSubTime = getAbsoluteSubTime(sub);
-      const overdueSeconds = currentElapsed - sub.time;
-      return !sub.executed &&
-        sub.half === currentHalf &&
-        currentElapsed >= sub.time &&
-        overdueSeconds <= AUTO_SKIP_THRESHOLD_SECS &&
-        absoluteSubTime > (game.last_sub_check_time || 0);
-    });
+      // Find next unexecuted sub for current half that's due
+      // Skip subs that are more than 90 seconds overdue (matches client-side auto-skip)
+      const AUTO_SKIP_THRESHOLD_SECS = 60;
+      const nextSub = pitchState.autoSubPlan.find((sub: SubstitutionEvent) => {
+        const absoluteSubTime = getAbsoluteSubTime(sub);
+        const overdueSeconds = currentElapsed - sub.time;
+        return !sub.executed &&
+          sub.half === currentHalf &&
+          currentElapsed >= sub.time &&
+          overdueSeconds <= AUTO_SKIP_THRESHOLD_SECS &&
+          absoluteSubTime > (game.last_sub_check_time || 0);
+      });
 
-    // Also advance last_sub_check_time past any severely overdue subs so we don't re-check them
-    const overdueSubs = pitchState.autoSubPlan.filter((sub: SubstitutionEvent) => {
-      const absoluteSubTime = getAbsoluteSubTime(sub);
-      const overdueSeconds = currentElapsed - sub.time;
-      return !sub.executed &&
-        sub.half === currentHalf &&
-        currentElapsed >= sub.time &&
-        overdueSeconds > AUTO_SKIP_THRESHOLD_SECS &&
-        absoluteSubTime > (game.last_sub_check_time || 0);
-    });
+      // Also advance last_sub_check_time past any severely overdue subs so we don't re-check them
+      const overdueSubs = pitchState.autoSubPlan.filter((sub: SubstitutionEvent) => {
+        const absoluteSubTime = getAbsoluteSubTime(sub);
+        const overdueSeconds = currentElapsed - sub.time;
+        return !sub.executed &&
+          sub.half === currentHalf &&
+          currentElapsed >= sub.time &&
+          overdueSeconds > AUTO_SKIP_THRESHOLD_SECS &&
+          absoluteSubTime > (game.last_sub_check_time || 0);
+      });
 
-    if (overdueSubs.length > 0) {
-      const maxOverdueAbsTime = Math.max(...overdueSubs.map((s: SubstitutionEvent) => getAbsoluteSubTime(s)));
-      console.log(`[CHECK-SUBS] Game ${game.id}: Skipping ${overdueSubs.length} overdue sub(s) (>90s past due)`);
-      await supabase
-        .from('active_games')
-        .update({ last_sub_check_time: Math.max(maxOverdueAbsTime, game.last_sub_check_time || 0) })
-        .eq('id', game.id);
-    }
+      if (overdueSubs.length > 0) {
+        const maxOverdueAbsTime = Math.max(...overdueSubs.map((s: SubstitutionEvent) => getAbsoluteSubTime(s)));
+        console.log(`[CHECK-SUBS] Game ${game.id}: Skipping ${overdueSubs.length} overdue sub(s) (>90s past due)`);
+        await supabase
+          .from('active_games')
+          .update({ last_sub_check_time: Math.max(maxOverdueAbsTime, game.last_sub_check_time || 0) })
+          .eq('id', game.id);
+      }
 
-    if (nextSub) {
-      const playerOutName = nextSub.playerOut.name || `#${nextSub.playerOut.number}`;
-      const playerInName = nextSub.playerIn.name || `#${nextSub.playerIn.number}`;
-      const position = nextSub.playerOut.currentPitchPosition || 'Pitch';
-      const notificationBody = `${playerOutName} → Bench. ${playerInName} → ${position}`;
-      const elapsedMinutes = Math.floor(currentElapsed / 60);
+      if (nextSub) {
+        const playerOutName = nextSub.playerOut.name || `#${nextSub.playerOut.number}`;
+        const playerInName = nextSub.playerIn.name || `#${nextSub.playerIn.number}`;
+        const position = nextSub.playerOut.currentPitchPosition || 'Pitch';
+        const notificationBody = `${playerOutName} → Bench. ${playerInName} → ${position}`;
+        const elapsedMinutes = Math.floor(currentElapsed / 60);
 
-      console.log(`[CHECK-SUBS] Game ${game.id}: Sub due at ${nextSub.time}s, current=${currentElapsed}s`);
+        console.log(`[CHECK-SUBS] Game ${game.id}: Sub due at ${nextSub.time}s, current=${currentElapsed}s`);
 
-      notificationsSent += await notifyTeamStaff(
-        supabase, staffUserIds, game.user_id, game.id,
-        teamId, teamName, linkedEventId,
-        'pending_sub', notificationBody, 'pending_sub',
-        `🔄 ${teamName} - Sub Due!`, notificationBody,
-        playerOutName, playerInName, position, elapsedMinutes, currentHalf
-      );
+        notificationsSent += await notifyTeamStaff(
+          supabase, staffUserIds, game.user_id, game.id,
+          teamId, teamName, linkedEventId,
+          'pending_sub', notificationBody, 'pending_sub',
+          `🔄 ${teamName} - Sub Due!`, notificationBody,
+          playerOutName, playerInName, position, elapsedMinutes, currentHalf
+        );
 
-      // Update last_sub_check_time with ABSOLUTE time
-      const absoluteSubTime = getAbsoluteSubTime(nextSub);
-      const { error: updateError } = await supabase
-        .from('active_games')
-        .update({ last_sub_check_time: absoluteSubTime })
-        .eq('id', game.id);
+        // Update last_sub_check_time with ABSOLUTE time
+        const absoluteSubTime = getAbsoluteSubTime(nextSub);
+        const { error: updateError } = await supabase
+          .from('active_games')
+          .update({ last_sub_check_time: absoluteSubTime })
+          .eq('id', game.id);
 
-      if (updateError) {
-        console.error(`[CHECK-SUBS] Failed to update last_sub_check_time:`, updateError.message);
+        if (updateError) {
+          console.error(`[CHECK-SUBS] Failed to update last_sub_check_time:`, updateError.message);
+        }
       }
     }
 
