@@ -1082,7 +1082,7 @@ export default function ClubDetailPage() {
                     
                     const isExpanded = expandedFolders[folder.id] !== false;
                     
-                    return (
+                      return (
                       <Collapsible key={folder.id} open={isExpanded} onOpenChange={() => toggleFolder(folder.id)}>
                         <div
                           onDragOver={(e) => handleFolderDragOver(e, folder.id)}
@@ -1090,6 +1090,24 @@ export default function ClubDetailPage() {
                           onDrop={(e) => handleFolderDrop(e, folder.id)}
                           className={`rounded-lg transition-all ${dragOverFolderId === folder.id ? "ring-2 ring-primary ring-offset-2" : ""}`}
                         >
+                          <SwipeableRow
+                            enabled={isAdmin}
+                            actionsWidth={140}
+                            actions={[
+                              {
+                                label: "Edit",
+                                icon: <Pencil className="h-4 w-4" />,
+                                onClick: () => handleOpenEditFolder(folder),
+                                className: "bg-primary text-primary-foreground",
+                              },
+                              {
+                                label: "Delete",
+                                icon: <Trash2 className="h-4 w-4" />,
+                                onClick: () => setDeletingFolder({ id: folder.id, name: folder.name }),
+                                className: "bg-destructive text-destructive-foreground",
+                              },
+                            ]}
+                          >
                           <CollapsibleTrigger asChild>
                             <Card className={`cursor-pointer hover:border-primary/30 active:scale-[0.99] transition-all ${getFolderColorClass(folder.color || 'default').bgClassName}`}>
                               <CardContent className="p-3 flex items-center gap-3">
@@ -1103,57 +1121,10 @@ export default function ClubDetailPage() {
                                 <Badge variant="secondary" className="text-xs shrink-0">
                                   {folderTeams.length} team{folderTeams.length !== 1 ? "s" : ""}
                                 </Badge>
-                                {isAdmin && (
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button 
-                                        variant="ghost" 
-                                        size="icon" 
-                                        className="h-8 w-8 shrink-0"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <MoreVertical className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      <DropdownMenuItem onClick={() => handleOpenEditFolder(folder)}>
-                                        <Pencil className="h-4 w-4 mr-2" />
-                                        Edit Folder
-                                      </DropdownMenuItem>
-                                      <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                          <DropdownMenuItem 
-                                            className="text-destructive focus:text-destructive"
-                                            onSelect={(e) => e.preventDefault()}
-                                          >
-                                            <Trash2 className="h-4 w-4 mr-2" />
-                                            Delete Folder
-                                          </DropdownMenuItem>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                          <AlertDialogHeader>
-                                            <AlertDialogTitle>Delete Folder?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                              This will delete the folder "{folder.name}". Teams in this folder will become uncategorized.
-                                            </AlertDialogDescription>
-                                          </AlertDialogHeader>
-                                          <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction
-                                              onClick={() => deleteFolderMutation.mutate(folder.id)}
-                                              className="bg-destructive text-destructive-foreground"
-                                            >
-                                              Delete
-                                            </AlertDialogAction>
-                                          </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                      </AlertDialog>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                )}
                               </CardContent>
                             </Card>
                           </CollapsibleTrigger>
+                          </SwipeableRow>
                         </div>
                         <CollapsibleContent className="pl-4 space-y-2 mt-2">
                           {filteredFolderTeams.length === 0 ? (
