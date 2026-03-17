@@ -268,7 +268,8 @@ async function checkGames(supabase: any): Promise<number> {
 
     if (!timerState || !pitchState) continue;
     if (!timerState.isRunning) continue;
-    if (!pitchState.autoSubActive || pitchState.autoSubPaused || !pitchState.autoSubPlan?.length) continue;
+
+    const hasAutoSub = pitchState.autoSubActive && !pitchState.autoSubPaused && pitchState.autoSubPlan?.length > 0;
 
     const now = Date.now();
     const halfDurationSecs = timerState.minutesPerHalf * 60;
