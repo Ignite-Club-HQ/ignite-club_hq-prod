@@ -21,7 +21,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage } from "@/lib/messageCache";
-import { ChatSearchBar, highlightText } from "@/components/chat/ChatSearch";
+import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { IGNITE_SUPPORT_USER_ID, isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessageReads } from "@/hooks/useMessageReads";
 import { Capacitor } from "@capacitor/core";
