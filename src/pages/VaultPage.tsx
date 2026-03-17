@@ -1524,7 +1524,7 @@ export default function VaultPage() {
 
       const insertData: any = {
         file_url: storageUrl,
-        uploader_id: user!.id,
+        uploaded_by: user!.id,
         name: customFileName || fileName || file.name,
         folder_id: getCurrentFolderId(),
         file_size: file.size,
@@ -1535,6 +1535,9 @@ export default function VaultPage() {
       } else if (currentView.type === "team") {
         insertData.club_id = currentView.clubId;
         insertData.team_id = currentView.teamId;
+      } else if (currentView.type === "mini-league") {
+        insertData.club_id = currentView.clubId;
+        insertData.mini_league_id = currentView.miniLeagueId;
       }
 
       const { error: insertError } = await supabase.from("vault_files").insert(insertData);
