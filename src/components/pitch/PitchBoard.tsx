@@ -3531,15 +3531,26 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       return skippedIds.includes(subId) ? { ...sub, executed: true, skipped: true } : sub;
     });
 
-    const remainingCount = updatedPlan.filter(sub => !sub.executed).length;
-    setAutoSubPlan(updatedPlan);
+    // Recalculate remaining plan after skip
+    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
+    const half = gameTimerRef.current?.getCurrentHalf() || 1;
+    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
+    const halfDurationSeconds = minsPerHalf * 60;
+    const recalculated = recalculateRemainingPlan(
+      players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, pendingAutoSub, rotateGkAtHalftime
+    );
+
+    const executedSubs = updatedPlan.filter(s => s.executed);
+    const finalPlan = [...executedSubs, ...recalculated];
+    const remainingCount = finalPlan.filter(sub => !sub.executed).length;
+    setAutoSubPlan(finalPlan);
     setAutoSubActive(remainingCount > 0);
 
     const skippedCount = allPendingSubs.length;
     toast({ 
-      title: skippedCount > 1 ? `${skippedCount} substitutions skipped` : "Substitution skipped", 
+      title: skippedCount > 1 ? `${skippedCount} subs skipped & plan recalculated` : "Sub skipped & plan recalculated", 
       description: remainingCount > 0
-        ? `${remainingCount} planned substitution${remainingCount === 1 ? "" : "s"} remaining`
+        ? `${remainingCount} substitution${remainingCount === 1 ? "" : "s"} rescheduled`
         : "No more planned substitutions"
     });
     
@@ -3549,7 +3560,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setPendingBatchSubs([]);
     setSubDuePlayerIds(new Set());
     if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-  }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, toast]);
+  }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, players, teamSize, rotateGkAtHalftime, toast]);
 
   // Ball drag handlers
   const handleBallDragStart = () => {
