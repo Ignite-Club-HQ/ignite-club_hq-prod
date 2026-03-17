@@ -15,15 +15,13 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
     // Check for cached roles first
     const cachedRoles = getCachedRoles();
     
-    // Fetch all initial data in parallel - including media access check
-    const [rolesResult, chatGroupsResult, broadcastResult] = await Promise.all([
+    // Fetch roles and broadcast messages in parallel
+    // Note: chat_groups are fetched AFTER roles so we can filter server-side
+    const [rolesResult, broadcastResult] = await Promise.all([
       supabase
         .from("user_roles")
         .select("id, role, club_id, team_id")
         .eq("user_id", userId),
-      supabase
-        .from("chat_groups")
-        .select("id, name, club_id, team_id, allowed_roles"),
       supabase
         .from("broadcast_messages")
         .select("id, text, image_url, created_at, author_id, reply_to_id")
