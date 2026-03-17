@@ -3480,6 +3480,7 @@ export type Database = {
           is_read: boolean
           message: string
           related_id: string | null
+          skip_push: boolean
           type: string
           user_id: string
         }
@@ -3489,6 +3490,7 @@ export type Database = {
           is_read?: boolean
           message: string
           related_id?: string | null
+          skip_push?: boolean
           type: string
           user_id: string
         }
@@ -3498,6 +3500,7 @@ export type Database = {
           is_read?: boolean
           message?: string
           related_id?: string | null
+          skip_push?: boolean
           type?: string
           user_id?: string
         }
