@@ -5689,6 +5689,10 @@ export type Database = {
         Args: { p_email: string }
         Returns: boolean
       }
+      cleanup_fcm_token_for_user: {
+        Args: { p_token: string; p_user_id: string }
+        Returns: undefined
+      }
       cleanup_rate_limits: { Args: never; Returns: undefined }
       decrypt_sensitive_data: {
         Args: { encrypted_data: string }
