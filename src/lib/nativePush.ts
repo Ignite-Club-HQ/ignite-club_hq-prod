@@ -305,6 +305,25 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
       return { success: false, error: 'Push notification permission denied' };
     }
 
+    // Create the default notification channel on Android 8+
+    // Without this, FCM messages targeting channel_id 'default' are silently dropped
+    if (getPlatform() === 'android') {
+      try {
+        await PushNotifications.createChannel({
+          id: 'default',
+          name: 'Default',
+          description: 'Default notification channel',
+          importance: 5, // IMPORTANCE_HIGH
+          visibility: 1, // PUBLIC
+          sound: 'default',
+          vibration: true,
+        });
+        console.log('[NativePush] Android default channel created');
+      } catch (chanErr) {
+        console.warn('[NativePush] Failed to create channel (may already exist):', chanErr);
+      }
+    }
+
     // Register with FCM
     console.log('[NativePush] Registering with push service...');
     try {
