@@ -267,7 +267,6 @@ async function checkGames(supabase: any): Promise<number> {
     const pitchState = game.pitch_state as PitchState;
 
     if (!timerState || !pitchState) continue;
-    if (!timerState.isRunning) continue;
 
     const hasAutoSub = pitchState.autoSubActive && !pitchState.autoSubPaused && pitchState.autoSubPlan?.length > 0;
 
