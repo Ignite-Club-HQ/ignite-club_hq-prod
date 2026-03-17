@@ -115,6 +115,7 @@ export default function ClubDetailPage() {
   const [editingFolder, setEditingFolder] = useState<{ id: string; name: string; description: string | null; color: string } | null>(null);
   const [folderName, setFolderName] = useState("");
   const [folderDescription, setFolderDescription] = useState("");
+  const [deletingFolder, setDeletingFolder] = useState<{ id: string; name: string } | null>(null);
   const [folderColor, setFolderColor] = useState("default");
 
   const { data: club, isLoading } = useQuery({
