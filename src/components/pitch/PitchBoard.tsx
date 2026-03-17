@@ -3998,10 +3998,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Touch handler for bench players
   const handleBenchTouchMove = useCallback((e: React.TouchEvent) => {
     if (readOnly) return;
-    if (!touchDragPlayer || !containerRef.current) return;
+    if (!touchDragPlayer || !containerRef.current || touchIdRef.current === null) return;
+    const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
+    if (!touch) return;
     e.preventDefault();
     
-    const touch = e.touches[0];
     const pitchRect = containerRef.current.getBoundingClientRect();
     
     // Check if touch is over the pitch
@@ -4027,6 +4028,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const handleBenchTouchEnd = useCallback(() => {
     setTouchDragPlayer(null);
     setTouchOffset(null);
+    touchIdRef.current = null;
   }, []);
 
   // Portrait bench long-press drag handlers
