@@ -142,7 +142,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
   const selectedSub = allSubs[selectedSubIndex] || null;
   const isSelectedSubActionable = selectedSub ? (
-    selectedSub.isDue || selectedSubIndex === 0 || allSubs.slice(0, selectedSubIndex).every(s => s.isDue)
+    // Only the first due sub is actionable; subsequent due subs wait for recalculation
+    (selectedSub.isDue && selectedSubIndex === 0) || 
+    (!selectedSub.isDue && (selectedSubIndex === 0 || allSubs.slice(0, selectedSubIndex).every((s, i) => s.isDue && i === 0)))
   ) : false;
 
   const actualPlayerOut = useMemo(() => {
