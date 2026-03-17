@@ -282,8 +282,8 @@ async function checkGames(supabase: any): Promise<number> {
     const currentElapsed = Math.min(rawElapsed, halfDurationSecs);
     const currentHalf = timerState.currentHalf;
 
-    // Detect half-time boundary: timer shows running but elapsed has reached/exceeded half duration
-    // This happens when the client pauses at half-time but the DB state hasn't synced yet
+    // Detect half-time boundary: elapsed has reached/exceeded half duration
+    // This works whether timer is running (extrapolated) or paused (elapsedSeconds already at boundary)
     const isAtHalfTimeBoundary = timerState.currentHalf === 1 && rawElapsed >= halfDurationSecs;
     const isAtFullTimeBoundary = timerState.currentHalf === 2 && rawElapsed >= halfDurationSecs;
 
