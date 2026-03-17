@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, MoreVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore } from "lucide-react";
+import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { Button } from "@/components/ui/button";
