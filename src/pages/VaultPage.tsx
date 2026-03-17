@@ -1292,11 +1292,14 @@ export default function VaultPage() {
 
   const canRenameFile = useCallback((file: any) => {
     if (isAppAdmin) return true;
-    if (file.uploader_id === user?.id) return true;
+    // vault_files uses uploaded_by, not uploader_id
+    if ((file.uploaded_by || file.uploader_id) === user?.id) return true;
     const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : currentView.type === "mini-league" ? currentView.clubId : null;
     const teamId = currentView.type === "team" ? currentView.teamId : null;
     if (userRoles?.some(r => (r.role === "club_admin" || r.role === "committee_member") && r.club_id === clubId)) return true;
     if (teamId && userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId)) return true;
+    // Mini-league: league admins and coaches can rename
+    if (currentView.type === "mini-league" && userRoles?.some(r => (r.role === "league_admin" || r.role === "coach") && r.club_id === clubId)) return true;
     return false;
   }, [isAppAdmin, user?.id, currentView, userRoles]);
 
