@@ -1348,6 +1348,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
   const [touchDragPlayer, setTouchDragPlayer] = useState<string | null>(null);
   const [touchOffset, setTouchOffset] = useState<{ x: number; y: number } | null>(null);
+  const touchIdRef = useRef<number | null>(null); // Track which finger initiated the drag
   
   // Track recently-released players to suppress CSS transition "drift" on drop
   const recentlyDraggedRef = useRef<Set<string>>(new Set());
@@ -3853,9 +3854,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     // Handle player drag - block in readOnly mode
     if (readOnly) return;
-    if (touchDragPlayer && containerRef.current) {
+    if (touchDragPlayer && containerRef.current && touchIdRef.current !== null) {
+      // Find the specific finger that started this drag
+      const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
+      if (!touch) return;
       e.preventDefault();
-      const touch = e.touches[0];
       const rect = containerRef.current.getBoundingClientRect();
       const x = ((touch.clientX - rect.left) / rect.width) * 100;
       const y = ((touch.clientY - rect.top) / rect.height) * 100;
@@ -3879,12 +3882,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (readOnly) return;
     if (!touchDragPlayer) return;
     
+    // Only respond to the finger that started this drag
+    const touch = Array.from(e.changedTouches).find(t => t.identifier === touchIdRef.current);
+    if (!touch) return;
+    
     // Mark player as recently-dragged to suppress CSS transition AND tactical offset drift
     const draggedId = touchDragPlayer;
     recentlyDraggedRef.current.add(draggedId);
     setTimeout(() => recentlyDraggedRef.current.delete(draggedId), 500);
     
-    const touch = e.changedTouches[0];
     const benchElement = document.getElementById('pitch-bench');
     
     let droppedOnBench = false;
@@ -3921,6 +3927,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     setTouchDragPlayer(null);
     setTouchOffset(null);
+    touchIdRef.current = null;
   };
 
   // Wheel zoom
@@ -3980,20 +3987,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Touch handlers for mobile drag-and-drop
   const handleTouchStart = (playerId: string, e: React.TouchEvent) => {
     if (readOnly) return;
-    // Don't preventDefault immediately - let click events fire for taps
-    // Instead, set up drag state that will be used by touchmove
-    setTouchDragPlayer(playerId);
+    // Only allow one drag at a time – ignore if already tracking a finger
+    if (touchDragPlayer !== null) return;
     const touch = e.touches[0];
+    touchIdRef.current = touch.identifier;
+    setTouchDragPlayer(playerId);
     setTouchOffset({ x: touch.clientX, y: touch.clientY });
   };
 
   // Touch handler for bench players
   const handleBenchTouchMove = useCallback((e: React.TouchEvent) => {
     if (readOnly) return;
-    if (!touchDragPlayer || !containerRef.current) return;
+    if (!touchDragPlayer || !containerRef.current || touchIdRef.current === null) return;
+    const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
+    if (!touch) return;
     e.preventDefault();
     
-    const touch = e.touches[0];
     const pitchRect = containerRef.current.getBoundingClientRect();
     
     // Check if touch is over the pitch
@@ -4019,6 +4028,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const handleBenchTouchEnd = useCallback(() => {
     setTouchDragPlayer(null);
     setTouchOffset(null);
+    touchIdRef.current = null;
   }, []);
 
   // Portrait bench long-press drag handlers
@@ -5167,6 +5177,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       e.preventDefault();
                       setTouchDragPlayer(null);
                       setTouchOffset(null);
+                      touchIdRef.current = null;
                       setPitchPlayerActionTarget(player.id);
                       setPitchPlayerActionOpen(true);
                     } else {
@@ -6945,6 +6956,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     e.preventDefault();
                     setTouchDragPlayer(null);
                     setTouchOffset(null);
+                    touchIdRef.current = null;
                     setPitchPlayerActionTarget(player.id);
                     setPitchPlayerActionOpen(true);
                   } else {
