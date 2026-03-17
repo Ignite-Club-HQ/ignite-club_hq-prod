@@ -142,7 +142,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
   const selectedSub = allSubs[selectedSubIndex] || null;
   const isSelectedSubActionable = selectedSub ? (
-    selectedSub.isDue || selectedSubIndex === 0 || allSubs.slice(0, selectedSubIndex).every(s => s.isDue)
+    // Only the first due sub is actionable; subsequent due subs wait for recalculation
+    (selectedSub.isDue && selectedSubIndex === 0) || 
+    (!selectedSub.isDue && (selectedSubIndex === 0 || allSubs.slice(0, selectedSubIndex).every((s, i) => s.isDue && i === 0)))
   ) : false;
 
   const actualPlayerOut = useMemo(() => {
@@ -570,18 +572,24 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                   </div>
                   {!readOnly && (
                     <Button
-                      variant={subInfo.isDue ? "default" : "outline"}
+                      variant={subInfo.isDue && idx === 0 ? "default" : "outline"}
                       size="sm"
-                      className={`h-8 px-2.5 text-xs gap-1 shrink-0 ${subInfo.isDue ? "bg-warning text-warning-foreground hover:bg-warning/90" : ""}`}
+                      className={`h-8 px-2.5 text-xs gap-1 shrink-0 ${subInfo.isDue && idx === 0 ? "bg-warning text-warning-foreground hover:bg-warning/90" : ""}`}
                       onClick={(e) => { e.stopPropagation(); openSubDialog(idx); }}
+                      disabled={subInfo.isDue && idx > 0}
                     >
-                      {subInfo.isDue ? (
+                      {subInfo.isDue && idx === 0 ? (
                         <>
                           <UserRoundCheck className="h-3.5 w-3.5" />
                           Accept
                         </>
-                      ) : idx === 0 || allSubs.slice(0, idx).every(s => s.isDue) ? (
-                      <>
+                      ) : subInfo.isDue && idx > 0 ? (
+                        <>
+                          <Clock className="h-3.5 w-3.5" />
+                          Next
+                        </>
+                      ) : idx === 0 || allSubs.slice(0, idx).every(s => s.isDue && allSubs.indexOf(s) === 0) ? (
+                        <>
                           <ArrowRightLeft className="h-3.5 w-3.5" />
                           Sub Now
                         </>
