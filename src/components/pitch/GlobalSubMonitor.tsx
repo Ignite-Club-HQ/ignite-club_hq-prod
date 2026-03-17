@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePitchBoardNotifications } from "@/hooks/usePitchBoardNotifications";
 import type { Json } from "@/integrations/supabase/types";
 import { setSyncStatus } from "@/hooks/useSyncStatus";
+import { recalculateRemainingPlan } from "./pitchStateUtils";
 
 interface Player {
   id: string;
@@ -110,214 +111,7 @@ const getTeamSizeNumber = (teamSize: string): number => {
   return parseInt(teamSize) || 11;
 };
 
-// Recalculate substitution plan when a sub is skipped
-const recalculateRemainingPlan = (
-  currentPlayers: Player[],
-  teamSize: number,
-  halfDurationSeconds: number,
-  currentElapsedSeconds: number,
-  currentHalf: 1 | 2,
-  skippedSub: SubstitutionEvent,
-  rotateGkAtHalftime: boolean = true
-): SubstitutionEvent[] => {
-  const plan: SubstitutionEvent[] = [];
-  
-  const playersOnPitch = currentPlayers.filter(p => p.position !== null);
-  const benchPlayers = currentPlayers.filter(p => p.position === null);
-  
-  if (benchPlayers.length === 0) return [];
-  
-  // Separate GK from outfield players
-  const gkOnPitch = playersOnPitch.find(p => p.currentPitchPosition === "GK");
-  const gkOnBench = benchPlayers.find(p => p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1);
-  
-  const outfieldPlayers = currentPlayers.filter(p => {
-    if (p.currentPitchPosition === "GK") return false;
-    if (p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1) return false;
-    return true;
-  });
-  
-  const outfieldOnBench = benchPlayers.filter(p => {
-    if (p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1) return false;
-    return true;
-  });
-  
-  if (outfieldOnBench.length === 0) {
-    if (rotateGkAtHalftime && gkOnPitch && currentHalf === 1) {
-      const gkReplacement = gkOnBench || benchPlayers.filter(p => p.assignedPositions?.includes("GK") || !p.assignedPositions?.length).sort((a, b) => (a.minutesPlayed || 0) - (b.minutesPlayed || 0))[0] || null;
-      if (gkReplacement) {
-        plan.push({
-          time: 0,
-          half: 2,
-          playerOut: gkOnPitch,
-          playerIn: gkReplacement,
-          executed: false,
-        });
-      }
-    }
-    return plan;
-  }
-  
-  const fieldPositions = teamSize - 1;
-  
-  const remainingInCurrentHalf = halfDurationSeconds - currentElapsedSeconds;
-  const remainingInSecondHalf = currentHalf === 1 ? halfDurationSeconds : 0;
-  const totalRemainingSeconds = remainingInCurrentHalf + remainingInSecondHalf;
-  
-  const currentOnPitch = new Map<string, PitchPosition>();
-  playersOnPitch.filter(p => p.currentPitchPosition !== "GK").forEach(p => {
-    currentOnPitch.set(p.id, p.currentPitchPosition as PitchPosition);
-  });
-  
-  const getPlayer = (id: string) => outfieldPlayers.find(p => p.id === id);
-  
-  const minSubInterval = 120;
-  const subsNeeded = Math.min(
-    outfieldOnBench.length,
-    Math.floor(totalRemainingSeconds / minSubInterval)
-  );
-  
-  if (subsNeeded <= 0) return [];
-  
-  const generateRemainingSubTimes = (): { time: number; half: 1 | 2 }[] => {
-    const times: { time: number; half: 1 | 2 }[] = [];
-    const interval = totalRemainingSeconds / (subsNeeded + 1);
-    
-    let accumulatedTime = 0;
-    for (let i = 1; i <= subsNeeded; i++) {
-      accumulatedTime += interval;
-      
-      if (currentHalf === 1) {
-        if (accumulatedTime + currentElapsedSeconds <= halfDurationSeconds) {
-          times.push({ 
-            time: Math.floor(currentElapsedSeconds + accumulatedTime), 
-            half: 1 
-          });
-        } else {
-          const timeInSecondHalf = accumulatedTime - remainingInCurrentHalf;
-          times.push({ 
-            time: Math.floor(timeInSecondHalf), 
-            half: 2 
-          });
-        }
-      } else {
-        times.push({ 
-          time: Math.floor(currentElapsedSeconds + accumulatedTime), 
-          half: 2 
-        });
-      }
-    }
-    return times;
-  };
-  
-  const subTimes = generateRemainingSubTimes();
-  
-  for (const { time, half } of subTimes) {
-    const onPitchSorted = Array.from(currentOnPitch.keys())
-      .map(id => ({ id, time: getPlayer(id)?.minutesPlayed || 0, player: getPlayer(id)! }))
-      .filter(p => p.player)
-      .sort((a, b) => b.time - a.time);
-    
-    const benchSorted = outfieldPlayers
-      .filter(p => !currentOnPitch.has(p.id))
-      .map(p => ({ id: p.id, time: p.minutesPlayed || 0, player: p }))
-      .sort((a, b) => a.time - b.time);
-    
-    if (onPitchSorted.length === 0 || benchSorted.length === 0) continue;
-    
-    let playerOut: Player | undefined;
-    let playerIn: Player | undefined;
-    let positionSwap: SubstitutionEvent["positionSwap"] | undefined;
-    
-    for (const benchEntry of benchSorted) {
-      for (const pitchEntry of onPitchSorted) {
-        const pitchPos = currentOnPitch.get(pitchEntry.id);
-        
-        if (!benchEntry.player.assignedPositions?.length || 
-            benchEntry.player.assignedPositions.includes(pitchPos!)) {
-          playerOut = pitchEntry.player;
-          playerIn = benchEntry.player;
-          break;
-        }
-        
-        const pitchPlayers = Array.from(currentOnPitch.entries());
-        for (const [swapId, swapPos] of pitchPlayers) {
-          if (swapId === pitchEntry.id) continue;
-          const swapPlayer = getPlayer(swapId);
-          if (!swapPlayer) continue;
-          
-          if (swapPlayer.assignedPositions?.includes(pitchPos!) &&
-              benchEntry.player.assignedPositions?.includes(swapPos)) {
-            playerOut = pitchEntry.player;
-            playerIn = benchEntry.player;
-            positionSwap = {
-              player: swapPlayer,
-              fromPosition: swapPos,
-              toPosition: pitchPos!,
-            };
-            break;
-          }
-        }
-        if (playerOut) break;
-      }
-      if (playerOut) break;
-    }
-    
-    if (!playerOut && onPitchSorted[0] && benchSorted[0]) {
-      playerOut = onPitchSorted[0].player;
-      playerIn = benchSorted[0].player;
-    }
-    
-    if (playerOut && playerIn) {
-      const incomingPosition = positionSwap 
-        ? positionSwap.fromPosition 
-        : currentOnPitch.get(playerOut.id);
-      
-      plan.push({
-        time,
-        half,
-        playerOut,
-        playerIn,
-        positionSwap,
-        executed: false,
-      });
-      
-      currentOnPitch.delete(playerOut.id);
-      currentOnPitch.set(playerIn.id, incomingPosition!);
-      
-      if (positionSwap) {
-        currentOnPitch.set(positionSwap.player.id, positionSwap.toPosition);
-      }
-    }
-  }
-  
-  if (rotateGkAtHalftime && gkOnPitch && currentHalf === 1) {
-    const gkReplacement = gkOnBench || (() => {
-      const benchAtEnd = outfieldPlayers
-        .filter(p => !currentOnPitch.has(p.id))
-        .sort((a, b) => (a.minutesPlayed || 0) - (b.minutesPlayed || 0));
-      // Eligible: GK in assigned positions, or no positions set (eligible for all)
-      const gkEligible = benchAtEnd.filter(p => p.assignedPositions?.includes("GK") || !p.assignedPositions?.length);
-      return gkEligible[0] || null;
-    })();
-    if (gkReplacement) {
-      plan.push({
-        time: 0,
-        half: 2,
-        playerOut: gkOnPitch,
-        playerIn: gkReplacement,
-        executed: false,
-      });
-    }
-  }
-  
-  plan.sort((a, b) => {
-    if (a.half !== b.half) return a.half - b.half;
-    return a.time - b.time;
-  });
-  
-  return plan;
-};
+// recalculateRemainingPlan is imported from pitchStateUtils
 
 export default function GlobalSubMonitor() {
   const { user } = useAuth();
@@ -830,138 +624,68 @@ export default function GlobalSubMonitor() {
       return;
     }
 
-    const { playerOut, playerIn, positionSwap } = pendingAutoSub;
-    
-    // Find current player positions
-    const currentPlayerOut = pitchState.players.find(p => p.id === playerOut.id);
-    const currentPlayerIn = pitchState.players.find(p => p.id === playerIn.id);
-    
-    // CRITICAL: Validate both players exist and are in correct positions before executing
-    // playerOut must be on pitch (position !== null)
-    // playerIn must be on bench (position === null)
-    
-    // If playerIn doesn't exist or is already on pitch, skip without modifying positions
-    if (!currentPlayerIn || !!currentPlayerIn.position) {
-      console.log('[GlobalSubMonitor] Skipping sub - playerIn not on bench:', {
-        playerIn: playerIn.name,
-        found: !!currentPlayerIn,
-        position: currentPlayerIn?.position
-      });
-      // Mark as executed but DON'T change any player positions
-      const updatedPlan = pitchState.autoSubPlan.map(sub => {
-        if (sub.time === pendingAutoSub.time && 
-            sub.half === pendingAutoSub.half && 
-            sub.playerOut.id === pendingAutoSub.playerOut.id) {
-          return { ...sub, executed: true };
-        }
-        return sub;
-      });
+    // Process ALL pending subs (primary + batch)
+    const allPendingSubs = [pendingAutoSub, ...pendingBatchSubs];
+    let updatedPlayers = [...pitchState.players];
+    const executedSubIds: string[] = [];
+
+    for (const sub of allPendingSubs) {
+      const { playerOut, playerIn, positionSwap } = sub;
       
-      savePitchState({
-        ...pitchState,
-        autoSubPlan: updatedPlan,
-        autoSubActive: updatedPlan.filter(sub => !sub.executed).length > 0,
-        lastUpdateTime: Date.now(),
-      });
+      const currentPlayerOut = updatedPlayers.find(p => p.id === playerOut.id);
+      const currentPlayerIn = updatedPlayers.find(p => p.id === playerIn.id);
       
-      setSubConfirmDialogOpen(false);
-      setPendingAutoSub(null);
-      setPendingBatchSubs([]);
-      lastCheckedSubRef.current = null;
-      return;
-    }
-    
-    // If playerOut doesn't exist or is already off pitch, skip without modifying positions
-    if (!currentPlayerOut?.position) {
-      console.log('[GlobalSubMonitor] Skipping sub - playerOut not on pitch:', {
-        playerOut: playerOut.name,
-        found: !!currentPlayerOut,
-        position: currentPlayerOut?.position
-      });
-      // Mark as executed but DON'T change any player positions
-      const updatedPlan = pitchState.autoSubPlan.map(sub => {
-        if (sub.time === pendingAutoSub.time && 
-            sub.half === pendingAutoSub.half && 
-            sub.playerOut.id === pendingAutoSub.playerOut.id) {
-          return { ...sub, executed: true };
-        }
-        return sub;
-      });
-      
-      savePitchState({
-        ...pitchState,
-        autoSubPlan: updatedPlan,
-        autoSubActive: updatedPlan.filter(sub => !sub.executed).length > 0,
-        lastUpdateTime: Date.now(),
-      });
-      
-      setSubConfirmDialogOpen(false);
-      setPendingAutoSub(null);
-      setPendingBatchSubs([]);
-      lastCheckedSubRef.current = null;
-      return;
-    }
-    
-    // Both players are valid - currentPlayerOut is on pitch, currentPlayerIn is on bench
-    // (we already validated this above, so currentPlayerIn is guaranteed to exist)
-    
-    const pitchPosition = { ...currentPlayerOut.position };
-    const pitchPositionType = currentPlayerOut.currentPitchPosition;
-    
-    let updatedPlayers = pitchState.players;
-    
-    if (positionSwap) {
-      const swapPlayer = pitchState.players.find(p => p.id === positionSwap.player.id);
-      if (swapPlayer?.position) {
-        const swapPosition = { ...swapPlayer.position };
-        
-        updatedPlayers = pitchState.players.map(p => {
-          if (p.id === playerOut.id) {
-            return { ...p, position: null, currentPitchPosition: undefined };
-          }
-          if (p.id === positionSwap.player.id) {
-            return { ...p, position: pitchPosition, currentPitchPosition: positionSwap.toPosition };
-          }
-          if (p.id === playerIn.id) {
-            return { ...p, position: swapPosition, currentPitchPosition: positionSwap.fromPosition };
-          }
-          return p;
+      // Validate: playerOut must be on pitch, playerIn must be on bench
+      if (!currentPlayerOut?.position || !currentPlayerIn || !!currentPlayerIn.position) {
+        console.log('[GlobalSubMonitor] Skipping invalid sub:', {
+          playerOut: playerOut.name,
+          playerOutOnPitch: !!currentPlayerOut?.position,
+          playerIn: playerIn.name,
+          playerInOnBench: !currentPlayerIn?.position
         });
+        executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
+        continue;
+      }
+      
+      const pitchPosition = { ...currentPlayerOut.position };
+      const pitchPositionType = currentPlayerOut.currentPitchPosition;
+      
+      if (positionSwap) {
+        const swapPlayer = updatedPlayers.find(p => p.id === positionSwap.player.id);
+        if (swapPlayer?.position) {
+          const swapPosition = { ...swapPlayer.position };
+          updatedPlayers = updatedPlayers.map(p => {
+            if (p.id === playerOut.id) return { ...p, position: null, currentPitchPosition: undefined };
+            if (p.id === positionSwap.player.id) return { ...p, position: pitchPosition, currentPitchPosition: positionSwap.toPosition };
+            if (p.id === playerIn.id) return { ...p, position: swapPosition, currentPitchPosition: positionSwap.fromPosition };
+            return p;
+          });
+        } else {
+          updatedPlayers = updatedPlayers.map(p => {
+            if (p.id === playerOut.id) return { ...p, position: null, currentPitchPosition: undefined };
+            if (p.id === playerIn.id) return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
+            return p;
+          });
+        }
       } else {
-        // Swap player no longer on pitch - just do simple swap
-        updatedPlayers = pitchState.players.map(p => {
-          if (p.id === playerOut.id) {
-            return { ...p, position: null, currentPitchPosition: undefined };
-          }
-          if (p.id === playerIn.id) {
-            return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
-          }
+        updatedPlayers = updatedPlayers.map(p => {
+          if (p.id === playerOut.id) return { ...p, position: null, currentPitchPosition: undefined };
+          if (p.id === playerIn.id) return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
           return p;
         });
       }
-    } else {
-      updatedPlayers = pitchState.players.map(p => {
-        if (p.id === playerOut.id) {
-          return { ...p, position: null, currentPitchPosition: undefined };
-        }
-        if (p.id === playerIn.id) {
-          return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
-        }
-        return p;
-      });
+      
+      executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
     }
     
-    // Mark sub as executed and update players
+    // Mark all processed subs as executed
     const updatedPlan = pitchState.autoSubPlan.map(sub => {
-      if (sub.time === pendingAutoSub.time && 
-          sub.half === pendingAutoSub.half && 
-          sub.playerOut.id === pendingAutoSub.playerOut.id) {
-        return { ...sub, executed: true };
-      }
+      const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
+      if (executedSubIds.includes(subId)) return { ...sub, executed: true };
       return sub;
     });
     
-    // Recalculate remaining sub timings so subsequent subs are redistributed
+    // Recalculate remaining sub timings
     const timerState = loadTimerState();
     const executedPlan = updatedPlan.filter(sub => sub.executed);
     let finalPlan = updatedPlan;
@@ -982,7 +706,6 @@ export default function GlobalSubMonitor() {
         true
       );
       
-      // Merge: keep executed subs + use recalculated for remaining
       finalPlan = [...executedPlan, ...recalculated];
     }
     
@@ -1018,11 +741,35 @@ export default function GlobalSubMonitor() {
       return skippedIds.has(subId) ? { ...sub, executed: true, skipped: true } : sub;
     });
 
-    const remainingSubs = updatedPlan.filter(sub => !sub.executed);
+    // Recalculate remaining plan after skip
+    const timerState = loadTimerState();
+    let finalPlan = updatedPlan;
+    
+    if (timerState && updatedPlan.some(sub => !sub.executed)) {
+      const now = Date.now();
+      const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
+      const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+      const halfDuration = timerState.minutesPerHalf * 60;
+      
+      const recalculated = recalculateRemainingPlan(
+        pitchState.players,
+        getTeamSizeNumber(pitchState.teamSize),
+        halfDuration,
+        currentElapsed,
+        timerState.currentHalf as 1 | 2,
+        pendingAutoSub,
+        true
+      );
+      
+      const executedSubs = updatedPlan.filter(sub => sub.executed);
+      finalPlan = [...executedSubs, ...recalculated];
+    }
+
+    const remainingSubs = finalPlan.filter(sub => !sub.executed);
 
     savePitchState({
       ...pitchState,
-      autoSubPlan: updatedPlan,
+      autoSubPlan: finalPlan,
       autoSubActive: remainingSubs.length > 0,
       lastUpdateTime: Date.now(),
     });
