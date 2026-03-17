@@ -2783,9 +2783,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       } else {
         // Block swap if target player is not in the valid set
         if (!getValidSwapPlayerIds.has(playerId)) {
+          const selectedPlayer = players.find(p => p.id === swapPlayer1);
+          const targetPlayer = players.find(p => p.id === playerId);
+          const isCrossTeam = miniLeagueTeams && selectedPlayer?.teamSide && targetPlayer?.teamSide && selectedPlayer.teamSide !== targetPlayer.teamSide;
           toast({
             title: "Cannot swap",
-            description: "Players are not eligible to play in each other's positions based on their position preferences.",
+            description: isCrossTeam 
+              ? "You can only swap players on the same team."
+              : "Players are not eligible to play in each other's positions based on their position preferences.",
             variant: "destructive",
           });
           return;
