@@ -1518,8 +1518,8 @@ export default function HomePage() {
           return null;
         }
         
-        // Check if user has EDIT access (coach or team_admin of THIS team, or app_admin)
-        const hasEditAccess = isAppAdmin || userRoles?.some(r => 
+        // Check if user has EDIT access (coach or team_admin of THIS team, club_admin of team's club, or app_admin)
+        const hasEditAccess = isAppAdmin || isClubAdminOfTeam || userRoles?.some(r => 
           r.team_id === timerTeamId && (r.role === "coach" || r.role === "team_admin")
         );
         
