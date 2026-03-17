@@ -4196,6 +4196,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       // Skip the selected player itself
       if (pitchPlayer.id === swapPlayer1) return;
       
+      // In mini-league mode, only allow swaps within the same team
+      if (miniLeagueTeams && selectedPlayer.teamSide && pitchPlayer.teamSide && selectedPlayer.teamSide !== pitchPlayer.teamSide) return;
+      
       const targetPos = pitchPlayer.currentPitchPosition;
       if (!targetPos) return;
       
