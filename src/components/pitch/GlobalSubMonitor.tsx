@@ -741,11 +741,35 @@ export default function GlobalSubMonitor() {
       return skippedIds.has(subId) ? { ...sub, executed: true, skipped: true } : sub;
     });
 
-    const remainingSubs = updatedPlan.filter(sub => !sub.executed);
+    // Recalculate remaining plan after skip
+    const timerState = loadTimerState();
+    let finalPlan = updatedPlan;
+    
+    if (timerState && updatedPlan.some(sub => !sub.executed)) {
+      const now = Date.now();
+      const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
+      const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+      const halfDuration = timerState.minutesPerHalf * 60;
+      
+      const recalculated = recalculateRemainingPlan(
+        pitchState.players,
+        getTeamSizeNumber(pitchState.teamSize),
+        halfDuration,
+        currentElapsed,
+        timerState.currentHalf as 1 | 2,
+        pendingAutoSub,
+        true
+      );
+      
+      const executedSubs = updatedPlan.filter(sub => sub.executed);
+      finalPlan = [...executedSubs, ...recalculated];
+    }
+
+    const remainingSubs = finalPlan.filter(sub => !sub.executed);
 
     savePitchState({
       ...pitchState,
-      autoSubPlan: updatedPlan,
+      autoSubPlan: finalPlan,
       autoSubActive: remainingSubs.length > 0,
       lastUpdateTime: Date.now(),
     });
