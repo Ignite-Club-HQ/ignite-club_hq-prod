@@ -880,6 +880,7 @@ export default function DirectMessagePage() {
                       reactions={msg.reactions || []}
                       currentUserId={user?.id}
                       messageType="dm"
+                      searchQuery={searchQuery}
                       readFrontierReaders={readFrontier[msg.id] || []}
                       readCount={readCounts[msg.id] || 0}
                       readerName={msg.author_id === user?.id ? (otherUser?.display_name || null) : null}
