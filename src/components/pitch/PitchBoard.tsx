@@ -3854,9 +3854,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     // Handle player drag - block in readOnly mode
     if (readOnly) return;
-    if (touchDragPlayer && containerRef.current) {
+    if (touchDragPlayer && containerRef.current && touchIdRef.current !== null) {
+      // Find the specific finger that started this drag
+      const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
+      if (!touch) return;
       e.preventDefault();
-      const touch = e.touches[0];
       const rect = containerRef.current.getBoundingClientRect();
       const x = ((touch.clientX - rect.left) / rect.width) * 100;
       const y = ((touch.clientY - rect.top) / rect.height) * 100;
