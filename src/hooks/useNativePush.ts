@@ -250,6 +250,34 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
     };
   }, [userId, enabled, handleNotificationAction, handleTokenRefresh]);
 
+  // Refresh FCM token on app resume (visibility change) for native platforms
+  // This ensures stale tokens are replaced even if the app was backgrounded for days
+  useEffect(() => {
+    if (!userId || !isNative) return;
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState !== 'visible') return;
+      
+      try {
+        const mod = await loadNativePushModule();
+        if (!mod || !mod.isNativePlatform()) return;
+        
+        console.log('[useNativePush] App resumed - refreshing FCM token');
+        const result = await mod.initializeNativePush(userId);
+        if (result.success) {
+          console.log('[useNativePush] FCM token refreshed on resume');
+        } else {
+          console.warn('[useNativePush] FCM token refresh on resume failed:', result.error);
+        }
+      } catch (err) {
+        console.warn('[useNativePush] Error refreshing token on resume:', err);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [userId, isNative]);
+
   // Cleanup on logout
   const cleanup = useCallback(async () => {
     if (!userId) return;
