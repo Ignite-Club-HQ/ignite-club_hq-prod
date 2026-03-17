@@ -89,3 +89,6 @@ verify_jwt = false
 
 [functions.process-message-notifications]
 verify_jwt = false
+
+[functions.process-event-notifications]
+verify_jwt = false

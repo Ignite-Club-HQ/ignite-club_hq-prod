@@ -10,6 +10,11 @@ const corsHeaders = {
  * Fallback cron function that retries push notifications for recent notifications
  * that were missed by the pg_net trigger (which can silently drop requests).
  * 
+ * Scaled for 400+ users:
+ * - Checks up to 200 notifications per run (up from 50)
+ * - Dispatches with controlled concurrency (20 at a time)
+ * - Pre-inserts placeholder logs to prevent duplicate retries
+ * 
  * Logic:
  * 1. Find notifications created in the last 5 minutes
  * 2. Check which ones have NO entry in push_notification_logs
@@ -27,16 +32,16 @@ serve(async (req: Request): Promise<Response> => {
 
     // Look for notifications from the last 5 minutes that have no push log entry
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    // Don't retry very recent ones (< 10s) — give pg_net time to process
-    const tenSecAgo = new Date(Date.now() - 10 * 1000).toISOString();
+    // Don't retry very recent ones (< 15s) — give edge functions time to process
+    const fifteenSecAgo = new Date(Date.now() - 15 * 1000).toISOString();
 
     const { data: recentNotifications, error: notifError } = await supabase
       .from('notifications')
-      .select('id, user_id, type, message, related_id')
+      .select('id, user_id, type, message, related_id, skip_push')
       .gte('created_at', fiveMinAgo)
-      .lte('created_at', tenSecAgo)
+      .lte('created_at', fifteenSecAgo)
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(200);
 
     if (notifError) {
       console.error('[RETRY-PUSH] Error fetching notifications:', notifError);
@@ -130,57 +135,51 @@ serve(async (req: Request): Promise<Response> => {
       }
     };
 
+    // Pre-insert placeholder logs to prevent duplicate retries across runs
+    const placeholders = missedNotifications.map(n => ({
+      notification_id: n.id,
+      user_id: n.user_id,
+      endpoint: 'retry-placeholder',
+      status: 'sent',
+      status_code: null,
+      error_message: 'Queued by retry-missed-push-notifications',
+    }));
+    const { error: placeholderError } = await supabase
+      .from('push_notification_logs')
+      .insert(placeholders);
+    if (placeholderError) {
+      console.error('[RETRY-PUSH] Failed to insert placeholder logs:', placeholderError);
+    }
+
+    // Dispatch with controlled concurrency (20 at a time)
+    const CONCURRENCY = 20;
     let retriedCount = 0;
     let errorCount = 0;
 
-    // Pre-insert placeholder logs to prevent duplicate retries across runs
-    const missedIds = missedNotifications.map(n => n.id);
-    if (missedIds.length > 0) {
-      const placeholders = missedNotifications.map(n => ({
-        notification_id: n.id,
-        user_id: n.user_id,
-        endpoint: 'retry-placeholder',
-        status: 'sent',
-        status_code: null,
-        error_message: 'Queued by retry-missed-push-notifications',
-      }));
-      const { error: placeholderError } = await supabase
-        .from('push_notification_logs')
-        .insert(placeholders);
-      if (placeholderError) {
-        console.error('[RETRY-PUSH] Failed to insert placeholder logs:', placeholderError);
-        // Continue anyway — better to risk a duplicate than skip entirely
-      }
-    }
+    for (let i = 0; i < missedNotifications.length; i += CONCURRENCY) {
+      const batch = missedNotifications.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(
+        batch.map(notif => {
+          const url = buildUrl(notif.type, notif.related_id);
+          return supabase.functions.invoke('send-push-notification', {
+            body: {
+              userId: notif.user_id,
+              title: 'Ignite Club HQ',
+              body: notif.message,
+              url,
+              notificationId: notif.id,
+              tag: `${notif.type}-${notif.id}`,
+              notificationType: notif.type,
+            },
+          }).then(result => {
+            if (result.error) throw result.error;
+            return true;
+          });
+        })
+      );
 
-    // Dispatch each missed notification (sequentially to avoid overloading)
-    for (const notif of missedNotifications) {
-      try {
-        const url = buildUrl(notif.type, notif.related_id);
-
-        const { error: invokeError } = await supabase.functions.invoke('send-push-notification', {
-          body: {
-            userId: notif.user_id,
-            title: 'Ignite Club HQ',
-            body: notif.message,
-            url,
-            notificationId: notif.id,
-            tag: `${notif.type}-${notif.id}`,
-            notificationType: notif.type,
-          },
-        });
-
-        if (invokeError) {
-          console.error(`[RETRY-PUSH] Failed to retry notification ${notif.id}:`, invokeError);
-          errorCount++;
-        } else {
-          retriedCount++;
-          console.log(`[RETRY-PUSH] Successfully retried notification ${notif.id} (${notif.type})`);
-        }
-      } catch (err) {
-        console.error(`[RETRY-PUSH] Error retrying notification ${notif.id}:`, err);
-        errorCount++;
-      }
+      retriedCount += results.filter(r => r.status === 'fulfilled').length;
+      errorCount += results.filter(r => r.status === 'rejected').length;
     }
 
     console.log(`[RETRY-PUSH] Complete: ${retriedCount} retried, ${errorCount} errors`);

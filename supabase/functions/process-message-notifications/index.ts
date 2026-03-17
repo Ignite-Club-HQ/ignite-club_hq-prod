@@ -9,8 +9,8 @@ const corsHeaders = {
  * Process message notifications asynchronously.
  * 
  * Called by lightweight DB triggers via net.http_post when a message is created.
- * Handles the fan-out: determines recipients, batch-inserts notifications,
- * and dispatches email notifications.
+ * Handles the fan-out: determines recipients, batch-inserts notifications with skip_push=true,
+ * dispatches push notifications in controlled batches, and sends email notifications.
  * 
  * This replaces the old synchronous loops inside DB triggers that blocked
  * the message INSERT transaction.
@@ -22,12 +22,66 @@ interface MessagePayload {
   authorId: string;
   messageText: string;
   imageUrl: string | null;
-  // Context IDs
   teamId?: string;
   clubId?: string;
   groupId?: string;
-  // For replies
   replyToId?: string | null;
+}
+
+// Dispatch push notifications with controlled concurrency
+async function dispatchPushBatch(
+  supabaseUrl: string,
+  anonKey: string,
+  notifications: Array<{
+    userId: string;
+    body: string;
+    url: string;
+    notificationId?: string;
+    notificationType: string;
+  }>,
+  concurrency: number = 20
+): Promise<{ sent: number; failed: number }> {
+  let sent = 0;
+  let failed = 0;
+
+  for (let i = 0; i < notifications.length; i += concurrency) {
+    const batch = notifications.slice(i, i + concurrency);
+    const results = await Promise.allSettled(
+      batch.map(n =>
+        fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${anonKey}`,
+          },
+          body: JSON.stringify({
+            userId: n.userId,
+            title: 'Ignite Club HQ',
+            body: n.body,
+            url: n.url,
+            notificationId: n.notificationId,
+            tag: `${n.notificationType}-${n.notificationId || Date.now()}`,
+            notificationType: n.notificationType,
+          }),
+        }).then(r => { const ok = r.ok; r.body?.cancel(); return ok; })
+      )
+    );
+    sent += results.filter(r => r.status === 'fulfilled' && r.value).length;
+    failed += results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value)).length;
+  }
+
+  return { sent, failed };
+}
+
+// Build the push notification URL for a message type
+function buildPushUrl(messageType: string, contextId: string | null, messageId: string): string {
+  switch (messageType) {
+    case 'team': return contextId ? `/messages/${contextId}` : '/messages';
+    case 'club': return contextId ? `/messages/club/${contextId}` : '/messages';
+    case 'group': return contextId ? `/messages/group/${contextId}` : '/messages';
+    case 'broadcast': return '/messages/broadcast';
+    default: return '/messages';
+  }
 }
 
 Deno.serve(async (req) => {
@@ -80,7 +134,6 @@ Deno.serve(async (req) => {
         .maybeSingle();
       contextName = teamData?.name || 'team chat';
 
-      // Get team members excluding sender and muted users
       const { data: members } = await supabase
         .from('user_roles')
         .select('user_id')
@@ -89,7 +142,6 @@ Deno.serve(async (req) => {
 
       const memberIds = [...new Set((members || []).map(m => m.user_id))];
       
-      // Filter out muted users
       if (memberIds.length > 0) {
         const { data: muted } = await supabase
           .from('chat_mute_preferences')
@@ -116,13 +168,27 @@ Deno.serve(async (req) => {
         .maybeSingle();
       contextName = clubData?.name || 'club chat';
 
-      const { data: members } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .eq('club_id', clubId)
-        .neq('user_id', authorId);
-
-      const memberIds = [...new Set((members || []).map(m => m.user_id))];
+      // Paginated fetch for club members
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      let allMemberIds: string[] = [];
+      while (hasMore) {
+        const { data: page } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('club_id', clubId)
+          .neq('user_id', authorId)
+          .range(offset, offset + PAGE_SIZE - 1);
+        if (page && page.length > 0) {
+          allMemberIds.push(...page.map(m => m.user_id));
+          offset += PAGE_SIZE;
+          hasMore = page.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      const memberIds = [...new Set(allMemberIds)];
       
       if (memberIds.length > 0) {
         const { data: muted } = await supabase
@@ -157,11 +223,9 @@ Deno.serve(async (req) => {
 
       contextName = groupData.name || 'a group';
 
-      // Determine members based on group type
       let memberIds: string[] = [];
 
       if (!groupData.club_id && !groupData.team_id && !groupData.mini_league_id) {
-        // Personal group — use group_members table
         const { data: members } = await supabase
           .from('group_members')
           .select('user_id')
@@ -169,7 +233,6 @@ Deno.serve(async (req) => {
           .neq('user_id', authorId);
         memberIds = (members || []).map(m => m.user_id);
       } else if (groupData.mini_league_id) {
-        // Mini league group — admins/coaches from club + parents with children in the league
         const [roleMembers, parentMembers] = await Promise.all([
           supabase
             .from('user_roles')
@@ -187,7 +250,6 @@ Deno.serve(async (req) => {
         const parentIds = (parentMembers.data || []).map(m => m.parent_user_id);
         memberIds = [...new Set([...roleIds, ...parentIds])];
       } else {
-        // Club/team group — use role-based membership
         let query = supabase
           .from('user_roles')
           .select('user_id')
@@ -207,7 +269,6 @@ Deno.serve(async (req) => {
         memberIds = [...new Set((members || []).map(m => m.user_id))];
       }
 
-      // Filter muted users
       if (memberIds.length > 0) {
         const { data: muted } = await supabase
           .from('chat_mute_preferences')
@@ -226,7 +287,6 @@ Deno.serve(async (req) => {
       notificationType = 'broadcast';
       contextName = 'Ignite Support';
 
-      // Paginate through ALL profiles to avoid the 1000-row default limit
       const PAGE_SIZE = 1000;
       let offset = 0;
       let hasMore = true;
@@ -245,14 +305,14 @@ Deno.serve(async (req) => {
           hasMore = false;
         }
       }
-      // No mute filtering for broadcasts
     }
 
     console.log(`[NOTIFY] ${recipientUserIds.length} recipients for ${messageType} message`);
 
-    // Batch insert notifications (in chunks of 500 to avoid payload limits)
+    // Batch insert notifications with skip_push=true (in chunks of 500)
     const BATCH_SIZE = 500;
     let notificationsInserted = 0;
+    const insertedNotificationIds: Array<{ userId: string; id: string }> = [];
 
     for (let i = 0; i < recipientUserIds.length; i += BATCH_SIZE) {
       const batch = recipientUserIds.slice(i, i + BATCH_SIZE);
@@ -263,20 +323,24 @@ Deno.serve(async (req) => {
           ? 'New announcement from Ignite Support'
           : `${senderName} sent a message in ${contextName}`,
         related_id: messageId,
+        skip_push: true,
       }));
 
-      const { error: insertError, count } = await supabase
+      const { data: inserted, error: insertError } = await supabase
         .from('notifications')
-        .upsert(notificationRows, { onConflict: 'id', ignoreDuplicates: true, count: 'exact' });
+        .upsert(notificationRows, { onConflict: 'id', ignoreDuplicates: true })
+        .select('id, user_id');
 
       if (insertError) {
         console.error(`[NOTIFY] Batch insert error (batch ${i / BATCH_SIZE}):`, insertError);
       } else {
-        notificationsInserted += count || batch.length;
+        const rows = inserted || [];
+        notificationsInserted += rows.length;
+        insertedNotificationIds.push(...rows.map((r: any) => ({ userId: r.user_id, id: r.id })));
       }
     }
 
-    // Handle reply notifications
+    // Handle reply notifications (single insert, skip_push=true, dispatch push individually)
     if (replyToId) {
       let originalAuthorId: string | null = null;
       const table = messageType === 'team' ? 'team_messages'
@@ -293,7 +357,6 @@ Deno.serve(async (req) => {
       originalAuthorId = originalMsg?.author_id || null;
       
       if (originalAuthorId && originalAuthorId !== authorId) {
-        // Check mute status for reply target
         let isMuted = false;
         if (muteChatId && muteChatType) {
           const { data: muteCheck } = await supabase
@@ -308,12 +371,17 @@ Deno.serve(async (req) => {
         }
 
         if (!isMuted) {
-          await supabase.from('notifications').insert({
+          const { data: replyNotif } = await supabase.from('notifications').insert({
             user_id: originalAuthorId,
             type: 'message_reply',
             message: `${senderName} replied to your message`,
             related_id: messageId,
-          });
+            skip_push: true,
+          }).select('id').single();
+
+          if (replyNotif) {
+            insertedNotificationIds.push({ userId: originalAuthorId, id: replyNotif.id });
+          }
         }
       }
     }
@@ -329,7 +397,6 @@ Deno.serve(async (req) => {
     }
 
     for (const mentionedId of [...new Set(mentionedIds)]) {
-      // Check mute status
       let isMuted = false;
       if (muteChatId && muteChatType) {
         const { data: muteCheck } = await supabase
@@ -345,17 +412,35 @@ Deno.serve(async (req) => {
 
       if (!isMuted) {
         const mentionContext = messageType === 'broadcast' ? 'a broadcast' : contextName;
-        await supabase.from('notifications').insert({
+        const { data: mentionNotif } = await supabase.from('notifications').insert({
           user_id: mentionedId,
           type: 'message_mention',
           message: `${senderName} mentioned you in ${mentionContext}`,
           related_id: messageId,
-        });
+          skip_push: true,
+        }).select('id').single();
+
+        if (mentionNotif) {
+          insertedNotificationIds.push({ userId: mentionedId, id: mentionNotif.id });
+        }
       }
     }
 
+    // Dispatch push notifications in controlled batches (20 concurrent)
+    const pushUrl = buildPushUrl(messageType, contextId, messageId);
+    const pushPayloads = insertedNotificationIds.map(n => ({
+      userId: n.userId,
+      body: messageType === 'broadcast'
+        ? 'New announcement from Ignite Support'
+        : `${senderName} sent a message in ${contextName}`,
+      url: pushUrl,
+      notificationId: n.id,
+      notificationType: notificationType,
+    }));
+
+    const pushResult = await dispatchPushBatch(supabaseUrl, anonKey, pushPayloads);
+
     // Send email notifications in batched concurrency (max 20 concurrent)
-    // to avoid overwhelming the email edge function with hundreds of simultaneous requests
     const EMAIL_CONCURRENCY = 20;
     let emailsSent = 0;
     let emailsFailed = 0;
@@ -388,13 +473,15 @@ Deno.serve(async (req) => {
     }
 
     const elapsed = Date.now() - startTime;
-    console.log(`[NOTIFY] Done: ${notificationsInserted} notifications, ${emailsSent} emails, ${mentionedIds.length} mentions in ${elapsed}ms`);
+    console.log(`[NOTIFY] Done: ${notificationsInserted} notifs, push ${pushResult.sent}/${pushPayloads.length}, ${emailsSent} emails, ${mentionedIds.length} mentions in ${elapsed}ms`);
 
     return new Response(
       JSON.stringify({
         message: 'Notifications processed',
         recipients: recipientUserIds.length,
         notifications_inserted: notificationsInserted,
+        push_sent: pushResult.sent,
+        push_failed: pushResult.failed,
         emails_sent: emailsSent,
         mentions: mentionedIds.length,
         elapsed_ms: elapsed,
