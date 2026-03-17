@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { Capacitor } from "@capacitor/core";
-import { StatusBar, Style } from "@capacitor/status-bar";
+import { StatusBar } from "@capacitor/status-bar";
+import { refreshStatusBar } from "@/lib/statusBarControl";
 import { useLazyFabric, prefetchFabric } from "@/hooks/useLazyFabric";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -149,13 +150,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           await StatusBar.hide();
         } else {
           await StatusBar.show();
-          await StatusBar.setOverlaysWebView({ overlay: false });
-          // Re-apply correct icon style based on current theme
-          const isDark = document.documentElement.classList.contains('dark');
-          await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
-          if (Capacitor.getPlatform() === 'android') {
-            await StatusBar.setBackgroundColor({ color: isDark ? '#0f1512' : '#f5f7f6' });
-          }
+          refreshStatusBar();
         }
       } catch (e) {
         console.warn('[PitchBoard] StatusBar toggle error:', e);
@@ -163,15 +158,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     };
     hideOrShow();
     return () => {
-      // Restore status bar when PitchBoard unmounts
       if (Capacitor.isNativePlatform()) {
         StatusBar.show().catch(() => {});
-        StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
-        const isDark = document.documentElement.classList.contains('dark');
-        StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light }).catch(() => {});
-        if (Capacitor.getPlatform() === 'android') {
-          StatusBar.setBackgroundColor({ color: isDark ? '#0f1512' : '#f5f7f6' }).catch(() => {});
-        }
+        refreshStatusBar();
       }
     };
   }, [isLandscape]);
