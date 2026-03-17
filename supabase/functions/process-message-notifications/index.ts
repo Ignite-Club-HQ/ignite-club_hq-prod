@@ -226,13 +226,25 @@ Deno.serve(async (req) => {
       notificationType = 'broadcast';
       contextName = 'Ignite Support';
 
-      // Get ALL profiles except sender
-      const { data: allProfiles } = await supabase
-        .from('profiles')
-        .select('id')
-        .neq('id', authorId);
-      
-      recipientUserIds = (allProfiles || []).map(p => p.id);
+      // Paginate through ALL profiles to avoid the 1000-row default limit
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data: page } = await supabase
+          .from('profiles')
+          .select('id')
+          .neq('id', authorId)
+          .range(offset, offset + PAGE_SIZE - 1);
+        
+        if (page && page.length > 0) {
+          recipientUserIds.push(...page.map(p => p.id));
+          offset += PAGE_SIZE;
+          hasMore = page.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
       // No mute filtering for broadcasts
     }
 
@@ -342,30 +354,38 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Send all email notifications in parallel (fire-and-forget style)
-    // Since we're already async, no need to batch sequentially
-    const emailResults = await Promise.allSettled(
-      recipientUserIds.map(userId =>
-        fetch(`${supabaseUrl}/functions/v1/send-message-notification-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${anonKey}`,
-          },
-          body: JSON.stringify({
-            recipientUserId: userId,
-            senderUserId: authorId,
-            messageText: messageText || '',
-            messageType: messageType === 'broadcast' ? 'broadcast' : messageType,
-            contextId: contextId,
-            contextName: contextName,
-            messageId: messageId,
-            hasImage: hasImage,
-          }),
-        }).then(r => r.text()) // consume body
-      )
-    );
-    const emailsSent = emailResults.filter(r => r.status === 'fulfilled').length;
+    // Send email notifications in batched concurrency (max 20 concurrent)
+    // to avoid overwhelming the email edge function with hundreds of simultaneous requests
+    const EMAIL_CONCURRENCY = 20;
+    let emailsSent = 0;
+    let emailsFailed = 0;
+
+    for (let i = 0; i < recipientUserIds.length; i += EMAIL_CONCURRENCY) {
+      const batch = recipientUserIds.slice(i, i + EMAIL_CONCURRENCY);
+      const results = await Promise.allSettled(
+        batch.map(userId =>
+          fetch(`${supabaseUrl}/functions/v1/send-message-notification-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${anonKey}`,
+            },
+            body: JSON.stringify({
+              recipientUserId: userId,
+              senderUserId: authorId,
+              messageText: messageText || '',
+              messageType: messageType === 'broadcast' ? 'broadcast' : messageType,
+              contextId: contextId,
+              contextName: contextName,
+              messageId: messageId,
+              hasImage: hasImage,
+            }),
+          }).then(r => { r.body?.cancel(); return r.ok; })
+        )
+      );
+      emailsSent += results.filter(r => r.status === 'fulfilled' && r.value).length;
+      emailsFailed += results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value)).length;
+    }
 
     const elapsed = Date.now() - startTime;
     console.log(`[NOTIFY] Done: ${notificationsInserted} notifications, ${emailsSent} emails, ${mentionedIds.length} mentions in ${elapsed}ms`);
