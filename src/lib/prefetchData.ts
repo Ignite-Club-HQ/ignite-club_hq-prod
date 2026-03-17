@@ -76,8 +76,15 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
     // Fetch all messages in parallel - simple queries without joins for speed
     const messagePromises: Promise<void>[] = [];
 
+    // Cap prefetch to prevent query storms for power users
+    const MAX_PREFETCH_TEAMS = 5;
+    const MAX_PREFETCH_CLUBS = 3;
+    const MAX_PREFETCH_GROUPS = 5;
+    const MAX_PREFETCH_DMS = 5;
+
     // Team messages - fetch WITHOUT profiles join (avoids timeout from large avatar_url)
-    teamIds.forEach(teamId => {
+    // Only prefetch the first N teams; others load on-demand
+    teamIds.slice(0, MAX_PREFETCH_TEAMS).forEach(teamId => {
       const promise = async (): Promise<void> => {
         const { data } = await supabase
           .from("team_messages")
@@ -90,7 +97,7 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
           const messagesToCache = data.slice(0, MESSAGES_PER_PAGE);
           const messages = messagesToCache.map((msg: any) => ({
             ...msg,
-            profiles: null, // Profiles fetched on-demand in chat page
+            profiles: null,
             reactions: [],
             reply_to: null,
           }));
@@ -105,7 +112,7 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
     });
 
     // Club messages - fetch WITHOUT profiles join
-    clubIds.forEach(clubId => {
+    clubIds.slice(0, MAX_PREFETCH_CLUBS).forEach(clubId => {
       const promise = async (): Promise<void> => {
         const { data } = await supabase
           .from("club_messages")
@@ -133,7 +140,7 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
     });
 
     // Group messages - fetch WITHOUT profiles join
-    accessibleGroups.forEach(group => {
+    accessibleGroups.slice(0, MAX_PREFETCH_GROUPS).forEach(group => {
       const promise = async (): Promise<void> => {
         const { data } = await supabase
           .from("group_messages")
@@ -167,7 +174,7 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
           .from("direct_conversations")
           .select("id")
           .or(`participant_1.eq.${userId},participant_2.eq.${userId}`)
-          .limit(10);
+          .limit(MAX_PREFETCH_DMS);
         
         if (convos?.length) {
           await Promise.all(
