@@ -324,38 +324,30 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Send email notifications in batches (fire-and-forget via fetch, don't await all)
-    // Process in chunks to avoid overwhelming the email edge function
-    const EMAIL_BATCH_SIZE = 10;
-    let emailsSent = 0;
-    
-    for (let i = 0; i < recipientUserIds.length; i += EMAIL_BATCH_SIZE) {
-      const batch = recipientUserIds.slice(i, i + EMAIL_BATCH_SIZE);
-      
-      // Send batch in parallel
-      await Promise.allSettled(
-        batch.map(userId =>
-          fetch(`${supabaseUrl}/functions/v1/send-message-notification-email`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${anonKey}`,
-            },
-            body: JSON.stringify({
-              recipientUserId: userId,
-              senderUserId: authorId,
-              messageText: messageText || '',
-              messageType: messageType === 'broadcast' ? 'broadcast' : messageType,
-              contextId: contextId,
-              contextName: contextName,
-              messageId: messageId,
-              hasImage: hasImage,
-            }),
-          }).then(r => r.text()) // consume body
-        )
-      );
-      emailsSent += batch.length;
-    }
+    // Send all email notifications in parallel (fire-and-forget style)
+    // Since we're already async, no need to batch sequentially
+    const emailResults = await Promise.allSettled(
+      recipientUserIds.map(userId =>
+        fetch(`${supabaseUrl}/functions/v1/send-message-notification-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${anonKey}`,
+          },
+          body: JSON.stringify({
+            recipientUserId: userId,
+            senderUserId: authorId,
+            messageText: messageText || '',
+            messageType: messageType === 'broadcast' ? 'broadcast' : messageType,
+            contextId: contextId,
+            contextName: contextName,
+            messageId: messageId,
+            hasImage: hasImage,
+          }),
+        }).then(r => r.text()) // consume body
+      )
+    );
+    const emailsSent = emailResults.filter(r => r.status === 'fulfilled').length;
 
     const elapsed = Date.now() - startTime;
     console.log(`[NOTIFY] Done: ${notificationsInserted} notifications, ${emailsSent} emails, ${mentionedIds.length} mentions in ${elapsed}ms`);
