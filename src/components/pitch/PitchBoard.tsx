@@ -150,13 +150,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           await StatusBar.hide();
         } else {
           await StatusBar.show();
-          await StatusBar.setOverlaysWebView({ overlay: false });
-          // Re-apply correct icon style based on current theme
-          const isDark = document.documentElement.classList.contains('dark');
-          await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
-          if (Capacitor.getPlatform() === 'android') {
-            await StatusBar.setBackgroundColor({ color: isDark ? '#0f1512' : '#f5f7f6' });
-          }
+          refreshStatusBar();
         }
       } catch (e) {
         console.warn('[PitchBoard] StatusBar toggle error:', e);
@@ -164,15 +158,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     };
     hideOrShow();
     return () => {
-      // Restore status bar when PitchBoard unmounts
       if (Capacitor.isNativePlatform()) {
         StatusBar.show().catch(() => {});
-        StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
-        const isDark = document.documentElement.classList.contains('dark');
-        StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light }).catch(() => {});
-        if (Capacitor.getPlatform() === 'android') {
-          StatusBar.setBackgroundColor({ color: isDark ? '#0f1512' : '#f5f7f6' }).catch(() => {});
-        }
+        refreshStatusBar();
       }
     };
   }, [isLandscape]);
