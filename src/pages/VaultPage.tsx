@@ -1512,6 +1512,8 @@ export default function VaultPage() {
       let storagePath: string;
       if (currentView.type === "team" && currentView.teamId && currentView.clubId) {
         storagePath = `clubs/${currentView.clubId}/teams/${currentView.teamId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
+      } else if (currentView.type === "mini-league" && currentView.clubId && currentView.miniLeagueId) {
+        storagePath = `clubs/${currentView.clubId}/mini-leagues/${currentView.miniLeagueId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
       } else if (currentView.type === "club" && currentView.clubId) {
         storagePath = `clubs/${currentView.clubId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
       } else {
