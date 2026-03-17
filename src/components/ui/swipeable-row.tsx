@@ -121,32 +121,37 @@ export function SwipeableRow({
     return <>{children}</>;
   }
 
+  const showActions = isOpen || offsetX < 0;
+
   return (
     <div className="relative overflow-hidden rounded-lg">
-      {/* Actions behind the row */}
-      <div
-        className="absolute right-0 top-0 bottom-0 flex items-stretch"
-        style={{ width: actionsWidth }}
-      >
-        {actions.map((action, i) => (
-          <button
-            key={i}
-            className={`flex-1 flex flex-col items-center justify-center gap-1 text-xs font-medium transition-colors ${
-              action.className || "bg-destructive text-destructive-foreground"
-            }`}
-            onClick={() => {
-              action.onClick();
-              close();
-            }}
-          >
-            {action.icon}
-            {action.label}
-          </button>
-        ))}
-      </div>
+      {/* Actions behind the row - only rendered when swiping or open */}
+      {showActions && (
+        <div
+          className="absolute right-0 top-0 bottom-0 flex items-stretch z-0"
+          style={{ width: actionsWidth }}
+        >
+          {actions.map((action, i) => (
+            <button
+              key={i}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 text-xs font-medium transition-colors ${
+                action.className || "bg-destructive text-destructive-foreground"
+              }`}
+              onClick={() => {
+                action.onClick();
+                close();
+              }}
+            >
+              {action.icon}
+              {action.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Sliding content */}
       <div
+        className="relative z-10 bg-background"
         style={{
           transform: `translateX(${offsetX}px)`,
           transition: touchRef.current?.swiping ? "none" : "transform 0.25s ease-out",
