@@ -69,8 +69,8 @@ export function useActiveGameSync() {
       return;
     }
 
-    // Sync whenever the timer is running (for half-time/full-time notifications)
-    if (!timerState.isRunning) {
+    // Only sync if timer is running and auto-sub is active
+    if (!timerState.isRunning || !pitchState.autoSubActive) {
       if (activeGameIdRef.current) {
         await supabase
           .from('active_games')

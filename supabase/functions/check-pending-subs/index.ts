@@ -267,7 +267,6 @@ async function checkGames(supabase: any): Promise<number> {
     const pitchState = game.pitch_state as PitchState;
 
     if (!timerState || !pitchState) continue;
-    if (!timerState.isRunning) continue;
 
     const hasAutoSub = pitchState.autoSubActive && !pitchState.autoSubPaused && pitchState.autoSubPlan?.length > 0;
 
@@ -283,8 +282,8 @@ async function checkGames(supabase: any): Promise<number> {
     const currentElapsed = Math.min(rawElapsed, halfDurationSecs);
     const currentHalf = timerState.currentHalf;
 
-    // Detect half-time boundary: timer shows running but elapsed has reached/exceeded half duration
-    // This happens when the client pauses at half-time but the DB state hasn't synced yet
+    // Detect half-time boundary: elapsed has reached/exceeded half duration
+    // This works whether timer is running (extrapolated) or paused (elapsedSeconds already at boundary)
     const isAtHalfTimeBoundary = timerState.currentHalf === 1 && rawElapsed >= halfDurationSecs;
     const isAtFullTimeBoundary = timerState.currentHalf === 2 && rawElapsed >= halfDurationSecs;
 
@@ -340,8 +339,8 @@ async function checkGames(supabase: any): Promise<number> {
     // Get team staff (coaches + team_admins) for this specific team
     const staffUserIds = await getTeamStaffUserIds(supabase, teamId, linkedEventId);
 
-    // Only process substitution notifications if auto-sub is active
-    if (hasAutoSub) {
+    // Only process substitution notifications if auto-sub is active AND timer is running
+    if (hasAutoSub && timerState.isRunning) {
       const getAbsoluteSubTime = (sub: SubstitutionEvent) => {
         return sub.half === 1 ? sub.time : halfDurationSecs + sub.time;
       };
