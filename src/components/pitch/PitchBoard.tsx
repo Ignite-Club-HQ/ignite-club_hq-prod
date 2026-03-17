@@ -6956,6 +6956,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     e.preventDefault();
                     setTouchDragPlayer(null);
                     setTouchOffset(null);
+                    touchIdRef.current = null;
                     setPitchPlayerActionTarget(player.id);
                     setPitchPlayerActionOpen(true);
                   } else {
