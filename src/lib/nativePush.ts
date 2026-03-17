@@ -155,13 +155,12 @@ async function saveFCMToken(userId: string, token: string): Promise<boolean> {
   try {
     const platform = getPlatform();
     
-    // IMPORTANT: Remove this token from any other users first to prevent
-    // cross-user push notification delivery when multiple accounts use the same device
-    await supabase
-      .from('fcm_tokens' as any)
-      .delete()
-      .eq('token', token)
-      .neq('user_id', userId);
+    // IMPORTANT: Use security definer RPC to remove this token from other users.
+    // Direct .delete() is blocked by RLS since users can't delete other users' rows.
+    await supabase.rpc('cleanup_fcm_token_for_user', {
+      p_token: token,
+      p_user_id: userId,
+    });
     
     // Use direct upsert - 'as any' needed since fcm_tokens is new and not in generated types
     const { error: insertError } = await supabase
@@ -304,6 +303,25 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
     
     if (permission !== 'granted') {
       return { success: false, error: 'Push notification permission denied' };
+    }
+
+    // Create the default notification channel on Android 8+
+    // Without this, FCM messages targeting channel_id 'default' are silently dropped
+    if (getPlatform() === 'android') {
+      try {
+        await PushNotifications.createChannel({
+          id: 'default',
+          name: 'Default',
+          description: 'Default notification channel',
+          importance: 5, // IMPORTANCE_HIGH
+          visibility: 1, // PUBLIC
+          sound: 'default',
+          vibration: true,
+        });
+        console.log('[NativePush] Android default channel created');
+      } catch (chanErr) {
+        console.warn('[NativePush] Failed to create channel (may already exist):', chanErr);
+      }
     }
 
     // Register with FCM
