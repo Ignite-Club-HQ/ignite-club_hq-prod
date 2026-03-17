@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { Capacitor } from "@capacitor/core";
-import { StatusBar, Style } from "@capacitor/status-bar";
+import { StatusBar } from "@capacitor/status-bar";
+import { refreshStatusBar } from "@/lib/statusBarControl";
 import { useLazyFabric, prefetchFabric } from "@/hooks/useLazyFabric";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -149,13 +150,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           await StatusBar.hide();
         } else {
           await StatusBar.show();
-          await StatusBar.setOverlaysWebView({ overlay: false });
-          // Re-apply correct icon style based on current theme
-          const isDark = document.documentElement.classList.contains('dark');
-          await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
-          if (Capacitor.getPlatform() === 'android') {
-            await StatusBar.setBackgroundColor({ color: isDark ? '#0f1512' : '#f5f7f6' });
-          }
+          refreshStatusBar();
         }
       } catch (e) {
         console.warn('[PitchBoard] StatusBar toggle error:', e);
@@ -163,15 +158,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     };
     hideOrShow();
     return () => {
-      // Restore status bar when PitchBoard unmounts
       if (Capacitor.isNativePlatform()) {
         StatusBar.show().catch(() => {});
-        StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
-        const isDark = document.documentElement.classList.contains('dark');
-        StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light }).catch(() => {});
-        if (Capacitor.getPlatform() === 'android') {
-          StatusBar.setBackgroundColor({ color: isDark ? '#0f1512' : '#f5f7f6' }).catch(() => {});
-        }
+        refreshStatusBar();
       }
     };
   }, [isLandscape]);
@@ -1359,6 +1348,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
   const [touchDragPlayer, setTouchDragPlayer] = useState<string | null>(null);
   const [touchOffset, setTouchOffset] = useState<{ x: number; y: number } | null>(null);
+  const touchIdRef = useRef<number | null>(null); // Track which finger initiated the drag
   
   // Track recently-released players to suppress CSS transition "drift" on drop
   const recentlyDraggedRef = useRef<Set<string>>(new Set());
@@ -2783,9 +2773,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       } else {
         // Block swap if target player is not in the valid set
         if (!getValidSwapPlayerIds.has(playerId)) {
+          const selectedPlayer = players.find(p => p.id === swapPlayer1);
+          const targetPlayer = players.find(p => p.id === playerId);
+          const isCrossTeam = miniLeagueTeams && selectedPlayer?.teamSide && targetPlayer?.teamSide && selectedPlayer.teamSide !== targetPlayer.teamSide;
           toast({
             title: "Cannot swap",
-            description: "Players are not eligible to play in each other's positions based on their position preferences.",
+            description: isCrossTeam 
+              ? "You can only swap players on the same team."
+              : "Players are not eligible to play in each other's positions based on their position preferences.",
             variant: "destructive",
           });
           return;
@@ -3859,9 +3854,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     // Handle player drag - block in readOnly mode
     if (readOnly) return;
-    if (touchDragPlayer && containerRef.current) {
+    if (touchDragPlayer && containerRef.current && touchIdRef.current !== null) {
+      // Find the specific finger that started this drag
+      const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
+      if (!touch) return;
       e.preventDefault();
-      const touch = e.touches[0];
       const rect = containerRef.current.getBoundingClientRect();
       const x = ((touch.clientX - rect.left) / rect.width) * 100;
       const y = ((touch.clientY - rect.top) / rect.height) * 100;
@@ -3885,12 +3882,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (readOnly) return;
     if (!touchDragPlayer) return;
     
+    // Only respond to the finger that started this drag
+    const touch = Array.from(e.changedTouches).find(t => t.identifier === touchIdRef.current);
+    if (!touch) return;
+    
     // Mark player as recently-dragged to suppress CSS transition AND tactical offset drift
     const draggedId = touchDragPlayer;
     recentlyDraggedRef.current.add(draggedId);
     setTimeout(() => recentlyDraggedRef.current.delete(draggedId), 500);
     
-    const touch = e.changedTouches[0];
     const benchElement = document.getElementById('pitch-bench');
     
     let droppedOnBench = false;
@@ -3927,6 +3927,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     setTouchDragPlayer(null);
     setTouchOffset(null);
+    touchIdRef.current = null;
   };
 
   // Wheel zoom
@@ -3986,20 +3987,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Touch handlers for mobile drag-and-drop
   const handleTouchStart = (playerId: string, e: React.TouchEvent) => {
     if (readOnly) return;
-    // Don't preventDefault immediately - let click events fire for taps
-    // Instead, set up drag state that will be used by touchmove
-    setTouchDragPlayer(playerId);
+    // Only allow one drag at a time – ignore if already tracking a finger
+    if (touchDragPlayer !== null) return;
     const touch = e.touches[0];
+    touchIdRef.current = touch.identifier;
+    setTouchDragPlayer(playerId);
     setTouchOffset({ x: touch.clientX, y: touch.clientY });
   };
 
   // Touch handler for bench players
   const handleBenchTouchMove = useCallback((e: React.TouchEvent) => {
     if (readOnly) return;
-    if (!touchDragPlayer || !containerRef.current) return;
+    if (!touchDragPlayer || !containerRef.current || touchIdRef.current === null) return;
+    const touch = Array.from(e.touches).find(t => t.identifier === touchIdRef.current);
+    if (!touch) return;
     e.preventDefault();
     
-    const touch = e.touches[0];
     const pitchRect = containerRef.current.getBoundingClientRect();
     
     // Check if touch is over the pitch
@@ -4025,6 +4028,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const handleBenchTouchEnd = useCallback(() => {
     setTouchDragPlayer(null);
     setTouchOffset(null);
+    touchIdRef.current = null;
   }, []);
 
   // Portrait bench long-press drag handlers
@@ -4195,6 +4199,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     playersOnPitch.forEach(pitchPlayer => {
       // Skip the selected player itself
       if (pitchPlayer.id === swapPlayer1) return;
+      
+      // In mini-league mode, only allow swaps within the same team
+      if (miniLeagueTeams && selectedPlayer.teamSide && pitchPlayer.teamSide && selectedPlayer.teamSide !== pitchPlayer.teamSide) return;
       
       const targetPos = pitchPlayer.currentPitchPosition;
       if (!targetPos) return;
@@ -5170,6 +5177,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       e.preventDefault();
                       setTouchDragPlayer(null);
                       setTouchOffset(null);
+                      touchIdRef.current = null;
                       setPitchPlayerActionTarget(player.id);
                       setPitchPlayerActionOpen(true);
                     } else {
@@ -6948,6 +6956,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     e.preventDefault();
                     setTouchDragPlayer(null);
                     setTouchOffset(null);
+                    touchIdRef.current = null;
                     setPitchPlayerActionTarget(player.id);
                     setPitchPlayerActionOpen(true);
                   } else {

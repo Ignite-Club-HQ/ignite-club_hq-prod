@@ -15,15 +15,13 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
     // Check for cached roles first
     const cachedRoles = getCachedRoles();
     
-    // Fetch all initial data in parallel - including media access check
-    const [rolesResult, chatGroupsResult, broadcastResult] = await Promise.all([
+    // Fetch roles and broadcast messages in parallel
+    // Note: chat_groups are fetched AFTER roles so we can filter server-side
+    const [rolesResult, broadcastResult] = await Promise.all([
       supabase
         .from("user_roles")
         .select("id, role, club_id, team_id")
         .eq("user_id", userId),
-      supabase
-        .from("chat_groups")
-        .select("id, name, club_id, team_id, allowed_roles"),
       supabase
         .from("broadcast_messages")
         .select("id, text, image_url, created_at, author_id, reply_to_id")
@@ -32,7 +30,6 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
     ]);
 
     const roles = rolesResult.data || [];
-    const chatGroups = chatGroupsResult.data || [];
     
     // Cache roles in localStorage for quick access
     cacheRoles(roles);
@@ -50,14 +47,45 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
     const isAppAdmin = roles.some(r => r.role === "app_admin");
     prefetchMediaAccess(queryClient, userId, roles, isAppAdmin, clubIds, teamIds);
 
-    // Determine accessible groups
-    const accessibleGroups = chatGroups.filter(group => {
-      const userRolesForGroup = roles.filter(r =>
-        (group.club_id && r.club_id === group.club_id) ||
-        (group.team_id && r.team_id === group.team_id)
-      );
-      return userRolesForGroup.some(r => (group.allowed_roles as string[]).includes(r.role));
-    });
+    // Fetch chat groups scoped to user's clubs/teams (server-side filter)
+    // instead of fetching ALL groups and filtering client-side
+    let accessibleGroups: Array<{ id: string; name: string; club_id: string | null; team_id: string | null; allowed_roles: string[] }> = [];
+    
+    if (clubIds.length > 0 || teamIds.length > 0) {
+      const filters: string[] = [];
+      if (clubIds.length > 0) filters.push(`club_id.in.(${clubIds.join(",")})`);
+      if (teamIds.length > 0) filters.push(`team_id.in.(${teamIds.join(",")})`);
+      
+      const { data: chatGroups } = await supabase
+        .from("chat_groups")
+        .select("id, name, club_id, team_id, allowed_roles")
+        .or(filters.join(","));
+      
+      // Further filter by the user's specific roles in each club/team
+      accessibleGroups = (chatGroups || []).filter(group => {
+        const userRolesForGroup = roles.filter(r =>
+          (group.club_id && r.club_id === group.club_id) ||
+          (group.team_id && r.team_id === group.team_id)
+        );
+        return userRolesForGroup.some(r => (group.allowed_roles as string[]).includes(r.role));
+      });
+    }
+    
+    // Also fetch personal groups (no club/team)
+    const { data: personalGroups } = await supabase
+      .from("group_members")
+      .select("group_id, chat_groups:group_id(id, name, club_id, team_id, allowed_roles)")
+      .eq("user_id", userId)
+      .limit(10);
+    
+    if (personalGroups) {
+      for (const pg of personalGroups) {
+        const group = (pg as any).chat_groups;
+        if (group && !group.club_id && !group.team_id) {
+          accessibleGroups.push(group);
+        }
+      }
+    }
 
     // Cache broadcast messages (simplified - no nested fetches)
     if (broadcastResult.data) {
@@ -76,8 +104,15 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
     // Fetch all messages in parallel - simple queries without joins for speed
     const messagePromises: Promise<void>[] = [];
 
+    // Cap prefetch to prevent query storms for power users
+    const MAX_PREFETCH_TEAMS = 5;
+    const MAX_PREFETCH_CLUBS = 3;
+    const MAX_PREFETCH_GROUPS = 5;
+    const MAX_PREFETCH_DMS = 5;
+
     // Team messages - fetch WITHOUT profiles join (avoids timeout from large avatar_url)
-    teamIds.forEach(teamId => {
+    // Only prefetch the first N teams; others load on-demand
+    teamIds.slice(0, MAX_PREFETCH_TEAMS).forEach(teamId => {
       const promise = async (): Promise<void> => {
         const { data } = await supabase
           .from("team_messages")
@@ -90,7 +125,7 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
           const messagesToCache = data.slice(0, MESSAGES_PER_PAGE);
           const messages = messagesToCache.map((msg: any) => ({
             ...msg,
-            profiles: null, // Profiles fetched on-demand in chat page
+            profiles: null,
             reactions: [],
             reply_to: null,
           }));
@@ -105,7 +140,7 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
     });
 
     // Club messages - fetch WITHOUT profiles join
-    clubIds.forEach(clubId => {
+    clubIds.slice(0, MAX_PREFETCH_CLUBS).forEach(clubId => {
       const promise = async (): Promise<void> => {
         const { data } = await supabase
           .from("club_messages")
@@ -133,7 +168,7 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
     });
 
     // Group messages - fetch WITHOUT profiles join
-    accessibleGroups.forEach(group => {
+    accessibleGroups.slice(0, MAX_PREFETCH_GROUPS).forEach(group => {
       const promise = async (): Promise<void> => {
         const { data } = await supabase
           .from("group_messages")
@@ -167,7 +202,7 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
           .from("direct_conversations")
           .select("id")
           .or(`participant_1.eq.${userId},participant_2.eq.${userId}`)
-          .limit(10);
+          .limit(MAX_PREFETCH_DMS);
         
         if (convos?.length) {
           await Promise.all(

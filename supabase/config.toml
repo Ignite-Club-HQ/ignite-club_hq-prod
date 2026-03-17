@@ -83,3 +83,9 @@ verify_jwt = false
 
 [functions.process-weekly-engagement-bonus]
 verify_jwt = false
+
+[functions.cleanup-old-notifications]
+verify_jwt = false
+
+[functions.process-message-notifications]
+verify_jwt = false

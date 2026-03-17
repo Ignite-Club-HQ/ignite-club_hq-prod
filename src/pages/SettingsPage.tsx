@@ -603,6 +603,64 @@ export default function SettingsPage() {
         </Suspense>
       )}
 
+      {/* Native Push Category Preferences - shown for all native users */}
+      {SKIP_WEB_PUSH && user && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Push Notifications
+            </CardTitle>
+            <CardDescription>Choose which types of push notifications you want to receive</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <NotificationToggle
+              icon={MessageSquare}
+              label="Messages"
+              description="Team, club, group chats & broadcasts"
+              checked={preferences.messages_enabled}
+              onCheckedChange={(v) => handlePreferenceChange("messages_enabled", v)}
+              disabled={prefsLoading}
+            />
+            <NotificationToggle
+              icon={Calendar}
+              label="Events"
+              description="Invites, cancellations & duty assignments"
+              checked={preferences.events_enabled}
+              onCheckedChange={(v) => handlePreferenceChange("events_enabled", v)}
+              disabled={prefsLoading}
+            />
+            <NotificationToggle
+              icon={Image}
+              label="Media"
+              description="Photo uploads, reactions & comments"
+              checked={preferences.media_enabled}
+              onCheckedChange={(v) => handlePreferenceChange("media_enabled", v)}
+              disabled={prefsLoading}
+            />
+            <NotificationToggle
+              icon={Users}
+              label="Membership"
+              description="Join requests & approvals"
+              checked={preferences.membership_enabled}
+              onCheckedChange={(v) => handlePreferenceChange("membership_enabled", v)}
+              disabled={prefsLoading}
+            />
+            <NotificationToggle
+              icon={LayoutGrid}
+              label="Pitch Board"
+              description="Substitution alerts & game updates"
+              checked={preferences.pitch_board_enabled}
+              onCheckedChange={(v) => handlePreferenceChange("pitch_board_enabled", v)}
+              disabled={prefsLoading}
+            />
+            <p className="text-xs text-muted-foreground pt-2">
+              To fully disable push notifications, go to your device Settings &gt; Notifications &gt; Ignite.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Native Push Card - App Admin Only */}
       {SKIP_WEB_PUSH && isAppAdmin && user && (
         <Suspense fallback={<Card><CardContent className="py-6"><div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div></CardContent></Card>}>
