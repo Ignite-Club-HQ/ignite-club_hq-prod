@@ -3079,19 +3079,28 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       return subId === skippedId ? { ...sub, executed: true, skipped: true } : sub;
     });
 
-    const remainingCount = updatedPlan.filter(sub => !sub.executed).length;
-    setAutoSubPlan(updatedPlan);
+    // Recalculate remaining plan after skip
+    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
+    const halfDurationSeconds = minsPerHalf * 60;
+    const recalculated = recalculateRemainingPlan(
+      players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, nextSub, rotateGkAtHalftime
+    );
+
+    const executedSubs = updatedPlan.filter(s => s.executed);
+    const finalPlan = [...executedSubs, ...recalculated];
+    const remainingCount = finalPlan.filter(sub => !sub.executed).length;
+    setAutoSubPlan(finalPlan);
     setAutoSubActive(remainingCount > 0);
 
     toast({
-      title: "Substitution skipped",
+      title: "Substitution skipped & plan recalculated",
       description: remainingCount > 0
-        ? `${remainingCount} planned substitution${remainingCount === 1 ? "" : "s"} remaining`
+        ? `${remainingCount} substitution${remainingCount === 1 ? "" : "s"} rescheduled`
         : "No more planned substitutions",
     });
 
     skipCooldownRef.current = Date.now();
-  }, [autoSubPlan, toast]);
+  }, [autoSubPlan, players, teamSize, rotateGkAtHalftime, toast]);
 
   const handleExecuteNow = useCallback(() => {
     const remainingSubs = autoSubPlan.filter(s => !s.executed);
