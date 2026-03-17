@@ -3882,12 +3882,15 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (readOnly) return;
     if (!touchDragPlayer) return;
     
+    // Only respond to the finger that started this drag
+    const touch = Array.from(e.changedTouches).find(t => t.identifier === touchIdRef.current);
+    if (!touch) return;
+    
     // Mark player as recently-dragged to suppress CSS transition AND tactical offset drift
     const draggedId = touchDragPlayer;
     recentlyDraggedRef.current.add(draggedId);
     setTimeout(() => recentlyDraggedRef.current.delete(draggedId), 500);
     
-    const touch = e.changedTouches[0];
     const benchElement = document.getElementById('pitch-bench');
     
     let droppedOnBench = false;
@@ -3924,6 +3927,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     setTouchDragPlayer(null);
     setTouchOffset(null);
+    touchIdRef.current = null;
   };
 
   // Wheel zoom
