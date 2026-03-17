@@ -37,13 +37,15 @@ export function PageLoading({ message = "Loading..." }: PageLoadingProps) {
   return (
     <div className={`flex-1 flex flex-col items-center justify-center py-12 bg-background transition-opacity duration-200 ${showLoader ? 'opacity-100' : 'opacity-0'}`}>
       <div className="relative flex flex-col items-center">
-        <img
-          src={logo}
-          alt="Ignite"
-          className={`h-32 w-32 animate-pulse rounded-[2rem] transition-opacity duration-200 ${
+        <div className={`h-32 w-32 rounded-[2rem] bg-card shadow-lg ring-1 ring-border overflow-hidden transition-opacity duration-200 ${
             mounted ? "opacity-100" : "opacity-0"
-          }`}
-        />
+          }`}>
+          <img
+            src={logo}
+            alt="Ignite"
+            className="h-full w-full animate-pulse object-cover"
+          />
+        </div>
         <div className="absolute -bottom-1 left-1/2 -translate-x-1/2">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
         </div>
