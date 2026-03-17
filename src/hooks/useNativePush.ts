@@ -19,6 +19,20 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { processPendingNotificationNavigation } from '@/lib/notificationLaunchHandler';
 
+let capacitorAppModule: typeof import('@capacitor/app') | null = null;
+
+async function loadCapacitorAppModule() {
+  if (capacitorAppModule) return capacitorAppModule;
+
+  try {
+    capacitorAppModule = await import('@capacitor/app');
+    return capacitorAppModule;
+  } catch (err) {
+    console.warn('[useNativePush] Failed to load Capacitor App module:', err);
+    return null;
+  }
+}
+
 // Lazy import everything to prevent crashes at module load time
 let nativePushModule: typeof import('@/lib/nativePush') | null = null;
 let moduleLoadAttempted = false;
