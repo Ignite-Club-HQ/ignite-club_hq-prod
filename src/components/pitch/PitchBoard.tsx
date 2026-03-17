@@ -3359,6 +3359,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Execute auto-sub (handles batch subs)
   const handleConfirmAutoSub = useCallback(() => {
     if (!pendingAutoSub) return;
+
+    // Guard: check if this sub was already skipped (e.g., by auto-skip while dialog was open)
+    const matchingSub = autoSubPlan.find(s =>
+      s.playerOut.id === pendingAutoSub.playerOut.id && 
+      s.time === pendingAutoSub.time && 
+      s.half === pendingAutoSub.half
+    );
+    if (matchingSub?.executed || matchingSub?.skipped) {
+      toast({ title: "Substitution expired", description: "This sub was already skipped — a newer one is due", variant: "destructive" });
+      setSubConfirmDialogOpen(false);
+      setPendingAutoSub(null);
+      setPendingBatchSubs([]);
+      setSubDuePlayerIds(new Set());
+      return;
+    }
     
     // Combine primary and batch subs
     const allPendingSubs = [pendingAutoSub, ...pendingBatchSubs];

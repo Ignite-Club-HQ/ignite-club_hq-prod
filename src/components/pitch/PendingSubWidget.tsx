@@ -50,6 +50,7 @@ interface SubstitutionEvent {
     toPosition: PitchPosition;
   };
   executed?: boolean;
+  skipped?: boolean;
 }
 
 interface TimerState {
@@ -325,6 +326,17 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
       
       if (pitchStateRaw) {
         const pitchState: PitchBoardState = JSON.parse(pitchStateRaw);
+
+        // Guard: check if this sub was already skipped (e.g., by auto-skip while dialog was open)
+        const matchingSub = pitchState.autoSubPlan?.find(s =>
+          s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half
+        );
+        if (matchingSub?.executed || matchingSub?.skipped) {
+          toast({ title: "Substitution expired", description: "This sub was already skipped — a newer one is due", variant: "destructive" });
+          setShowConfirmDialog(false);
+          checkForPendingSub();
+          return;
+        }
         
         // Get current time info for regenerating plan
         let currentElapsedSeconds = 0;
@@ -488,10 +500,10 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
         
         const currentTotalSeconds = currentHalf === 1 ? currentElapsedSeconds : (minutesPerHalf * 60) + currentElapsedSeconds;
         
-        // Mark current sub as executed (skipped)
+        // Mark current sub as executed + skipped
         let updatedPlan = pitchState.autoSubPlan.map(s => {
           if (s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half) {
-            return { ...s, executed: true };
+            return { ...s, executed: true, skipped: true };
           }
           return s;
         });
