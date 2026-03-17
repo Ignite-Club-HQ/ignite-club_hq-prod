@@ -183,11 +183,13 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get FCM tokens for this user
+    // Get FCM tokens for this user (only tokens updated in the last 30 days)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const { data: tokens, error: tokenError } = await supabase
       .from('fcm_tokens')
       .select('*')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .gte('updated_at', thirtyDaysAgo);
 
     if (tokenError) {
       console.error('[FCM] Error fetching tokens:', tokenError);
@@ -198,9 +200,25 @@ serve(async (req) => {
     }
 
     if (!tokens || tokens.length === 0) {
-      console.log(`[FCM] No FCM tokens found for user ${userId}`);
+      console.log(`[FCM] No recent FCM tokens found for user ${userId}`);
+      
+      // Clean up any stale tokens older than 30 days
+      const { data: staleTokens } = await supabase
+        .from('fcm_tokens')
+        .select('id')
+        .eq('user_id', userId)
+        .lt('updated_at', thirtyDaysAgo);
+      
+      if (staleTokens && staleTokens.length > 0) {
+        await supabase
+          .from('fcm_tokens')
+          .delete()
+          .in('id', staleTokens.map(t => t.id));
+        console.log(`[FCM] Cleaned up ${staleTokens.length} stale token(s)`);
+      }
+      
       return new Response(
-        JSON.stringify({ message: 'No FCM tokens found', sent: 0 }),
+        JSON.stringify({ message: 'No recent FCM tokens found', sent: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
