@@ -112,7 +112,7 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
     });
 
     // Club messages - fetch WITHOUT profiles join
-    clubIds.forEach(clubId => {
+    clubIds.slice(0, MAX_PREFETCH_CLUBS).forEach(clubId => {
       const promise = async (): Promise<void> => {
         const { data } = await supabase
           .from("club_messages")
