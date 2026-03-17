@@ -141,11 +141,22 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const availableBenchPlayers = useMemo(() => allPlayers.filter(p => p.position === null && !p.isInjured), [allPlayers]);
 
   const selectedSub = allSubs[selectedSubIndex] || null;
-  const isSelectedSubActionable = selectedSub ? (
-    // Only the first due sub is actionable; subsequent due subs wait for recalculation
-    (selectedSub.isDue && selectedSubIndex === 0) || 
-    (!selectedSub.isDue && (selectedSubIndex === 0 || allSubs.slice(0, selectedSubIndex).every((s, i) => s.isDue && i === 0)))
-  ) : false;
+  
+  // All due subs at the same time slot are actionable together
+  const firstDueTimeKey = allSubs.find(s => s.isDue) 
+    ? `${allSubs.find(s => s.isDue)!.sub.half}-${allSubs.find(s => s.isDue)!.sub.time}` 
+    : null;
+  
+  const isSubActionable = (subInfo: SubInfo, idx: number) => {
+    if (subInfo.isDue) {
+      // Actionable if it belongs to the same time slot as the first due sub
+      return `${subInfo.sub.half}-${subInfo.sub.time}` === firstDueTimeKey;
+    }
+    // Future subs: actionable if no due subs exist and it's the first
+    return !firstDueTimeKey && idx === 0;
+  };
+  
+  const isSelectedSubActionable = selectedSub ? isSubActionable(selectedSub, selectedSubIndex) : false;
 
   const actualPlayerOut = useMemo(() => {
     if (!selectedSub) return null;
