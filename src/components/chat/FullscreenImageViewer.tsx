@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Download, Flag, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
+import { Capacitor } from "@capacitor/core";
+import { StatusBar, Style } from "@capacitor/status-bar";
 
 interface FullscreenImageViewerProps {
   src: string;
