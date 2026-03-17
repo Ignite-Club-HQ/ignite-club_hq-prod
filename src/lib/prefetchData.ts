@@ -174,7 +174,7 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
           .from("direct_conversations")
           .select("id")
           .or(`participant_1.eq.${userId},participant_2.eq.${userId}`)
-          .limit(10);
+          .limit(MAX_PREFETCH_DMS);
         
         if (convos?.length) {
           await Promise.all(
