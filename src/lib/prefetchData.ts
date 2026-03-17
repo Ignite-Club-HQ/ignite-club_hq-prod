@@ -140,7 +140,7 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
     });
 
     // Group messages - fetch WITHOUT profiles join
-    accessibleGroups.forEach(group => {
+    accessibleGroups.slice(0, MAX_PREFETCH_GROUPS).forEach(group => {
       const promise = async (): Promise<void> => {
         const { data } = await supabase
           .from("group_messages")
