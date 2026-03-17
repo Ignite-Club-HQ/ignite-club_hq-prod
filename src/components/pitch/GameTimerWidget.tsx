@@ -615,7 +615,6 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                       </Button>
                     );
                   })()}
-                  )}
                 </div>
               ))}
             </div>
