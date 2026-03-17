@@ -226,13 +226,25 @@ Deno.serve(async (req) => {
       notificationType = 'broadcast';
       contextName = 'Ignite Support';
 
-      // Get ALL profiles except sender
-      const { data: allProfiles } = await supabase
-        .from('profiles')
-        .select('id')
-        .neq('id', authorId);
-      
-      recipientUserIds = (allProfiles || []).map(p => p.id);
+      // Paginate through ALL profiles to avoid the 1000-row default limit
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data: page } = await supabase
+          .from('profiles')
+          .select('id')
+          .neq('id', authorId)
+          .range(offset, offset + PAGE_SIZE - 1);
+        
+        if (page && page.length > 0) {
+          recipientUserIds.push(...page.map(p => p.id));
+          offset += PAGE_SIZE;
+          hasMore = page.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
       // No mute filtering for broadcasts
     }
 
