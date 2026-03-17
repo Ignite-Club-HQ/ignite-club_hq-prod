@@ -1279,21 +1279,27 @@ export default function VaultPage() {
 
   const canDeleteFile = useCallback((file: any) => {
     if (isAppAdmin) return true;
-    if (file.uploader_id === user?.id) return true;
+    // vault_files uses uploaded_by, not uploader_id
+    if ((file.uploaded_by || file.uploader_id) === user?.id) return true;
     const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : currentView.type === "mini-league" ? currentView.clubId : null;
     const teamId = currentView.type === "team" ? currentView.teamId : null;
     if (userRoles?.some(r => (r.role === "club_admin" || r.role === "committee_member") && r.club_id === clubId)) return true;
     if (teamId && userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId)) return true;
+    // Mini-league: league admins and coaches can delete
+    if (currentView.type === "mini-league" && userRoles?.some(r => (r.role === "league_admin" || r.role === "coach") && r.club_id === clubId)) return true;
     return false;
   }, [isAppAdmin, user?.id, currentView, userRoles]);
 
   const canRenameFile = useCallback((file: any) => {
     if (isAppAdmin) return true;
-    if (file.uploader_id === user?.id) return true;
+    // vault_files uses uploaded_by, not uploader_id
+    if ((file.uploaded_by || file.uploader_id) === user?.id) return true;
     const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : currentView.type === "mini-league" ? currentView.clubId : null;
     const teamId = currentView.type === "team" ? currentView.teamId : null;
     if (userRoles?.some(r => (r.role === "club_admin" || r.role === "committee_member") && r.club_id === clubId)) return true;
     if (teamId && userRoles?.some(r => r.role === "team_admin" && r.team_id === teamId)) return true;
+    // Mini-league: league admins and coaches can rename
+    if (currentView.type === "mini-league" && userRoles?.some(r => (r.role === "league_admin" || r.role === "coach") && r.club_id === clubId)) return true;
     return false;
   }, [isAppAdmin, user?.id, currentView, userRoles]);
 
@@ -1506,6 +1512,8 @@ export default function VaultPage() {
       let storagePath: string;
       if (currentView.type === "team" && currentView.teamId && currentView.clubId) {
         storagePath = `clubs/${currentView.clubId}/teams/${currentView.teamId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
+      } else if (currentView.type === "mini-league" && currentView.clubId && currentView.miniLeagueId) {
+        storagePath = `clubs/${currentView.clubId}/mini-leagues/${currentView.miniLeagueId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
       } else if (currentView.type === "club" && currentView.clubId) {
         storagePath = `clubs/${currentView.clubId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
       } else {
@@ -1524,7 +1532,7 @@ export default function VaultPage() {
 
       const insertData: any = {
         file_url: storageUrl,
-        uploader_id: user!.id,
+        uploaded_by: user!.id,
         name: customFileName || fileName || file.name,
         folder_id: getCurrentFolderId(),
         file_size: file.size,
@@ -1535,6 +1543,9 @@ export default function VaultPage() {
       } else if (currentView.type === "team") {
         insertData.club_id = currentView.clubId;
         insertData.team_id = currentView.teamId;
+      } else if (currentView.type === "mini-league") {
+        insertData.club_id = currentView.clubId;
+        insertData.mini_league_id = currentView.miniLeagueId;
       }
 
       const { error: insertError } = await supabase.from("vault_files").insert(insertData);
@@ -1571,6 +1582,9 @@ export default function VaultPage() {
       } else if (currentView.type === "team") {
         insertData.club_id = currentView.clubId;
         insertData.team_id = currentView.teamId;
+      } else if (currentView.type === "mini-league") {
+        insertData.club_id = currentView.clubId;
+        insertData.mini_league_id = currentView.miniLeagueId;
       }
 
       const { error: insertError } = await supabase.from("vault_files").insert(insertData);
