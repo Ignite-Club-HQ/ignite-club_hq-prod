@@ -104,7 +104,7 @@ export default function PushAnalyticsPage() {
       const startDate = startOfDay(subDays(new Date(), parseInt(timeRange)));
       const { data, error } = await supabase
         .from("push_notification_logs")
-        .select("*")
+        .select("id, user_id, notification_type, title, status, platform, error_message, created_at")
         .gte("created_at", startDate.toISOString())
         .order("created_at", { ascending: false })
         .limit(1000);

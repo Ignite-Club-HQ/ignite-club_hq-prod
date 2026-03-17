@@ -103,7 +103,7 @@ export default function NotificationsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notifications")
-        .select("*")
+        .select("id, user_id, type, message, related_id, is_read, created_at")
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(500); // Cap at 500 for performance
