@@ -1574,6 +1574,9 @@ export default function VaultPage() {
       } else if (currentView.type === "team") {
         insertData.club_id = currentView.clubId;
         insertData.team_id = currentView.teamId;
+      } else if (currentView.type === "mini-league") {
+        insertData.club_id = currentView.clubId;
+        insertData.mini_league_id = currentView.miniLeagueId;
       }
 
       const { error: insertError } = await supabase.from("vault_files").insert(insertData);
