@@ -1116,7 +1116,7 @@ export default function MediaPage() {
 
                   {photo.title && (
                     <p className="text-sm">
-                      <span className="font-medium">{photo.profiles?.display_name}</span>{" "}
+                      <span className="font-medium">{displayName}</span>{" "}
                       {photo.title}
                     </p>
                   )}
