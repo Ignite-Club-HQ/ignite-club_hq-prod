@@ -816,6 +816,20 @@ export default function GlobalSubMonitor() {
     const pitchState = loadPitchState();
     if (!pitchState) return;
 
+    // Guard: check if this sub was already skipped (e.g., by auto-skip while dialog was open)
+    const matchingSub = pitchState.autoSubPlan?.find(s =>
+      s.playerOut.id === pendingAutoSub.playerOut.id && 
+      s.time === pendingAutoSub.time && 
+      s.half === pendingAutoSub.half
+    );
+    if (matchingSub?.executed || matchingSub?.skipped) {
+      setSubConfirmDialogOpen(false);
+      setPendingAutoSub(null);
+      setPendingBatchSubs([]);
+      lastCheckedSubRef.current = null;
+      return;
+    }
+
     const { playerOut, playerIn, positionSwap } = pendingAutoSub;
     
     // Find current player positions
