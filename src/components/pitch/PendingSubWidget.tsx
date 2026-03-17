@@ -21,7 +21,7 @@ import { UserRoundCheck, ArrowRightLeft, ChevronRight, X, Clock, ArrowDown, Arro
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { getSpecificPositionLabel } from "./types";
 import { toast } from "@/hooks/use-toast";
-import { recalculateRemainingPlan } from "./pitchStateUtils";
+import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan } from "./pitchStateUtils";
 
 const TIMER_STATE_KEY = "pitch-board-timer-state";
 const PITCH_STATE_KEY = "ignite-pitch-board-state";

@@ -373,3 +373,57 @@ export const recalculateRemainingPlan = (
   
   return plan;
 };
+
+/**
+ * Mini-league-aware recalculation wrapper.
+ * If players have teamSide set, recalculates per-team and merges results.
+ * Otherwise falls through to the standard recalculation.
+ */
+export const recalculateRemainingPlanTeamAware = (
+  currentPlayers: Player[],
+  teamSize: number,
+  halfDurationSeconds: number,
+  currentElapsedSeconds: number,
+  currentHalf: 1 | 2,
+  skippedSub: SubstitutionEvent,
+  rotateGkAtHalftime: boolean = true
+): SubstitutionEvent[] => {
+  const hasTeamSides = currentPlayers.some(p => p.teamSide === "a" || p.teamSide === "b");
+  
+  if (!hasTeamSides) {
+    return recalculateRemainingPlan(
+      currentPlayers, teamSize, halfDurationSeconds, currentElapsedSeconds, currentHalf, skippedSub, rotateGkAtHalftime
+    );
+  }
+  
+  // Split by team and recalculate independently
+  const teamAPlayers = currentPlayers.filter(p => p.teamSide === "a");
+  const teamBPlayers = currentPlayers.filter(p => p.teamSide === "b");
+  
+  // Determine which team the skipped sub belongs to
+  const skippedTeam = skippedSub.playerOut.teamSide;
+  
+  const planA = teamAPlayers.length > 0
+    ? recalculateRemainingPlan(
+        teamAPlayers, teamSize, halfDurationSeconds, currentElapsedSeconds, currentHalf,
+        skippedTeam === "a" ? skippedSub : { ...skippedSub, executed: true }, // Only apply skip context to correct team
+        rotateGkAtHalftime
+      )
+    : [];
+  
+  const planB = teamBPlayers.length > 0
+    ? recalculateRemainingPlan(
+        teamBPlayers, teamSize, halfDurationSeconds, currentElapsedSeconds, currentHalf,
+        skippedTeam === "b" ? skippedSub : { ...skippedSub, executed: true },
+        rotateGkAtHalftime
+      )
+    : [];
+  
+  const merged = [...planA, ...planB];
+  merged.sort((a, b) => {
+    if (a.half !== b.half) return a.half - b.half;
+    return a.time - b.time;
+  });
+  
+  return merged;
+};
