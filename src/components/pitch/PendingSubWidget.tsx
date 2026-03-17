@@ -221,10 +221,11 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
       
       // If multiple time groups are due, auto-skip older ones
       if (allDueSubs.length > 0) {
-        const dueTimes = [...new Set(allDueSubs.map(s => s.time))].sort((a, b) => a - b);
+        const dueTimes = [...new Set(allDueSubs.map(s => `${s.half}-${s.time}`))].sort();
         if (dueTimes.length > 1) {
-          const latestTime = dueTimes[dueTimes.length - 1];
-          const olderSubs = allDueSubs.filter(s => s.time < latestTime);
+          const latestTimeKey = dueTimes[dueTimes.length - 1];
+          const [latestHalf, latestTime] = latestTimeKey.split('-').map(Number);
+          const olderSubs = allDueSubs.filter(s => !(s.half === latestHalf && s.time === latestTime));
           const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
           const updatedPlan = (pitchState.autoSubPlan || []).map(s =>
             olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
