@@ -421,7 +421,7 @@ function getPreferenceColumn(notificationType: string | undefined): string | nul
   if (!notificationType) return null;
   
   const typeMap: Record<string, string> = {
-    // Message types
+    // Message types (matches DB inserts: team_message, club_message, group_message, etc.)
     'team_message': 'messages_enabled',
     'club_message': 'messages_enabled',
     'group_message': 'messages_enabled',
@@ -429,39 +429,59 @@ function getPreferenceColumn(notificationType: string | undefined): string | nul
     'broadcast': 'messages_enabled',
     'message_reply': 'messages_enabled',
     'message_mention': 'messages_enabled',
-    // Event types
+    'message_reaction': 'messages_enabled',
+    // Event types (matches DB inserts: event_invite, event_cancelled, etc.)
     'event_invite': 'events_enabled',
     'event_reminder': 'events_enabled',
+    'event_view_reminder': 'events_enabled',
     'event_cancelled': 'events_enabled',
     'event_updated': 'events_enabled',
     'duty_assigned': 'events_enabled',
     'rsvp_updated': 'events_enabled',
-    // Media types
+    'rsvp_reminder': 'events_enabled',
+    // Media types (matches DB inserts: photo_uploaded, photo_comment, etc.)
     'photo_uploaded': 'media_enabled',
     'photo_comment': 'media_enabled',
     'photo_reaction': 'media_enabled',
-    // Membership types
+    'comment_reaction': 'media_enabled',
+    'comment_reply': 'media_enabled',
+    // Membership types (matches DB inserts: membership, join_request, team_invite, etc.)
+    'membership': 'membership_enabled',
     'team_join': 'membership_enabled',
     'club_join': 'membership_enabled',
     'member_joined': 'membership_enabled',
     'invite_accepted': 'membership_enabled',
     'join_request': 'membership_enabled',
+    'join_request_approved': 'membership_enabled',
+    'join_request_denied': 'membership_enabled',
+    'join_request_processed': 'membership_enabled',
+    'role_assigned': 'membership_enabled',
+    'role_removed': 'membership_enabled',
     'team_invite': 'membership_enabled',
-    // Admin types
+    // Admin types (matches DB inserts: subscription_expiring, system_announcement, etc.)
     'admin_alert': 'admin_enabled',
     'system_update': 'admin_enabled',
+    'system_announcement': 'admin_enabled',
     'subscription_renewed': 'admin_enabled',
+    'subscription_expiring': 'admin_enabled',
     'subscription_expired': 'admin_enabled',
-    // Pitch board types
+    'storage_limit': 'admin_enabled',
+    // Pitch board types (matches DB inserts: pitch_board, pending_sub, half_time, formation_change, etc.)
+    'pitch_board': 'pitch_board_enabled',
     'pitch_board_update': 'pitch_board_enabled',
+    'substitution': 'pitch_board_enabled',
     'substitution_alert': 'pitch_board_enabled',
+    'pending_sub': 'pitch_board_enabled',
     'game_started': 'pitch_board_enabled',
+    'game_finished': 'pitch_board_enabled',
     'game_ended': 'pitch_board_enabled',
     'half_time': 'pitch_board_enabled',
-    // Rewards types
+    'formation_change': 'pitch_board_enabled',
+    // Rewards types (matches DB inserts: points_awarded, reward_redeemed, etc.)
     'reward_redeemed': 'rewards_enabled',
     'points_awarded': 'rewards_enabled',
     'reward_available': 'rewards_enabled',
+    'early_rsvp_points': 'rewards_enabled',
     // POM/Stats types
     'player_of_match': 'pom_enabled',
     'game_stats_ready': 'pom_enabled',

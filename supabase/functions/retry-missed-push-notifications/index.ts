@@ -100,8 +100,10 @@ serve(async (req: Request): Promise<Response> => {
         case 'event_invite':
         case 'event_cancelled':
         case 'event_reminder':
+        case 'event_view_reminder':
         case 'event_updated':
         case 'rsvp_reminder':
+        case 'rsvp_updated':
         case 'duty_assigned':
           return relatedId ? `/events/${relatedId}` : '/events';
         case 'photo_uploaded':
@@ -112,8 +114,17 @@ serve(async (req: Request): Promise<Response> => {
           return '/media';
         case 'points_awarded':
         case 'reward_redeemed':
+        case 'early_rsvp_points':
         case 'player_of_match':
+        case 'game_stats_ready':
           return '/profile?section=points-history';
+        case 'formation_change':
+        case 'pending_sub':
+        case 'half_time':
+        case 'game_finished':
+        case 'pitch_board':
+        case 'substitution':
+          return '/pitch-board';
         default:
           return '/notifications';
       }
