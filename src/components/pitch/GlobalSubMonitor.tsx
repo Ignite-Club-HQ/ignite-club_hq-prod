@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePitchBoardNotifications } from "@/hooks/usePitchBoardNotifications";
 import type { Json } from "@/integrations/supabase/types";
 import { setSyncStatus } from "@/hooks/useSyncStatus";
-import { recalculateRemainingPlan } from "./pitchStateUtils";
+import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan } from "./pitchStateUtils";
 
 interface Player {
   id: string;
