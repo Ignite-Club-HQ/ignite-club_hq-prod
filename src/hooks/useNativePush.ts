@@ -264,32 +264,69 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
     };
   }, [userId, enabled, handleNotificationAction, handleTokenRefresh]);
 
-  // Refresh FCM token on app resume (visibility change) for native platforms
-  // This ensures stale tokens are replaced even if the app was backgrounded for days
+  // Refresh FCM token whenever the native app returns to foreground.
+  // Use both Capacitor App resume events and document visibility as a fallback.
   useEffect(() => {
     if (!userId || !isNative) return;
 
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState !== 'visible') return;
-      
+    let disposed = false;
+    let lastRefreshAt = 0;
+    let resumeListener: { remove: () => Promise<void> } | null = null;
+
+    const refreshPushRegistration = async (source: 'resume' | 'visibilitychange') => {
+      const now = Date.now();
+      if (now - lastRefreshAt < 5000) {
+        console.log(`[useNativePush] Skipping duplicate refresh from ${source}`);
+        return;
+      }
+
+      lastRefreshAt = now;
+
       try {
         const mod = await loadNativePushModule();
-        if (!mod || !mod.isNativePlatform()) return;
-        
-        console.log('[useNativePush] App resumed - refreshing FCM token');
+        if (!mod || !mod.isNativePlatform() || disposed) return;
+
+        console.log(`[useNativePush] App foregrounded via ${source} - refreshing FCM token`);
         const result = await mod.initializeNativePush(userId);
         if (result.success) {
-          console.log('[useNativePush] FCM token refreshed on resume');
+          console.log(`[useNativePush] FCM token refreshed via ${source}`);
         } else {
-          console.warn('[useNativePush] FCM token refresh on resume failed:', result.error);
+          console.warn(`[useNativePush] FCM token refresh via ${source} failed:`, result.error);
         }
       } catch (err) {
-        console.warn('[useNativePush] Error refreshing token on resume:', err);
+        console.warn(`[useNativePush] Error refreshing token via ${source}:`, err);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshPushRegistration('visibilitychange');
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+
+    void loadCapacitorAppModule().then((appMod) => {
+      if (!appMod || disposed) return;
+
+      appMod.App.addListener('resume', () => {
+        void refreshPushRegistration('resume');
+      }).then((listener) => {
+        if (!disposed) {
+          resumeListener = listener;
+        } else {
+          listener.remove().catch(() => {});
+        }
+      }).catch((err) => {
+        console.warn('[useNativePush] Failed to attach resume listener:', err);
+      });
+    });
+
+    return () => {
+      disposed = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      resumeListener?.remove().catch(() => {});
+    };
   }, [userId, isNative]);
 
   // Cleanup on logout
