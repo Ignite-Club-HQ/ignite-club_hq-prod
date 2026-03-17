@@ -701,8 +701,19 @@ export default function GlobalSubMonitor() {
     ) || [];
 
     if (dueSubs.length > 0) {
-      const earliestTime = Math.min(...dueSubs.map(s => s.time));
-      const batchSubs = dueSubs.filter(s => s.time === earliestTime);
+      // Auto-skip older time groups — only present the latest due sub
+      const dueTimes = [...new Set(dueSubs.map(s => s.time))].sort((a, b) => a - b);
+      if (dueTimes.length > 1) {
+        const latestTime = dueTimes[dueTimes.length - 1];
+        const olderSubs = dueSubs.filter(s => s.time < latestTime);
+        const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
+        const updatedPlan = (pitchState.autoSubPlan || []).map(s =>
+          olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
+        );
+        savePitchState({ ...pitchState, autoSubPlan: updatedPlan });
+      }
+      const latestTime = Math.max(...dueSubs.map(s => s.time));
+      const batchSubs = dueSubs.filter(s => s.time === latestTime);
       const [primarySub, ...additionalSubs] = batchSubs;
       setCurrentPlayers(pitchState.players);
       setPendingAutoSub(primarySub);

@@ -489,10 +489,10 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
         
         const currentTotalSeconds = currentHalf === 1 ? currentElapsedSeconds : (minutesPerHalf * 60) + currentElapsedSeconds;
         
-        // Mark current sub as executed (skipped)
+        // Mark current sub as executed + skipped
         let updatedPlan = pitchState.autoSubPlan.map(s => {
           if (s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half) {
-            return { ...s, executed: true };
+            return { ...s, executed: true, skipped: true };
           }
           return s;
         });
