@@ -339,8 +339,8 @@ async function checkGames(supabase: any): Promise<number> {
     // Get team staff (coaches + team_admins) for this specific team
     const staffUserIds = await getTeamStaffUserIds(supabase, teamId, linkedEventId);
 
-    // Only process substitution notifications if auto-sub is active
-    if (hasAutoSub) {
+    // Only process substitution notifications if auto-sub is active AND timer is running
+    if (hasAutoSub && timerState.isRunning) {
       const getAbsoluteSubTime = (sub: SubstitutionEvent) => {
         return sub.half === 1 ? sub.time : halfDurationSecs + sub.time;
       };
